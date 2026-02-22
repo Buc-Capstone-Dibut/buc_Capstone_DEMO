@@ -2,75 +2,91 @@
 
 import { Suspense } from "react";
 import { CTPContentController } from "@/components/features/ctp/common/CTPContentController";
-import { CTPModule } from "@/components/features/ctp/common/types";
-import { STACK_MODULES } from "@/components/features/ctp/contents/categories/linear/concepts/stack/stack-registry";
-import { QUEUE_MODULES } from "@/components/features/ctp/contents/categories/linear/concepts/queue/queue-registry";
-import { DFS_MODULES } from "@/components/features/ctp/contents/categories/algorithms/concepts/dfs/dfs-registry";
 import { ChapterOverview } from "../shared/chapter-overview";
-import { aliasModule, createTemplateModule, createTemplateModules } from "../shared/module-utils";
+import {
+  createCodeTemplateModules,
+  createInteractiveTemplateModules,
+} from "../shared/module-utils";
 
-const STACK_QUEUE_MODULES: Record<string, CTPModule> = {
-  "lifo-basics": aliasModule(STACK_MODULES["lifo-basics"], {
+const STACK_QUEUE_MODULES = createInteractiveTemplateModules([
+  {
+    id: "lifo-basics",
     title: "04-1 스택 개요",
     description: "LIFO 구조의 동작 원리와 대표 사용 사례를 학습합니다.",
-  }),
-  "queue-overview": createTemplateModule({
+    sampleData: [3, 6, 9, 12],
+  },
+  {
     id: "queue-overview",
     title: "04-2 큐 개요",
     description: "FIFO 구조의 핵심 개념과 운영 방식 비교를 다룹니다.",
-  }),
-  "linear-queue": aliasModule(QUEUE_MODULES["linear-queue"], {
+    sampleData: [4, 8, 2, 10],
+  },
+  {
+    id: "linear-queue",
     title: "04-3 배열 기반 큐",
     description: "배열로 큐를 구현하며 Front/Rear 이동 규칙을 익힙니다.",
-  }),
-  "circular-queue": aliasModule(QUEUE_MODULES["circular-queue"], {
+    sampleData: [1, 5, 7, 11],
+  },
+  {
+    id: "circular-queue",
     title: "04-4 링 버퍼 큐",
     description: "원형 인덱싱으로 배열 공간을 재활용하는 큐를 학습합니다.",
-  }),
-};
+    sampleData: [2, 4, 6, 8],
+  },
+]);
 
-const RECURSION_MODULES: Record<string, CTPModule> = {
-  "recursion-basics": createTemplateModule({
+const RECURSION_MODULES = createInteractiveTemplateModules([
+  {
     id: "recursion-basics",
     title: "05-1 재귀 기본",
     description: "기저 조건과 재귀 호출 구조를 문제 중심으로 정리합니다.",
-  }),
-  "recursion-analysis": createTemplateModule({
+    sampleData: [5, 1, 4, 2],
+  },
+  {
     id: "recursion-analysis",
     title: "05-2 재귀 분석",
     description: "호출 트리와 시간복잡도 관점에서 재귀를 분석합니다.",
-  }),
-  "tower-of-hanoi": createTemplateModule({
+    sampleData: [7, 3, 9, 1],
+  },
+  {
     id: "tower-of-hanoi",
     title: "05-3 하노이의 탑",
     description: "대표 재귀 문제를 통해 분할/정복 사고를 훈련합니다.",
-  }),
-  "iterative-recursion": createTemplateModule({
+    sampleData: [3, 2, 1],
+  },
+  {
     id: "iterative-recursion",
     title: "05-4 비재귀적 표현",
     description: "스택을 이용해 재귀를 반복문으로 변환하는 방법을 학습합니다.",
-  }),
-  "queen-backtracking": aliasModule(DFS_MODULES["dfs-backtracking"], {
+    sampleData: [6, 2, 5, 1],
+  },
+  {
+    id: "queen-backtracking",
     title: "05-5 백트래킹 (퀸 배치)",
     description: "분기/되돌리기 전략으로 탐색 공간을 줄이는 기법을 실습합니다.",
-  }),
-};
+    sampleData: [1, 3, 5, 7],
+  },
+]);
 
-const STACK_RECURSION_INTEGRATION_MODULES = createTemplateModules([
+// Requirement: keep this chapter as code simulator
+const STACK_RECURSION_INTEGRATION_MODULES = createCodeTemplateModules([
   {
     id: "stack-recursion-integrated-1",
     title: "통합 문제 1: 스택으로 재귀 대체",
     description: "재귀 로직을 명시적 스택으로 전환하는 문제를 풉니다.",
+    sampleData: [10, 6, 2, 9, 1],
   },
   {
     id: "stack-recursion-integrated-2",
     title: "통합 문제 2: 큐/스택 선택 문제",
     description: "문제 조건에 맞는 자료구조를 선택하는 의사결정을 훈련합니다.",
+    sampleData: [4, 12, 8, 3, 7],
   },
   {
     id: "stack-recursion-integrated-3",
     title: "통합 문제 3: 분기 탐색 실전",
     description: "백트래킹 탐색에서 가지치기 전략을 실전에 적용합니다.",
+    sampleData: [5, 9, 1, 6, 2],
   },
 ]);
 
@@ -84,11 +100,11 @@ export function StackQueueContent() {
           <ChapterOverview
             moduleLabel="Module 02. Stack & Recursion"
             chapterTitle="04 스택과 큐"
-            chapterDescription="선형 자료구조 중 push/pop, enqueue/dequeue의 동작 차이를 명확히 익힙니다."
+            chapterDescription="선형 자료구조 연산을 직접 조작하며 LIFO/FIFO 차이를 체득합니다."
             guideItems={[
-              "같은 문제를 스택/큐로 각각 풀어보며 차이를 확인하세요.",
-              "배열 기반 큐의 공간 낭비 문제를 직접 관찰하세요.",
-              "원형 큐에서 인덱스 wrap-around 규칙을 정리하세요.",
+              "모든 레슨은 참여형 인터랙티브입니다.",
+              "버튼 조작으로 상태 변화를 관찰하고 로그를 읽어보세요.",
+              "같은 데이터에서 스택/큐 동작 차이를 비교하세요.",
             ]}
             items={[
               { id: "lifo-basics", title: "04-1 스택 개요", description: "LIFO 동작과 핵심 연산을 이해합니다." },
@@ -113,11 +129,11 @@ export function RecursionContent() {
           <ChapterOverview
             moduleLabel="Module 02. Stack & Recursion"
             chapterTitle="05 재귀 알고리즘"
-            chapterDescription="재귀 정의, 분석, 변환, 백트래킹까지 하나의 흐름으로 학습합니다."
+            chapterDescription="재귀 사고를 참여형 실습으로 익히고, 상태 변화를 단계적으로 확인합니다."
             guideItems={[
-              "기저 조건과 점화식을 먼저 말로 설명하세요.",
-              "호출 스택 깊이와 시간복잡도를 함께 기록하세요.",
-              "비재귀 전환 시 스택 상태를 표로 정리해보세요.",
+              "Peek/Push/Pop으로 호출 스택 개념을 대응해 보세요.",
+              "연산 순서를 바꿔 재귀 흐름 차이를 관찰하세요.",
+              "로그를 기반으로 기저 조건의 중요성을 정리하세요.",
             ]}
             items={[
               { id: "recursion-basics", title: "05-1 재귀 기본", description: "재귀 함수의 기본 구조를 학습합니다." },
@@ -143,11 +159,11 @@ export function StackRecursionIntegrationContent() {
           <ChapterOverview
             moduleLabel="Module 02. Stack & Recursion"
             chapterTitle="스택·큐/재귀 알고리즘 개념 심화 및 적용"
-            chapterDescription="자료구조 선택과 탐색 전략 결정을 통합 문제로 점검합니다."
+            chapterDescription="이 챕터는 코드 시뮬레이터 전용으로 구성되며 통합 문제를 코드로 검증합니다."
             guideItems={[
-              "문제별로 스택/큐/재귀 중 선택 이유를 적으세요.",
-              "동일 문제를 다른 전략으로 풀어 성능을 비교하세요.",
-              "분기 탐색 문제는 pruning 기준을 명시하세요.",
+              "입력 데이터를 변경하고 Run으로 결과를 비교하세요.",
+              "자료구조 선택 이유를 코드 주석으로 남기세요.",
+              "단계별 결과를 보고 병목 구간을 찾으세요.",
             ]}
             items={[
               { id: "stack-recursion-integrated-1", title: "통합 문제 1: 스택으로 재귀 대체", description: "재귀를 반복문으로 치환하는 역량을 검증합니다." },
