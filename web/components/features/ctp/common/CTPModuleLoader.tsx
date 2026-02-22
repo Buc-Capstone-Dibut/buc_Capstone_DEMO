@@ -47,7 +47,7 @@ export function CTPModuleLoader({ module, category, activeKey }: CTPModuleLoader
     return () => {
       reset();
     };
-  }, [activeKey, mergedConfig, reset, setCode, runSimulation]);
+  }, [activeKey, mergedConfig, reset, setCode]);
 
   const currentPayload = steps[currentStepIndex]?.data || [];
   const currentEvents = useMemo(() => {
