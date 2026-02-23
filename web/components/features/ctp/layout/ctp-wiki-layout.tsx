@@ -16,6 +16,14 @@ export function CTPWikiLayout({ children }: CTPWikiLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const segments = pathname.split("/");
+  const conceptId = segments[4];
+  const isProblemBankConcept = [
+    "foundation-integration",
+    "stack-recursion-integration",
+    "sorting-string-integration",
+    "list-tree-integration",
+  ].includes(conceptId);
 
   // Scroll to top on route change (simulates page refresh behavior)
   // This now covers both Path changes (/a -> /b) and Query changes (/a?view=1 -> /a?view=2)
@@ -42,7 +50,7 @@ export function CTPWikiLayout({ children }: CTPWikiLayoutProps) {
       </div>
 
       {/* 4. On This Page (TOC) */}
-      <CTPRightSidebar />
+      {!isProblemBankConcept && <CTPRightSidebar />}
     </div>
   );
 }
