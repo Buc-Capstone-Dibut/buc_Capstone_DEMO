@@ -14,6 +14,7 @@
   - `foundation/SIMULATION_PIPELINE.md`
 - `operations/`
   - `operations/MAINTENANCE_PLAYBOOK.md`
+  - `operations/CONSISTENCY_GUIDELINES.md`
   - `operations/HANDOFF_TEMPLATE.md`
 - `upgrades/`
   - `upgrades/TREE_SESSION_UPGRADE.md`
@@ -31,9 +32,11 @@
    전체 세션(서브컨셉) 모드/엔진/어댑터 인벤토리 확인
 4. `operations/MAINTENANCE_PLAYBOOK.md`  
    실제 수정 절차/체크리스트 따라 작업
-5. `upgrades/TREE_SESSION_UPGRADE.md`  
+5. `operations/CONSISTENCY_GUIDELINES.md`  
+   UI/콘텐츠/인터랙션 통일 기준 확인 후 작업 시작
+6. `upgrades/TREE_SESSION_UPGRADE.md`  
    트리 세션 고도화 진행 로그/의사결정/후속 작업
-6. `operations/HANDOFF_TEMPLATE.md`  
+7. `operations/HANDOFF_TEMPLATE.md`  
    작업 종료 후 다음 AI에게 전달할 요약 포맷
 
 ## 아주 빠른 진입점

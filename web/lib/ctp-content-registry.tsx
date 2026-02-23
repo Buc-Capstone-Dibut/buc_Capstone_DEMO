@@ -4,23 +4,23 @@ import {
   FoundationBasicDsArrayContent,
   FoundationSearchAlgorithmsContent,
   FoundationIntegrationContent,
-} from "@/components/features/ctp/contents/refactored/new-outline/modules/module-01-foundation";
+} from "@/components/features/ctp/contents/categories/modules/module-01-foundation";
 import {
   StackQueueContent,
   RecursionContent,
   StackRecursionIntegrationContent,
-} from "@/components/features/ctp/contents/refactored/new-outline/modules/module-02-stack-recursion";
+} from "@/components/features/ctp/contents/categories/modules/module-02-stack-recursion";
 import {
   SortingContentRefactored,
   StringSearchContent,
   SortingStringIntegrationContent,
-} from "@/components/features/ctp/contents/refactored/new-outline/modules/module-03-sorting-string";
+} from "@/components/features/ctp/contents/categories/modules/module-03-sorting-string";
 import {
   ListContentRefactored,
   TreeContentRefactored,
   ListTreeIntegrationContent,
   FinalChallengeContent,
-} from "@/components/features/ctp/contents/refactored/new-outline/modules/module-04-list-tree-final";
+} from "@/components/features/ctp/contents/categories/modules/module-04-list-tree-final";
 
 type ContentComponent = () => ReactNode;
 

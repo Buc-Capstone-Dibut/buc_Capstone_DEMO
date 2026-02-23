@@ -119,21 +119,15 @@ CTPPlayground.handleRun
 - `code-editor.tsx`의 `setHiddenAreas` runtime guard 확인
 - `activeLine`이 `VisualStep.activeLine`으로 정상 세팅되는지 확인
 
-## 9) Tree 세션 메모
+## 9) New Curriculum 메모
 
-- `tree-basics`:
-  - interactive 모듈이며 `peek` 버튼이 학습 단계(차수/거리 -> 레벨/너비 -> 크기 -> 서브트리 -> 경로)를 순환한다.
-  - 노드 수는 10개 예제로 확장되어 tree degree/width/subtree를 한 장면에서 관찰할 수 있다.
-  - 노드 클릭 시 차수/레벨 정보가 우측 카드에 표시된다.
-  - 로직 파일: `web/components/features/ctp/contents/categories/non-linear/concepts/tree/sub-concepts/tree-basics/logic.ts`
-- `tree-properties`:
-  - interactive 모듈이며 `peek` 버튼으로 학습 단계(구조 -> 거리 -> 크기)를 순환한다.
-  - 노드를 직접 클릭하면 차수/레벨 정보가 우측 카드에 표시된다.
-  - 코드 입력 없이 상태 강조(`active/comparing/visited/found/success`)로 지표를 시각적으로 고정한다.
-  - 로직 파일: `web/components/features/ctp/contents/categories/non-linear/concepts/tree/sub-concepts/tree-properties/logic.ts`
-- `binary-traversal`:
-  - `MODE` 값(`preorder`, `inorder`, `postorder`)을 바꿔 동일 템플릿에서 순회 차이를 비교하도록 설계됨.
-  - config 파일: `web/components/features/ctp/contents/categories/non-linear/concepts/tree/sub-concepts/binary-traversal/config.ts`
-- `bst`:
-  - `ACTION` 값(`search`, `insert`)으로 시나리오를 전환하며 path/compare/result를 함께 관찰하도록 설계됨.
-  - config 파일: `web/components/features/ctp/contents/categories/non-linear/concepts/tree/sub-concepts/bst/config.ts`
+- 현재 CTP 주 콘텐츠 구조는 아래 경로를 기준으로 운영한다.
+  - 모듈 구현: `web/components/features/ctp/contents/categories/modules/*.tsx`
+  - 공용 유틸: `web/components/features/ctp/contents/categories/modules/shared/module-utils.tsx`
+  - 챕터 오버뷰: `web/components/features/ctp/contents/categories/modules/shared/chapter-overview.tsx`
+- 챕터별 전달 모드 정책:
+  - 통합(심화/적용) 챕터 4개는 code simulator
+  - 그 외 챕터는 interactive
+- 라우팅 연결 기준:
+  - `web/lib/ctp-curriculum.ts`의 `moduleId/chapterId/subConceptId`
+  - `web/lib/ctp-content-registry.tsx`의 `moduleId/chapterId` 키
