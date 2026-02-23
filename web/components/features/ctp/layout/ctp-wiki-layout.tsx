@@ -4,13 +4,13 @@ import { CTPRightSidebar } from "./ctp-right-sidebar";
 import { CTPSidebar } from "./ctp-sidebar";
 import { CTPSubSidebar } from "./ctp-sub-sidebar";
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { PanelLeftOpen } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 interface CTPWikiLayoutProps {
   children: React.ReactNode;
 }
+
+const MAIN_SIDEBAR_STORAGE_KEY = "ctp-main-sidebar-open";
 
 export function CTPWikiLayout({ children }: CTPWikiLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -30,6 +30,18 @@ export function CTPWikiLayout({ children }: CTPWikiLayoutProps) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.sessionStorage.getItem(MAIN_SIDEBAR_STORAGE_KEY);
+    if (saved === null) return;
+    setIsSidebarOpen(saved === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(MAIN_SIDEBAR_STORAGE_KEY, String(isSidebarOpen));
+  }, [isSidebarOpen]);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
