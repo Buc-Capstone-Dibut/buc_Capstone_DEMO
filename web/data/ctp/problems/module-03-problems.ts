@@ -3,7 +3,7 @@ import { defineProblems } from "./problem-factory";
 export const module03Problems = defineProblems("sorting-string-integration", [
   {
     id: "p03-001",
-    title: "Bubble Sort",
+    title: "버블 정렬",
     difficulty: "bronze",
     type: "coding",
     description: "정수 배열을 오름차순으로 정렬해 출력하세요.",
@@ -20,7 +20,7 @@ export const module03Problems = defineProblems("sorting-string-integration", [
   },
   {
     id: "p03-002",
-    title: "Fix Swap Logic in Selection Sort",
+    title: "선택 정렬 교환 로직 수정",
     difficulty: "bronze",
     type: "debugging",
     description: "선택 정렬 코드의 swap 로직이 잘못되었습니다. 오름차순 정렬되도록 수정하세요.",
@@ -50,7 +50,7 @@ print(*arr)
   },
   {
     id: "p03-003",
-    title: "Palindrome Check",
+    title: "팰린드롬 판별",
     difficulty: "bronze",
     type: "coding",
     description: "문자열이 팰린드롬이면 YES, 아니면 NO를 출력하세요.",
@@ -67,7 +67,7 @@ print(*arr)
   },
   {
     id: "p03-004",
-    title: "Insertion Sort",
+    title: "삽입 정렬",
     difficulty: "silver",
     type: "coding",
     description: "삽입 정렬로 배열을 오름차순 정렬하세요.",
@@ -84,7 +84,7 @@ print(*arr)
   },
   {
     id: "p03-005",
-    title: "Fix Partition Boundary in Quick Sort",
+    title: "퀵정렬 파티션 경계 수정",
     difficulty: "silver",
     type: "debugging",
     description: "퀵정렬 partition 경계 조건이 잘못되었습니다. 모든 원소가 정렬되도록 수정하세요.",
@@ -122,7 +122,7 @@ print(*arr)
   },
   {
     id: "p03-006",
-    title: "Character Frequency Count",
+    title: "문자 빈도수 세기",
     difficulty: "silver",
     type: "coding",
     description: "소문자 문자열 S가 주어질 때 a~z 빈도수를 공백으로 출력하세요.",
@@ -139,7 +139,7 @@ print(*arr)
   },
   {
     id: "p03-007",
-    title: "Anagram Detection",
+    title: "애너그램 판별",
     difficulty: "silver",
     type: "coding",
     description: "두 문자열이 애너그램이면 YES, 아니면 NO를 출력하세요.",
@@ -156,7 +156,7 @@ print(*arr)
   },
   {
     id: "p03-008",
-    title: "Fix Sliding Window Index Error",
+    title: "슬라이딩 윈도우 인덱스 오류 수정",
     difficulty: "silver",
     type: "debugging",
     description: "길이 K 구간의 최대 합을 구하는 코드에서 인덱스 오류를 수정하세요.",
@@ -183,7 +183,7 @@ print(best)
   },
   {
     id: "p03-009",
-    title: "Merge Sort",
+    title: "병합 정렬",
     difficulty: "gold",
     type: "coding",
     description: "병합 정렬로 배열을 오름차순 정렬하세요.",
@@ -200,7 +200,7 @@ print(best)
   },
   {
     id: "p03-010",
-    title: "Subarray Sum equals K (Two-pointer)",
+    title: "부분배열 합 K (투 포인터)",
     difficulty: "gold",
     type: "coding",
     description: "양의 정수 배열에서 합이 K가 되는 연속 부분배열의 개수를 출력하세요.",
@@ -217,7 +217,7 @@ print(best)
   },
   {
     id: "p03-011",
-    title: "Fix Merge Step in Merge Sort",
+    title: "병합 정렬 병합 단계 수정",
     difficulty: "gold",
     type: "debugging",
     description: "병합 단계에서 남은 원소 처리 버그를 수정해 정렬 결과를 올바르게 만드세요.",
@@ -261,7 +261,7 @@ print(*msort(arr))
   },
   {
     id: "p03-012",
-    title: "KMP Pattern Matching — Failure Function",
+    title: "KMP 패턴 매칭 (실패 함수)",
     difficulty: "gold",
     type: "coding",
     description: "문자열 T에서 패턴 P가 처음 등장하는 0-based 인덱스를 출력하세요. 없으면 -1을 출력하세요.",

@@ -3,7 +3,7 @@ import { defineProblems } from "./problem-factory";
 export const module01Problems = defineProblems("foundation-integration", [
   {
     id: "p01-001",
-    title: "Find Max and Min in Array",
+    title: "배열 최댓값과 최솟값 찾기",
     difficulty: "bronze",
     type: "coding",
     description:
@@ -26,7 +26,7 @@ export const module01Problems = defineProblems("foundation-integration", [
   },
   {
     id: "p01-002",
-    title: "Fix Off-by-One Error",
+    title: "오프바이원 오류 수정",
     difficulty: "bronze",
     type: "debugging",
     description:
@@ -56,7 +56,7 @@ print(total)
   },
   {
     id: "p01-003",
-    title: "Reverse an Array",
+    title: "배열 뒤집기",
     difficulty: "bronze",
     type: "coding",
     description: "배열을 역순으로 출력하세요.",
@@ -78,7 +78,7 @@ print(total)
   },
   {
     id: "p01-004",
-    title: "Linear Search — Return Index",
+    title: "선형 탐색 인덱스 반환",
     difficulty: "silver",
     type: "coding",
     description: "배열에서 target의 첫 인덱스를 출력하고 없으면 -1을 출력하세요.",
@@ -100,7 +100,7 @@ print(total)
   },
   {
     id: "p01-005",
-    title: "Fix Infinite Loop in Search",
+    title: "탐색 무한 루프 수정",
     difficulty: "silver",
     type: "debugging",
     description:
@@ -134,7 +134,7 @@ else:
   },
   {
     id: "p01-006",
-    title: "Binary Search on Sorted Array",
+    title: "정렬 배열 이진 탐색",
     difficulty: "silver",
     type: "coding",
     description: "오름차순 정렬 배열에서 target 인덱스를 이진 탐색으로 출력하세요.",
@@ -156,7 +156,7 @@ else:
   },
   {
     id: "p01-007",
-    title: "Fix Binary Search Boundary",
+    title: "이진 탐색 경계 수정",
     difficulty: "silver",
     type: "debugging",
     description:
@@ -195,7 +195,7 @@ print(answer)
   },
   {
     id: "p01-008",
-    title: "Row and Column Sums of 2D Array",
+    title: "2차원 배열 행/열 합",
     difficulty: "silver",
     type: "coding",
     description:
@@ -218,7 +218,7 @@ print(answer)
   },
   {
     id: "p01-009",
-    title: "Two Sum using Hash Map",
+    title: "해시맵 두 수의 합",
     difficulty: "gold",
     type: "coding",
     description:
@@ -241,7 +241,7 @@ print(answer)
   },
   {
     id: "p01-010",
-    title: "Fix Hash Collision Handler",
+    title: "해시 충돌 처리 수정",
     difficulty: "gold",
     type: "debugging",
     description:
@@ -274,7 +274,7 @@ print(max(freq.values()))
   },
   {
     id: "p01-011",
-    title: "Sieve of Eratosthenes",
+    title: "에라토스테네스의 체",
     difficulty: "gold",
     type: "coding",
     description: "N 이하 소수의 개수를 출력하세요.",
@@ -296,7 +296,7 @@ print(max(freq.values()))
   },
   {
     id: "p01-012",
-    title: "Maximum Subarray Sum",
+    title: "최대 부분배열 합",
     difficulty: "gold",
     type: "coding",
     description: "연속 부분 배열의 최대 합을 출력하세요.",

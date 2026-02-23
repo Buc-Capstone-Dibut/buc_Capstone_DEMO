@@ -3,7 +3,7 @@ import { defineProblems } from "./problem-factory";
 export const module04Problems = defineProblems("list-tree-integration", [
   {
     id: "p04-001",
-    title: "Linked List — Append and Print",
+    title: "연결 리스트 끝에 추가 후 출력",
     difficulty: "bronze",
     type: "coding",
     description: "정수 N개를 연결 리스트에 순서대로 append한 뒤 같은 순서로 출력하세요.",
@@ -20,7 +20,7 @@ export const module04Problems = defineProblems("list-tree-integration", [
   },
   {
     id: "p04-002",
-    title: "Fix None Reference in Traversal",
+    title: "순회 널 참조 오류 수정",
     difficulty: "bronze",
     type: "debugging",
     description: "연결 리스트 합계를 구하는 코드가 마지막 노드를 놓치거나 None 참조 오류를 냅니다. 수정하세요.",
@@ -62,7 +62,7 @@ print(s)
   },
   {
     id: "p04-003",
-    title: "Reverse a Linked List",
+    title: "연결 리스트 뒤집기",
     difficulty: "bronze",
     type: "coding",
     description: "연결 리스트를 뒤집어 출력하세요.",
@@ -79,7 +79,7 @@ print(s)
   },
   {
     id: "p04-004",
-    title: "BST Insert",
+    title: "BST 삽입",
     difficulty: "silver",
     type: "coding",
     description: "정수를 BST에 순서대로 삽입한 뒤 중위 순회 결과를 출력하세요.",
@@ -96,7 +96,7 @@ print(s)
   },
   {
     id: "p04-005",
-    title: "Fix Search Direction in BST",
+    title: "BST 탐색 방향 수정",
     difficulty: "silver",
     type: "debugging",
     description: "BST 탐색 코드의 좌/우 이동 조건이 뒤집혀 있습니다. target 존재 여부를 올바르게 출력하세요.",
@@ -147,7 +147,7 @@ print("FOUND" if search(root, target) else "NOT FOUND")
   },
   {
     id: "p04-006",
-    title: "Binary Tree Traversals (Pre/In/Post)",
+    title: "이진 트리 순회 (전위/중위/후위)",
     difficulty: "silver",
     type: "coding",
     description: "완전 이진트리를 배열로 입력받아 전위/중위/후위 순회 결과를 출력하세요.",
@@ -164,7 +164,7 @@ print("FOUND" if search(root, target) else "NOT FOUND")
   },
   {
     id: "p04-007",
-    title: "Maximum Depth of Binary Tree",
+    title: "이진 트리 최대 깊이",
     difficulty: "silver",
     type: "coding",
     description: "레벨 순서 배열(결측은 -1)로 주어진 이진트리의 최대 깊이를 출력하세요.",
@@ -181,7 +181,7 @@ print("FOUND" if search(root, target) else "NOT FOUND")
   },
   {
     id: "p04-008",
-    title: "Fix Stack-based Inorder Traversal",
+    title: "스택 기반 중위 순회 수정",
     difficulty: "silver",
     type: "debugging",
     description: "반복 기반 중위 순회 코드의 while 조건이 잘못되었습니다. BST 중위 순회를 올바르게 출력하세요.",
@@ -232,7 +232,7 @@ print(*out)
   },
   {
     id: "p04-009",
-    title: "Linked List Cycle Detection (Floyd)",
+    title: "연결 리스트 사이클 탐지 (Floyd)",
     difficulty: "gold",
     type: "coding",
     description:
@@ -250,7 +250,7 @@ print(*out)
   },
   {
     id: "p04-010",
-    title: "K-th Smallest Element in BST",
+    title: "BST K번째 작은 원소",
     difficulty: "gold",
     type: "coding",
     description: "BST에 정수를 삽입한 뒤 K번째로 작은 값을 출력하세요. 범위를 벗어나면 -1을 출력하세요.",
@@ -267,7 +267,7 @@ print(*out)
   },
   {
     id: "p04-011",
-    title: "Fix BFS Level-order Output",
+    title: "BFS 레벨 순회 출력 수정",
     difficulty: "gold",
     type: "debugging",
     description: "완전 이진트리의 레벨 순회 코드를 수정해 레벨별로 출력하세요.",
@@ -306,7 +306,7 @@ else:
   },
   {
     id: "p04-012",
-    title: "Lowest Common Ancestor (LCA)",
+    title: "최소 공통 조상 (LCA)",
     difficulty: "gold",
     type: "coding",
     description: "BST에 정수를 삽입한 뒤 두 값 A, B의 최소 공통 조상 값을 출력하세요.",

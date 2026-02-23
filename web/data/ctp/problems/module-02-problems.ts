@@ -3,7 +3,7 @@ import { defineProblems } from "./problem-factory";
 export const module02Problems = defineProblems("stack-recursion-integration", [
   {
     id: "p02-001",
-    title: "Implement Stack (push / pop / peek)",
+    title: "스택 구현 (push / pop / peek)",
     difficulty: "bronze",
     type: "coding",
     description:
@@ -35,7 +35,7 @@ export const module02Problems = defineProblems("stack-recursion-integration", [
   },
   {
     id: "p02-002",
-    title: "Fix Empty Stack Pop",
+    title: "빈 스택 pop 오류 수정",
     difficulty: "bronze",
     type: "debugging",
     description: "스택에서 pop을 수행할 때 빈 스택 예외가 발생합니다. 빈 경우 -1을 출력하도록 수정하세요.",
@@ -66,7 +66,7 @@ for _ in range(q):
   },
   {
     id: "p02-003",
-    title: "Balanced Parentheses Check",
+    title: "올바른 괄호 판별",
     difficulty: "bronze",
     type: "coding",
     description: "괄호 문자열이 올바른지 판별하세요. `(`, `)`, `{`, `}`, `[`, `]`만 주어집니다.",
@@ -88,7 +88,7 @@ for _ in range(q):
   },
   {
     id: "p02-004",
-    title: "BFS Skeleton using Queue",
+    title: "큐 기반 BFS 골격",
     difficulty: "silver",
     type: "coding",
     description: "무방향 그래프에서 시작 정점 S부터 BFS 방문 순서를 출력하세요. 인접 정점은 번호 오름차순으로 방문합니다.",
@@ -110,7 +110,7 @@ for _ in range(q):
   },
   {
     id: "p02-005",
-    title: "Fix Missing Base Case in Recursion",
+    title: "재귀 기저 조건 누락 수정",
     difficulty: "silver",
     type: "debugging",
     description: "팩토리얼 재귀 코드에 기저 조건이 부족합니다. `n!`을 올바르게 출력하도록 수정하세요.",
@@ -140,7 +140,7 @@ print(fact(n))
   },
   {
     id: "p02-006",
-    title: "Factorial: Recursion → Iteration",
+    title: "팩토리얼: 재귀 → 반복",
     difficulty: "silver",
     type: "coding",
     description: "재귀를 사용하지 않고 반복문으로 N!을 계산하세요.",
@@ -162,7 +162,7 @@ print(fact(n))
   },
   {
     id: "p02-007",
-    title: "Fibonacci with Memoization",
+    title: "메모이제이션 피보나치",
     difficulty: "silver",
     type: "coding",
     description: "N번째 피보나치 수를 메모이제이션을 활용해 계산하세요. F(0)=0, F(1)=1",
@@ -184,7 +184,7 @@ print(fact(n))
   },
   {
     id: "p02-008",
-    title: "Fix Infinite Recursion",
+    title: "무한 재귀 수정",
     difficulty: "silver",
     type: "debugging",
     description: "최대공약수(GCD) 재귀 코드가 종료되지 않습니다. 종료 조건/재귀 호출을 수정하세요.",
@@ -214,7 +214,7 @@ print(gcd(a, b))
   },
   {
     id: "p02-009",
-    title: "DFS using Explicit Stack",
+    title: "명시적 스택 DFS",
     difficulty: "gold",
     type: "coding",
     description: "무방향 그래프에서 시작 정점 S부터 DFS 방문 순서를 출력하세요. 인접 정점은 오름차순으로 처리합니다.",
@@ -236,7 +236,7 @@ print(gcd(a, b))
   },
   {
     id: "p02-010",
-    title: "N-Queens Backtracking",
+    title: "N-Queens 백트래킹",
     difficulty: "gold",
     type: "coding",
     description: "N-Queens 문제의 해 개수를 출력하세요.",
@@ -258,7 +258,7 @@ print(gcd(a, b))
   },
   {
     id: "p02-011",
-    title: "Fix Backtracking Pruning Condition",
+    title: "백트래킹 가지치기 조건 수정",
     difficulty: "gold",
     type: "debugging",
     description: "부분집합 합 문제 코드의 가지치기 조건이 잘못되었습니다. 목표 합과 같은 경우를 올바르게 세도록 수정하세요.",
@@ -299,7 +299,7 @@ print(count)
   },
   {
     id: "p02-012",
-    title: "Evaluate Postfix Expression",
+    title: "후위 표기식 계산",
     difficulty: "gold",
     type: "coding",
     description: "후위 표기식을 계산하세요. 토큰은 공백으로 구분됩니다.",
