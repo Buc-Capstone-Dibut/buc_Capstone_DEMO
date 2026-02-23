@@ -60,7 +60,7 @@ export function CTPIntro({ category, title, description, tags = [], story }: CTP
                 <HelpCircle className="w-5 h-5" />
                 왜 필요할까? (Problem)
               </h3>
-              <div className="text-lg text-muted-foreground leading-relaxed prose dark:prose-invert max-w-none prose-p:my-2">
+              <div className="text-lg text-muted-foreground leading-[1.7] prose dark:prose-invert max-w-none prose-p:my-2 prose-strong:text-red-700 dark:prose-strong:text-red-300">
                 <ReactMarkdown>{story.problem}</ReactMarkdown>
               </div>
             </div>
@@ -79,7 +79,7 @@ export function CTPIntro({ category, title, description, tags = [], story }: CTP
                 <BookOpen className="w-5 h-5" />
                 핵심 정의 (Definition)
               </h3>
-              <div className="text-xl font-medium leading-[1.6] tracking-[-0.01em] font-serif text-foreground/90 prose dark:prose-invert max-w-none prose-p:my-1.5 prose-li:my-1 prose-ul:my-2 prose-ol:my-2">
+              <div className="text-[1.15rem] font-medium leading-[1.7] tracking-[-0.01em] text-foreground/90 prose dark:prose-invert max-w-none prose-p:my-2 prose-li:my-1 prose-ul:my-3 prose-ol:my-3 prose-strong:text-primary">
                 <ReactMarkdown>{story.definition}</ReactMarkdown>
               </div>
             </div>
@@ -100,7 +100,7 @@ export function CTPIntro({ category, title, description, tags = [], story }: CTP
               <h3 className="ml-6 text-lg font-bold tracking-[-0.02em] text-amber-700 dark:text-amber-400 mb-2">
                 쉽게 이해하기 (Analogy)
               </h3>
-              <div className="text-lg text-muted-foreground leading-relaxed prose dark:prose-invert max-w-none">
+              <div className="text-lg text-muted-foreground leading-[1.7] prose dark:prose-invert max-w-none prose-p:my-2 prose-strong:text-amber-800 dark:prose-strong:text-amber-300">
                 <ReactMarkdown>{story.analogy}</ReactMarkdown>
               </div>
             </div>

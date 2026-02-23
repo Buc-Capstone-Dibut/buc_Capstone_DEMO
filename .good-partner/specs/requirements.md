@@ -1,7 +1,0 @@
-# Requirements
-
-## Functional
-- 
-
-## Non-functional
-- 

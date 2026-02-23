@@ -738,12 +738,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `도시의 바둑판 지도에서 좌표로 위치를 찾는 것과 같습니다.\n행과 열을 바꾸면 전혀 다른 위치가 되므로 **좌표계 실수**를 조심해야 합니다.`,
       playgroundDescription: `경계 조건을 하나씩 확인하며 방문 배열이 어떻게 변하는지 확인하세요.\n특히 **diagonal 이동 여부**에 따라 결과가 달라지는 점을 관찰합니다.`,
     },
-    features: [
-      { title: "좌표계 이해", description: "(row, col)과 (x, y) 혼동이 가장 흔한 버그입니다." },
-      { title: "방향 벡터", description: "dr/dc 배열로 이동을 단순화합니다." },
-      { title: "BFS/DFS 기반", description: "격자 문제의 대부분은 BFS/DFS로 해결됩니다." },
-      { title: "메모리 사용", description: "2D 배열은 크기 R*C에 비례합니다." },
-    ],
     guide: arrayGuide,
   },
   string: {

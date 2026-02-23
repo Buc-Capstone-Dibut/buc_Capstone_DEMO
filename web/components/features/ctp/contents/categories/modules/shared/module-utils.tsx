@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { CTPModule, GuideSection, VisualItem } from "@/components/features/ctp/common/types";
+import { CTPModule, GuideSection, VisualItem, FeatureItem } from "@/components/features/ctp/common/types";
 import { useCTPStore, VisualStep } from "@/components/features/ctp/store/use-ctp-store";
 import { ArrayGraphVisualizer } from "@/components/features/ctp/playground/visualizers/array/graph/array-graph-visualizer";
+import { SVGFlowWrapper } from "@/components/features/ctp/playground/visualizers/svg-animations/shared/svg-flow-wrapper";
 
 export type TemplateModuleDescriptor = {
   id: string;
@@ -12,6 +13,15 @@ export type TemplateModuleDescriptor = {
   starterCode?: string;
   emptyMessage?: string;
   sampleData?: number[];
+  Visualizer?: React.ComponentType<any>;
+  useSim?: () => any;
+  features?: FeatureItem[];
+  story?: {
+    problem: string;
+    definition: string;
+    analogy: string;
+    playgroundLimit?: string;
+  };
 };
 
 const DEFAULT_DATA = [8, 3, 12, 5, 1];
@@ -220,14 +230,17 @@ export function createCodeTemplateModule(item: TemplateModuleDescriptor): CTPMod
 
   return {
     config: {
+      id: item.id,
       title: item.title,
       description: item.description,
+      story: item.story,
       tags: ["Code Simulator", "Applied"],
       guide: makeCodeGuide(item.title),
-      features: [
+      features: item.features ?? [
         {
           title: "단계별 실행",
           description: "코드 실행 결과를 단계별 시각화로 확인합니다.",
+          SupplementaryVisualizer: item.Visualizer, // In default cases, we might reuse it as supplementary if nothing else is provided. But typically we will explicitly pass SupplementaryVisualizer in item.features.
         },
       ],
       complexity: {
@@ -240,13 +253,16 @@ export function createCodeTemplateModule(item: TemplateModuleDescriptor): CTPMod
         python: item.starterCode ?? makeCodeStarter(item.title, sampleData),
       },
     },
-    useSim: () => useCodeTemplateSimulation(sampleData),
-    Visualizer: (props: { data: VisualItem[]; emptyMessage?: string }) => (
+    useSim: item.useSim ?? (() => useCodeTemplateSimulation(sampleData)),
+    Visualizer: item.Visualizer ? ((props: { data: any; emptyMessage?: string }) => {
+      // @ts-ignore - Visualizer is guaranteed to exist here
+      return <SVGFlowWrapper Visualizer={item.Visualizer} data={props.data} />;
+    }) : ((props: { data: VisualItem[]; emptyMessage?: string }) => (
       <ArrayGraphVisualizer
         data={props.data}
         emptyMessage={item.emptyMessage ?? props.emptyMessage ?? "Run으로 시뮬레이션을 시작하세요."}
       />
-    ),
+    )),
   };
 }
 
@@ -262,8 +278,10 @@ export function createInteractiveTemplateModule(item: TemplateModuleDescriptor):
 
   return {
     config: {
+      id: item.id,
       title: item.title,
       description: item.description,
+      story: item.story,
       mode: "interactive",
       interactive: {
         components: ["peek", "push", "pop", "reset"],
@@ -271,10 +289,11 @@ export function createInteractiveTemplateModule(item: TemplateModuleDescriptor):
       },
       tags: ["Interactive", "User Participation"],
       guide: makeInteractiveGuide(item.title),
-      features: [
+      features: item.features ?? [
         {
           title: "버튼 기반 조작",
           description: "직접 조작하며 자료 상태 변화를 확인할 수 있습니다.",
+          SupplementaryVisualizer: item.Visualizer,
         },
       ],
       complexity: {
@@ -284,13 +303,16 @@ export function createInteractiveTemplateModule(item: TemplateModuleDescriptor):
         deletion: "O(1)",
       },
     },
-    useSim: () => useInteractiveTemplateSimulation(sampleData, item.title, DEFAULT_MAX_SIZE),
-    Visualizer: (props: { data: VisualItem[]; emptyMessage?: string }) => (
+    useSim: item.useSim ?? (() => useInteractiveTemplateSimulation(sampleData, item.title, DEFAULT_MAX_SIZE)),
+    Visualizer: item.Visualizer ? ((props: { data: any; emptyMessage?: string }) => {
+      // @ts-ignore - Visualizer is guaranteed to exist here
+      return <SVGFlowWrapper Visualizer={item.Visualizer} data={props.data} />;
+    }) : ((props: { data: VisualItem[]; emptyMessage?: string }) => (
       <ArrayGraphVisualizer
         data={props.data}
         emptyMessage={item.emptyMessage ?? props.emptyMessage ?? "버튼을 눌러 참여형 실습을 시작하세요."}
       />
-    ),
+    )),
   };
 }
 

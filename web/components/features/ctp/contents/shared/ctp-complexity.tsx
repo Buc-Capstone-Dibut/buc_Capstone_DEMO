@@ -41,7 +41,7 @@ export function CTPComplexity({ data, names }: CTPComplexityProps) {
   ] as const;
 
   return (
-    <section id="complexity" data-toc="main" data-toc-level="1">
+    <section id="complexity">
       <h2 className="text-2xl font-bold tracking-tight mb-6">시간 복잡도</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {ITEMS.map((item) => {
