@@ -2,6 +2,8 @@
 
 import { Suspense } from "react";
 import { CTPContentController } from "@/components/features/ctp/common/CTPContentController";
+import { ProblemBankController } from "@/components/features/ctp/problem-bank";
+import { module04Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import { createCodeTemplateModules, createInteractiveTemplateModules } from "./shared/module-utils";
 
@@ -154,26 +156,11 @@ export function TreeContentRefactored() {
 export function ListTreeIntegrationContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
-      <CTPContentController
-        category="Module 04. List, Tree & Final"
-        modules={LIST_TREE_INTEGRATION_MODULES}
-        overview={
-          <ChapterOverview
-            moduleLabel="Module 04. List, Tree & Final"
-            chapterTitle="리스트/트리 자료구조 개념 심화 및 적용"
-            chapterDescription="이 챕터는 코드 시뮬레이터 전용으로 구성되며, 구조 선택 문제를 코드로 검증합니다."
-            guideItems={[
-              "Run 버튼으로 단계별 상태 변화를 확인하세요.",
-              "입력 시나리오를 변경해 리스트/트리 선택 결과를 비교하세요.",
-              "수행 단계 로그를 근거로 선택 근거를 정리하세요.",
-            ]}
-            items={[
-              { id: "list-tree-integrated-1", title: "통합 문제 1: 리스트 삽입/삭제 시나리오", description: "연결 구조의 포인터 갱신 문제를 풉니다." },
-              { id: "list-tree-integrated-2", title: "통합 문제 2: BST 탐색/삽입 응용", description: "트리 연산을 응용한 문제를 풉니다." },
-              { id: "list-tree-integrated-3", title: "통합 문제 3: 구조 선택 트레이드오프", description: "자료구조 선택 근거를 명확히 제시합니다." },
-            ]}
-          />
-        }
+      <ProblemBankController
+        moduleLabel="Module 04. List, Tree & Final"
+        chapterTitle="리스트/트리 자료구조 개념 심화 및 적용"
+        chapterDescription="Problem Bank에서 List/Tree 통합 문제를 풀이하고 자동 채점을 확인하세요."
+        problems={module04Problems}
       />
     </Suspense>
   );

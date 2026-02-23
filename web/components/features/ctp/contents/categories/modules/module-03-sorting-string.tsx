@@ -2,6 +2,8 @@
 
 import { Suspense } from "react";
 import { CTPContentController } from "@/components/features/ctp/common/CTPContentController";
+import { ProblemBankController } from "@/components/features/ctp/problem-bank";
+import { module03Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import { createCodeTemplateModules, createInteractiveTemplateModules } from "./shared/module-utils";
 
@@ -129,26 +131,11 @@ export function StringSearchContent() {
 export function SortingStringIntegrationContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
-      <CTPContentController
-        category="Module 03. Sorting & String"
-        modules={SORTING_STRING_INTEGRATION_MODULES}
-        overview={
-          <ChapterOverview
-            moduleLabel="Module 03. Sorting & String"
-            chapterTitle="정렬/문자열 검색 알고리즘 개념 심화 및 적용"
-            chapterDescription="이 챕터는 코드 시뮬레이터 전용으로 구성되며, 통합 문제를 코드로 검증합니다."
-            guideItems={[
-              "Run 버튼으로 단계별 실행 결과를 확인하세요.",
-              "입력 데이터를 바꾸며 정렬/검색 조합 결과를 비교하세요.",
-              "수행 단계 로그를 근거로 풀이 전략을 개선하세요.",
-            ]}
-            items={[
-              { id: "sorting-string-integrated-1", title: "통합 문제 1: 정렬 후 문자열 처리", description: "전처리 정렬 + 매칭 조합 문제를 풉니다." },
-              { id: "sorting-string-integrated-2", title: "통합 문제 2: 패턴 매칭 성능 비교", description: "문자열 검색 알고리즘 성능을 데이터별로 비교합니다." },
-              { id: "sorting-string-integrated-3", title: "통합 문제 3: 비재귀 퀵정렬 응용", description: "반복 기반 분할 정복 응용 문제를 풉니다." },
-            ]}
-          />
-        }
+      <ProblemBankController
+        moduleLabel="Module 03. Sorting & String"
+        chapterTitle="정렬/문자열 검색 알고리즘 개념 심화 및 적용"
+        chapterDescription="Problem Bank에서 Sorting/String 통합 문제를 풀이하고 자동 채점을 확인하세요."
+        problems={module03Problems}
       />
     </Suspense>
   );

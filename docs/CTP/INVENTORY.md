@@ -11,13 +11,13 @@
 
 ## 2) 전달 방식 정책
 
-- `코드 시뮬레이터(Mode=code)` 허용 챕터 → **Problem Bank로 전환 예정**:
+- `코드 시뮬레이터(Mode=code)` 허용 챕터 → **Problem Bank 전환 완료**:
   1. `module-01-foundation/foundation-integration`
   2. `module-02-stack-recursion/stack-recursion-integration`
   3. `module-03-sorting-string/sorting-string-integration`
   4. `module-04-list-tree-final/list-tree-integration`
-  - 상세 전환 계획: `upgrades/PROBLEM_BANK_PLAN.md`
-  - 전환 후 delivery 방식: `Problem Bank (BrowserJudge, stdin/stdout auto-grading)`
+  - 설계/핸드오프: `upgrades/PROBLEM_BANK_PLAN.md`, `upgrades/PROBLEM_BANK_HANDOFF.md`
+  - 현재 delivery 방식: `Problem Bank (BrowserJudge, stdin/stdout auto-grading)`
 - 그 외 챕터는 `사용자 참여형 인터랙티브(Mode=interactive)`로 구성
 
 ## 3) Module / Chapter 맵
@@ -27,16 +27,16 @@
 | module-01-foundation | algo-basics | `/insights/ctp/module-01-foundation/algo-basics` | algo-overview, condition-loop, flow-tracing | Interactive runtime |
 | module-01-foundation | basic-ds-array | `/insights/ctp/module-01-foundation/basic-ds-array` | ds-compare, 1d-array, 2d-array, array-number-prime | Interactive runtime |
 | module-01-foundation | search-algorithms | `/insights/ctp/module-01-foundation/search-algorithms` | search-problem-key, linear-search, basic-binary-search, hash-collision | Interactive runtime |
-| module-01-foundation | foundation-integration | `/insights/ctp/module-01-foundation/foundation-integration` | p01-001 ~ p01-012 (12 problems) | **Problem Bank** [planned] |
+| module-01-foundation | foundation-integration | `/insights/ctp/module-01-foundation/foundation-integration` | p01-001 ~ p01-012 (12 problems) | **Problem Bank** |
 | module-02-stack-recursion | stack-queue | `/insights/ctp/module-02-stack-recursion/stack-queue` | lifo-basics, queue-overview, linear-queue, circular-queue | Interactive runtime |
 | module-02-stack-recursion | recursion | `/insights/ctp/module-02-stack-recursion/recursion` | recursion-basics, recursion-analysis, tower-of-hanoi, iterative-recursion, queen-backtracking | Interactive runtime |
-| module-02-stack-recursion | stack-recursion-integration | `/insights/ctp/module-02-stack-recursion/stack-recursion-integration` | p02-001 ~ p02-012 (12 problems) | **Problem Bank** [planned] |
+| module-02-stack-recursion | stack-recursion-integration | `/insights/ctp/module-02-stack-recursion/stack-recursion-integration` | p02-001 ~ p02-012 (12 problems) | **Problem Bank** |
 | module-03-sorting-string | sorting | `/insights/ctp/module-03-sorting-string/sorting` | sorting-overview, bubble-sort, selection-sort, insertion-sort, shell-sort, quick-sort, merge-sort, heap-sort, counting-sort | Interactive runtime |
 | module-03-sorting-string | string-search | `/insights/ctp/module-03-sorting-string/string-search` | brute-force-search, kmp-search, boyer-moore-search | Interactive runtime |
-| module-03-sorting-string | sorting-string-integration | `/insights/ctp/module-03-sorting-string/sorting-string-integration` | p03-001 ~ p03-012 (12 problems) | **Problem Bank** [planned] |
+| module-03-sorting-string | sorting-string-integration | `/insights/ctp/module-03-sorting-string/sorting-string-integration` | p03-001 ~ p03-012 (12 problems) | **Problem Bank** |
 | module-04-list-tree-final | list | `/insights/ctp/module-04-list-tree-final/list` | singly, doubly, cursor-linked-list, circular | Interactive runtime |
 | module-04-list-tree-final | tree | `/insights/ctp/module-04-list-tree-final/tree` | tree-basics, bst | Interactive runtime |
-| module-04-list-tree-final | list-tree-integration | `/insights/ctp/module-04-list-tree-final/list-tree-integration` | p04-001 ~ p04-012 (12 problems) | **Problem Bank** [planned] |
+| module-04-list-tree-final | list-tree-integration | `/insights/ctp/module-04-list-tree-final/list-tree-integration` | p04-001 ~ p04-012 (12 problems) | **Problem Bank** |
 | module-04-list-tree-final | final-challenge | `/insights/ctp/module-04-list-tree-final/final-challenge` | fc-1, fc-2, fc-3, fc-4 | Interactive runtime |
 
 ## 4) 코드 기준점
@@ -55,4 +55,4 @@
 
 - 기존 상세 페이지는 `categoryId/conceptId` 불일치 시 `notFound()`로 즉시 차단
 - 인터랙티브 챕터는 `peek/push/pop/reset` 참여형 동작으로 학습 흐름 제공
-- 코드 시뮬레이터 챕터는 Run 기반 단계(step) 시각화로 심화 문제 검증
+- 통합 챕터 4개는 공통 Worker + BrowserJudge 기반 Problem Bank로 동작

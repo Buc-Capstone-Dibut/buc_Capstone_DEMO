@@ -2,6 +2,8 @@
 
 import { Suspense } from "react";
 import { CTPContentController } from "@/components/features/ctp/common/CTPContentController";
+import { ProblemBankController } from "@/components/features/ctp/problem-bank";
+import { module01Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import {
   createCodeTemplateModules,
@@ -532,26 +534,11 @@ export function FoundationSearchAlgorithmsContent() {
 export function FoundationIntegrationContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
-      <CTPContentController
-        category="Module 01. Foundation"
-        modules={FOUNDATION_INTEGRATION_MODULES}
-        overview={
-          <ChapterOverview
-            moduleLabel="Module 01. Foundation"
-            chapterTitle="알고리즘 기초/자료구조·검색 개념 심화 및 적용"
-            chapterDescription="이 챕터는 코드 시뮬레이터 전용으로 구성되며, 통합 문제를 코드로 검증합니다."
-            guideItems={[
-              "Run 버튼으로 단계별 실행 결과를 확인하세요.",
-              "입력 데이터를 바꿔 동일 로직의 결과 차이를 비교하세요.",
-              "복잡도와 자료구조 선택 근거를 코드 옆에 기록하세요.",
-            ]}
-            items={[
-              { id: "foundation-integrated-1", title: "통합 문제 1: 배열+검색", description: "배열 처리와 탐색을 결합한 문제를 풉니다." },
-              { id: "foundation-integrated-2", title: "통합 문제 2: 정렬된 배열 삽입/탐색", description: "정렬 조건을 유지하는 삽입/탐색 전략을 다룹니다." },
-              { id: "foundation-integrated-3", title: "통합 문제 3: 해시 충돌 시나리오", description: "충돌 상황에서의 자료구조 의사결정을 훈련합니다." },
-            ]}
-          />
-        }
+      <ProblemBankController
+        moduleLabel="Module 01. Foundation"
+        chapterTitle="알고리즘 기초/자료구조·검색 개념 심화 및 적용"
+        chapterDescription="Problem Bank에서 Foundation 통합 문제를 풀이하고 자동 채점을 확인하세요."
+        problems={module01Problems}
       />
     </Suspense>
   );

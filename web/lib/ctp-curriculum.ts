@@ -71,9 +71,7 @@ export const CTP_DATA: CTPCategory[] = [
         description: "배열/검색/해시를 통합한 실전형 문제 풀이",
         difficulty: "Medium",
         subConcepts: [
-          { id: "foundation-integrated-1", title: "통합 문제 1: 배열+검색" },
-          { id: "foundation-integrated-2", title: "통합 문제 2: 정렬된 배열 삽입/탐색" },
-          { id: "foundation-integrated-3", title: "통합 문제 3: 해시 충돌 시나리오" },
+          { id: "problem-bank", title: "Problem Bank (12 Problems)" },
         ],
       },
     ],
@@ -117,9 +115,7 @@ export const CTP_DATA: CTPCategory[] = [
         description: "스택/큐/재귀 선택 기준을 문제로 훈련",
         difficulty: "Medium",
         subConcepts: [
-          { id: "stack-recursion-integrated-1", title: "통합 문제 1: 스택으로 재귀 대체" },
-          { id: "stack-recursion-integrated-2", title: "통합 문제 2: 큐/스택 선택 문제" },
-          { id: "stack-recursion-integrated-3", title: "통합 문제 3: 분기 탐색 실전" },
+          { id: "problem-bank", title: "Problem Bank (12 Problems)" },
         ],
       },
     ],
@@ -165,9 +161,7 @@ export const CTP_DATA: CTPCategory[] = [
         description: "정렬과 문자열 검색을 결합한 통합 문제",
         difficulty: "Hard",
         subConcepts: [
-          { id: "sorting-string-integrated-1", title: "통합 문제 1: 정렬 후 문자열 처리" },
-          { id: "sorting-string-integrated-2", title: "통합 문제 2: 패턴 매칭 성능 비교" },
-          { id: "sorting-string-integrated-3", title: "통합 문제 3: 비재귀 퀵정렬 응용" },
+          { id: "problem-bank", title: "Problem Bank (12 Problems)" },
         ],
       },
     ],
@@ -208,9 +202,7 @@ export const CTP_DATA: CTPCategory[] = [
         description: "구조 선택과 연산 트레이드오프를 실전으로 정리",
         difficulty: "Hard",
         subConcepts: [
-          { id: "list-tree-integrated-1", title: "통합 문제 1: 리스트 삽입/삭제 시나리오" },
-          { id: "list-tree-integrated-2", title: "통합 문제 2: BST 탐색/삽입 응용" },
-          { id: "list-tree-integrated-3", title: "통합 문제 3: 구조 선택 트레이드오프" },
+          { id: "problem-bank", title: "Problem Bank (12 Problems)" },
         ],
       },
       {

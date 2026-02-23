@@ -2,6 +2,8 @@
 
 import { Suspense } from "react";
 import { CTPContentController } from "@/components/features/ctp/common/CTPContentController";
+import { ProblemBankController } from "@/components/features/ctp/problem-bank";
+import { module02Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import {
   createCodeTemplateModules,
@@ -152,26 +154,11 @@ export function RecursionContent() {
 export function StackRecursionIntegrationContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
-      <CTPContentController
-        category="Module 02. Stack & Recursion"
-        modules={STACK_RECURSION_INTEGRATION_MODULES}
-        overview={
-          <ChapterOverview
-            moduleLabel="Module 02. Stack & Recursion"
-            chapterTitle="스택·큐/재귀 알고리즘 개념 심화 및 적용"
-            chapterDescription="이 챕터는 코드 시뮬레이터 전용으로 구성되며 통합 문제를 코드로 검증합니다."
-            guideItems={[
-              "입력 데이터를 변경하고 Run으로 결과를 비교하세요.",
-              "자료구조 선택 이유를 코드 주석으로 남기세요.",
-              "단계별 결과를 보고 병목 구간을 찾으세요.",
-            ]}
-            items={[
-              { id: "stack-recursion-integrated-1", title: "통합 문제 1: 스택으로 재귀 대체", description: "재귀를 반복문으로 치환하는 역량을 검증합니다." },
-              { id: "stack-recursion-integrated-2", title: "통합 문제 2: 큐/스택 선택 문제", description: "문제 조건에 맞는 구조를 선택하는 연습을 합니다." },
-              { id: "stack-recursion-integrated-3", title: "통합 문제 3: 분기 탐색 실전", description: "백트래킹 탐색 최적화를 적용합니다." },
-            ]}
-          />
-        }
+      <ProblemBankController
+        moduleLabel="Module 02. Stack & Recursion"
+        chapterTitle="스택·큐/재귀 알고리즘 개념 심화 및 적용"
+        chapterDescription="Problem Bank에서 Stack/Recursion 통합 문제를 풀이하고 자동 채점을 확인하세요."
+        problems={module02Problems}
       />
     </Suspense>
   );

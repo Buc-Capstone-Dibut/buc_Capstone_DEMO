@@ -18,6 +18,7 @@
   - `operations/HANDOFF_TEMPLATE.md`
 - `upgrades/`
   - `upgrades/PROBLEM_BANK_PLAN.md` ← **신규: Integration 페이지 문제은행 전환 계획**
+  - `upgrades/PROBLEM_BANK_HANDOFF.md` ← **신규: 구현 핸드오프 프롬프트**
 - 루트 유지
   - `README.md`
   - `INVENTORY.md` (스크립트 자동 생성)
@@ -36,7 +37,9 @@
    UI/콘텐츠/인터랙션 통일 기준 확인 후 작업 시작
 6. `upgrades/PROBLEM_BANK_PLAN.md`
    Integration 페이지 문제은행 전환 — 기술 설계, 문제 목록, 구현 로드맵
-7. `operations/HANDOFF_TEMPLATE.md`
+7. `upgrades/PROBLEM_BANK_HANDOFF.md`
+   Problem Bank 구현 요청 프롬프트 템플릿
+8. `operations/HANDOFF_TEMPLATE.md`
    작업 종료 후 다음 AI에게 전달할 요약 포맷
 
 ## 아주 빠른 진입점
