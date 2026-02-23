@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ProblemBankFilters, DifficultyFilter, TypeFilter } from "./ProblemBankFilters";
 import { ProblemBankGrid } from "./ProblemBankGrid";
 import { ProblemSolvePanel } from "./ProblemSolvePanel";
@@ -19,10 +20,14 @@ export function ProblemBankController({
   chapterDescription,
   problems,
 }: ProblemBankControllerProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
   const [selectedProblemId, setSelectedProblemId] = useState<string | undefined>(problems[0]?.id);
   const [isSolving, setIsSolving] = useState(false);
+  const view = searchParams.get("view");
 
   const filteredProblems = useMemo(() => {
     return problems.filter((problem) => {
@@ -47,13 +52,36 @@ export function ProblemBankController({
     }
   }, [filteredProblems, problems, selectedProblemId]);
 
+  useEffect(() => {
+    if (!view) {
+      setIsSolving(false);
+      return;
+    }
+    const matched = problems.find((problem) => problem.id === view);
+    if (!matched) {
+      setIsSolving(false);
+      return;
+    }
+    setSelectedProblemId(matched.id);
+    setIsSolving(true);
+  }, [problems, view]);
+
   const handleSelectProblem = (problemId: string) => {
     setSelectedProblemId(problemId);
     setIsSolving(true);
+    router.replace(`${pathname}?view=${problemId}`, { scroll: false });
   };
 
   if (isSolving && selectedProblem) {
-    return <ProblemSolvePanel problem={selectedProblem} onBack={() => setIsSolving(false)} />;
+    return (
+      <ProblemSolvePanel
+        problem={selectedProblem}
+        onBack={() => {
+          setIsSolving(false);
+          router.replace(pathname, { scroll: false });
+        }}
+      />
+    );
   }
 
   return (
