@@ -92,7 +92,7 @@ function BaseConversion() {
             </g>
           ))}
           <motion.rect x="95" y="18" width="20" height="16" rx="2" fill="none" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="1" filter="url(#base-glow-ap)"
-            animate={{ y: [18, 48, 78, 108, 18] }} transition={{ duration: 4, repeat: Infinity, ease: "steps(4)" }}
+            animate={{ y: [18, 48, 78, 108, 18] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
           />
         </g>
 
@@ -201,4 +201,3 @@ export const ArrayPrimeSupplementaryOptions = [
   CachingMemoization,
   MemoizationCache,
 ];
-

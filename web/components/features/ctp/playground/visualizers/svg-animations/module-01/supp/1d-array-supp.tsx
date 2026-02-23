@@ -71,7 +71,7 @@ function Iteration() {
           ))}
           <motion.rect y="4" width="42" height="52" rx="4" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" strokeWidth="2" filter="url(#iter-glow-1d)"
             animate={{ x: [4, 50, 96, 142, 188, 234] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "steps(5)" }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
           />
         </g>
 
@@ -193,4 +193,3 @@ export const OneDArraySupplementaryOptions = [
   Slicing,
   OutOfBounds,
 ];
-

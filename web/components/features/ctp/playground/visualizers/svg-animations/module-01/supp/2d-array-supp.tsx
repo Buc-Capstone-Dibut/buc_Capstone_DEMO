@@ -33,7 +33,7 @@ function LinearTransformation() {
           )}
           <motion.rect width="32" height="32" rx="4" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" filter="url(#linear-glow-2d)"
             animate={{ x: [0, 40, 0, 40, 0, 40], y: [0, 0, 40, 40, 80, 80] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "steps(2)" }}
+            transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
           />
         </g>
 
@@ -58,7 +58,7 @@ function LinearTransformation() {
           ))}
           <motion.rect width="130" height="14" rx="2" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" filter="url(#linear-glow-2d)"
             animate={{ y: [10, 28, 46, 64, 82, 100] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "steps(6)" }}
+            transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
             style={{ x: 10 }}
           />
         </g>
@@ -92,11 +92,11 @@ function NestedLoop() {
           )}
 
           <motion.rect x="-5" width="210" height="52" rx="6" fill="hsl(var(--primary)/0.1)" stroke="hsl(var(--primary)/0.3)" strokeWidth="2"
-            animate={{ y: [-5, 45, 95] }} transition={{ duration: 6, repeat: Infinity, ease: "steps(3)" }}
+            animate={{ y: [-5, 45, 95] }} transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
           />
           <motion.rect width="42" height="42" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.3)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" filter="url(#loop-glow-2d)"
             animate={{ x: [0, 50, 100, 150, 0, 50, 100, 150, 0, 50, 100, 150], y: [0, 0, 0, 0, 50, 50, 50, 50, 100, 100, 100, 100] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "steps(4)" }}
+            transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
           />
         </g>
       </svg>
@@ -189,4 +189,3 @@ export const TwoDArraySupplementaryOptions = [
   DiagonalSearch,
   MemoryLayout,
 ];
-
