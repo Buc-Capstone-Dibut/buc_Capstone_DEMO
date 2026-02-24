@@ -47,7 +47,7 @@ export function SearchBar({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
-          className="pl-10 pr-10 h-12"
+          className="pl-10 pr-10 h-10 rounded-xl bg-muted/50 border-none focus-visible:ring-1"
         />
         {inputValue && (
           <Button
@@ -62,7 +62,7 @@ export function SearchBar({
       </div>
       <Button
         onClick={handleSearch}
-        className="px-4 h-12 hidden sm:block"
+        className="px-4 h-10 hidden sm:block rounded-xl"
         disabled={!(inputValue?.trim() || "")}
       >
         검색

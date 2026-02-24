@@ -72,46 +72,22 @@ export function TechBlogListLayout({
   };
 
   return (
-    <main className="flex-1 pt-4">
-      <div className="mb-4 flex items-center gap-4">
-        <ViewToggle
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-        />
-        {!isWeeklyExpanded && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onWeeklyToggle}
-            className="hidden xl:flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            주간 인기글 보기
-          </Button>
-        )}
-      </div>
-
-      <div className="mb-6 w-full overflow-hidden">
-        <TagFilterBar
-          value={tagCategory}
-          options={TAG_FILTER_OPTIONS}
-          selectedSubTags={selectedSubTags}
-          availableTags={[]}
-          onChange={(val) => onTagCategoryChange(val as TagCategory)}
-          onSubTagChange={onSubTagChange}
-        />
-      </div>
+    <main className="flex-1 min-w-0">
+      {/* 검색 결과 개수 표시 (검색 시에만) */}
+      {!loading && searchQuery && blogs.length > 0 && (
+        <div className="mb-6 text-sm text-muted-foreground animate-fade-in">
+          &apos;<span className="font-bold text-foreground">{searchQuery}</span>&apos; 검색 결과{" "}
+          <span className="font-bold text-primary">{totalCount}개</span>의 블로그를 찾았습니다.
+        </div>
+      )}
 
       {loading ? (
         <>
           {/* 로딩 스켈레톤 */}
           {viewMode === "gallery" ? (
             <div
-              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${
-                isWeeklyExpanded ? "xl:grid-cols-3" : "xl:grid-cols-4"
-              } gap-6`}
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${isWeeklyExpanded ? "xl:grid-cols-3" : "xl:grid-cols-4"
+                } gap-6`}
             >
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
@@ -157,9 +133,8 @@ export function TechBlogListLayout({
           {/* 블로그 목록 */}
           {viewMode === "gallery" ? (
             <div
-              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${
-                isWeeklyExpanded ? "xl:grid-cols-3" : "xl:grid-cols-4"
-              } gap-6`}
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${isWeeklyExpanded ? "xl:grid-cols-3" : "xl:grid-cols-4"
+                } gap-6`}
             >
               {blogs.map((blog) => (
                 <BlogCard

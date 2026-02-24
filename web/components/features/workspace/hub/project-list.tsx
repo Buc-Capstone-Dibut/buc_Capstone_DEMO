@@ -10,6 +10,12 @@ import {
   MoreVertical,
   Trash2,
   Loader2,
+  Trophy,
+  CheckCircle2,
+  ArrowRight,
+  Search,
+  Settings,
+  Pencil,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -45,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { CreateWorkspaceDialog } from "../dialogs/create-workspace-dialog";
+import { EditWorkspaceDialog } from "../dialogs/edit-workspace-dialog";
 
 interface Workspace {
   id: string;
@@ -119,17 +126,105 @@ export function ProjectList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
           <h2 className="text-2xl font-bold tracking-tight">워크스페이스</h2>
           <p className="text-muted-foreground">
-            협업 중인 프로젝트를 한눈에 관리하세요.
+            참여 중인 프로젝트 목록입니다.
           </p>
         </div>
-        <CreateWorkspaceDialog />
+        <CreateWorkspaceDialog>
+          <Button className="h-11 px-6 rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all gap-2">
+            <Plus className="w-5 h-5" /> 프로젝트 추가
+          </Button>
+        </CreateWorkspaceDialog>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="relative group">
+          <Link
+            href="/workspace/p-2"
+            className="block h-full"
+          >
+            <Card className="hover:border-primary/50 transition-all cursor-pointer h-full flex flex-col relative overflow-hidden bg-card group shadow-sm hover:shadow-md">
+              {/* Demo Project Actions */}
+              <div className="absolute top-4 right-4 z-20">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-muted/80 bg-background/50 backdrop-blur-sm shadow-sm"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <EditWorkspaceDialog workspace={{ id: 'demo', name: 'Dibut 사이드 프로젝트', category: 'Demo Project', description: '개발자 커리어 플랫폼 클론 코딩 및 협업 도구 시연 프로젝트입니다.' }}>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        정보 수정
+                      </DropdownMenuItem>
+                    </EditWorkspaceDialog>
+                    <DropdownMenuItem
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toast.error("데모 프로젝트는 삭제할 수 없습니다.");
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      삭제하기
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <CardHeader className="pb-3 space-y-3">
+                <div className="flex justify-between items-center">
+                  <Badge
+                    variant="secondary"
+                    className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                  >
+                    Demo Project
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5">
+                  <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
+                    Dibut 사이드 프로젝트
+                  </CardTitle>
+                  <CardDescription className="line-clamp-2 text-sm text-muted-foreground h-10">
+                    개발자 커리어 플랫폼 클론 코딩 및 협업 도구 시연 프로젝트입니다.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pb-4">
+                <div className="flex items-center -space-x-2 overflow-hidden pl-1">
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarFallback className="bg-muted text-xs">J</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="h-8 w-8 ring-2 ring-background">
+                    <AvatarFallback className="bg-muted text-xs">F</AvatarFallback>
+                  </Avatar>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-background bg-muted text-[10px] font-medium text-muted-foreground">
+                    +1
+                  </div>
+                </div>
+              </CardContent>
+
+              <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5 flex justify-between items-center text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Active now
+                </div>
+              </CardFooter>
+            </Card>
+          </Link>
+        </div>
+
         {Array.isArray(workspaces) &&
           workspaces.map((workspace) => (
             <div key={workspace.id} className="relative group">
@@ -142,7 +237,7 @@ export function ProjectList() {
                     <div className="flex justify-between items-center">
                       <Badge
                         variant="secondary"
-                        className="bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider"
+                        className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider"
                       >
                         {workspace.category || "Side Project"}
                       </Badge>
@@ -188,7 +283,6 @@ export function ProjectList() {
                         locale: ko,
                       })}
                     </div>
-                    {/* D-Day Placeholder or Member role */}
                     <div className="text-xs font-medium text-orange-500">
                       {workspace.my_role === "owner" ? "Owner" : "Member"}
                     </div>
@@ -204,12 +298,20 @@ export function ProjectList() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 hover:bg-muted"
+                        className="h-8 w-8 hover:bg-muted/80 bg-background/50 backdrop-blur-sm shadow-sm"
+                        onClick={(e) => e.preventDefault()}
                       >
                         <MoreVertical className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <EditWorkspaceDialog workspace={workspace}>
+                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          정보 수정
+                        </DropdownMenuItem>
+                      </EditWorkspaceDialog>
+
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-600 focus:bg-red-50"
                         onClick={() => setWorkspaceToDelete(workspace)}
@@ -272,6 +374,6 @@ export function ProjectList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 }

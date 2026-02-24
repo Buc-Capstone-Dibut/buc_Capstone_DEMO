@@ -46,24 +46,21 @@ export function RecruitSearchSort() {
   }, [debouncedSearch, sort, router, searchParams]);
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 mb-8 items-center justify-between bg-white dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm sticky top-[72px] z-30 backdrop-blur-md">
-      <div className="relative w-full sm:w-auto sm:flex-1 max-w-md">
+    <div className="flex flex-col sm:flex-row gap-3 items-center">
+      <div className="relative w-full sm:w-[300px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="제목, 기업명, 기술 스택으로 검색..."
-          className="pl-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+          placeholder="제목, 기업명 검색..."
+          className="pl-9 h-10 rounded-xl bg-muted/50 border-none focus-visible:ring-1"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
       <div className="flex items-center gap-2 w-full sm:w-auto">
-        <span className="text-sm text-muted-foreground whitespace-nowrap pl-2 hidden sm:inline">
-          정렬:
-        </span>
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="w-full sm:w-[160px] bg-slate-50 dark:bg-slate-950">
-            <SelectValue placeholder="정렬 기준" />
+          <SelectTrigger className="h-10 w-full sm:w-[130px] rounded-xl bg-muted/50 border-none">
+            <SelectValue placeholder="정렬" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="latest">최신순</SelectItem>

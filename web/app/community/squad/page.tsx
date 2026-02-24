@@ -8,7 +8,7 @@ import { PaginationControl } from "@/components/ui/pagination-control";
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; type?: string }>;
 }
 
 export default async function SquadListPage({ searchParams }: PageProps) {
@@ -17,26 +17,42 @@ export default async function SquadListPage({ searchParams }: PageProps) {
     typeof resolvedSearchParams.page === "string"
       ? parseInt(resolvedSearchParams.page)
       : 1;
+  const type = resolvedSearchParams.type || "all";
 
   const { squads, totalPages, totalCount } = await fetchSquads({
     page,
     limit: 9,
+    type,
   });
 
+  const categories = [
+    { id: "all", label: "전체" },
+    { id: "project", label: "프로젝트" },
+    { id: "study", label: "스터디" },
+    { id: "contest", label: "공모전" },
+    { id: "mogakco", label: "모각코" },
+  ];
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">팀원 모집</h1>
-          <p className="text-muted-foreground">
-            사이드 프로젝트, 스터디, 공모전 팀원을 찾아보세요.
-            <span className="ml-2 text-sm bg-muted px-2 py-1 rounded-full">
-              Total {totalCount}
-            </span>
-            <br />
-            원하는 동료와 함께 성장할 수 있는 기회입니다.
-          </p>
+    <div className="space-y-6">
+      {/* Filters & Actions (Board Style) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap gap-2">
+          {categories.map((cat) => (
+            <Link
+              key={cat.id}
+              href={`/community/squad?type=${cat.id}`}
+              scroll={false}
+            >
+              <Button
+                variant={type === cat.id ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+              >
+                {cat.label}
+              </Button>
+            </Link>
+          ))}
         </div>
 
         <Link href="/community/squad/write">
@@ -48,30 +64,54 @@ export default async function SquadListPage({ searchParams }: PageProps) {
       </div>
 
       {/* Grid */}
-      {squads.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {squads.map((squad) => (
-              // @ts-ignore
-              <SquadCard key={squad.id} squad={squad} />
-            ))}
-          </div>
-          <div className="py-12">
-            <PaginationControl currentPage={page} totalPages={totalPages} />
-          </div>
-        </>
-      ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* 데모용 가짜 데이터 추가 (첫 페이지일 때 상시 노출, 필터 호환) */}
+        {page === 1 && (type === "all" || type === "side-project" || type === "project") && (
+          <SquadCard
+            squad={{
+              id: "squad-demo-1" as any,
+              title: "Dibut 개발자 플랫폼 클론 코딩 팀원 모집 (데모)",
+              content: "데모용 모집글입니다. 클릭하여 상세보기를 확인하세요.",
+              type: "side-project" as any,
+              status: "recruiting" as any,
+              capacity: 4,
+              recruited_count: 3,
+              leader_id: "demo-leader",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              tech_stack: ["Next.js", "Tailwind CSS", "Supabase", "TypeScript"],
+              place_type: "online" as any,
+              location: null,
+              activity_id: null,
+              workspace_id: "p-2",
+              leader: {
+                nickname: "Junghwan",
+                avatar_url: null,
+              } as any
+            }}
+          />
+        )}
+
+        {squads.map((squad) => (
+          // @ts-ignore
+          <SquadCard key={squad.id} squad={squad} />
+        ))}
+
+        {/* 실제 데이터가 없고 데모만 있는 경우에도 추가로 모집글 작성을 유도하는 빈 카드 표시 가능 (선택) */}
+      </div>
+
+      {squads.length > 0 && (
+        <div className="py-12">
+          <PaginationControl currentPage={page} totalPages={totalPages} />
+        </div>
+      )}
+
+      {squads.length === 0 && page !== 1 && (
         <div className="flex flex-col items-center justify-center py-32 text-center border rounded-2xl border-dashed bg-muted/20">
           <div className="text-6xl mb-6">👥</div>
           <h3 className="text-xl font-bold mb-2">
-            아직 모집 중인 팀이 없습니다.
+            검색 결과가 없습니다.
           </h3>
-          <p className="text-muted-foreground mb-6">
-            가장 먼저 팀원을 모집해보세요!
-          </p>
-          <Link href="/community/squad/write">
-            <Button variant="outline">첫 번째 팀 만들기</Button>
-          </Link>
         </div>
       )}
     </div>

@@ -1,157 +1,133 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Header } from "@/components/features/tech-blog/header";
+import { useState, useEffect } from "react";
+import { SearchBar } from "@/components/features/tech-blog/search-bar";
+import { ViewToggle } from "@/components/features/tech-blog/view-toggle";
+import { TagFilterBar } from "@/components/features/tech-blog/tag-filter-bar";
+import { TAG_FILTER_OPTIONS, type TagCategory } from "@/lib/tag-filters";
+import { Sidebar } from "@/components/layout/sidebar";
 import { TechBlogListLayout } from "@/components/layout/tech-blog-list-layout";
-import { LogoMarquee } from "@/components/features/tech-blog/logo-marquee";
-import { TagArchive } from "@/components/features/tech-blog/tag-archive";
 import { WeeklyPopular } from "@/components/features/tech-blog/weekly-popular";
-import { Footer } from "@/components/layout/footer";
-import { useScrollToTop } from "@/hooks/use-scroll-to-top";
-import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useBlogData } from "@/hooks/use-blog-data";
-import { Blog, fetchWeeklyPopularBlogs } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/auth-modal";
-import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
+import { fetchWeeklyPopularBlogs, type Blog } from "@/lib/supabase";
 
-export default function HomePage() {
-  const [popularBlogs, setPopularBlogs] = useState<Blog[]>([]);
-  const [isWeeklyExpanded, setIsWeeklyExpanded] = useState(true);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const router = useRouter();
-  const scrollToTop = useScrollToTop();
+export default function TechBlogPage() {
+    const [viewMode, setViewMode] = useState<"gallery" | "list">("gallery");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [tagCategory, setTagCategory] = useState<TagCategory>("all");
+    const [selectedSubTags, setSelectedSubTags] = useState<string[]>([]);
+    const [page, setPage] = useState(1);
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [popularBlogs, setPopularBlogs] = useState<Blog[]>([]);
 
-  // URL 필터 상태 관리
-  const {
-    selectedBlog,
-    sortBy,
-    viewMode,
-    searchQuery,
-    tagCategory,
-    selectedSubTags,
-    handleBlogChange,
-    handlePageChange,
-    handleViewModeChange,
-    handleSearchChange,
-    handleTagCategoryChange,
-    handleSubTagChange,
-    currentPage: urlPage,
-  } = useUrlFilters();
+    useEffect(() => {
+        const loadPopular = async () => {
+            const data = await fetchWeeklyPopularBlogs(10);
+            setPopularBlogs(data);
+        };
+        loadPopular();
+    }, []);
 
-  // 블로그 데이터 관리 (페이지네이션)
-  const { blogs, loading, totalCount, totalPages, currentPage } =
-    useBlogData({
-      selectedBlog,
-      sortBy,
-      searchQuery,
-      tagCategory,
-      selectedSubTags,
-      page: urlPage,
+    const { blogs, loading, totalCount, totalPages, currentPage } = useBlogData({
+        searchQuery,
+        tagCategory,
+        selectedSubTags,
+        page,
     });
 
-  // 주간 인기글 로드
-  useEffect(() => {
-    const loadPopularBlogs = async () => {
-      try {
-        const blogs = await fetchWeeklyPopularBlogs(5);
-        setPopularBlogs(blogs);
-      } catch (error) {
-        console.error("주간 인기글 로드 실패:", error);
-      }
-    };
-
-    loadPopularBlogs();
-  }, []);
-
-  // 로고 클릭 시 초기화
-  const handleLogoClick = () => {
-    router.push("/");
-  };
-
-  // 블로그 필터 변경 (다른 블로그로 변경될 때만 스크롤)
-  const handleBlogChangeWithScroll = (blog: string) => {
-    const shouldScroll = blog !== selectedBlog; // 블로그가 변경되는 경우에만 스크롤
-    handleBlogChange(blog);
-    if (shouldScroll) {
-      scrollToTop();
-    }
-  };
-
-  const handleTagCategoryChangeWithScroll = (category: typeof tagCategory) => {
-    const shouldScroll = category !== tagCategory;
-    handleTagCategoryChange(category);
-    if (shouldScroll) {
-      scrollToTop();
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header is handled globally in layout/global-header.tsx */}
-
-      <div className="container mx-auto px-4 flex gap-8 pt-0 flex-col">
-        <LogoMarquee />
-        <div className="flex gap-8">
-          <TechBlogListLayout
-            blogs={blogs}
-            loading={loading}
-            totalCount={totalCount}
-            totalPages={totalPages}
-            currentPage={currentPage}
-            viewMode={viewMode}
-            searchQuery={searchQuery}
-            tagCategory={tagCategory as any}
-            selectedSubTags={selectedSubTags}
-            onPageChange={(page) => {
-              handlePageChange(page);
-              scrollToTop();
-            }}
-            onViewModeChange={handleViewModeChange}
-            onSearchChange={handleSearchChange}
-            onTagCategoryChange={handleTagCategoryChangeWithScroll}
-            onSubTagChange={handleSubTagChange}
-            isWeeklyExpanded={isWeeklyExpanded}
-            onWeeklyToggle={() => setIsWeeklyExpanded(!isWeeklyExpanded)}
-            onLoginClick={() => setAuthModalOpen(true)}
-          />
-          {isWeeklyExpanded ? (
-            <div className="hidden xl:block w-[320px] shrink-0 relative border-l border-slate-200 dark:border-slate-700 pl-6">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsWeeklyExpanded(false)}
-                className="absolute top-20 -left-10 h-8 w-8 rounded-full bg-background hover:bg-muted border shadow-sm"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-
-              {/* 태그 아카이브 (사이드바 상단 배치) */}
-              <div className="mt-0 mb-8">
-                <TagArchive
-                  category={tagCategory}
-                  selectedTags={selectedSubTags}
-                  onToggleTag={(tag) => {
-                    const newTags = selectedSubTags.includes(tag)
-                      ? selectedSubTags.filter((t) => t !== tag)
-                      : [...selectedSubTags, tag];
-                    handleSubTagChange(newTags);
-                  }}
-                />
-              </div>
-
-              <WeeklyPopular blogs={popularBlogs} />
+    return (
+        <div className="w-full min-h-screen bg-background text-foreground">
+            {/* Header Section */}
+            <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="container mx-auto px-4 max-w-7xl py-12">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-black tracking-tighter mb-2">기술 블로그</h1>
+                            <p className="text-muted-foreground text-lg">
+                                국내외 주요 기술 기업들의 엔지니어링 블로그를 한곳에서 확인하세요.
+                                <span className="ml-2 text-[12px] bg-muted px-2 py-1 rounded-full font-bold tracking-wider uppercase">
+                                    Total {totalCount}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-          ) : null}
+
+            {/* Main Content */}
+            <div className="container mx-auto px-4 max-w-7xl py-8">
+                {/* Filter, Search, and ViewToggle Row */}
+                <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex-1 w-full overflow-hidden">
+                        <TagFilterBar
+                            value={tagCategory}
+                            options={TAG_FILTER_OPTIONS}
+                            selectedSubTags={selectedSubTags}
+                            availableTags={[]}
+                            onChange={(val) => {
+                                setTagCategory(val as TagCategory);
+                                setPage(1);
+                            }}
+                            onSubTagChange={(tags) => {
+                                setSelectedSubTags(tags);
+                                setPage(1);
+                            }}
+                        />
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 w-full md:w-auto">
+                        <div className="w-full md:w-[300px]">
+                            <SearchBar
+                                value={searchQuery}
+                                onChange={(query) => {
+                                    setSearchQuery(query);
+                                    setPage(1);
+                                }}
+                                placeholder="제목, 기업명 검색..."
+                            />
+                        </div>
+                        <ViewToggle
+                            viewMode={viewMode}
+                            onViewModeChange={setViewMode}
+                        />
+                    </div>
+                </div>
+
+                {/* Content Layout with Sidebar */}
+                <div className="grid grid-cols-12 gap-8">
+                    {/* Main Content (9 Cols) */}
+                    <div className="col-span-12 lg:col-span-9">
+                        <TechBlogListLayout
+                            blogs={blogs}
+                            loading={loading}
+                            totalCount={totalCount}
+                            totalPages={totalPages}
+                            currentPage={currentPage}
+                            viewMode={viewMode}
+                            searchQuery={searchQuery}
+                            tagCategory={tagCategory}
+                            selectedSubTags={selectedSubTags}
+                            isWeeklyExpanded={true}
+                            onPageChange={setPage}
+                            onViewModeChange={setViewMode}
+                            onSearchChange={setSearchQuery}
+                            onTagCategoryChange={setTagCategory}
+                            onSubTagChange={setSelectedSubTags}
+                            onWeeklyToggle={() => { }}
+                            onLoginClick={() => setIsAuthModalOpen(true)}
+                        />
+                    </div>
+
+                    {/* Sidebar (3 Cols) */}
+                    <aside className="col-span-12 lg:col-span-3">
+                        <Sidebar className="top-[130px] sticky">
+                            <WeeklyPopular blogs={popularBlogs} />
+                        </Sidebar>
+                    </aside>
+                </div>
+            </div>
+
+            <AuthModal open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen} />
         </div>
-      </div>
-
-      {/* 모든 데이터를 로드했을 때만 푸터 표시 */}
-      {!loading && blogs.length > 0 && <Footer />}
-
-      {/* 인증 모달 */}
-      <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
-    </div>
-  );
+    );
 }

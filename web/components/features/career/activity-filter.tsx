@@ -24,24 +24,28 @@ const COMMON_TAGS = [
 
 // Activity Categories mapping to dev-event.category
 export const ACTIVITY_FILTER_OPTIONS: TagFilterOption[] = [
-  { id: "all", label: "전체", tags: [] },
+  { id: "all", value: "all", label: "전체", tags: [] },
   {
     id: "Competition",
+    value: "Competition",
     label: "대회/해커톤",
     tags: [...COMMON_TAGS, "대회", "해커톤", "공모전"],
   },
   {
     id: "Education",
+    value: "Education",
     label: "교육/부트캠프",
     tags: [...COMMON_TAGS, "교육", "부트캠프", "강의", "스터디"],
   },
   {
     id: "Community",
+    value: "Community",
     label: "모임/네트워킹",
     tags: [...COMMON_TAGS, "모임", "네트워킹", "컨퍼런스", "세미나"],
   },
   {
     id: "Other",
+    value: "Other",
     label: "기타",
     tags: [...COMMON_TAGS],
   },
@@ -61,9 +65,9 @@ export function ActivityFilter({ allTags }: ActivityFilterProps) {
   // We use 'tags' param for sub-tags in Activities URL scheme
   const selectedSubTags = searchParams.get("tags")
     ? searchParams
-        .get("tags")!
-        .split(",")
-        .filter((tag) => tag.trim() !== "")
+      .get("tags")!
+      .split(",")
+      .filter((tag) => tag.trim() !== "")
     : [];
 
   // Handlers
@@ -101,17 +105,15 @@ export function ActivityFilter({ allTags }: ActivityFilterProps) {
   };
 
   return (
-    <div className="w-full border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-[0px] z-30 pt-2 mb-8">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-        <TagFilterBar
-          value={category}
-          options={ACTIVITY_FILTER_OPTIONS}
-          selectedSubTags={selectedSubTags}
-          availableTags={allTags}
-          onChange={handleCategoryChange}
-          onSubTagChange={handleSubTagChange}
-        />
-      </div>
+    <div className="w-full">
+      <TagFilterBar
+        value={category}
+        options={ACTIVITY_FILTER_OPTIONS}
+        selectedSubTags={selectedSubTags}
+        availableTags={allTags}
+        onChange={handleCategoryChange}
+        onSubTagChange={handleSubTagChange}
+      />
     </div>
   );
 }

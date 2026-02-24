@@ -57,21 +57,16 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
         <div className="container mx-auto px-4 max-w-7xl py-12">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-2">
+              <h1 className="text-4xl font-black tracking-tighter mb-2">
                 대외활동
               </h1>
               <p className="text-muted-foreground text-lg">
                 해커톤, 컨퍼런스, 다양한 개발자 행사를 통해 커리어를
                 성장시키세요.
-                <span className="ml-2 text-sm bg-muted px-2 py-1 rounded-full">
+                <span className="ml-2 text-[12px] bg-muted px-2 py-1 rounded-full font-bold tracking-wider uppercase">
                   Total {totalCount}
                 </span>
               </p>
-            </div>
-
-            {/* Integrated Search Overlay */}
-            <div className="w-full md:w-auto">
-              <RecruitSearchSort />
             </div>
           </div>
         </div>
@@ -79,9 +74,14 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 max-w-7xl py-8">
-        {/* Sticky Filter Bar */}
-        <div className="sticky top-[14px] z-30 mb-8 bg-background/80 backdrop-blur-md rounded-xl border border-border/50 shadow-sm">
-          <ActivityFilter allTags={allTags} />
+        {/* Filter and Search Bar Row */}
+        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex-1 w-full">
+            <ActivityFilter allTags={allTags} />
+          </div>
+          <div className="shrink-0 w-full md:w-auto">
+            <RecruitSearchSort />
+          </div>
         </div>
 
         {/* Content Layout with Sidebar */}

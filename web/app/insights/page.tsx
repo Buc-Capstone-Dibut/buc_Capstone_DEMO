@@ -1,7 +1,7 @@
 "use client";
 
 import { SectionLandingPage, LandingItem } from "@/components/layout/section-landing-page";
-import { BookOpen, Map, Database } from "lucide-react";
+import { BookOpen, Map, Calendar } from "lucide-react";
 
 export default function InsightsPage() {
   const items: LandingItem[] = [
@@ -12,17 +12,16 @@ export default function InsightsPage() {
       icon: <BookOpen className="w-6 h-6" />,
     },
     {
+      title: "대외활동",
+      description: "해커톤, 컨퍼런스, 다양한 개발자 행사를 통해 커리어를 성장시키세요.",
+      href: "/insights/activities",
+      icon: <Calendar className="w-6 h-6" />,
+    },
+    {
       title: "CTP (Coding Test Prep)",
       description: "자료구조, 알고리즘 등 코딩 테스트 준비를 위한 학습 로드맵과 자료를 제공합니다.",
       href: "/insights/ctp",
       icon: <Map className="w-6 h-6" />,
-      isComingSoon: true,
-    },
-    {
-      title: "테크 허브",
-      description: "다양한 라이브러리와 프레임워크 정보를 탐색하고 내 프로젝트에 적합한 기술을 찾아보세요.",
-      href: "/insights/tech-hub",
-      icon: <Database className="w-6 h-6" />,
       isComingSoon: true,
     },
   ];

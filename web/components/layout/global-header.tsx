@@ -7,54 +7,55 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/auth/user-menu";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { isFlutterWebView } from "@/lib/webview-bridge";
-import { BlogSelector } from "@/components/features/tech-blog/blog-selector";
-import { useUrlFilters } from "@/hooks/use-url-filters";
 import { cn } from "@/lib/utils";
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "@/components/features/notification/notification-center";
+import {
+  Newspaper,
+  Terminal,
+  MessageSquare,
+  Users,
+  UserPlus,
+  LayoutDashboard,
+  Wrench,
+  Video,
+  PieChart,
+  DoorOpen,
+  Calendar
+} from "lucide-react";
 // 메뉴 구조 정의
-const MENUS = {
+// 메뉴 구조 정의
+const MENUS: Record<string, { label: string; href: string; activePath?: string; submenus: any[] }> = {
   insights: {
     label: "인사이트",
-    href: "/insights",
+    href: "/insights/tech-blog",
+    activePath: "/insights",
     submenus: [
-      { href: "/insights/tech-blog", label: "기술 블로그" },
-      { href: "/insights/ctp", label: "CTP" },
-    ],
-  },
-  career: {
-    label: "커리어",
-    href: "/career",
-    submenus: [
-      { href: "/career/activities", label: "대외활동" },
-      { href: "/career/jobs", label: "채용공고" },
+      { href: "/insights/tech-blog", label: "기술 블로그", icon: Newspaper },
+      { href: "/insights/activities", label: "대외활동", icon: Calendar },
+      { href: "/insights/ctp", label: "CTP", icon: Terminal },
     ],
   },
   community: {
     label: "커뮤니티",
     href: "/community",
     submenus: [
-      { href: "/community/board", label: "자유 게시판" },
-      { href: "/community/group", label: "스터디 & 모임" },
-      { href: "/community/squad", label: "팀원 모집" },
+      { href: "/community/board", label: "자유 게시판", icon: MessageSquare },
+      { href: "/community/squad", label: "팀원 모집", icon: UserPlus },
     ],
   },
   workspace: {
     label: "워크스페이스",
     href: "/workspace",
-    submenus: [
-      { href: "/workspace", label: "프로젝트 관리" },
-      { href: "/workspace/tools", label: "협업 도구" },
-    ],
+    submenus: [],
   },
   interview: {
     label: "AI 면접",
     href: "/interview",
     submenus: [
-      { href: "/interview", label: "AI 모의 면접" },
-      { href: "/interview/analysis", label: "면접 분석" },
-      { href: "/interview/room", label: "면접 대기실" },
+      { href: "/interview", label: "AI 모의 면접", icon: Video },
+      { href: "/interview/analysis", label: "면접 분석", icon: PieChart },
     ],
   },
 };
@@ -63,15 +64,19 @@ export function GlobalHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const isTechBlog = pathname && pathname.startsWith("/insights/tech-blog");
+  const [hoveredMenu, setHoveredMenu] = useState<string | null>(null);
 
-  // Use URL filters hook for Tech Blog state (synced via URL)
-  const { selectedBlog, handleBlogChange } = useUrlFilters();
 
   // 현재 활성화된 메인 카테고리 찾기
-  const currentCategory = Object.keys(MENUS).find((key) =>
-    pathname.startsWith(MENUS[key as keyof typeof MENUS].href),
-  );
+  // 하위 메뉴 중 하나라도 일치하면 해당 카테고리를 활성 상태로 간주
+  const currentCategory = Object.keys(MENUS).find((key) => {
+    const menu = MENUS[key as keyof typeof MENUS];
+    if (pathname === "/") return false;
+    return (
+      pathname.startsWith(menu.href) ||
+      menu.submenus.some((sub) => pathname.startsWith(sub.href))
+    );
+  });
 
   const submenus = currentCategory
     ? MENUS[currentCategory as keyof typeof MENUS].submenus
@@ -79,58 +84,75 @@ export function GlobalHeader() {
 
   return (
     <>
-      <header className="group fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 transition-all duration-300">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-sm border-b border-neutral-200 dark:border-slate-800 transition-all duration-300">
         {/* Main Header Bar */}
-        <div className="flex h-14 items-center justify-between px-4 md:px-8 max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-8">
-            <Link
-              href="/"
-              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-            >
-              <span className="font-black text-xl text-foreground bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">
-                <span className="bg-foreground text-background px-1 rounded mr-1">
-                  DB
-                </span>
-                Dibut
-              </span>
-            </Link>
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 w-full relative">
+          {/* Logo - Left */}
+          <Link
+            href="/"
+            className="text-[15px] font-bold tracking-tight text-neutral-900 dark:text-white hover:opacity-80 transition-opacity"
+          >
+            Dibut
+          </Link>
 
-            {/* Desktop Main Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {Object.entries(MENUS).map(([key, menu]) => {
-                const isActive = pathname.startsWith(menu.href);
-                return (
-                  <Link key={key} href={menu.href}>
+          {/* Desktop Main Navigation - Center */}
+          <nav
+            className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2"
+            onMouseLeave={() => setHoveredMenu(null)}
+          >
+            {Object.entries(MENUS).map(([key, menu]) => {
+              const isActive = pathname !== "/" && pathname.startsWith(menu.activePath || menu.href);
+              const isHovered = hoveredMenu === key;
+
+              return (
+                <div
+                  key={key}
+                  className="relative py-4"
+                  onMouseEnter={() => setHoveredMenu(key)}
+                >
+                  <Link href={menu.href}>
                     <Button
                       variant="ghost"
                       className={cn(
-                        "text-base font-medium h-9 px-4 hover:bg-muted/50 transition-colors",
+                        "relative px-3 py-1.5 text-[13px] font-bold transition-all duration-200",
                         isActive
-                          ? "text-primary font-bold bg-muted/30"
-                          : "text-muted-foreground",
+                          ? "text-primary bg-transparent hover:!bg-neutral-100 dark:hover:!bg-slate-800 hover:text-primary" // 선택됨: 평소 투명, 호버 시 회색 박스 + 초록색 강제 유지
+                          : "text-neutral-600 dark:text-slate-400 bg-transparent hover:!bg-neutral-100 dark:hover:!bg-slate-800 hover:text-neutral-900 dark:hover:text-white" // 일반: 평소 투명, 호버 시 동일 회색 박스 + 진한 텍스트
                       )}
                     >
                       {menu.label}
                     </Button>
                   </Link>
-                );
-              })}
-            </nav>
-          </div>
 
-          <div className="flex items-center gap-3">
-            {/* Tech Blog Specific Filters */}
-            {isTechBlog && (
-              <div className="flex items-center gap-2 mr-2">
-                <div className="hidden md:block">
-                  <BlogSelector
-                    selectedBlog={selectedBlog}
-                    onBlogChange={handleBlogChange}
-                  />
+                  {/* Sleek Dropdown Submenu - Only show if there are submenus */}
+                  {isHovered && menu.submenus.length > 0 && (
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2">
+                      <div className="w-48 overflow-hidden rounded-2xl bg-white dark:bg-slate-900 p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-neutral-100 dark:border-slate-800">
+                        {menu.submenus.map((sub) => {
+                          const Icon = sub.icon;
+                          return (
+                            <Link
+                              key={sub.href}
+                              href={sub.href}
+                              className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-neutral-800 dark:text-slate-200 transition-all hover:bg-neutral-50 dark:hover:bg-slate-800 hover:text-primary"
+                            >
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-50 group-hover:bg-primary/10 transition-colors">
+                                <Icon className="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" />
+                              </div>
+                              {sub.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })}
+          </nav>
 
+          {/* Right Actions */}
+          <div className="flex items-center gap-2">
             <NotificationCenter />
             <ThemeToggle />
             {!isFlutterWebView() && (
@@ -139,11 +161,11 @@ export function GlobalHeader() {
           </div>
         </div>
 
-        {/* Double Header Bar (Sub Navigation) - Conditionally Rendered */}
+        {/* Mobile Sub Navigation Bar - Only for mobile */}
         {submenus.length > 0 && (
-          <div className="w-full border-t border-border/30 bg-muted/20 md:hidden md:group-hover:block">
-            <div className="max-w-7xl mx-auto px-4 md:px-8">
-              <nav className="flex items-center h-10 md:h-11 overflow-x-auto no-scrollbar gap-6">
+          <div className="w-full border-t border-border/30 bg-muted/20 md:hidden">
+            <div className="max-w-7xl mx-auto px-4">
+              <nav className="flex items-center h-10 overflow-x-auto no-scrollbar gap-6">
                 {submenus.map((submenu) => {
                   // 단순 startsWith 비교보다 정확한 활성화 로직
                   // 예: /community/board 가 /community/board-detail 도 포함하도록
@@ -173,18 +195,6 @@ export function GlobalHeader() {
           </div>
         )}
 
-        {/* Mobile Filter View for Tech Blog */}
-        {isTechBlog && (
-          <div className="sm:hidden border-t border-border/50 p-2 bg-background/50 backdrop-blur-md">
-            <div className="flex items-center gap-2 justify-between">
-              <BlogSelector
-                selectedBlog={selectedBlog}
-                onBlogChange={handleBlogChange}
-                className="w-full"
-              />
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Spacer to prevent content overlap - Height depends on header state */}

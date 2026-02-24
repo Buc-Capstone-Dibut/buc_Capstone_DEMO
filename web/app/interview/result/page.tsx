@@ -7,19 +7,32 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, CheckCircle2, Download, Share2, Sparkles, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { motion } from "framer-motion";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
+import { MOCK_INTERVIEW_LIST } from "@/mocks/interview-data";
 
 export default function InterviewResultPage() {
    const router = useRouter();
+   const searchParams = useSearchParams();
+   const sessionId = searchParams.get("id");
    const { chatHistory, jobData, resumeData, analysisResult, setAnalysisResult } = useInterviewSetupStore();
    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
    useEffect(() => {
+      // If sessionId is provided, try to find it in mock data
+      if (sessionId) {
+         const pastSession = MOCK_INTERVIEW_LIST.find(s => s.id === sessionId);
+         if (pastSession) {
+            setAnalysisResult(pastSession.analysis as any);
+            return;
+         }
+      }
+
       const fetchAnalysis = async () => {
          // If no history or already analyzed, skip
-         if (!chatHistory.length || analysisResult) return;
+         if (!chatHistory.length || (analysisResult && !sessionId)) return;
 
          setIsAnalyzing(true);
          try {
@@ -46,7 +59,7 @@ export default function InterviewResultPage() {
       };
 
       fetchAnalysis();
-   }, [chatHistory, analysisResult, jobData, resumeData, setAnalysisResult]);
+   }, [chatHistory, analysisResult, jobData, resumeData, setAnalysisResult, sessionId]);
 
    if (isAnalyzing) {
       return (
@@ -70,10 +83,10 @@ export default function InterviewResultPage() {
    }
 
    const radialData = [
-      { name: '직무적합도', score: analysisResult.evaluation.jobFit, fill: '#8884d8' },
-      { name: '논리력', score: analysisResult.evaluation.logic, fill: '#83a6ed' },
-      { name: '전달력', score: analysisResult.evaluation.communication, fill: '#8dd1e1' },
-      { name: '태도', score: analysisResult.evaluation.attitude, fill: '#82ca9d' },
+      { name: '직무적합도', score: analysisResult.evaluation.jobFit, fill: 'hsl(var(--primary))' },
+      { name: '논리력', score: analysisResult.evaluation.logic, fill: 'hsl(var(--primary) / 0.8)' },
+      { name: '전달력', score: analysisResult.evaluation.communication, fill: 'hsl(var(--primary) / 0.6)' },
+      { name: '태도', score: analysisResult.evaluation.attitude, fill: 'hsl(var(--primary) / 0.4)' },
    ];
 
    const timelineData = analysisResult.sentimentTimeline.map((score, i) => ({
@@ -138,7 +151,7 @@ export default function InterviewResultPage() {
 
                <Card className="shadow-lg border-2">
                   <CardHeader>
-                     <CardTitle className="flex items-center gap-2 italic font-serif"><TrendingUp className="w-5 h-5 text-blue-500" /> 감정/태도 변화 (Timeline)</CardTitle>
+                     <CardTitle className="flex items-center gap-2 italic font-serif"><TrendingUp className="w-5 h-5 text-primary" /> 감정/태도 변화 (Timeline)</CardTitle>
                      <CardDescription>면접 시간 흐름에 따른 자신감 및 긍정 수치 변화입니다.</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[320px]">
@@ -151,9 +164,9 @@ export default function InterviewResultPage() {
                            <Line
                               type="monotone"
                               dataKey="sentiment"
-                              stroke="#3b82f6"
+                              stroke="hsl(var(--primary))"
                               strokeWidth={4}
-                              dot={{ r: 6, fill: '#3b82f6' }}
+                              dot={{ r: 6, fill: 'hsl(var(--primary))' }}
                               activeDot={{ r: 8, stroke: '#fff', strokeWidth: 2 }}
                            />
                         </LineChart>
@@ -244,11 +257,19 @@ export default function InterviewResultPage() {
             <Separator className="my-10" />
 
             <div className="flex justify-end gap-3 px-4">
-               <Button variant="outline" className="px-8 h-12" onClick={() => {
-                  setAnalysisResult(null as any);
-                  window.location.reload();
-               }}>다시 분석하기</Button>
-               <Button size="lg" className="px-10 h-12 text-base font-bold shadow-xl shadow-primary/20 transition-transform active:scale-95" onClick={() => router.push('/interview')}>메인 화면으로</Button>
+               {!sessionId && (
+                  <Button variant="outline" className="px-8 h-12" onClick={() => {
+                     setAnalysisResult(null as any);
+                     window.location.reload();
+                  }}>다시 분석하기</Button>
+               )}
+               <Button
+                  size="lg"
+                  className="px-10 h-12 text-base font-bold shadow-xl shadow-primary/20 transition-transform active:scale-95"
+                  onClick={() => router.push(sessionId ? '/interview/analysis' : '/interview')}
+               >
+                  {sessionId ? '목록으로 돌아가기' : '메인 화면으로'}
+               </Button>
             </div>
          </main>
       </div>

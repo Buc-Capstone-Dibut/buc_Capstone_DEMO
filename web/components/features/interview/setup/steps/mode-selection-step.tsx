@@ -2,79 +2,92 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { MessageSquare, Video, ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 
 export function ModeSelectionStep() {
     const { setStep } = useInterviewSetupStore();
     const router = useRouter();
 
     const handleModeSelect = (mode: 'chat' | 'video') => {
-        // In the future, you can save the selected mode to the store if needed.
-        // For now, we'll just navigate to the corresponding room.
         if (mode === 'chat') {
             router.push('/interview/room?mode=chat');
         } else {
-            router.push('/interview/room?mode=video');
+            // Video mode is currently unavailable
         }
     };
 
     return (
         <div className="max-w-4xl mx-auto py-12 px-6">
-            <div className="mb-10 text-center space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight">어떤 방식으로 면접을 보시겠어요?</h1>
+            <div className="mb-12 text-center space-y-3">
+                <h1 className="text-3xl font-bold tracking-tight">면접 방식 선택</h1>
                 <p className="text-muted-foreground text-lg">
-                    자신에게 맞는 면접 모드를 선택해주세요.
+                    가장 편안하게 집중할 수 있는 면접 방식을 선택해주세요.
                 </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
+                {/* 1. Chat Interview */}
                 <Card
-                    className="relative overflow-hidden border-2 hover:border-blue-500 transition-all cursor-pointer group shadow-md"
+                    className="relative overflow-hidden border-2 transition-all duration-300 cursor-pointer group shadow-sm hover:shadow-md hover:border-primary/50"
                     onClick={() => handleModeSelect('chat')}
                 >
-                    <CardHeader className="pb-2">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                            <MessageSquare className="w-6 h-6 text-blue-600" />
+                    <CardHeader className="pb-3 px-8 pt-10">
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                                Chat Interview
+                            </span>
+                            <CardTitle className="text-2xl font-bold tracking-tight">채팅 면접</CardTitle>
                         </div>
-                        <CardTitle>채팅 면접</CardTitle>
-                        <CardDescription>
-                            텍스트 채팅을 통해 면접을 진행합니다.<br />
-                            조용한 장소에서 차분하게 대답하고 싶을 때 좋습니다.
-                        </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-sm text-blue-600 font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            선택하기 &rarr;
+                    <CardContent className="px-8 pb-10">
+                        <CardDescription className="text-sm leading-relaxed mb-8 h-12">
+                            텍스트 채팅을 통해 면접을 진행합니다.<br />
+                            실시간 대화로 차분하게 생각을 정리하여 답변하기 좋습니다.
+                        </CardDescription>
+
+                        <div className="flex items-center justify-between">
+                            <div className="h-1 w-12 rounded-full bg-primary" />
+                            <div className="text-xs font-bold text-primary flex items-center gap-1">
+                                지금 시작하기 <ArrowRight className="w-3 h-3" />
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
+                {/* 2. Video Interview (Coming Soon) */}
                 <Card
-                    className="relative overflow-hidden border-2 transition-all cursor-not-allowed group shadow-md opacity-60 bg-neutral-50"
+                    className="relative overflow-hidden border-2 border-dashed border-border transition-all duration-300 shadow-none bg-neutral-50/50"
                 >
-                    <CardHeader className="pb-2">
-                        <div className="w-12 h-12 bg-neutral-200 rounded-lg flex items-center justify-center mb-4">
-                            <Video className="w-6 h-6 text-neutral-400" />
+                    <CardHeader className="pb-3 px-8 pt-10">
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                Video Interview
+                            </span>
+                            <CardTitle className="text-2xl font-bold tracking-tight text-neutral-400">화상 면접</CardTitle>
                         </div>
-                        <CardTitle className="text-neutral-400">화상 면접 (준비 중)</CardTitle>
-                        <CardDescription>
-                            카메라와 마이크를 사용하여 실전처럼 진행합니다.<br />
-                            곧 정식 출시될 예정입니다.
-                        </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-xs text-neutral-500 font-medium italic">
-                            현재는 채팅 면접만 이용 가능합니다.
+                    <CardContent className="px-8 pb-10">
+                        <CardDescription className="text-sm leading-relaxed mb-8 h-12 text-neutral-400">
+                            카메라와 마이크를 사용하여 실전처럼 진행합니다.<br />
+                            조금 더 생생한 면접 경험을 위해 준비 중입니다.
+                        </CardDescription>
+
+                        <div className="flex items-center justify-between opacity-40">
+                            <div className="h-1 w-12 rounded-full bg-neutral-300" />
+                            <div className="text-[10px] font-bold text-neutral-500 uppercase">
+                                Coming Soon
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            <div className="mt-12 flex justify-start">
-                <Button variant="ghost" onClick={() => setStep('final-check')} className="gap-2">
-                    <ArrowLeft className="w-4 h-4" /> 이전으로
+            <div className="mt-16 flex justify-center border-t pt-8">
+                <Button variant="ghost" onClick={() => setStep('personality-selection')} className="gap-2 text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="w-4 h-4" /> 이전 단계: 성격 선택으로
                 </Button>
             </div>
         </div>

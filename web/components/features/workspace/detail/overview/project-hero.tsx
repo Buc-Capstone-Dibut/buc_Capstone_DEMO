@@ -39,9 +39,8 @@ export function ProjectHero({
                 variant="outline"
                 className="bg-background border-primary/20 text-primary"
               >
-                {project.category || "Side Project"}
+                {project.category || "사이드 프로젝트"}
               </Badge>
-              <Badge className="bg-green-500 hover:bg-green-600">LIVE</Badge>
             </div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
               {project.name}
@@ -54,11 +53,11 @@ export function ProjectHero({
           <div className="flex flex-wrap gap-3 pt-2">
             <Button className="rounded-full shadow-sm">
               <Plus className="h-4 w-4 mr-2" />
-              New Task
+              새 작업
             </Button>
             <Button variant="secondary" className="rounded-full">
               <FileText className="h-4 w-4 mr-2" />
-              New Doc
+              새 문서
             </Button>
 
             <EditWorkspaceDialog workspace={project} />
@@ -71,7 +70,7 @@ export function ProjectHero({
             <CheckCircle2 className="h-5 w-5 text-primary mb-2 opacity-80" />
             <span className="text-2xl font-bold">{totalTasks}</span>
             <span className="text-xs text-muted-foreground font-medium uppercase">
-              Total Tasks
+              전체 작업
             </span>
           </div>
           <div className="flex flex-col items-center justify-center p-4 border rounded-xl min-w-[120px] bg-muted/30">
@@ -82,7 +81,7 @@ export function ProjectHero({
               {completedTasks}
             </span>
             <span className="text-xs text-muted-foreground font-medium uppercase">
-              Completed
+              완료됨
             </span>
           </div>
           {project.members && (
@@ -92,7 +91,7 @@ export function ProjectHero({
                 {project.members.length}
               </span>
               <span className="text-xs text-muted-foreground font-medium uppercase">
-                Members
+                멤버
               </span>
             </div>
           )}
