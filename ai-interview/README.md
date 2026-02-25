@@ -1,41 +1,82 @@
-# Dibut AI Interview FastAPI
+# Dibut AI Interview API (FastAPI)
 
-## Run
+AI 면접 질문 생성, 세션 저장, 음성 WebSocket(STT/TTS) 처리를 담당하는 백엔드입니다.
+
+## 구조
+
+```mermaid
+sequenceDiagram
+    participant Web as web (Next.js)
+    participant API as ai-interview (FastAPI)
+    participant LLM as Gemini
+    participant VOICE as OpenAI STT/TTS
+    participant DB as Supabase
+
+    Web->>API: POST /v1/interview/session/start
+    API->>LLM: 질문 생성
+    API->>DB: 세션/턴 저장
+    Web->>API: WS /v1/interview/ws/client
+    API->>VOICE: STT/TTS 처리
+    API-->>Web: transcript/audio events
+```
+
+## 주요 엔드포인트
+
+- `GET /health`
+- `GET /docs`
+- `POST /v1/interview/session/start`
+- `POST /v1/interview/chat`
+- `WS /v1/interview/ws/client`
+- `GET /admin/health`
+
+## 환경변수
+
+| 키 | 필수 | 설명 |
+|---|---|---|
+| `DATABASE_URL` | 예 | Postgres 연결 문자열 |
+| `GEMINI_API_KEY` | 예 | 질문 생성/분석 LLM |
+| `GEMINI_MODEL` | 아니오 | 기본 `gemini-1.5-flash` |
+| `CORS_ORIGINS` | 예 | 웹 도메인 목록(콤마 구분) |
+| `OPENAI_API_KEY` | 음성 사용 시 예 | STT/TTS 기능 활성화 |
+| `OPENAI_STT_MODEL` | 아니오 | 기본 `whisper-1` |
+| `OPENAI_TTS_MODEL` | 아니오 | 기본 `tts-1` |
+| `OPENAI_TTS_VOICE` | 아니오 | 기본 `alloy` |
+| `LIVEKIT_URL` | 선택 | 라이브킷 연동 시 |
+| `LIVEKIT_API_KEY` | 선택 | 라이브킷 연동 시 |
+| `LIVEKIT_API_SECRET` | 선택 | 라이브킷 연동 시 |
+| `VOICE_VAD_THRESHOLD` | 아니오 | 기본 `0.015` |
+| `VOICE_VAD_SILENCE_MS` | 아니오 | 기본 `700` |
+| `VOICE_MIN_SPEECH_MS` | 아니오 | 기본 `350` |
+| `VOICE_MAX_SEGMENT_MS` | 아니오 | 기본 `10000` |
+
+## 로컬 실행
 
 ```bash
 cd ai-interview
+cp .env.example .env
 uv sync
 uv run uvicorn app.main:app --reload --port 8001
 ```
 
-## Required environment variables
+확인:
 
-- `DATABASE_URL`
-- `GEMINI_API_KEY`
-- `CORS_ORIGINS` (optional, default `http://localhost:3000`)
+```bash
+curl http://localhost:8001/health
+```
 
-## Secret hygiene (P0-4)
+## Render 배포 설정
 
-- `.env.example` 의 `your_*` / `<...>` 값은 런타임에서 자동으로 무효화됩니다.
-- 실제 운영 키는 `.env` 또는 배포 환경변수(Render/Supabase Secret)로만 주입하세요.
-- 키가 노출되었거나 대화/로그에 남았으면 즉시 로테이션 후 재배포하세요.
+- Root Directory: `ai-interview`
+- Runtime: `Python`
+- Build Command: `pip install -e .`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-## Voice pipeline variables (STT/TTS)
+배포 후 확인:
 
-- `OPENAI_API_KEY` (required for real-time STT/TTS)
-- `OPENAI_STT_MODEL` (default `whisper-1`)
-- `OPENAI_TTS_MODEL` (default `tts-1`)
-- `OPENAI_TTS_VOICE` (default `alloy`)
-- `VOICE_VAD_THRESHOLD` (default `0.015`)
-- `VOICE_VAD_SILENCE_MS` (default `700`)
-- `VOICE_MIN_SPEECH_MS` (default `350`)
-- `VOICE_MAX_SEGMENT_MS` (default `10000`)
+- `https://<service>.onrender.com/health`
+- `https://<service>.onrender.com/docs`
 
-## WebSocket voice flow
+## 개발 메모
 
-1. Connect to `ws://localhost:8001/v1/interview/ws/client`
-2. Send `init-interview-session`
-3. Server sends first AI question (`transcript.final` role=`ai` + `audio`)
-4. Client streams mic frames with `raw-audio-data`
-5. Server VAD/STT creates user transcript (`transcript.final` role=`user`)
-6. Server generates next question with Gemini and returns TTS audio
+- 루트 `/`는 라우트가 없어 404가 정상입니다.
+- 음성 면접을 운영하려면 `OPENAI_API_KEY`를 반드시 넣어야 합니다.

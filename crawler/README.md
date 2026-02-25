@@ -1,54 +1,52 @@
 # Dibut Crawler
 
-Dibut 프로젝트의 데이터 수집 모듈입니다.
-현재 구조는 **크롤러별 독립 실행**으로 완전히 정리되어 있습니다.
+기술 블로그 RSS/개발 이벤트 데이터를 수집해서 JSON 또는 Supabase로 적재하는 모듈입니다.
 
-## 빠른 시작 (uv)
+## 수집 파이프라인
 
-1. `crawler/` 디렉토리에서 의존성 동기화
+```mermaid
+flowchart LR
+    SRC[RSS / Event Source] --> P[Parser]
+    P --> N[Normalizer]
+    N --> T[Tagger - Gemini optional]
+    T --> OUT1[web/public/data/*.json]
+    T --> OUT2[(Supabase Table)]
+```
+
+## 실행 전 준비
 
 ```bash
+cd crawler
+cp .env.example .env
 uv sync
 ```
 
-2. 환경 변수 파일 준비
+## 실행 명령
 
-```bash
-cp .env.example .env
-```
-
-환경 변수는 `프로젝트 루트 .env` → `web/.env.local` → `crawler/.env` 순으로 모두 로드되며, 뒤 파일 값이 앞 값을 override 합니다.
-
-### 선택 환경 변수 (출력 경로/테이블)
-
-`src/common/config/settings.py`에서 아래 값을 단일 로딩합니다.
-
-```bash
-# web/public/data 기본 경로를 바꾸고 싶을 때
-WEB_DATA_DIR=
-DEV_EVENT_JSON_PATH=
-
-# Supabase 테이블명 커스텀
-SUPABASE_BLOGS_TABLE=blogs
-```
-
-## 독립 실행 명령
-
-모든 명령은 `crawler/` 루트에서 실행합니다.
-
-### 1) Tech Blog RSS
+### Tech Blog 수집
 
 ```bash
 uv run python -m src.apps.tech_blog.cli
 ```
 
-### 2) Dev Event
+### Dev Event 수집
 
 ```bash
 uv run python -m src.apps.dev_event.cli --limit 10
 ```
 
-## 리팩토링 문서
+## 주요 환경변수
 
-- 리팩토링 계획: `docs/refactoring-plan.md`
-- 경로 매핑/정리 현황: `docs/migration-map.md`
+| 키 | 필수 | 설명 |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | 선택 | Supabase 저장 시 |
+| `SUPABASE_SERVICE_ROLE_KEY` | 선택 | Supabase 저장 시 |
+| `GEMINI_API_KEY` | 선택 | AI 태깅 사용 시 |
+| `WEB_DATA_DIR` | 선택 | JSON 출력 경로 변경 |
+| `DEV_EVENT_JSON_PATH` | 선택 | 이벤트 파일 경로 변경 |
+| `SUPABASE_BLOGS_TABLE` | 선택 | 테이블명 커스텀 |
+
+## 참고 문서
+
+- `docs/refactoring-plan.md`
+- `docs/migration-map.md`
