@@ -80,72 +80,30 @@ export default function InterviewSetupPage() {
 
       case 'complete':
         return (
-          <div className="w-full max-w-4xl mx-auto p-6 space-y-6 overflow-y-auto max-h-[80vh]">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold">🛠️ Developer Debug Board</h1>
-              <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-                Development Mode
-              </span>
+          <div className="w-full max-w-2xl mx-auto flex flex-col items-center justify-center py-24 px-6 gap-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div className="p-4 bg-white border rounded-lg shadow-sm">
-                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    🎯 Target Info
-                  </h2>
-                  <dl className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <dt className="text-gray-500">Category</dt>
-                      <dd className="font-medium">{useInterviewSetupStore.getState().targetJobCategory}</dd>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <dt className="text-gray-500">URL</dt>
-                      <dd className="font-mono text-xs bg-gray-50 p-1 rounded break-all">
-                        {useInterviewSetupStore.getState().targetUrl || 'N/A'}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div className="p-4 bg-white border rounded-lg shadow-sm">
-                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    📄 Resume Data
-                  </h2>
-                  <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto">
-                    {JSON.stringify(useInterviewSetupStore.getState().resumeData, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="p-4 bg-white border rounded-lg shadow-sm">
-                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    💼 Job Data (JD)
-                  </h2>
-                  <pre className="text-xs bg-gray-900 text-blue-400 p-4 rounded-md overflow-x-auto max-h-[500px]">
-                    {JSON.stringify(useInterviewSetupStore.getState().jobData, null, 2)}
-                  </pre>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold tracking-tight">면접 준비 완료</h1>
+              <p className="text-muted-foreground text-lg">
+                모든 설정이 완료되었습니다. 면접실로 이동하면 AI 면접관이 기다리고 있습니다.
+              </p>
             </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex gap-3 pt-2">
               <button
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-                onClick={() => window.location.reload()}
+                className="px-5 py-2.5 text-sm text-muted-foreground border rounded-md hover:bg-muted transition-colors"
+                onClick={() => reset()}
               >
-                Reset
+                처음부터 다시
               </button>
               <button
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium shadow-sm transition-colors"
-                onClick={() => {
-                  // 실제 구현시에는 여기서 API를 호출하여 세션을 생성할 수 있습니다.
-                  // 지금은 구동을 위해 바로 면접실로 이동합니다.
-                  router.push('/interview/room');
-                }}
+                className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-semibold shadow-lg shadow-primary/20 transition-colors"
+                onClick={() => router.push('/interview/room/video')}
               >
-                Start Interview Session
+                면접 시작하기 →
               </button>
             </div>
           </div>

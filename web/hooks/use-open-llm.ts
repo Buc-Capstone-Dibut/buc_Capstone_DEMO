@@ -8,6 +8,8 @@ export interface WsInterviewInitPayload {
   style?: string;
   targetDurationSec?: number;
   closingThresholdSec?: number;
+  llmStreamMode?: "final" | "delta";
+  ttsMode?: "full" | "sentence";
   jobData?: Record<string, unknown>;
   resumeData?: Record<string, unknown>;
   jd?: string;
@@ -86,6 +88,8 @@ export function useOpenLLM({
       style: payload.style || "professional",
       targetDurationSec: payload.targetDurationSec,
       closingThresholdSec: payload.closingThresholdSec,
+      llmStreamMode: payload.llmStreamMode,
+      ttsMode: payload.ttsMode,
       jobData: payload.jobData,
       resumeData: payload.resumeData,
       jd: payload.jd,
@@ -132,6 +136,15 @@ export function useOpenLLM({
       setIsAIProcessing(false);
     } catch (e) {
       console.error("Mic start failed", e);
+      const isPermissionError =
+        e instanceof DOMException &&
+        (e.name === "NotAllowedError" || e.name === "PermissionDeniedError");
+      onEventRef.current?.({
+        type: "mic-error",
+        message: isPermissionError
+          ? "마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요."
+          : "마이크를 시작할 수 없습니다. 마이크 연결 상태를 확인해주세요.",
+      });
     }
   }, []);
 

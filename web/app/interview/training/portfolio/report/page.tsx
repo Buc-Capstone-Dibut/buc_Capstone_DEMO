@@ -39,6 +39,11 @@ interface SessionDetail {
   current_phase?: string;
   created_at?: number;
   jd_text?: string;
+  reportStatus?: string;
+  reportAttempts?: number;
+  reportMaxAttempts?: number;
+  reportError?: string;
+  reportUpdatedAt?: number;
 }
 
 const RUBRIC_META: Record<RubricKey, { label: string; weight: number; hint: string }> = {
@@ -195,6 +200,25 @@ export default function PortfolioDefenseReportPage() {
     fetchDetail();
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!sessionId || !detail) return;
+    if (!detail.reportStatus || !["pending", "running"].includes(detail.reportStatus)) return;
+
+    const id = window.setInterval(async () => {
+      try {
+        const res = await fetch(`/api/interview/sessions/${sessionId}`, { cache: "no-store" });
+        const json = await res.json();
+        if (json.success && json.data) {
+          setDetail(json.data as SessionDetail);
+        }
+      } catch {
+        // polling 실패는 다음 주기에서 재시도
+      }
+    }, 5000);
+
+    return () => window.clearInterval(id);
+  }, [sessionId, detail]);
+
   const jdPayload = useMemo(() => parseJdPayload(detail?.jd_text), [detail?.jd_text]);
   const repoUrl = typeof jdPayload.repoUrl === "string" ? jdPayload.repoUrl : "";
   const mode = normalizeMode(detail?.mode);
@@ -288,6 +312,7 @@ export default function PortfolioDefenseReportPage() {
   }
 
   const hasRubricReport = rubric.some((item) => item.weighted > 0 || item.raw > 0 || item.evidence);
+  const reportStatus = detail.reportStatus || "";
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -302,6 +327,21 @@ export default function PortfolioDefenseReportPage() {
             PORTFOLIO DEFENSE REPORT
           </Badge>
         </div>
+
+        {["pending", "running"].includes(reportStatus) && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary">AI 리포트 생성 중...</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                평가 분석이 진행 중입니다. 페이지는 자동으로 갱신됩니다.
+                {detail.reportAttempts != null && detail.reportMaxAttempts != null && (
+                  <span className="ml-1">({detail.reportAttempts}/{detail.reportMaxAttempts}회 확인)</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         <Card className="border-2">
           <CardContent className="pt-6 pb-6 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -340,7 +380,9 @@ export default function PortfolioDefenseReportPage() {
             <CardHeader>
               <CardTitle>아직 디펜스 분석이 완료되지 않았습니다.</CardTitle>
               <CardDescription>
-                세션 종료 직후 분석이 지연될 수 있습니다. 잠시 후 다시 확인해주세요.
+                {reportStatus === "failed"
+                  ? `리포트 생성이 실패했습니다. ${detail.reportError || ""}`
+                  : "세션 종료 직후 분석이 지연될 수 있습니다. 잠시 후 다시 확인해주세요."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex gap-2">

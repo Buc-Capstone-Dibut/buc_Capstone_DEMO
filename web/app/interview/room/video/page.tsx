@@ -88,6 +88,7 @@ export default function InterviewVideoRoomPage() {
     finishReason: "",
   });
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+  const [streamingCaption, setStreamingCaption] = useState("");
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -121,6 +122,9 @@ export default function InterviewVideoRoomPage() {
     onTranscript: (text, role) => {
       const clean = text.trim();
       if (!clean) return;
+      if (role === "ai") {
+        setStreamingCaption("");
+      }
       setTranscript((prev) => [...prev, { role, text: clean, timestamp: Date.now() }]);
     },
     onEvent: (event) => {
@@ -167,8 +171,15 @@ export default function InterviewVideoRoomPage() {
         setStatusMessage(toText(event.message, "면접 단계가 업데이트되었습니다."));
       }
 
-      if (eventType === "warning" || eventType === "error") {
+      if (eventType === "warning" || eventType === "error" || eventType === "mic-error") {
         setStatusMessage(toText(event.message, "오디오 파이프라인 상태를 확인해 주세요."));
+      }
+
+      if (eventType === "transcript.delta" && event.role === "ai") {
+        const accumulated =
+          typeof event.accumulatedText === "string" ? event.accumulatedText : "";
+        const delta = typeof event.delta === "string" ? event.delta : "";
+        setStreamingCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
       }
     },
   });
@@ -188,8 +199,10 @@ export default function InterviewVideoRoomPage() {
       style: interviewerPersonality || "professional",
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
-      jobData: jobData || {},
-      resumeData: resumeData?.parsedContent || {},
+      llmStreamMode: "delta",
+      ttsMode: "sentence",
+      jobData: (jobData as unknown as Record<string, unknown>) || {},
+      resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
     });
   }, [
     isConnected,
@@ -202,8 +215,28 @@ export default function InterviewVideoRoomPage() {
 
   useEffect(() => {
     if (!runtimeMeta.interviewComplete) return;
-    setStatusMessage("면접이 마무리되었습니다. 결과 페이지로 이동할 수 있습니다.");
-  }, [runtimeMeta.interviewComplete]);
+
+    const chatHistory: { role: "user" | "model"; parts: string }[] = transcript.map((item) => ({
+      role: item.role === "ai" ? "model" : "user",
+      parts: item.text,
+    }));
+    setChatHistory(chatHistory);
+
+    let remaining = 3;
+    setStatusMessage(`면접이 완료되었습니다. ${remaining}초 후 결과 페이지로 이동합니다...`);
+
+    const tick = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(tick);
+        router.push("/interview/result");
+      } else {
+        setStatusMessage(`면접이 완료되었습니다. ${remaining}초 후 결과 페이지로 이동합니다...`);
+      }
+    }, 1000);
+
+    return () => clearInterval(tick);
+  }, [runtimeMeta.interviewComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const avatarState = isAISpeaking
     ? "speaking"
@@ -216,6 +249,7 @@ export default function InterviewVideoRoomPage() {
   const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
+  const activeAiCaption = streamingCaption.trim();
 
   const handleMicToggle = async () => {
     if (isMicOn) {
@@ -229,7 +263,7 @@ export default function InterviewVideoRoomPage() {
   };
 
   const handleFinish = () => {
-    const chatHistory = transcript.map((item) => ({
+    const chatHistory: { role: "user" | "model"; parts: string }[] = transcript.map((item) => ({
       role: item.role === "ai" ? "model" : "user",
       parts: item.text,
     }));
@@ -294,17 +328,24 @@ export default function InterviewVideoRoomPage() {
                 <Captions className="w-3.5 h-3.5" />
                 실시간 자막
               </div>
-              {latestCaption ? (
+              {latestCaption || activeAiCaption ? (
                 <div className="space-y-1">
-                  {previousCaption && (
+                  {previousCaption && !activeAiCaption && (
                     <p className="text-[12px] text-white/60 truncate">
                       {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaption.text}
                     </p>
                   )}
-                  <p className="text-sm font-medium leading-relaxed">
-                    <span className="text-emerald-300 mr-1">{latestCaption.role === "ai" ? "Dibut" : "나"}:</span>
-                    {latestCaption.text}
-                  </p>
+                  {activeAiCaption ? (
+                    <p className="text-sm font-medium leading-relaxed">
+                      <span className="text-emerald-300 mr-1">Dibut:</span>
+                      {activeAiCaption}
+                    </p>
+                  ) : (
+                    <p className="text-sm font-medium leading-relaxed">
+                      <span className="text-emerald-300 mr-1">{latestCaption.role === "ai" ? "Dibut" : "나"}:</span>
+                      {latestCaption.text}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-white/70">
