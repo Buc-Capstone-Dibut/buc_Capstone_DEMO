@@ -58,6 +58,10 @@ export default function RootLayout({
           crossOrigin="anonymous"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
         />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
+          rel="stylesheet"
+        />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
       </head>
@@ -81,7 +85,7 @@ export default function RootLayout({
                 >
                   <GlobalHeader />
                 </Suspense>
-                <div className="flex-1 pt-14">{children}</div>
+                <div className="flex-1">{children}</div>
                 <GlobalMobileNav />
               </div>
             </VoiceManager>

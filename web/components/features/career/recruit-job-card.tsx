@@ -97,7 +97,12 @@ export function RecruitJobCard({ job }: RecruitJobCardProps) {
   );
 
   return (
-    <Link href={`/career/jobs/${job.id}`} className="group block h-full">
+    <Link
+      href={job.link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block h-full"
+    >
       <div className="flex flex-col h-full rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
         {/* 1. Thumbnail Area (Generative Cover or Real Image) */}
         <div

@@ -95,6 +95,9 @@ export function WorkspaceSidebar({
   // Voice Channels
   const { joinRoom, currentRoom, isConnected } = useVoice();
 
+  // Fetch all workspaces for the switcher
+  const { data: workspaces } = useSWR<any[]>("/api/workspaces", fetcher);
+
   // Poll for Room Participants (Socket-driven + 60s fallback)
   const { data: roomParticipants, mutate: mutateRooms } = useSWR(
     "/api/livekit/rooms",
@@ -196,53 +199,82 @@ export function WorkspaceSidebar({
   ];
 
   return (
-    <div className="w-64 border-r bg-muted/10 h-[calc(100vh-4rem)] flex flex-col">
+    <div className="w-64 border-r bg-muted/10 h-full flex flex-col">
       <div className="p-4 border-b">
         <Link
           href="/workspace"
           className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
         >
           <ChevronLeft className="h-4 w-4 mr-1" />
-          Back to Hub
+          프로젝트 목록
         </Link>
 
-        {/* Workspace Dropdown Header */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded-md transition-colors group">
-              <div className="h-8 w-8 min-w-[32px] rounded bg-primary/10 flex items-center justify-center text-primary font-bold">
-                {project?.name?.charAt(0) || "?"}
-              </div>
-              <div className="flex items-center justify-between flex-1 overflow-hidden">
-                <div className="font-semibold text-sm truncate">
-                  {error ? "Error loading" : project?.name || "Loading..."}
+        {/* Unified Project Switcher */}
+        {(() => {
+          const currentWorkspace = workspaces?.find((ws) => ws.id === projectId) || project;
+          const displayProjectName = currentWorkspace?.name || (isLoading ? "Loading..." : "Dibut 사이드 프로젝트");
+          const displayChar = displayProjectName.charAt(0) || "?";
+
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/80 cursor-pointer transition-colors group/switcher border border-transparent hover:border-border">
+                  <div className="h-8 w-8 min-w-[32px] rounded bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm">
+                    {displayChar}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <div className="font-semibold text-sm truncate flex items-center gap-1">
+                      {displayProjectName}
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground group-hover/switcher:text-foreground transition-colors" />
+                    </div>
+                  </div>
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-              {project?.name} Options
-            </DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => setIsInviteModalOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite People
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Workspace Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600"
-              onClick={() => setIsLeaveAlertOpen(true)}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Leave Workspace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64 p-1">
+                <DropdownMenuLabel className="text-xs text-muted-foreground px-2 py-1.5">
+                  프로젝트 전환
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="max-h-[300px] overflow-y-auto">
+                  {workspaces?.map((ws) => (
+                    <DropdownMenuItem
+                      key={ws.id}
+                      onClick={() => router.push(`/workspace/${ws.id}`)}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-2 cursor-pointer transition-colors",
+                        ws.id === projectId &&
+                        "bg-primary/5 text-primary font-medium",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "h-7 w-7 rounded flex items-center justify-center text-xs font-bold",
+                          ws.id === projectId
+                            ? "bg-primary text-white"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {ws.name.charAt(0)}
+                      </div>
+                      <span className="truncate flex-1">{ws.name}</span>
+                      {ws.id === projectId && (
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => router.push("/workspace")}
+                  className="px-2 py-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  모든 프로젝트 보기
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        })()}
       </div>
 
       <div className="py-2 px-2 space-y-1">
@@ -266,7 +298,7 @@ export function WorkspaceSidebar({
         {/* Channels */}
         <div>
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            Text Channels
+            채팅 채널
             <Plus
               className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary transition-opacity"
               onClick={() => setIsChannelDialogOpen(true)}
@@ -285,7 +317,7 @@ export function WorkspaceSidebar({
                   className={cn(
                     "w-full justify-between h-8 px-2 text-muted-foreground font-normal overflow-hidden",
                     activeTab === `chat-${channel.id}` &&
-                      "bg-accent text-accent-foreground font-medium",
+                    "bg-accent text-accent-foreground font-medium",
                     showBadge && "text-foreground font-semibold",
                     isMentioned && "text-primary",
                   )}
@@ -334,7 +366,7 @@ export function WorkspaceSidebar({
         {/* Voice Rooms */}
         <div>
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            Voice Channels
+            음성 채널
             <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer" />
           </div>
           <div className="space-y-0.5">
@@ -343,7 +375,7 @@ export function WorkspaceSidebar({
               className={cn(
                 "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
                 currentRoom === "dev-room" &&
-                  "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
+                "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
               )}
               onClick={() => joinRoom(projectId, "dev-room")}
             >
@@ -386,7 +418,7 @@ export function WorkspaceSidebar({
               className={cn(
                 "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
                 currentRoom === "lounge" &&
-                  "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
+                "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
               )}
               onClick={() => joinRoom(projectId, "lounge")}
             >
@@ -431,10 +463,34 @@ export function WorkspaceSidebar({
       <div className="p-4 border-t">
         <div className="mb-2 px-2 text-xs font-semibold text-muted-foreground flex items-center justify-between group">
           Team
-          <Plus
-            className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary transition-opacity"
-            onClick={() => setIsInviteModalOpen(true)}
-          />
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Settings className="h-3.5 w-3.5 cursor-pointer hover:text-primary transition-colors" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                  프로젝트 관리
+                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setIsInviteModalOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  팀원 초대
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  워크스페이스 설정
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => setIsLeaveAlertOpen(true)}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  워크스페이스 나가기
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <div className="space-y-1">
           {project?.members?.map((member: any, i: number) => {
@@ -469,28 +525,28 @@ export function WorkspaceSidebar({
       <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Channel</DialogTitle>
+            <DialogTitle>새 채널 생성</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Channel Name</Label>
+              <Label>채널 이름</Label>
               <Input
-                placeholder="e.g. general"
+                placeholder="예: 공지사항, 잡담"
                 value={newChannelName}
                 onChange={(e) => setNewChannelName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>설명 (선택 사항)</Label>
               <Input
-                placeholder="Topic description"
+                placeholder="채널의 목적이나 주제를 입력하세요"
                 value={newChannelDesc}
                 onChange={(e) => setNewChannelDesc(e.target.value)}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleCreateChannel}>Create</Button>
+            <Button onClick={handleCreateChannel}>생성하기</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

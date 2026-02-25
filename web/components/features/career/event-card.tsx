@@ -40,7 +40,7 @@ export function EventCard({ event }: EventCardProps) {
 
   return (
     <Link
-      href={`/career/activities/${event.id}`}
+      href={`/insights/activities/${event.id}`}
       className="group relative block h-full cursor-pointer focus:outline-none"
     >
       <div className="relative flex flex-col h-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1">

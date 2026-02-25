@@ -232,20 +232,27 @@ export async function incrementViews(id: number) {
 }
 
 // 주간 인기글 조회
-export async function fetchWeeklyPopularBlogs(limit = 5) {
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+export async function fetchWeeklyPopularBlogs(limit = 10) {
+  try {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .select("*")
-    .gte("published_at", oneWeekAgo.toISOString())
-    .order("views", { ascending: false })
-    .limit(limit);
+    const { data, error } = await supabase
+      .from("blogs")
+      .select("*")
+      .gte("published_at", oneWeekAgo.toISOString())
+      .order("views", { ascending: false })
+      .limit(limit);
 
-  if (error) {
-    throw new Error(`주간 인기글 조회 실패: ${error.message}`);
+    if (error) {
+      console.error("주간 인기글 조회 중 Supabase 오류:", error);
+      // 필터 없이 다시 시도하거나 빈 배열 반환
+      return [];
+    }
+
+    return (data as Blog[]) || [];
+  } catch (error) {
+    console.error("주간 인기글 페칭 중 예외 발생:", error);
+    return [];
   }
-
-  return data as Blog[];
 }

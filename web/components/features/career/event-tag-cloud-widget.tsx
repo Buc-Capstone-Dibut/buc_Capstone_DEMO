@@ -29,7 +29,7 @@ export function EventTagCloudWidget({ tags }: EventTagCloudWidgetProps) {
           topTags.map((t) => (
             <Link
               key={t.tag}
-              href={`/career/activities?tags=${encodeURIComponent(t.tag)}`}
+              href={`/insights/activities?tags=${encodeURIComponent(t.tag)}`}
               className="no-underline"
             >
               <Badge

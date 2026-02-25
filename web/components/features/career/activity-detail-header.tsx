@@ -75,7 +75,7 @@ export function ActivityDetailHeader({ event }: ActivityDetailHeaderProps) {
         {/* Content Container */}
         <div className="container mx-auto px-4 max-w-5xl z-10 pb-12">
           <Link
-            href="/career/activities"
+            href="/insights/activities"
             className="inline-flex items-center text-white/80 hover:text-white mb-6 text-sm group transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-1 group-hover:-translate-x-1 transition-transform" />{" "}

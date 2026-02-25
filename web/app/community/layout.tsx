@@ -15,13 +15,13 @@ export default function CommunityLayout({
 
   const tabs = [
     {
-      name: "Board",
+      name: "자유게시판",
       href: "/community/board",
       icon: MessageSquare,
       active: pathname?.startsWith("/community/board"),
     },
     {
-      name: "Squad",
+      name: "팀원 모집",
       href: "/community/squad",
       icon: Users,
       active: pathname?.startsWith("/community/squad"),
@@ -40,7 +40,7 @@ export default function CommunityLayout({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight mb-2">
-              Community
+              커뮤니티
             </h1>
             <p className="text-muted-foreground">
               개발자들의 소통, 성장, 그리고 실제 협업을 위한 공간입니다.

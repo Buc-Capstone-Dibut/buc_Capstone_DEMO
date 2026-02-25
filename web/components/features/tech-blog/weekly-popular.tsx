@@ -45,7 +45,7 @@ export function WeeklyPopular({ blogs }: WeeklyPopularProps) {
   };
 
   return (
-    <div className="hidden xl:block w-96 flex-shrink-0">
+    <div className="w-full">
       <div className="sticky top-24 h-[calc(100vh-8rem)]">
         <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-slate-100">
           주간 인기글 TOP 10
@@ -64,9 +64,8 @@ export function WeeklyPopular({ blogs }: WeeklyPopularProps) {
                   <div className="flex items-start gap-4">
                     {/* 등수 */}
                     <div
-                      className={`text-2xl font-bold w-8 text-center ${
-                        rankStyles[(index + 1) as keyof typeof rankStyles]
-                      }`}
+                      className={`text-2xl font-bold w-8 text-center ${rankStyles[(index + 1) as keyof typeof rankStyles]
+                        }`}
                     >
                       {index + 1}
                     </div>

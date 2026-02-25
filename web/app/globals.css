@@ -5,13 +5,13 @@
 
 
 body {
-  font-family:
-    "Pretendard",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: inherit;
+  /* Tailwind font-sans handles this via config */
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
@@ -33,65 +33,91 @@ body {
 
 @layer base {
   :root {
-    /* Techmoa 브랜드 컬러 - 블루 그라데이션 */
-    --background: 210 40% 98%;
-    --foreground: 222 84% 4.9%;
+    /* Dibut 브랜드 컬러 - 초록색 테마 */
+    --background: 216 33% 96%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 84% 4.9%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
 
-    /* Primary: Techmoa 블루 */
-    --primary: 217 91% 60%;
+    /* Primary: Dibut 그린 */
+    --primary: 90 43% 51%;
     --primary-foreground: 210 40% 98%;
 
-    /* Secondary: 소프트 그레이 */
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 84% 4.9%;
+    /* Secondary: 소프트 블루 그레이 */
+    --secondary: 215 32% 91%;
+    --secondary-foreground: 215 30% 32%;
 
-    /* Muted: 연한 그레이 */
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted: 연한 블루 그레이 */
+    --muted: 215 28% 92%;
+    --muted-foreground: 216 17% 46%;
 
-    /* Accent: 라이트 블루 */
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 84% 4.9%;
+    /* Accent: 라이트 블루 세컨더리 */
+    --accent: 213 80% 94%;
+    --accent-foreground: 214 46% 24%;
 
     /* Destructive: 소프트 레드 */
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    /* Border: 연한 그레이 */
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 217 91% 60%;
+    /* Border: 블루 그레이 보더 */
+    --border: 214 32% 86%;
+    --input: 214 32% 86%;
+    --ring: 90 43% 51%;
 
     /* Chart colors */
-    --chart-1: 217 91% 60%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
+    --chart-1: 214 90% 59%;
+    --chart-2: 170 55% 42%;
+    --chart-3: 199 37% 31%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
 
     --radius: 0.75rem;
 
-    /* Sidebar */
-    --sidebar-background: 210 40% 98%;
-    --sidebar-foreground: 222 84% 4.9%;
-    --sidebar-primary: 217 91% 60%;
+    /* Sidebar - 테마에 맞춰 업데이트 */
+    --sidebar-background: 216 33% 96%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 90 43% 51%;
     --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 84% 4.9%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 213 80% 94%;
+    --sidebar-accent-foreground: 214 46% 24%;
+    --sidebar-border: 214 32% 86%;
+    --sidebar-ring: 90 43% 51%;
   }
 
   .dark {
-    /* 다크 모드 - 딥 블루 테마 */
+    /* 다크 모드 - Dibut 다크 테마 */
     color-scheme: dark;
-    --background: 222 84% 4.9%;
-    --foreground: 210 40% 98%;
-    /* ... rest of dark mode vars ... */
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+
+    /* Sidebar Dark */
+    --sidebar-background: 0 0% 3.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 14.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 14.9%;
+    --sidebar-ring: 0 0% 83.1%;
   }
 }
 
@@ -119,42 +145,62 @@ body {
   }
 }
 
-@keyframes slideInRight {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(20px);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
   }
 }
 
-@keyframes logoMarquee {
-  from {
-    transform: translate3d(0, 0, 0);
+@keyframes ping-subtle {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
   }
 
-  to {
-    transform: translate3d(-50%, 0, 0);
+  100% {
+    transform: scale(3);
+    opacity: 0;
   }
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.6s ease-out;
+  animation: fadeInUp 0.6s ease-out forwards;
 }
 
-.animate-slide-in-right {
-  animation: slideInRight 0.6s ease-out;
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
 }
 
-.animate-logo-marquee {
-  animation: logoMarquee 36s linear infinite;
+.animate-ping-subtle {
+  animation: ping-subtle 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Delay classes for staggered appearance */
+.animation-delay-100 {
+  animation-delay: 100ms;
+}
+
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+.animation-delay-500 {
+  animation-delay: 500ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-logo-marquee {
+
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-ping-subtle {
     animation: none;
   }
 }

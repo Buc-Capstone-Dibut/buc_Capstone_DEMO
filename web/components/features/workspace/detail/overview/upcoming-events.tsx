@@ -53,9 +53,9 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
       <CardHeader className="flex flex-row items-center justify-between pb-2 px-0 pt-0">
         <div className="space-y-1">
           <CardTitle className="text-base font-semibold">
-            Upcoming Schedule
+            예정된 일정
           </CardTitle>
-          <CardDescription>Tasks due soon</CardDescription>
+          <CardDescription>곧 마감되는 작업입니다</CardDescription>
         </div>
         {/* 
          <Button variant="ghost" size="sm" className="gap-1 text-xs">
@@ -90,7 +90,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                         <span>{task.assignee.name || "Assigned"}</span>
                       </div>
                     )}
-                    {!task.assignee && <span>Unassigned</span>}
+                    {!task.assignee && <span>담당자 없음</span>}
                   </div>
                 </div>
               </div>
@@ -99,7 +99,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-10 min-h-[200px] border-2 border-dashed rounded-xl bg-muted/20">
             <CalendarDays className="h-8 w-8 mb-2 opacity-20" />
-            <p className="text-sm">No upcoming deadlines.</p>
+            <p className="text-sm">예정된 일정이 없습니다.</p>
           </div>
         )}
       </CardContent>

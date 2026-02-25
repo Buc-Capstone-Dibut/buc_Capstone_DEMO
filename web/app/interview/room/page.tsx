@@ -116,7 +116,7 @@ export default function InterviewRoomPage() {
             <div className="hidden lg:flex w-64 flex-col gap-4 shrink-0">
                <div className="bg-card border rounded-3xl p-5 space-y-5 shadow-sm">
                   <div className="flex items-center justify-between">
-                     <Badge variant="outline" className="border-blue-200 text-blue-600 bg-blue-50/50 px-2 py-0.5 text-[10px] font-semibold">
+                     <Badge variant="outline" className="border-primary/20 text-primary bg-primary/5 px-2 py-0.5 text-[10px] font-semibold">
                         LIVE INTERVIEW
                      </Badge>
                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium">
@@ -150,7 +150,7 @@ export default function InterviewRoomPage() {
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden shadow-inner">
                            <div
-                              className="h-full bg-blue-500 transition-all duration-700 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                              className="h-full bg-primary transition-all duration-700 ease-out shadow-[0_0_10px_rgba(var(--primary),0.3)]"
                               style={{ width: `${(messages.filter(m => m.role === 'model').length / 5) * 100}%` }}
                            />
                         </div>
@@ -168,7 +168,7 @@ export default function InterviewRoomPage() {
             </div>
 
             {/* Main Center Chat Container */}
-            <div className="flex-1 flex flex-col bg-card border rounded-[2rem] shadow-xl shadow-blue-900/5 overflow-hidden min-w-0 relative">
+            <div className="flex-1 flex flex-col bg-card border rounded-[2rem] shadow-xl shadow-primary/5 overflow-hidden min-w-0 relative">
                <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-card to-transparent z-10 pointer-events-none" />
 
                {/* Messages Area */}
@@ -185,14 +185,14 @@ export default function InterviewRoomPage() {
                   {messages.map((msg, idx) => (
                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                         <div className={`flex gap-4 max-w-[95%] md:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                           <Avatar className={`w-9 h-9 shrink-0 border-2 shadow-sm ${msg.role === 'user' ? 'border-blue-200' : 'border-primary/20'}`}>
-                              <AvatarFallback className={msg.role === 'user' ? 'bg-blue-600 text-white font-bold text-xs' : 'bg-primary text-primary-foreground font-bold text-xs'}>
+                           <Avatar className={`w-9 h-9 shrink-0 border-2 shadow-sm ${msg.role === 'user' ? 'border-primary/30' : 'border-primary/20'}`}>
+                              <AvatarFallback className={msg.role === 'user' ? 'bg-primary text-primary-foreground font-bold text-xs' : 'bg-primary/20 text-primary font-bold text-xs'}>
                                  {msg.role === 'user' ? 'ME' : 'AI'}
                               </AvatarFallback>
                            </Avatar>
                            <div className={`p-5 rounded-3xl text-[14px] md:text-[15px] leading-[1.6] shadow-sm ${msg.role === 'user'
-                                 ? 'bg-blue-600 text-white rounded-tr-none font-medium'
-                                 : 'bg-muted/40 text-foreground border border-muted-foreground/10 rounded-tl-none'
+                              ? 'bg-primary text-primary-foreground rounded-tr-none font-medium'
+                              : 'bg-muted/40 text-foreground border border-muted-foreground/10 rounded-tl-none'
                               }`}>
                               {msg.parts}
                            </div>
@@ -215,7 +215,7 @@ export default function InterviewRoomPage() {
 
                {/* Integrated Search/Input Box */}
                <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-card via-card/95 to-transparent pt-12">
-                  <div className="max-w-3xl mx-auto flex gap-3 items-center bg-muted/60 backdrop-blur-md p-2 border border-muted-foreground/10 rounded-2xl focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500/30 transition-all duration-300 shadow-lg">
+                  <div className="max-w-3xl mx-auto flex gap-3 items-center bg-muted/60 backdrop-blur-md p-2 border border-muted-foreground/10 rounded-2xl focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all duration-300 shadow-lg">
                      <Input
                         ref={inputRef}
                         value={input}
@@ -232,7 +232,7 @@ export default function InterviewRoomPage() {
                      <Button
                         onClick={() => handleSendMessage()}
                         disabled={isLoading || !input.trim()}
-                        className="h-12 w-12 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-lg shadow-blue-500/20 text-white shrink-0 transition-all font-bold"
+                        className="h-12 w-12 rounded-xl bg-primary hover:bg-primary/90 active:scale-95 shadow-lg shadow-primary/20 text-primary-foreground shrink-0 transition-all font-bold"
                      >
                         <Send className="w-5 h-5" />
                      </Button>
@@ -244,21 +244,21 @@ export default function InterviewRoomPage() {
             <div className="hidden xl:flex w-56 flex-col gap-5 shrink-0">
                <div className="bg-card border rounded-3xl p-5 shadow-sm space-y-4">
                   <div className="flex items-center gap-2">
-                     <div className="w-1.5 h-4 bg-blue-500 rounded-full" />
+                     <div className="w-1.5 h-4 bg-primary rounded-full" />
                      <h3 className="text-xs font-bold text-foreground">핵심 키워드</h3>
                   </div>
                   <div className="flex flex-wrap gap-2">
                      {['경험 중심', '문제 해결', '기술 역량', '압박 대응'].map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-[10px] bg-muted/50 text-muted-foreground hover:bg-blue-50 hover:text-blue-600 font-medium px-2.5 py-1 border-none transition-colors">
+                        <Badge key={tag} variant="secondary" className="text-[10px] bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary font-medium px-2.5 py-1 border-none transition-colors">
                            #{tag}
                         </Badge>
                      ))}
                   </div>
                </div>
 
-               <div className="bg-blue-600/5 border border-blue-200/50 rounded-3xl p-5 space-y-3">
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Tip</p>
-                  <p className="text-[11px] text-blue-900/70 leading-relaxed font-medium">
+               <div className="bg-primary/5 border border-primary/20 rounded-3xl p-5 space-y-3">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Tip</p>
+                  <p className="text-[11px] text-primary/70 leading-relaxed font-medium">
                      문장이 길어질 때는 <strong>두괄식</strong>으로 먼저 말해보세요. 핵심 역량을 명확히 전달할 수 있습니다.
                   </p>
                </div>

@@ -39,6 +39,13 @@ export interface MockPost {
   comments_count: number;
 }
 
+export interface MockChatMessage {
+  id: string;
+  role: "user" | "ai";
+  content: string;
+  timestamp: string;
+}
+
 export const MOCK_JD_ANALYSIS: JdAnalysis = {
   title: "Frontend Developer (Senior)",
   companyName: "TechCorp Inc.",
@@ -110,24 +117,106 @@ export const MOCK_HISTORY = [
   }
 ];
 
-export const MOCK_CHAT_MESSAGES = [
+export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
   {
     id: "msg-1",
     role: "ai",
-    content: "안녕하세요! 면접관 AI입니다. 지원하신 포지션에 대해 간단히 자기소개 부탁드립니다.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString()
+    content:
+      "안녕하세요, 반갑습니다. 간단한 사전 탐색 질문을 시작하겠습니다. 최근에 가장 집중해서 개발했던 프로젝트를 소개해 주세요.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
   },
   {
     id: "msg-2",
     role: "user",
-    content: "안녕하세요. 저는 5년차 프론트엔드 개발자 김철수입니다. 주로 React와 Next.js를 사용하여 웹 애플리케이션을 개발해왔습니다.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 4).toISOString()
+    content:
+      "최근에는 Next.js 기반 팀 협업 플랫폼을 개발했고, 상태관리 구조를 개선해서 렌더링 병목을 줄이는 작업을 했습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
   },
   {
     id: "msg-3",
     role: "ai",
-    content: "반갑습니다. 가장 기억에 남는 프로젝트 경험에 대해 구체적으로 말씀해주실 수 있나요?",
-    timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString()
+    content:
+      "좋습니다. 당시 병목을 발견한 방식과, 개선 전후 성능 차이를 어떤 지표로 확인했는지 설명해주실 수 있을까요?",
+    timestamp: new Date(Date.now() - 1000 * 60).toISOString(),
+  },
+];
+
+export const MOCK_INTERVIEW_LIST = [
+  {
+    id: "session-1",
+    date: "2024-03-24",
+    company: "네이버",
+    role: "Frontend Developer",
+    score: 88,
+    analysis: {
+      evaluation: { jobFit: 90, logic: 85, communication: 82, attitude: 95 },
+      overallScore: 88,
+      passProbability: 75,
+      feedback: {
+        strengths: ["기술적 기반이 탄탄하고 React 내부 동작 원리에 대해 깊이 있는 답변을 함"],
+        improvements: ["답변 시 결론부터 말하는 두괄식 화법을 조금 더 연습하면 좋겠음"]
+      },
+      habits: [
+        { habit: "음...", count: 3, severity: "low" },
+        { habit: "그게...", count: 2, severity: "medium" }
+      ],
+      sentimentTimeline: [60, 65, 80, 75, 90],
+      bestPractices: [
+        {
+          question: "React Server Components의 장점은 무엇인가요?",
+          userAnswer: "서버에서 렌더링되니까 빠르고 번들 사이즈가 줄어듭니다.",
+          refinedAnswer: "가장 큰 장점은 클라이언트 번들 사이즈 감소와 서버 리소스 직접 접근입니다. 클라이언트로 전송되는 JS 양을 획기적으로 줄여 TTI를 개선할 수 있습니다.",
+          reason: "단순히 '빠르다'는 표현보다 'TTI 개선'이나 '번들 사이즈 감소' 같은 구체적인 기술적 이점을 강조하는 것이 좋습니다."
+        }
+      ]
+    }
+  },
+  {
+    id: "session-2",
+    date: "2024-03-20",
+    company: "카카오",
+    role: "Service Engineer",
+    score: 74,
+    analysis: {
+      evaluation: { jobFit: 70, logic: 75, communication: 80, attitude: 72 },
+      overallScore: 74,
+      passProbability: 45,
+      feedback: {
+        strengths: ["팀 협업 경험과 소통 능력이 매우 뛰어남"],
+        improvements: ["기술 면접에서 구체적인 예시를 들어 설명하는 부분이 아쉬움"]
+      },
+      habits: [
+        { habit: "아무래도", count: 5, severity: "high" }
+      ],
+      sentimentTimeline: [50, 55, 60, 58, 65],
+      bestPractices: [
+        {
+          question: "협업 시 갈등이 생기면 어떻게 해결하시나요?",
+          userAnswer: "대화로 풀어나가려고 노력합니다.",
+          refinedAnswer: "데이터와 근거를 바탕으로 상대방의 입장을 먼저 이해한 뒤, 프로젝트의 목표(Goal)를 최우선으로 두어 합의점을 도출합니다.",
+          reason: "추상적인 '대화'보다 '근거 기반'과 '공통 목표'를 언급하는 것이 전문성을 높여줍니다."
+        }
+      ]
+    }
+  },
+  {
+    id: "session-3",
+    date: "2024-03-15",
+    company: "토스",
+    role: "Product Developer",
+    score: 92,
+    analysis: {
+      evaluation: { jobFit: 95, logic: 92, communication: 90, attitude: 90 },
+      overallScore: 92,
+      passProbability: 85,
+      feedback: {
+        strengths: ["사용자 경험에 대한 집착과 비즈니스 가치에 대한 이해도가 매우 높음"],
+        improvements: ["매우 훌륭함. 다만 자신감이 때로는 과하게 비춰질 수 있으니 주의"]
+      },
+      habits: [],
+      sentimentTimeline: [80, 85, 90, 92, 95],
+      bestPractices: []
+    }
   }
 ];
 
@@ -144,9 +233,9 @@ export const MOCK_COMMUNITY_POSTS: MockPost[] = [
     likes: 45,
     tags: ["Frontend", "Interview", "Questions"],
     author: {
-       id: "user-1",
-       nickname: "DevMaster",
-       avatar_url: ""
+      id: "user-1",
+      nickname: "DevMaster",
+      avatar_url: ""
     },
     comments_count: 12
   },
@@ -162,9 +251,9 @@ export const MOCK_COMMUNITY_POSTS: MockPost[] = [
     likes: 120,
     tags: ["Success", "Non-CS", "Motivation"],
     author: {
-       id: "user-2",
-       nickname: "NewBie",
-       avatar_url: ""
+      id: "user-2",
+      nickname: "NewBie",
+      avatar_url: ""
     },
     comments_count: 56
   },
@@ -180,9 +269,9 @@ export const MOCK_COMMUNITY_POSTS: MockPost[] = [
     likes: 23,
     tags: ["SoftSkill", "Communication"],
     author: {
-       id: "user-3",
-       nickname: "HRLover",
-       avatar_url: ""
+      id: "user-3",
+      nickname: "HRLover",
+      avatar_url: ""
     },
     comments_count: 5
   },
@@ -198,9 +287,9 @@ export const MOCK_COMMUNITY_POSTS: MockPost[] = [
     likes: 210,
     tags: ["Salary", "Negotiation"],
     author: {
-       id: "user-4",
-       nickname: "SeniorDev",
-       avatar_url: ""
+      id: "user-4",
+      nickname: "SeniorDev",
+      avatar_url: ""
     },
     comments_count: 34
   }

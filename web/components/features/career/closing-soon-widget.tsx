@@ -145,7 +145,7 @@ export function ClosingSoonWidget({ events }: ClosingSoonWidgetProps) {
         )}
 
         <Link
-          href="/career/activities?sort=deadline"
+          href="/insights/activities?sort=deadline"
           className="text-xs text-center text-muted-foreground hover:text-primary flex items-center justify-center pt-2 border-t border-border/50 mt-1"
         >
           전체 보기 <ArrowRight className="h-3 w-3 ml-1" />
