@@ -2,194 +2,225 @@
 
 import { motion } from "framer-motion";
 
-function ZeroBased() {
+function SharedDefs() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="zero-glow-1d">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <marker id="arrow-down-1d" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--destructive))" />
-          </marker>
-        </defs>
-
-        <g opacity="0.1">
-          <path d="M 0 50 L 400 50 M 0 100 L 400 100 M 0 150 L 400 150 M 0 200 L 400 200 M 0 250 L 400 250" stroke="hsl(var(--primary))" strokeWidth="1" />
-          <path d="M 50 0 L 50 300 M 100 0 L 100 300 M 150 0 L 150 300 M 200 0 L 200 300 M 250 0 L 250 300 M 300 0 L 300 300 M 350 0 L 350 300" stroke="hsl(var(--primary))" strokeWidth="1" />
-        </g>
-
-        <text x="200" y="40" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--muted-foreground))">Memory Layout</text>
-
-        {[0, 1, 2, 3, 4].map((i) => (
-          <g key={i} transform={`translate(${50 + i * 60}, 120)`}>
-            <rect width="56" height="56" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-            <text x="28" y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--foreground))">VAL</text>
-            <text x="28" y="-10" textAnchor="middle" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--muted-foreground))">+{i * 4}</text>
-            <text x="28" y="75" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--primary))">[{i}]</text>
-          </g>
-        ))}
-
-        <motion.rect x="50" y="120" width="56" height="56" rx="8" fill="none" stroke="hsl(var(--destructive))" strokeWidth="2" filter="url(#zero-glow-1d)"
-          animate={{ opacity: [0.2, 1, 0.2] }} transition={{ duration: 2, repeat: Infinity }}
-        />
-
-        <path d="M 78 240 L 78 200" stroke="hsl(var(--destructive))" strokeWidth="2" markerEnd="url(#arrow-down-1d)" />
-        <rect x="30" y="245" width="96" height="24" rx="4" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive)/0.3)" />
-        <text x="78" y="261" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive))">BASE 0x100</text>
-
-        <path d="M 78 90 C 138 60, 138 60, 198 90" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 4" markerEnd="url(#arrow-down-1d)" />
-        <text x="138" y="70" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--primary))">+ offset(2)</text>
-      </svg>
-    </div>
+    <defs>
+      <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#6366f1" />
+        <stop offset="100%" stopColor="#a855f7" />
+      </linearGradient>
+      <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#10b981" />
+        <stop offset="100%" stopColor="#059669" />
+      </linearGradient>
+      <linearGradient id="destructive-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#f43f5e" />
+        <stop offset="100%" stopColor="#e11d48" />
+      </linearGradient>
+      <linearGradient id="surface-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="1" />
+        <stop offset="100%" stopColor="hsl(var(--muted))" stopOpacity="0.5" />
+      </linearGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="6" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+      <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#000000" floodOpacity="0.1" />
+      </filter>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
+      </pattern>
+    </defs>
   );
 }
 
-function Iteration() {
+function ZeroBased() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="iter-glow-1d">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
 
-        <rect x="60" y="30" width="280" height="40" rx="8" fill="hsl(var(--muted)/0.5)" stroke="hsl(var(--border))" />
-        <text x="200" y="54" textAnchor="middle" fontSize="11" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--primary))">for (let i = 0; i &lt; N; i++)</text>
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열의 임의 접근 (Random Access: O(1))
+      </text>
 
-        <g transform="translate(60, 120)">
-          <rect width="280" height="60" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <g key={i}>
-              <rect x={i * 46 + 4} y="4" width="42" height="52" rx="4" fill="hsl(var(--muted)/0.5)" />
-              <text x={i * 46 + 25} y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">{i}</text>
-            </g>
-          ))}
-          <motion.rect y="4" width="42" height="52" rx="4" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" strokeWidth="2" filter="url(#iter-glow-1d)"
-            animate={{ x: [4, 50, 96, 142, 188, 234] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-          />
-        </g>
+      {/* Main Base Pointer */}
+      <g transform="translate(100, 150)">
+        <path d="M 40 -40 L 40 10" stroke="#6366f1" strokeWidth="4" markerEnd="url(#arrow-head)" />
+        <text x="40" y="-55" textAnchor="middle" fontSize="16" fontWeight="900" fill="#6366f1">Base (0x100)</text>
+      </g>
 
-        <motion.path d="M 60 210 L 340 210" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="10 10"
-          animate={{ strokeDashoffset: [0, -20] }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        />
-        {[0, 1, 2].map(i => (
-          <motion.circle key={i} cx="60" cy="210" r="4" fill="hsl(var(--primary))" filter="url(#iter-glow-1d)"
-            animate={{ cx: [60, 340], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: i * 0.6 }}
-          />
+      {/* Array Container */}
+      <g transform="translate(140, 160)" filter="url(#soft-shadow)">
+        <rect width="520" height="100" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+
+        {/* Cells */}
+        {[10, 20, 30, 40].map((val, i) => (
+          <g key={i} transform={`translate(${20 + i * 120}, 15)`}>
+            <rect width="100" height="70" rx="12" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+            <text x="50" y="45" textAnchor="middle" fontSize="28" fontWeight="900" fill="hsl(var(--foreground))">{val}</text>
+            <text x="50" y="105" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(var(--muted-foreground))">idx {i}</text>
+          </g>
         ))}
-        <text x="200" y="230" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--muted-foreground))">O(N) Processing Stream</text>
-      </svg>
-    </div>
+
+        {/* Pointer Math animation for arr[3] */}
+        <motion.rect x="380" y="15" width="100" height="70" rx="12" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="3"
+          animate={{ opacity: [0, 0.2, 0] }} transition={{ duration: 2.5, repeat: Infinity }} />
+
+        <motion.path d="M 0 0 C 100 -50, 300 -50, 430 0" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="10 10"
+          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }} />
+      </g>
+
+      {/* Formula Box */}
+      <rect x="150" y="340" width="500" height="55" rx="27.5" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="373" textAnchor="middle" fontSize="16" fontWeight="600" fill="hsl(var(--foreground))">
+        주소 = <tspan fill="#6366f1" fontWeight="800">Base</tspan> + (<tspan fill="#10b981" fontWeight="800">Index * 타입 크기</tspan>)
+      </text>
+    </svg>
   );
 }
 
 function Slicing() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="slice-glow-1d">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <linearGradient id="slice-grad-1d" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="hsl(var(--emerald-500, #10b981))" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="hsl(var(--emerald-500, #10b981))" stopOpacity="0.05" />
-          </linearGradient>
-          <marker id="arrow-slice-1d" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--emerald-500, #10b981))" />
-          </marker>
-        </defs>
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
 
-        <text x="200" y="40" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--muted-foreground))">Source Array (arr)</text>
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열 슬라이싱 (Array Slicing [1:4])
+      </text>
 
-        <g transform="translate(60, 60)">
-          <rect width="280" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <g key={i}>
-              <rect x={i * 46 + 4} y="4" width="42" height="42" rx="4"
-                fill={i >= 1 && i < 4 ? "hsl(var(--emerald-500, #10b981)/0.2)" : "hsl(var(--muted)/0.5)"}
-                stroke={i >= 1 && i < 4 ? "hsl(var(--emerald-500, #10b981))" : "none"}
-              />
-              <text x={i * 46 + 25} y="29" textAnchor="middle" fontSize="12" fontWeight="bold"
-                fill={i >= 1 && i < 4 ? "hsl(var(--emerald-500, #10b981))" : "hsl(var(--muted-foreground))"}>{i}</text>
+      {/* Original Array */}
+      <g transform="translate(100, 120)">
+        <text x="-20" y="45" fontSize="20" fontWeight="900" fill="hsl(var(--muted-foreground))">arr</text>
+        {[10, 20, 30, 40, 50].map((val, i) => {
+          const isTarget = i >= 1 && i < 4;
+          return (
+            <g key={i} transform={`translate(${40 + i * 110}, 0)`}>
+              <motion.rect width="90" height="70" rx="12" fill={isTarget ? "url(#surface-grad)" : "hsl(var(--muted))"}
+                stroke={isTarget ? "url(#primary-grad)" : "hsl(var(--border))"} strokeWidth={isTarget ? 3 : 1}
+                animate={{ y: isTarget ? [0, -5, 0] : 0 }} transition={{ duration: 2, repeat: Infinity, delay: i*0.2 }} />
+              <text x="45" y="45" textAnchor="middle" fontSize="26" fontWeight="900" fill={isTarget ? "#6366f1" : "hsl(var(--muted-foreground))"}>{val}</text>
+              <text x="45" y="-12" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(var(--muted-foreground))">{i}</text>
             </g>
-          ))}
-        </g>
+          );
+        })}
+      </g>
 
-        <rect x="60" y="140" width="280" height="30" rx="4" fill="url(#slice-grad-1d)" stroke="hsl(var(--emerald-500, #10b981)/0.5)" strokeDasharray="4 4" />
-        <text x="200" y="159" textAnchor="middle" fontSize="11" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">arr.slice(1, 4)</text>
+      {/* Sliced Copy Creation */}
+      <motion.g transform="translate(250, 260)" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 0.9] }} transition={{ duration: 4, repeat: Infinity, times: [0.2, 0.4, 0.8, 1] }}>
+        <text x="-40" y="45" fontSize="20" fontWeight="900" fill="#10b981">slice</text>
+        {[20, 30, 40].map((val, i) => (
+          <g key={i} transform={`translate(${i * 110}, 0)`}>
+            <rect width="90" height="70" rx="12" fill="url(#primary-grad)" stroke="#fff" strokeWidth="2" filter="url(#soft-shadow)" />
+            <text x="45" y="45" textAnchor="middle" fontSize="26" fontWeight="900" fill="#fff">{val}</text>
+          </g>
+        ))}
+      </motion.g>
 
-        <path d="M 130 115 L 130 135" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" strokeDasharray="2 2" markerEnd="url(#arrow-slice-1d)" />
-        <path d="M 270 115 L 270 135" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" strokeDasharray="2 2" markerEnd="url(#arrow-slice-1d)" />
-        <path d="M 200 175 L 200 195" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" markerEnd="url(#arrow-slice-1d)" />
+      <motion.path d="M 295 190 L 295 240" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow-head-emerald)" strokeDasharray="6 6"
+        animate={{ opacity: [0, 1, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0.1, 0.3, 0.4] }} />
+      <motion.path d="M 515 190 L 515 240" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow-head-emerald)" strokeDasharray="6 6"
+        animate={{ opacity: [0, 1, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0.1, 0.3, 0.4] }} />
 
-        <motion.g transform="translate(132, 210)"
-          initial={{ y: -10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", repeatType: "reverse" }}
-        >
-          <rect width="136" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--emerald-500, #10b981))" filter="url(#slice-glow-1d)" />
-          {[1, 2, 3].map((val, idx) => (
-            <g key={val}>
-              <rect x={idx * 44 + 4} y="4" width="40" height="42" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.2)" />
-              <text x={idx * 44 + 24} y="29" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">{val}</text>
-            </g>
-          ))}
-          <text x="68" y="70" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">New Allocation (O(N))</text>
-        </motion.g>
-      </svg>
-    </div>
+      <rect x="150" y="380" width="500" height="40" rx="20" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="405" textAnchor="middle" fontSize="14" fontWeight="600" fill="hsl(var(--foreground))">
+        슬라이싱은 새로운 메모리를 할당받아 데이터를 <tspan fill="#10b981" fontWeight="800">복사(Copy)</tspan>합니다.
+      </text>
+    </svg>
   );
 }
 
-
 function OutOfBounds() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <rect x="40" y="10" width="320" height="36" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="32" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Off-by-One / Out-of-Bounds</text>
-        {/* Array boxes */}
-        {[0,1,2,3,4].map(i => (
-          <g key={i} transform={`translate(${55 + i * 56}, 70)`}>
-            <rect x="0" y="0" width="48" height="48" rx="6"
-              fill={i < 5 ? "hsl(var(--card))" : "hsl(var(--destructive)/0.1)"}
-              stroke={i < 5 ? "hsl(var(--border))" : "hsl(var(--destructive))"}
-              strokeWidth="1.5" />
-            <text x="24" y="18" textAnchor="middle" fontSize="8" fill="hsl(var(--muted-foreground))">idx[{i}]</text>
-            <text x="24" y="36" textAnchor="middle" fontSize="14" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--foreground))">{[7,3,9,1,5][i]}</text>
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
+
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열의 경계 이탈 에러 (Out-of-Bounds)
+      </text>
+
+      <g transform="translate(180, 150)">
+        {/* Valid Array elements */}
+        {[5, 12, 8].map((val, i) => (
+          <g key={i} transform={`translate(${i * 120}, 0)`}>
+            <rect width="100" height="80" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" filter="url(#soft-shadow)" />
+            <text x="50" y="50" textAnchor="middle" fontSize="32" fontWeight="900" fill="hsl(var(--foreground))">{val}</text>
+            <text x="50" y="-15" textAnchor="middle" fontSize="16" fontWeight="800" fill="hsl(var(--muted-foreground))">idx {i}</text>
           </g>
         ))}
-        {/* Invalid index pointer */}
-        <motion.g animate={{ x: [-10, 0, -10] }} transition={{ duration: 1.5, repeat: Infinity }}>
-          <line x1="339" y1="55" x2="339" y2="68" stroke="hsl(var(--destructive))" strokeWidth="2" />
-          <text x="339" y="50" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive))">idx[5] ✗</text>
+
+        {/* Invalid Out of Bounds area */}
+        <g transform="translate(360, 0)">
+          <motion.rect width="100" height="80" rx="16" fill="url(#destructive-grad)" stroke="#fff" strokeWidth="3" filter="url(#glow)"
+            animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }} transition={{ duration: 1.5, repeat: Infinity }} />
+          <text x="50" y="50" textAnchor="middle" fontSize="32" fontWeight="900" fill="#fff">???</text>
+          <text x="50" y="-15" textAnchor="middle" fontSize="16" fontWeight="900" fill="#f43f5e">idx 3</text>
+        </g>
+      </g>
+
+      {/* Exception Alert Banner */}
+      <motion.g transform="translate(150, 320)"
+        initial={{ y: 20, opacity: 0 }} animate={{ y: [0, -5, 0], opacity: [0, 1, 1, 0] }} transition={{ duration: 3, repeat: Infinity, times: [0.1, 0.2, 0.8, 1] }}>
+        <rect width="500" height="60" rx="16" fill="url(#destructive-grad)" filter="url(#glow)" stroke="#fff" strokeWidth="2" />
+        <text x="250" y="36" textAnchor="middle" fontSize="20" fontWeight="900" fill="#fff" letterSpacing="1">
+          EXCEPTION: Index Out Of Range
+        </text>
+      </motion.g>
+    </svg>
+  );
+}
+
+function ArrayTraversal() {
+  return (
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
+
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열 순회와 경계 조건 (Array Traversal)
+      </text>
+
+      <g transform="translate(150, 150)" filter="url(#soft-shadow)">
+        <rect width="500" height="150" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+
+        {/* Array Elements */}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <g key={`elem-${i}`} transform={`translate(${50 + i * 80}, 50)`}>
+            <rect width="60" height="60" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+            <text x="30" y="38" textAnchor="middle" fontSize="20" fontWeight="800" fill="hsl(var(--foreground))">{[5, 12, 8, 20, 7][i]}</text>
+            <text x="30" y="80" textAnchor="middle" fontSize="14" fill="hsl(var(--muted-foreground))" fontWeight="600">idx {i}</text>
+          </g>
+        ))}
+
+        {/* Traversal Pointer */}
+        <motion.g
+          animate={{ x: [80, 160, 240, 320, 400, 480], opacity: [1, 1, 1, 1, 1, 0] }}
+          initial={{ x: 80, opacity: 1 }}
+          transition={{ duration: 6, ease: "linear", repeat: Infinity }}
+        >
+          <path d="M 0 30 L 0 -10" stroke="#f43f5e" strokeWidth="4" markerEnd="url(#arrow-head)" />
+          <text x="0" y="45" textAnchor="middle" fontSize="16" fontWeight="900" fill="#f43f5e">i</text>
         </motion.g>
-        {/* Ghost box (out of bounds) */}
-        <rect x="335" y="70" width="48" height="48" rx="6" fill="hsl(var(--destructive)/0.08)" stroke="hsl(var(--destructive))" strokeWidth="1.5" strokeDasharray="4 3" />
-        <text x="359" y="100" textAnchor="middle" fontSize="10" fill="hsl(var(--destructive))">???</text>
-        {/* Error label */}
-        <rect x="100" y="145" width="200" height="32" rx="8" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive)/0.5)" />
-        <text x="200" y="165" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--destructive))">IndexError: list index out of range</text>
-        <text x="200" y="210" textAnchor="middle" fontSize="10" fill="hsl(var(--muted-foreground))">올바른 범위: 0 ≤ i ≤ N-1 (= 4)</text>
-        <text x="200" y="235" textAnchor="middle" fontSize="10" fill="hsl(var(--emerald-500,#10b981))">for i in range(len(arr)):  ← 안전한 순회</text>
-      </svg>
-    </div>
+
+        {/* Boundary Condition */}
+        <line x1="440" y1="30" x2="440" y2="120" stroke="#facc15" strokeWidth="4" strokeDasharray="8 8" />
+        <text x="440" y="20" textAnchor="middle" fontSize="14" fontWeight="800" fill="#facc15">N = 5 (경계)</text>
+      </g>
+
+      <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="380" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
+        가장 기초적인 탐색은 <tspan fill="#f43f5e" fontWeight="800">i = 0 부터 i &lt; N 까지</tspan> 하나씩 차례로 방문하는 것입니다.
+      </text>
+    </svg>
   );
 }
 
 export const OneDArraySupplementaryOptions = [
   ZeroBased,
-  Iteration,
+  ArrayTraversal,
   Slicing,
   OutOfBounds,
 ];

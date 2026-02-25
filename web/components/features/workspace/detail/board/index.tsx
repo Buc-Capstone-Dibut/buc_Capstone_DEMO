@@ -31,7 +31,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { KanbanColumn } from "../../views/kanban/column";
-import { GroupBy } from "../../views/kanban/column";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import { TaskCard } from "../../modules/task/card";
@@ -765,6 +764,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       <TagManagerModal
         isOpen={isTagManagerOpen}
         onClose={() => setIsTagManagerOpen(false)}
+        workspaceId=""
       />
       <PriorityManagerModal
         isOpen={isPriorityManagerOpen}

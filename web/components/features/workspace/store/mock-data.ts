@@ -872,7 +872,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
           } else {
             // Update existing default view
             mergedViews = mergedViews.map((v) =>
-              v.groupBy === "status" ? { ...v, columns: data.columns } : v,
+              v.groupBy === "status" ? { ...v, columns: (data.columns ?? []) as ViewColumn[] } : v,
             );
           }
         }

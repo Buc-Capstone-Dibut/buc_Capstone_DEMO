@@ -70,7 +70,7 @@ export function SmartTagPicker({ selectedTagIds = [], onToggleTag, trigger }: Sm
     if (active.id !== over?.id) {
        const oldIndex = tags.findIndex((t) => t.id === active.id);
        const newIndex = tags.findIndex((t) => t.id === over?.id);
-       reorderTags(oldIndex, newIndex);
+       reorderTags(arrayMove(tags, oldIndex, newIndex));
     }
   };
 

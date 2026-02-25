@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -8,8 +6,8 @@ export function useIterativeRecursionSim() {
   const [explicitStack, setExplicitStack] = useState<number[]>([]);
   const [result, setResult] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([
-    "> SYSTEM INITIALIZED: Recursive → Iterative Conversion",
-    "> [AWAIT] Converting recursive DFS traversal to iterative with an explicit stack."
+    "> 시스템 초기화: 재귀 → 반복문 변환",
+    "> [대기] 명시적 스택을 사용하여 재귀적인 DFS 순회를 반복문으로 변환합니다."
   ]);
   const maxSteps = 7;
 
@@ -18,20 +16,20 @@ export function useIterativeRecursionSim() {
   const peek = useCallback(() => {
     setStep(prev => {
       const next = prev >= maxSteps ? 1 : prev + 1;
-      if (next === 1) { setExplicitStack([1]); setResult([]); appendLog("[INIT] Push root node (1) onto explicit stack."); }
-      if (next === 2) { setExplicitStack([2, 3]); setResult([1]); appendLog("[POP] Pop 1, visit it. Push children: [2, 3]."); }
-      if (next === 3) { setExplicitStack([2, 4, 5]); setResult([1, 3]); appendLog("[POP] Pop 3 (LIFO!), visit. Push children: [4, 5]."); }
-      if (next === 4) { setExplicitStack([2, 4]); setResult([1, 3, 5]); appendLog("[POP] Pop 5. No children. Visit 5."); }
-      if (next === 5) { setExplicitStack([2]); setResult([1, 3, 5, 4]); appendLog("[POP] Pop 4. No children. Visit 4."); }
-      if (next === 6) { setExplicitStack([6, 7]); setResult([1, 3, 5, 4, 2]); appendLog("[POP] Pop 2, visit it. Push children: [6, 7]."); }
-      if (next === 7) { setExplicitStack([]); setResult([1, 3, 5, 4, 2, 7, 6]); appendLog("[DONE] Stack empty. DFS complete. Result order matches recursive DFS!"); }
+      if (next === 1) { setExplicitStack([1]); setResult([]); appendLog("[초기화] 루트 노드(1)를 명시적 스택에 푸시합니다."); }
+      if (next === 2) { setExplicitStack([3, 2]); setResult([1]); appendLog("[팝] 1을 팝하고 방문합니다. 자식 노드 푸시: 오른쪽(3), 왼쪽(2)."); }
+      if (next === 3) { setExplicitStack([3, 7, 6]); setResult([1, 2]); appendLog("[팝] 2를 팝하고 방문. 자식 노드 푸시: 오른쪽(7), 왼쪽(6)."); }
+      if (next === 4) { setExplicitStack([3, 7]); setResult([1, 2, 6]); appendLog("[팝] 6을 팝합니다. 자식이 없습니다. 6을 방문합니다."); }
+      if (next === 5) { setExplicitStack([3]); setResult([1, 2, 6, 7]); appendLog("[팝] 7을 팝합니다. 자식이 없습니다. 7을 방문합니다."); }
+      if (next === 6) { setExplicitStack([5, 4]); setResult([1, 2, 6, 7, 3]); appendLog("[팝] 3을 팝하고 방문. 자식 노드 푸시: 오른쪽(5), 왼쪽(4)."); }
+      if (next === 7) { setExplicitStack([]); setResult([1, 2, 6, 7, 3, 4, 5]); appendLog("[완료] 남은 노드들이 모두 팝되고 방문되었습니다. DFS 완료!"); }
       return next;
     });
   }, [appendLog]);
 
   const reset = useCallback(() => {
     setStep(0); setExplicitStack([]); setResult([]);
-    setLogs(["> SYSTEM RESET: Stack and result cleared."]);
+    setLogs(["> 시스템 리셋: 스택과 결과가 초기화되었습니다."]);
   }, []);
 
   return {
@@ -45,117 +43,187 @@ export function useIterativeRecursionSim() {
 }
 
 export function IterativeRecursionVisualizer({ data }: { data: { step: number, explicitStack: number[], result: number[] } }) {
-  const { step, explicitStack, result } = data;
+  const { explicitStack, result, step } = data;
 
-  // Simple tree for display
+  // Simple tree for display (DFS Preorder: 1 -> 2 -> 6 -> 7 -> 3 -> 4 -> 5)
+  // To get this order iteratively, we push Right then Left!
   const TREE = [
-    { id: 1, x: 200, y: 40, left: 2, right: 3 },
-    { id: 2, x: 120, y: 100, left: 6, right: 7 },
-    { id: 3, x: 280, y: 100, left: 4, right: 5 },
-    { id: 6, x: 90, y: 160 },
-    { id: 7, x: 150, y: 160 },
-    { id: 4, x: 250, y: 160 },
-    { id: 5, x: 310, y: 160 },
+    { id: 1, x: 200, y: 150, left: 2, right: 3 },
+    { id: 2, x: 120, y: 230, left: 6, right: 7 },
+    { id: 3, x: 280, y: 230, left: 4, right: 5 },
+    { id: 6, x: 80,  y: 310 },
+    { id: 7, x: 160, y: 310 },
+    { id: 4, x: 240, y: 310 },
+    { id: 5, x: 320, y: 310 },
   ];
 
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-10">
-      <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
-    </div>
-  );
-
   return (
-    <div className="w-full flex flex-col items-center bg-background/40 relative font-mono rounded-xl py-6 gap-6 px-4">
-      <CyberGrid />
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        </pattern>
+        <filter id="neon-glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="neon-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="neon-glow-red" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
 
-      <motion.div className="w-full max-w-4xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-        <p className="text-sm font-medium tracking-wide">
-          Recursive DFS can be converted to iterative using an <span className="text-blue-500 font-bold">explicit stack</span>. This avoids call stack overflow for deep trees and makes the stack usage explicit.
-        </p>
-      </motion.div>
+      {/* Background */}
+      <rect width="800" height="500" fill="url(#grid)" />
 
-      <div className="w-full max-w-4xl flex flex-col lg:flex-row gap-8 z-10 items-center justify-center">
+      {/* Title */}
+      <text x="40" y="50" fill="#3b82f6" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-blue)">비재귀적 표현 (ITERATIVE RECURSION)</text>
+      <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">명시적 스택을 사용한 깊이 우선 탐색(DFS) 시뮬레이션</text>
 
-        {/* Tree SVG */}
-        <div className="bg-card/40 rounded-2xl border border-border p-4 flex-1 flex flex-col items-center">
-          <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground mb-3">Input Tree</div>
-          <svg width="100%" viewBox="0 0 400 200" className="max-w-xs">
-            {/* Edges */}
-            <line x1="200" y1="52" x2="120" y2="88" stroke="hsl(var(--border))" strokeWidth="1.5" />
-            <line x1="200" y1="52" x2="280" y2="88" stroke="hsl(var(--border))" strokeWidth="1.5" />
-            <line x1="120" y1="112" x2="90" y2="148" stroke="hsl(var(--border))" strokeWidth="1.5" />
-            <line x1="120" y1="112" x2="150" y2="148" stroke="hsl(var(--border))" strokeWidth="1.5" />
-            <line x1="280" y1="112" x2="250" y2="148" stroke="hsl(var(--border))" strokeWidth="1.5" />
-            <line x1="280" y1="112" x2="310" y2="148" stroke="hsl(var(--border))" strokeWidth="1.5" />
+      {/* Info Panel */}
+      <g transform="translate(400, 25)">
+        <rect width="360" height="60" fill="rgba(59, 130, 246, 0.1)" stroke="rgba(59, 130, 246, 0.3)" rx="8" />
+        <text x="180" y="25" fill="#fff" fontSize="11" textAnchor="middle">
+          재귀는 OS 콜 스택을 사용합니다. 이를 반복문으로 변환하려면
+        </text>
+        <text x="180" y="45" fill="#fff" fontSize="11" textAnchor="middle">
+          직접 <tspan fill="#3b82f6" fontWeight="bold">명시적 스택 (Explicit Stack)</tspan>(LIFO)을 관리해야 합니다!
+        </text>
+      </g>
 
-            {TREE.map(n => {
-              const isVisited = result.includes(n.id);
-              const isInStack = explicitStack.includes(n.id);
-              return (
-                <g key={`tr-${n.id}`}>
-                  <circle cx={n.x} cy={n.y} r={16}
-                    fill={isVisited ? "hsl(var(--emerald-500)/0.25)" : isInStack ? "hsl(var(--blue-500)/0.2)" : "hsl(var(--card))"}
-                    stroke={isVisited ? "hsl(var(--emerald-500))" : isInStack ? "hsl(var(--blue-500))" : "hsl(var(--border))"}
-                    strokeWidth={isInStack || isVisited ? 2.5 : 1.5}
-                    style={{ filter: isInStack ? 'drop-shadow(0 0 6px hsl(var(--blue-500)))' : isVisited ? 'drop-shadow(0 0 4px hsl(var(--emerald-500)))' : 'none' }}
-                  />
-                  <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="10" fontWeight="bold"
-                    fill={isVisited ? "hsl(var(--emerald-500))" : isInStack ? "hsl(var(--blue-500))" : "hsl(var(--muted-foreground))"}>
-                    {n.id}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-          <div className="flex gap-4 mt-2 text-xs font-bold text-muted-foreground">
-            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full border-2 border-blue-500 bg-blue-500/20" /><span>In stack</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full border-2 border-emerald-500 bg-emerald-500/20" /><span>Visited</span></div>
-          </div>
-        </div>
+      {/* Zone Borders */}
+      <rect x="30" y="110" width="340" height="360" fill="none" stroke="hsl(var(--border))" rx="12" />
+      <text x="200" y="130" fill="hsl(var(--muted-foreground))" fontSize="11" letterSpacing="2" textAnchor="middle" fontWeight="bold">입력 트리 (INPUT TREE)</text>
 
-        {/* Explicit Stack display */}
-        <div className="flex flex-col items-center gap-3 min-w-[160px]">
-          <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground bg-muted px-3 py-1 rounded-full border border-border">Explicit Stack</div>
+      <rect x="390" y="110" width="180" height="360" fill="none" stroke="hsl(var(--border))" rx="12" />
+      <text x="480" y="130" fill="hsl(var(--muted-foreground))" fontSize="11" letterSpacing="2" textAnchor="middle" fontWeight="bold">명시적 스택 (STACK)</text>
 
-          <div className="flex flex-col-reverse gap-1 w-full min-h-[160px]">
-            <AnimatePresence>
-              {explicitStack.map((n, i) => (
-                <motion.div key={`es-${n}`}
-                  initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
-                  className="h-10 rounded-lg border-2 border-blue-500/60 bg-blue-500/10 flex items-center justify-between px-4"
-                >
-                  <span className="text-blue-500 font-black">Node {n}</span>
-                  {i === explicitStack.length - 1 && <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/20 px-1.5 rounded">TOP</span>}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+      <rect x="590" y="110" width="180" height="360" fill="none" stroke="hsl(var(--border))" rx="12" />
+      <text x="680" y="130" fill="hsl(var(--muted-foreground))" fontSize="11" letterSpacing="2" textAnchor="middle" fontWeight="bold">방문 결과 (RESULT)</text>
 
-          {explicitStack.length === 0 && step > 0 && <div className="text-xs text-muted-foreground/40">Empty</div>}
-          <div className="w-full h-2 bg-card border-2 border-border rounded" />
-        </div>
+      {/* ===================== TREE ===================== */}
+      {/* Edges */}
+      <g>
+        <line x1="200" y1="150" x2="120" y2="230" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="200" y1="150" x2="280" y2="230" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="120" y1="230" x2="80"  y2="310" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="120" y1="230" x2="160" y2="310" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="280" y1="230" x2="240" y2="310" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="280" y1="230" x2="320" y2="310" stroke="hsl(var(--border))" strokeWidth="2" />
+      </g>
 
-        {/* Traversal Result */}
-        <div className="flex flex-col items-center gap-3 min-w-[160px]">
-          <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground bg-muted px-3 py-1 rounded-full border border-border">Visit Order</div>
+      {/* Nodes */}
+      {TREE.map(n => {
+        const isVisited = result.includes(n.id);
+        const isInStack = explicitStack.includes(n.id);
+        const isCurrent = step > 0 && ((step === 1 && n.id === 1) || (step === 2 && n.id === 1) || (step === 3 && n.id === 2) || (step === 4 && n.id === 6) || (step === 5 && n.id === 7) || (step === 6 && n.id === 3));
 
-          <div className="flex flex-col gap-1 w-full">
-            <AnimatePresence>
-              {result.map((n, i) => (
-                <motion.div key={`res-${i}-${n}`}
-                  initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                  className="h-10 rounded-lg border-2 border-emerald-500/60 bg-emerald-500/10 flex items-center justify-between px-4"
-                >
-                  <span className="text-emerald-500 font-black">Node {n}</span>
-                  <span className="text-[9px] font-black text-emerald-500/60">#{i + 1}</span>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          {result.length === 0 && <div className="text-xs text-muted-foreground/40">No visits yet</div>}
-        </div>
-      </div>
-    </div>
+        return (
+          <motion.g key={`tr-${n.id}`}>
+            <motion.circle
+              cx={n.x} cy={n.y} r={20}
+              fill={isVisited ? "rgba(16, 185, 129, 0.2)" : isInStack ? "rgba(59, 130, 246, 0.2)" : "hsl(var(--card))"}
+              stroke={isCurrent ? "#ef4444" : isVisited ? "#10b981" : isInStack ? "#3b82f6" : "hsl(var(--border))"}
+              strokeWidth={isInStack || isVisited || isCurrent ? 3 : 2}
+              style={{ filter: isCurrent ? 'url(#neon-glow-red)' : isInStack ? 'url(#neon-glow-blue)' : isVisited ? 'url(#neon-glow-emerald)' : 'none' }}
+              animate={{
+                scale: isCurrent ? 1.2 : 1,
+                rotate: isCurrent ? 360 : 0
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            />
+            <text x={n.x} y={n.y + 5} textAnchor="middle" fontSize="14" fontWeight="bold"
+              fill={isVisited ? "#10b981" : isInStack ? "#3b82f6" : "hsl(var(--muted-foreground))"}>
+              {n.id}
+            </text>
+          </motion.g>
+        );
+      })}
+
+      {/* Legend inside tree area */}
+      <g transform="translate(45, 430)">
+        <circle cx="10" cy="10" r="6" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" />
+        <text x="25" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">스택 대기 (In Stack)</text>
+
+        <circle cx="130" cy="10" r="6" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="2" />
+        <text x="145" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">방문 완료 (Visited)</text>
+
+        <circle cx="250" cy="10" r="6" fill="rgba(239, 68, 68, 0.2)" stroke="#ef4444" strokeWidth="2" />
+        <text x="265" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">현재 팝 (Current)</text>
+      </g>
+
+
+      {/* ===================== STACK ===================== */}
+      <path d="M 405 150 L 405 450 L 555 450 L 555 150" fill="none" stroke="hsl(var(--border))" strokeWidth="2" />
+
+      {explicitStack.length === 0 && (
+        <text x="480" y="300" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">스택 비어있음</text>
+      )}
+
+      <AnimatePresence>
+        {explicitStack.map((nodeId, index) => {
+          const slotHeight = 40;
+          const gap = 5;
+          const yBottom = 445;
+          const y = yBottom - (index * (slotHeight + gap)) - slotHeight;
+          const isTop = index === explicitStack.length - 1;
+
+          return (
+            <motion.g
+              key={`es-${nodeId}`}
+              initial={{ opacity: 0, x: -30, y }}
+              animate={{ opacity: 1, x: 0, y }}
+              exit={{ opacity: 0, y: y - 30 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            >
+              <rect x="415" y={0} width="130" height={slotHeight} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" rx="6" />
+              <text x="480" y="25" fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
+              {isTop && (
+                <text x="420" y="12" fill="#3b82f6" fontSize="9" fontWeight="bold" letterSpacing="1">TOP</text>
+              )}
+            </motion.g>
+          );
+        })}
+      </AnimatePresence>
+
+
+      {/* ===================== RESULT ===================== */}
+      <g transform="translate(600, 150)">
+        {result.length === 0 && (
+          <text x="80" y="150" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">방문한 노드 없음</text>
+        )}
+
+        <AnimatePresence>
+          {result.map((nodeId, index) => {
+            const y = index * 42; // layout top to bottom
+            return (
+              <motion.g
+                key={`res-${nodeId}`}
+                initial={{ opacity: 0, scale: 0.8, x: -20, y }}
+                animate={{ opacity: 1, scale: 1, x: 0, y }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              >
+                <rect x="0" y={0} width="160" height="35" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" strokeWidth="2" rx="6" />
+                <text x="80" y="22" fill="#10b981" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
+              </motion.g>
+            );
+          })}
+        </AnimatePresence>
+      </g>
+
+    </svg>
   );
 }

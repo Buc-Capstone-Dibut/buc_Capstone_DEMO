@@ -28,7 +28,7 @@ import {
 
 interface TaskCardProps {
   task: Task;
-  customFields: CustomFieldConfig[];
+  customFields?: CustomFieldConfig[];
   isOverlay?: boolean;
   showTags?: boolean;
   showAssignee?: boolean; // Added missing prop
@@ -175,7 +175,7 @@ export function TaskCard({
 
   // Determine drag handle color based on Priority first, then First Tag
   const priority = priorities.find(
-    (p) => p.id === (task.priorityId || task.priority)?.toLowerCase(),
+    (p) => p.id === task.priorityId?.toLowerCase(),
   );
   const firstTagId = task.tags?.[0];
   const firstTag = firstTagId

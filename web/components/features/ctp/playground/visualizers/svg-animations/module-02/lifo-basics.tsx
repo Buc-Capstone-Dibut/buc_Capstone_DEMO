@@ -1,14 +1,14 @@
-"use client";
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function useLifoBasicsSim() {
   const [stack, setStack] = useState<number[]>([10, 20, 30]);
   const [logs, setLogs] = useState<string[]>([
-    "> SYSTEM INITIALIZED: Stack Data Structure — LIFO Protocol",
-    "> [AWAITING COMMAND] >> Interact with the Stack using Push, Pop, or Peek."
+    "> 시스템 초기화: 스택(Stack) 자료구조",
+    "> 프로토콜: LIFO (후입선출)",
+    "> [명령 대기 중] >>"
   ]);
+  const [action, setAction] = useState<{ type: "IDLE" | "PUSH" | "POP" | "PEEK" | "ERROR", val?: number, index?: number }>({ type: "IDLE" });
   const maxSize = 6;
 
   const appendLog = useCallback((msg: string) => {
@@ -18,11 +18,13 @@ export function useLifoBasicsSim() {
   const push = useCallback(() => {
     setStack(prev => {
       if (prev.length >= maxSize) {
-        appendLog("[OVERFLOW] Stack Overflow! Cannot push to a full stack.");
+        setAction({ type: "ERROR" });
+        appendLog("[오버플로] 스택이 가득 차 데이터를 추가할 수 없습니다.");
         return prev;
       }
       const val = Math.floor(Math.random() * 90) + 10;
-      appendLog(`[PUSH] Pushing ${val} onto the top of the stack. New size: ${prev.length + 1}.`);
+      setAction({ type: "PUSH", val, index: prev.length });
+      appendLog(`[PUSH] ${val} 추가됨. 크기: ${prev.length + 1}/${maxSize}`);
       return [...prev, val];
     });
   }, [appendLog]);
@@ -30,11 +32,13 @@ export function useLifoBasicsSim() {
   const pop = useCallback(() => {
     setStack(prev => {
       if (prev.length === 0) {
-        appendLog("[UNDERFLOW] Stack Underflow! Cannot pop from an empty stack.");
+        setAction({ type: "ERROR" });
+        appendLog("[언더플로] 빈 스택에서 데이터를 꺼낼 수 없습니다.");
         return prev;
       }
       const val = prev[prev.length - 1];
-      appendLog(`[POP] Popped ${val} from the top. New size: ${prev.length - 1}.`);
+      setAction({ type: "POP", val, index: prev.length - 1 });
+      appendLog(`[POP] ${val} 제거됨. 크기: ${prev.length - 1}/${maxSize}`);
       return prev.slice(0, -1);
     });
   }, [appendLog]);
@@ -42,151 +46,229 @@ export function useLifoBasicsSim() {
   const peek = useCallback(() => {
     setStack(prev => {
       if (prev.length === 0) {
-        appendLog("[PEEK] Stack is empty. No top element.");
+        setAction({ type: "ERROR" });
+        appendLog("[PEEK] 스택이 비어 있습니다.");
         return prev;
       }
-      appendLog(`[PEEK] Top element = ${prev[prev.length - 1]}. Stack unchanged.`);
+      const val = prev[prev.length - 1];
+      setAction({ type: "PEEK", val, index: prev.length - 1 });
+      appendLog(`[PEEK] 맨 위 데이터는 ${val} 입니다.`);
       return prev;
     });
   }, [appendLog]);
 
   const reset = useCallback(() => {
     setStack([10, 20, 30]);
-    setLogs(["> SYSTEM RESET: Stack flushed. Initial state restored."]);
+    setAction({ type: "IDLE" });
+    setLogs(["> 시스템 리부트: 초기 상태로 복구되었습니다."]);
   }, []);
+
+  useEffect(() => {
+    if (action.type !== "IDLE") {
+      const timer = setTimeout(() => setAction({ type: "IDLE" }), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [action]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { stack },
+      visualData: { stack, action, maxSize },
       logs,
       handlers: { push, pop, peek, reset, clear: reset }
     }
   };
 }
 
-export function LifoBasicsVisualizer({ data }: { data: { stack: number[] } }) {
-  const { stack } = data;
-  const maxSize = 6;
+export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action: { type: string, val?: number, index?: number }, maxSize: number } }) {
+  const { stack, action, maxSize } = data;
+  const isError = action.type === "ERROR";
 
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-20">
-      <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-    </div>
-  );
+  // Coordinates
+  const centerX = 400;
+  const baseY = 420;
+  const slotWidth = 140;
+  const slotHeight = 44;
+  const gap = 8;
 
   return (
-    <div className="w-full flex flex-col items-center bg-background/40 relative font-mono rounded-xl py-8 gap-8 px-4">
-      <CyberGrid />
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="100%" stopColor="transparent" />
+        </linearGradient>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        </pattern>
+        <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="neon-glow-orange" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="neon-glow-red" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
 
-      {/* Narrative Info Header */}
-      <motion.div
-        className="w-full max-w-4xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl shadow-[0_0_30px_hsla(var(--primary),0.05)]"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
-        <p className="text-sm font-medium tracking-wide">
-          Stack operates on <span className="font-bold text-cyan-500">LIFO</span> — Last In, First Out. The last element pushed is always the first to be popped.
-        </p>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground border border-border rounded px-3 py-1 bg-muted/40">
-          <span>Size: {stack.length}/{maxSize}</span>
-        </div>
-      </motion.div>
+      {/* Background (Transparent for SVGFlowWrapper) */}
+      <rect width="800" height="500" fill="url(#grid)" />
 
-      <div className="w-full max-w-4xl flex flex-col md:flex-row gap-8 z-10 items-center justify-center">
+      {/* Title & Core Concept */}
+      <text x="40" y="50" fill="#06b6d4" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">LIFO 스택</text>
+      <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">Last-In, First-Out (후입선출) 메모리 구조</text>
 
-        {/* Stack Visualization */}
-        <div className="flex flex-col items-center gap-2 min-w-[180px]">
+      {/* Container Base & Borders (The "Stack" glass case) */}
+      <motion.path
+        d={`M ${centerX - slotWidth/2 - 20} ${baseY - maxSize * (slotHeight + gap) - 10} L ${centerX - slotWidth/2 - 20} ${baseY + 10} L ${centerX + slotWidth/2 + 20} ${baseY + 10} L ${centerX + slotWidth/2 + 20} ${baseY - maxSize * (slotHeight + gap) - 10}`}
+        fill="none"
+        stroke={isError ? "#ef4444" : "hsl(var(--border))"}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        animate={{ stroke: isError ? "#ef4444" : "hsl(var(--border))" }}
+        transition={{ duration: 0.2 }}
+      />
+      <motion.rect
+        x={centerX - slotWidth/2 - 20}
+        y={baseY - maxSize * (slotHeight + gap) - 10}
+        width={slotWidth + 40}
+        height={maxSize * (slotHeight + gap) + 20}
+        fill={isError ? "rgba(239, 68, 68, 0.05)" : "rgba(6, 182, 212, 0.02)"}
+        animate={{ fill: isError ? "rgba(239, 68, 68, 0.05)" : "rgba(6, 182, 212, 0.02)" }}
+      />
 
-          {/* Top label and PUSH arrow */}
-          <div className="flex flex-col items-center mb-2 text-cyan-500">
-             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-             <span className="text-[10px] font-black uppercase tracking-widest">PUSH / POP (Top)</span>
-          </div>
+      {/* Action Indicator Text */}
+      <AnimatePresence>
+        {action.type !== "IDLE" && (
+          <motion.text
+            initial={{ opacity: 0, y: baseY - maxSize * (slotHeight + gap) - 60 }}
+            animate={{ opacity: 1, y: baseY - maxSize * (slotHeight + gap) - 40 }}
+            exit={{ opacity: 0 }}
+            x={centerX}
+            y={baseY - maxSize * (slotHeight + gap) - 40}
+            textAnchor="middle"
+            fill={action.type === "PUSH" ? "#06b6d4" : action.type === "POP" ? "#f97316" : action.type === "PEEK" ? "#a855f7" : "#ef4444"}
+            fontSize="18"
+            fontWeight="bold"
+            letterSpacing="2"
+            filter={action.type === "PUSH" ? "url(#neon-glow-cyan)" : action.type === "POP" ? "url(#neon-glow-orange)" : undefined}
+          >
+            {action.type === "ERROR" ? "연산 실패" : `${action.type} ${action.val !== undefined ? `(${action.val})` : ""}`}
+          </motion.text>
+        )}
+      </AnimatePresence>
 
-          {/* Stack Slots */}
-          <div className="flex flex-col-reverse gap-1 relative">
-            {/* Empty Slots */}
-            {Array.from({ length: maxSize }).map((_, i) => {
-               const val = stack[i];
-               const isTop = val !== undefined && i === stack.length - 1;
-               return (
-                 <motion.div
-                   key={`slot-${i}`}
-                   className={`w-40 h-14 rounded-lg border-2 flex items-center justify-between px-4 relative overflow-hidden
-                     ${val !== undefined ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-border/30 bg-card/20'}`}
-                   initial={{ opacity: 0 }}
-                   animate={{ opacity: 1 }}
-                   transition={{ delay: i * 0.05 }}
-                 >
-                   {/* Scanning highlight for new top */}
-                   {isTop && (
-                     <motion.div className="absolute inset-0 bg-cyan-500/10" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
-                   )}
+      {/* Empty Slots Guidelines */}
+      {Array.from({ length: maxSize }).map((_, i) => {
+        const yPos = baseY - i * (slotHeight + gap) - slotHeight;
+        return (
+          <g key={`empty-${i}`}>
+            <rect x={centerX - slotWidth/2} y={yPos} width={slotWidth} height={slotHeight} fill="none" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" rx="6" />
+            <text x={centerX - slotWidth/2 - 25} y={yPos + slotHeight/2 + 4} fill="hsl(var(--muted-foreground))" fontSize="10" textAnchor="end">[{i}]</text>
+          </g>
+        );
+      })}
 
-                   {val !== undefined ? (
-                     <>
-                       <span className="text-muted-foreground/60 text-[10px] font-mono">[{i}]</span>
-                       <span className={`text-xl font-black z-10 ${isTop ? 'text-cyan-500' : 'text-foreground'}`}>{val}</span>
-                       {isTop && <span className="text-[9px] font-black text-cyan-500 bg-cyan-500/20 px-1 py-0.5 rounded uppercase tracking-widest z-10">TOP</span>}
-                     </>
-                   ) : (
-                     <span className="text-muted-foreground/30 text-xs w-full text-center uppercase tracking-widest">— empty —</span>
-                   )}
+      {/* Stack Items */}
+      <AnimatePresence>
+        {stack.map((val, i) => {
+          const yPos = baseY - i * (slotHeight + gap) - slotHeight;
+          const isTop = i === stack.length - 1;
+          const isActivelyPopping = action.type === "POP" && action.index === i;
 
-                   {/* Stack boundary bar */}
-                   <div className="absolute left-0 top-0 h-full w-1 bg-cyan-500/30 rounded-l-lg" />
-                 </motion.div>
-               );
-             })}
-          </div>
+          return (
+            <motion.g
+              key={`item-${i}-${val}`}
+              initial={{ opacity: 0, y: yPos - 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: yPos, scale: 1 }}
+              exit={{ opacity: 0, y: yPos - 50, scale: 1.1, filter: "blur(4px)" }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              {/* Item Box */}
+              <motion.rect
+                x={centerX - slotWidth/2}
+                y={0}
+                width={slotWidth}
+                height={slotHeight}
+                rx="8"
+                fill={isActivelyPopping ? "rgba(249, 115, 22, 0.2)" : (isTop ? "rgba(6, 182, 212, 0.2)" : "hsl(var(--muted))")}
+                stroke={isActivelyPopping ? "#f97316" : (isTop ? "#06b6d4" : "hsl(var(--border))")}
+                strokeWidth="2"
+                filter={isActivelyPopping ? "url(#neon-glow-orange)" : (isTop ? "url(#neon-glow-cyan)" : undefined)}
+              />
 
-          {/* Stack Base Plate */}
-          <div className="w-44 h-3 bg-card border-2 border-border rounded-b-lg shadow-inner" />
-          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1">Stack Base (Bottom)</span>
-        </div>
+              {/* Value */}
+              <motion.text
+                x={centerX}
+                y={slotHeight / 2 + 6}
+                fill={isActivelyPopping ? "#f97316" : (isTop ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))")}
+                fontSize="18"
+                fontWeight="bold"
+                textAnchor="middle"
+              >
+                {val}
+              </motion.text>
 
-        {/* Info Panel */}
-        <div className="flex-1 flex flex-col gap-4 max-w-sm md:max-w-none">
+              {/* TOP Label Marker */}
+              {isTop && !isActivelyPopping && (
+                <motion.g
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                >
+                  <path d={`M ${centerX + slotWidth/2 + 25} ${slotHeight/2} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 - 5} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 + 5} Z`} fill="#06b6d4" />
+                  <text x={centerX + slotWidth/2 + 35} y={slotHeight/2 + 4} fill="#06b6d4" fontSize="12" fontWeight="bold" letterSpacing="1" filter="url(#neon-glow-cyan)">TOP</text>
+                </motion.g>
+              )}
+            </motion.g>
+          );
+        })}
+      </AnimatePresence>
 
-          {/* Key Operations */}
-          <div className="bg-[#0d1117]/80 backdrop-blur-md rounded-2xl p-6 border border-border shadow-2xl text-sm font-mono flex flex-col gap-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full bg-destructive/80" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-              <span className="ml-2 text-muted-foreground text-xs uppercase tracking-widest">Stack Operations</span>
-            </div>
+      {/* Info Panel on the right */}
+      <g transform="translate(580, 200)">
+        <rect x="0" y="0" width="180" height="150" fill="hsl(var(--muted))" opacity="0.5" stroke="hsl(var(--border))" rx="8" />
+        <text x="15" y="25" fill="hsl(var(--foreground))" fontSize="12" fontWeight="bold">공간 지표 (Space Metrics)</text>
+        <line x1="15" y1="35" x2="165" y2="35" stroke="hsl(var(--border))" strokeWidth="1" />
 
-            <div className="flex flex-col gap-3 text-sm">
-              <div className="flex justify-between items-center p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
-                <code className="text-cyan-500 font-bold">push(val)</code>
-                <span className="text-muted-foreground text-xs">Add to top — O(1)</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
-                <code className="text-orange-500 font-bold">pop()</code>
-                <span className="text-muted-foreground text-xs">Remove from top — O(1)</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
-                <code className="text-purple-500 font-bold">peek()</code>
-                <span className="text-muted-foreground text-xs">Read top — O(1)</span>
-              </div>
-            </div>
-          </div>
+        <text x="15" y="60" fill="hsl(var(--muted-foreground))" fontSize="11">최대 용량:</text>
+        <text x="165" y="60" fill="hsl(var(--foreground))" fontSize="11" textAnchor="end">{maxSize}</text>
 
-          {/* LIFO Analogy */}
-          <div className="bg-card/50 backdrop-blur rounded-2xl p-5 border border-border flex gap-3 items-start">
-            <div className="text-2xl mt-1">📚</div>
-            <div>
-              <p className="text-sm font-bold text-foreground mb-1">Real-world Analogy</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">Like a stack of plates — you can only add or remove from the <strong>top</strong>. Undo/Redo, browser history, and function call stacks all follow this pattern.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        <text x="15" y="80" fill="hsl(var(--muted-foreground))" fontSize="11">현재 크기:</text>
+        <text x="165" y="80" fill="#06b6d4" fontSize="11" textAnchor="end" fontWeight="bold" filter="url(#neon-glow-cyan)">{stack.length}</text>
+
+        <text x="15" y="100" fill="hsl(var(--muted-foreground))" fontSize="11">남은 공간:</text>
+        <text x="165" y="100" fill="hsl(var(--foreground))" fontSize="11" textAnchor="end">{maxSize - stack.length}</text>
+
+        {/* Utilization Bar */}
+        <rect x="15" y="120" width="150" height="6" fill="hsl(var(--muted-foreground))" opacity="0.3" rx="3" />
+        <motion.rect
+          x="15"
+          y="120"
+          height="6"
+          fill="#06b6d4"
+          rx="3"
+          filter="url(#neon-glow-cyan)"
+          animate={{ width: 150 * (stack.length / maxSize) }}
+          transition={{ type: "spring", stiffness: 100 }}
+        />
+      </g>
+    </svg>
   );
 }

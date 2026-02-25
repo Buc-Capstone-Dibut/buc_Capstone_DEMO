@@ -2,206 +2,247 @@
 
 import { motion } from "framer-motion";
 
-function ContinuousMemory() {
-  const slots = [0, 1, 2, 3, 4, 5];
+function SharedDefs() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 280" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="mem-glow-ds">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <marker id="arrow-mem-ds" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--primary))" />
-          </marker>
-        </defs>
+    <defs>
+      <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#6366f1" />
+        <stop offset="100%" stopColor="#a855f7" />
+      </linearGradient>
+      <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#10b981" />
+        <stop offset="100%" stopColor="#059669" />
+      </linearGradient>
+      <linearGradient id="surface-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="1" />
+        <stop offset="100%" stopColor="hsl(var(--muted))" stopOpacity="0.5" />
+      </linearGradient>
+      <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#000000" floodOpacity="0.1" />
+      </filter>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
+      </pattern>
+    </defs>
+  );
+}
 
-        <rect x="20" y="20" width="360" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Contiguous Memory Allocation</text>
+function ArrayMemoryAccess() {
+  return (
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
 
-        <g transform="translate(60, 110)">
-          <rect x="-20" y="-20" width="290" height="90" rx="8" fill="none" stroke="hsl(var(--border))" strokeDasharray="4 4" />
-          {slots.map((i) => {
-            const isAllocated = i < 4;
-            return (
-              <g key={i} transform={`translate(${i * 42}, 0)`}>
-                <rect width="36" height="36" rx="6"
-                  fill={isAllocated ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted)/0.3)"}
-                  stroke={isAllocated ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))"}
-                  strokeWidth="2"
-                />
-                {isAllocated && (
-                  <text x="18" y="23" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--primary))">{i * 10}</text>
-                )}
-                <text x="18" y="55" textAnchor="middle" fontSize="8" fontFamily="monospace"
-                  fill={isAllocated ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
-                >
-                  {"0x" + (100 + i * 4)}
-                </text>
-              </g>
-            );
-          })}
-          <rect x="0" y="-10" width="36" height="56" rx="8" fill="none" stroke="hsl(var(--orange-400, #fb923c))" strokeWidth="2" strokeDasharray="4 4" />
-          <text x="18" y="-14" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--orange-400, #fb923c))">Base</text>
-          <motion.path
-            d="M 18 -38 L 18 -14"
-            fill="none" stroke="hsl(var(--primary))" strokeWidth="2" markerEnd="url(#arrow-mem-ds)"
-            initial={{ opacity: 0, pathLength: 0 }}
-            animate={{ opacity: [0, 1, 0], pathLength: [0, 1, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </g>
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열(Array)의 본질: 연속된 메모리와 O(1) 접근
+      </text>
 
-        <text x="200" y="240" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--muted-foreground))">
-          Base Address + (Index x Size) = Direct O(1) Offset
-        </text>
-      </svg>
-    </div>
+      <g transform="translate(100, 160)" filter="url(#soft-shadow)">
+        {/* Contiguous Blocks */}
+        <rect x="0" y="0" width="600" height="120" rx="20" fill="url(#surface-grad)" stroke="url(#primary-grad)" strokeWidth="3" />
+        <text x="80" y="-15" fontSize="16" fontWeight="bold" fill="#6366f1">메모리 (RAM)</text>
+
+        {/* Index numbers */}
+        {[0, 1, 2, 3, 4, 5].map((idx) => (
+          <text key={`txt-${idx}`} x={50 + idx * 100} y="30" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(var(--muted-foreground))">
+            idx {idx}
+          </text>
+        ))}
+
+        {/* Value cells */}
+        {[0, 1, 2, 3, 4, 5].map((idx) => (
+          <g key={`cell-${idx}`} transform={`translate(${10 + idx * 100}, 45)`}>
+            <rect width="80" height="60" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+            <text x="40" y="38" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(var(--foreground))">
+              {[10, 20, 30, 40, 50, 60][idx]}
+            </text>
+          </g>
+        ))}
+
+        {/* Flash access animation */}
+        <motion.rect x="310" y="45" width="80" height="60" rx="10" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="4"
+          initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: [0, 1, 0], scale: [0.9, 1.1, 0.9] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} />
+
+        <motion.path d="M 350 -40 L 350 30" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeDasharray="6 6"
+          initial={{ opacity: 0, y: -20 }} animate={{ opacity: [0, 1, 0], y: [0, 5, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} />
+
+        <motion.text x="350" y="-50" textAnchor="middle" fontSize="16" fontWeight="900" fill="#10b981"
+          initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }}>
+          빠른 접근 arr[3]
+        </motion.text>
+      </g>
+
+      <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="380" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
+        데이터가 다닥다닥 붙어있어 인덱스 계산만으로 단숨에 데이터를 찾을 수 있습니다.
+      </text>
+    </svg>
   );
 }
 
 function StaticVsDynamic() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="resize-glow-ds">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <marker id="arrow-resize-ds" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--purple-500, #a855f7))" />
-          </marker>
-        </defs>
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
 
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--foreground))">Dynamic Array Resizing</text>
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        크기 확장의 제약 (Static vs Dynamic)
+      </text>
 
-        <g transform="translate(60, 100)">
-          <text x="60" y="-10" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--destructive))">Capacity Full (3)</text>
-          <rect x="-5" y="-5" width="130" height="50" rx="6" fill="hsl(var(--destructive)/0.05)" stroke="hsl(var(--destructive)/0.3)" />
-          {[0, 1, 2].map((i) => (
-            <rect key={i} x={i * 40} y="0" width="38" height="40" rx="6" fill="hsl(var(--destructive)/0.2)" stroke="hsl(var(--destructive))" />
-          ))}
-        </g>
+      {/* Static Array limitation */}
+      <g transform="translate(100, 100)">
+        <text x="0" y="20" fontSize="16" fontWeight="bold" fill="#f43f5e">정적 배열 (크기 초과 시)</text>
 
-        <motion.g transform="translate(195, 110)"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <circle cx="0" cy="0" r="16" fill="hsl(var(--card))" stroke="hsl(var(--purple-500, #a855f7))" strokeWidth="2" />
-          <path d="M -5 0 L 5 0 M 0 -5 L 0 5" stroke="hsl(var(--purple-500, #a855f7))" strokeWidth="3" />
-        </motion.g>
-
-        <g transform="translate(40, 190)">
-          <text x="160" y="-10" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">New Capacity (6) — O(N) Copy</text>
-          <rect x="-5" y="-5" width="260" height="50" rx="6" fill="none" stroke="hsl(var(--emerald-500, #10b981)/0.3)" strokeDasharray="4 4" />
-          {[0, 1, 2].map((i) => (
-            <rect key={i} x={i * 40} y="0" width="38" height="40" rx="6" fill="hsl(var(--purple-500, #a855f7)/0.3)" stroke="hsl(var(--purple-500, #a855f7))" />
-          ))}
-          <motion.rect x={3 * 40} y="0" width="38" height="40" rx="6"
-            fill="hsl(var(--emerald-500, #10b981)/0.4)" stroke="hsl(var(--emerald-500, #10b981))"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 1, repeat: Infinity, repeatType: "reverse", repeatDelay: 1 }}
-          />
-          {[4, 5].map((i) => (
-            <rect key={i} x={i * 40} y="0" width="38" height="40" rx="6" fill="none" stroke="hsl(var(--border))" strokeDasharray="4 4" />
-          ))}
-        </g>
-      </svg>
-    </div>
-  );
-}
-
-function Immutability() {
-  return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="shield-glow-ds">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--foreground))">Mutability vs. Immutability</text>
-
-        <g transform="translate(60, 110)">
-          <text x="60" y="-10" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--destructive))">Mutable List</text>
-          <rect x="0" y="0" width="120" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--destructive)/0.5)" strokeWidth="2" />
-          <text x="60" y="32" textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="hsl(var(--foreground))">[ 1, X, 3 ]</text>
-          <motion.circle cx="60" cy="25" r="25" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive))"
-            animate={{ scale: [1, 2], opacity: [1, 0] }}
-            transition={{ duration: 1, repeat: Infinity }}
-          />
-        </g>
-
-        <g transform="translate(240, 110)">
-          <text x="60" y="-10" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--primary))">Immutable Tuple</text>
-          <rect x="0" y="0" width="120" height="50" rx="25" fill="hsl(var(--primary)/0.1)" stroke="hsl(var(--primary))" strokeWidth="2" filter="url(#shield-glow-ds)" />
-          <text x="60" y="32" textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="hsl(var(--primary))">( 1, 2, 3 )</text>
-          <text x="60" y="-24" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--primary))">Protected (Read-Only)</text>
-        </g>
-
-        <text x="200" y="220" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--muted-foreground))">
-          Immutability prevents side effects and ensures thread safety.
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-
-function TradeoffMatrix() {
-  return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <rect x="40" y="10" width="320" height="36" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="32" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Operation Cost Matrix</text>
-        {/* Column headers */}
-        <text x="165" y="66" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--primary))">Array</text>
-        <text x="285" y="66" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--purple-500,#a855f7))">Linked List</text>
-        {[
-          { op: "Access", arr: "O(1) ✓", ll: "O(N) ✗", arrGood: true },
-          { op: "Append", arr: "O(1)* ✓", ll: "O(1) ✓", arrGood: true },
-          { op: "Insert(mid)", arr: "O(N) ✗", ll: "O(1) ✓", arrGood: false },
-          { op: "Delete(mid)", arr: "O(N) ✗", ll: "O(1) ✓", arrGood: false },
-          { op: "Search", arr: "O(N)", ll: "O(N)", arrGood: null },
-        ].map(({ op, arr, ll, arrGood }, i) => (
-          <g key={op} transform={`translate(0, ${76 + i * 38})`}>
-            <rect x="42" y="4" width="316" height="28" rx="4" fill="hsl(var(--card)/0.5)" stroke="hsl(var(--border))" />
-            <text x="90" y="22" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--muted-foreground))">{op}</text>
-            <rect x="126" y="8" width="78" height="20" rx="4"
-              fill={arrGood === true ? "hsl(var(--emerald-500,#10b981)/0.15)" : arrGood === false ? "hsl(var(--destructive)/0.08)" : "hsl(var(--muted)/0.5)"} />
-            <text x="165" y="22" textAnchor="middle" fontSize="9" fontFamily="monospace"
-              fill={arrGood === true ? "hsl(var(--emerald-500,#10b981))" : arrGood === false ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}>{arr}</text>
-            <rect x="246" y="8" width="78" height="20" rx="4"
-              fill={arrGood === false ? "hsl(var(--emerald-500,#10b981)/0.15)" : arrGood === true ? "hsl(var(--destructive)/0.08)" : "hsl(var(--muted)/0.5)"} />
-            <text x="285" y="22" textAnchor="middle" fontSize="9" fontFamily="monospace"
-              fill={arrGood === false ? "hsl(var(--emerald-500,#10b981))" : arrGood === true ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}>{ll}</text>
-          </g>
+        {/* Memory slots */}
+        {[0, 1, 2].map((i) => (
+          <rect key={`old-${i}`} x={i * 70} y="40" width="60" height="60" rx="8" fill="url(#surface-grad)" stroke={i === 2 ? "#f43f5e" : "hsl(var(--border))"} strokeWidth="2" />
         ))}
-      </svg>
-    </div>
+        {/* Blocked wall symbol */}
+        <rect x="210" y="30" width="10" height="80" rx="4" fill="#f43f5e" />
+        <text x="260" y="75" fontSize="14" fontWeight="800" fill="#f43f5e">다른 데이터 공간 (확장 불가)</text>
+      </g>
+
+      <path d="M 350 170 L 350 250" stroke="hsl(var(--muted-foreground))" strokeWidth="4" markerEnd="url(#arrow-head)" strokeDasharray="8 8" opacity="0.6" />
+      <text x="360" y="215" fontSize="14" fontWeight="700" fill="hsl(var(--foreground))">새로운 공간 할당 + 전체 복사 발생 (Overhead)</text>
+
+      {/* Dynamic Array / Relocation */}
+      <g transform="translate(100, 270)">
+        <text x="0" y="20" fontSize="16" fontWeight="bold" fill="#10b981">동적 배열 (Re-allocation)</text>
+
+        {/* New larger memory slots */}
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <rect key={`new-${i}`} x={i * 70} y="40" width="60" height="60" rx="8" fill="url(#surface-grad)" stroke={i < 3 ? "#10b981" : "hsl(var(--border))"} strokeWidth="2" />
+        ))}
+
+        {/* Copy animations */}
+        {[0, 1, 2].map((i) => (
+          <motion.path key={`arch-${i}`} d={`M ${i * 70 + 30} -70 Q ${i * 70 + 80} -20 ${i * 70 + 30} 40`} stroke="#10b981" strokeWidth="3" fill="none"
+              initial={{ opacity: 0, pathLength: 0 }}
+              animate={{ opacity: [0, 1, 0], pathLength: [0, 1, 1] }}
+              transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }} />
+        ))}
+
+        <motion.circle cx="240" cy="70" r="15" fill="#10b981" filter="url(#glow)"
+            animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} />
+      </g>
+    </svg>
+  );
+}
+
+function TupleImmutability() {
+  return (
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
+
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        튜플(Tuple)의 불변성 (Immutability)
+      </text>
+
+      {/* Mutable List Box */}
+      <g transform="translate(150, 150)" filter="url(#soft-shadow)">
+        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="#3b82f6" strokeWidth="3" strokeDasharray="10 5" />
+        <text x="100" y="30" textAnchor="middle" fontSize="18" fontWeight="800" fill="#3b82f6">수정 가능 (List)</text>
+
+        <rect x="40" y="60" width="120" height="60" rx="8" fill="#3b82f6" opacity="0.1" stroke="#3b82f6" strokeWidth="2" />
+        <text x="100" y="96" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(var(--foreground))">[ 1, 2, <tspan fill="#f43f5e" textDecoration="line-through">3</tspan>, 4 ]</text>
+        <motion.text x="145" y="70" fontSize="24" fontWeight="900" fill="#10b981"
+           initial={{ opacity: 0, y: -20 }} animate={{ opacity: [0, 1, 0], y: [0, 10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+           9
+        </motion.text>
+      </g>
+
+      {/* Immutable Tuple Safe */}
+      <g transform="translate(450, 150)" filter="url(#soft-shadow)">
+        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="#10b981" strokeWidth="4" />
+        <text x="100" y="30" textAnchor="middle" fontSize="18" fontWeight="800" fill="#10b981">수정 불가 (Tuple)</text>
+
+        {/* Padlock icon base */}
+        <rect x="85" y="-10" width="30" height="20" rx="4" fill="#10b981" />
+        <path d="M 90 -10 A 10 10 0 0 1 110 -10" fill="none" stroke="#10b981" strokeWidth="4" />
+
+        <rect x="40" y="60" width="120" height="60" rx="8" fill="#10b981" opacity="0.1" stroke="#10b981" strokeWidth="2" />
+        <text x="100" y="96" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(var(--foreground))">( 1, 2, 3, 4 )</text>
+
+        {/* Reject animation */}
+        <motion.line x1="120" y1="50" x2="150" y2="20" stroke="#f43f5e" strokeWidth="4"
+           initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
+        <motion.line x1="150" y1="50" x2="120" y2="20" stroke="#f43f5e" strokeWidth="4"
+           initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
+      </g>
+
+      <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="380" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
+        데이터가 변조되지 않음을 <tspan fill="#10b981" fontWeight="800">시스템 레벨에서 보장</tspan>하여 동시성 오류를 예방합니다.
+      </text>
+    </svg>
+  );
+}
+
+function OperationCostTable() {
+  return (
+    <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <SharedDefs />
+      <rect width="800" height="450" fill="url(#grid)" />
+
+      <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
+        배열 vs 연결 리스트: 연산 비용 비교
+      </text>
+
+      <g transform="translate(100, 100)" filter="url(#soft-shadow)">
+        <rect width="600" height="260" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+
+        {/* Table Headers */}
+        <line x1="0" y1="50" x2="600" y2="50" stroke="hsl(var(--border))" strokeWidth="2" opacity="0.5" />
+        <line x1="200" y1="0" x2="200" y2="260" stroke="hsl(var(--border))" strokeWidth="2" opacity="0.5" />
+        <line x1="400" y1="0" x2="400" y2="260" stroke="hsl(var(--border))" strokeWidth="2" opacity="0.5" />
+
+        <text x="100" y="32" textAnchor="middle" fontSize="16" fontWeight="800" fill="hsl(var(--foreground))">연산 종류</text>
+        <text x="300" y="32" textAnchor="middle" fontSize="18" fontWeight="900" fill="#6366f1">배열 (Array)</text>
+        <text x="500" y="32" textAnchor="middle" fontSize="18" fontWeight="900" fill="#10b981">연결 리스트 (Linked List)</text>
+
+        {/* Row 1: Access */}
+        <line x1="0" y1="102" x2="600" y2="102" stroke="hsl(var(--border))" strokeWidth="1" opacity="0.2" />
+        <text x="100" y="82" textAnchor="middle" fontSize="15" fontWeight="700" fill="hsl(var(--foreground))">조회 (Access)</text>
+        <g transform="translate(230, 65)">
+           <rect width="140" height="30" rx="6" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="1" />
+           <text x="70" y="20" textAnchor="middle" fontSize="15" fontWeight="900" fill="#10b981">O(1) (매우빠름)</text>
+        </g>
+        <text x="500" y="82" textAnchor="middle" fontSize="15" fontWeight="700" fill="#f43f5e">O(N) (탐색필요)</text>
+
+        {/* Row 2: Search */}
+        <line x1="0" y1="154" x2="600" y2="154" stroke="hsl(var(--border))" strokeWidth="1" opacity="0.2" />
+        <text x="100" y="134" textAnchor="middle" fontSize="15" fontWeight="700" fill="hsl(var(--foreground))">검색 (Search)</text>
+        <text x="300" y="134" textAnchor="middle" fontSize="15" fontWeight="700" fill="#f43f5e">O(N)</text>
+        <text x="500" y="134" textAnchor="middle" fontSize="15" fontWeight="700" fill="#f43f5e">O(N)</text>
+
+        {/* Row 3: Insert Last */}
+        <line x1="0" y1="206" x2="600" y2="206" stroke="hsl(var(--border))" strokeWidth="1" opacity="0.2" />
+        <text x="100" y="186" textAnchor="middle" fontSize="15" fontWeight="700" fill="hsl(var(--foreground))">끝에 삽입 (Append)</text>
+        <text x="300" y="186" textAnchor="middle" fontSize="15" fontWeight="700" fill="#10b981">O(1)</text>
+        <text x="500" y="186" textAnchor="middle" fontSize="15" fontWeight="700" fill="#10b981">O(1)</text>
+
+        {/* Row 4: Insert Middle */}
+        <text x="100" y="238" textAnchor="middle" fontSize="15" fontWeight="700" fill="hsl(var(--foreground))">중간 삽입/삭제</text>
+        <text x="300" y="238" textAnchor="middle" fontSize="15" fontWeight="700" fill="#f43f5e">O(N) (이동발생)</text>
+        <g transform="translate(430, 221)">
+           <rect width="140" height="30" rx="6" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="1" />
+           <text x="70" y="20" textAnchor="middle" fontSize="15" fontWeight="900" fill="#10b981">O(1) (참조만변경)</text>
+        </g>
+      </g>
+
+      <rect x="150" y="380" width="500" height="40" rx="20" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
+      <text x="400" y="405" textAnchor="middle" fontSize="14" fontWeight="600" fill="hsl(var(--foreground))">
+        "조회가 잦으면 배열", "중간 데이터 변화가 심하면 리스트"를 선택합니다.
+      </text>
+    </svg>
   );
 }
 
 export const DsCompareSupplementaryOptions = [
-  ContinuousMemory,
+  ArrayMemoryAccess,
   StaticVsDynamic,
-  Immutability,
-  TradeoffMatrix,
+  TupleImmutability,
+  OperationCostTable,
 ];
-

@@ -456,15 +456,39 @@ export function FoundationAlgorithmBasicsContent() {
             moduleLabel="Module 01. Foundation"
             chapterTitle="01 알고리즘 기초"
             chapterDescription="알고리즘 학습의 시작점인 절차적 사고와 흐름 추적 능력을 다집니다."
+            whyLearn="코드를 '돌아가게' 만드는 수준을 넘어, 입력이 커져도 안정적으로 동작하는 문제 해결 절차를 설계하기 위해 배웁니다."
+            quickFlow={[
+              "알고리즘의 입력/출력과 기본 개념을 먼저 잡습니다.",
+              "조건문·반복문으로 제어 흐름을 구성해 봅니다.",
+              "순서도/흐름 추적으로 실행 과정을 검증합니다.",
+            ]}
             guideItems={[
               "모든 레슨은 참여형 인터랙티브로 구성됩니다.",
               "Peek/Push/Pop/Reset 순서로 상태 변화를 관찰하세요.",
               "각 동작 이후 로그를 읽고 규칙을 정리하세요.",
             ]}
             items={[
-              { id: "algo-overview", title: "01-1 알고리즘 개요", description: "알고리즘의 역할과 분석 관점을 정리합니다." },
-              { id: "condition-loop", title: "01-2 조건문과 반복문", description: "분기/반복 조합으로 문제 해결 절차를 구성합니다." },
-              { id: "flow-tracing", title: "01-3 순서도와 흐름 추적", description: "실행 경로를 추적하고 오류를 찾는 방법을 훈련합니다." },
+              {
+                id: "algo-overview",
+                title: "01-1 알고리즘 개요",
+                description: "알고리즘의 역할과 분석 관점을 정리합니다.",
+                previewVisualizers: AlgoOverviewSupplementaryOptions.slice(0, 4),
+                previewLabels: ["입력/출력", "실생활 비유", "복잡도 사고", "Big-O 비교"],
+              },
+              {
+                id: "condition-loop",
+                title: "01-2 조건문과 반복문",
+                description: "분기/반복 조합으로 문제 해결 절차를 구성합니다.",
+                previewVisualizers: ConditionLoopSupplementaryOptions.slice(0, 4),
+                previewLabels: ["분기 제어", "반복 누적", "중첩 패턴", "실전 코드"],
+              },
+              {
+                id: "flow-tracing",
+                title: "01-3 순서도와 흐름 추적",
+                description: "실행 경로를 추적하고 오류를 찾는 방법을 훈련합니다.",
+                previewVisualizers: FlowTracingSupplementaryOptions.slice(0, 4),
+                previewLabels: ["시각 디버깅", "종료 조건", "엣지 케이스", "상태 타임라인"],
+              },
             ]}
           />
         }
@@ -484,16 +508,46 @@ export function FoundationBasicDsArrayContent() {
             moduleLabel="Module 01. Foundation"
             chapterTitle="02 기본 자료구조와 배열"
             chapterDescription="배열 중심 문제 해결력과 자료구조 선택 기준을 동시에 익힙니다."
+            whyLearn="문제에 맞는 자료구조를 선택하지 못하면 성능이 급격히 떨어지므로, 배열 중심으로 접근/수정/탐색의 비용 감각을 익히기 위해 배웁니다."
+            quickFlow={[
+              "자료구조별 특성과 선택 기준을 비교합니다.",
+              "1차원/2차원 배열의 인덱스·반복 패턴을 익힙니다.",
+              "진법/소수 같은 응용 문제로 확장합니다.",
+            ]}
             guideItems={[
               "각 자료구조 상황을 인터랙티브 조작으로 체험하세요.",
               "같은 데이터에서 연산 순서를 바꿔 결과 차이를 확인하세요.",
               "요약 로그를 바탕으로 구조 선택 기준을 정리하세요.",
             ]}
             items={[
-              { id: "ds-compare", title: "02-1 자료구조 비교 (배열/리스트/튜플)", description: "구조별 장단점과 사용 맥락을 비교합니다." },
-              { id: "1d-array", title: "02-2 배열 인덱스와 슬라이싱", description: "배열 접근과 부분 구간 처리 규칙을 실습합니다." },
-              { id: "2d-array", title: "02-3 배열 기본 문제 (최댓값/역순 정렬)", description: "기초 배열 문제를 통해 반복/조건 패턴을 익힙니다." },
-              { id: "array-number-prime", title: "02-4 배열 응용 (n진수/소수)", description: "배열을 활용한 진법/소수 문제로 확장합니다." },
+              {
+                id: "ds-compare",
+                title: "02-1 자료구조 비교 (배열/리스트/튜플)",
+                description: "구조별 장단점과 사용 맥락을 비교합니다.",
+                previewVisualizers: DsCompareSupplementaryOptions.slice(0, 4),
+                previewLabels: ["접근 비용", "확장 비용", "불변성", "구조 비교"],
+              },
+              {
+                id: "1d-array",
+                title: "02-2 배열 인덱스와 슬라이싱",
+                description: "배열 접근과 부분 구간 처리 규칙을 실습합니다.",
+                previewVisualizers: OneDArraySupplementaryOptions.slice(0, 4),
+                previewLabels: ["인덱스 접근", "슬라이싱", "경계 조건", "탐색 흐름"],
+              },
+              {
+                id: "2d-array",
+                title: "02-3 배열 기본 문제 (최댓값/역순 정렬)",
+                description: "기초 배열 문제를 통해 반복/조건 패턴을 익힙니다.",
+                previewVisualizers: TwoDArraySupplementaryOptions.slice(0, 4),
+                previewLabels: ["2D 구조", "이중 반복", "탐색 패턴", "메모리 배치"],
+              },
+              {
+                id: "array-number-prime",
+                title: "02-4 배열 응용 (n진수/소수)",
+                description: "배열을 활용한 진법/소수 문제로 확장합니다.",
+                previewVisualizers: ArrayPrimeSupplementaryOptions.slice(0, 4),
+                previewLabels: ["체 알고리즘", "진법 변환", "캐싱", "메모이제이션"],
+              },
             ]}
           />
         }
@@ -513,16 +567,46 @@ export function FoundationSearchAlgorithmsContent() {
             moduleLabel="Module 01. Foundation"
             chapterTitle="03 검색 알고리즘"
             chapterDescription="선형 탐색에서 이진 탐색, 해시 충돌 해결까지 검색 전략을 체계화합니다."
+            whyLearn="동일한 데이터를 찾더라도 전략에 따라 속도 차이가 매우 크기 때문에, 상황에 맞는 검색 알고리즘을 선택하는 기준을 만들기 위해 배웁니다."
+            quickFlow={[
+              "검색 대상과 키(Key) 기준을 먼저 정의합니다.",
+              "선형 검색과 이진 검색의 경계/비용 차이를 비교합니다.",
+              "해시 충돌 처리까지 포함해 실전 전략으로 연결합니다.",
+            ]}
             guideItems={[
               "이 챕터는 사용자 참여형(인터랙티브)으로 구성됩니다.",
               "연산 버튼을 누르며 검색 전략의 흐름을 비교하세요.",
               "각 동작 로그를 읽고 어떤 전략이 유리한지 판단하세요.",
             ]}
             items={[
-              { id: "search-problem-key", title: "03-1 검색 문제와 키", description: "검색 대상과 키 설계 기준을 정의합니다." },
-              { id: "linear-search", title: "03-2 선형 검색", description: "단순 탐색의 구현과 최적화 포인트를 익힙니다." },
-              { id: "basic-binary-search", title: "03-3 이진 검색", description: "경계 이동 기반의 로그 탐색을 실습합니다." },
-              { id: "hash-collision", title: "03-4 해시법과 충돌 해결", description: "충돌 대응 전략과 트레이드오프를 학습합니다." },
+              {
+                id: "search-problem-key",
+                title: "03-1 검색 문제와 키",
+                description: "검색 대상과 키 설계 기준을 정의합니다.",
+                previewVisualizers: ProblemKeySupplementaryOptions.slice(0, 4),
+                previewLabels: ["검색 구조", "키 매칭", "실패 처리", "결과 상태"],
+              },
+              {
+                id: "linear-search",
+                title: "03-2 선형 검색",
+                description: "단순 탐색의 구현과 최적화 포인트를 익힙니다.",
+                previewVisualizers: LinearSearchSupplementaryOptions.slice(0, 4),
+                previewLabels: ["순차 탐색", "보초법", "적용 시점", "성능 비교"],
+              },
+              {
+                id: "basic-binary-search",
+                title: "03-3 이진 검색",
+                description: "경계 이동 기반의 로그 탐색을 실습합니다.",
+                previewVisualizers: BinarySearchSupplementaryOptions.slice(0, 4),
+                previewLabels: ["반절 탐색", "경계 갱신", "정렬 조건", "적용 판단"],
+              },
+              {
+                id: "hash-collision",
+                title: "03-4 해시법과 충돌 해결",
+                description: "충돌 대응 전략과 트레이드오프를 학습합니다.",
+                previewVisualizers: HashCollisionSupplementaryOptions.slice(0, 4),
+                previewLabels: ["해시 함수", "충돌", "체이닝", "개방 주소"],
+              },
             ]}
           />
         }

@@ -41,7 +41,7 @@ export interface CTPModuleConfig {
   description: string;
   sampleData?: number[];
   Visualizer?: React.ComponentType<any>;
-  useSim?: () => any;
+  useSim?: (...args: any[]) => any;
   config?: {
     minSize?: number;
     maxSize?: number;
@@ -88,7 +88,7 @@ export interface CTPModuleConfig {
 
 export interface CTPModule {
   config: CTPModuleConfig;
-  useSim: () => {
+  useSim: (...args: any[]) => {
     runSimulation: (code: string) => void;
     interactive?: {
       visualData: any;

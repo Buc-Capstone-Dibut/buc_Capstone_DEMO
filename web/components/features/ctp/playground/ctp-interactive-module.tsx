@@ -8,8 +8,9 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
-import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
-import React, { useState } from "react";
+import { Maximize2, Minimize2, RotateCcw, Play, Pause } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Slider } from "@/components/ui/slider";
 
 const LABELS: Record<string, string> = {
   push: "Push",
@@ -41,6 +42,9 @@ interface InteractiveRuntime {
   selectedNodeId?: string | number | null;
   selectedSummary?: string[];
   onNodeSelect?: (nodeId: string | number) => void;
+  currentStep?: number;
+  maxSteps?: number;
+  setStep?: (step: number) => void;
 }
 
 interface CTPInteractiveModuleProps {
@@ -93,6 +97,23 @@ export function CTPInteractiveModule({
 }: CTPInteractiveModuleProps) {
   const logs = runtime.logs || [];
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPlaying && runtime.currentStep !== undefined && runtime.maxSteps !== undefined) {
+      if (runtime.currentStep >= runtime.maxSteps - 1) {
+        setIsPlaying(false);
+      } else {
+        interval = setInterval(() => {
+          if (runtime.handlers.push) {
+            runtime.handlers.push();
+          }
+        }, 800); // 800ms per step
+      }
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, runtime.currentStep, runtime.maxSteps, runtime.handlers]);
 
   const getHandler = (key: string) => {
     if (runtime.handlers[key]) return runtime.handlers[key];
@@ -127,15 +148,34 @@ export function CTPInteractiveModule({
 
       <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
         <ResizablePanel defaultSize={68} minSize={40}>
-          <div className="h-full bg-muted/10 relative border-r">
-            <Visualizer
-              data={runtime.visualData}
-              edges={runtime.edges}
-              maxSize={maxSize}
-              emptyMessage={emptyMessage}
-              selectedNodeId={runtime.selectedNodeId}
-              onNodeSelect={runtime.onNodeSelect}
-            />
+          <div className="h-full bg-muted/10 relative border-r flex flex-col">
+            <div className="flex-1 min-h-0 relative">
+              <Visualizer
+                data={runtime.visualData}
+                edges={runtime.edges}
+                maxSize={maxSize}
+                emptyMessage={emptyMessage}
+                selectedNodeId={runtime.selectedNodeId}
+                onNodeSelect={runtime.onNodeSelect}
+              />
+            </div>
+            {runtime.maxSteps !== undefined && runtime.currentStep !== undefined && runtime.setStep !== undefined && (
+              <div className="h-16 border-t border-border flex items-center px-6 gap-4 bg-background shrink-0">
+                <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)}>
+                  {isPlaying ? <Pause className="w-5 h-5 text-fuchsia-500" /> : <Play className="w-5 h-5 text-emerald-500" />}
+                </Button>
+                <Slider
+                  value={[runtime.currentStep]}
+                  max={runtime.maxSteps - 1}
+                  step={1}
+                  onValueChange={(val) => runtime.setStep!(val[0])}
+                  className="flex-1 cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground w-12 text-right font-mono">
+                  {runtime.currentStep} / {runtime.maxSteps - 1}
+                </span>
+              </div>
+            )}
           </div>
         </ResizablePanel>
 

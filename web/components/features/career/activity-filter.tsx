@@ -24,24 +24,28 @@ const COMMON_TAGS = [
 
 // Activity Categories mapping to dev-event.category
 export const ACTIVITY_FILTER_OPTIONS: TagFilterOption[] = [
-  { id: "all", label: "전체", tags: [] },
+  { id: "all", value: "all", label: "전체", tags: [] },
   {
     id: "Competition",
+    value: "Competition",
     label: "대회/해커톤",
     tags: [...COMMON_TAGS, "대회", "해커톤", "공모전"],
   },
   {
     id: "Education",
+    value: "Education",
     label: "교육/부트캠프",
     tags: [...COMMON_TAGS, "교육", "부트캠프", "강의", "스터디"],
   },
   {
     id: "Community",
+    value: "Community",
     label: "모임/네트워킹",
     tags: [...COMMON_TAGS, "모임", "네트워킹", "컨퍼런스", "세미나"],
   },
   {
     id: "Other",
+    value: "Other",
     label: "기타",
     tags: [...COMMON_TAGS],
   },

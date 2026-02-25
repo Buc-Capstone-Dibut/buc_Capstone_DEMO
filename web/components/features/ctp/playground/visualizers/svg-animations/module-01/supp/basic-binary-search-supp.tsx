@@ -2,201 +2,197 @@
 
 import { motion } from "framer-motion";
 
-function LogarithmicReduction() {
+function LogNReduction() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="log-glow-bs">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <linearGradient id="discard-grad-bs" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="hsl(var(--destructive)/0.2)" />
-            <stop offset="100%" stopColor="hsl(var(--destructive)/0.05)" />
-          </linearGradient>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">O(log N) Half Reduction</text>
 
-        <rect x="20" y="20" width="360" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Logarithmic Reduction O(log N)</text>
+      {/* Target */}
+      <text x="300" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--primary))">Target: 71</text>
 
-        <g transform="translate(40, 90)">
-          <rect x="0" y="0" width="320" height="24" fill="hsl(var(--card))" rx="4" stroke="hsl(var(--border))" />
-          <text x="160" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--muted-foreground))">Original Search Space (N items)</text>
-        </g>
+      <g transform="translate(60, 100)">
+        {/* Step 1: Full Array */}
+        <text x="0" y="15" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Step 1</text>
+        <rect x="50" y="0" width="400" height="20" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+        <line x1="250" y1="0" x2="250" y2="20" stroke="hsl(var(--border))" strokeDasharray="3 3" />
+        <text x="250" y="-5" textAnchor="middle" fontSize="10" fill="hsl(var(--foreground))">Mid (50)</text>
 
-        <g transform="translate(40, 130)">
-          <rect x="0" y="0" width="160" height="24" fill="url(#discard-grad-bs)" rx="4" stroke="hsl(var(--destructive)/0.3)" />
-          <text x="80" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive)/0.5)">Discarded N/2</text>
-          <motion.rect x="160" y="0" width="160" height="24" fill="hsl(var(--primary)/0.2)" rx="4" stroke="hsl(var(--primary)/0.5)"
-            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.5 }}
+        <path d="M 150 10 L 400 10" stroke="hsl(var(--primary))" strokeWidth="4" />
+        <text x="330" y="35" textAnchor="middle" fontSize="11" fill="hsl(var(--primary))">Keep Right Half</text>
+
+        {/* Toss left half */}
+        <motion.rect x="50" y="0" width="200" height="20" fill="hsl(var(--destructive)/0.3)" rx="4"
+          initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.2, 0.8, 1] }}
+        />
+
+        {/* Step 2: Half Array */}
+        <g transform="translate(0, 60)">
+          <text x="0" y="15" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Step 2</text>
+          <rect x="250" y="0" width="200" height="20" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+          <line x1="350" y1="0" x2="350" y2="20" stroke="hsl(var(--border))" strokeDasharray="3 3" />
+          <text x="350" y="-5" textAnchor="middle" fontSize="10" fill="hsl(var(--foreground))">Mid (75)</text>
+
+          <path d="M 250 10 L 350 10" stroke="hsl(var(--primary))" strokeWidth="4" />
+          <text x="300" y="35" textAnchor="middle" fontSize="11" fill="hsl(var(--primary))">Keep Left Half</text>
+
+          {/* Toss right half */}
+          <motion.rect x="350" y="0" width="100" height="20" fill="hsl(var(--destructive)/0.3)" rx="4"
+            initial={{ opacity: 0 }} animate={{ opacity: [0, 0, 1, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.3, 0.8, 1] }}
           />
-          <motion.text x="240" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--primary))"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.5 }}>Remaining N/2</motion.text>
         </g>
 
-        <g transform="translate(40, 170)">
-          <rect x="160" y="0" width="80" height="24" fill="url(#discard-grad-bs)" rx="4" stroke="hsl(var(--destructive)/0.3)" />
-          <text x="220" y="16" textAnchor="middle" fontSize="8" fontWeight="bold" fill="hsl(var(--destructive)/0.5)">Discard</text>
-          <motion.rect x="240" y="0" width="80" height="24" fill="hsl(var(--primary)/0.4)" rx="4" stroke="hsl(var(--primary))"
-            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 1.5 }}
-          />
-          <motion.text x="280" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--primary))"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1.5 }}>N/4</motion.text>
+        {/* Step 3: Quarter Array */}
+        <g transform="translate(0, 120)">
+           <text x="0" y="15" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Step 3</text>
+           <rect x="250" y="0" width="100" height="20" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.2)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+           <text x="300" y="14" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Found (71)</text>
         </g>
+      </g>
 
-        <g transform="translate(40, 210)">
-          <motion.rect x="280" y="0" width="40" height="24" fill="hsl(var(--emerald-500, #10b981)/0.3)" rx="4" stroke="hsl(var(--emerald-500, #10b981))" filter="url(#log-glow-bs)"
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 2.5 }}
-          />
-          <motion.text x="300" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 2.5 }}>HIT</motion.text>
-        </g>
-
-        <text x="200" y="270" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--muted-foreground))">
-          Efficiency: Max steps = log2(N)
-        </text>
-      </svg>
-    </div>
+      <rect x="50" y="250" width="500" height="36" rx="18" fill="hsl(var(--muted)/0.3)" />
+      <text x="300" y="273" textAnchor="middle" fontSize="13" fontWeight="500" fill="hsl(var(--foreground))">
+        Reduces search space by <tspan fill="hsl(var(--primary))" fontWeight="bold">50%</tspan> every step. 1,000,000 items ⇒ ~20 steps.
+      </text>
+    </svg>
   );
 }
 
-function PointerCrossing() {
+function BoundaryUpdateRules() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="pointer-glow-bs">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">Left, Mid, Right Pointer Rules</text>
 
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Search Area: L &amp; R Pointers</text>
+      <g transform="translate(100, 110)">
+        {/* Array */}
+        <rect x="0" y="0" width="400" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
 
-        <g transform="translate(45, 120)">
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-            <rect key={i} x={i * 45} y="0" width="40" height="40" fill="hsl(var(--card))" rx="6" stroke="hsl(var(--border))" />
-          ))}
+        {/* Grid lines */}
+        {[1, 2, 3, 4, 5, 6, 7].map(i => (
+          <line key={i} x1={i * 50} y1="0" x2={i * 50} y2="40" stroke="hsl(var(--border))" />
+        ))}
 
-          <motion.rect x={5 * 45} y="0" width="40" height="40" fill="hsl(var(--emerald-500, #10b981)/0.2)" rx="6" stroke="hsl(var(--emerald-500, #10b981))"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }}
-          />
+        <text x="25" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">2</text>
+        <text x="75" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">5</text>
+        <text x="125" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">8</text>
+        <text x="175" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">12</text>
+        <text x="225" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">16</text>
+        <text x="275" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">23</text>
+        <text x="325" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">38</text>
+        <text x="375" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">56</text>
 
-          {/* Left pointer */}
-          <motion.g animate={{ x: [0, 180, 225], opacity: [1, 1, 1] }}
-            transition={{ duration: 3, repeat: Infinity, times: [0, 0.5, 1], ease: "easeInOut", repeatDelay: 1 }}>
-            <path d="M 20 55 L 10 70 L 30 70 Z" fill="hsl(var(--orange-400, #fb923c))" filter="url(#pointer-glow-bs)" />
-            <rect x="5" y="75" width="30" height="18" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--orange-400, #fb923c)/0.5)" />
-            <text x="20" y="88" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--orange-400, #fb923c))">L</text>
-          </motion.g>
+        {/* Target indication */}
+        <rect x="250" y="0" width="50" height="40" fill="hsl(var(--primary)/0.2)" />
+        <text x="300" y="-30" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--primary))">Target: 23</text>
+        <path d="M 275 -25 L 275 -5" stroke="hsl(var(--primary))" strokeWidth="2" markerEnd="url(#arrow)" />
 
-          {/* Right pointer */}
-          <motion.g animate={{ x: [270, 270, 225], opacity: [1, 1, 1] }}
-            transition={{ duration: 3, repeat: Infinity, times: [0, 0.5, 1], ease: "easeInOut", repeatDelay: 1 }}>
-            <path d="M 20 55 L 10 70 L 30 70 Z" fill="hsl(var(--purple-400, #c084fc))" filter="url(#pointer-glow-bs)" />
-            <rect x="5" y="75" width="30" height="18" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--purple-400, #c084fc)/0.5)" />
-            <text x="20" y="88" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--purple-400, #c084fc))">R</text>
-          </motion.g>
+        {/* L Pointer */}
+        <text x="25" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">L</text>
 
-          {/* Mid pointer */}
-          <motion.g animate={{ x: [135, 225, 225], opacity: [1, 1, 1] }}
-            transition={{ duration: 3, repeat: Infinity, times: [0, 0.5, 1], ease: "easeInOut", repeatDelay: 1 }}>
-            <rect x="0" y="-20" width="40" height="14" fill="hsl(var(--primary))" rx="2" />
-            <text x="20" y="-10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="white">MID</text>
-            <rect x="0" y="0" width="40" height="40" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" rx="6" filter="url(#pointer-glow-bs)" />
-            <path d="M 20 -6 L 20 0" stroke="hsl(var(--primary))" strokeWidth="2" />
-          </motion.g>
-        </g>
+        {/* R Pointer */}
+        <text x="375" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">R</text>
 
-        <text x="200" y="250" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--muted-foreground))">
-          L &gt; R implies target not found
-        </text>
-      </svg>
-    </div>
+        {/* MID Pointer (Initial) */}
+        <motion.g animate={{ y: [0, -10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+          <text x="175" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--destructive))">M</text>
+          <path d="M 175 50 L 175 42" stroke="hsl(var(--destructive))" strokeWidth="2" />
+        </motion.g>
+
+        {/* Animated L movement */}
+        <motion.path d="M 25 80 L 175 80" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" strokeDasharray="4 4" markerEnd="url(#arrow)"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: [0, 1, 1, 0] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        />
+        <motion.text x="100" y="95" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        >L = M + 1</motion.text>
+      </g>
+
+      <rect x="50" y="230" width="500" height="50" rx="8" fill="hsl(var(--muted)/0.3)" />
+      <text x="300" y="250" textAnchor="middle" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+        <tspan fill="hsl(var(--primary))">if</tspan> (arr[M] &lt; target) Left = Mid + 1;
+      </text>
+      <text x="300" y="270" textAnchor="middle" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+        <tspan fill="hsl(var(--primary))">else if</tspan> (arr[M] &gt; target) Right = Mid - 1;
+      </text>
+    </svg>
   );
 }
 
-function Tradeoff() {
+function SortingTradeOff() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="tradeoff-glow-bs">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <marker id="arrow-tradeoff-bs" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--foreground))" />
-          </marker>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">The Hidden Cost: Sorting</text>
 
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--foreground))">The Sorting Prerequisite</text>
+      <g transform="translate(150, 80)">
+        {/* Unsorted Array */}
+        <rect x="0" y="0" width="300" height="40" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--destructive))" strokeWidth="2" strokeDasharray="4 4" />
+        <text x="150" y="25" textAnchor="middle" fontSize="14" fill="hsl(var(--muted-foreground))">[9, 2, 7, 1, 8, 4]</text>
+        <text x="-20" y="25" textAnchor="end" fontSize="12" fill="hsl(var(--destructive))">Unsorted!</text>
 
-        <g transform="translate(40, 100)">
-          <rect x="0" y="0" width="120" height="80" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--destructive)/0.5)" strokeWidth="2" />
-          <path d="M 0 24 L 120 24" stroke="hsl(var(--destructive)/0.3)" strokeWidth="1" />
-          <text x="60" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive))">High Cost Setup</text>
-          <text x="60" y="50" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Sorting</text>
-          <text x="60" y="70" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--destructive))">O(N log N)</text>
-        </g>
+        <path d="M 150 45 L 150 75" stroke="hsl(var(--border))" strokeWidth="2" markerEnd="url(#arrow)" />
+        <text x="160" y="65" fontSize="12" fontWeight="bold" fill="hsl(var(--primary))">O(N log N) Sort Cost</text>
 
-        <g transform="translate(240, 100)">
-          <rect x="0" y="0" width="120" height="80" rx="12" fill="hsl(var(--primary)/0.1)" stroke="hsl(var(--primary))" strokeWidth="2" filter="url(#tradeoff-glow-bs)" />
-          <path d="M 0 24 L 120 24" stroke="hsl(var(--primary)/0.3)" strokeWidth="1" />
-          <text x="60" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--primary))">Low Cost Retrieval</text>
-          <text x="60" y="50" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--primary))">Binary Srch</text>
-          <text x="60" y="70" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--primary))">O(log N)</text>
-        </g>
+        {/* Sorted Array */}
+        <rect x="0" y="80" width="300" height="40" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+        <text x="150" y="105" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">[1, 2, 4, 7, 8, 9]</text>
 
-        <path d="M 170 140 L 230 140" stroke="hsl(var(--foreground))" strokeWidth="2" markerEnd="url(#arrow-tradeoff-bs)" strokeDasharray="4 4" />
+        {/* Success path */}
+        <path d="M 150 120 C 150 150, 50 150, 50 180" fill="none" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" markerEnd="url(#arrow)" />
+        <text x="50" y="200" textAnchor="middle" fontSize="11" fill="hsl(var(--emerald-500, #10b981))">Binary Search O(log N)</text>
 
-        <rect x="80" y="215" width="240" height="50" rx="6" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive)/0.5)" />
-        <text x="200" y="233" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive))">Not recommended if data changes frequently</text>
-        <text x="200" y="250" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--destructive))">Mutations require re-sorting O(N log N)</text>
-      </svg>
-    </div>
+        {/* Failure path if modified */}
+        <path d="M 250 120 C 250 150, 250 150, 250 180" fill="none" stroke="hsl(var(--destructive))" strokeWidth="2" markerEnd="url(#arrow)" strokeDasharray="4 4" />
+        <circle cx="250" cy="180" r="15" fill="hsl(var(--card))" stroke="hsl(var(--destructive))" strokeWidth="2" />
+        <text x="250" y="184" textAnchor="middle" fontSize="12" fill="hsl(var(--destructive))">+3</text>
+        <text x="250" y="210" textAnchor="middle" fontSize="11" fill="hsl(var(--destructive))">Insert breaks order!</text>
+      </g>
+
+      <rect x="50" y="240" width="500" height="36" rx="18" fill="hsl(var(--muted)/0.3)" />
+      <text x="300" y="263" textAnchor="middle" fontSize="13" fontWeight="500" fill="hsl(var(--foreground))">
+        Heavy initial cost. Frequent data changes ruin the sorted invariant.
+      </text>
+    </svg>
   );
 }
 
-
-function SortedPrerequisite() {
+function UsageJudgment() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <rect x="40" y="10" width="320" height="36" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="32" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Binary Search Prerequisites</text>
-        {/* Sorted requirement */}
-        <rect x="42" y="56" width="316" height="50" rx="8" fill="hsl(var(--primary)/0.05)" stroke="hsl(var(--primary)/0.3)" />
-        <text x="200" y="76" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--primary))">필수 조건: 정렬된 배열</text>
-        <text x="200" y="96" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">[ 1, 3, 5, 7, 11, 13, 17, 19, 23 ]  ← O(N log N) 정렬 비용 지불</text>
-        {/* Pros */}
-        <rect x="42" y="118" width="148" height="80" rx="8" fill="hsl(var(--emerald-500,#10b981)/0.05)" stroke="hsl(var(--emerald-500,#10b981)/0.3)" />
-        <text x="116" y="136" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--emerald-500,#10b981))">장점</text>
-        <text x="116" y="154" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">탐색: O(log N)</text>
-        <text x="116" y="170" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">10억 개 → 30번</text>
-        <text x="116" y="186" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">반복 검색 유리</text>
-        {/* Cons */}
-        <rect x="210" y="118" width="148" height="80" rx="8" fill="hsl(var(--destructive)/0.05)" stroke="hsl(var(--destructive)/0.3)" />
-        <text x="284" y="136" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--destructive))">단점</text>
-        <text x="284" y="154" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">정렬 선행 필요</text>
-        <text x="284" y="170" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">삽입/삭제 빈번 시</text>
-        <text x="284" y="186" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">재정렬 비용 발생</text>
-        {/* conclusion */}
-        <rect x="60" y="216" width="280" height="36" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="233" textAnchor="middle" fontSize="9" fill="hsl(var(--primary))">한 번 정렬 후 N회 검색 → 이진 탐색이 압도적 효율</text>
-        <text x="200" y="245" textAnchor="middle" fontSize="8" fill="hsl(var(--muted-foreground))">삽입/삭제가 잦으면 BST나 정렬 배열 유지가 현실적</text>
-      </svg>
-    </div>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">When to use Binary Search?</text>
+
+      {/* When NOT to use */}
+      <g transform="translate(80, 80)">
+        <rect x="0" y="0" width="200" height="150" rx="12" fill="hsl(var(--destructive)/0.05)" stroke="hsl(var(--destructive))" strokeWidth="2" />
+        <circle cx="100" cy="30" r="16" fill="hsl(var(--destructive))" />
+        <path d="M 94 24 L 106 36 M 106 24 L 94 36" stroke="white" strokeWidth="3" fill="none" />
+        <text x="100" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Don't Use If:</text>
+
+        <text x="20" y="100" fontSize="12" fill="hsl(var(--muted-foreground))">• Data is rarely searched</text>
+        <text x="20" y="120" fontSize="12" fill="hsl(var(--muted-foreground))">• Frequent Insert/Delete</text>
+        <text x="20" y="140" fontSize="12" fill="hsl(var(--muted-foreground))">• Data is tiny (N &lt; 50)</text>
+      </g>
+
+      {/* When TO use */}
+      <g transform="translate(320, 80)">
+        <rect x="0" y="0" width="200" height="150" rx="12" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+        <circle cx="100" cy="30" r="16" fill="hsl(var(--emerald-500, #10b981))" />
+        <path d="M 93 30 L 98 35 L 108 23" fill="none" stroke="white" strokeWidth="3" />
+        <text x="100" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Best Used For:</text>
+
+        <text x="20" y="100" fontSize="12" fill="hsl(var(--foreground))">• Write-Once, Read-Many</text>
+        <text x="20" y="120" fontSize="12" fill="hsl(var(--foreground))">• Massive databases</text>
+        <text x="20" y="140" fontSize="12" fill="hsl(var(--foreground))">• Dictionary lookups</text>
+      </g>
+    </svg>
   );
 }
 
 export const BinarySearchSupplementaryOptions = [
-  LogarithmicReduction,
-  PointerCrossing,
-  Tradeoff,
-  SortedPrerequisite,
+  LogNReduction,
+  BoundaryUpdateRules,
+  SortingTradeOff,
+  UsageJudgment,
 ];
-

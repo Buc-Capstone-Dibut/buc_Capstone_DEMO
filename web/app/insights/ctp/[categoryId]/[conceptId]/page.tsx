@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { CTP_DATA } from "@/lib/ctp-curriculum";
 import { CTPWikiLayout } from "@/components/features/ctp/layout/ctp-wiki-layout";
 import { getCtpContent } from "@/lib/ctp-content-registry";
@@ -30,15 +31,17 @@ export default function CTPDetailPage({ params }: PageProps) {
   }
 
   return (
-    <CTPWikiLayout>
-      {/* Back Link (Mobile only mostly, or top nav) */}
-      <div className="mb-6 lg:hidden">
-        <Link href="/insights/ctp" className="text-sm text-muted-foreground flex items-center hover:text-primary">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Curriculum
-        </Link>
-      </div>
+    <Suspense>
+      <CTPWikiLayout>
+        {/* Back Link (Mobile only mostly, or top nav) */}
+        <div className="mb-6 lg:hidden">
+          <Link href="/insights/ctp" className="text-sm text-muted-foreground flex items-center hover:text-primary">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Curriculum
+          </Link>
+        </div>
 
-      <ContentComponent />
-    </CTPWikiLayout>
+        <ContentComponent />
+      </CTPWikiLayout>
+    </Suspense>
   );
 }

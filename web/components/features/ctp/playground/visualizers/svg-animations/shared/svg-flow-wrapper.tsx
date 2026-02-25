@@ -6,11 +6,8 @@ import {
   Background,
   Controls,
   Node,
-  Edge,
   Position,
-  Handle,
-  useEdgesState,
-  useNodesState
+  Handle
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -47,9 +44,9 @@ interface SVGFlowWrapperProps {
 }
 
 export function SVGFlowWrapper({ Visualizer, data }: SVGFlowWrapperProps) {
-
-  // We only need one node that takes up a large central area to host the SVG
-  const initialNodes: Node<SVGWrapperNodeData>[] = useMemo(() => [
+  // Keep ReactFlow fully controlled by props without local setState loops.
+  // A single static host node is enough for pan/zoom canvas behavior.
+  const nodes: Node<SVGWrapperNodeData>[] = useMemo(() => [
     {
       id: 'svg-canvas',
       type: 'svgWrapper',
@@ -60,25 +57,10 @@ export function SVGFlowWrapper({ Visualizer, data }: SVGFlowWrapperProps) {
     }
   ], [Visualizer, data]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-
-  // Update node data when props change (like the `step` in the simulation)
-  React.useEffect(() => {
-    setNodes((nds) =>
-      nds.map((n) => {
-        if (n.id === 'svg-canvas') {
-          return { ...n, data: { ...n.data, data } };
-        }
-        return n;
-      })
-    );
-  }, [data, setNodes]);
-
   return (
     <div className="h-full w-full bg-muted/5 border border-border/40 rounded-xl relative overflow-hidden flex flex-col">
       <ReactFlow
         nodes={nodes}
-        onNodesChange={onNodesChange}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.1, minZoom: 0.5, maxZoom: 2.0 }}

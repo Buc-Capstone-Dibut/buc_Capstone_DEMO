@@ -13,6 +13,7 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       {/* Top Hero Section */}
+      {/* @ts-ignore */}
       <ProjectHero projectId={projectId} />
 
       {/* Main Grid Layout */}

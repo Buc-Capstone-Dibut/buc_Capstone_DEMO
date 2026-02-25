@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(echo:*)",
+      "Bash(pnpm install:*)",
+      "Bash(ls:*)"
     ]
   }
 }

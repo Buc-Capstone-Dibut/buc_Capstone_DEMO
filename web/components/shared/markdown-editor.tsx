@@ -56,6 +56,7 @@ export default function MarkdownEditor({
   const editor = useEditor({
     immediatelyRender: false,
     editable,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extensions: [
       StarterKit.configure({
         codeBlock: false, // Disable default codeBlock to use Lowlight
@@ -76,7 +77,7 @@ export default function MarkdownEditor({
         transformPastedText: true,
         transformCopiedText: true,
       }),
-    ],
+    ] as any[],
     content: initialContent,
     editorProps: {
       attributes: {

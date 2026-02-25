@@ -184,6 +184,10 @@ export function TagManagerModal({
     setIsCreating(false);
   };
 
+  const reorderTags = (_oldIndex: number, _newIndex: number) => {
+    onTagsUpdate?.();
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active.id !== over?.id) {

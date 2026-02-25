@@ -1,21 +1,19 @@
-"use client";
-
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 
 type TreeNode = { id: number; label: string; depth: number; x: number; y: number; left?: number; right?: number; status: 'idle' | 'active' | 'done' };
 
-// Fibonacci call tree for fib(4)
+// Fibonacci call tree for fib(4) scaled for 800x500
 const TREE_NODES: TreeNode[] = [
-  { id: 0, label: 'fib(4)', depth: 0, x: 200, y: 30,  left: 1, right: 2, status: 'idle' },
-  { id: 1, label: 'fib(3)', depth: 1, x: 100, y: 90,  left: 3, right: 4, status: 'idle' },
-  { id: 2, label: 'fib(2)', depth: 1, x: 300, y: 90,  left: 5, right: 6, status: 'idle' },
-  { id: 3, label: 'fib(2)', depth: 2, x: 50,  y: 150, left: 7, right: 8, status: 'idle' },
-  { id: 4, label: 'fib(1)', depth: 2, x: 150, y: 150, status: 'idle' },
-  { id: 5, label: 'fib(1)', depth: 2, x: 250, y: 150, status: 'idle' },
-  { id: 6, label: 'fib(0)', depth: 2, x: 350, y: 150, status: 'idle' },
-  { id: 7, label: 'fib(1)', depth: 3, x: 20,  y: 210, status: 'idle' },
-  { id: 8, label: 'fib(0)', depth: 3, x: 80,  y: 210, status: 'idle' },
+  { id: 0, label: 'fib(4)', depth: 0, x: 400, y: 130,  left: 1, right: 2, status: 'idle' },
+  { id: 1, label: 'fib(3)', depth: 1, x: 250, y: 220,  left: 3, right: 4, status: 'idle' },
+  { id: 2, label: 'fib(2)', depth: 1, x: 550, y: 220,  left: 5, right: 6, status: 'idle' },
+  { id: 3, label: 'fib(2)', depth: 2, x: 140, y: 310,  left: 7, right: 8, status: 'idle' },
+  { id: 4, label: 'fib(1)', depth: 2, x: 360, y: 310, status: 'idle' },
+  { id: 5, label: 'fib(1)', depth: 2, x: 470, y: 310, status: 'idle' },
+  { id: 6, label: 'fib(0)', depth: 2, x: 630, y: 310, status: 'idle' },
+  { id: 7, label: 'fib(1)', depth: 3, x: 80,  y: 400, status: 'idle' },
+  { id: 8, label: 'fib(0)', depth: 3, x: 200, y: 400, status: 'idle' },
 ];
 
 // Step sequence (node id to light up)
@@ -25,8 +23,8 @@ export function useRecursionAnalysisSim() {
   const [activeNodes, setActiveNodes] = useState<number[]>([]);
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
-    "> SYSTEM INITIALIZED: Recursive Call Tree Analysis",
-    "> [AWAIT] Tracing fib(4) call tree. Visualizing redundant sub-calls."
+    "> 시스템 초기화: 재귀 호출 트리 분석기(Recursive Call Tree Analysis)",
+    "> [대기] fib(4) 호출 트리 추적 중. 중복 호출을 시각화합니다."
   ]);
 
   const appendLog = useCallback((msg: string) => setLogs(l => [`> ${msg}`, ...l]), []);
@@ -37,19 +35,19 @@ export function useRecursionAnalysisSim() {
       const nodeId = STEPS[next - 1];
       setActiveNodes(an => [...an, nodeId]);
       const n = TREE_NODES[nodeId];
-      if (n.label.startsWith('fib(4)')) appendLog("[CALL] fib(4) → expanding.. requires fib(3) + fib(2).");
-      else if (n.label.startsWith('fib(3)')) appendLog("[CALL] fib(3) → requires fib(2) + fib(1).");
-      else if (n.label === 'fib(2)' && nodeId === 2) appendLog("[CALL] fib(2) [DUPLICATE] → requires fib(1) + fib(0). Already solved above!");
-      else if (n.label === 'fib(2)' && nodeId === 3) appendLog("[CALL] fib(2) → requires fib(1) + fib(0).");
-      else if (n.label.startsWith('fib(1)')) appendLog(`[BASE] ${n.label} = 1. Returns immediately.`);
-      else if (n.label.startsWith('fib(0)')) appendLog(`[BASE] ${n.label} = 0. Returns immediately.`);
+      if (n.label.startsWith('fib(4)')) appendLog("[호출] fib(4) → 확장 중.. fib(3) + fib(2)가 필요합니다.");
+      else if (n.label.startsWith('fib(3)')) appendLog("[호출] fib(3) → fib(2) + fib(1)이 필요합니다.");
+      else if (n.label === 'fib(2)' && nodeId === 2) appendLog("[호출] fib(2) [중복] → fib(1) + fib(0)이 필요합니다. 이미 위에서 계산되었습니다!");
+      else if (n.label === 'fib(2)' && nodeId === 3) appendLog("[호출] fib(2) → fib(1) + fib(0)이 필요합니다.");
+      else if (n.label.startsWith('fib(1)')) appendLog(`[기저 조건] ${n.label} = 1. 즉시 반환합니다.`);
+      else if (n.label.startsWith('fib(0)')) appendLog(`[기저 조건] ${n.label} = 0. 즉시 반환합니다.`);
       return next;
     });
   }, [appendLog]);
 
   const reset = useCallback(() => {
     setStep(0); setActiveNodes([]);
-    setLogs(["> SYSTEM RESET: Call tree cleared."]);
+    setLogs(["> 시스템 리셋: 호출 트리 초기화 완료."]);
   }, []);
 
   return {
@@ -65,76 +63,130 @@ export function useRecursionAnalysisSim() {
 export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: number[], step: number } }) {
   const { activeNodes, step } = data;
 
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-10">
-      <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
-    </div>
-  );
-
   const edges = TREE_NODES.flatMap(n => {
     const res = [];
     if (n.left !== undefined) {
       const child = TREE_NODES[n.left];
-      res.push({ x1: n.x, y1: n.y + 12, x2: child.x, y2: child.y - 12, isDuplicate: child.label === 'fib(2)' && child.id === 2 });
+      res.push({ x1: n.x, y1: n.y + 25, x2: child.x, y2: child.y - 25, isDuplicate: child.label === 'fib(2)' && child.id === 2 });
     }
     if (n.right !== undefined) {
       const child = TREE_NODES[n.right];
-      res.push({ x1: n.x, y1: n.y + 12, x2: child.x, y2: child.y - 12, isDuplicate: false });
+      res.push({ x1: n.x, y1: n.y + 25, x2: child.x, y2: child.y - 25, isDuplicate: false });
     }
     return res;
   });
 
   return (
-    <div className="w-full flex flex-col items-center bg-background/40 relative font-mono rounded-xl py-6 gap-6 px-4">
-      <CyberGrid />
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="100%" stopColor="transparent" />
+        </linearGradient>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        </pattern>
+        <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="neon-glow-orange" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
 
-      <motion.div className="w-full max-w-4xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-        <p className="text-sm font-medium tracking-wide">
-          The plain recursive Fibonacci performs <span className="text-orange-500 font-bold">redundant calculations</span> — fib(2) is computed twice! This demonstrates why memoization is critical for exponential-time recursion.
-        </p>
-      </motion.div>
+      {/* Background */}
+      <rect width="800" height="500" fill="url(#grid)" />
 
-      {/* Call Tree SVG */}
-      <div className="flex-1 w-full max-w-4xl z-10 bg-card/40 backdrop-blur rounded-2xl border border-border p-4 flex flex-col items-center">
-        <svg width="100%" viewBox="0 0 400 240" className="w-full max-w-lg">
-          {/* Edges */}
-          {edges.map((e, i) => (
-            <line key={`edge-${i}`} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="hsl(var(--border))" strokeWidth="1.5" strokeDasharray={e.isDuplicate ? "4 4" : "0"} />
-          ))}
+      {/* Title & Core Concept */}
+      <text x="40" y="50" fill="#f97316" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">재귀 분석 (Recursion Analysis)</text>
+      <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">피보나치 수열의 중복 부분 문제 (Overlapping Subproblems)</text>
 
-          {/* Nodes */}
-          {TREE_NODES.map(n => {
-            const isActive = activeNodes.includes(n.id);
-            const isDuplicate = n.label === 'fib(2)' && n.id === 2;
-            return (
-              <g key={`node-${n.id}`}>
-                <motion.circle cx={n.x} cy={n.y} r={18}
-                  fill={!isActive ? "hsl(var(--card))" : isDuplicate ? "hsl(var(--orange-500)/0.25)" : "hsl(var(--cyan-500)/0.25)"}
-                  stroke={!isActive ? "hsl(var(--border))" : isDuplicate ? "hsl(var(--orange-500))" : "hsl(var(--cyan-500))"}
-                  strokeWidth={isActive ? 2.5 : 1.5}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: isActive ? 1 : 0.8, opacity: isActive ? 1 : 0.4 }}
-                  style={{ filter: isActive ? `drop-shadow(0 0 8px ${isDuplicate ? 'hsl(var(--orange-500))' : 'hsl(var(--cyan-500))'})` : 'none' }}
-                />
-                <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="7" fontWeight="bold"
-                  fill={!isActive ? "hsl(var(--muted-foreground))" : isDuplicate ? "hsl(var(--orange-500))" : "hsl(var(--cyan-500))"}>
-                  {n.label}
-                </text>
-                {isDuplicate && isActive && (
-                  <text x={n.x} y={n.y - 24} textAnchor="middle" fontSize="7" fontWeight="bold" fill="hsl(var(--orange-500))">DUPLICATE!</text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+      {/* Context info box */}
+      <g transform="translate(420, 30)">
+        <rect width="340" height="50" fill="rgba(249, 115, 22, 0.1)" stroke="rgba(249, 115, 22, 0.3)" rx="8" />
+        <text x="170" y="22" fill="#fff" fontSize="11" textAnchor="middle">단순 재귀 피보나치는 <tspan fill="#f97316" fontWeight="bold">불필요한 중복 계산</tspan>을 수행합니다.</text>
+        <text x="170" y="40" fill="#fff" fontSize="11" textAnchor="middle"><tspan fontWeight="bold" fill="#f97316">fib(2)</tspan>가 두 번 계산됩니다! 메모이제이션(Memoization)이 필요합니다.</text>
+      </g>
 
-        {/* Legend */}
-        <div className="flex gap-6 mt-2 text-xs font-bold text-muted-foreground">
-          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-cyan-500/50 border border-cyan-500" /><span>Normal call</span></div>
-          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500/50 border border-orange-500" /><span>Redundant call (can be memoized)</span></div>
-        </div>
-      </div>
-    </div>
+      {/* Edges */}
+      {edges.map((e, i) => (
+        <line
+          key={`edge-${i}`}
+          x1={e.x1}
+          y1={e.y1}
+          x2={e.x2}
+          y2={e.y2}
+          stroke={e.isDuplicate ? "#f97316" : "#444"}
+          strokeWidth="2"
+          strokeDasharray={e.isDuplicate ? "6 6" : "0"}
+        />
+      ))}
+
+      {/* Nodes */}
+      {TREE_NODES.map(n => {
+        const isActive = activeNodes.includes(n.id);
+        const isDuplicate = n.label === 'fib(2)' && n.id === 2;
+
+        return (
+          <motion.g key={`node-${n.id}`}>
+            <motion.circle
+              cx={n.x}
+              cy={n.y}
+              r={25}
+              fill={!isActive ? "hsl(var(--card))" : isDuplicate ? "rgba(249, 115, 22, 0.2)" : "rgba(6, 182, 212, 0.2)"}
+              stroke={!isActive ? "hsl(var(--border))" : isDuplicate ? "#f97316" : "#06b6d4"}
+              strokeWidth={isActive ? 3 : 2}
+              initial={{ scale: 0.8 }}
+              animate={{
+                scale: isActive ? 1 : 0.8,
+                opacity: isActive ? 1 : 0.5
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              style={{ filter: isActive ? `url(#neon-glow-${isDuplicate ? 'orange' : 'cyan'})` : 'none' }}
+            />
+
+            <motion.text
+              x={n.x}
+              y={n.y + 5}
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="bold"
+              fill={!isActive ? "hsl(var(--muted-foreground))" : isDuplicate ? "#f97316" : "#06b6d4"}
+            >
+              {n.label}
+            </motion.text>
+
+            {isDuplicate && isActive && (
+              <motion.g initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <rect x={n.x - 45} y={n.y - 50} width="90" height="20" fill="rgba(249, 115, 22, 0.2)" stroke="#f97316" rx="4" />
+                <text x={n.x} y={n.y - 36} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#f97316">중복 (DUPLICATE!)</text>
+              </motion.g>
+            )}
+          </motion.g>
+        );
+      })}
+
+      {/* Legend */}
+      <g transform="translate(40, 440)">
+        <rect x="0" y="0" width="300" height="40" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
+
+        <circle cx="20" cy="20" r="6" fill="rgba(6, 182, 212, 0.2)" stroke="#06b6d4" strokeWidth="2" />
+        <text x="35" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">정상 호출 (Normal Call)</text>
+
+        <circle cx="150" cy="20" r="6" fill="rgba(249, 115, 22, 0.2)" stroke="#f97316" strokeWidth="2" />
+        <text x="165" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">중복 호출 (Redundant Call)</text>
+      </g>
+    </svg>
   );
 }

@@ -2,189 +2,174 @@
 
 import { motion } from "framer-motion";
 
-function SequentialSearch() {
+function SequentialSearchUnderstanding() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="scan-glow-ls">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <linearGradient id="scan-grad-ls" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="hsl(var(--primary)/0.4)" />
-            <stop offset="100%" stopColor="hsl(var(--primary)/0.0)" />
-          </linearGradient>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">O(N) Sequential Search</text>
 
-        <rect x="20" y="20" width="360" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Sequential Scan O(N)</text>
+      <g transform="translate(100, 100)">
+        <text x="200" y="-15" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--primary))">Target: 42</text>
 
-        <g transform="translate(150, 80)">
-          <rect x="0" y="0" width="100" height="24" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--primary))" />
-          <text x="50" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--primary))">Target = 9</text>
-        </g>
+        {/* Array */}
+        {[0, 1, 2, 3, 4, 5, 6].map(i => {
+          const vals = [17, 8, 93, 25, 42, 6, 51];
+          const isTarget = vals[i] === 42;
+          return (
+            <g key={i} transform={`translate(${i * 60}, 10)`}>
+              <rect width="50" height="50" rx="6" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+              <text x="25" y="30" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">{vals[i]}</text>
+              <text x="25" y="65" textAnchor="middle" fontSize="10" fill="hsl(var(--muted-foreground))">[{i}]</text>
 
-        <g transform="translate(50, 140)">
-          <rect x="-10" y="-10" width="320" height="60" rx="8" fill="hsl(var(--card)/0.5)" stroke="hsl(var(--border))" strokeDasharray="4 4" />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <rect key={i} x={i * 50} y="0" width="40" height="40" rx="4" fill="hsl(var(--muted)/0.3)" stroke="hsl(var(--border))" strokeWidth="2" />
-          ))}
-          {['5', '2', '8', '1', '9', '3'].map((v, i) => (
-            <text key={i} x={i * 50 + 20} y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">{v}</text>
-          ))}
+              {isTarget ? (
+                <motion.g animate={{ opacity: [0, 1, 0, 0, 0, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.1, 0.4, 0.6, 0.8, 1], delay: (i * 0.8) }}>
+                  <circle cx="25" cy="25" r="30" fill="none" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="3" />
+                  <text x="25" y="-10" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Found!</text>
+                </motion.g>
+              ) : (
+                <motion.g animate={{ opacity: [0, 1, 0, 0, 0, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.1, 0.3, 0.4, 0.6, 1], delay: (i * 0.8) }}>
+                  <line x1="10" y1="10" x2="40" y2="40" stroke="hsl(var(--destructive))" strokeWidth="3" />
+                  <line x1="40" y1="10" x2="10" y2="40" stroke="hsl(var(--destructive))" strokeWidth="3" />
+                </motion.g>
+              )}
+            </g>
+          );
+        })}
 
-          <motion.g
-            animate={{ x: [0, 50, 100, 150, 200] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear", times: [0, 0.25, 0.5, 0.75, 1] }}
-          >
-            <rect x="-2" y="-2" width="44" height="44" rx="6" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" strokeWidth="3" filter="url(#scan-glow-ls)" />
-            <rect x="19" y="-40" width="2" height="40" fill="hsl(var(--primary))" />
-            <rect x="0" y="42" width="40" height="30" fill="url(#scan-grad-ls)" />
-          </motion.g>
+        {/* Pointer */}
+        <motion.path d="M 25 100 L 25 80" stroke="hsl(var(--primary))" strokeWidth="3" markerEnd="url(#arrow)"
+          animate={{ x: [0, 60, 120, 180, 240, 240, 240] }}
+          transition={{ duration: 6, repeat: Infinity, times: [0, 0.13, 0.26, 0.39, 0.52, 0.8, 1], ease: "linear" }}
+        />
+      </g>
 
-          <motion.g transform="translate(200, 0)"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: [0, 0, 0, 0, 1, 1], scale: [0.8, 0.8, 0.8, 0.8, 1.2, 1] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear", times: [0, 0.25, 0.5, 0.75, 0.8, 1] }}
-          >
-            <rect x="-4" y="-4" width="48" height="48" rx="8" fill="hsl(var(--emerald-500, #10b981)/0.3)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="3" filter="url(#scan-glow-ls)" />
-            <text x="20" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">9</text>
-          </motion.g>
-        </g>
-
-        <text x="200" y="250" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--muted-foreground))">
-          Time complexity scales linearly with array size.
-        </text>
-      </svg>
-    </div>
+      <rect x="50" y="240" width="500" height="36" rx="18" fill="hsl(var(--muted)/0.3)" />
+      <text x="300" y="263" textAnchor="middle" fontSize="13" fontWeight="500" fill="hsl(var(--foreground))">
+        Checks every element until the target is found. Worst case: <tspan fill="hsl(var(--destructive))" fontWeight="bold">N comparisons</tspan>.
+      </text>
+    </svg>
   );
 }
 
 function SentinelOptimization() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <marker id="arrow-fast-ls" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--orange-500, #f97316))" />
-          </marker>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">Sentinel Method (보초법)</text>
 
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--orange-500, #f97316))">Sentinel Optimization</text>
-
-        <g transform="translate(60, 120)">
-          {['5', '2', '8', '1', '3'].map((v, i) => (
-            <g key={i} transform={`translate(${i * 45}, 0)`}>
-              <rect x="0" y="0" width="35" height="40" rx="4" fill="hsl(var(--muted)/0.3)" stroke="hsl(var(--border))" />
-              <text x="17.5" y="25" textAnchor="middle" fontSize="13" fontWeight="bold" fill="hsl(var(--muted-foreground))">{v}</text>
-            </g>
-          ))}
-          <g transform="translate(225, 0)">
-            <rect x="0" y="0" width="35" height="40" rx="4" fill="hsl(var(--destructive)/0.2)" stroke="hsl(var(--destructive))" strokeWidth="2" strokeDasharray="4 4" />
-            <text x="17.5" y="25" textAnchor="middle" fontSize="13" fontWeight="bold" fill="hsl(var(--destructive))">9</text>
-            <text x="17.5" y="-10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="hsl(var(--destructive))">Sentinel</text>
-          </g>
-
-          <motion.rect x="-10" y="50" width="20" height="4" fill="hsl(var(--orange-500, #f97316))" rx="2"
-            initial={{ x: -10 }} animate={{ x: 230 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          />
-          <motion.path d="M 0 52 L 230 52" stroke="hsl(var(--orange-500, #f97316)/0.3)" strokeWidth="4" strokeDasharray="4 4"
-            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          />
-          <text x="110" y="75" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--orange-500, #f97316))">Skip bounds check</text>
-        </g>
-
-        <text x="200" y="240" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--muted-foreground))">
-          Appending target removes i &lt; N check — faster loop.
+      <g transform="translate(40, 60)">
+        <text x="260" y="-10" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Normal Search (2 Checks per loop)</text>
+        <rect x="0" y="0" width="520" height="50" rx="8" fill="hsl(var(--destructive)/0.05)" stroke="hsl(var(--destructive))" strokeWidth="1" />
+        <text x="50" y="30" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+          <tspan fill="hsl(var(--primary))">while</tspan> (i &lt; N <tspan fill="hsl(var(--destructive))" fontWeight="bold">/* Check 1 */</tspan>) {'{'}
+          <tspan fill="hsl(var(--primary))"> if</tspan> (arr[i] == target <tspan fill="hsl(var(--destructive))" fontWeight="bold">/* Check 2 */</tspan>) break;
+          i++; {'}'}
         </text>
-      </svg>
-    </div>
+      </g>
+
+      <g transform="translate(40, 130)">
+        <text x="260" y="-10" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Sentinel Search (1 Check per loop)</text>
+        <rect x="0" y="0" width="520" height="90" rx="8" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+
+        <text x="20" y="25" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+          arr[N] = target; <tspan fill="hsl(var(--muted-foreground))"> // Add fake sentinel at the very end</tspan>
+        </text>
+        <text x="20" y="45" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+          <tspan fill="hsl(var(--primary))">while</tspan> (arr[i] != target <tspan fill="hsl(var(--emerald-500, #10b981))" fontWeight="bold">/* Check 1 (Only!) */</tspan>) {'{'} i++; {'}'}
+        </text>
+        <text x="20" y="65" fontSize="12" fontFamily="monospace" fill="hsl(var(--foreground))">
+          <tspan fill="hsl(var(--primary))">return</tspan> i == N ? -1 : i; <tspan fill="hsl(var(--muted-foreground))"> // Did we find the fake or real one?</tspan>
+        </text>
+
+        {/* Small array viz */}
+        <g transform="translate(360, 40)">
+          <rect x="0" y="0" width="20" height="20" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
+          <rect x="20" y="0" width="20" height="20" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
+          <rect x="40" y="0" width="30" height="20" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeDasharray="2 2" />
+          <rect x="70" y="0" width="30" height="20" fill="hsl(var(--emerald-500, #10b981)/0.2)" stroke="hsl(var(--emerald-500, #10b981))" />
+          <text x="85" y="14" textAnchor="middle" fontSize="10" fill="hsl(var(--emerald-500, #10b981))">Sent</text>
+        </g>
+      </g>
+
+      <rect x="50" y="240" width="500" height="36" rx="18" fill="hsl(var(--muted)/0.3)" />
+      <text x="300" y="263" textAnchor="middle" fontSize="13" fontWeight="500" fill="hsl(var(--foreground))">
+        Reduces loop overhead by 50% by guaranteeing a match eventually.
+      </text>
+    </svg>
   );
 }
 
-function WhenToUse() {
+function UsageContext() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <defs>
-          <filter id="choose-glow-ls">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <marker id="arrow-cond-ls" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--muted-foreground))" />
-          </marker>
-        </defs>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">When to use Linear Search?</text>
 
-        <rect x="40" y="20" width="320" height="40" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--foreground))">Algorithm Selection</text>
+      <g transform="translate(100, 100)">
+        {/* Scenario 1: Unsorted */}
+        <rect x="0" y="0" width="180" height="120" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="2" />
+        <circle cx="90" cy="30" r="16" fill="hsl(var(--primary)/0.2)" />
+        <text x="90" y="35" textAnchor="middle" fontSize="14" fill="hsl(var(--primary))">🌪️</text>
+        <text x="90" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Unsorted Data</text>
+        <text x="90" y="85" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Sorting costs O(N log N)</text>
+        <text x="90" y="100" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Search is only O(N)</text>
 
-        <g transform="translate(60, 100)">
-          <rect x="0" y="0" width="100" height="100" rx="16" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" filter="url(#choose-glow-ls)" />
-          <text x="50" y="35" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Linear Scan</text>
-          <text x="50" y="55" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">O(N)</text>
-          <text x="50" y="75" textAnchor="middle" fontSize="8" fill="hsl(var(--emerald-500, #10b981)/0.7)">Small N / Unsorted</text>
-        </g>
-
-        <path d="M 170 150 L 230 150" stroke="hsl(var(--border))" strokeWidth="2" strokeDasharray="4 4" markerEnd="url(#arrow-cond-ls)" />
-        <text x="200" y="140" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--muted-foreground))">N &gt; 1000?</text>
-
-        <g transform="translate(240, 100)">
-          <rect x="0" y="0" width="100" height="100" rx="16" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive))" strokeWidth="2" />
-          <text x="50" y="35" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--destructive))">Binary Search</text>
-          <text x="50" y="55" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold" fill="hsl(var(--destructive))">O(log N)</text>
-          <text x="50" y="75" textAnchor="middle" fontSize="8" fill="hsl(var(--destructive)/0.7)">Large N / Sorted</text>
-        </g>
-
-        <text x="200" y="245" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--muted-foreground))">
-          Sorting overhead makes linear faster for small datasets.
-        </text>
-      </svg>
-    </div>
+        {/* Scenario 2: Small Data */}
+        <rect x="220" y="0" width="180" height="120" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+        <circle cx="310" cy="30" r="16" fill="hsl(var(--emerald-500, #10b981)/0.2)" />
+        <text x="310" y="35" textAnchor="middle" fontSize="14" fill="hsl(var(--emerald-500, #10b981))">🤏</text>
+        <text x="310" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Tiny Arrays (N &lt; 50)</text>
+        <text x="310" y="85" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Too small for complex logic</text>
+        <text x="310" y="100" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Simplicity &gt; Asymptotics</text>
+      </g>
+    </svg>
   );
 }
 
-
-function LinearVsBinary() {
+function PerformanceComparison() {
   return (
-    <div className="w-full h-full relative flex items-center justify-center p-4 bg-background">
-      <svg viewBox="0 0 400 300" className="w-full h-full overflow-visible">
-        <rect x="40" y="10" width="320" height="36" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <text x="200" y="32" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--primary))">Linear vs Binary Search</text>
-        {/* Headers */}
-        <text x="115" y="62" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--primary))">Linear O(N)</text>
-        <text x="285" y="62" textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(var(--emerald-500,#10b981))">Binary O(log N)</text>
-        {/* N=16 comparison rows */}
-        {[{ n: 16, linear: 16, binary: 4 }, { n: 1000, linear: 1000, binary: 10 }, { n: 1000000, linear: "1,000,000", binary: 20 }].map(({ n, linear, binary }, i) => (
-          <g key={n} transform={`translate(0, ${72 + i * 52})`}>
-            <text x="200" y="18" textAnchor="middle" fontSize="9" fontWeight="bold" fill="hsl(var(--muted-foreground))">N = {n.toLocaleString()}</text>
-            <rect x="42" y="24" width="148" height="22" rx="4" fill="hsl(var(--destructive)/0.08)" stroke="hsl(var(--destructive)/0.3)" />
-            <text x="116" y="39" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--destructive))">{linear} 번 비교</text>
-            <rect x="210" y="24" width="148" height="22" rx="4" fill="hsl(var(--emerald-500,#10b981)/0.1)" stroke="hsl(var(--emerald-500,#10b981)/0.4)" />
-            <text x="284" y="39" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="hsl(var(--emerald-500,#10b981))">{binary} 번 비교</text>
-          </g>
-        ))}
-        <text x="200" y="255" textAnchor="middle" fontSize="9" fill="hsl(var(--muted-foreground))">💡 선형 탐색이 유리한 상황: 소규모 비정렬 데이터</text>
-        <text x="200" y="272" textAnchor="middle" fontSize="9" fill="hsl(var(--primary))">정렬 비용 &gt; 검색 이득이면 선형이 현실적</text>
-      </svg>
-    </div>
+    <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">Linear vs Binary Search Comparisons</text>
+
+      <g transform="translate(100, 70)">
+        {/* Header */}
+        <rect x="0" y="0" width="100" height="30" fill="hsl(var(--muted)/0.5)" rx="4" />
+        <text x="50" y="20" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Data Size (N)</text>
+
+        <rect x="110" y="0" width="140" height="30" fill="hsl(var(--destructive)/0.1)" rx="4" />
+        <text x="180" y="20" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--destructive))">Linear Search O(N)</text>
+
+        <rect x="260" y="0" width="140" height="30" fill="hsl(var(--emerald-500, #10b981)/0.1)" rx="4" />
+        <text x="330" y="20" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Binary Search O(log N)</text>
+
+        {/* Row 1 */}
+        <text x="50" y="60" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">16</text>
+        <rect x="110" y="45" width="20" height="20" fill="hsl(var(--destructive)/0.3)" rx="4" />
+        <text x="140" y="60" fontSize="12" fill="hsl(var(--destructive))">Max 16 checks</text>
+
+        <rect x="260" y="45" width="5" height="20" fill="hsl(var(--emerald-500, #10b981)/0.3)" rx="2" />
+        <text x="275" y="60" fontSize="12" fill="hsl(var(--emerald-500, #10b981))">Max 4 checks</text>
+
+        {/* Row 2 */}
+        <text x="50" y="100" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">1,024</text>
+        <rect x="110" y="85" width="80" height="20" fill="hsl(var(--destructive)/0.5)" rx="4" />
+        <text x="200" y="100" fontSize="12" fill="hsl(var(--destructive))">Max 1k checks</text>
+
+        <rect x="260" y="85" width="15" height="20" fill="hsl(var(--emerald-500, #10b981)/0.5)" rx="2" />
+        <text x="285" y="100" fontSize="12" fill="hsl(var(--emerald-500, #10b981))">Max 10 checks</text>
+
+        {/* Row 3 */}
+        <text x="50" y="140" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">1,000,000</text>
+        <rect x="110" y="125" width="140" height="20" fill="hsl(var(--destructive))" rx="4" />
+        <text x="260" y="140" fontSize="12" fontWeight="bold" fill="hsl(var(--destructive))">Max 1M checks!</text>
+
+        <rect x="260" y="125" width="30" height="20" fill="hsl(var(--emerald-500, #10b981))" rx="2" />
+        <text x="300" y="140" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Max 20 checks!</text>
+      </g>
+    </svg>
   );
 }
 
 export const LinearSearchSupplementaryOptions = [
-  SequentialSearch,
+  SequentialSearchUnderstanding,
   SentinelOptimization,
-  WhenToUse,
-  LinearVsBinary,
+  UsageContext,
+  PerformanceComparison,
 ];
-

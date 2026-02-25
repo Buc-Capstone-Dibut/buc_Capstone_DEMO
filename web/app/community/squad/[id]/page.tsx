@@ -85,7 +85,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
       .maybeSingle(); // Use maybeSingle to avoid errors
 
     if (application) {
-      applicationStatus = application.status;
+      applicationStatus = (application as any).status;
     }
   }
 

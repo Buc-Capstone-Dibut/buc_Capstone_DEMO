@@ -14,7 +14,7 @@ export type TemplateModuleDescriptor = {
   emptyMessage?: string;
   sampleData?: number[];
   Visualizer?: React.ComponentType<any>;
-  useSim?: () => any;
+  useSim?: (...args: any[]) => any;
   features?: FeatureItem[];
   story?: {
     problem: string;
