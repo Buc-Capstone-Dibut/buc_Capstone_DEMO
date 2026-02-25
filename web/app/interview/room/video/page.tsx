@@ -274,7 +274,12 @@ export default function InterviewVideoRoomPage() {
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-[#0b1220] p-3 md:p-4 overflow-hidden">
       <div className="relative h-full rounded-3xl border border-slate-700/70 bg-[#0f172a] overflow-hidden">
-        <div className="absolute right-4 top-4 z-30 flex items-center gap-2">
+        <div className="absolute right-4 top-4 z-30 flex items-center gap-2 flex-wrap justify-end">
+          <Badge className="bg-blue-600/75 text-white border border-blue-400/30 text-[11px]">
+            모의면접
+            {(jobData as any)?.company ? ` · ${(jobData as any).company}` : ""}
+            {(jobData as any)?.role ? ` ${(jobData as any).role}` : ""}
+          </Badge>
           <Badge className="bg-black/55 text-white border border-white/20">
             <Clock3 className="w-3.5 h-3.5 mr-1.5" /> {formatTime(runtimeMeta.remainingSec)}
           </Badge>

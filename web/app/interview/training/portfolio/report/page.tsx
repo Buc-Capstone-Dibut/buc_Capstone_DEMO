@@ -354,6 +354,18 @@ export default function PortfolioDefenseReportPage() {
                 포트폴리오 디펜스 점수{" "}
                 <span className="text-primary">{Math.round(totalWeightedScore)} / 100</span>
               </h1>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {rubric.map((item) => (
+                  <Badge
+                    key={item.key}
+                    variant="outline"
+                    className="text-xs font-semibold border-primary/30 text-primary"
+                  >
+                    {item.label.replace("설계 의도 설명", "설계").replace("AI 활용", "AI")}{" "}
+                    {Math.round(item.weighted)}/{RUBRIC_META[item.key].weight}pt
+                  </Badge>
+                ))}
+              </div>
               <p className="text-sm text-muted-foreground">
                 설계 의도 60 / 코드 품질 10 / AI 활용 30 가중치로 계산됩니다.
               </p>
@@ -513,17 +525,45 @@ export default function PortfolioDefenseReportPage() {
             <CardDescription>각 평가 축의 근거 문장과 신뢰도를 확인합니다.</CardDescription>
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-3">
-            {rubric.map((item) => (
-              <div key={item.key} className="rounded-xl border p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-sm">{item.label}</p>
-                  <Badge variant="outline">{toPercent(item.confidence)}</Badge>
+            {rubric.map((item) => {
+              const isUncertain = item.confidence < 0.7;
+              return (
+                <div
+                  key={item.key}
+                  className={`rounded-xl border p-4 space-y-2 ${
+                    isUncertain
+                      ? "bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-700/50"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="font-semibold text-sm">{item.label}</p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        isUncertain
+                          ? "border-amber-300 text-amber-700 dark:text-amber-400 text-[10px]"
+                          : "border-emerald-300 text-emerald-700 dark:text-emerald-400 text-[10px]"
+                      }
+                    >
+                      {isUncertain ? "근거 불확실" : "확인됨"} {toPercent(item.confidence)}
+                    </Badge>
+                  </div>
+                  {isUncertain && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                      이 근거는 불확실할 수 있습니다.
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {item.evidence ? (
+                      <><span className="text-muted-foreground/60 italic not-italic">평가 근거: </span>{item.evidence}</>
+                    ) : (
+                      "근거 데이터 없음"
+                    )}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {item.evidence || "근거 데이터 없음"}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 

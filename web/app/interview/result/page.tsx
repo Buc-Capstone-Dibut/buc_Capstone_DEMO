@@ -255,7 +255,7 @@ export default function InterviewResultPage() {
           </Card>
         </div>
 
-        {/* Habits Section */}
+        {/* Habits + 총평 */}
         <div className="grid md:grid-cols-2 gap-8">
           <Card className="border-2 shadow-md">
             <CardHeader className="pb-2">
@@ -290,15 +290,37 @@ export default function InterviewResultPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 shadow-md flex flex-col justify-center bg-primary/5 border-primary/10">
-            <CardContent className="text-center space-y-2 py-8 px-6">
-              <h3 className="text-lg font-bold flex items-center justify-center gap-2">
+          <Card className="border-2 shadow-md bg-primary/5 border-primary/10">
+            <CardContent className="py-6 px-6 space-y-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-primary" /> 면접관의 총평
               </h3>
-              <p className="italic text-muted-foreground leading-relaxed text-sm">
-                "{analysisResult.feedback.strengths[0]} 부분이 매우 인상적입니다.{" "}
-                {analysisResult.feedback.improvements[0]} 부분을 더욱 강조한다면 완벽한 면접이 될 것 같습니다."
-              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">강점</p>
+                  {(analysisResult.feedback.strengths.length > 0
+                    ? analysisResult.feedback.strengths
+                    : ["강점 데이터 없음"]
+                  ).slice(0, 3).map((s, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-500 shrink-0" />
+                      <span className="leading-relaxed text-foreground">{s}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">개선 포인트</p>
+                  {(analysisResult.feedback.improvements.length > 0
+                    ? analysisResult.feedback.improvements
+                    : ["개선 포인트 데이터 없음"]
+                  ).slice(0, 3).map((imp, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-orange-400 shrink-0" />
+                      <span className="leading-relaxed text-foreground">{imp}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -310,46 +332,52 @@ export default function InterviewResultPage() {
           </h3>
 
           <div className="space-y-8">
-            {analysisResult.bestPractices.map((bp, i) => {
-              return (
-                <div
-                  key={i}
-                  className="grid md:grid-cols-2 gap-6 bg-card border rounded-3xl overflow-hidden shadow-sm"
-                >
-                  <div className="p-6 md:p-8 space-y-4 flex flex-col border-r bg-muted/5 font-sans">
-                    <Badge className="w-fit bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">
+            {analysisResult.bestPractices.map((bp, i) => (
+              <div
+                key={i}
+                className="grid md:grid-cols-2 gap-0 bg-card border rounded-3xl overflow-hidden shadow-sm"
+              >
+                {/* 왼쪽: 질문 + 지원자 답변 */}
+                <div className="p-6 md:p-8 space-y-4 flex flex-col border-r bg-muted/5 font-sans">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">
                       핵심 질문
                     </Badge>
-                    <h4 className="text-lg font-bold leading-snug">Q. {bp.question}</h4>
-                    <div className="mt-auto space-y-2">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-50">
-                        지원자의 답변
-                      </span>
-                      <p className="text-sm text-muted-foreground bg-white dark:bg-neutral-900 p-4 rounded-xl border border-dashed italic">
-                        "{bp.userAnswer}"
-                      </p>
-                    </div>
-                  </div>
-                  <div className="p-6 md:p-8 space-y-4 bg-primary/5 font-sans">
-                    <Badge className="w-fit bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> AI 추천 우수 답변 (Best Practice)
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/20">
+                      Q.{i + 1}
                     </Badge>
-                    <div className="p-5 bg-white dark:bg-neutral-900 border-2 border-primary/20 rounded-2xl text-sm leading-relaxed text-foreground shadow-sm relative">
-                      <div className="absolute top-3 right-3 text-primary/20">
-                        <Sparkles className="w-8 h-8" />
-                      </div>
-                      {bp.refinedAnswer}
-                    </div>
-                    <div className="bg-primary/10 p-4 rounded-xl text-xs space-y-1 border border-primary/5">
-                      <span className="font-bold text-primary block underline decoration-primary/30 underline-offset-4 mb-2">
-                        💡 AI 처방 이유
-                      </span>
-                      <p className="text-primary/80 leading-relaxed font-medium">{bp.reason}</p>
-                    </div>
+                  </div>
+                  <h4 className="text-base font-bold leading-snug">{bp.question}</h4>
+                  <div className="mt-auto space-y-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                      지원자의 답변
+                    </span>
+                    <p className="text-sm text-muted-foreground bg-background p-4 rounded-xl border border-dashed italic leading-relaxed">
+                      "{bp.userAnswer}"
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+
+                {/* 오른쪽: AI 개선 답변 + 핵심 개선 포인트 */}
+                <div className="p-6 md:p-8 space-y-4 bg-primary/5 font-sans flex flex-col">
+                  <Badge className="w-fit bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> AI 추천 우수 답변
+                  </Badge>
+                  <div className="p-5 bg-background border-2 border-primary/20 border-l-4 border-l-primary/60 rounded-2xl text-sm leading-relaxed text-foreground shadow-sm relative flex-1">
+                    <div className="absolute top-3 right-3 text-primary/15">
+                      <Sparkles className="w-8 h-8" />
+                    </div>
+                    {bp.refinedAnswer}
+                  </div>
+                  <div className="border-l-4 border-amber-400/70 bg-amber-50 dark:bg-amber-900/10 p-4 rounded-r-xl text-xs space-y-1">
+                    <span className="font-bold text-amber-700 dark:text-amber-400 block mb-1.5 uppercase tracking-widest text-[10px]">
+                      핵심 개선 포인트
+                    </span>
+                    <p className="text-amber-800 dark:text-amber-300 leading-relaxed font-medium">{bp.reason}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

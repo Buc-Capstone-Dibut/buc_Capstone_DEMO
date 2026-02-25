@@ -337,9 +337,17 @@ export default function PortfolioDefenseRoomPage() {
           >
             <ArrowLeft className="mr-2 w-4 h-4" /> 레포 입력으로
           </Button>
-          <Badge variant="outline" className="border-primary/20 text-primary capitalize">
-            PUBLIC REPO DEFENSE · 화상 · {owner}/{repo}
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Badge className="bg-primary/15 text-primary border border-primary/25 font-semibold text-xs">
+              포트폴리오 디펜스
+            </Badge>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/25">
+              설계 60pt · 코드 10pt · AI 30pt
+            </Badge>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/20">
+              {owner}/{repo}
+            </Badge>
+          </div>
         </div>
 
         {/* LiveKit 화상 룸 (video 모드일 때만) */}
