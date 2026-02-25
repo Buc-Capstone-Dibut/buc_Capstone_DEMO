@@ -103,9 +103,11 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href="/my/me">
           <User className="mr-2 h-4 w-4" />
           <span>프로필</span>
+          </a>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <a href="/bookmarks">

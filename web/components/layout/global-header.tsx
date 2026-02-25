@@ -55,6 +55,7 @@ const MENUS: Record<string, { label: string; href: string; activePath?: string; 
     href: "/interview",
     submenus: [
       { href: "/interview", label: "AI 모의 면접", icon: Video },
+      { href: "/interview/training", label: "면접 훈련 센터", icon: Wrench },
       { href: "/interview/analysis", label: "면접 분석", icon: PieChart },
     ],
   },

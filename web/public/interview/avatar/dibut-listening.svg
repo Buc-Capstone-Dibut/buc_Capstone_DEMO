@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" fill="none">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="90" fill="#F0FFF4" />
+
+  <!-- Sound waves (listening) -->
+  <path d="M152 85 Q160 100 152 115" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" fill="none" />
+  <path d="M158 78 Q170 100 158 122" stroke="#10B981" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6" />
+  <path d="M164 72 Q180 100 164 128" stroke="#10B981" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.3" />
+
+  <!-- Body -->
+  <rect x="55" y="160" width="90" height="70" rx="20" fill="#3B5BDB" />
+
+  <!-- Neck -->
+  <rect x="85" y="148" width="30" height="20" rx="8" fill="#FFCBA4" />
+
+  <!-- Head (leaning slightly) -->
+  <ellipse cx="100" cy="125" rx="42" ry="45" fill="#FFCBA4" />
+
+  <!-- Hair -->
+  <ellipse cx="100" cy="90" rx="42" ry="22" fill="#2C2C2C" />
+  <rect x="58" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+  <rect x="132" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+
+  <!-- Eyes (attentive, slightly wider) -->
+  <ellipse cx="83" cy="120" rx="6.5" ry="8" fill="white" />
+  <ellipse cx="117" cy="120" rx="6.5" ry="8" fill="white" />
+  <circle cx="84" cy="121" r="4.5" fill="#2C2C2C" />
+  <circle cx="118" cy="121" r="4.5" fill="#2C2C2C" />
+  <circle cx="85" cy="120" r="1.5" fill="white" />
+  <circle cx="119" cy="120" r="1.5" fill="white" />
+
+  <!-- Eyebrows (attentive) -->
+  <path d="M77 111 Q83 108 89 111" stroke="#2C2C2C" stroke-width="2" stroke-linecap="round" fill="none" />
+  <path d="M111 111 Q117 108 123 111" stroke="#2C2C2C" stroke-width="2" stroke-linecap="round" fill="none" />
+
+  <!-- Nose -->
+  <ellipse cx="100" cy="132" rx="4" ry="3" fill="#F0A882" />
+
+  <!-- Mouth (slight smile, listening) -->
+  <path d="M90 142 Q100 148 110 142" stroke="#C97B5A" stroke-width="2" stroke-linecap="round" fill="none" />
+
+  <!-- Ear emphasis (right ear highlighted for listening) -->
+  <ellipse cx="142" cy="122" rx="5" ry="8" fill="#F0A882" />
+  <ellipse cx="143" cy="122" rx="3" ry="5" fill="#E89070" />
+
+  <!-- Collar -->
+  <path d="M80 165 L100 175 L120 165" stroke="white" stroke-width="2" fill="none" />
+  <path d="M97 175 L100 195 L103 175" fill="#1A3BB0" />
+
+  <!-- State badge -->
+  <rect x="48" y="215" width="104" height="20" rx="10" fill="#D1FAE5" />
+  <text x="100" y="229" text-anchor="middle" font-size="10" font-family="system-ui, sans-serif" fill="#065F46" font-weight="600">Listening</text>
+</svg>

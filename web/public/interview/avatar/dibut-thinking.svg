@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" fill="none">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="90" fill="#FFF8E7" />
+
+  <!-- Thought bubbles -->
+  <circle cx="140" cy="55" r="16" fill="#FFF3CD" stroke="#F59E0B" stroke-width="1.5" />
+  <circle cx="152" cy="70" r="7" fill="#FFF3CD" stroke="#F59E0B" stroke-width="1.5" />
+  <circle cx="158" cy="82" r="4" fill="#FFF3CD" stroke="#F59E0B" stroke-width="1.5" />
+  <text x="140" y="60" text-anchor="middle" font-size="14" font-family="system-ui, sans-serif">💭</text>
+
+  <!-- Body -->
+  <rect x="55" y="160" width="90" height="70" rx="20" fill="#3B5BDB" />
+
+  <!-- Neck -->
+  <rect x="85" y="148" width="30" height="20" rx="8" fill="#FFCBA4" />
+
+  <!-- Head (slightly tilted) -->
+  <ellipse cx="100" cy="125" rx="42" ry="45" fill="#FFCBA4" />
+
+  <!-- Hair -->
+  <ellipse cx="100" cy="90" rx="42" ry="22" fill="#2C2C2C" />
+  <rect x="58" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+  <rect x="132" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+
+  <!-- Eyes (looking up-right) -->
+  <ellipse cx="83" cy="120" rx="6" ry="7" fill="white" />
+  <ellipse cx="117" cy="120" rx="6" ry="7" fill="white" />
+  <circle cx="86" cy="118" r="4" fill="#2C2C2C" />
+  <circle cx="120" cy="118" r="4" fill="#2C2C2C" />
+  <circle cx="87" cy="117" r="1.5" fill="white" />
+  <circle cx="121" cy="117" r="1.5" fill="white" />
+
+  <!-- Eyebrows (raised) -->
+  <path d="M77 109 Q83 106 89 109" stroke="#2C2C2C" stroke-width="2.5" stroke-linecap="round" fill="none" />
+  <path d="M111 109 Q117 106 123 109" stroke="#2C2C2C" stroke-width="2.5" stroke-linecap="round" fill="none" />
+
+  <!-- Nose -->
+  <ellipse cx="100" cy="132" rx="4" ry="3" fill="#F0A882" />
+
+  <!-- Mouth (hmm) -->
+  <path d="M92 143 Q100 141 108 143" stroke="#C97B5A" stroke-width="2" stroke-linecap="round" fill="none" />
+
+  <!-- Hand on chin -->
+  <ellipse cx="75" cy="148" rx="12" ry="8" fill="#FFCBA4" />
+
+  <!-- Collar -->
+  <path d="M80 165 L100 175 L120 165" stroke="white" stroke-width="2" fill="none" />
+  <path d="M97 175 L100 195 L103 175" fill="#1A3BB0" />
+
+  <!-- State badge -->
+  <rect x="50" y="215" width="100" height="20" rx="10" fill="#FFF3CD" />
+  <text x="100" y="229" text-anchor="middle" font-size="10" font-family="system-ui, sans-serif" fill="#92400E" font-weight="600">Thinking...</text>
+</svg>

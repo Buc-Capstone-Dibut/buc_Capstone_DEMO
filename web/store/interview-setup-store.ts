@@ -99,6 +99,8 @@ interface InterviewSetupState {
   currentStep: InterviewSetupStep;
   targetUrl: string;
   targetJobCategory: string; // Fallback if no URL
+  interviewSessionId: string | null;
+  resumePrefillSource: "active_resume" | null;
 
   // JD Data
   jobData: JobData | null;
@@ -123,6 +125,8 @@ interface InterviewSetupState {
   setInterviewerPersonality: (personality: string) => void;
   setChatHistory: (history: { role: 'user' | 'model', parts: string }[]) => void;
   setAnalysisResult: (result: AnalysisResult) => void;
+  setInterviewSessionId: (sessionId: string | null) => void;
+  setResumePrefillSource: (source: "active_resume" | null) => void;
   completeSetup: () => void;
   reset: () => void;
 }
@@ -133,6 +137,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       currentStep: 'target',
       targetUrl: '',
       targetJobCategory: '',
+      interviewSessionId: null,
+      resumePrefillSource: null,
       jobData: null,
       resumeData: null,
       interviewerPersonality: 'professional',
@@ -154,11 +160,15 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       setInterviewerPersonality: (personality) => set({ interviewerPersonality: personality }),
       setChatHistory: (history) => set({ chatHistory: history }),
       setAnalysisResult: (result) => set({ analysisResult: result }),
+      setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
+      setResumePrefillSource: (source) => set({ resumePrefillSource: source }),
       completeSetup: () => set({ currentStep: 'complete' }),
       reset: () => set({
         currentStep: 'target',
         targetUrl: '',
         targetJobCategory: '',
+        interviewSessionId: null,
+        resumePrefillSource: null,
         jobData: null,
         resumeData: null,
         interviewerPersonality: 'professional',
@@ -173,6 +183,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         currentStep: state.currentStep,
         targetUrl: state.targetUrl,
         targetJobCategory: state.targetJobCategory,
+        interviewSessionId: state.interviewSessionId,
+        resumePrefillSource: state.resumePrefillSource,
         jobData: state.jobData,
         resumeData: state.resumeData
           ? {

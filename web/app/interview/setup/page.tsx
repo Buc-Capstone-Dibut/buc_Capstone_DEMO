@@ -1,8 +1,8 @@
 "use client";
 
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { TargetSelectionStep } from "@/components/features/interview/setup/steps/target-selection-step";
 import { JdCheckStep } from "@/components/features/interview/setup/steps/jd-check-step";
 import { ResumeInputStep } from "@/components/features/interview/setup/steps/resume-input-step";
@@ -12,15 +12,54 @@ import { ModeSelectionStep } from "@/components/features/interview/setup/steps/m
 import { PersonalitySelectionStep } from "@/components/features/interview/setup/steps/personality-selection-step";
 import { AnimatePresence, motion } from "framer-motion";
 import { SetupStepper } from "@/components/features/interview/setup/setup-stepper";
+import { useToast } from "@/hooks/use-toast";
 
 export default function InterviewSetupPage() {
-  const { currentStep, reset } = useInterviewSetupStore();
+  const { currentStep, reset, setResumeData, setResumePrefillSource } = useInterviewSetupStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const didImportRef = useRef(false);
 
   // Reset store when entering setup page to ensure we start from Step 1
   useEffect(() => {
     reset();
   }, [reset]);
+
+  useEffect(() => {
+    const importType = searchParams.get("import");
+    if (importType !== "active_resume" || didImportRef.current) return;
+    didImportRef.current = true;
+
+    const runImport = async () => {
+      try {
+        const res = await fetch("/api/my/resume/active", { cache: "no-store" });
+        const json = await res.json();
+
+        if (!res.ok || !json?.success || !json?.data?.resumePayload) {
+          throw new Error(json?.error || "활성 이력서가 없습니다.");
+        }
+
+        setResumeData({
+          fileName: json.data.sourceFileName || "마이페이지 활성 이력서",
+          parsedContent: json.data.resumePayload,
+        });
+        setResumePrefillSource("active_resume");
+        toast({
+          title: "이력서 자동 채움 완료",
+          description: "마이페이지 활성 이력서를 setup에 불러왔습니다.",
+        });
+      } catch {
+        setResumePrefillSource(null);
+        toast({
+          title: "활성 이력서 없음",
+          description: "활성 이력서가 없어 기본 입력 흐름으로 진행합니다.",
+        });
+      }
+    };
+
+    runImport();
+  }, [searchParams, setResumeData, setResumePrefillSource, toast]);
 
   const renderStep = () => {
     switch (currentStep) {

@@ -2,13 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { BookmarkButton } from "@/components/shared/bookmark-button";
-import { cn } from "@/lib/utils";
-import { Building2, Calendar, Eye, User } from "lucide-react";
+import { Building2, Calendar, Eye } from "lucide-react";
 import Image from "next/image";
 import { incrementViews, type Blog } from "@/lib/supabase";
 import { getLogoUrl } from "@/lib/logos";
 import { useState } from "react";
-import { isFlutterWebView } from "@/lib/webview-bridge";
 
 interface BlogListItemProps {
   blog: Blog;
@@ -24,7 +22,7 @@ export function BlogListItem({
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const handleLinkClick = async (e: React.MouseEvent) => {
+  const handleLinkClick = async () => {
     // 조회수 증가 (백그라운드에서 실행)
     try {
       incrementViews(blog.id);
@@ -145,13 +143,7 @@ export function BlogListItem({
       </a>
 
       {/* 북마크 버튼 */}
-      <div
-        className={`absolute top-3 right-3 transition-opacity duration-200 ${
-          isFlutterWebView()
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100"
-        }`}
-      >
+      <div className="absolute top-3 right-3 z-10 rounded-full border border-border/50 bg-background/90 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <BookmarkButton
           blogId={blog.id}
           onLoginClick={onLoginClick}

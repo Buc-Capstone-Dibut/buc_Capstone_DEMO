@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Blog } from "@/lib/supabase";
+import { getTagsForCategory, type TagCategory } from "@/lib/tag-filters";
 
 interface UseBlogDataParams {
   selectedBlog?: string;
@@ -32,11 +33,14 @@ export function useBlogData(params: UseBlogDataParams) {
 
         // Category Filter
         if (params.tagCategory && params.tagCategory !== "all") {
-          query = query.eq("category", params.tagCategory);
+          const categoryTags = getTagsForCategory(params.tagCategory as TagCategory);
+          if (categoryTags.length > 0) {
+            query = query.overlaps("tags", categoryTags);
+          }
         }
 
         if (params.selectedSubTags && params.selectedSubTags.length > 0) {
-           query = query.overlaps("tags", params.selectedSubTags);
+          query = query.contains("tags", params.selectedSubTags);
         }
 
         if (params.searchQuery) {
@@ -61,7 +65,7 @@ export function useBlogData(params: UseBlogDataParams) {
         if (error) {
           console.error(error);
         } else {
-          setBlogs((data as any[]) || []);
+          setBlogs((data as Blog[]) || []);
           setTotalCount(count || 0);
           setTotalPages(Math.ceil((count || 0) / pageSize));
           setCurrentPage(page);
@@ -79,7 +83,7 @@ export function useBlogData(params: UseBlogDataParams) {
     params.sortBy,
     params.searchQuery,
     params.tagCategory,
-    JSON.stringify(params.selectedSubTags),
+    params.selectedSubTags,
     params.page,
   ]);
 

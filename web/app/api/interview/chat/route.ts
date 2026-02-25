@@ -1,46 +1,61 @@
+import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
-import { NextResponse } from 'next/server';
-import { InterviewLogic } from '@/lib/interview-logic';
+const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
+
+async function getUserIdFromSession(): Promise<string | null> {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
-    try {
-        const { messages, jobData, resumeData, personality } = await req.json();
+  try {
+    const body = await req.json();
+    const userId = await getUserIdFromSession();
 
-        if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json({ error: 'GEMINI_API_KEY is missing' }, { status: 500 });
-        }
+    const response = await fetch(`${AI_BASE_URL}/v1/interview/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(userId ? { "x-user-id": userId } : {}),
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
 
-        const interviewLogic = new InterviewLogic(process.env.GEMINI_API_KEY);
+    const data = await response.json().catch(() => null);
 
-        const context = {
-            jobData,
-            resumeData,
-            personality: personality || 'professional'
-        };
+    if (!response.ok) {
+      const errorMessage =
+        (data && typeof data.detail === "string" && data.detail) ||
+        (data && typeof data.error === "string" && data.error) ||
+        "AI interview service request failed";
 
-        const aiResponse = await interviewLogic.generateNextQuestion(context, messages);
-
-        return NextResponse.json({
-            success: true,
-            data: {
-                role: 'model',
-                parts: aiResponse
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Interview Chat Error:', error);
-
-        // Handle Gemini Quota / Rate Limit errors (429)
-        if (error.message?.includes('429') || error.message?.includes('quota')) {
-            return NextResponse.json({
-                error: '현재 AI 사용량이 많아 답변이 지연되고 있습니다. 약 1분 후 다시 시도해주세요.'
-            }, { status: 429 });
-        }
-
-        return NextResponse.json(
-            { error: `AI Error: ${error.message || error.toString()}` },
-            { status: 500 }
-        );
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+        },
+        { status: response.status },
+      );
     }
+
+    return NextResponse.json(data, { status: response.status });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `AI Error: ${error.message || error.toString()}`,
+      },
+      { status: 500 },
+    );
+  }
 }

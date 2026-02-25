@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dibut-workspace-server
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        sync: false

@@ -11,11 +11,23 @@ export default function InterviewPage() {
     router.push('/interview/setup');
   };
 
+  const handleOpenTraining = () => {
+    router.push('/interview/training');
+  };
+
+  const handleImportFromMyPage = () => {
+    router.push("/interview/setup?import=active_resume");
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
        <GlobalHeader />
        <main className="flex-1">
-          <InterviewDashboard onStartNew={handleStartNew} />
+          <InterviewDashboard
+            onStartNew={handleStartNew}
+            onOpenTraining={handleOpenTraining}
+            onImportFromMyPage={handleImportFromMyPage}
+          />
        </main>
     </div>
   );

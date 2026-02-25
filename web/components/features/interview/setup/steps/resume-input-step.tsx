@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";  // Basic textarea for simple manual input backup
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +11,14 @@ import { ArrowLeft, ArrowRight, FileText, Loader2, Sparkles, Upload } from "luci
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { MOCK_RESUME_RESULT } from "@/mocks/interview-setup-data";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 export function ResumeInputStep() {
-    const { setResumeData, setStep, resumeData } = useInterviewSetupStore();
+    const { setResumeData, setResumePrefillSource, setStep, resumeData, resumePrefillSource } = useInterviewSetupStore();
     const [activeTab, setActiveTab] = useState("file");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const { toast } = useToast();
 
     // File State
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -24,6 +26,39 @@ export function ResumeInputStep() {
     // Manual State (Simple structure for now to match Mock)
     // In a real app complexity would be higher.
     const [manualText, setManualText] = useState("");
+
+    const handleImportFromMyPage = async () => {
+        setIsImporting(true);
+        try {
+            const res = await fetch("/api/my/resume/active", { cache: "no-store" });
+            const json = await res.json();
+
+            if (!res.ok || !json?.success || !json?.data?.resumePayload) {
+                throw new Error(json?.error || "활성 이력서가 없습니다.");
+            }
+
+            setResumeData({
+                fileName: json.data.sourceFileName || "마이페이지 활성 이력서",
+                parsedContent: json.data.resumePayload,
+            });
+            setResumePrefillSource("active_resume");
+            setSelectedFile(null);
+            setManualText("");
+            setActiveTab("file");
+            toast({
+                title: "불러오기 완료",
+                description: "마이페이지 활성 이력서를 불러왔습니다.",
+            });
+        } catch (error: any) {
+            toast({
+                title: "불러오기 실패",
+                description: error?.message || "활성 이력서를 찾을 수 없습니다.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsImporting(false);
+        }
+    };
 
     const handleNext = async () => {
         // If we already have data and no new file/text is selected, just proceed
@@ -87,6 +122,29 @@ export function ResumeInputStep() {
                     PDF 파일을 업로드하거나, 핵심 경력을 직접 입력할 수 있습니다.<br />
                     입력된 내용은 면접관 AI에게 전달됩니다.
                 </p>
+                <div className="pt-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleImportFromMyPage}
+                        disabled={isImporting}
+                        className="h-10"
+                    >
+                        {isImporting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                마이페이지 이력서 불러오는 중...
+                            </>
+                        ) : (
+                            "마이페이지에서 불러오기"
+                        )}
+                    </Button>
+                </div>
+                {resumePrefillSource === "active_resume" && (
+                    <p className="text-sm text-primary font-medium">
+                        마이페이지 활성 이력서가 자동으로 불러와졌습니다.
+                    </p>
+                )}
             </div>
 
             <Tabs defaultValue="file" className="w-full" onValueChange={setActiveTab}>

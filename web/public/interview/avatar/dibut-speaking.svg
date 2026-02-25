@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" fill="none">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="90" fill="#EFF6FF" />
+
+  <!-- Sound waves (speaking) -->
+  <path d="M48 85 Q40 100 48 115" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" fill="none" />
+  <path d="M42 78 Q30 100 42 122" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6" />
+  <path d="M36 72 Q20 100 36 128" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.3" />
+
+  <!-- Body -->
+  <rect x="55" y="160" width="90" height="70" rx="20" fill="#3B5BDB" />
+
+  <!-- Neck -->
+  <rect x="85" y="148" width="30" height="20" rx="8" fill="#FFCBA4" />
+
+  <!-- Head -->
+  <ellipse cx="100" cy="125" rx="42" ry="45" fill="#FFCBA4" />
+
+  <!-- Hair -->
+  <ellipse cx="100" cy="90" rx="42" ry="22" fill="#2C2C2C" />
+  <rect x="58" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+  <rect x="132" y="88" width="10" height="28" rx="5" fill="#2C2C2C" />
+
+  <!-- Eyes (engaged, looking forward) -->
+  <ellipse cx="83" cy="120" rx="6" ry="7" fill="white" />
+  <ellipse cx="117" cy="120" rx="6" ry="7" fill="white" />
+  <circle cx="84" cy="120" r="4" fill="#2C2C2C" />
+  <circle cx="118" cy="120" r="4" fill="#2C2C2C" />
+  <circle cx="85" cy="119" r="1.5" fill="white" />
+  <circle cx="119" cy="119" r="1.5" fill="white" />
+
+  <!-- Eyebrows (slightly raised, engaging) -->
+  <path d="M77 111 Q83 108 89 111" stroke="#2C2C2C" stroke-width="2" stroke-linecap="round" fill="none" />
+  <path d="M111 111 Q117 108 123 111" stroke="#2C2C2C" stroke-width="2" stroke-linecap="round" fill="none" />
+
+  <!-- Nose -->
+  <ellipse cx="100" cy="132" rx="4" ry="3" fill="#F0A882" />
+
+  <!-- Mouth (open, speaking) -->
+  <path d="M88 140 Q100 153 112 140" stroke="#C97B5A" stroke-width="2" stroke-linecap="round" fill="none" />
+  <ellipse cx="100" cy="145" rx="11" ry="6" fill="#C97B5A" opacity="0.3" />
+  <!-- Teeth hint -->
+  <rect x="92" y="140" width="16" height="5" rx="2" fill="white" opacity="0.7" />
+
+  <!-- Collar -->
+  <path d="M80 165 L100 175 L120 165" stroke="white" stroke-width="2" fill="none" />
+  <path d="M97 175 L100 195 L103 175" fill="#1A3BB0" />
+
+  <!-- State badge (animated pulse background) -->
+  <rect x="48" y="215" width="104" height="20" rx="10" fill="#DBEAFE" />
+  <text x="100" y="229" text-anchor="middle" font-size="10" font-family="system-ui, sans-serif" fill="#1D4ED8" font-weight="600">Speaking</text>
+</svg>

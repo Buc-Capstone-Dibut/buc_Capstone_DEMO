@@ -6,7 +6,8 @@
       "Bash(grep:*)",
       "Bash(echo:*)",
       "Bash(pnpm install:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx skills:*)"
     ]
   }
 }

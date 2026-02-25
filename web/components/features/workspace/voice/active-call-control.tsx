@@ -86,7 +86,7 @@ export function ActiveCallControl() {
   return (
     <div
       className={cn(
-        "bg-card/95 backdrop-blur-xl border border-border shadow-2xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ring-1 ring-black/5 dark:ring-white/10",
+        "bg-card/95 backdrop-blur-xl border border-border shadow-2xl overflow-hidden transition-all duration-300 ease-in-out ring-1 ring-black/5 dark:ring-white/10",
         isMinimized ? "w-[260px] rounded-[24px]" : "w-[320px] rounded-xl",
       )}
     >

@@ -36,6 +36,7 @@ async function debugProfiles() {
       pProfile = await prisma.profiles.create({
         data: {
           id: userId,
+          handle: `user-${userId.slice(0, 8).toLowerCase()}`,
           nickname: "RestoredUser",
           avatar_url: null,
           reputation: 0,

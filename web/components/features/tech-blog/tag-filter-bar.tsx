@@ -6,6 +6,7 @@ interface TagFilterBarProps {
   options: TagFilterOption[];
   selectedSubTags: string[];
   availableTags: { tag: string; count: number }[];
+  showSubTags?: boolean;
   onChange: (value: string) => void;
   onSubTagChange: (subTags: string[]) => void;
 }
@@ -15,6 +16,7 @@ export function TagFilterBar({
   options,
   selectedSubTags,
   availableTags,
+  showSubTags = true,
   onChange,
   onSubTagChange,
 }: TagFilterBarProps) {
@@ -47,7 +49,7 @@ export function TagFilterBar({
   return (
     <div className="flex flex-col gap-3 pb-2 px-2 sm:px-0 w-full">
       {/* 메인 태그 */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         {options.map((option) => {
           const isActive = option.id === value;
           return (
@@ -65,8 +67,8 @@ export function TagFilterBar({
       </div>
 
       {/* 서브태그 목록: 항상 노출, 선택 시에도 배경 채우지 않음 */}
-      {value !== "all" && subTags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pl-4 border-l-2 border-primary/20">
+      {showSubTags && value !== "all" && subTags.length > 0 && (
+        <div className="flex flex-wrap gap-2">
           {subTags.map((subTag) => {
             const isSelected = selectedSubTags.includes(subTag);
             return (

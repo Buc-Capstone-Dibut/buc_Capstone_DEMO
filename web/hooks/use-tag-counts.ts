@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { getTagsForCategory, type TagCategory } from "@/lib/tag-filters";
 
 export interface TagCount {
   tag: string;
@@ -17,7 +18,10 @@ export function useTagCounts(category: string) {
         let query = supabase.from("blogs").select("tags");
 
         if (category && category !== "all") {
-          query = query.eq("category", category);
+          const categoryTags = getTagsForCategory(category as TagCategory);
+          if (categoryTags.length > 0) {
+            query = query.overlaps("tags", categoryTags);
+          }
         }
 
         const { data, error } = await query;
@@ -41,8 +45,18 @@ export function useTagCounts(category: string) {
           }
         });
 
+        const allowedTagSet =
+          category && category !== "all"
+            ? new Set(
+                getTagsForCategory(category as TagCategory).map((tag) =>
+                  tag.toLowerCase(),
+                ),
+              )
+            : null;
+
         // Convert to array and sort
         const sortedCounts = Object.entries(counts)
+          .filter(([tag]) => !allowedTagSet || allowedTagSet.has(tag))
           .map(([tag, count]) => ({ tag, count }))
           .sort((a, b) => b.count - a.count); // Sort by count desc
 

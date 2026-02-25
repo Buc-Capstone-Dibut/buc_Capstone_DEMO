@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
 const prisma = new PrismaClient();
 
@@ -77,6 +78,22 @@ export async function PATCH(
       },
       data: allowedUpdates,
     });
+
+    if (allowedUpdates.column_id) {
+      const movedColumn = await prisma.kanban_columns.findUnique({
+        where: { id: allowedUpdates.column_id },
+        select: { category: true, title: true },
+      });
+      const category = (movedColumn?.category || "").toLowerCase();
+      const title = (movedColumn?.title || "").toLowerCase();
+      if (category === "done" || category === "completed" || title.includes("done")) {
+        await logUserActivityEvent(
+          user.id,
+          MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
+          updatedTask.id,
+        );
+      }
+    }
 
     return NextResponse.json(updatedTask);
   } catch (error) {

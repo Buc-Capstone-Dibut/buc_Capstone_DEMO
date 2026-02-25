@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, FileText, MessageSquare, Plus, User, Video, Zap } from "lucide-react";
+import { BrainCircuit, GitBranch, Plus, Video, Zap } from "lucide-react";
 import { MOCK_COMMUNITY_POSTS } from "@/mocks/interview-data";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -9,9 +9,11 @@ import { PostCard } from "@/components/features/community/post-card";
 
 interface InterviewDashboardProps {
    onStartNew: () => void;
+   onOpenTraining?: () => void;
+   onImportFromMyPage?: () => void;
 }
 
-export function InterviewDashboard({ onStartNew }: InterviewDashboardProps) {
+export function InterviewDashboard({ onStartNew, onOpenTraining, onImportFromMyPage }: InterviewDashboardProps) {
    return (
       <div className="p-8 max-w-6xl mx-auto space-y-12">
          {/* 1. Hero Section */}
@@ -35,9 +37,18 @@ export function InterviewDashboard({ onStartNew }: InterviewDashboardProps) {
                initial={{ opacity: 0, scale: 0.9 }}
                animate={{ opacity: 1, scale: 1 }}
                transition={{ delay: 0.2, duration: 0.4 }}
+               className="flex flex-col sm:flex-row gap-3 justify-center"
             >
                <Button size="lg" className="h-14 px-8 text-lg rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:scale-105 transition-all" onClick={onStartNew}>
                   <Plus className="mr-2 w-5 h-5" /> 새 면접 시작하기
+               </Button>
+               <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-14 px-8 text-lg rounded-full border-primary/30 text-primary hover:bg-primary/5"
+                  onClick={onImportFromMyPage}
+               >
+                  <BrainCircuit className="mr-2 w-5 h-5" /> 마이페이지에서 불러오기
                </Button>
             </motion.div>
          </section>
@@ -82,6 +93,57 @@ export function InterviewDashboard({ onStartNew }: InterviewDashboardProps) {
                </CardHeader>
                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary/0 via-primary/40 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             </Card>
+         </section>
+
+         {/* 3. Training Center Preview */}
+         <section className="space-y-6 rounded-3xl border bg-card/40 p-6 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+               <div className="space-y-1">
+                  <h2 className="text-2xl font-bold tracking-tight">면접 훈련 센터</h2>
+                  <p className="text-muted-foreground">
+                     리포트 기반으로 약점을 빠르게 보완하는 집중 훈련 공간입니다.
+                  </p>
+               </div>
+               <Button variant="outline" className="w-fit border-primary/20 text-primary hover:bg-primary/5" onClick={onOpenTraining}>
+                  훈련 센터 열기
+               </Button>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4">
+               {[
+                  {
+                     icon: GitBranch,
+                     title: "포트폴리오 디펜스",
+                     desc: "공개 Git 레포를 기반으로 아키텍처와 인프라 설계 의도를 설명하는 면접을 진행합니다.",
+                     badge: "Public Repo",
+                  },
+                  {
+                     icon: Video,
+                     title: "화상 디펜스 모드",
+                     desc: "LiveKit 화상 연결로 실제 면접 환경에 가까운 훈련을 제공합니다.",
+                     badge: "LiveKit Beta",
+                  },
+                  {
+                     icon: BrainCircuit,
+                     title: "설계 의도 집중 질문",
+                     desc: "AI 시대 면접의 핵심인 '왜 이렇게 설계했는가'를 집중 검증하는 질문 흐름을 제공합니다.",
+                     badge: "Design Intent",
+                  },
+               ].map((item) => (
+                  <Card key={item.title} className={cn("border border-primary/10 bg-background/70")}>
+                     <CardHeader className="space-y-3">
+                        <div className="flex items-center justify-between">
+                           <item.icon className="w-5 h-5 text-primary" />
+                           <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
+                              {item.badge}
+                           </Badge>
+                        </div>
+                        <CardTitle className="text-lg">{item.title}</CardTitle>
+                        <CardDescription className="leading-relaxed">{item.desc}</CardDescription>
+                     </CardHeader>
+                  </Card>
+               ))}
+            </div>
          </section>
 
          {/* 3. Community / Tips Section */}

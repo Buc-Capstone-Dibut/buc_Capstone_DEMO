@@ -31,11 +31,12 @@ def _load_dotenv_files(project_root: Path, crawler_root: Path) -> Path | None:
         crawler_root / ".env",
     ]
 
+    last_loaded: Path | None = None
     for dotenv_path in dotenv_paths:
         if dotenv_path.exists():
-            load_dotenv(dotenv_path=dotenv_path)
-            return dotenv_path
-    return None
+            load_dotenv(dotenv_path=dotenv_path, override=True)
+            last_loaded = dotenv_path
+    return last_loaded
 
 
 @dataclass
@@ -44,7 +45,6 @@ class Settings:
     crawler_root: Path
     web_data_dir: Path
     dev_event_json_path: Path
-    saramin_jobs_json_path: Path
     blogs_table: str
     supabase_url: str | None
     supabase_key: str | None
@@ -71,18 +71,12 @@ def _build_settings() -> Settings:
         web_data_dir / "dev-events.json",
         crawler_root,
     )
-    saramin_jobs_json_path = _resolve_path(
-        os.getenv("SARAMIN_JOBS_JSON_PATH"),
-        web_data_dir / "recruit-jobs.json",
-        crawler_root,
-    )
 
     return Settings(
         project_root=project_root,
         crawler_root=crawler_root,
         web_data_dir=web_data_dir,
         dev_event_json_path=dev_event_json_path,
-        saramin_jobs_json_path=saramin_jobs_json_path,
         blogs_table=os.getenv("SUPABASE_BLOGS_TABLE", "blogs"),
         supabase_url=os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
         supabase_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -137,7 +131,6 @@ PROJECT_ROOT = settings.project_root
 CRAWLER_ROOT = settings.crawler_root
 WEB_DATA_DIR = settings.web_data_dir
 DEV_EVENT_JSON_PATH = settings.dev_event_json_path
-SARAMIN_JOBS_JSON_PATH = settings.saramin_jobs_json_path
 
 BLOGS_TABLE = settings.blogs_table
 SUPABASE_URL = settings.supabase_url
@@ -147,4 +140,3 @@ FIRECRAWL_API_KEY = settings.firecrawl_api_key
 TAG_REQUEST_DELAY_MS = settings.tag_request_delay_ms
 TAG_RETRY_BASE_MS = settings.tag_retry_base_ms
 RSS_FEEDS = settings.rss_feeds
-

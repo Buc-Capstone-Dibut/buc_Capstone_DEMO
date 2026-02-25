@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await prisma.comments.create({
+    const created = await prisma.comments.create({
       data: {
         post_id,
         content,
@@ -27,6 +28,12 @@ export async function POST(request: Request) {
         parent_id: parent_id || null, // Optional parent_id for replies
       },
     });
+
+    await logUserActivityEvent(
+      user_id,
+      MY_ACTIVITY_EVENT_TYPES.communityCommentCreated,
+      created.id,
+    );
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
