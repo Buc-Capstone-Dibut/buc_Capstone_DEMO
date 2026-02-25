@@ -238,6 +238,13 @@ export default function InterviewVideoRoomPage() {
     return () => clearInterval(tick);
   }, [runtimeMeta.interviewComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const timerBadgeClass =
+    runtimeMeta.remainingSec <= 30
+      ? "bg-red-600/80 text-white border border-red-400/30"
+      : runtimeMeta.remainingSec <= 60
+      ? "bg-orange-500/75 text-white border border-orange-400/30"
+      : "bg-black/55 text-white border border-white/20";
+
   const avatarState = isAISpeaking
     ? "speaking"
     : isAIProcessing
@@ -280,7 +287,7 @@ export default function InterviewVideoRoomPage() {
             {(jobData as any)?.company ? ` · ${(jobData as any).company}` : ""}
             {(jobData as any)?.role ? ` ${(jobData as any).role}` : ""}
           </Badge>
-          <Badge className="bg-black/55 text-white border border-white/20">
+          <Badge className={timerBadgeClass}>
             <Clock3 className="w-3.5 h-3.5 mr-1.5" /> {formatTime(runtimeMeta.remainingSec)}
           </Badge>
           <Badge variant="secondary" className="bg-slate-800/80 text-slate-100 border border-slate-600/60">

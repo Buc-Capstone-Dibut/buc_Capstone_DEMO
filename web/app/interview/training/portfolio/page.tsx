@@ -50,6 +50,14 @@ export default function PortfolioTrainingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analyzeStep, setAnalyzeStep] = useState(0);
+
+  const ANALYZE_STEPS = [
+    "",
+    "README 분석 중...",
+    "파일 구조 분석 중...",
+    "AI 토픽 감지 중...",
+  ];
   const mode = resolveInterviewMode(searchParams.get("mode"));
   const durationMinutes = clampDurationMinute(searchParams.get("duration"));
 
@@ -57,6 +65,14 @@ export default function PortfolioTrainingPage() {
     const initial = searchParams.get("repoUrl");
     if (initial) setRepoUrl(initial);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!isAnalyzing) { setAnalyzeStep(0); return; }
+    setAnalyzeStep(1);
+    const t1 = setTimeout(() => setAnalyzeStep(2), 4000);
+    const t2 = setTimeout(() => setAnalyzeStep(3), 9000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [isAnalyzing]);
 
   const analyze = async () => {
     const normalized = repoUrl.trim().replace(/\/+$/, "");
@@ -81,16 +97,16 @@ export default function PortfolioTrainingPage() {
 
       if (!data.success) {
         if (data.error === "PUBLIC_REPO_ONLY") {
-          setError("비공개 레포 또는 접근 불가한 레포입니다. 공개 레포 URL을 사용해주세요.");
+          setError("비공개 레포 또는 접근 불가한 레포입니다. 공개 레포 URL을 사용해주세요. GitHub 레포 Settings → General에서 공개(Public)로 변경 후 다시 시도하세요.");
         } else {
-          setError(data.error || "레포 분석 중 오류가 발생했습니다.");
+          setError(data.error || "네트워크 오류 또는 GitHub API 요청 제한일 수 있습니다. 잠시 후 다시 시도해주세요.");
         }
         return;
       }
 
       setAnalysis(data.data);
     } catch (err: any) {
-      setError(err.message || "레포 분석 중 오류가 발생했습니다.");
+      setError(err.message || "네트워크 오류 또는 GitHub API 요청 제한일 수 있습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -202,11 +218,14 @@ export default function PortfolioTrainingPage() {
             )}
 
             {isAnalyzing && (
-              <div className="rounded-xl border bg-muted/20 p-6 text-center space-y-3">
-                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-                <p className="text-sm text-muted-foreground">
-                  레포를 분석 중입니다. GitHub API와 AI 분석에 10~20초 소요될 수 있습니다.
-                </p>
+              <div className="rounded-xl border bg-muted/20 p-6 space-y-3">
+                <div className="flex items-center gap-3 text-primary">
+                  <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">{ANALYZE_STEPS[analyzeStep] || "분석 준비 중..."}</p>
+                    <p className="text-xs text-muted-foreground">({analyzeStep}/3단계) 약 10~20초 소요</p>
+                  </div>
+                </div>
               </div>
             )}
 

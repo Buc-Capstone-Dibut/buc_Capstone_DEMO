@@ -362,9 +362,19 @@ export default function PortfolioDefenseRoomPage() {
 
         <Card className="border-dashed">
           <CardContent className="pt-5 pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+            <div className="inline-flex items-center gap-2 text-sm font-semibold">
               <Clock3 className="w-4 h-4" />
-              {formatTime(runtimeMeta.remainingSec)} / {formatTime(runtimeMeta.targetDurationSec)}
+              <span
+                className={
+                  runtimeMeta.remainingSec <= 30
+                    ? "text-red-500"
+                    : runtimeMeta.remainingSec <= 60
+                    ? "text-orange-500"
+                    : "text-primary"
+                }
+              >
+                {formatTime(runtimeMeta.remainingSec)} / {formatTime(runtimeMeta.targetDurationSec)}
+              </span>
             </div>
             <div className="w-full md:max-w-sm space-y-1.5">
               <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
@@ -378,6 +388,9 @@ export default function PortfolioDefenseRoomPage() {
                 />
               </div>
             </div>
+            <span className="text-xs text-muted-foreground font-medium">
+              질문 {runtimeMeta.questionCount}/{runtimeMeta.estimatedTotalQuestions}
+            </span>
             {runtimeMeta.isClosingPhase && (
               <Badge variant="outline" className="border-orange-200 text-orange-600 bg-orange-50">
                 마무리 단계 진행 중
@@ -545,6 +558,18 @@ export default function PortfolioDefenseRoomPage() {
               </div>
 
             </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 space-y-2">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">💡 답변 팁</p>
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  <li>• 구체적인 수치/기한을 포함하세요</li>
+                  <li>• 배제한 대안 기술과 이유를 설명하세요</li>
+                  <li>• AI 결과를 어떻게 검증했는지 언급하세요</li>
+                  <li>• 트레이드오프와 선택 근거를 명확히 하세요</li>
+                </ul>
+              </CardContent>
             </Card>
           </div>
         </section>

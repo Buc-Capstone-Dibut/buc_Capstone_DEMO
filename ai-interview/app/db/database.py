@@ -102,6 +102,19 @@ def init_db() -> None:
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS public.interview_report_jobs (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL UNIQUE REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
+            session_type VARCHAR(32) NOT NULL DEFAULT 'live_interview',
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            attempts INT NOT NULL DEFAULT 0,
+            max_attempts INT NOT NULL DEFAULT 3,
+            error TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS public.portfolio_sources (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
@@ -131,6 +144,10 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_eval_signals_session
         ON public.interview_eval_signals(session_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_report_jobs_status_created
+        ON public.interview_report_jobs(status, created_at)
         """,
     ]
 

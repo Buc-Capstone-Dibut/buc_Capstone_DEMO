@@ -236,6 +236,134 @@ class InterviewService:
                 )
             conn.commit()
 
+    def enqueue_report_job(self, session_id: str, session_type: str) -> dict[str, Any]:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, session_id, session_type, status, attempts, max_attempts, error, updated_at
+                    FROM public.interview_report_jobs
+                    WHERE session_id = %s
+                    """,
+                    (session_id,),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    # done/running/pending 상태면 중복 생성하지 않는다.
+                    if existing["status"] in {"done", "running", "pending"}:
+                        return existing
+
+                    # failed면 재시도를 위해 pending으로 재활성화
+                    cur.execute(
+                        """
+                        UPDATE public.interview_report_jobs
+                        SET
+                            status = 'pending',
+                            error = '',
+                            updated_at = now()
+                        WHERE session_id = %s
+                        RETURNING id, session_id, session_type, status, attempts, max_attempts, error, updated_at
+                        """,
+                        (session_id,),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    return row
+
+                job_id = str(uuid.uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO public.interview_report_jobs (
+                        id, session_id, session_type, status, attempts, max_attempts, error
+                    ) VALUES (%s, %s, %s, 'pending', 0, 3, '')
+                    RETURNING id, session_id, session_type, status, attempts, max_attempts, error, updated_at
+                    """,
+                    (job_id, session_id, session_type),
+                )
+                created = cur.fetchone()
+            conn.commit()
+        return created
+
+    def reserve_next_report_job(self) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM public.interview_report_jobs
+                    WHERE status = 'pending' AND attempts < max_attempts
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                    """
+                )
+                picked = cur.fetchone()
+                if not picked:
+                    conn.commit()
+                    return None
+
+                cur.execute(
+                    """
+                    UPDATE public.interview_report_jobs
+                    SET
+                        status = 'running',
+                        attempts = attempts + 1,
+                        updated_at = now()
+                    WHERE id = %s
+                    RETURNING id, session_id, session_type, status, attempts, max_attempts, error, updated_at
+                    """,
+                    (picked["id"],),
+                )
+                reserved = cur.fetchone()
+            conn.commit()
+        return reserved
+
+    def complete_report_job(self, job_id: str) -> None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE public.interview_report_jobs
+                    SET
+                        status = 'done',
+                        error = '',
+                        updated_at = now()
+                    WHERE id = %s
+                    """,
+                    (job_id,),
+                )
+            conn.commit()
+
+    def fail_report_job(self, job_id: str, error: str) -> None:
+        safe_error = (error or "unknown error")[:4000]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE public.interview_report_jobs
+                    SET
+                        status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'pending' END,
+                        error = %s,
+                        updated_at = now()
+                    WHERE id = %s
+                    """,
+                    (safe_error, job_id),
+                )
+            conn.commit()
+
+    def get_report_job(self, session_id: str) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, session_id, session_type, status, attempts, max_attempts, error, updated_at
+                    FROM public.interview_report_jobs
+                    WHERE session_id = %s
+                    """,
+                    (session_id,),
+                )
+                return cur.fetchone()
+
     def list_sessions(self, limit: int = 100) -> list[dict[str, Any]]:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -246,13 +374,15 @@ class InterviewService:
                         s.status,
                         s.created_at,
                         COALESCE(s.question_count, 0) AS question_count,
-                        COALESCE(t.turn_count, 0) AS event_count
+                        COALESCE(t.turn_count, 0) AS event_count,
+                        COALESCE(rj.status, '') AS report_status
                     FROM public.interview_sessions s
                     LEFT JOIN (
                         SELECT session_id, COUNT(*)::int AS turn_count
                         FROM public.interview_turns
                         GROUP BY session_id
                     ) t ON t.session_id = s.id
+                    LEFT JOIN public.interview_report_jobs rj ON rj.session_id = s.id
                     ORDER BY s.created_at DESC
                     LIMIT %s
                     """,
@@ -269,6 +399,7 @@ class InterviewService:
                 else row["created_at"],
                 "question_count": row["question_count"],
                 "event_count": row["event_count"],
+                "report_status": row.get("report_status") or "",
             }
             for row in rows
         ]
@@ -312,9 +443,11 @@ class InterviewService:
                         s.origin_session_id,
                         s.job_payload,
                         s.created_at,
-                        r.report_payload
+                        r.report_payload,
+                        COALESCE(rj.status, '') AS report_status
                     FROM public.interview_sessions s
                     LEFT JOIN public.interview_reports r ON r.session_id = s.id
+                    LEFT JOIN public.interview_report_jobs rj ON rj.session_id = s.id
                     {where_sql}
                     ORDER BY s.created_at DESC
                     LIMIT %s
@@ -346,6 +479,7 @@ class InterviewService:
                     if isinstance(row["created_at"], datetime)
                     else 0,
                     "analysis": report if report else None,
+                    "reportStatus": row.get("report_status") or "",
                 }
             )
         return result
@@ -377,6 +511,16 @@ class InterviewService:
                     (session_id,),
                 )
                 report = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT status, attempts, max_attempts, error, updated_at
+                    FROM public.interview_report_jobs
+                    WHERE session_id = %s
+                    """,
+                    (session_id,),
+                )
+                report_job = cur.fetchone()
 
         debug_events: list[dict[str, Any]] = []
         for turn in turns:
@@ -410,6 +554,13 @@ class InterviewService:
             "closing_announced": bool(session.get("closing_announced", False)),
             "debug_events": debug_events,
             "analysis": (report or {}).get("report_payload", {}),
+            "reportStatus": (report_job or {}).get("status", ""),
+            "reportAttempts": (report_job or {}).get("attempts", 0),
+            "reportMaxAttempts": (report_job or {}).get("max_attempts", 0),
+            "reportError": (report_job or {}).get("error", ""),
+            "reportUpdatedAt": int((report_job or {}).get("updated_at").timestamp())
+            if isinstance((report_job or {}).get("updated_at"), datetime)
+            else 0,
             "planned_questions": session.get("planned_questions") or [],
             "jd_text": session.get("jd_text") or "",
             "resume_text": session.get("resume_text") or "",

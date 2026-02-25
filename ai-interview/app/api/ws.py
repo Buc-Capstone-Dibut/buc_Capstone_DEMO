@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -38,6 +39,8 @@ MAX_DYNAMIC_QUESTIONS = 9
 SESSION_GRACE_SEC = 20
 CLOSING_ANNOUNCE_PREFIX = "시간 관계상 마지막 질문 드리겠습니다."
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
+LLM_STREAM_MODES = {"final", "delta"}
+TTS_MODES = {"full", "sentence"}
 
 
 @lru_cache
@@ -149,6 +152,44 @@ def _coerce_audio_chunk(payload: Any, max_len: int = 16000) -> list[float]:
     return chunk
 
 
+def _normalize_llm_stream_mode(mode: Any) -> str:
+    if isinstance(mode, str):
+        lowered = mode.strip().lower()
+        if lowered in LLM_STREAM_MODES:
+            return lowered
+    return "final"
+
+
+def _normalize_tts_mode(mode: Any) -> str:
+    if isinstance(mode, str):
+        lowered = mode.strip().lower()
+        if lowered in TTS_MODES:
+            return lowered
+    return "full"
+
+
+def _split_complete_sentences(buffer: str) -> tuple[list[str], str]:
+    sentences: list[str] = []
+    start = 0
+    for idx, ch in enumerate(buffer):
+        if ch in ".!?":
+            sentence = buffer[start:idx + 1].strip()
+            if sentence:
+                sentences.append(sentence)
+            start = idx + 1
+    remainder = buffer[start:]
+
+    # 안전장치: 종결부호가 없어도 지나치게 길어지면 공백 기준으로 끊어 TTS 지연을 줄인다.
+    if len(remainder) > 180 and " " in remainder:
+        cut = remainder.rfind(" ")
+        sentence = remainder[:cut].strip()
+        if sentence:
+            sentences.append(sentence)
+        remainder = remainder[cut + 1:]
+
+    return sentences, remainder
+
+
 def _to_chat_history(turns: list[dict[str, Any]]) -> list[dict[str, str]]:
     history: list[dict[str, str]] = []
     for turn in turns:
@@ -175,6 +216,8 @@ class VoiceWsState:
     closing_threshold_sec: int = DEFAULT_CLOSING_THRESHOLD_SEC
     estimated_total_questions: int = _estimated_total_questions(DEFAULT_TARGET_DURATION_SEC)
     planned_questions: list[dict[str, Any]] = field(default_factory=list)
+    llm_stream_mode: str = "final"
+    tts_mode: str = "full"
     processing_audio: bool = False
     vad: VadSegmenter = field(
         default_factory=lambda: VadSegmenter(
@@ -222,6 +265,28 @@ async def _send_transcript(ws: WebSocket, session_id: str, role: str, text: str)
     )
 
 
+async def _send_transcript_delta(
+    ws: WebSocket,
+    session_id: str,
+    role: str,
+    delta: str,
+    accumulated_text: str,
+    sequence: int,
+) -> bool:
+    return await _send_json(
+        ws,
+        {
+            "type": "transcript.delta",
+            "role": role,
+            "delta": delta,
+            "accumulatedText": accumulated_text,
+            "sessionId": session_id,
+            "seq": sequence,
+            "timestamp": int(time.time()),
+        },
+    )
+
+
 def _build_context(state: VoiceWsState) -> dict[str, Any]:
     return {
         "jobData": state.job_data,
@@ -248,6 +313,51 @@ async def _ensure_plan(state: VoiceWsState) -> None:
         await asyncio.to_thread(service.set_planned_questions, state.session_id, planned_questions)
     except Exception:
         logger.exception("failed to build planned questions", extra={"session_id": state.session_id})
+
+
+async def _iter_streaming_question_chunks(
+    gemini: GeminiService,
+    *,
+    context: dict[str, Any],
+    chat_history: list[dict[str, str]],
+    question_index: int,
+    planned_questions: list[dict[str, Any]],
+    current_phase: str,
+    answer_quality_hint: str,
+    total_questions: int,
+):
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+
+    def worker() -> None:
+        try:
+            for chunk in gemini.stream_next_question_text(
+                context=context,
+                chat_history=chat_history,
+                question_index=question_index,
+                planned_questions=planned_questions,
+                current_phase=current_phase,
+                answer_quality_hint=answer_quality_hint,
+                total_questions=total_questions,
+            ):
+                if not chunk:
+                    continue
+                loop.call_soon_threadsafe(queue.put_nowait, ("chunk", chunk))
+        except Exception as exc:  # pragma: no cover - defensive
+            loop.call_soon_threadsafe(queue.put_nowait, ("error", exc))
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    while True:
+        message_type, payload = await queue.get()
+        if message_type == "chunk":
+            yield str(payload)
+            continue
+        if message_type == "error":
+            raise payload
+        return
 
 
 async def _speak_text(ws: WebSocket, session_id: str, text: str) -> bool:
@@ -326,6 +436,10 @@ async def _generate_and_send_ai_turn(
     elif (session or {}).get("status") == "completed":
         completion_reason = "already_completed"
 
+    used_delta_stream = False
+    sentence_tts_complete = False
+    streamed_delta_count = 0
+
     if completion_reason:
         ai_text = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
         state.current_phase = "closing"
@@ -351,18 +465,136 @@ async def _generate_and_send_ai_turn(
         gemini = get_gemini_service()
 
         if gemini:
-            generated = await asyncio.to_thread(
-                gemini.generate_next_question_structured,
-                _build_context(state),
-                history,
-                question_index,
-                state.planned_questions,
-                phase,
-                answer_quality_hint,
-                question_index if should_announce_closing else estimated_total_questions,
-            )
-            ai_text = (generated.get("question") or "").strip()
-            state.current_phase = "closing" if should_announce_closing else (generated.get("phase") or phase)
+            prompt_total_questions = question_index if should_announce_closing else estimated_total_questions
+            if state.llm_stream_mode == "delta":
+                used_delta_stream = True
+                streamed_text = ""
+                delta_seq = 0
+                sentence_buffer = ""
+                state.current_phase = "closing" if should_announce_closing else phase
+
+                sentence_queue: asyncio.Queue[str | None] | None = None
+                sentence_task: asyncio.Task[None] | None = None
+                sentence_tts_ok = True
+
+                if state.tts_mode == "sentence":
+                    sentence_queue = asyncio.Queue()
+
+                    async def _sentence_tts_worker() -> None:
+                        nonlocal sentence_tts_ok
+                        speaking = False
+                        while True:
+                            sentence = await sentence_queue.get()
+                            if sentence is None:
+                                break
+                            sentence = sentence.strip()
+                            if not sentence:
+                                continue
+                            if not speaking:
+                                if not await _send_avatar_state(ws, "speaking", state.session_id):
+                                    sentence_tts_ok = False
+                                    return
+                                speaking = True
+                            if not await _speak_text(ws, state.session_id, sentence):
+                                sentence_tts_ok = False
+                                return
+                        if speaking and not await _send_avatar_state(ws, "idle", state.session_id):
+                            sentence_tts_ok = False
+
+                    sentence_task = asyncio.create_task(_sentence_tts_worker())
+
+                try:
+                    async for delta_chunk in _iter_streaming_question_chunks(
+                        gemini,
+                        context=_build_context(state),
+                        chat_history=history,
+                        question_index=question_index,
+                        planned_questions=state.planned_questions,
+                        current_phase=phase,
+                        answer_quality_hint=answer_quality_hint,
+                        total_questions=prompt_total_questions,
+                    ):
+                        if not delta_chunk:
+                            continue
+                        streamed_text += delta_chunk
+                        delta_seq += 1
+                        streamed_delta_count = delta_seq
+                        if not await _send_transcript_delta(
+                            ws,
+                            state.session_id,
+                            "ai",
+                            delta_chunk,
+                            streamed_text,
+                            delta_seq,
+                        ):
+                            return {"completed": True, "text": streamed_text}
+
+                        if sentence_queue is not None:
+                            sentence_buffer += delta_chunk
+                            ready_sentences, sentence_buffer = _split_complete_sentences(sentence_buffer)
+                            for sentence in ready_sentences:
+                                await sentence_queue.put(sentence)
+
+                    ai_text = gemini.finalize_streamed_question(
+                        text=streamed_text,
+                        context=_build_context(state),
+                        question_index=question_index,
+                        planned_questions=state.planned_questions,
+                        current_phase=phase,
+                        total_questions=prompt_total_questions,
+                    )
+
+                    if sentence_queue is not None:
+                        merged_remainder = sentence_buffer
+                        if ai_text != streamed_text:
+                            if ai_text.startswith(streamed_text):
+                                suffix = ai_text[len(streamed_text):].strip()
+                                if suffix:
+                                    merged_remainder = f"{merged_remainder} {suffix}".strip()
+                            else:
+                                merged_remainder = ai_text
+                        ready_sentences, sentence_buffer = _split_complete_sentences(merged_remainder)
+                        for sentence in ready_sentences:
+                            await sentence_queue.put(sentence)
+                        tail = sentence_buffer.strip()
+                        if tail:
+                            await sentence_queue.put(tail)
+                        await sentence_queue.put(None)
+                        if sentence_task is not None:
+                            await sentence_task
+                            sentence_tts_complete = sentence_tts_ok
+                except Exception:
+                    logger.exception("delta streaming failed, fallback to non-streaming", extra={"session_id": state.session_id})
+                    used_delta_stream = False
+                    if sentence_queue is not None:
+                        await sentence_queue.put(None)
+                        if sentence_task is not None:
+                            await sentence_task
+                    generated = await asyncio.to_thread(
+                        gemini.generate_next_question_structured,
+                        _build_context(state),
+                        history,
+                        question_index,
+                        state.planned_questions,
+                        phase,
+                        answer_quality_hint,
+                        prompt_total_questions,
+                    )
+                    ai_text = (generated.get("question") or "").strip()
+                    state.current_phase = "closing" if should_announce_closing else (generated.get("phase") or phase)
+            else:
+                generated = await asyncio.to_thread(
+                    gemini.generate_next_question_structured,
+                    _build_context(state),
+                    history,
+                    question_index,
+                    state.planned_questions,
+                    phase,
+                    answer_quality_hint,
+                    prompt_total_questions,
+                )
+                ai_text = (generated.get("question") or "").strip()
+                state.current_phase = "closing" if should_announce_closing else (generated.get("phase") or phase)
         else:
             ai_text = "음성 면접 엔진이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요."
             state.current_phase = phase
@@ -384,6 +616,9 @@ async def _generate_and_send_ai_turn(
             "target_duration_sec": target_duration_sec,
             "closing_threshold_sec": closing_threshold_sec,
             "estimated_total_questions": estimated_total_questions,
+            "stream_mode": "delta" if used_delta_stream else "final",
+            "tts_mode": state.tts_mode if used_delta_stream else "full",
+            "delta_count": streamed_delta_count,
         }
         await asyncio.to_thread(
             service.append_turn,
@@ -427,12 +662,16 @@ async def _generate_and_send_ai_turn(
     if not await _send_json(ws, {"type": "full-text", "text": ai_text}):
         return {"completed": True, "text": ai_text}
 
-    if not await _send_avatar_state(ws, "speaking", state.session_id):
-        return {"completed": True, "text": ai_text}
-    if not await _speak_text(ws, state.session_id, ai_text):
-        return {"completed": True, "text": ai_text}
-    if not await _send_avatar_state(ws, "idle", state.session_id):
-        return {"completed": True, "text": ai_text}
+    if used_delta_stream and state.tts_mode == "sentence":
+        if not sentence_tts_complete:
+            return {"completed": True, "text": ai_text}
+    else:
+        if not await _send_avatar_state(ws, "speaking", state.session_id):
+            return {"completed": True, "text": ai_text}
+        if not await _speak_text(ws, state.session_id, ai_text):
+            return {"completed": True, "text": ai_text}
+        if not await _send_avatar_state(ws, "idle", state.session_id):
+            return {"completed": True, "text": ai_text}
 
     is_complete = bool(completion_reason)
     if not is_complete:
@@ -538,6 +777,8 @@ async def client_ws(websocket: WebSocket):
                 "llm": f"gemini:{settings.gemini_model}" if settings.gemini_api_key else "disabled",
                 "livekit": "configured" if settings.livekit_url else "not-configured",
                 "mode": "voice",
+                "llmStreamModes": sorted(LLM_STREAM_MODES),
+                "ttsModes": sorted(TTS_MODES),
             },
         ):
             return
@@ -575,6 +816,8 @@ async def client_ws(websocket: WebSocket):
                 personality = data.get("style", "professional")
                 target_duration_sec = _clamp_target_duration(data.get("targetDurationSec"))
                 closing_threshold_sec = _clamp_closing_threshold(data.get("closingThresholdSec"))
+                llm_stream_mode = _normalize_llm_stream_mode(data.get("llmStreamMode"))
+                tts_mode = _normalize_tts_mode(data.get("ttsMode"))
 
                 raw_job_data = data.get("jobData")
                 if isinstance(raw_job_data, dict):
@@ -616,6 +859,8 @@ async def client_ws(websocket: WebSocket):
                 state.closing_threshold_sec = closing_threshold_sec
                 state.estimated_total_questions = _estimated_total_questions(target_duration_sec)
                 state.planned_questions = []
+                state.llm_stream_mode = llm_stream_mode
+                state.tts_mode = tts_mode
                 state.vad = VadSegmenter(
                     sample_rate=16000,
                     threshold=settings.voice_vad_threshold,
@@ -634,6 +879,8 @@ async def client_ws(websocket: WebSocket):
                         "targetDurationSec": target_duration_sec,
                         "closingThresholdSec": closing_threshold_sec,
                         "estimatedTotalQuestions": state.estimated_total_questions,
+                        "llmStreamMode": state.llm_stream_mode,
+                        "ttsMode": state.tts_mode,
                     },
                 )
                 await _send_avatar_state(websocket, "idle", session["id"])

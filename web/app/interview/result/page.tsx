@@ -179,6 +179,17 @@ export default function InterviewResultPage() {
               {analysisResult.feedback.strengths[0]} 장점이 돋보이는 면접이었습니다. 다만{" "}
               {analysisResult.feedback.improvements[0]} 부분을 보완하면 훨씬 완벽한 지원자가 될 것입니다.
             </p>
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <Badge variant="outline" className="text-[11px] border-primary/20 text-primary/80">
+                설계 의도 설명 · 60점 배점
+              </Badge>
+              <Badge variant="outline" className="text-[11px] border-primary/20 text-primary/80">
+                코드 품질 · 10점 배점
+              </Badge>
+              <Badge variant="outline" className="text-[11px] border-primary/20 text-primary/80">
+                AI 활용 · 30점 배점
+              </Badge>
+            </div>
           </motion.div>
         </div>
 

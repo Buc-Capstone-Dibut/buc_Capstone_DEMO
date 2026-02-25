@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import router as admin_router
+from app.api.interview import report_agent as interview_report_agent
 from app.api.interview import router as interview_router
 from app.api.ws import router as ws_router
 from app.config import settings
@@ -58,6 +59,12 @@ async def structured_logging_middleware(request: Request, call_next):
 @app.on_event("startup")
 def startup_event() -> None:
     init_db()
+    interview_report_agent.start()
+
+
+@app.on_event("shutdown")
+def shutdown_event() -> None:
+    interview_report_agent.stop()
 
 
 @app.get("/health")

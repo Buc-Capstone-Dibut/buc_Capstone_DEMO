@@ -19,9 +19,14 @@ from app.schemas.interview import (
 )
 from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService
+from app.services.report_agent import ReportAgent
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
 service = InterviewService()
+report_agent = ReportAgent(
+    interview_service=service,
+    gemini_factory=lambda: get_gemini_service(),
+)
 
 DEFAULT_TARGET_DURATION_SEC = 7 * 60
 MIN_TARGET_DURATION_SEC = 5 * 60
@@ -660,21 +665,12 @@ async def portfolio_chat(
 
             service.update_session_status(session_id, "completed", current_phase="closing")
 
-            # 포트폴리오 완료 시 60/10/30 루브릭 분석 및 저장
+            # 포트폴리오 완료 시 리포트 에이전트 큐에 적재 (비동기 후처리).
             try:
-                history_for_analysis = [{"role": t["role"], "parts": t["content"]} for t in turns]
-                report = gemini.analyze_weighted(
-                    context=job_data,
-                    chat_history=history_for_analysis,
-                    session_type="portfolio_defense",
-                )
-                service.save_comparison_report(
-                    session_id,
-                    report,
-                    {"sessionType": "portfolio_defense", "repoUrl": job_data.get("repoUrl", "")},
-                )
+                report_agent.enqueue(session_id=session_id, session_type="portfolio_defense")
             except Exception:
-                pass  # 분석 실패해도 세션 완료 응답은 정상 반환
+                # 큐 적재 실패해도 세션 완료 응답은 정상 반환
+                pass
 
             meta = _build_runtime_meta(
                 target_duration_sec=target_duration_sec,

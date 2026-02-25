@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import json
 import re
-from typing import Any, Type
+from typing import Any, Iterator, Type
 
 import google.generativeai as genai
 import httpx
@@ -318,6 +318,34 @@ Output JSON Format:
         job_data = context.get("jobData", {}) or {}
         resume_data = context.get("resumeData", {}) or {}
 
+        # JD gap 분석: 이력서 스킬 텍스트 구성
+        requirements = _to_string_list(job_data.get("requirements", []))
+        skill_texts: list[str] = []
+        for s in (resume_data.get("skills") or []):
+            if isinstance(s, dict):
+                skill_texts.append(str(s.get("name", "")).strip())
+            else:
+                skill_texts.append(str(s).strip())
+        for exp in (resume_data.get("experience") or []):
+            if isinstance(exp, dict):
+                for sk in _to_string_list(exp.get("skills", [])):
+                    skill_texts.append(sk)
+        resume_skills_text = " ".join(t for t in skill_texts if t).lower()
+
+        unmatched: list[str] = []
+        for req in requirements:
+            req_lower = req.lower()
+            words = [w for w in req_lower.split() if len(w) > 2]
+            if words and not any(w in resume_skills_text for w in words):
+                unmatched.append(req)
+            if len(unmatched) >= 3:
+                break
+
+        gap_section = ""
+        if unmatched:
+            items = "\n".join(f"- {r}" for r in unmatched)
+            gap_section = f"\n[미매칭 JD 요구사항 - 이 항목을 다루는 질문 1개 이상 포함]\n{items}"
+
         prompt = f"""
 당신은 시니어 기술 면접관입니다.
 아래 JD와 이력서를 기반으로 "5문항 고정" 질문 설계를 JSON으로 작성하세요.
@@ -351,7 +379,7 @@ JSON 형식:
       "evaluationSignals": ["평가 신호1", "평가 신호2"]
     }}
   ]
-}}
+}}{gap_section}
 """
 
         attempt = 0
@@ -546,6 +574,159 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
             "rationale": rationale,
             "expectedSignal": expected_signal,
         }
+
+    def stream_next_question_text(
+        self,
+        context: dict[str, Any],
+        chat_history: list[dict[str, str]],
+        question_index: int,
+        planned_questions: list[dict[str, Any]] | None = None,
+        current_phase: str = "introduction",
+        answer_quality_hint: str = "",
+        total_questions: int = 5,
+    ) -> Iterator[str]:
+        safe_total_questions = max(3, min(12, int(total_questions or 5)))
+        if question_index > safe_total_questions:
+            yield f"면접이 종료되었습니다. {CLOSING_SENTENCE}"
+            return
+
+        personality = context.get("personality", "professional")
+        tone_description = self._tone_description(personality)
+        normalized_plan = self._normalize_plan(context=context, raw_plan=planned_questions)
+        if question_index <= len(normalized_plan):
+            plan_item = normalized_plan[question_index - 1]
+        else:
+            followup_phase: InterviewPhase = "technical"
+            if current_phase in ("experience", "problem_solving"):
+                followup_phase = current_phase
+            if question_index >= safe_total_questions:
+                followup_phase = "closing"
+
+            plan_item = QuestionPlanItem(
+                slot=5,
+                phase=followup_phase,
+                intent="직전 답변의 근거와 의사결정 품질을 깊게 검증",
+                questionBlueprint="직전 답변에서 수치/대안/재현성을 확인하는 꼬리질문",
+                targetCompetency="근거 기반 문제 해결력",
+                evaluationSignals=["수치 근거", "대안 비교", "트레이드오프 설명"],
+            )
+
+        previous_answer = self._last_user_answer(chat_history)
+        phase_hint = plan_item.phase if question_index <= len(normalized_plan) else current_phase
+        if question_index >= safe_total_questions:
+            phase_hint = "closing"
+
+        asked_questions = [m.get("parts", "") for m in chat_history if m.get("role") == "model"]
+        recent_history = chat_history[-8:]
+
+        prompt = f"""
+당신은 숙련된 기술 면접관입니다.
+이번 턴에서 지원자에게 전달할 질문 "한 문장"만 생성하세요.
+설명문/서론 없이 질문 텍스트만 출력하고, JSON/마크다운/따옴표를 사용하지 마세요.
+
+[질문 슬롯]
+question_index: {question_index} / {safe_total_questions}
+phase: {phase_hint}
+
+[면접관 톤]
+{tone_description}
+
+[현재 설계 문항]
+intent: {plan_item.intent}
+questionBlueprint: {plan_item.questionBlueprint}
+targetCompetency: {plan_item.targetCompetency}
+evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
+
+[답변 품질 힌트]
+{answer_quality_hint or "없음"}
+
+[직전 지원자 답변]
+{previous_answer or "직전 답변 없음"}
+
+[이미 사용한 질문]
+{json.dumps(asked_questions, ensure_ascii=False)}
+
+[최근 대화 이력]
+{json.dumps(recent_history, ensure_ascii=False)}
+
+강제 규칙:
+1) 질문은 정확히 1개만 제시
+2) 동일 의미 질문 반복 금지
+3) 한국어로 작성
+4) {question_index}번 문항이 마지막 턴이면 질문 끝에 반드시 "{CLOSING_SENTENCE}" 포함
+5) 인사/설명문 없이 질문 핵심부터 시작
+"""
+
+        emitted = False
+        try:
+            stream = self.model.generate_content(prompt, stream=True)
+            for chunk in stream:
+                text = self._response_text(chunk)
+                if not text:
+                    continue
+                emitted = True
+                yield text
+            if emitted:
+                return
+        except TypeError:
+            # SDK/모델이 stream 파라미터를 지원하지 않으면 fallback으로 전환.
+            pass
+        except Exception:
+            # 스트리밍 실패 시에도 면접은 계속 진행되어야 하므로 fallback.
+            pass
+
+        fallback = self.generate_next_question_structured(
+            context=context,
+            chat_history=chat_history,
+            question_index=question_index,
+            planned_questions=planned_questions,
+            current_phase=current_phase,
+            answer_quality_hint=answer_quality_hint,
+            total_questions=total_questions,
+        )
+        yield fallback.get("question", "")
+
+    def finalize_streamed_question(
+        self,
+        *,
+        text: str,
+        context: dict[str, Any],
+        question_index: int,
+        planned_questions: list[dict[str, Any]] | None = None,
+        current_phase: str = "introduction",
+        total_questions: int = 5,
+    ) -> str:
+        safe_total_questions = max(3, min(12, int(total_questions or 5)))
+        normalized_plan = self._normalize_plan(context=context, raw_plan=planned_questions)
+
+        if question_index <= len(normalized_plan):
+            plan_item = normalized_plan[question_index - 1]
+        else:
+            followup_phase: InterviewPhase = "technical"
+            if current_phase in ("experience", "problem_solving"):
+                followup_phase = current_phase
+            if question_index >= safe_total_questions:
+                followup_phase = "closing"
+            plan_item = QuestionPlanItem(
+                slot=5,
+                phase=followup_phase,
+                intent="직전 답변의 근거와 의사결정 품질을 깊게 검증",
+                questionBlueprint="직전 답변에서 수치/대안/재현성을 확인하는 꼬리질문",
+                targetCompetency="근거 기반 문제 해결력",
+                evaluationSignals=["수치 근거", "대안 비교", "트레이드오프 설명"],
+            )
+
+        question = self._sanitize_question(text)
+        if not question:
+            question = self._sanitize_question(self._fallback_question(question_index, plan_item, context))
+
+        if question_index >= safe_total_questions and CLOSING_SENTENCE not in question:
+            question = f"{question} {CLOSING_SENTENCE}".strip()
+
+        if self._is_biased_question(question):
+            question = self._sanitize_question(self._fallback_question(question_index, plan_item, context))
+
+        return question
 
     def generate_next_question(
         self,
