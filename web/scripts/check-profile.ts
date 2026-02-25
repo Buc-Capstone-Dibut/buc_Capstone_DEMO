@@ -31,6 +31,7 @@ async function main() {
     await prisma.profiles.create({
       data: {
         id: targetId,
+        handle: `user-${targetId.slice(0, 8).toLowerCase()}`,
         nickname: "복구된 유저",
         avatar_url: "",
       },

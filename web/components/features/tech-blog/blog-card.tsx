@@ -1,16 +1,14 @@
 "use client";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { BookmarkSkeleton } from "@/components/shared/bookmark-skeleton";
 import { BookmarkButton } from "@/components/shared/bookmark-button";
 import { Badge } from "@/components/ui/badge";
 
-import { Building2, Calendar, Eye, User, Plus, Check } from "lucide-react";
+import { Building2, Calendar, Eye, Plus, Check } from "lucide-react";
 import Image from "next/image";
 import { incrementViews, type Blog } from "@/lib/supabase";
 import { getLogoUrl } from "@/lib/logos";
 import { useState } from "react";
-import { isFlutterWebView } from "@/lib/webview-bridge";
 
 interface BlogCardProps {
   blog: Blog;
@@ -31,7 +29,7 @@ export function BlogCard({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
 
-  const handleLinkClick = async (e: React.MouseEvent) => {
+  const handleLinkClick = async () => {
     // 조회수 증가 (백그라운드에서 실행)
     try {
       incrementViews(blog.id);
@@ -179,13 +177,7 @@ export function BlogCard({
       </a>
 
       {/* 북마크 버튼 */}
-      <div
-        className={`absolute top-3 right-3 transition-opacity duration-200 ${
-          isFlutterWebView()
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100"
-        }`}
-      >
+      <div className="absolute top-3 right-3 z-10 rounded-full border border-border/50 bg-background/90 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <BookmarkButton
           blogId={blog.id}
           onLoginClick={onLoginClick}

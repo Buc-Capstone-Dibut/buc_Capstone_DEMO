@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
 // Helper to validate User ID from Request body or Headers (if Auth middleware passes it)
 // For this API route, we assume the Client sends user_id/author_id, OR we should technically verify session.
@@ -37,6 +38,12 @@ export async function POST(request: Request) {
         likes: 0,
       },
     });
+
+    await logUserActivityEvent(
+      user_id,
+      MY_ACTIVITY_EVENT_TYPES.communityPostCreated,
+      post.id,
+    );
 
     return NextResponse.json({ success: true, id: post.id });
   } catch (e: any) {

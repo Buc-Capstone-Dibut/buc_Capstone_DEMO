@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
 // GET: List My Workspaces
 export async function GET(request: Request) {
@@ -181,6 +182,12 @@ export async function POST(request: Request) {
 
       return newWorkspace;
     });
+
+    await logUserActivityEvent(
+      userId,
+      MY_ACTIVITY_EVENT_TYPES.workspaceCreated,
+      workspace.id,
+    );
 
     return NextResponse.json(workspace);
   } catch (error: any) {

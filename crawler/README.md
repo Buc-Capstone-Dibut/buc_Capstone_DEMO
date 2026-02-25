@@ -17,6 +17,8 @@ uv sync
 cp .env.example .env
 ```
 
+환경 변수는 `프로젝트 루트 .env` → `web/.env.local` → `crawler/.env` 순으로 모두 로드되며, 뒤 파일 값이 앞 값을 override 합니다.
+
 ### 선택 환경 변수 (출력 경로/테이블)
 
 `src/common/config/settings.py`에서 아래 값을 단일 로딩합니다.
@@ -25,7 +27,6 @@ cp .env.example .env
 # web/public/data 기본 경로를 바꾸고 싶을 때
 WEB_DATA_DIR=
 DEV_EVENT_JSON_PATH=
-SARAMIN_JOBS_JSON_PATH=
 
 # Supabase 테이블명 커스텀
 SUPABASE_BLOGS_TABLE=blogs
@@ -41,26 +42,10 @@ SUPABASE_BLOGS_TABLE=blogs
 uv run python -m src.apps.tech_blog.cli
 ```
 
-### 2) Saramin 채용공고
-
-```bash
-uv run python -m src.apps.saramin.cli --limit 20
-```
-
-### 3) Dev Event
+### 2) Dev Event
 
 ```bash
 uv run python -m src.apps.dev_event.cli --limit 10
-```
-
-### 4) Job Post
-
-```bash
-# 원문 텍스트 추출
-uv run python -m src.apps.job_post.cli crawl-text "<job_url>"
-
-# Firecrawl + AI 분석
-uv run python -m src.apps.job_post.cli analyze "<job_url>"
 ```
 
 ## 리팩토링 문서

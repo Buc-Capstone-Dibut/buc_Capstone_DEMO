@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       await prisma.profiles.create({
         data: {
           id: leaderId,
+          handle: `user-${String(leaderId).slice(0, 8).toLowerCase()}`,
           nickname: "User", // Default nickname
           // other fields have defaults or are optional
         },

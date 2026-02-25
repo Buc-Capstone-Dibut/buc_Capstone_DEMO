@@ -8,7 +8,9 @@ import { TAG_FILTER_OPTIONS, type TagCategory } from "@/lib/tag-filters";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TechBlogListLayout } from "@/components/layout/tech-blog-list-layout";
 import { WeeklyPopular } from "@/components/features/tech-blog/weekly-popular";
+import { TagArchive } from "@/components/features/tech-blog/tag-archive";
 import { useBlogData } from "@/hooks/use-blog-data";
+import { useTagCounts } from "@/hooks/use-tag-counts";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { fetchWeeklyPopularBlogs, type Blog } from "@/lib/supabase";
 
@@ -20,6 +22,7 @@ export default function TechBlogPage() {
     const [page, setPage] = useState(1);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [popularBlogs, setPopularBlogs] = useState<Blog[]>([]);
+    const { tagCounts, loading: tagCountsLoading } = useTagCounts(tagCategory);
 
     useEffect(() => {
         const loadPopular = async () => {
@@ -35,6 +38,13 @@ export default function TechBlogPage() {
         selectedSubTags,
         page,
     });
+
+    const toggleArchiveTag = (tag: string) => {
+        setSelectedSubTags((prev) =>
+            prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+        );
+        setPage(1);
+    };
 
     return (
         <div className="w-full min-h-screen bg-background text-foreground">
@@ -64,9 +74,11 @@ export default function TechBlogPage() {
                             value={tagCategory}
                             options={TAG_FILTER_OPTIONS}
                             selectedSubTags={selectedSubTags}
-                            availableTags={[]}
+                            availableTags={tagCounts}
+                            showSubTags={false}
                             onChange={(val) => {
                                 setTagCategory(val as TagCategory);
+                                setSelectedSubTags([]);
                                 setPage(1);
                             }}
                             onSubTagChange={(tags) => {
@@ -91,6 +103,20 @@ export default function TechBlogPage() {
                             onViewModeChange={setViewMode}
                         />
                     </div>
+                </div>
+
+                <div className="mb-8 lg:hidden">
+                    <TagArchive
+                        category={tagCategory}
+                        tagCounts={tagCounts}
+                        loading={tagCountsLoading}
+                        selectedTags={selectedSubTags}
+                        onToggleTag={toggleArchiveTag}
+                        onClearTags={() => {
+                            setSelectedSubTags([]);
+                            setPage(1);
+                        }}
+                    />
                 </div>
 
                 {/* Content Layout with Sidebar */}
@@ -121,6 +147,17 @@ export default function TechBlogPage() {
                     {/* Sidebar (3 Cols) */}
                     <aside className="col-span-12 lg:col-span-3">
                         <Sidebar className="top-[130px] sticky">
+                            <TagArchive
+                                category={tagCategory}
+                                tagCounts={tagCounts}
+                                loading={tagCountsLoading}
+                                selectedTags={selectedSubTags}
+                                onToggleTag={toggleArchiveTag}
+                                onClearTags={() => {
+                                    setSelectedSubTags([]);
+                                    setPage(1);
+                                }}
+                            />
                             <WeeklyPopular blogs={popularBlogs} />
                         </Sidebar>
                     </aside>

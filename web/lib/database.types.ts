@@ -12,6 +12,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          handle: string | null;
           nickname: string | null;
           avatar_url: string | null;
           bio: string | null;
@@ -23,6 +24,7 @@ export interface Database {
         };
         Insert: {
           id: string;
+          handle?: string | null;
           nickname?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
@@ -34,6 +36,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          handle?: string | null;
           nickname?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
@@ -42,6 +45,101 @@ export interface Database {
           tech_stack?: string[] | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      user_resume_profiles: {
+        Row: {
+          user_id: string;
+          resume_payload: Json;
+          public_summary: Json;
+          source_type: string;
+          source_file_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          resume_payload: Json;
+          public_summary: Json;
+          source_type?: string;
+          source_file_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          resume_payload?: Json;
+          public_summary?: Json;
+          source_type?: string;
+          source_file_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      user_workspace_settings: {
+        Row: {
+          user_id: string;
+          settings_payload: Json;
+          public_summary: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          settings_payload: Json;
+          public_summary: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          settings_payload?: Json;
+          public_summary?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      blog_bookmarks: {
+        Row: {
+          id: string;
+          user_id: string;
+          blog_id: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          blog_id: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          blog_id?: number;
+          created_at?: string;
+        };
+      };
+      user_activity_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: string;
+          ref_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_type: string;
+          ref_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          event_type?: string;
+          ref_id?: string | null;
+          created_at?: string;
         };
       };
       posts: {

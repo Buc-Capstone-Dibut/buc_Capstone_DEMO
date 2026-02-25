@@ -14,6 +14,7 @@ export type UserPreferences = Record<string, string | number | boolean | null>;
 // 사용자 프로필 타입
 export interface UserProfile {
   id: string;
+  handle?: string | null;
   nickname: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -140,6 +141,7 @@ export async function upsertUserProfile(
   // profiles 테이블에 있는 필드만 추출
   const dbProfile = {
     id: profile.id,
+    handle: profile.handle,
     nickname: profile.nickname,
     avatar_url: profile.avatar_url,
     bio: profile.bio,

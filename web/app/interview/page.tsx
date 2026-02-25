@@ -15,6 +15,10 @@ export default function InterviewPage() {
     router.push('/interview/training');
   };
 
+  const handleImportFromMyPage = () => {
+    router.push("/interview/setup?import=active_resume");
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
        <GlobalHeader />
@@ -22,6 +26,7 @@ export default function InterviewPage() {
           <InterviewDashboard
             onStartNew={handleStartNew}
             onOpenTraining={handleOpenTraining}
+            onImportFromMyPage={handleImportFromMyPage}
           />
        </main>
     </div>

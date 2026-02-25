@@ -27,6 +27,11 @@ class InterviewService:
         job_data: Any,
         resume_data: Any,
         status: str = "created",
+        session_type: str = "live_interview",
+        origin_session_id: str | None = None,
+        origin_turn_id: str | None = None,
+        target_duration_sec: int = 420,
+        closing_threshold_sec: int = 60,
     ) -> dict[str, Any]:
         session_id = str(uuid.uuid4())
 
@@ -35,14 +40,17 @@ class InterviewService:
                 cur.execute(
                     """
                     INSERT INTO public.interview_sessions (
-                        id, user_id, mode, personality, status,
-                        job_payload, resume_payload, jd_text, resume_text
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        id, user_id, session_type, mode, personality, status,
+                        job_payload, resume_payload, jd_text, resume_text,
+                        origin_session_id, origin_turn_id,
+                        target_duration_sec, closing_threshold_sec, closing_announced, started_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, now())
                     RETURNING *
                     """,
                     (
                         session_id,
                         user_id,
+                        session_type,
                         mode,
                         personality,
                         status,
@@ -50,6 +58,10 @@ class InterviewService:
                         Jsonb(resume_data or {}),
                         _to_text_snapshot(job_data),
                         _to_text_snapshot(resume_data),
+                        origin_session_id,
+                        origin_turn_id,
+                        max(60, int(target_duration_sec or 420)),
+                        max(10, int(closing_threshold_sec or 60)),
                     ),
                 )
                 created = cur.fetchone()
@@ -157,20 +169,42 @@ class InterviewService:
                     cur.execute(
                         """
                         UPDATE public.interview_sessions
-                        SET status = %s, current_phase = %s, updated_at = now()
+                        SET
+                            status = %s,
+                            current_phase = %s,
+                            updated_at = now(),
+                            started_at = COALESCE(started_at, now()),
+                            ended_at = CASE WHEN %s = 'completed' THEN now() ELSE ended_at END
                         WHERE id = %s
                         """,
-                        (status, current_phase, session_id),
+                        (status, current_phase, status, session_id),
                     )
                 else:
                     cur.execute(
                         """
                         UPDATE public.interview_sessions
-                        SET status = %s, updated_at = now()
+                        SET
+                            status = %s,
+                            updated_at = now(),
+                            started_at = COALESCE(started_at, now()),
+                            ended_at = CASE WHEN %s = 'completed' THEN now() ELSE ended_at END
                         WHERE id = %s
                         """,
-                        (status, session_id),
+                        (status, status, session_id),
                     )
+            conn.commit()
+
+    def set_closing_announced(self, session_id: str, announced: bool) -> None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE public.interview_sessions
+                    SET closing_announced = %s, updated_at = now()
+                    WHERE id = %s
+                    """,
+                    (announced, session_id),
+                )
             conn.commit()
 
     def set_planned_questions(self, session_id: str, planned_questions: list[dict[str, Any]]) -> None:
@@ -239,6 +273,83 @@ class InterviewService:
             for row in rows
         ]
 
+    def list_sessions_for_user(
+        self,
+        user_id: str | None,
+        limit: int = 20,
+        session_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """유저별 세션 목록 + report 포함 (훈련센터 홈/히스토리용)"""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                where_clauses = []
+                params: list[Any] = []
+
+                if user_id:
+                    where_clauses.append("s.user_id = %s")
+                    params.append(user_id)
+
+                if session_type:
+                    where_clauses.append("s.session_type = %s")
+                    params.append(session_type)
+
+                where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+                params.append(limit)
+                cur.execute(
+                    f"""
+                    SELECT
+                        s.id,
+                        s.session_type,
+                        s.mode,
+                        s.status,
+                        s.personality,
+                        s.current_phase,
+                        s.target_duration_sec,
+                        s.closing_threshold_sec,
+                        s.closing_announced,
+                        s.question_count,
+                        s.origin_session_id,
+                        s.job_payload,
+                        s.created_at,
+                        r.report_payload
+                    FROM public.interview_sessions s
+                    LEFT JOIN public.interview_reports r ON r.session_id = s.id
+                    {where_sql}
+                    ORDER BY s.created_at DESC
+                    LIMIT %s
+                    """,
+                    params,
+                )
+                rows = cur.fetchall() or []
+
+        result = []
+        for row in rows:
+            job = row.get("job_payload") or {}
+            report = row.get("report_payload") or {}
+            result.append(
+                {
+                    "id": row["id"],
+                    "sessionType": row.get("session_type", "live_interview"),
+                    "mode": row.get("mode", "chat"),
+                    "status": row.get("status", "created"),
+                    "personality": row.get("personality", "professional"),
+                    "currentPhase": row.get("current_phase", "introduction"),
+                    "targetDurationSec": row.get("target_duration_sec", 420),
+                    "closingThresholdSec": row.get("closing_threshold_sec", 60),
+                    "closingAnnounced": bool(row.get("closing_announced", False)),
+                    "questionCount": row.get("question_count", 0),
+                    "company": job.get("company", ""),
+                    "role": job.get("role", ""),
+                    "repoUrl": job.get("repoUrl", ""),
+                    "createdAt": int(row["created_at"].timestamp())
+                    if isinstance(row["created_at"], datetime)
+                    else 0,
+                    "analysis": report if report else None,
+                }
+            )
+        return result
+
     def get_session_detail(self, session_id: str) -> dict[str, Any] | None:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -294,6 +405,9 @@ class InterviewService:
             "client_uid": session["id"],
             "current_phase": session.get("current_phase", "introduction"),
             "tail_question_depth": session.get("tail_question_depth", 0),
+            "target_duration_sec": session.get("target_duration_sec", 420),
+            "closing_threshold_sec": session.get("closing_threshold_sec", 60),
+            "closing_announced": bool(session.get("closing_announced", False)),
             "debug_events": debug_events,
             "analysis": (report or {}).get("report_payload", {}),
             "planned_questions": session.get("planned_questions") or [],
@@ -318,3 +432,106 @@ class InterviewService:
                 )
                 row = cur.fetchone()
         return row["count"] if row else 0
+
+    def get_turns(self, session_id: str) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT role, channel, content, payload, turn_index, created_at
+                    FROM public.interview_turns
+                    WHERE session_id = %s
+                    ORDER BY turn_index ASC
+                    """,
+                    (session_id,),
+                )
+                rows = cur.fetchall() or []
+        return [dict(r) for r in rows]
+
+    def save_portfolio_source(
+        self,
+        session_id: str,
+        repo_url: str,
+        readme_snapshot: str,
+        tree_snapshot: str,
+        infra_files_snapshot: str,
+        default_branch: str = "main",
+        analysis_status: str = "completed",
+    ) -> None:
+        source_id = str(uuid.uuid4())
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.portfolio_sources (
+                        id, session_id, repo_url, visibility, default_branch,
+                        readme_snapshot, tree_snapshot, infra_files_snapshot, analysis_status
+                    ) VALUES (%s, %s, %s, 'public', %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (
+                        source_id,
+                        session_id,
+                        repo_url,
+                        default_branch,
+                        readme_snapshot[:20000],
+                        tree_snapshot[:10000],
+                        infra_files_snapshot[:10000],
+                        analysis_status,
+                    ),
+                )
+            conn.commit()
+
+    def save_eval_signals(
+        self,
+        session_id: str,
+        signals: list[dict[str, Any]],
+    ) -> None:
+        """signals: [{dimension, score, weight, weighted_score, evidence, confidence}]"""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                for sig in signals:
+                    sig_id = str(uuid.uuid4())
+                    cur.execute(
+                        """
+                        INSERT INTO public.interview_eval_signals (
+                            id, session_id, dimension, score, weight,
+                            weighted_score, evidence, confidence
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            sig_id,
+                            session_id,
+                            sig.get("dimension", ""),
+                            sig.get("score", 0),
+                            sig.get("weight", 0),
+                            sig.get("weighted_score", 0),
+                            sig.get("evidence", ""),
+                            sig.get("confidence", 0),
+                        ),
+                    )
+            conn.commit()
+
+    def save_comparison_report(
+        self,
+        session_id: str,
+        report_payload: dict[str, Any],
+        comparison_payload: dict[str, Any],
+    ) -> None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.interview_reports (
+                        session_id, report_payload, comparison_payload, rubric_version
+                    )
+                    VALUES (%s, %s, %s, 'v1')
+                    ON CONFLICT (session_id)
+                    DO UPDATE SET
+                        report_payload = EXCLUDED.report_payload,
+                        comparison_payload = EXCLUDED.comparison_payload,
+                        updated_at = now()
+                    """,
+                    (session_id, Jsonb(report_payload), Jsonb(comparison_payload)),
+                )
+            conn.commit()

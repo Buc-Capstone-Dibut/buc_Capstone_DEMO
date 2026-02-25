@@ -1,15 +1,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export type InterviewMode = "chat" | "video";
+export type InterviewMode = "voice" | "video";
 
 const MODE_LABEL: Record<InterviewMode, string> = {
-  chat: "채팅",
+  voice: "음성",
   video: "화상",
 };
 
 const MODE_BADGE: Record<InterviewMode, string> = {
-  chat: "Available",
+  voice: "STT/TTS Beta",
   video: "LiveKit Beta",
 };
 
@@ -40,9 +40,9 @@ export function InterviewModeSwitch({ mode, onModeChange }: InterviewModeSwitchP
           {MODE_BADGE[mode]}
         </Badge>
         <span>
-          {mode === "chat"
-            ? "현재 즉시 사용 가능한 모드입니다."
-            : "화상 모드는 LiveKit 연결로 미리 체험할 수 있는 베타 단계입니다."}
+          {mode === "voice"
+            ? "음성 모드는 STT/TTS 기반으로 답변 연습을 진행하는 베타 단계입니다."
+            : "화상 모드는 LiveKit 연결로 실제 면접 환경을 체험하는 베타 단계입니다."}
         </span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
 
@@ -45,6 +46,14 @@ export async function POST(req: Request) {
           error: errorMessage,
         },
         { status: response.status },
+      );
+    }
+
+    if (data?.success && userId) {
+      await logUserActivityEvent(
+        userId,
+        MY_ACTIVITY_EVENT_TYPES.interviewCompleted,
+        body?.sessionId || null,
       );
     }
 

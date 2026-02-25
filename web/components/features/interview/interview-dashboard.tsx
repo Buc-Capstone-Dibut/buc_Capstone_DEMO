@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AudioLines, BrainCircuit, PlaySquare, Plus, Zap } from "lucide-react";
+import { BrainCircuit, GitBranch, Plus, Video, Zap } from "lucide-react";
 import { MOCK_COMMUNITY_POSTS } from "@/mocks/interview-data";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,10 @@ import { PostCard } from "@/components/features/community/post-card";
 interface InterviewDashboardProps {
    onStartNew: () => void;
    onOpenTraining?: () => void;
+   onImportFromMyPage?: () => void;
 }
 
-export function InterviewDashboard({ onStartNew, onOpenTraining }: InterviewDashboardProps) {
+export function InterviewDashboard({ onStartNew, onOpenTraining, onImportFromMyPage }: InterviewDashboardProps) {
    return (
       <div className="p-8 max-w-6xl mx-auto space-y-12">
          {/* 1. Hero Section */}
@@ -45,9 +46,9 @@ export function InterviewDashboard({ onStartNew, onOpenTraining }: InterviewDash
                   size="lg"
                   variant="outline"
                   className="h-14 px-8 text-lg rounded-full border-primary/30 text-primary hover:bg-primary/5"
-                  onClick={onOpenTraining}
+                  onClick={onImportFromMyPage}
                >
-                  <BrainCircuit className="mr-2 w-5 h-5" /> 면접 훈련 센터
+                  <BrainCircuit className="mr-2 w-5 h-5" /> 마이페이지에서 불러오기
                </Button>
             </motion.div>
          </section>
@@ -111,22 +112,22 @@ export function InterviewDashboard({ onStartNew, onOpenTraining }: InterviewDash
             <div className="grid md:grid-cols-3 gap-4">
                {[
                   {
-                     icon: BrainCircuit,
-                     title: "리포트 순간 재체험",
-                     desc: "리포트의 특정 질문 순간으로 돌아가 같은 맥락에서 다시 면접을 진행합니다.",
-                     badge: "Replay",
-                  },
-                  {
-                     icon: PlaySquare,
+                     icon: GitBranch,
                      title: "포트폴리오 디펜스",
-                     desc: "공개 Git 레포를 기반으로 아키텍처와 인프라 설계를 설명하는 면접을 진행합니다.",
+                     desc: "공개 Git 레포를 기반으로 아키텍처와 인프라 설계 의도를 설명하는 면접을 진행합니다.",
                      badge: "Public Repo",
                   },
                   {
-                     icon: AudioLines,
-                     title: "음성/화상 리플레이",
-                     desc: "면접 답변의 전달력과 태도 변화를 다시 확인하고 재답변합니다.",
-                     badge: "Voice Beta",
+                     icon: Video,
+                     title: "화상 디펜스 모드",
+                     desc: "LiveKit 화상 연결로 실제 면접 환경에 가까운 훈련을 제공합니다.",
+                     badge: "LiveKit Beta",
+                  },
+                  {
+                     icon: BrainCircuit,
+                     title: "설계 의도 집중 질문",
+                     desc: "AI 시대 면접의 핵심인 '왜 이렇게 설계했는가'를 집중 검증하는 질문 흐름을 제공합니다.",
+                     badge: "Design Intent",
                   },
                ].map((item) => (
                   <Card key={item.title} className={cn("border border-primary/10 bg-background/70")}>

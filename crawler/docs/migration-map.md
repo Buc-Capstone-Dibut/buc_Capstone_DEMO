@@ -9,7 +9,6 @@
 | --- | --- | --- |
 | `src/shared/config.py` | `src/common/config/settings.py` | 완료 |
 | Tech blog의 Supabase 직접 접근 | `src/apps/tech_blog/repository.py` | 완료 |
-| Saramin JSON 파일 직접 저장 | `src/apps/saramin/repository.py` | 완료 |
 | Dev Event JSON 파일 직접 저장 | `src/apps/dev_event/repository.py` | 완료 |
 | 개별 파일의 JSON 경로 하드코딩 | `settings.py` 경로 설정 | 완료 |
 | 공통 파일 저장 로직 | `src/common/storage/json_repo.py` | 완료 |
@@ -21,13 +20,9 @@
 - `src/infra/tagger.py`
 - `src/main.py`
 - `src/cli_jd.py`
-- `run_saramin_test.py`
 - `run_dev_event_test.py`
 - `src/shared/config.py`
 
 ## 현재 단일 실행 경로
 - `python -m src.apps.tech_blog.cli`
-- `python -m src.apps.saramin.cli`
 - `python -m src.apps.dev_event.cli`
-- `python -m src.apps.job_post.cli`
-

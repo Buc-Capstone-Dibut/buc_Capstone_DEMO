@@ -6,7 +6,6 @@ from src.common.config.settings import (
     GEMINI_API_KEY,
     PROJECT_ROOT,
     RSS_FEEDS,
-    SARAMIN_JOBS_JSON_PATH,
     SUPABASE_KEY,
     SUPABASE_URL,
     TAG_REQUEST_DELAY_MS,
@@ -23,7 +22,6 @@ __all__ = [
     "GEMINI_API_KEY",
     "PROJECT_ROOT",
     "RSS_FEEDS",
-    "SARAMIN_JOBS_JSON_PATH",
     "SUPABASE_KEY",
     "SUPABASE_URL",
     "TAG_REQUEST_DELAY_MS",
@@ -31,4 +29,3 @@ __all__ = [
     "WEB_DATA_DIR",
     "settings",
 ]
-

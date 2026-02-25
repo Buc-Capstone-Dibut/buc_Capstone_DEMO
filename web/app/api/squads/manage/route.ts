@@ -20,6 +20,7 @@ export async function POST(request: Request) {
         await prisma.profiles.create({
           data: {
             id: user_id,
+            handle: `user-${String(user_id).slice(0, 8).toLowerCase()}`,
             nickname: "User",
           },
         });

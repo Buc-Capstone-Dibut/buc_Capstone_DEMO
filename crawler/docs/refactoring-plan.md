@@ -19,27 +19,18 @@ src
 │   │   ├── cli.py
 │   │   ├── crawler.py
 │   │   └── repository.py
-│   ├── saramin
-│   │   ├── cli.py
-│   │   ├── service.py
-│   │   └── repository.py
 │   ├── dev_event
 │   │   ├── cli.py
 │   │   ├── service.py
 │   │   └── repository.py
-│   └── job_post
-│       └── cli.py
 └── shared
     ├── database.py
-    ├── job_models.py
     └── tagger.py
 ```
 
 ## 3. 실행 규칙
 - `uv run python -m src.apps.tech_blog.cli`
-- `uv run python -m src.apps.saramin.cli --limit 20`
 - `uv run python -m src.apps.dev_event.cli --limit 10`
-- `uv run python -m src.apps.job_post.cli analyze <url>`
 
 ## 4. 수행 결과
 ### Phase 1. 엔트리포인트 분리
@@ -62,7 +53,6 @@ src
 - [x] Supabase/JSON 저장을 앱별 repository 레이어로 분리 완료
 
 ## 5. 완료 판단
-- 독립 CLI 4종 실행 가능
+- 독립 CLI 2종 실행 가능
 - 레거시 중복 소스 제거
 - 설정/저장소 표준화 적용
-

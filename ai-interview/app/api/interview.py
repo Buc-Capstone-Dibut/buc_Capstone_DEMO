@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from datetime import datetime, timezone
 import re
 from typing import Any
 
@@ -12,6 +13,8 @@ from app.schemas.interview import (
     AnalyzeRequest,
     ChatRequest,
     ParseJobRequest,
+    PortfolioAnalyzeRequest,
+    PortfolioSessionStartRequest,
     SessionStartRequest,
 )
 from app.services.interview_service import InterviewService
@@ -19,18 +22,99 @@ from app.services.llm_gemini import GeminiService
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
 service = InterviewService()
-PHASE_BY_INDEX: dict[int, str] = {
-    1: "introduction",
-    2: "experience",
-    3: "technical",
-    4: "problem_solving",
-    5: "closing",
-}
+
+DEFAULT_TARGET_DURATION_SEC = 7 * 60
+MIN_TARGET_DURATION_SEC = 5 * 60
+MAX_TARGET_DURATION_SEC = 10 * 60
+DEFAULT_CLOSING_THRESHOLD_SEC = 60
+MIN_CLOSING_THRESHOLD_SEC = 30
+MAX_CLOSING_THRESHOLD_SEC = 120
+AVERAGE_TURN_SEC = 75
+MIN_DYNAMIC_QUESTIONS = 4
+MAX_DYNAMIC_QUESTIONS = 9
+SESSION_GRACE_SEC = 20
+CLOSING_ANNOUNCE_PREFIX = "시간 관계상 마지막 질문 드리겠습니다."
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
 
 
-def _phase_for_question_index(question_index: int) -> str:
-    return PHASE_BY_INDEX.get(question_index, "closing")
+def _clamp_target_duration(duration_sec: int | None) -> int:
+    value = int(duration_sec or DEFAULT_TARGET_DURATION_SEC)
+    return max(MIN_TARGET_DURATION_SEC, min(MAX_TARGET_DURATION_SEC, value))
+
+
+def _clamp_closing_threshold(threshold_sec: int | None) -> int:
+    value = int(threshold_sec or DEFAULT_CLOSING_THRESHOLD_SEC)
+    return max(MIN_CLOSING_THRESHOLD_SEC, min(MAX_CLOSING_THRESHOLD_SEC, value))
+
+
+def _estimated_total_questions(target_duration_sec: int) -> int:
+    estimated = round(target_duration_sec / AVERAGE_TURN_SEC)
+    return max(MIN_DYNAMIC_QUESTIONS, min(MAX_DYNAMIC_QUESTIONS, estimated))
+
+
+def _phase_for_question_index(question_index: int, is_closing: bool = False) -> str:
+    if is_closing:
+        return "closing"
+    if question_index <= 1:
+        return "introduction"
+    if question_index == 2:
+        return "experience"
+    if question_index == 3:
+        return "technical"
+    return "problem_solving"
+
+
+def _elapsed_seconds(started_at: datetime | None) -> int:
+    if not isinstance(started_at, datetime):
+        return 0
+    anchor = started_at if started_at.tzinfo else started_at.replace(tzinfo=timezone.utc)
+    diff = datetime.now(timezone.utc) - anchor.astimezone(timezone.utc)
+    return max(0, int(diff.total_seconds()))
+
+
+def _build_runtime_meta(
+    target_duration_sec: int,
+    closing_threshold_sec: int,
+    elapsed_sec: int,
+    model_count: int,
+    estimated_total_questions: int,
+    closing_announced: bool,
+    completed: bool,
+    finish_reason: str = "",
+) -> dict[str, Any]:
+    remaining_sec = max(0, target_duration_sec - elapsed_sec)
+    progress = int(round((elapsed_sec / max(1, target_duration_sec)) * 100))
+    return {
+        "targetDurationSec": target_duration_sec,
+        "closingThresholdSec": closing_threshold_sec,
+        "elapsedSec": elapsed_sec,
+        "remainingSec": remaining_sec,
+        "timeProgressPercent": max(0, min(100, progress)),
+        "estimatedTotalQuestions": estimated_total_questions,
+        "questionCount": model_count,
+        "isClosingPhase": closing_announced or remaining_sec <= closing_threshold_sec,
+        "interviewComplete": completed,
+        "finishReason": finish_reason,
+    }
+
+
+def _resolve_completion_reason(
+    *,
+    session_status: str,
+    closing_announced: bool,
+    elapsed_sec: int,
+    target_duration_sec: int,
+    model_count: int,
+) -> str:
+    if closing_announced:
+        return "closing_answer_submitted"
+    if elapsed_sec >= target_duration_sec + SESSION_GRACE_SEC:
+        return "time_limit_reached"
+    if model_count >= MAX_DYNAMIC_QUESTIONS:
+        return "question_cap_reached"
+    if session_status == "completed":
+        return "already_completed"
+    return ""
 
 
 def _latest_user_answer(messages: list[dict[str, Any]]) -> str:
@@ -156,6 +240,8 @@ async def start_session(
     payload: SessionStartRequest,
     x_user_id: str | None = Header(default=None),
 ):
+    target_duration_sec = _clamp_target_duration(payload.targetDurationSec)
+    closing_threshold_sec = _clamp_closing_threshold(payload.closingThresholdSec)
     session = service.create_session(
         user_id=x_user_id,
         mode=payload.mode,
@@ -163,6 +249,8 @@ async def start_session(
         job_data=payload.jobData,
         resume_data=payload.resumeData,
         status="created",
+        target_duration_sec=target_duration_sec,
+        closing_threshold_sec=closing_threshold_sec,
     )
 
     return {
@@ -171,6 +259,9 @@ async def start_session(
             "sessionId": session["id"],
             "mode": session.get("mode", payload.mode),
             "status": session.get("status", "created"),
+            "targetDurationSec": session.get("target_duration_sec", target_duration_sec),
+            "closingThresholdSec": session.get("closing_threshold_sec", closing_threshold_sec),
+            "estimatedTotalQuestions": _estimated_total_questions(target_duration_sec),
         },
     }
 
@@ -184,6 +275,8 @@ async def chat(
         gemini = get_gemini_service()
         session_id = payload.sessionId
         message_dicts = [m.model_dump() for m in payload.messages]
+        requested_target_duration_sec = _clamp_target_duration(payload.targetDurationSec)
+        requested_closing_threshold_sec = _clamp_closing_threshold(payload.closingThresholdSec)
 
         if not session_id:
             created = service.create_session(
@@ -193,6 +286,8 @@ async def chat(
                 job_data=payload.jobData,
                 resume_data=payload.resumeData,
                 status="in_progress",
+                target_duration_sec=requested_target_duration_sec,
+                closing_threshold_sec=requested_closing_threshold_sec,
             )
             session_id = created["id"]
         else:
@@ -205,6 +300,8 @@ async def chat(
                     job_data=payload.jobData,
                     resume_data=payload.resumeData,
                     status="in_progress",
+                    target_duration_sec=requested_target_duration_sec,
+                    closing_threshold_sec=requested_closing_threshold_sec,
                 )
                 session_id = created["id"]
 
@@ -217,26 +314,79 @@ async def chat(
         }
 
         session = service.get_session(session_id) or {}
+        target_duration_sec = _clamp_target_duration(
+            session.get("target_duration_sec") or requested_target_duration_sec
+        )
+        closing_threshold_sec = _clamp_closing_threshold(
+            session.get("closing_threshold_sec") or requested_closing_threshold_sec
+        )
+        elapsed_sec = _elapsed_seconds(session.get("started_at"))
+        estimated_total_questions = _estimated_total_questions(target_duration_sec)
+        model_count = len([m for m in message_dicts if m.get("role") == "model"])
+        closing_announced = bool(session.get("closing_announced", False))
+
+        completion_reason = ""
+        if closing_announced:
+            completion_reason = "closing_answer_submitted"
+        elif elapsed_sec >= target_duration_sec + SESSION_GRACE_SEC:
+            completion_reason = "time_limit_reached"
+        elif model_count >= MAX_DYNAMIC_QUESTIONS:
+            completion_reason = "question_cap_reached"
+        elif session.get("status") == "completed":
+            completion_reason = "already_completed"
+
+        if completion_reason:
+            final_text = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
+            turns = service.get_turns(session_id)
+            last_turn = turns[-1] if turns else {}
+            if last_turn.get("role") != "model" or CLOSING_SENTENCE not in (last_turn.get("content") or ""):
+                service.append_turn(
+                    session_id=session_id,
+                    role="model",
+                    content=final_text,
+                    channel="text",
+                    payload={
+                        "phase": "closing",
+                        "finish_reason": completion_reason,
+                        "channel": "text",
+                    },
+                )
+            service.update_session_status(session_id, "completed", current_phase="closing")
+            meta = _build_runtime_meta(
+                target_duration_sec=target_duration_sec,
+                closing_threshold_sec=closing_threshold_sec,
+                elapsed_sec=elapsed_sec,
+                model_count=model_count,
+                estimated_total_questions=estimated_total_questions,
+                closing_announced=closing_announced,
+                completed=True,
+                finish_reason=completion_reason,
+            )
+            return {
+                "success": True,
+                "data": {
+                    "role": "model",
+                    "parts": final_text,
+                },
+                "sessionId": session_id,
+                "interviewComplete": True,
+                "meta": meta,
+            }
+
         planned_questions = session.get("planned_questions") or []
 
         if not planned_questions:
             planned_questions = gemini.build_interview_plan(context=context, retries=1)
             service.set_planned_questions(session_id, planned_questions)
 
-        model_count = len([m for m in message_dicts if m.get("role") == "model"])
         question_index = model_count + 1
-        phase = _phase_for_question_index(question_index)
-
-        if model_count >= 5:
-            service.update_session_status(session_id, "completed", current_phase="closing")
-            return {
-                "success": True,
-                "data": {
-                    "role": "model",
-                    "parts": f"면접이 종료되었습니다. {CLOSING_SENTENCE}",
-                },
-                "sessionId": session_id,
-            }
+        remaining_sec = max(0, target_duration_sec - elapsed_sec)
+        should_announce_closing = (
+            remaining_sec <= closing_threshold_sec
+            or question_index >= estimated_total_questions
+            or question_index >= MAX_DYNAMIC_QUESTIONS
+        )
+        phase = _phase_for_question_index(question_index, is_closing=should_announce_closing)
 
         answer_quality_hint = _build_answer_quality_hint(_latest_user_answer(message_dicts))
         generated = gemini.generate_next_question_structured(
@@ -246,12 +396,17 @@ async def chat(
             planned_questions=planned_questions,
             current_phase=phase,
             answer_quality_hint=answer_quality_hint,
+            total_questions=question_index if should_announce_closing else estimated_total_questions,
         )
         ai_response = generated.get("question", "").strip()
-        resolved_phase = generated.get("phase") or phase
+        resolved_phase = "closing" if should_announce_closing else (generated.get("phase") or phase)
 
-        if question_index == 5 and CLOSING_SENTENCE not in ai_response:
-            ai_response = f"{ai_response} {CLOSING_SENTENCE}".strip()
+        if should_announce_closing:
+            if CLOSING_ANNOUNCE_PREFIX not in ai_response:
+                ai_response = f"{CLOSING_ANNOUNCE_PREFIX} {ai_response}".strip()
+            if CLOSING_SENTENCE not in ai_response:
+                ai_response = f"{ai_response} {CLOSING_SENTENCE}".strip()
+            service.set_closing_announced(session_id, True)
 
         service.update_session_status(session_id, "in_progress", current_phase=resolved_phase)
 
@@ -266,10 +421,23 @@ async def chat(
                 "rationale": generated.get("rationale", ""),
                 "expectedSignal": generated.get("expectedSignal", ""),
                 "answer_quality_hint": answer_quality_hint,
+                "remaining_sec": remaining_sec,
+                "target_duration_sec": target_duration_sec,
+                "closing_threshold_sec": closing_threshold_sec,
+                "estimated_total_questions": estimated_total_questions,
             },
         )
-        if question_index >= 5:
-            service.update_session_status(session_id, "completed", current_phase="closing")
+
+        meta = _build_runtime_meta(
+            target_duration_sec=target_duration_sec,
+            closing_threshold_sec=closing_threshold_sec,
+            elapsed_sec=elapsed_sec,
+            model_count=question_index,
+            estimated_total_questions=estimated_total_questions,
+            closing_announced=should_announce_closing,
+            completed=False,
+            finish_reason="closing_soon" if should_announce_closing else "",
+        )
 
         return {
             "success": True,
@@ -278,6 +446,8 @@ async def chat(
                 "parts": ai_response,
             },
             "sessionId": session_id,
+            "interviewComplete": False,
+            "meta": meta,
         }
     except Exception as exc:
         message = str(exc)
@@ -318,6 +488,20 @@ async def analyze(payload: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Analysis Error: {exc}")
 
 
+@router.get("/sessions")
+async def list_sessions(
+    x_user_id: str | None = Header(default=None),
+    session_type: str | None = None,
+    limit: int = 20,
+):
+    sessions = service.list_sessions_for_user(
+        user_id=x_user_id,
+        limit=min(limit, 50),
+        session_type=session_type if session_type in ("live_interview", "portfolio_defense") else None,
+    )
+    return {"success": True, "data": sessions}
+
+
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str):
     detail = service.get_session_detail(session_id)
@@ -329,3 +513,258 @@ async def get_session(session_id: str):
 @router.get("/health")
 async def interview_health() -> dict[str, Any]:
     return {"status": "ok"}
+
+
+# ── LiveKit Token ─────────────────────────────────────────
+
+@router.post("/livekit/token")
+async def livekit_token(
+    payload: dict,
+    x_user_id: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """LiveKit 룸 접속 토큰 발급 — Next.js BFF가 직접 발급하므로 FastAPI 경유도 지원"""
+    # 실제 토큰 발급은 Next.js BFF(livekit-server-sdk)에서 처리.
+    # 이 엔드포인트는 FastAPI 경유 옵션을 위한 placeholder.
+    raise HTTPException(
+        status_code=501,
+        detail="LiveKit token should be generated via the Next.js BFF /api/interview/livekit/token",
+    )
+
+
+# ── Portfolio Defense ─────────────────────────────────────
+
+@router.post("/portfolio/analyze-public-repo")
+async def portfolio_analyze_public_repo(payload: PortfolioAnalyzeRequest):
+    try:
+        gemini = get_gemini_service()
+        result = gemini.analyze_public_repo(payload.repoUrl)
+        return {"success": True, "data": result}
+    except PermissionError:
+        return {"success": False, "error": "PUBLIC_REPO_ONLY"}
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Repo Analysis Error: {exc}")
+
+
+@router.post("/portfolio/session/start")
+async def portfolio_session_start(
+    payload: PortfolioSessionStartRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    target_duration_sec = _clamp_target_duration(payload.targetDurationSec)
+    closing_threshold_sec = _clamp_closing_threshold(payload.closingThresholdSec)
+    portfolio_job_payload = {
+        "repoUrl": payload.repoUrl,
+        "focus": payload.focus,
+        "readmeSummary": payload.readmeSummary,
+        "treeSummary": payload.treeSummary,
+        "infraHypotheses": payload.infraHypotheses,
+        "detectedTopics": payload.detectedTopics,
+    }
+
+    session = service.create_session(
+        user_id=x_user_id,
+        mode=payload.mode,
+        personality="professional",
+        job_data=portfolio_job_payload,
+        resume_data={},
+        status="created",
+        session_type="portfolio_defense",
+        target_duration_sec=target_duration_sec,
+        closing_threshold_sec=closing_threshold_sec,
+    )
+
+    if payload.readmeSummary or payload.treeSummary or payload.infraHypotheses:
+        try:
+            service.save_portfolio_source(
+                session_id=session["id"],
+                repo_url=payload.repoUrl,
+                readme_snapshot=payload.readmeSummary,
+                tree_snapshot=payload.treeSummary,
+                infra_files_snapshot="\n".join(payload.infraHypotheses),
+                analysis_status="completed",
+            )
+        except Exception:
+            # 면접 세션 생성은 유지하고 소스 저장 실패만 무시
+            pass
+
+    return {
+        "success": True,
+        "data": {
+            "sessionId": session["id"],
+            "sessionType": "portfolio_defense",
+            "rubricWeights": {"designIntent": 60, "codeQuality": 10, "aiUsage": 30},
+            "targetDurationSec": session.get("target_duration_sec", target_duration_sec),
+            "closingThresholdSec": session.get("closing_threshold_sec", closing_threshold_sec),
+            "estimatedTotalQuestions": _estimated_total_questions(target_duration_sec),
+        },
+    }
+
+
+@router.post("/portfolio/chat")
+async def portfolio_chat(
+    payload: ChatRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    """포트폴리오 디펜스 세션 내 대화 턴"""
+    try:
+        gemini = get_gemini_service()
+        session_id = payload.sessionId
+
+        if not session_id:
+            raise HTTPException(status_code=400, detail="sessionId is required")
+
+        existing = service.get_session(session_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Portfolio session not found")
+
+        message_dicts = [m.model_dump() for m in payload.messages]
+        service.append_missing_history(session_id, message_dicts)
+        job_data = existing.get("job_payload", {}) or {}
+
+        model_count = len([m for m in message_dicts if m.get("role") == "model"])
+        target_duration_sec = _clamp_target_duration(existing.get("target_duration_sec") or DEFAULT_TARGET_DURATION_SEC)
+        closing_threshold_sec = _clamp_closing_threshold(
+            existing.get("closing_threshold_sec") or DEFAULT_CLOSING_THRESHOLD_SEC
+        )
+        elapsed_sec = _elapsed_seconds(existing.get("started_at"))
+        estimated_total_questions = _estimated_total_questions(target_duration_sec)
+        closing_announced = bool(existing.get("closing_announced", False))
+
+        completion_reason = _resolve_completion_reason(
+            session_status=existing.get("status", "created"),
+            closing_announced=closing_announced,
+            elapsed_sec=elapsed_sec,
+            target_duration_sec=target_duration_sec,
+            model_count=model_count,
+        )
+
+        if completion_reason:
+            final_text = f"포트폴리오 디펜스 면접을 마치겠습니다. {CLOSING_SENTENCE}"
+            turns = service.get_turns(session_id)
+            last_turn = turns[-1] if turns else {}
+            if last_turn.get("role") != "model" or CLOSING_SENTENCE not in (last_turn.get("content") or ""):
+                service.append_turn(
+                    session_id=session_id,
+                    role="model",
+                    content=final_text,
+                    channel="text",
+                    payload={
+                        "portfolio": True,
+                        "phase": "closing",
+                        "finish_reason": completion_reason,
+                    },
+                )
+                turns = service.get_turns(session_id)
+
+            service.update_session_status(session_id, "completed", current_phase="closing")
+
+            # 포트폴리오 완료 시 60/10/30 루브릭 분석 및 저장
+            try:
+                history_for_analysis = [{"role": t["role"], "parts": t["content"]} for t in turns]
+                report = gemini.analyze_weighted(
+                    context=job_data,
+                    chat_history=history_for_analysis,
+                    session_type="portfolio_defense",
+                )
+                service.save_comparison_report(
+                    session_id,
+                    report,
+                    {"sessionType": "portfolio_defense", "repoUrl": job_data.get("repoUrl", "")},
+                )
+            except Exception:
+                pass  # 분석 실패해도 세션 완료 응답은 정상 반환
+
+            meta = _build_runtime_meta(
+                target_duration_sec=target_duration_sec,
+                closing_threshold_sec=closing_threshold_sec,
+                elapsed_sec=elapsed_sec,
+                model_count=model_count,
+                estimated_total_questions=estimated_total_questions,
+                closing_announced=closing_announced,
+                completed=True,
+                finish_reason=completion_reason,
+            )
+
+            return {
+                "success": True,
+                "data": {"role": "model", "parts": final_text},
+                "sessionId": session_id,
+                "isComplete": True,
+                "meta": meta,
+            }
+
+        question_index = model_count + 1
+        remaining_sec = max(0, target_duration_sec - elapsed_sec)
+        should_announce_closing = (
+            remaining_sec <= closing_threshold_sec
+            or question_index >= estimated_total_questions
+            or question_index >= MAX_DYNAMIC_QUESTIONS
+        )
+
+        repo_context = {
+            "repoUrl": job_data.get("repoUrl", ""),
+            "readmeSummary": job_data.get("readmeSummary", ""),
+            "treeSummary": job_data.get("treeSummary", ""),
+            "infraHypotheses": job_data.get("infraHypotheses", []),
+            "detectedTopics": job_data.get("detectedTopics", []),
+        }
+        focus = job_data.get("focus", ["architecture", "infra", "ai-usage"])
+
+        result = gemini.generate_portfolio_defense_question(
+            repo_context=repo_context,
+            chat_history=message_dicts,
+            topic_focus=focus,
+            personality=payload.personality or "professional",
+        )
+        question = result.get("question", "").strip()
+
+        if should_announce_closing:
+            if CLOSING_ANNOUNCE_PREFIX not in question:
+                question = f"{CLOSING_ANNOUNCE_PREFIX} {question}".strip()
+            if CLOSING_SENTENCE not in question:
+                question = f"{question} {CLOSING_SENTENCE}".strip()
+            service.set_closing_announced(session_id, True)
+
+        current_phase = "closing" if should_announce_closing else "technical"
+        service.update_session_status(session_id, "in_progress", current_phase=current_phase)
+        service.append_turn(
+            session_id=session_id,
+            role="model",
+            content=question,
+            channel="text",
+            payload={
+                "portfolio": True,
+                "phase": current_phase,
+                "targetDimension": result.get("targetDimension", "design_intent"),
+                "question_index": question_index,
+                "remaining_sec": remaining_sec,
+                "target_duration_sec": target_duration_sec,
+                "closing_threshold_sec": closing_threshold_sec,
+                "estimated_total_questions": estimated_total_questions,
+            },
+        )
+
+        meta = _build_runtime_meta(
+            target_duration_sec=target_duration_sec,
+            closing_threshold_sec=closing_threshold_sec,
+            elapsed_sec=elapsed_sec,
+            model_count=question_index,
+            estimated_total_questions=estimated_total_questions,
+            closing_announced=should_announce_closing,
+            completed=False,
+            finish_reason="closing_soon" if should_announce_closing else "",
+        )
+
+        return {
+            "success": True,
+            "data": {"role": "model", "parts": question},
+            "sessionId": session_id,
+            "isComplete": False,
+            "meta": meta,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Portfolio Chat Error: {exc}")

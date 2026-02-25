@@ -427,6 +427,7 @@ model blogs {
   updated_at    DateTime? @default(now()) @db.Timestamptz(6)
   blog_type     String?   @default("company") @db.VarChar(50)
   category      String?   @db.VarChar(50)
+  bookmarks     blog_bookmarks[]
 
   @@index([external_url], map: "idx_blogs_external_url")
   @@index([published_at(sort: Desc)], map: "idx_blogs_published_at")
@@ -475,6 +476,7 @@ model posts {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model profiles {
   id                 String               @id @db.Uuid
+  handle             String               @unique
   nickname           String?
   avatar_url         String?
   bio                String?
@@ -497,7 +499,61 @@ model profiles {
   kanban_tasks       kanban_tasks[]
   notifications      notifications[]
   messages           workspace_messages[]
+  blog_bookmarks     blog_bookmarks[]
+  resume_profile     user_resume_profiles?
+  workspace_settings user_workspace_settings?
+  activity_events    user_activity_events[]
 
+  @@schema("public")
+}
+
+model user_resume_profiles {
+  user_id          String    @id @db.Uuid
+  resume_payload   Json
+  public_summary   Json
+  source_type      String    @default("manual")
+  source_file_name String?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model user_workspace_settings {
+  user_id          String    @id @db.Uuid
+  settings_payload Json
+  public_summary   Json
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model blog_bookmarks {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String    @db.Uuid
+  blog_id    Int
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  blogs      blogs     @relation(fields: [blog_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, blog_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@schema("public")
+}
+
+model user_activity_events {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String    @db.Uuid
+  event_type String
+  ref_id     String?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([event_type])
   @@schema("public")
 }
 

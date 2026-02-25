@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+SessionType = Literal["live_interview", "portfolio_defense"]
+
 
 class ParseJobRequest(BaseModel):
     url: str
@@ -15,16 +17,49 @@ class ChatMessage(BaseModel):
 
 
 class SessionStartRequest(BaseModel):
-    mode: Literal["chat", "voice"] = "chat"
+    mode: Literal["chat", "voice", "video"] = "chat"
     personality: str = "professional"
     jobData: dict[str, Any] = Field(default_factory=dict)
     resumeData: Any = None
+    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    closingThresholdSec: int = Field(default=60, ge=30, le=120)
 
 
 class SessionStartResponse(BaseModel):
     sessionId: str
-    mode: Literal["chat", "voice"]
+    mode: str
     status: str
+
+
+# ── Portfolio ─────────────────────────────────────────────
+class PortfolioAnalyzeRequest(BaseModel):
+    repoUrl: str
+
+
+class PortfolioAnalyzeResponse(BaseModel):
+    visibility: str
+    readmeSummary: str
+    treeSummary: str
+    infraHypotheses: list[str]
+    detectedTopics: list[str]
+
+
+class PortfolioSessionStartRequest(BaseModel):
+    repoUrl: str
+    mode: Literal["chat", "voice", "video"] = "voice"
+    focus: list[str] = Field(default_factory=lambda: ["architecture", "infra", "ai-usage"])
+    readmeSummary: str = ""
+    treeSummary: str = ""
+    infraHypotheses: list[str] = Field(default_factory=list)
+    detectedTopics: list[str] = Field(default_factory=list)
+    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    closingThresholdSec: int = Field(default=60, ge=30, le=120)
+
+
+class PortfolioSessionStartResponse(BaseModel):
+    sessionId: str
+    sessionType: str
+    rubricWeights: dict[str, int]
 
 
 class ChatRequest(BaseModel):
@@ -33,6 +68,8 @@ class ChatRequest(BaseModel):
     resumeData: Any = None
     personality: str = "professional"
     sessionId: str | None = None
+    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    closingThresholdSec: int = Field(default=60, ge=30, le=120)
 
 
 class AnalyzeRequest(BaseModel):
