@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   // URL to redirect to after sign in process completes
   const next = requestUrl.searchParams.get("next");
-  if (next) {
+  if (next && next.startsWith("/")) {
     return NextResponse.redirect(new URL(next, requestUrl.origin));
   }
 
