@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const userId = await getUserIdFromSession();
 
-    const response = await fetch(`${AI_BASE_URL}/v1/interview/analyze`, {
+    const response = await fetch(`${AI_BASE_URL}/v1/interview/session/start`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       const errorMessage =
         (data && typeof data.detail === "string" && data.detail) ||
         (data && typeof data.error === "string" && data.error) ||
-        "AI interview service request failed";
+        "Failed to start interview session";
 
       return NextResponse.json(
         {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: `Analysis Error: ${error.message || error.toString()}`,
+        error: error.message || "Failed to start interview session",
       },
       { status: 500 },
     );

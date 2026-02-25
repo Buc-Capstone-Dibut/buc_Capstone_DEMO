@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
 
 interface UseOpenLLMProps {
-  serverUrl?: string; // e.g. "ws://localhost:8000/client-ws"
+  serverUrl?: string; // e.g. "ws://localhost:8001/v1/interview/ws/client"
   onTranscript?: (text: string, role: "user" | "ai") => void;
 }
 
 export function useOpenLLM({
-  serverUrl = "ws://localhost:12393/client-ws",
+  serverUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client",
   onTranscript,
 }: UseOpenLLMProps = {}) {
   const [isConnected, setIsConnected] = useState(false);

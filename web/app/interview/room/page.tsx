@@ -16,7 +16,14 @@ interface ChatMessage {
 
 export default function InterviewRoomPage() {
    const router = useRouter();
-   const { jobData, resumeData, interviewerPersonality, setChatHistory } = useInterviewSetupStore();
+   const {
+      jobData,
+      resumeData,
+      interviewerPersonality,
+      interviewSessionId,
+      setInterviewSessionId,
+      setChatHistory,
+   } = useInterviewSetupStore();
 
    const [messages, setMessages] = useState<ChatMessage[]>([]);
    const [input, setInput] = useState("");
@@ -27,6 +34,7 @@ export default function InterviewRoomPage() {
    const scrollRef = useRef<HTMLDivElement>(null);
    const inputRef = useRef<HTMLInputElement>(null);
    const hasStarted = useRef(false);
+   const isStartingSession = useRef(false);
 
    // Auto scroll to bottom
    useEffect(() => {
@@ -50,6 +58,38 @@ export default function InterviewRoomPage() {
       }
    }, []);
 
+   const ensureSessionId = async (): Promise<string | null> => {
+      if (interviewSessionId) return interviewSessionId;
+      if (isStartingSession.current) return null;
+
+      isStartingSession.current = true;
+      try {
+         const response = await fetch('/api/interview/session/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               mode: 'chat',
+               personality: interviewerPersonality || 'professional',
+               jobData,
+               resumeData
+            })
+         });
+
+         const result = await response.json();
+         if (result.success && result.data?.sessionId) {
+            setInterviewSessionId(result.data.sessionId);
+            return result.data.sessionId;
+         }
+
+         throw new Error(result.error || '세션 시작 실패');
+      } catch (error) {
+         console.error('Session Start Error:', error);
+         return null;
+      } finally {
+         isStartingSession.current = false;
+      }
+   };
+
    const handleSendMessage = async (isInitial = false) => {
       if (!isInitial && !input.trim()) return;
       if (isLoading) return;
@@ -65,6 +105,8 @@ export default function InterviewRoomPage() {
       setIsLoading(true);
 
       try {
+         const sessionId = await ensureSessionId();
+
          const response = await fetch('/api/interview/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -72,12 +114,16 @@ export default function InterviewRoomPage() {
                messages: newMessages,
                jobData,
                resumeData,
-               personality: interviewerPersonality
+               personality: interviewerPersonality,
+               sessionId,
             })
          });
 
          const result = await response.json();
          if (result.success) {
+            if (result.sessionId && !interviewSessionId) {
+               setInterviewSessionId(result.sessionId);
+            }
             const aiMessage = result.data;
             const updatedMessages = [...newMessages, aiMessage];
             setMessages(updatedMessages);

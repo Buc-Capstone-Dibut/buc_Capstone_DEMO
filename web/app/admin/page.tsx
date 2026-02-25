@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import useSWR from "swr";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const API_BASE = "http://localhost:12393/admin";
+const API_BASE = process.env.NEXT_PUBLIC_AI_ADMIN_BASE_URL || "http://localhost:8001/admin";
 const USERNAME = "dibut";
 const PASSWORD = "asd123";
 

@@ -16,14 +16,22 @@ import { MOCK_INTERVIEW_LIST } from "@/mocks/interview-data";
 export default function InterviewResultPage() {
    const router = useRouter();
    const searchParams = useSearchParams();
-   const sessionId = searchParams.get("id");
-   const { chatHistory, jobData, resumeData, analysisResult, setAnalysisResult } = useInterviewSetupStore();
+   const querySessionId = searchParams.get("id");
+   const {
+      chatHistory,
+      jobData,
+      resumeData,
+      interviewSessionId,
+      analysisResult,
+      setAnalysisResult
+   } = useInterviewSetupStore();
    const [isAnalyzing, setIsAnalyzing] = useState(false);
+   const replaySessionId = querySessionId || interviewSessionId;
 
    useEffect(() => {
       // If sessionId is provided, try to find it in mock data
-      if (sessionId) {
-         const pastSession = MOCK_INTERVIEW_LIST.find(s => s.id === sessionId);
+      if (querySessionId) {
+         const pastSession = MOCK_INTERVIEW_LIST.find(s => s.id === querySessionId);
          if (pastSession) {
             setAnalysisResult(pastSession.analysis as any);
             return;
@@ -32,7 +40,7 @@ export default function InterviewResultPage() {
 
       const fetchAnalysis = async () => {
          // If no history or already analyzed, skip
-         if (!chatHistory.length || (analysisResult && !sessionId)) return;
+         if (!chatHistory.length || (analysisResult && !querySessionId)) return;
 
          setIsAnalyzing(true);
          try {
@@ -42,7 +50,8 @@ export default function InterviewResultPage() {
                body: JSON.stringify({
                   messages: chatHistory,
                   jobData,
-                  resumeData
+                  resumeData,
+                  sessionId: interviewSessionId
                })
             });
             const result = await response.json();
@@ -59,7 +68,7 @@ export default function InterviewResultPage() {
       };
 
       fetchAnalysis();
-   }, [chatHistory, analysisResult, jobData, resumeData, setAnalysisResult, sessionId]);
+   }, [chatHistory, analysisResult, jobData, resumeData, interviewSessionId, setAnalysisResult, querySessionId]);
 
    if (isAnalyzing) {
       return (
@@ -232,6 +241,16 @@ export default function InterviewResultPage() {
                               <p className="text-sm text-muted-foreground bg-white dark:bg-neutral-900 p-4 rounded-xl border border-dashed italic">
                                  "{bp.userAnswer}"
                               </p>
+                              {replaySessionId && (
+                                 <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-2 border-primary/20 text-primary hover:bg-primary/5"
+                                    onClick={() => router.push(`/interview/training/replay/${replaySessionId}`)}
+                                 >
+                                    이 질문 다시 체험하기
+                                 </Button>
+                              )}
                            </div>
                         </div>
                         <div className="p-6 md:p-8 space-y-4 bg-primary/5 font-sans">
@@ -257,7 +276,23 @@ export default function InterviewResultPage() {
             <Separator className="my-10" />
 
             <div className="flex justify-end gap-3 px-4">
-               {!sessionId && (
+               {replaySessionId && (
+                  <Button
+                     variant="outline"
+                     className="px-8 h-12 border-primary/20 text-primary hover:bg-primary/5"
+                     onClick={() => router.push(`/interview/training/replay/${replaySessionId}`)}
+                  >
+                     리포트 순간 재체험
+                  </Button>
+               )}
+               <Button
+                  variant="outline"
+                  className="px-8 h-12"
+                  onClick={() => router.push('/interview/training')}
+               >
+                  훈련 센터로 이동
+               </Button>
+               {!querySessionId && (
                   <Button variant="outline" className="px-8 h-12" onClick={() => {
                      setAnalysisResult(null as any);
                      window.location.reload();
@@ -266,9 +301,9 @@ export default function InterviewResultPage() {
                <Button
                   size="lg"
                   className="px-10 h-12 text-base font-bold shadow-xl shadow-primary/20 transition-transform active:scale-95"
-                  onClick={() => router.push(sessionId ? '/interview/analysis' : '/interview')}
+                  onClick={() => router.push(querySessionId ? '/interview/analysis' : '/interview')}
                >
-                  {sessionId ? '목록으로 돌아가기' : '메인 화면으로'}
+                  {querySessionId ? '목록으로 돌아가기' : '메인 화면으로'}
                </Button>
             </div>
          </main>
