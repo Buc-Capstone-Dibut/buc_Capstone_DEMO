@@ -29,7 +29,7 @@ export default async function SquadEditPage({
   }
 
   // Permission Check
-  if (squad.leader_id !== user.id) {
+  if ((squad as any).leader_id !== user.id) {
     return (
       <div className="container mx-auto py-20 text-center">
         수정 권한이 없습니다.

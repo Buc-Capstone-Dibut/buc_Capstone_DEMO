@@ -28,16 +28,31 @@ export interface CTPPracticeProblem {
   link?: string;
 }
 
-export interface CTPModuleConfig {
+export interface FeatureItem {
   title: string;
   description: string;
+  Visualizer?: React.ComponentType<any>;
+  SupplementaryVisualizer?: React.ComponentType<any>;
+}
+
+export interface CTPModuleConfig {
+  id: string;
+  title: string;
+  description: string;
+  sampleData?: number[];
+  Visualizer?: React.ComponentType<any>;
+  useSim?: (...args: any[]) => any;
+  config?: {
+    minSize?: number;
+    maxSize?: number;
+  };
   mode?: 'code' | 'interactive'; // Default: 'code'
   interactive?: {
     components: ('push' | 'pop' | 'peek' | 'reset' | 'pushFront' | 'pushRear' | 'popFront' | 'popRear')[];
     maxSize?: number;
   };
   tags?: string[];
-  features?: { title: string; description: string }[];
+  features?: FeatureItem[];
   complexity?: {
     access: string;
     search: string;
@@ -55,7 +70,7 @@ export interface CTPModuleConfig {
   initialCode?: {
     python: string;
   };
- 
+
   showStatePanel?: boolean;
   statePanelMode?: "summary" | "full";
 
@@ -73,7 +88,7 @@ export interface CTPModuleConfig {
 
 export interface CTPModule {
   config: CTPModuleConfig;
-  useSim: () => {
+  useSim: (...args: any[]) => {
     runSimulation: (code: string) => void;
     interactive?: {
       visualData: any;

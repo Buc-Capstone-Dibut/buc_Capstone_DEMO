@@ -33,7 +33,7 @@ export const fetchWeeklyPopularBlogs = async (limit = 10): Promise<Blog[]> => {
 
 export const incrementViews = async (id: number) => {
   // Using RPC is better for atomicity, but for now we just define the method
-  const { error } = await supabase.rpc("increment_views", { blog_id: id });
+  const { error } = await (supabase as any).rpc("increment_views", { blog_id: id });
   if (error) {
     console.error("Error incrementing views:", error);
   }
@@ -53,12 +53,12 @@ export const fetchAvailableBlogs = async () => {
 
   // De-duplicate based on author name
   const uniqueBlogs = Array.from(
-    new Map((data || []).map((item) => [item.author, item])).values(),
-  );
+    new Map(((data as any[]) || []).map((item: any) => [item.author, item])).values(),
+  ) as any[];
 
   // Group by type
-  const companies = uniqueBlogs.filter((b) => b.blog_type === "company");
-  const individuals = uniqueBlogs.filter((b) => b.blog_type !== "company"); // Assuming 'personal' or null is individual
+  const companies = uniqueBlogs.filter((b: any) => b.blog_type === "company");
+  const individuals = uniqueBlogs.filter((b: any) => b.blog_type !== "company"); // Assuming 'personal' or null is individual
 
   return { companies, individuals };
 };

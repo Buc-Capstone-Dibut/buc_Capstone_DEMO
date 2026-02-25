@@ -81,11 +81,11 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
           <Avatar className="h-8 w-8">
             <AvatarImage
               src={profile?.avatar_url || user?.user_metadata?.avatar_url}
-              alt={profile?.username || user?.email || "사용자"}
+              alt={profile?.nickname || user?.email || "사용자"}
             />
             <AvatarFallback>
-              {profile?.username
-                ? getUserInitials(profile.username)
+              {profile?.nickname
+                ? getUserInitials(profile.nickname)
                 : getUserInitials(user?.email || "U")}
             </AvatarFallback>
           </Avatar>
@@ -95,7 +95,7 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {profile?.username || user?.user_metadata?.full_name || "사용자"}
+              {profile?.nickname || user?.user_metadata?.full_name || "사용자"}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {user?.email}

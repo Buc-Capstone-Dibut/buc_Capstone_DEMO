@@ -8,7 +8,7 @@ import { CTPModule } from "./types";
 import { useCTPStore } from "../store/use-ctp-store";
 import { CTPIntro } from "../contents/shared/ctp-intro";
 import { CTPFeatures } from "../contents/shared/ctp-features";
-import { CTPComplexity } from "../contents/shared/ctp-complexity";
+
 import { CTPPractice } from "../contents/shared/ctp-practice";
 import { CTPImplementation } from "../contents/shared/ctp-implementation";
 import { CTPPlayground } from "../playground/ctp-playground";
@@ -47,7 +47,7 @@ export function CTPModuleLoader({ module, category, activeKey }: CTPModuleLoader
     return () => {
       reset();
     };
-  }, [activeKey, mergedConfig, reset, setCode, runSimulation]);
+  }, [activeKey, mergedConfig, reset, setCode]);
 
   const currentPayload = steps[currentStepIndex]?.data || [];
   const currentEvents = useMemo(() => {
@@ -226,8 +226,6 @@ export function CTPModuleLoader({ module, category, activeKey }: CTPModuleLoader
         </div>
       </section>
 
-      {/* 4. Complexity */}
-      {mergedConfig.complexity && <CTPComplexity data={mergedConfig.complexity} names={mergedConfig.complexityNames} />}
 
       {/* 5. Implementation Code */}
       {mergedConfig.implementation && <CTPImplementation examples={mergedConfig.implementation} />}

@@ -63,7 +63,7 @@ export function CTPSubSidebar({ isMainSidebarOpen, onOpenMainSidebar }: CTPSubSi
 
         <nav className="space-y-0.5">
           {concept.subConcepts.map((sub, idx) => {
-            const isActive = searchParams.get("view") === sub.id || (!searchParams.get("view") && idx === -1);
+            const isActive = searchParams.get("view") === sub.id || (!searchParams.get("view") && idx === 0);
             return (
               <Link
                 key={sub.id}

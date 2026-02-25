@@ -194,19 +194,16 @@ export default function WorkspaceDetailPage() {
   };
 
   return (
-    <SidebarLayout>
-      <div className="flex h-full w-full">
-        <WorkspaceSidebar
-          projectId={projectId}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
-        <main className="flex-1 overflow-auto bg-background h-[calc(100vh-4rem)]">
-          {renderContent()}
-        </main>
-      </div>
+    <div className="fixed inset-0 top-14 flex overflow-hidden bg-background">
+      <WorkspaceSidebar
+        projectId={projectId}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
+      <main className="flex-1 overflow-y-auto h-full">
+        {renderContent()}
+      </main>
 
-      {/* Rewritten Modal usage - Handles data fetching internally */}
       <AdvancedTaskModal
         open={!!activeTaskId}
         onOpenChange={(open) => {
@@ -215,6 +212,6 @@ export default function WorkspaceDetailPage() {
         taskId={activeTaskId}
         projectId={projectId}
       />
-    </SidebarLayout>
+    </div>
   );
 }

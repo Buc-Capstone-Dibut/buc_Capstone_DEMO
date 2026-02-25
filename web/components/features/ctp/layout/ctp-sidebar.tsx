@@ -76,6 +76,7 @@ export function CTPSidebar({ isOpen, onClose }: CTPSidebarProps) {
                         <Link
                           key={concept.id}
                           href={href}
+                          onClick={onClose}
                           className={cn(
                             "group flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors",
                             isActive

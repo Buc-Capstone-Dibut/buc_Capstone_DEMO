@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 import { formatDistanceToNow } from "date-fns";
@@ -20,6 +21,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { fetchDevEventById } from "@/lib/server/dev-events";
+import prisma from "@/lib/prisma";
 
 // Components
 import ApplicationButton from "@/components/features/community/squad/application-button";
@@ -56,56 +58,63 @@ export default async function SquadDetailPage({ params }: PageProps) {
     .single();
 
   const squad = squadData as any;
-
   if (error || !squad) {
     notFound();
   }
 
-  // Fetch Current User
-  // Fetch Current User
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const currentUserId = user?.id;
+  const currentUserId = user?.id ?? null;
 
-  // Determine User Role
   // @ts-ignore
   const isLeader = currentUserId === squad.leader_id;
   // @ts-ignore
   const isMember = squad.members?.some((m) => m.user_id === currentUserId);
 
-  // Check application status if not member
+  let applications: any[] = [];
   let applicationStatus = null;
+  let activity = null;
+  let memberWorkspaceId: string | null = null;
+
   if (currentUserId && !isMember) {
     const { data: application } = await supabase
       .from("squad_applications")
       .select("status")
       .eq("squad_id", id)
       .eq("user_id", currentUserId)
-      .maybeSingle(); // Use maybeSingle to avoid errors
+      .maybeSingle();
 
     if (application) {
-      applicationStatus = application.status;
+      applicationStatus = (application as any).status;
     }
   }
 
-  // Fetch Applications if Leader
-  let applications: any[] = [];
   if (isLeader) {
     const { data: apps } = await supabase
       .from("squad_applications")
       // @ts-ignore
       .select(`*, user:user_id(id, nickname, avatar_url, tier)`)
       .eq("squad_id", id)
-      .eq("status", "pending") // Show pending primarily
+      .eq("status", "pending")
       .order("created_at", { ascending: false });
     applications = apps || [];
   }
 
-  // Fetch Related Activity if exists
-  let activity = null;
   if (squad.activity_id) {
     activity = await fetchDevEventById(squad.activity_id);
+  }
+
+  if (currentUserId && isMember) {
+    const linkedMembership = await prisma.workspace_members.findFirst({
+      where: {
+        user_id: currentUserId,
+        workspace: { from_squad_id: id },
+      },
+      select: { workspace_id: true },
+    });
+
+    memberWorkspaceId = linkedMembership?.workspace_id ?? null;
   }
 
   return (
@@ -118,6 +127,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-2 mb-4">
               <Badge
                 variant={
+                  // @ts-ignore
                   squad.status === "recruiting" ? "default" : "secondary"
                 }
               >
@@ -186,7 +196,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 </div>
                 <Button variant="outline" size="sm" className="ml-auto" asChild>
                   <a
-                    href={`/career/activities/${activity.id}`}
+                    href={`/insights/activities/${activity.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -262,12 +272,42 @@ export default async function SquadDetailPage({ params }: PageProps) {
                     </p>
                   </div>
                 </div>
+              ) : isMember ? (
+                <div className="space-y-3 pt-2">
+                  <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl text-center">
+                    <div className="bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Star className="w-6 h-6 text-primary fill-current" />
+                    </div>
+                    <p className="font-bold text-foreground mb-1">팀 합류 완료!</p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      팀원들과 협업을 시작할 준비가 되었습니다.
+                    </p>
+                    {memberWorkspaceId ? (
+                      <Button className="w-full gap-2 shadow-md" asChild>
+                        <Link href={`/workspace/${memberWorkspaceId}`}>
+                          <Monitor className="w-4 h-4" />
+                          워크스페이스로 이동
+                        </Link>
+                      </Button>
+                    ) : (
+                      <>
+                        <Button className="w-full gap-2 shadow-md" disabled>
+                          <Monitor className="w-4 h-4" />
+                          워크스페이스 준비 중
+                        </Button>
+                        <p className="text-[11px] text-muted-foreground mt-2">
+                          아직 연결된 워크스페이스가 없습니다.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <div className="pt-2">
                   {/* @ts-ignore */}
                   <ApplicationButton
                     squadId={squad.id}
-                    currentUserId={currentUserId}
+                    currentUserId={user?.id}
                     status={applicationStatus}
                     isRecruiting={squad.status === "recruiting"}
                     leaderId={squad.leader_id}

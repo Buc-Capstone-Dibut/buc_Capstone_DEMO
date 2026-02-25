@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Blog, fetchBlogs } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import type { BlogType, SortBy } from "./use-url-filters";
+type BlogType = string;
+type SortBy = string;
 import { getTagsForCategory, type TagCategory } from "@/lib/tag-filters";
 
 const ITEMS_PER_PAGE = 12;
@@ -43,13 +44,13 @@ export function useInfiniteBlogData(
       setLoading(true);
       setCurrentPage(1);
 
-      const tags = getTagsForCategory(filters.tagCategory, filters.selectedSubTags);
+      const tags = [...getTagsForCategory(filters.tagCategory), ...filters.selectedSubTags];
 
       const result = await fetchBlogs({
         page: 1,
         limit: ITEMS_PER_PAGE,
-        sortBy: filters.sortBy,
-        blogType: filters.blogType,
+        sortBy: filters.sortBy as "published_at" | "title" | "views",
+        blogType: filters.blogType as "company",
         author:
           filters.selectedBlog === "all" ? undefined : filters.selectedBlog,
         search: filters.searchQuery || undefined,
@@ -82,12 +83,12 @@ export function useInfiniteBlogData(
       const result = await fetchBlogs({
         page: nextPage,
         limit: ITEMS_PER_PAGE,
-        sortBy: filters.sortBy,
-        blogType: filters.blogType,
+        sortBy: filters.sortBy as "published_at" | "title" | "views",
+        blogType: filters.blogType as "company",
         author:
           filters.selectedBlog === "all" ? undefined : filters.selectedBlog,
         search: filters.searchQuery || undefined,
-        tags: getTagsForCategory(filters.tagCategory, filters.selectedSubTags),
+        tags: [...getTagsForCategory(filters.tagCategory), ...filters.selectedSubTags],
       });
 
       setBlogs((prev) => [...prev, ...result.blogs]);

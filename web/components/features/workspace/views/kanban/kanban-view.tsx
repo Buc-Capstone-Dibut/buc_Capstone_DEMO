@@ -111,7 +111,7 @@ export function KanbanView({
     handleDragEnd,
   } = useKanbanDrag({
     columns: displayColumns,
-    groupBy,
+    groupBy: groupBy as "status" | "priority" | "assignee" | "dueDate" | "tag",
     activeViewId: activeView?.id || "",
     projectId,
     updateTaskStatus: (taskId, status) => onUpdateTask(taskId, { status }),
@@ -168,8 +168,8 @@ export function KanbanView({
                     );
                   } else if (groupBy === "assignee") {
                     return col.id === "unassigned"
-                      ? !t.assigneeId
-                      : t.assigneeId === col.id;
+                      ? !t.assignee
+                      : t.assignee === col.id;
                   } else if (groupBy === "priority") {
                     return col.id === "no-priority"
                       ? !t.priorityId
@@ -203,6 +203,9 @@ export function KanbanView({
               id={activeColumn.id}
               column={activeColumn}
               tasks={tasks.filter((t) => t.columnId === activeColumn.id)}
+              onTaskClick={() => {}}
+              onCreateTask={() => {}}
+              viewSettings={{ showTags: true, showAssignee: true, showDueDate: true, showPriority: true }}
               isOverlay
             />
           ) : activeTask ? (

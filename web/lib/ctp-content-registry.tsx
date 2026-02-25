@@ -1,45 +1,47 @@
-import ArrayContent from "@/components/features/ctp/contents/categories/linear/concepts/array";
-import LinkedListContent from "@/components/features/ctp/contents/categories/linear/concepts/linked-list";
-import StackContent from "@/components/features/ctp/contents/categories/linear/concepts/stack";
-import QueueContent from "@/components/features/ctp/contents/categories/linear/concepts/queue";
-import HashTableContent from "@/components/features/ctp/contents/categories/linear/concepts/hash-table";
-import TreeContent from "@/components/features/ctp/contents/categories/non-linear/concepts/tree";
-import HeapContent from "@/components/features/ctp/contents/categories/non-linear/concepts/heap";
-import GraphContent from "@/components/features/ctp/contents/categories/non-linear/concepts/graph";
-import SortingContent from "@/components/features/ctp/contents/categories/algorithms/concepts/sorting";
-import BinarySearchContent from "@/components/features/ctp/contents/categories/algorithms/concepts/binary-search";
-import DfsContent from "@/components/features/ctp/contents/categories/algorithms/concepts/dfs";
-import BfsContent from "@/components/features/ctp/contents/categories/algorithms/concepts/bfs";
-import ShortestPathContent from "@/components/features/ctp/contents/categories/algorithms/concepts/shortest-path";
-import GraphAdvancedContent from "@/components/features/ctp/contents/categories/algorithms/concepts/graph-advanced";
-import DpContent from "@/components/features/ctp/contents/categories/algorithms/concepts/dp";
 import { ReactNode } from "react";
+import {
+  FoundationAlgorithmBasicsContent,
+  FoundationBasicDsArrayContent,
+  FoundationSearchAlgorithmsContent,
+  FoundationIntegrationContent,
+} from "@/components/features/ctp/contents/categories/modules/module-01-foundation";
+import {
+  StackQueueContent,
+  RecursionContent,
+  StackRecursionIntegrationContent,
+} from "@/components/features/ctp/contents/categories/modules/module-02-stack-recursion";
+import {
+  SortingContentRefactored,
+  StringSearchContent,
+  SortingStringIntegrationContent,
+} from "@/components/features/ctp/contents/categories/modules/module-03-sorting-string";
+import {
+  ListContentRefactored,
+  TreeContentRefactored,
+  ListTreeIntegrationContent,
+  FinalChallengeContent,
+} from "@/components/features/ctp/contents/categories/modules/module-04-list-tree-final";
 
-// Component Type
 type ContentComponent = () => ReactNode;
 
 export const CTP_CONTENT_REGISTRY: Record<string, ContentComponent | undefined> = {
-  // Linear Data Structures
-  "linear-ds/array": ArrayContent,
-  "linear-ds/linked-list": LinkedListContent,
-  "linear-ds/stack": StackContent,
-  "linear-ds/queue": QueueContent,
-  "linear-ds/hash-table": HashTableContent,
+  "module-01-foundation/algo-basics": FoundationAlgorithmBasicsContent,
+  "module-01-foundation/basic-ds-array": FoundationBasicDsArrayContent,
+  "module-01-foundation/search-algorithms": FoundationSearchAlgorithmsContent,
+  "module-01-foundation/foundation-integration": FoundationIntegrationContent,
 
-  // Non-Linear Data Structures
-  "non-linear-ds/tree": TreeContent,
-  "non-linear-ds/heap": HeapContent,
-  "non-linear-ds/graph": GraphContent,
+  "module-02-stack-recursion/stack-queue": StackQueueContent,
+  "module-02-stack-recursion/recursion": RecursionContent,
+  "module-02-stack-recursion/stack-recursion-integration": StackRecursionIntegrationContent,
 
-  // Algorithms
-  "algorithms/sorting": SortingContent,
-  "algorithms/binary-search": BinarySearchContent,
-  "algorithms/dfs": DfsContent,
-  "algorithms/bfs": BfsContent,
-  "algorithms/shortest-path": ShortestPathContent,
-  "algorithms/graph-advanced": GraphAdvancedContent,
-  "algorithms/dp": DpContent,
+  "module-03-sorting-string/sorting": SortingContentRefactored,
+  "module-03-sorting-string/string-search": StringSearchContent,
+  "module-03-sorting-string/sorting-string-integration": SortingStringIntegrationContent,
 
+  "module-04-list-tree-final/list": ListContentRefactored,
+  "module-04-list-tree-final/tree": TreeContentRefactored,
+  "module-04-list-tree-final/list-tree-integration": ListTreeIntegrationContent,
+  "module-04-list-tree-final/final-challenge": FinalChallengeContent,
 };
 
 export function getCtpContent(categoryId: string, conceptId: string) {

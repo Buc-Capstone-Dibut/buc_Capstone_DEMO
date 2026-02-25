@@ -11,6 +11,7 @@ import { FinalCheckStep } from "@/components/features/interview/setup/steps/fina
 import { ModeSelectionStep } from "@/components/features/interview/setup/steps/mode-selection-step";
 import { PersonalitySelectionStep } from "@/components/features/interview/setup/steps/personality-selection-step";
 import { AnimatePresence, motion } from "framer-motion";
+import { SetupStepper } from "@/components/features/interview/setup/setup-stepper";
 
 export default function InterviewSetupPage() {
   const { currentStep, reset } = useInterviewSetupStore();
@@ -98,7 +99,7 @@ export default function InterviewSetupPage() {
                 Reset
               </button>
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm transition-colors"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium shadow-sm transition-colors"
                 onClick={() => {
                   // 실제 구현시에는 여기서 API를 호출하여 세션을 생성할 수 있습니다.
                   // 지금은 구동을 위해 바로 면접실로 이동합니다.
@@ -116,19 +117,22 @@ export default function InterviewSetupPage() {
   };
 
   return (
-    <div className="h-full w-full">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStep}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.2 }}
-          className="h-full"
-        >
-          {renderStep()}
-        </motion.div>
-      </AnimatePresence>
+    <div className="h-full w-full flex flex-col">
+      {currentStep !== 'complete' && <SetupStepper />}
+      <div className="flex-1 overflow-y-auto">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="h-full"
+          >
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

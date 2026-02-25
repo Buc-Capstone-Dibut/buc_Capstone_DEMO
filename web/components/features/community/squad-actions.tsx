@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,6 +11,8 @@ interface SquadActionsProps {
   squadId: string;
   isLeader: boolean;
   status: string; // "recruiting" | "closed" | "active"
+  children?: React.ReactNode;
+  closedUI?: React.ReactNode;
 }
 
 export default function SquadActions({

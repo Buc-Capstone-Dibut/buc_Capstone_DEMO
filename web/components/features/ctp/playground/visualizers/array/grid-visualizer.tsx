@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { type VisualItem } from "../../common/types";
+import { type VisualItem } from "@/components/features/ctp/common/types";
 
 interface GridVisualizerProps {
   data: VisualItem[][]; // Matrix of items

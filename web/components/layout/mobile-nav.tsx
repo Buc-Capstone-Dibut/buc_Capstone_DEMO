@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, Mic, Layout, Building2, Users } from "lucide-react"
+import { BookOpen, Mic, Layout, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function GlobalMobileNav() {
@@ -12,7 +12,7 @@ export function GlobalMobileNav() {
     { label: "Insights", href: "/insights", icon: BookOpen },
     { label: "Interview", href: "/interview", icon: Mic },
     { label: "Workspace", href: "/workspace", icon: Layout },
-    { label: "Career", href: "/career", icon: Building2 },
+    { label: "Activities", href: "/insights/activities", icon: Calendar },
     { label: "Community", href: "/community", icon: Users },
   ]
 

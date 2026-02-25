@@ -33,21 +33,21 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
-            Team Pulse
+            팀 활동
           </div>
           <div className="flex gap-2">
             <Badge
               variant="secondary"
               className="bg-green-500/10 text-green-600 hover:bg-green-500/20"
             >
-              {onlineCount} Online
+              온라인 {onlineCount}명
             </Badge>
             {inVoiceCount > 0 && (
               <Badge
                 variant="secondary"
                 className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 animate-pulse"
               >
-                <Mic className="h-3 w-3 mr-1" /> {inVoiceCount} Speaking
+                <Mic className="h-3 w-3 mr-1" /> {inVoiceCount}명 대화 중
               </Badge>
             )}
           </div>
@@ -111,7 +111,7 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
                         {currentRoomName ? (
                           <span className="text-purple-600 flex items-center gap-1">
                             <Volume2 className="h-3 w-3" />
-                            In {currentRoomName}
+                            {currentRoomName} 접속 중
                           </span>
                         ) : (
                           <span>{member.role}</span>

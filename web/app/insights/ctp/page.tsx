@@ -27,6 +27,11 @@ export default function CTPPage() {
             눈으로 보고, 손으로 익히는 인터랙티브 알고리즘 마스터 클래스.<br/>
             기초부터 심화까지, 단 4개의 모듈로 완성합니다.
           </p>
+          <div className="flex justify-center pt-2">
+            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
+              학습 난이도 : 부천대학교 3학년 1학기 알고리즘 개론
+            </span>
+          </div>
 
           <div className="pt-4">
              <Link

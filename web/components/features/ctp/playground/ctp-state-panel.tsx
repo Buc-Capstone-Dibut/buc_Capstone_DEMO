@@ -19,7 +19,7 @@ const SECTION_DEFS: { title: string; keys: string[] }[] = [
   { title: "결과", keys: ["result", "answer", "output"] },
 ];
 
-const resolveValue = (vars: Record<string, any> | undefined, keys: string[]) => {
+const resolveValue = (vars: Record<string, any> | undefined | null, keys: string[]) => {
   if (!vars) return undefined;
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(vars, key)) {
@@ -115,7 +115,7 @@ export function CTPStatePanel({ variables, events, mode = "full" }: CTPStatePane
           return (
             <div key={title} className="rounded-md border border-border bg-muted/20 p-2">
               <div className="text-[11px] font-semibold text-muted-foreground mb-1">{title}</div>
-              <pre className={cn("text-[11px] font-mono whitespace-pre-wrap break-words text-foreground")}> 
+              <pre className={cn("text-[11px] font-mono whitespace-pre-wrap break-words text-foreground")}>
                 {formatValue(value)}
               </pre>
             </div>

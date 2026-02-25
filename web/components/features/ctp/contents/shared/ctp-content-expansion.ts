@@ -738,12 +738,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `도시의 바둑판 지도에서 좌표로 위치를 찾는 것과 같습니다.\n행과 열을 바꾸면 전혀 다른 위치가 되므로 **좌표계 실수**를 조심해야 합니다.`,
       playgroundDescription: `경계 조건을 하나씩 확인하며 방문 배열이 어떻게 변하는지 확인하세요.\n특히 **diagonal 이동 여부**에 따라 결과가 달라지는 점을 관찰합니다.`,
     },
-    features: [
-      { title: "좌표계 이해", description: "(row, col)과 (x, y) 혼동이 가장 흔한 버그입니다." },
-      { title: "방향 벡터", description: "dr/dc 배열로 이동을 단순화합니다." },
-      { title: "BFS/DFS 기반", description: "격자 문제의 대부분은 BFS/DFS로 해결됩니다." },
-      { title: "메모리 사용", description: "2D 배열은 크기 R*C에 비례합니다." },
-    ],
     guide: arrayGuide,
   },
   string: {
@@ -846,12 +840,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `접시를 쌓아두고 위에서 하나씩 꺼내는 것과 같습니다.`,
       playgroundDescription: `push/pop 시 top이 어떻게 바뀌는지 관찰하세요.`,
     },
-    features: [
-      { title: "재귀 대체", description: "스택으로 DFS/재귀를 반복문으로 바꿀 수 있습니다." },
-      { title: "괄호 검증", description: "여닫는 괄호 매칭에 사용됩니다." },
-      { title: "Undo/Redo", description: "실전 UI 기능 구현에 활용됩니다." },
-      { title: "O(1) 연산", description: "push/pop은 상수 시간입니다." },
-    ],
     guide: stackGuide,
   },
   "array-stack": {
@@ -906,12 +894,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `줄 서서 기다리는 것처럼 먼저 온 사람이 먼저 나갑니다.`,
       playgroundDescription: `front/rear가 어떻게 이동하는지 관찰하세요.`,
     },
-    features: [
-      { title: "FIFO", description: "먼저 들어온 데이터가 먼저 나갑니다." },
-      { title: "공간 낭비", description: "선형 큐는 front가 이동해도 공간이 재사용되지 않습니다." },
-      { title: "BFS 활용", description: "그래프 탐색에 핵심적으로 사용됩니다." },
-      { title: "O(1) 연산", description: "삽입/삭제는 상수 시간입니다." },
-    ],
     guide: queueGuide,
   },
   "circular-queue": {
@@ -921,12 +903,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `회전 초밥 벨트처럼 끝이 시작과 연결되어 있습니다.`,
       playgroundDescription: `rear가 끝에서 다시 0으로 돌아오는 순간을 관찰하세요.`,
     },
-    features: [
-      { title: "공간 재사용", description: "배열을 원형으로 사용합니다." },
-      { title: "empty/full", description: "front==rear만으로는 구분 불가, count 필요." },
-      { title: "고정 크기", description: "버퍼/네트워크 큐에 적합합니다." },
-      { title: "O(1) 연산", description: "모든 연산이 상수 시간입니다." },
-    ],
     guide: queueGuide,
   },
   deque: {
@@ -1294,12 +1270,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `거품이 위로 올라오듯 큰 값이 끝으로 이동합니다.`,
       playgroundDescription: `스왑이 반복될수록 배열이 정렬되는 과정을 확인하세요.`,
     },
-    features: [
-      { title: "O(n^2)", description: "단순하지만 비효율적입니다." },
-      { title: "안정 정렬", description: "동일 값의 순서를 유지합니다." },
-      { title: "조기 종료", description: "스왑이 없으면 종료 가능합니다." },
-      { title: "학습용", description: "정렬 원리 이해에 적합합니다." },
-    ],
     guide: sortingGuide,
   },
   "selection-sort": {
@@ -1309,12 +1279,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `가장 작은 카드를 찾아 맨 앞에 놓는 과정과 같습니다.`,
       playgroundDescription: `최솟값 선택 과정과 swap 위치를 확인하세요.`,
     },
-    features: [
-      { title: "O(n^2)", description: "비교 횟수는 항상 일정합니다." },
-      { title: "교환 횟수 적음", description: "swap은 n번만 발생합니다." },
-      { title: "불안정", description: "안정 정렬이 아닙니다." },
-      { title: "단순 구현", description: "가장 직관적인 정렬입니다." },
-    ],
     guide: sortingGuide,
   },
   "insertion-sort": {
@@ -1324,12 +1288,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `카드를 한 장씩 뽑아 올바른 위치에 끼우는 것과 같습니다.`,
       playgroundDescription: `삽입 위치를 찾는 과정과 shift 동작을 확인하세요.`,
     },
-    features: [
-      { title: "O(n^2)", description: "최악은 느리지만 거의 정렬된 경우 빠릅니다." },
-      { title: "안정 정렬", description: "동일 값 순서를 유지합니다." },
-      { title: "실전 사용", description: "작은 구간 정렬에 활용됩니다." },
-      { title: "온라인 처리", description: "데이터가 하나씩 들어올 때 적합합니다." },
-    ],
     guide: sortingGuide,
   },
   "merge-sort": {
@@ -1339,12 +1297,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `작은 두 줄을 정렬한 뒤 하나의 큰 줄로 합치는 과정입니다.`,
       playgroundDescription: `병합 과정에서 두 포인터가 어떻게 움직이는지 확인하세요.`,
     },
-    features: [
-      { title: "O(n log n)", description: "항상 안정적인 성능." },
-      { title: "안정 정렬", description: "동일 값 순서를 유지합니다." },
-      { title: "추가 메모리", description: "병합을 위한 O(n) 공간 필요." },
-      { title: "분할 정복", description: "재귀 구조를 이해해야 합니다." },
-    ],
     guide: sortingGuide,
   },
   "quick-sort": {
@@ -1354,12 +1306,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `기준점을 정하고 작은 값과 큰 값을 양쪽으로 분리하는 과정입니다.`,
       playgroundDescription: `pivot이 어디에 놓이는지 확인하세요.`,
     },
-    features: [
-      { title: "평균 O(n log n)", description: "실전에서 빠릅니다." },
-      { title: "최악 O(n^2)", description: "pivot 선택이 나쁘면 느립니다." },
-      { title: "in-place", description: "추가 메모리 적음." },
-      { title: "불안정", description: "안정 정렬이 아닙니다." },
-    ],
     guide: sortingGuide,
   },
   "heap-sort": {
@@ -1369,12 +1315,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `우선순위 큐에서 하나씩 뽑아 정렬하는 것과 같습니다.`,
       playgroundDescription: `heapify → extract 과정이 반복되는 것을 확인하세요.`,
     },
-    features: [
-      { title: "O(n log n)", description: "항상 일정한 성능을 보장합니다." },
-      { title: "in-place", description: "추가 메모리 사용이 적습니다." },
-      { title: "불안정", description: "안정 정렬이 아닙니다." },
-      { title: "힙 기반", description: "힙 자료구조 이해가 필요합니다." },
-    ],
     guide: sortingGuide,
   },
   "basic-binary-search": {
@@ -1690,7 +1630,7 @@ export function applyContentExpansion(config: CTPModuleConfig, activeKey: string
 
   return {
     ...config,
-    story: mergedWithDeepDive ?? config.story,
+    story: (mergedWithDeepDive as NonNullable<typeof config.story>) ?? config.story,
     features: mergeFeatures(config.features, expansion?.features),
     guide: mergeGuide(mergeGuide(config.guide, expansion?.guide), groupGuide),
     implementation: mergeImplementation(config.implementation, expansion?.implementation),

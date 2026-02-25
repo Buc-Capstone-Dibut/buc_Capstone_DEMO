@@ -120,7 +120,6 @@ export function StatusManagerModal({
                     <Input
                       className="h-7 w-40 text-sm font-medium border-transparent hover:border-input focus:border-input bg-transparent px-2"
                       value={col.title}
-                      value={col.title}
                       onChange={(e) =>
                         onUpdateColumn(col.id, {
                           title: e.target.value,

@@ -47,9 +47,10 @@ const COLUMN_COLORS = [
 interface KanbanColumnProps {
   id: string;
   column: any; // Full column object for advanced usage
-  title: string;
+  title?: string;
   tasks: Task[];
-  customFields: CustomFieldConfig[];
+  customFields?: CustomFieldConfig[];
+  isOverlay?: boolean;
   icon?: React.ReactNode | string;
   color?: string; // e.g. "red", "blue" - maps to predefined colors
   onTaskClick: (taskId: string) => void;
@@ -67,6 +68,7 @@ interface KanbanColumnProps {
   groupBy?: string;
   category?: "todo" | "in-progress" | "done";
   onDeleteTask?: (taskId: string) => void;
+  className?: string;
 }
 
 export function KanbanColumn({
@@ -109,7 +111,7 @@ export function KanbanColumn({
   };
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(title);
+  const [editedTitle, setEditedTitle] = useState(title ?? "");
 
   // Determine styles from color prop
   const colorConfig =
@@ -121,10 +123,10 @@ export function KanbanColumn({
 
   const handleTitleSubmit = () => {
     setIsEditing(false);
-    if (editedTitle.trim() !== title && onRename) {
+    if (editedTitle.trim() !== (title ?? "") && onRename) {
       onRename(editedTitle.trim());
     } else {
-      setEditedTitle(title);
+      setEditedTitle(title ?? "");
     }
   };
 
@@ -295,7 +297,7 @@ export function KanbanColumn({
             <DraggableTaskCard
               key={task.id}
               task={task}
-              customFields={customFields}
+              customFields={customFields ?? []}
               showTags={viewSettings?.showTags ?? true}
               showAssignee={viewSettings?.showAssignee ?? true}
               showDueDate={viewSettings?.showDueDate ?? true}

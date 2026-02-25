@@ -8,6 +8,7 @@ importScripts("/libs/skulpt.min.js");
 importScripts("/libs/skulpt-stdlib.js");
 
 const ctx = self;
+const textEncoder = new TextEncoder();
 
 // --- 1. Worker State ---
 let isRunning = false;
@@ -23,13 +24,16 @@ def trace(event_type, scope=None, **payload):
     _ctp_trace_emit(payload)
 `;
 
+const DEFAULT_MAX_STEPS = 10000;
+const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+
 // --- 2. Message Handler ---
 ctx.onmessage = async (e) => {
-  const { type, code, input } = e.data;
+  const { type, code, judge } = e.data;
 
   switch (type) {
     case "RUN_CODE":
-      await runSkulpt(code);
+      await runSkulpt(code, judge);
       break;
     case "NEXT_STEP":
       if (nextResolver) {
@@ -45,24 +49,48 @@ ctx.onmessage = async (e) => {
 };
 
 // --- 3. Core Engine Logic ---
-async function runSkulpt(pythonCode) {
+async function runSkulpt(pythonCode, judgeOptions) {
   if (isRunning) return; // Prevent double run
   isRunning = true;
+
+  const stdinLines = Array.isArray(judgeOptions?.stdinLines)
+    ? judgeOptions.stdinLines.map((line) => String(line))
+    : [];
+  const maxSteps =
+    typeof judgeOptions?.maxSteps === "number" && judgeOptions.maxSteps > 0
+      ? Math.floor(judgeOptions.maxSteps)
+      : DEFAULT_MAX_STEPS;
+  const maxOutputBytes =
+    typeof judgeOptions?.maxOutputBytes === "number" &&
+    judgeOptions.maxOutputBytes > 0
+      ? Math.floor(judgeOptions.maxOutputBytes)
+      : DEFAULT_MAX_OUTPUT_BYTES;
+  const captureSteps = judgeOptions?.captureSteps !== false;
 
   // Reset State
   ctx.postMessage({ type: "STATUS", status: "running" });
   let stepCount = 0;
   let lastLine = null;
-  const MAX_STEPS = 10000; // Safety limit (increased for complex sorting/graph demos)
   const MAX_EVENTS = 2000; // Cap event buffer to avoid runaway memory
+  let outputBytes = 0;
   pendingEvents = [];
 
   // Mock "output" handler
   const outputBuffer = [];
   stepsBuffer = []; // Reset global buffer
   function outf(text) {
-    outputBuffer.push(text);
-    ctx.postMessage({ type: "STDOUT", text });
+    const chunk = String(text);
+    outputBytes += textEncoder.encode(chunk).length;
+    if (outputBytes > maxOutputBytes) {
+      throw createExecutionError(
+        "OLE",
+        `Output Limit Exceeded (${maxOutputBytes} bytes)`,
+      );
+    }
+    outputBuffer.push(chunk);
+    if (captureSteps) {
+      ctx.postMessage({ type: "STDOUT", text: chunk });
+    }
   }
 
   // Configure Skulpt
@@ -70,7 +98,7 @@ async function runSkulpt(pythonCode) {
   // Inject tracer bridge
   Sk.builtins._ctp_trace_emit = new Sk.builtin.func(function (event) {
     const jsEvent = Sk.ffi.remapToJs(event);
-    if (jsEvent && typeof jsEvent === "object") {
+    if (captureSteps && jsEvent && typeof jsEvent === "object") {
       if (!jsEvent.scope) jsEvent.scope = "generic";
       if (pendingEvents.length < MAX_EVENTS) {
         pendingEvents.push(jsEvent);
@@ -79,8 +107,13 @@ async function runSkulpt(pythonCode) {
     return Sk.builtin.none.none$;
   });
 
-  const preambleLineCount = TRACE_PREAMBLE.trimEnd().split("\n").length;
-  const mergedCode = `${TRACE_PREAMBLE}\n${pythonCode}`;
+  const preambleParts = [TRACE_PREAMBLE];
+  if (judgeOptions) {
+    preambleParts.push(buildInputPreamble(stdinLines));
+  }
+  const mergedPreamble = preambleParts.join("\n");
+  const preambleLineCount = mergedPreamble.trimEnd().split("\n").length;
+  const mergedCode = `${mergedPreamble}\n${pythonCode}`;
 
   Sk.configure({
     output: outf,
@@ -91,6 +124,18 @@ async function runSkulpt(pythonCode) {
     // This function is called by Skulpt at every line if 'debugging' is true
     breakpoints: function (filename, lineno, colno) {
       if (lineno <= preambleLineCount) return;
+      lastLine = lineno;
+      stepCount++;
+      if (stepCount > maxSteps) {
+        throw createExecutionError(
+          "TLE",
+          "Execution Time Limit Exceeded (Infinite Loop Reference?)",
+        );
+      }
+      if (!captureSteps) {
+        return;
+      }
+
       // 1. Capture State (Deep Copy needed to avoid mutation during pause)
       const snapshot = captureGlobals(Sk.globals);
 
@@ -102,19 +147,11 @@ async function runSkulpt(pythonCode) {
         stdout: [...outputBuffer],
         events: pendingEvents.splice(0),
       });
-      lastLine = lineno;
 
       // 3. NO PAUSE - Continuous Execution for CTP Prototype
       // To prevent UI freezing in heavy loops, we could await a tiny delay every N steps
       // But for now, let's just run.
       // We rely on Sk.execLimit (default) or our own counter to stop infinite loops
-
-      stepCount++;
-      if (stepCount > MAX_STEPS) {
-        throw new Error(
-          "Execution Time Limit Exceeded (Infinite Loop Reference?)",
-        );
-      }
     },
     debugging: true, // Enable Step-Debugging
   });
@@ -127,7 +164,7 @@ async function runSkulpt(pythonCode) {
       return Sk.importMainWithBody("<stdin>", false, mergedCode, true);
     });
 
-    if (pendingEvents.length > 0) {
+    if (captureSteps && pendingEvents.length > 0) {
       const snapshot = captureGlobals(Sk.globals);
       stepsBuffer.push({
         line: lastLine ? Math.max(1, lastLine - preambleLineCount) : 1,
@@ -138,15 +175,63 @@ async function runSkulpt(pythonCode) {
       });
     }
 
-    // SEND ALL STEPS AT ONCE
-    ctx.postMessage({ type: "BATCH_STEPS", steps: stepsBuffer });
+    ctx.postMessage({
+      type: "RESULT",
+      stdout: outputBuffer.join(""),
+      stepCount,
+      outputBytes,
+    });
+    if (captureSteps) {
+      // SEND ALL STEPS AT ONCE
+      ctx.postMessage({ type: "BATCH_STEPS", steps: stepsBuffer });
+    }
     ctx.postMessage({ type: "STATUS", status: "completed" });
   } catch (e) {
-    ctx.postMessage({ type: "ERROR", message: e.toString() });
+    const serializedError = normalizeWorkerError(e);
+    ctx.postMessage({
+      type: "ERROR",
+      message: serializedError.message,
+      code: serializedError.code,
+    });
   } finally {
     isRunning = false;
     nextResolver = null;
   }
+}
+
+function createExecutionError(code, message) {
+  const error = new Error(message);
+  error.ctpCode = code;
+  return error;
+}
+
+function normalizeWorkerError(error) {
+  const raw = error?.toString?.() ?? String(error);
+  if (error?.ctpCode) {
+    return { message: raw, code: error.ctpCode };
+  }
+  if (raw.includes("Execution Time Limit Exceeded")) {
+    return { message: raw, code: "TLE" };
+  }
+  if (raw.includes("Output Limit Exceeded")) {
+    return { message: raw, code: "OLE" };
+  }
+  return { message: raw, code: "RTE" };
+}
+
+function buildInputPreamble(lines) {
+  const serializedLines = JSON.stringify(lines);
+  return `# --- CTP Judge Input Helper ---
+_judge_lines = ${serializedLines}
+_judge_idx = [0]
+
+def input(prompt=""):
+    i = _judge_idx[0]
+    if i >= len(_judge_lines):
+        raise EOFError("No more input available")
+    _judge_idx[0] = i + 1
+    return _judge_lines[i]
+`;
 }
 
 // --- 4. Helper: Builtin Read ---

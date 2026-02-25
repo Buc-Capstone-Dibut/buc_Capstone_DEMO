@@ -14,26 +14,32 @@
   - `foundation/SIMULATION_PIPELINE.md`
 - `operations/`
   - `operations/MAINTENANCE_PLAYBOOK.md`
+  - `operations/CONSISTENCY_GUIDELINES.md`
   - `operations/HANDOFF_TEMPLATE.md`
 - `upgrades/`
-  - `upgrades/TREE_SESSION_UPGRADE.md`
+  - `upgrades/PROBLEM_BANK_PLAN.md` ← **신규: Integration 페이지 문제은행 전환 계획**
+  - `upgrades/PROBLEM_BANK_HANDOFF.md` ← **신규: 구현 핸드오프 프롬프트**
 - 루트 유지
   - `README.md`
   - `INVENTORY.md` (스크립트 자동 생성)
   - `scripts/refresh_inventory.mjs`
 
 ## 권장 읽기 순서 (빠른 온보딩)
-1. `foundation/ARCHITECTURE.md`  
+1. `foundation/ARCHITECTURE.md`
    전체 구조(라우팅/레지스트리/로더/플레이그라운드) 5분 파악
-2. `foundation/SIMULATION_PIPELINE.md`  
+2. `foundation/SIMULATION_PIPELINE.md`
    시뮬레이션 데이터 흐름(Worker -> Store -> Adapter -> Visualizer) 파악
-3. `INVENTORY.md`  
+3. `INVENTORY.md`
    전체 세션(서브컨셉) 모드/엔진/어댑터 인벤토리 확인
-4. `operations/MAINTENANCE_PLAYBOOK.md`  
+4. `operations/MAINTENANCE_PLAYBOOK.md`
    실제 수정 절차/체크리스트 따라 작업
-5. `upgrades/TREE_SESSION_UPGRADE.md`  
-   트리 세션 고도화 진행 로그/의사결정/후속 작업
-6. `operations/HANDOFF_TEMPLATE.md`  
+5. `operations/CONSISTENCY_GUIDELINES.md`
+   UI/콘텐츠/인터랙션 통일 기준 확인 후 작업 시작
+6. `upgrades/PROBLEM_BANK_PLAN.md`
+   Integration 페이지 문제은행 전환 — 기술 설계, 문제 목록, 구현 로드맵
+7. `upgrades/PROBLEM_BANK_HANDOFF.md`
+   Problem Bank 구현 요청 프롬프트 템플릿
+8. `operations/HANDOFF_TEMPLATE.md`
    작업 종료 후 다음 AI에게 전달할 요약 포맷
 
 ## 아주 빠른 진입점

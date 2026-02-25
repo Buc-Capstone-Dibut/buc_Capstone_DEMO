@@ -405,7 +405,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         t.columnId === targetColumnId || t.status === newStatus;
       return isInTarget && t.id !== taskId;
     });
-    otherTasks.sort((a, b) => a.order - b.order);
+    otherTasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     otherTasks.splice(newIndex, 0, {
       id: taskId,
       columnId: targetColumnId,
