@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { AuthModal } from "@/components/auth/auth-modal";
 
 import {
   Select,
@@ -60,8 +62,10 @@ export function CreateWorkspaceDialog({
   fromSquadId,
 }: CreateWorkspaceDialogProps) {
   const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,6 +78,12 @@ export function CreateWorkspaceDialog({
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      if (!authLoading && !isAuthenticated) {
+        toast.error("워크스페이스 생성은 로그인 후 가능합니다.");
+        setIsAuthModalOpen(true);
+        return;
+      }
+
       setLoading(true);
       const payload = {
         ...values,
@@ -89,7 +99,13 @@ export function CreateWorkspaceDialog({
       });
 
       if (!response.ok) {
-        throw new Error("워크스페이스 생성에 실패했습니다.");
+        const errorBody = await response.json().catch(() => null);
+        const message =
+          errorBody?.error ||
+          (response.status === 401
+            ? "로그인이 필요합니다."
+            : "워크스페이스 생성에 실패했습니다.");
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -108,7 +124,12 @@ export function CreateWorkspaceDialog({
       // Navigate to new workspace
       router.push(`/workspace/${data.id}`);
     } catch (error) {
-      toast.error("오류가 발생했습니다.");
+      const errorMessage =
+        error instanceof Error ? error.message : "오류가 발생했습니다.";
+      toast.error(errorMessage);
+      if (errorMessage.includes("로그인")) {
+        setIsAuthModalOpen(true);
+      }
       console.error(error);
     } finally {
       setLoading(false);
@@ -116,15 +137,26 @@ export function CreateWorkspaceDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> 새 워크스페이스
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen && !authLoading && !isAuthenticated) {
+            toast.error("워크스페이스 생성은 로그인 후 가능합니다.");
+            setIsAuthModalOpen(true);
+            return;
+          }
+          setOpen(nextOpen);
+        }}
+      >
+        <DialogTrigger asChild>
+          {children || (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> 새 워크스페이스
+            </Button>
+          )}
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
             {fromSquadId ? "워크스페이스로 전환" : "새 워크스페이스 만들기"}
@@ -224,7 +256,9 @@ export function CreateWorkspaceDialog({
             </DialogFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <AuthModal open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen} />
+    </>
   );
 }

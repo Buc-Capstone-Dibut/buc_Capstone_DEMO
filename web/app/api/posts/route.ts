@@ -1,30 +1,57 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
-// Helper to validate User ID from Request body or Headers (if Auth middleware passes it)
-// For this API route, we assume the Client sends user_id/author_id, OR we should technically verify session.
-// But keeping existing behavior: usage passed user_id (Backend-for-Frontend logic).
-// Note: In real production, we must verify session here too.
-// For Vibe Coding, we rely on the input body for now (as the original code did validation on body.user_id).
+// Community post creation is session-authenticated and always uses session.user.id
+// as the author to avoid forged user_id payloads.
 
 export async function POST(request: Request) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { title, content, category, tags, user_id } = body;
+    const { title, content, category, tags } = body;
+    const user_id = session.user.id;
 
     // Validation
-    const missing = [];
+    const missing: string[] = [];
     if (!title) missing.push("title");
     if (!content) missing.push("content");
     if (!category) missing.push("category");
-    if (!user_id) missing.push("user_id");
 
     if (missing.length > 0) {
       return NextResponse.json(
         { error: `Missing required fields: ${missing.join(", ")}` },
         { status: 400 }
       );
+    }
+
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user_id },
+    });
+
+    if (!profile) {
+      const baseHandle = `user-${String(user_id).replace(/-/g, "").toLowerCase()}`;
+      await prisma.profiles.create({
+        data: {
+          id: user_id,
+          handle: baseHandle,
+          nickname:
+            session.user.user_metadata?.name ||
+            session.user.user_metadata?.nickname ||
+            "User",
+          avatar_url: session.user.user_metadata?.avatar_url || null,
+        },
+      });
     }
 
     const post = await prisma.posts.create({
@@ -46,8 +73,12 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json({ success: true, id: post.id });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as { message?: string };
     console.error("API: Post Exception", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "게시글 생성 중 오류가 발생했습니다." },
+      { status: 500 },
+    );
   }
 }

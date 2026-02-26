@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { squad_id, user_id, message } = body;
+    const { squad_id, message } = body;
+    const user_id = session.user.id;
 
     // Validation
-    const missing = [];
+    const missing: string[] = [];
     if (!squad_id) missing.push("squad_id");
-    if (!user_id) missing.push("user_id");
     if (!message) missing.push("message");
 
     if (missing.length > 0) {
@@ -46,14 +57,18 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (e: any) {
-    if (e.code === "P2002") {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string };
+    if (err.code === "P2002") {
       return NextResponse.json(
         { error: "이미 지원하셨습니다." },
         { status: 409 },
       );
     }
     console.error("API: Application Insert Exception", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "지원 처리 중 오류가 발생했습니다." },
+      { status: 500 },
+    );
   }
 }

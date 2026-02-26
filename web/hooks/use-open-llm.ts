@@ -38,6 +38,8 @@ export function useOpenLLM({
   const audioContextRef = useRef<AudioContext | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const isMicStreamingRef = useRef(false);
+  const isMicStartingRef = useRef(false);
+  const lastAudioSignatureRef = useRef<string>("");
   const onTranscriptRef = useRef(onTranscript);
   const onEventRef = useRef(onEvent);
 
@@ -105,7 +107,8 @@ export function useOpenLLM({
 
   const startMic = useCallback(async () => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-    if (isMicStreamingRef.current) return;
+    if (isMicStreamingRef.current || isMicStartingRef.current) return;
+    isMicStartingRef.current = true;
 
     try {
       if (audioContextRef.current?.state === "suspended") {
@@ -145,6 +148,8 @@ export function useOpenLLM({
           ? "마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요."
           : "마이크를 시작할 수 없습니다. 마이크 연결 상태를 확인해주세요.",
       });
+    } finally {
+      isMicStartingRef.current = false;
     }
   }, []);
 
@@ -165,6 +170,11 @@ export function useOpenLLM({
       case "audio":
         // Play audio chunk
         if (Array.isArray(event.audio)) {
+            const signature = `${String(event.chunkIndex ?? "na")}:${event.audio.length}:${String(event.isFinalChunk ?? false)}`;
+            if (lastAudioSignatureRef.current === signature) {
+              break;
+            }
+            lastAudioSignatureRef.current = signature;
             // Half-duplex safety: AI 음성이 나갈 때는 사용자 마이크 송신을 일시 중지한다.
             if (isMicStreamingRef.current) {
               stopMic(false);
@@ -200,11 +210,17 @@ export function useOpenLLM({
   }, [startMic, stopMic]);
 
   const connect = useCallback(() => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) return;
+    if (
+      socketRef.current?.readyState === WebSocket.OPEN ||
+      socketRef.current?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
 
     console.log("Connecting to:", serverUrl);
     const ws = new WebSocket(serverUrl);
     socketRef.current = ws;
+    lastAudioSignatureRef.current = "";
 
     ws.onopen = () => {
       console.log("WebSocket connected");

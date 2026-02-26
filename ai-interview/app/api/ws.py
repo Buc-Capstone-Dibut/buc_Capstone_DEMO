@@ -545,14 +545,14 @@ async def _generate_and_send_ai_turn(
                     )
 
                     if sentence_queue is not None:
+                        # Prevent duplicate TTS:
+                        # In sentence streaming mode, already spoken chunks must not be re-queued.
+                        # Only append the explicit suffix when finalized text cleanly extends the streamed text.
                         merged_remainder = sentence_buffer
-                        if ai_text != streamed_text:
-                            if ai_text.startswith(streamed_text):
-                                suffix = ai_text[len(streamed_text):].strip()
-                                if suffix:
-                                    merged_remainder = f"{merged_remainder} {suffix}".strip()
-                            else:
-                                merged_remainder = ai_text
+                        if ai_text != streamed_text and ai_text.startswith(streamed_text):
+                            suffix = ai_text[len(streamed_text):].strip()
+                            if suffix:
+                                merged_remainder = f"{merged_remainder} {suffix}".strip()
                         ready_sentences, sentence_buffer = _split_complete_sentences(merged_remainder)
                         for sentence in ready_sentences:
                             await sentence_queue.put(sentence)

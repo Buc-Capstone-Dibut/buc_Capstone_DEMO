@@ -125,7 +125,13 @@ export default function InterviewVideoRoomPage() {
       if (role === "ai") {
         setStreamingCaption("");
       }
-      setTranscript((prev) => [...prev, { role, text: clean, timestamp: Date.now() }]);
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === role && last.text === clean) {
+          return prev;
+        }
+        return [...prev, { role, text: clean, timestamp: Date.now() }];
+      });
     },
     onEvent: (event) => {
       const eventType = typeof event.type === "string" ? event.type : "";
