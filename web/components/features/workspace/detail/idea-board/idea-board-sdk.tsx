@@ -138,7 +138,21 @@ export default function IdeaBoardSDK({ projectId }: IdeaBoardSDKProps) {
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
           </MainMenu>
-          <WelcomeScreen />
+          <WelcomeScreen>
+            <WelcomeScreen.Center>
+              <WelcomeScreen.Center.Logo>
+                <span style={{ fontSize: 28, fontWeight: 700, color: "#82B84C", letterSpacing: "-0.5px" }}>
+                  Dibut
+                </span>
+              </WelcomeScreen.Center.Logo>
+              <WelcomeScreen.Center.Heading>
+                아이디어를 자유롭게 펼쳐보세요
+              </WelcomeScreen.Center.Heading>
+              <WelcomeScreen.Center.Menu>
+                <WelcomeScreen.Center.MenuItemHelp />
+              </WelcomeScreen.Center.Menu>
+            </WelcomeScreen.Center>
+          </WelcomeScreen>
         </Excalidraw>
         </div>
       </div>
