@@ -284,3 +284,36 @@ body {
 .react-flow__attribution {
   display: none !important;
 }
+
+/* ─────────────────────────────────────────
+   Excalidraw 브랜드 컬러 오버라이드
+   Dibut 그린: hsl(90, 43%, 51%) = #82B84C
+   ───────────────────────────────────────── */
+
+/* 라이트 모드 */
+.excalidraw {
+  --color-primary:              #82B84C;
+  --color-primary-darker:       #6A9A3C;
+  --color-primary-darkest:      #527830;
+  --color-primary-light:        #B5D58A;
+  --color-primary-light-darker: #9CC66A;
+  --color-brand-active:         #82B84C;
+  --color-brand-hover:          #6A9A3C;
+  --color-selection:            rgba(130, 184, 76, 0.12);
+  --color-on-primary-container: #3D5A22;
+  --color-surface-primary-container: #E8F5D4;
+}
+
+/* 다크 모드 (Excalidraw 자체 다크 테마) */
+.excalidraw.dark {
+  --color-primary:              #9CC66A;
+  --color-primary-darker:       #82B84C;
+  --color-primary-darkest:      #6A9A3C;
+  --color-primary-light:        #3D5A22;
+  --color-primary-light-darker: #2E4418;
+  --color-brand-active:         #9CC66A;
+  --color-brand-hover:          #82B84C;
+  --color-selection:            rgba(156, 198, 106, 0.15);
+  --color-on-primary-container: #B5D58A;
+  --color-surface-primary-container: #2A4018;
+}
