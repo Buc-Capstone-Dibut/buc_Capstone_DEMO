@@ -39,11 +39,15 @@ export async function GET(
     }
 
     const supabase = createRouteHandlerClient({ cookies });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const [postCount, commentCount, workspaceCount, resume, workspaceSettings] = await Promise.all([
+    const [
+      { data: { session } },
+      postCount,
+      commentCount,
+      workspaceCount,
+      resume,
+      workspaceSettings,
+    ] = await Promise.all([
+      supabase.auth.getSession(),
       prisma.posts.count({ where: { author_id: profile.id } }),
       prisma.comments.count({ where: { author_id: profile.id } }),
       prisma.workspace_members.count({ where: { user_id: profile.id } }),

@@ -634,10 +634,23 @@ export default function MyProfilePage() {
     setLoading(true);
     setError(null);
     try {
-      const profileRes = await fetch(`/api/my/profile/${encodeURIComponent(handle)}`, {
-        cache: "no-store",
-      });
-      const profileJson = await profileRes.json();
+      const enc = encodeURIComponent(handle);
+      const [profileRes, postsRes, commentsRes, bookmarksRes, heatmapRes] = await Promise.all([
+        fetch(`/api/my/profile/${enc}`, { cache: "no-store" }),
+        fetch(`/api/my/content/posts?handle=${enc}`, { cache: "no-store" }),
+        fetch(`/api/my/content/comments?handle=${enc}`, { cache: "no-store" }),
+        fetch(`/api/my/bookmarks?handle=${enc}`, { cache: "no-store" }),
+        fetch(`/api/my/activity/heatmap?handle=${enc}`, { cache: "no-store" }),
+      ]);
+
+      const [profileJson, postsJson, commentsJson, bookmarksJson, heatmapJson] = await Promise.all([
+        profileRes.json(),
+        postsRes.json(),
+        commentsRes.json(),
+        bookmarksRes.json(),
+        heatmapRes.json(),
+      ]);
+
       if (!profileRes.ok || !profileJson?.success) {
         throw new Error(profileJson?.error || "프로필을 불러오지 못했습니다.");
       }
@@ -650,20 +663,6 @@ export default function MyProfilePage() {
         bio: profileData.profile.bio || "",
         techStack: (profileData.profile.techStack || []).join(", "),
       });
-
-      const [postsRes, commentsRes, bookmarksRes, heatmapRes] = await Promise.all([
-        fetch(`/api/my/content/posts?handle=${encodeURIComponent(handle)}`, { cache: "no-store" }),
-        fetch(`/api/my/content/comments?handle=${encodeURIComponent(handle)}`, { cache: "no-store" }),
-        fetch(`/api/my/bookmarks?handle=${encodeURIComponent(handle)}`, { cache: "no-store" }),
-        fetch(`/api/my/activity/heatmap?handle=${encodeURIComponent(handle)}`, { cache: "no-store" }),
-      ]);
-
-      const [postsJson, commentsJson, bookmarksJson, heatmapJson] = await Promise.all([
-        postsRes.json(),
-        commentsRes.json(),
-        bookmarksRes.json(),
-        heatmapRes.json(),
-      ]);
 
       setPosts(postsJson?.data?.items || []);
       setComments(commentsJson?.data?.items || []);

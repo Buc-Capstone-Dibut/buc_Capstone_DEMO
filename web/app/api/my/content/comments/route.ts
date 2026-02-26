@@ -28,27 +28,26 @@ export async function GET(req: Request) {
     }
 
     const supabase = createRouteHandlerClient({ cookies });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const comments = await prisma.comments.findMany({
-      where: { author_id: profile.id },
-      orderBy: { created_at: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        content: true,
-        post_id: true,
-        created_at: true,
-        posts: {
-          select: {
-            id: true,
-            title: true,
+    const [{ data: { session } }, comments] = await Promise.all([
+      supabase.auth.getSession(),
+      prisma.comments.findMany({
+        where: { author_id: profile.id },
+        orderBy: { created_at: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          content: true,
+          post_id: true,
+          created_at: true,
+          posts: {
+            select: {
+              id: true,
+              title: true,
+            },
           },
         },
-      },
-    });
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

@@ -36,8 +36,21 @@ export async function GET(req: Request) {
       where: { user_id: profile.id },
       orderBy: { created_at: "desc" },
       take: 100,
-      include: {
-        blogs: true,
+      select: {
+        id: true,
+        created_at: true,
+        blogs: {
+          select: {
+            id: true,
+            title: true,
+            summary: true,
+            author: true,
+            tags: true,
+            external_url: true,
+            thumbnail_url: true,
+            published_at: true,
+          },
+        },
       },
     });
 
