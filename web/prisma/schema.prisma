@@ -631,10 +631,11 @@ model workspaces {
   members workspace_members[]
   invites workspace_invites[]
 
-  columns  kanban_columns[]
-  tags     kanban_tags[]
-  docs     workspace_docs[]
-  channels workspace_channels[]
+  columns    kanban_columns[]
+  tags       kanban_tags[]
+  docs       workspace_docs[]
+  channels   workspace_channels[]
+  whiteboard workspace_whiteboards?
 
   squad squads? @relation(fields: [from_squad_id], references: [id])
 
@@ -744,6 +745,17 @@ model workspace_docs {
 
   @@index([workspace_id, updated_at(sort: Desc)])
   @@index([parent_id])
+  @@schema("public")
+}
+
+model workspace_whiteboards {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String   @unique @db.Uuid
+  yjs_state    String?  // base64-encoded Uint8Array from Y.encodeStateAsUpdate()
+  updated_at   DateTime @default(now()) @updatedAt
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 

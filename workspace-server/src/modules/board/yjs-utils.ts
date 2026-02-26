@@ -4,6 +4,7 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { WebSocket } from "ws";
+import { BFF_URL, INTERNAL_API_SECRET } from "../../config/env";
 
 const wsReadyStateConnecting = 0;
 const wsReadyStateOpen = 1;
@@ -15,10 +16,86 @@ const docs = new Map<string, WSSharedDoc>();
 const messageSync = 0;
 const messageAwareness = 1;
 
+// ─────────────────────────────────────────────
+// Persistence (workspace-server ↔ Next.js BFF)
+// ─────────────────────────────────────────────
+
+/**
+ * DB에 저장된 Yjs 상태를 불러와 doc에 적용한다.
+ * - 새 doc이 생성될 때 (첫 접속) 비동기로 호출
+ * - applyUpdate() 호출 → doc.on("update") → 이미 연결된 클라이언트에 자동 브로드캐스트
+ */
+const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
+  if (!INTERNAL_API_SECRET) {
+    console.warn("[YJS] INTERNAL_API_SECRET 미설정 - 상태 로드 건너뜀");
+    return;
+  }
+  try {
+    const res = await fetch(
+      `${BFF_URL}/api/workspaces/${doc.name}/whiteboard`,
+      { headers: { "x-internal-secret": INTERNAL_API_SECRET } },
+    );
+    if (!res.ok) return;
+
+    const { yjs_state } = (await res.json()) as { yjs_state: string | null };
+    if (!yjs_state) return;
+
+    const state = Buffer.from(yjs_state, "base64");
+    Y.applyUpdate(doc, state);
+    console.log(`[YJS] '${doc.name}' 상태 로드 완료 (${state.length} bytes)`);
+  } catch (err) {
+    console.error(`[YJS] '${doc.name}' 로드 오류:`, err);
+  }
+};
+
+/**
+ * 현재 Yjs 상태를 DB에 저장한다.
+ * - debounce (변경 후 3초), 마지막 유저 퇴장 시, 30초 주기 저장에서 호출
+ */
+const saveDocState = async (doc: WSSharedDoc): Promise<void> => {
+  if (!INTERNAL_API_SECRET) {
+    console.warn("[YJS] INTERNAL_API_SECRET 미설정 - 저장 건너뜀");
+    return;
+  }
+  try {
+    const state = Y.encodeStateAsUpdate(doc);
+    const yjs_state = Buffer.from(state).toString("base64");
+
+    const res = await fetch(
+      `${BFF_URL}/api/workspaces/${doc.name}/whiteboard`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_API_SECRET,
+        },
+        body: JSON.stringify({ yjs_state }),
+      },
+    );
+
+    if (res.ok) {
+      console.log(`[YJS] '${doc.name}' 저장 완료 (${state.length} bytes)`);
+    } else {
+      console.error(`[YJS] '${doc.name}' 저장 실패: HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`[YJS] '${doc.name}' 저장 오류:`, err);
+  }
+};
+
+// ─────────────────────────────────────────────
+// WSSharedDoc
+// ─────────────────────────────────────────────
+
 class WSSharedDoc extends Y.Doc {
   name: string;
   conns: Map<WebSocket, Set<number>>;
   awareness: awarenessProtocol.Awareness;
+
+  /** debounce 저장용 타이머 */
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 30초 주기 저장 타이머 */
+  private periodicTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(name: string) {
     super({ gc: true });
@@ -27,6 +104,7 @@ class WSSharedDoc extends Y.Doc {
     this.awareness = new awarenessProtocol.Awareness(this);
     this.awareness.setLocalState(null);
 
+    // Awareness 변경 → 모든 클라이언트에 브로드캐스트
     const awarenessChangeHandler = (
       { added, updated, removed }: any,
       origin: any,
@@ -39,14 +117,12 @@ class WSSharedDoc extends Y.Doc {
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
       );
       const buff = encoding.toUint8Array(encoder);
-
-      this.conns.forEach((_, c) => {
-        send(this, c, buff);
-      });
+      this.conns.forEach((_, c) => { send(this, c, buff); });
     };
     this.awareness.on("update", awarenessChangeHandler);
 
-    this.on("update", (update: Uint8Array, origin: any, doc: Y.Doc) => {
+    // Doc 변경 → 다른 클라이언트에 브로드캐스트 + debounce 저장 예약
+    this.on("update", (update: Uint8Array, origin: any) => {
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageSync);
       syncProtocol.writeUpdate(encoder, update);
@@ -60,11 +136,52 @@ class WSSharedDoc extends Y.Doc {
         }
       });
       console.log(
-        `[YJS] Document '${this.name}' updated. Origin: ${origin ? "Client" : "Server"}. Broadcast to ${broadcastCount} peers. Total Clients: ${this.conns.size}`,
+        `[YJS] '${this.name}' 변경됨. ${broadcastCount}/${this.conns.size} 피어에 브로드캐스트`,
       );
+
+      // 변경 감지 → 3초 후 자동 저장 (debounce)
+      this.scheduleSave();
     });
+
+    // 30초마다 주기 저장 (접속 유저가 있을 때만)
+    this.periodicTimer = setInterval(() => {
+      if (this.conns.size > 0) {
+        console.log(`[YJS] '${this.name}' 주기 저장 실행`);
+        saveDocState(this);
+      }
+    }, 30_000);
+  }
+
+  /** 마지막 변경 후 3초가 지나면 저장 (중간에 변경이 오면 리셋) */
+  scheduleSave() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      saveDocState(this);
+    }, 3_000);
+  }
+
+  /** 예약된 debounce 저장 취소 (all-left 저장 전 호출) */
+  cancelScheduledSave() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+  }
+
+  /** 모든 타이머 정리 */
+  cleanup() {
+    this.cancelScheduledSave();
+    if (this.periodicTimer) {
+      clearInterval(this.periodicTimer);
+      this.periodicTimer = null;
+    }
   }
 }
+
+// ─────────────────────────────────────────────
+// 내부 유틸리티
+// ─────────────────────────────────────────────
 
 const getYDoc = (docname: string, gc = true): WSSharedDoc => {
   let doc = docs.get(docname);
@@ -72,6 +189,9 @@ const getYDoc = (docname: string, gc = true): WSSharedDoc => {
     doc = new WSSharedDoc(docname);
     doc.gc = gc;
     docs.set(docname, doc);
+    // 새 doc 생성 시 → DB에서 이전 상태 비동기 로드
+    // applyUpdate()가 완료되면 doc.on("update")가 발화해 연결된 클라이언트에 자동 전파됨
+    loadDocState(doc);
   }
   return doc;
 };
@@ -100,27 +220,39 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
         null,
       );
     }
+
+    // 마지막 유저가 나갔을 때 → 즉시 저장 후 메모리 해제
     if (doc.conns.size === 0) {
-      // persistence logic here if needed
-      // docs.delete(doc.name); // keep for now
+      doc.cancelScheduledSave(); // debounce 취소 (즉시 저장이 대신함)
+      console.log(`[YJS] '${doc.name}' 마지막 유저 퇴장 → 즉시 저장`);
+      saveDocState(doc).then(() => {
+        // 저장 완료 후에도 여전히 접속자가 없으면 메모리에서 제거
+        if (doc.conns.size === 0) {
+          doc.cleanup();
+          docs.delete(doc.name);
+          console.log(`[YJS] '${doc.name}' 메모리에서 해제`);
+        }
+      });
     }
   }
   conn.close();
 };
+
+// ─────────────────────────────────────────────
+// 공개 API
+// ─────────────────────────────────────────────
 
 export const setupWSConnection = (
   conn: WebSocket,
   req: any,
   { docName = req.url!.slice(1), gc = true }: any = {},
 ) => {
-  console.log(`[YJS] Setting up connection for doc: ${docName}`);
+  console.log(`[YJS] 연결 설정: doc='${docName}'`);
   conn.binaryType = "arraybuffer";
   const doc = getYDoc(docName, gc);
   doc.conns.set(conn, new Set());
 
-  // Listen to messages
   conn.on("message", (message: ArrayBuffer) => {
-    // console.log(`[YJS] Message received for ${docName}, size: ${message.byteLength}`);
     try {
       const encoder = encoding.createEncoder();
       const decoder = decoding.createDecoder(new Uint8Array(message));
@@ -145,16 +277,15 @@ export const setupWSConnection = (
       }
     } catch (err) {
       console.error(err);
-      // doc.emit('error', [err]); // Y.Doc doesn't have error event
     }
   });
 
   conn.on("close", () => {
-    console.log(`[YJS] Connection closed for ${docName}`);
+    console.log(`[YJS] 연결 종료: doc='${docName}'`);
     closeConn(doc, conn);
   });
 
-  // Send Step 1
+  // Sync Step 1: 서버 상태 벡터 전송 → 클라이언트가 없는 업데이트를 요청
   {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, messageSync);
