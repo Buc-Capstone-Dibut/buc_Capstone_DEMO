@@ -30,7 +30,7 @@ interface Notification {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function NotificationCenter() {
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const { data: notifications, mutate } = useSWR<Notification[]>(
     user ? "/api/notifications" : null,
     fetcher,

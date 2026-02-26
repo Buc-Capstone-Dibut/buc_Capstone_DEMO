@@ -3,7 +3,12 @@ import { getUserProfile, UserProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 
-export function useAuth() {
+interface UseAuthOptions {
+  loadProfile?: boolean;
+}
+
+export function useAuth(options: UseAuthOptions = {}) {
+  const { loadProfile = true } = options;
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -31,7 +36,7 @@ export function useAuth() {
         setIsAuthenticated(!!currentUser);
       }
 
-      if (currentUser) {
+      if (currentUser && loadProfile) {
         await fetchProfile(currentUser);
       } else {
         if (mounted) setProfile(null);
@@ -56,7 +61,7 @@ export function useAuth() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
 
   return { user, profile, isAuthenticated, loading };
 }

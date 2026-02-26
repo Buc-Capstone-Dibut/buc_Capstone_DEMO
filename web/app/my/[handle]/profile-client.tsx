@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,7 @@ interface InitialData {
     postCount: number;
     commentCount: number;
     workspaceCount: number;
+    bookmarkCount: number;
   };
   resumeSummary: any;
   workspaceSummary: any;
@@ -603,17 +604,26 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [activeTab, setActiveTab] = useState<TabKey>("posts");
   const [bookmarkView, setBookmarkView] = useState<BookmarkView>("card");
 
-  // Initialize all state from server-fetched data (no loading phase needed)
+  // Main payload is loaded lazily per tab to keep first paint fast.
   const [profile, setProfile] = useState(initialData.profile);
   const [stats] = useState(initialData.stats);
-  const [resumeSummary] = useState(initialData.resumeSummary);
-  const [posts, setPosts] = useState(initialData.posts);
-  const [comments, setComments] = useState(initialData.comments);
-  const [bookmarks] = useState(initialData.bookmarks);
-  const [heatmap] = useState(initialData.heatmap);
+  const [resumeSummary, setResumeSummary] = useState(initialData.resumeSummary);
+  const [posts, setPosts] = useState(initialData.posts || []);
+  const [comments, setComments] = useState(initialData.comments || []);
+  const [bookmarks, setBookmarks] = useState(initialData.bookmarks || []);
+  const [heatmap, setHeatmap] = useState(initialData.heatmap || []);
   const [resumePayload, setResumePayload] = useState<ResumePayload>(
-    normalizeResumePayload(initialData.resumePayload)
+    normalizeResumePayload(initialData.resumePayload || null)
   );
+  const [tabLoading, setTabLoading] = useState<Partial<Record<TabKey, boolean>>>({});
+  const [tabLoaded, setTabLoaded] = useState<Partial<Record<TabKey, boolean>>>({
+    posts: (initialData.posts || []).length > 0,
+    comments: (initialData.comments || []).length > 0,
+    bookmarks: (initialData.bookmarks || []).length > 0,
+    activity: (initialData.heatmap || []).length > 0,
+    resume: Boolean(initialData.resumePayload),
+  });
+  const [tabError, setTabError] = useState<Partial<Record<TabKey, string>>>({});
 
   const isOwner = initialData.isOwner;
 
@@ -626,14 +636,129 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
   const tierStyle = TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
   const tabCounts: Partial<Record<TabKey, number>> = {
-    posts: posts.length,
-    comments: comments.length,
-    bookmarks: bookmarks.length,
+    posts: stats.postCount,
+    comments: stats.commentCount,
+    bookmarks: stats.bookmarkCount,
   };
   const activityTotal = useMemo(
     () => heatmap.reduce((sum, p) => sum + p.count, 0),
     [heatmap]
   );
+  const bookmarkTotalCount = tabLoaded.bookmarks ? bookmarks.length : stats.bookmarkCount;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTabData = async () => {
+      const tab = activeTab;
+      if (tabLoaded[tab]) return;
+
+      setTabLoading((prev) => ({ ...prev, [tab]: true }));
+      setTabError((prev) => ({ ...prev, [tab]: "" }));
+
+      try {
+        if (tab === "posts") {
+          const res = await fetch(`/api/my/content/posts?handle=${encodeURIComponent(profile.handle)}`, {
+            cache: "no-store",
+          });
+          const json = await res.json();
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || "글을 불러오지 못했습니다.");
+          }
+          if (!cancelled) setPosts(json?.data?.items || []);
+        }
+
+        if (tab === "comments") {
+          const res = await fetch(`/api/my/content/comments?handle=${encodeURIComponent(profile.handle)}`, {
+            cache: "no-store",
+          });
+          const json = await res.json();
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || "댓글을 불러오지 못했습니다.");
+          }
+          if (!cancelled) setComments(json?.data?.items || []);
+        }
+
+        if (tab === "bookmarks") {
+          const res = await fetch(`/api/my/bookmarks?handle=${encodeURIComponent(profile.handle)}`, {
+            cache: "no-store",
+          });
+          const json = await res.json();
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || "북마크를 불러오지 못했습니다.");
+          }
+          if (!cancelled) {
+            const items = (json?.data?.items || []).map((item: any) => ({
+              ...item,
+              blog: item?.blog
+                ? {
+                    ...item.blog,
+                    id: String(item.blog.id),
+                  }
+                : null,
+            }));
+            setBookmarks(items);
+          }
+        }
+
+        if (tab === "activity") {
+          const res = await fetch(`/api/my/activity/heatmap?handle=${encodeURIComponent(profile.handle)}`, {
+            cache: "no-store",
+          });
+          const json = await res.json();
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || "활동 기록을 불러오지 못했습니다.");
+          }
+          if (!cancelled) {
+            setHeatmap(json?.data?.points || []);
+          }
+        }
+
+        if (tab === "resume" && isOwner) {
+          const res = await fetch("/api/my/resume/active", { cache: "no-store" });
+          if (res.status === 404) {
+            if (!cancelled) {
+              setResumePayload(EMPTY_RESUME);
+            }
+          } else {
+            const json = await res.json();
+            if (!res.ok || !json?.success) {
+              throw new Error(json?.error || "이력서를 불러오지 못했습니다.");
+            }
+            if (!cancelled) {
+              setResumePayload(normalizeResumePayload(json?.data?.resumePayload || null));
+              setResumeSummary(json?.data?.publicSummary || null);
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setTabLoaded((prev) => ({ ...prev, [tab]: true }));
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          const message = error?.message || "데이터를 불러오지 못했습니다.";
+          setTabError((prev) => ({ ...prev, [tab]: message }));
+          toast({ title: "불러오기 실패", description: message, variant: "destructive" });
+        }
+      } finally {
+        if (!cancelled) {
+          setTabLoading((prev) => ({ ...prev, [tab]: false }));
+        }
+      }
+    };
+
+    loadTabData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    isOwner,
+    profile.handle,
+    tabLoaded,
+  ]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -685,6 +810,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       });
       const json = await res.json();
       if (!res.ok || !json?.success) throw new Error(json?.error || "이력서 저장 실패");
+      setResumeSummary(json?.data?.publicSummary || resumeSummary);
       toast({ title: "이력서가 저장되었습니다." });
     } catch (err: any) {
       toast({ title: "저장 실패", description: err.message, variant: "destructive" });
@@ -884,7 +1010,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             {/* Tab: 글 */}
             {activeTab === "posts" && (
               <div className="space-y-2">
-                {posts.length === 0 ? (
+                {tabLoading.posts ? (
+                  <div className="flex items-center justify-center py-14 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    글 목록을 불러오는 중...
+                  </div>
+                ) : tabError.posts ? (
+                  <p className="text-sm text-red-500 py-10 text-center">{tabError.posts}</p>
+                ) : posts.length === 0 ? (
                   <EmptyState icon={FileText} message="작성한 글이 없습니다." />
                 ) : (
                   posts.map((post) => (
@@ -937,7 +1070,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             {/* Tab: 댓글 */}
             {activeTab === "comments" && (
               <div className="space-y-2">
-                {comments.length === 0 ? (
+                {tabLoading.comments ? (
+                  <div className="flex items-center justify-center py-14 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    댓글 목록을 불러오는 중...
+                  </div>
+                ) : tabError.comments ? (
+                  <p className="text-sm text-red-500 py-10 text-center">{tabError.comments}</p>
+                ) : comments.length === 0 ? (
                   <EmptyState icon={MessageSquare} message="작성한 댓글이 없습니다." />
                 ) : (
                   comments.map((comment) => (
@@ -988,9 +1128,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    {bookmarks.length > 0 ? `북마크 ${bookmarks.length}개` : ""}
+                    {bookmarkTotalCount > 0 ? `북마크 ${bookmarkTotalCount}개` : ""}
                   </p>
-                  {bookmarks.length > 0 && (
+                  {bookmarkTotalCount > 0 && (
                     <div className="flex items-center rounded-md border overflow-hidden">
                       {(["card", "list"] as const).map((v) => (
                         <button
@@ -1013,7 +1153,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                   )}
                 </div>
 
-                {bookmarks.length === 0 ? (
+                {tabLoading.bookmarks ? (
+                  <div className="flex items-center justify-center py-14 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    북마크를 불러오는 중...
+                  </div>
+                ) : tabError.bookmarks ? (
+                  <p className="text-sm text-red-500 py-10 text-center">{tabError.bookmarks}</p>
+                ) : bookmarks.length === 0 ? (
                   <EmptyState icon={Bookmark} message="북마크한 글이 없습니다." />
                 ) : bookmarkView === "card" ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -1139,6 +1286,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             {/* Tab: 이력서 */}
             {activeTab === "resume" && (
               isOwner ? (
+                tabLoading.resume ? (
+                  <div className="flex items-center justify-center py-14 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    이력서를 불러오는 중...
+                  </div>
+                ) : tabError.resume ? (
+                  <p className="text-sm text-red-500 py-10 text-center">{tabError.resume}</p>
+                ) : (
                 <ResumeEditor
                   payload={resumePayload}
                   onChange={setResumePayload}
@@ -1146,6 +1301,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                   saving={saving}
                   onGoSetup={() => router.push("/interview/setup?import=active_resume")}
                 />
+                )
               ) : (
                 <div className="rounded-xl border bg-card px-5 py-6 space-y-3">
                   <div className="flex items-center gap-2">
@@ -1184,7 +1340,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     <span>많음</span>
                   </div>
                 </div>
-                {heatmap.length === 0 ? (
+                {tabLoading.activity ? (
+                  <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    활동 기록을 불러오는 중...
+                  </div>
+                ) : tabError.activity ? (
+                  <p className="text-sm text-red-500 py-10 text-center">{tabError.activity}</p>
+                ) : heatmap.length === 0 ? (
                   <EmptyState icon={Activity} message="최근 1년간 활동 기록이 없습니다." />
                 ) : (
                   <div className="overflow-x-auto">

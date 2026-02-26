@@ -456,6 +456,25 @@ model comments {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model squad_comments {
+  id                   String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  squad_id             String            @db.Uuid
+  author_id            String?           @db.Uuid
+  content              String
+  parent_id            String?           @db.Uuid
+  created_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?         @default(now()) @db.Timestamptz(6)
+  profiles             profiles?         @relation(fields: [author_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  squads               squads            @relation(fields: [squad_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  squad_comments       squad_comments?   @relation("squad_commentsTosquad_comments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other_squad_comments squad_comments[]  @relation("squad_commentsTosquad_comments")
+
+  @@index([parent_id], map: "idx_squad_comments_parent_id")
+  @@index([squad_id, created_at], map: "idx_squad_comments_squad_created_at")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model posts {
   id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   author_id           String?    @db.Uuid
@@ -489,6 +508,7 @@ model profiles {
   updated_at         DateTime?            @default(now()) @db.Timestamptz(6)
   comments           comments[]
   posts              posts[]
+  squad_comments     squad_comments[]
   users              users                @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   squad_applications squad_applications[]
   squad_members      squad_members[]
@@ -787,6 +807,7 @@ model squads {
   created_at         DateTime?            @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?            @default(now()) @db.Timestamptz(6)
   squad_applications squad_applications[]
+  squad_comments     squad_comments[]
   squad_members      squad_members[]
   profiles           profiles?            @relation(fields: [leader_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 

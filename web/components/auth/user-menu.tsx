@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import {
@@ -25,6 +26,7 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
   const { user, profile, loading, isAuthenticated } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const { toast } = useToast();
+  const myPageHref = profile?.handle ? `/my/${profile.handle}` : "/my/me";
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -104,16 +106,16 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <a href="/my/me">
-          <User className="mr-2 h-4 w-4" />
-          <span>프로필</span>
-          </a>
+          <Link href={myPageHref}>
+            <User className="mr-2 h-4 w-4" />
+            <span>프로필</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href="/bookmarks">
+          <Link href="/bookmarks">
             <Bookmark className="mr-2 h-4 w-4" />
             <span>북마크</span>
-          </a>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

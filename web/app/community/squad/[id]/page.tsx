@@ -29,6 +29,7 @@ import ApplicantManager from "@/components/features/community/squad/applicant-ma
 import SquadActions from "@/components/features/community/squad-actions";
 import { CreateWorkspaceDialog } from "@/components/features/workspace/dialogs/create-workspace-dialog";
 import { SquadHeaderActions } from "@/components/features/community/squad-header-actions";
+import { SquadCommentSection } from "@/components/features/community/squad-comment-section";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -116,6 +117,38 @@ export default async function SquadDetailPage({ params }: PageProps) {
 
     memberWorkspaceId = linkedMembership?.workspace_id ?? null;
   }
+
+  const squadCommentsModel = (prisma as any).squad_comments;
+  const rawSquadComments = squadCommentsModel
+    ? await squadCommentsModel.findMany({
+        where: { squad_id: id },
+        include: {
+          profiles: {
+            select: {
+              nickname: true,
+              avatar_url: true,
+            },
+          },
+        },
+        orderBy: { created_at: "asc" },
+      })
+    : [];
+
+  const squadComments = rawSquadComments.map((comment) => ({
+    id: comment.id,
+    squad_id: comment.squad_id,
+    author_id: comment.author_id,
+    content: comment.content,
+    parent_id: comment.parent_id,
+    created_at: comment.created_at?.toISOString() ?? null,
+    updated_at: comment.updated_at?.toISOString() ?? null,
+    author: comment.profiles
+      ? {
+          nickname: comment.profiles.nickname,
+          avatar_url: comment.profiles.avatar_url,
+        }
+      : null,
+  }));
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -211,6 +244,8 @@ export default async function SquadDetailPage({ params }: PageProps) {
           <div className="prose dark:prose-invert max-w-none min-h-[300px]">
             <Viewer content={squad.content} />
           </div>
+
+          <SquadCommentSection squadId={squad.id} initialComments={squadComments} />
         </div>
 
         {/* Right Column: Sidebar */}
