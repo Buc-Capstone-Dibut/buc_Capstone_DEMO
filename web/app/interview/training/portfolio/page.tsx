@@ -98,6 +98,14 @@ export default function PortfolioTrainingPage() {
       if (!data.success) {
         if (data.error === "PUBLIC_REPO_ONLY") {
           setError("비공개 레포 또는 접근 불가한 레포입니다. 공개 레포 URL을 사용해주세요. GitHub 레포 Settings → General에서 공개(Public)로 변경 후 다시 시도하세요.");
+        } else if (data.error === "GITHUB_RATE_LIMIT") {
+          setError("GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도하거나 서버에 GITHUB_TOKEN을 설정해주세요.");
+        } else if (data.error === "GITHUB_AUTH_ERROR") {
+          setError("서버의 GitHub 토큰 인증에 실패했습니다. GITHUB_TOKEN 값을 다시 확인해주세요.");
+        } else if (data.error === "GITHUB_FORBIDDEN") {
+          setError("GitHub API 접근이 거부되었습니다. 토큰 권한(Repository metadata read)을 확인해주세요.");
+        } else if (data.error === "GITHUB_API_ERROR") {
+          setError("GitHub API 호출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
         } else {
           setError(data.error || "네트워크 오류 또는 GitHub API 요청 제한일 수 있습니다. 잠시 후 다시 시도해주세요.");
         }

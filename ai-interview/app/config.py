@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
+    github_token: str | None = Field(default=None, alias="GITHUB_TOKEN")
 
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
@@ -68,6 +69,7 @@ class Settings(BaseSettings):
     @field_validator(
         "database_url",
         "gemini_api_key",
+        "github_token",
         "livekit_url",
         "livekit_api_key",
         "livekit_api_secret",

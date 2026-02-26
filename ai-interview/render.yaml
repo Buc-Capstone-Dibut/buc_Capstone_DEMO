@@ -9,6 +9,8 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: GITHUB_TOKEN
+        sync: false
       - key: CORS_ORIGINS
         value: https://your-vercel-app.vercel.app
       - key: LIVEKIT_URL

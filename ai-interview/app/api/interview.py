@@ -18,7 +18,7 @@ from app.schemas.interview import (
     SessionStartRequest,
 )
 from app.services.interview_service import InterviewService
-from app.services.llm_gemini import GeminiService
+from app.services.llm_gemini import GeminiService, RepoAnalysisError
 from app.services.report_agent import ReportAgent
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
@@ -544,8 +544,8 @@ async def portfolio_analyze_public_repo(payload: PortfolioAnalyzeRequest):
         gemini = get_gemini_service()
         result = gemini.analyze_public_repo(payload.repoUrl)
         return {"success": True, "data": result}
-    except PermissionError:
-        return {"success": False, "error": "PUBLIC_REPO_ONLY"}
+    except RepoAnalysisError as exc:
+        return {"success": False, "error": exc.code}
     except ValueError as exc:
         return {"success": False, "error": str(exc)}
     except Exception as exc:

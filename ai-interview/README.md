@@ -36,6 +36,7 @@ sequenceDiagram
 | `DATABASE_URL` | 예 | Postgres 연결 문자열 |
 | `GEMINI_API_KEY` | 예 | 질문 생성/분석 LLM |
 | `GEMINI_MODEL` | 아니오 | 기본 `gemini-1.5-flash` |
+| `GITHUB_TOKEN` | 권장 | GitHub API rate limit 회피 및 공개 레포 분석 안정화 |
 | `CORS_ORIGINS` | 예 | 웹 도메인 목록(콤마 구분) |
 | `OPENAI_API_KEY` | 음성 사용 시 예 | STT/TTS 기능 활성화 |
 | `OPENAI_STT_MODEL` | 아니오 | 기본 `whisper-1` |

@@ -4,6 +4,7 @@ import io
 import json
 import re
 from typing import Any, Iterator, Type
+from urllib.parse import urlparse
 
 import google.generativeai as genai
 import httpx
@@ -11,6 +12,7 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, ValidationError
 from pypdf import PdfReader
 
+from app.config import settings
 from app.schemas.interview import InterviewPhase, NextQuestionDraft, QuestionPlanItem, QuestionPlanResponse
 
 
@@ -22,6 +24,11 @@ PHASE_BY_SLOT: dict[int, InterviewPhase] = {
     5: "closing",
 }
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
+GITHUB_PUBLIC_REPO_ONLY = "PUBLIC_REPO_ONLY"
+GITHUB_RATE_LIMIT = "GITHUB_RATE_LIMIT"
+GITHUB_AUTH_ERROR = "GITHUB_AUTH_ERROR"
+GITHUB_FORBIDDEN = "GITHUB_FORBIDDEN"
+GITHUB_API_ERROR = "GITHUB_API_ERROR"
 
 # ── Phase 4: 금지질문/편향 필터 ─────────────────────────────
 # 고용평등법 및 개인정보보호법 기준 금지 영역
@@ -120,6 +127,12 @@ def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class RepoAnalysisError(Exception):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
 class GeminiService:
     def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
         if not api_key:
@@ -182,6 +195,45 @@ If specific info is missing, leave the array empty.
                 continue
 
         raise ValueError(f"Failed to parse job posting JSON: {last_error}")
+
+    def _github_headers(self, accept: str) -> dict[str, str]:
+        headers = {
+            "Accept": accept,
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        if settings.github_token:
+            headers["Authorization"] = f"Bearer {settings.github_token}"
+        return headers
+
+    def _parse_github_owner_repo(self, repo_url: str) -> tuple[str, str]:
+        parsed = urlparse(repo_url.strip())
+        if parsed.scheme != "https" or parsed.netloc not in {"github.com", "www.github.com"}:
+            raise ValueError(f"Invalid GitHub URL: {repo_url}")
+
+        parts = [segment for segment in parsed.path.split("/") if segment]
+        if len(parts) < 2:
+            raise ValueError(f"Invalid GitHub URL: {repo_url}")
+
+        owner, repo = parts[0], parts[1]
+        if repo.endswith(".git"):
+            repo = repo[:-4]
+        if not owner or not repo:
+            raise ValueError(f"Invalid GitHub URL: {repo_url}")
+        return owner, repo
+
+    def _map_repo_error(self, status_code: int, response_json: dict[str, Any] | None = None) -> str:
+        if status_code == 404:
+            return GITHUB_PUBLIC_REPO_ONLY
+        if status_code == 401:
+            return GITHUB_AUTH_ERROR
+        if status_code == 429:
+            return GITHUB_RATE_LIMIT
+        if status_code == 403:
+            message = str((response_json or {}).get("message", "")).lower()
+            if "rate limit" in message:
+                return GITHUB_RATE_LIMIT
+            return GITHUB_FORBIDDEN
+        return GITHUB_API_ERROR
 
     def extract_text_from_pdf(self, file_bytes: bytes) -> str:
         reader = PdfReader(io.BytesIO(file_bytes))
@@ -746,26 +798,26 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
 
     def analyze_public_repo(self, repo_url: str) -> dict[str, Any]:
         """GitHub 공개 레포를 분석하여 README/트리/인프라 단서를 추출한다."""
-        # GitHub API로 공개 여부 확인 및 기본 정보 수집
-        normalized = repo_url.rstrip("/")
-        parts = normalized.split("/")
-        if len(parts) < 5:
-            raise ValueError(f"Invalid GitHub URL: {repo_url}")
-
-        owner, repo = parts[-2], parts[-1]
+        owner, repo = self._parse_github_owner_repo(repo_url)
         api_base = f"https://api.github.com/repos/{owner}/{repo}"
 
-        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-            repo_resp = client.get(api_base, headers={"Accept": "application/vnd.github.v3+json"})
+        try:
+            with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                repo_resp = client.get(api_base, headers=self._github_headers("application/vnd.github+json"))
+        except httpx.HTTPError as exc:
+            raise RepoAnalysisError(GITHUB_API_ERROR) from exc
 
-        if repo_resp.status_code == 404:
-            raise PermissionError("PUBLIC_REPO_ONLY")
         if repo_resp.status_code != 200:
-            raise PermissionError("PUBLIC_REPO_ONLY")
+            repo_json: dict[str, Any] | None = None
+            try:
+                repo_json = repo_resp.json()
+            except ValueError:
+                repo_json = None
+            raise RepoAnalysisError(self._map_repo_error(repo_resp.status_code, repo_json))
 
         repo_data = repo_resp.json()
         if repo_data.get("private"):
-            raise PermissionError("PUBLIC_REPO_ONLY")
+            raise RepoAnalysisError(GITHUB_PUBLIC_REPO_ONLY)
 
         default_branch = repo_data.get("default_branch", "main")
 
@@ -774,7 +826,7 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
         with httpx.Client(timeout=15.0, follow_redirects=True) as client:
             readme_resp = client.get(
                 f"{api_base}/readme",
-                headers={"Accept": "application/vnd.github.v3.raw"},
+                headers=self._github_headers("application/vnd.github.v3.raw"),
             )
             if readme_resp.status_code == 200:
                 readme_text = readme_resp.text[:8000]
@@ -784,7 +836,7 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
         with httpx.Client(timeout=15.0, follow_redirects=True) as client:
             tree_resp = client.get(
                 f"{api_base}/git/trees/{default_branch}?recursive=1",
-                headers={"Accept": "application/vnd.github.v3+json"},
+                headers=self._github_headers("application/vnd.github+json"),
             )
             if tree_resp.status_code == 200:
                 tree_data = tree_resp.json()
