@@ -3,17 +3,20 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 
-function fallbackWorkspaceSummary(stats: {
-  workspaceCount: number;
-  ownerCount: number;
-  memberCount: number;
-}) {
+function fallbackWorkspaceSummary() {
   return {
-    workspaceCount: stats.workspaceCount,
-    ownerCount: stats.ownerCount,
-    memberCount: stats.memberCount,
-    message: "공개 페이지에서는 워크스페이스 설정 요약만 표시됩니다.",
+    version: 1,
+    links: {
+      github: "",
+      blog: "",
+    },
   };
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error) return error;
+  return fallback;
 }
 
 export async function GET(
@@ -47,25 +50,10 @@ export async function GET(
     } = await supabase.auth.getSession();
 
     const isOwner = Boolean(session?.user?.id && session.user.id === profile.id);
-    const [row, allMemberships] = await Promise.all([
-      prisma.user_workspace_settings.findUnique({
-        where: { user_id: profile.id },
-      }),
-      prisma.workspace_members.findMany({
-        where: { user_id: profile.id },
-        select: { role: true },
-      }),
-    ]);
-
-    const ownerCount = allMemberships.filter((item) => item.role === "owner").length;
-    const memberCount = allMemberships.filter((item) => item.role !== "owner").length;
-    const summary =
-      row?.public_summary ||
-      fallbackWorkspaceSummary({
-        workspaceCount: allMemberships.length,
-        ownerCount,
-        memberCount,
-      });
+    const row = await prisma.user_workspace_settings.findUnique({
+      where: { user_id: profile.id },
+    });
+    const summary = row?.public_summary || fallbackWorkspaceSummary();
 
     return NextResponse.json({
       success: true,
@@ -76,9 +64,12 @@ export async function GET(
         updatedAt: row?.updated_at || null,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch workspace settings" },
+      {
+        success: false,
+        error: getErrorMessage(error, "Failed to fetch workspace settings"),
+      },
       { status: 500 },
     );
   }

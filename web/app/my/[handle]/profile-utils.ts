@@ -7,14 +7,6 @@ function asRecord(input: unknown): Record<string, unknown> {
   return {};
 }
 
-export const LEVEL_CLASS: Record<number, string> = {
-  0: "bg-muted",
-  1: "bg-emerald-200 dark:bg-emerald-900/70",
-  2: "bg-emerald-300 dark:bg-emerald-700",
-  3: "bg-emerald-500 dark:bg-emerald-500",
-  4: "bg-emerald-700 dark:bg-emerald-300",
-};
-
 export const EMPTY_RESUME: ResumePayload = {
   personalInfo: { name: "", email: "", phone: "", intro: "", links: {} },
   education: [],

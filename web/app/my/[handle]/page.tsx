@@ -24,7 +24,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function shouldLogPerf() {
-  return process.env.NODE_ENV === "production" || process.env.MY_PROFILE_PERF_LOG === "1";
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.MY_PROFILE_PERF_LOG === "1"
+  );
 }
 
 type SummaryRow = {
@@ -48,7 +51,12 @@ export default async function MyProfilePage({
   const supabase = await createClient();
 
   const phase1Start = Date.now();
-  const [profileRaw, { data: { session } }] = await Promise.all([
+  const [
+    profileRaw,
+    {
+      data: { session },
+    },
+  ] = await Promise.all([
     prisma.profiles.findUnique({
       where: { handle },
       select: {
@@ -69,7 +77,9 @@ export default async function MyProfilePage({
 
   if (!profileRaw) notFound();
 
-  const isOwner = Boolean(session?.user?.id && session.user.id === profileRaw.id);
+  const isOwner = Boolean(
+    session?.user?.id && session.user.id === profileRaw.id,
+  );
 
   const phase2Start = Date.now();
   const [summaryRows, postsRaw] = await Promise.all([
@@ -127,7 +137,7 @@ export default async function MyProfilePage({
     console.log(
       `[my-profile] handle=${handle} total_ms=${totalMs} phase1_ms=${phase1Ms} phase2_ms=${phase2Ms}` +
         ` counts={posts:${postCount},comments:${commentCount},bookmarks:${bookmarkCount}}` +
-        ` preloaded={posts:${posts.length},heatmap:0}`,
+        ` preloaded={posts:${posts.length}}`,
     );
   }
 
@@ -151,7 +161,7 @@ export default async function MyProfilePage({
         posts,
         comments: [],
         bookmarks: [],
-        heatmap: [],
+        workspaces: [],
         resumePayload: null,
         prefetchedTabs,
       }}

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useState, type ElementType } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import {
   Bookmark,
   BookOpen,
   FileText,
+  Github,
+  Link2,
   Loader2,
   MessageSquare,
   Pencil,
@@ -51,8 +53,10 @@ const BookmarksTab = dynamic(() =>
 const ResumeTab = dynamic(() =>
   import("./tabs/resume-tab").then((module) => module.ResumeTab),
 );
-const ActivityTab = dynamic(() =>
-  import("./tabs/activity-tab").then((module) => module.ActivityTab),
+const WorkspaceActivityTab = dynamic(() =>
+  import("./tabs/workspace-activity-tab").then(
+    (module) => module.WorkspaceActivityTab,
+  ),
 );
 
 function asRecord(input: unknown): Record<string, unknown> {
@@ -77,9 +81,7 @@ function toBookmarkItem(item: unknown): ProfileBookmarkItem {
 
   const idRaw = row.id;
   const id =
-    typeof idRaw === "string" || typeof idRaw === "number"
-      ? String(idRaw)
-      : "";
+    typeof idRaw === "string" || typeof idRaw === "number" ? String(idRaw) : "";
 
   const hasBlog = Object.keys(blogRow).length > 0;
   const blog = hasBlog
@@ -108,20 +110,52 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+type PortfolioSummary = {
+  links: {
+    github: string;
+    blog: string;
+  };
+};
+
+const EMPTY_PORTFOLIO_SUMMARY: PortfolioSummary = {
+  links: {
+    github: "",
+    blog: "",
+  },
+};
+
+function parsePortfolioSummary(
+  input: Record<string, unknown> | null,
+): PortfolioSummary {
+  if (!input) return EMPTY_PORTFOLIO_SUMMARY;
+  const linksSource = asRecord(input.links);
+  const links = Object.keys(linksSource).length > 0 ? linksSource : input;
+  return {
+    links: {
+      github: readNullableString(links.github) || "",
+      blog: readNullableString(links.blog) || "",
+    },
+  };
+}
+
 const TIER_BADGE: Record<string, string> = {
-  Bronze:   "border-amber-400/70 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20",
-  Silver:   "border-slate-400/60  text-slate-600  dark:text-slate-300  bg-slate-50  dark:bg-slate-800/30",
-  Gold:     "border-yellow-400/70 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20",
-  Platinum: "border-cyan-400/70   text-cyan-700   dark:text-cyan-400   bg-cyan-50   dark:bg-cyan-900/20",
-  Diamond:  "border-violet-400/70 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20",
+  Bronze:
+    "border-amber-400/70 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20",
+  Silver:
+    "border-slate-400/60  text-slate-600  dark:text-slate-300  bg-slate-50  dark:bg-slate-800/30",
+  Gold: "border-yellow-400/70 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20",
+  Platinum:
+    "border-cyan-400/70   text-cyan-700   dark:text-cyan-400   bg-cyan-50   dark:bg-cyan-900/20",
+  Diamond:
+    "border-violet-400/70 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20",
 };
 
 const TABS: { key: TabKey; label: string; icon: ElementType }[] = [
-  { key: "posts",     label: "글",    icon: FileText },
-  { key: "comments",  label: "댓글",  icon: MessageSquare },
+  { key: "posts", label: "글", icon: FileText },
+  { key: "comments", label: "댓글", icon: MessageSquare },
   { key: "bookmarks", label: "북마크", icon: Bookmark },
-  { key: "resume",    label: "이력서", icon: BookOpen },
-  { key: "activity",  label: "활동",  icon: Activity },
+  { key: "resume", label: "이력서", icon: BookOpen },
+  { key: "activity", label: "스페이스 활동", icon: Activity },
 ];
 // ─── Main Client Component ────────────────────────────────────────────────────
 
@@ -141,12 +175,18 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [posts, setPosts] = useState(initialData.posts || []);
   const [comments, setComments] = useState(initialData.comments || []);
   const [bookmarks, setBookmarks] = useState(initialData.bookmarks || []);
-  const [heatmap, setHeatmap] = useState(initialData.heatmap || []);
+  const [workspaces, setWorkspaces] = useState(initialData.workspaces || []);
+  const isOwner = initialData.isOwner;
+  const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary>(
+    parsePortfolioSummary(initialData.workspaceSummary),
+  );
   const prefetchedTabs = initialData.prefetchedTabs || {};
   const [resumePayload, setResumePayload] = useState<ResumePayload>(
-    normalizeResumePayload(initialData.resumePayload || null)
+    normalizeResumePayload(initialData.resumePayload || null),
   );
-  const [tabLoading, setTabLoading] = useState<Partial<Record<TabKey, boolean>>>({
+  const [tabLoading, setTabLoading] = useState<
+    Partial<Record<TabKey, boolean>>
+  >({
     posts: !Boolean(prefetchedTabs.posts),
     comments: !Boolean(prefetchedTabs.comments),
     bookmarks: !Boolean(prefetchedTabs.bookmarks),
@@ -162,26 +202,27 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   });
   const [tabError, setTabError] = useState<Partial<Record<TabKey, string>>>({});
 
-  const isOwner = initialData.isOwner;
+  const visibleTabs = TABS;
 
   // Profile edit form — handle is NOT editable
   const [profileForm, setProfileForm] = useState({
     nickname: initialData.profile.nickname || "",
     bio: initialData.profile.bio || "",
     techStack: (initialData.profile.techStack || []).join(", "),
+    github: portfolioSummary.links.github,
+    blog: portfolioSummary.links.blog,
   });
 
-  const tierStyle = TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
+  const tierStyle =
+    TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
   const tabCounts: Partial<Record<TabKey, number>> = {
     posts: stats.postCount,
     comments: stats.commentCount,
     bookmarks: stats.bookmarkCount,
   };
-  const activityTotal = useMemo(
-    () => heatmap.reduce((sum, p) => sum + p.count, 0),
-    [heatmap]
-  );
-  const bookmarkTotalCount = tabLoaded.bookmarks ? bookmarks.length : stats.bookmarkCount;
+  const bookmarkTotalCount = tabLoaded.bookmarks
+    ? bookmarks.length
+    : stats.bookmarkCount;
   const activeTabLoaded = Boolean(tabLoaded[activeTab]);
 
   useEffect(() => {
@@ -196,9 +237,12 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
       try {
         if (tab === "posts") {
-          const res = await fetch(`/api/my/content/posts?handle=${encodeURIComponent(profile.handle)}`, {
-            cache: "no-store",
-          });
+          const res = await fetch(
+            `/api/my/content/posts?handle=${encodeURIComponent(profile.handle)}`,
+            {
+              cache: "no-store",
+            },
+          );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "글을 불러오지 못했습니다.");
@@ -207,9 +251,12 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         }
 
         if (tab === "comments") {
-          const res = await fetch(`/api/my/content/comments?handle=${encodeURIComponent(profile.handle)}`, {
-            cache: "no-store",
-          });
+          const res = await fetch(
+            `/api/my/content/comments?handle=${encodeURIComponent(profile.handle)}`,
+            {
+              cache: "no-store",
+            },
+          );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "댓글을 불러오지 못했습니다.");
@@ -218,35 +265,47 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         }
 
         if (tab === "bookmarks") {
-          const res = await fetch(`/api/my/bookmarks?handle=${encodeURIComponent(profile.handle)}`, {
-            cache: "no-store",
-          });
+          const res = await fetch(
+            `/api/my/bookmarks?handle=${encodeURIComponent(profile.handle)}`,
+            {
+              cache: "no-store",
+            },
+          );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "북마크를 불러오지 못했습니다.");
           }
           if (!cancelled) {
-            const rawItems = Array.isArray(json?.data?.items) ? json.data.items : [];
+            const rawItems = Array.isArray(json?.data?.items)
+              ? json.data.items
+              : [];
             const items = rawItems.map(toBookmarkItem);
             setBookmarks(items);
           }
         }
 
         if (tab === "activity") {
-          const res = await fetch(`/api/my/activity/heatmap?handle=${encodeURIComponent(profile.handle)}`, {
-            cache: "no-store",
-          });
+          const res = await fetch(
+            `/api/my/activity/workspace?handle=${encodeURIComponent(profile.handle)}`,
+            {
+              cache: "no-store",
+            },
+          );
           const json = await res.json();
           if (!res.ok || !json?.success) {
-            throw new Error(json?.error || "활동 기록을 불러오지 못했습니다.");
+            throw new Error(
+              json?.error || "스페이스 활동 기록을 불러오지 못했습니다.",
+            );
           }
           if (!cancelled) {
-            setHeatmap(json?.data?.points || []);
+            setWorkspaces(json?.data?.workspaces || []);
           }
         }
 
         if (tab === "resume" && isOwner) {
-          const res = await fetch("/api/my/resume/active", { cache: "no-store" });
+          const res = await fetch("/api/my/resume/active", {
+            cache: "no-store",
+          });
           if (res.status === 404) {
             if (!cancelled) {
               setResumePayload(EMPTY_RESUME);
@@ -257,7 +316,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               throw new Error(json?.error || "이력서를 불러오지 못했습니다.");
             }
             if (!cancelled) {
-              setResumePayload(normalizeResumePayload(json?.data?.resumePayload || null));
+              setResumePayload(
+                normalizeResumePayload(json?.data?.resumePayload || null),
+              );
               setResumeSummary(json?.data?.publicSummary || null);
             }
           }
@@ -268,9 +329,16 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         }
       } catch (error: unknown) {
         if (!cancelled) {
-          const message = getErrorMessage(error, "데이터를 불러오지 못했습니다.");
+          const message = getErrorMessage(
+            error,
+            "데이터를 불러오지 못했습니다.",
+          );
           setTabError((prev) => ({ ...prev, [tab]: message }));
-          toast({ title: "불러오기 실패", description: message, variant: "destructive" });
+          toast({
+            title: "불러오기 실패",
+            description: message,
+            variant: "destructive",
+          });
         }
       } finally {
         if (!cancelled) {
@@ -284,47 +352,75 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     return () => {
       cancelled = true;
     };
-  }, [
-    activeTab,
-    activeTabLoaded,
-    isOwner,
-    profile.handle,
-    toast,
-  ]);
+  }, [activeTab, activeTabLoaded, isOwner, profile.handle, toast]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/my/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nickname: profileForm.nickname,
-          bio: profileForm.bio,
-          techStack: profileForm.techStack
-            .split(",")
-            .map((v) => v.trim())
-            .filter(Boolean),
+      const summaryPayload = {
+        version: 1,
+        links: {
+          github: profileForm.github,
+          blog: profileForm.blog,
+        },
+      };
+
+      const [profileRes, workspaceRes] = await Promise.all([
+        fetch("/api/my/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nickname: profileForm.nickname,
+            bio: profileForm.bio,
+            techStack: profileForm.techStack
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean),
+          }),
         }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json?.success) throw new Error(json?.error || "프로필 저장 실패");
+        fetch("/api/my/workspace-settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            publicSummary: summaryPayload,
+          }),
+        }),
+      ]);
+
+      const profileJson = await profileRes.json();
+      const workspaceJson = await workspaceRes.json();
+      if (!profileRes.ok || !profileJson?.success) {
+        throw new Error(profileJson?.error || "프로필 저장 실패");
+      }
+      if (!workspaceRes.ok || !workspaceJson?.success) {
+        throw new Error(workspaceJson?.error || "링크 저장 실패");
+      }
+
       toast({ title: "프로필이 저장되었습니다." });
       setEditSheetOpen(false);
+
+      const nextPortfolio = parsePortfolioSummary(
+        asRecord(workspaceJson?.data?.publicSummary ?? summaryPayload),
+      );
+      setPortfolioSummary(nextPortfolio);
+
       // Update local state directly — no page reload needed
       setProfile((prev) => ({
         ...prev,
-        nickname: json.data.nickname ?? prev.nickname,
-        avatarUrl: json.data.avatarUrl ?? prev.avatarUrl,
-        bio: json.data.bio ?? prev.bio,
-        techStack: json.data.techStack ?? prev.techStack,
+        nickname: profileJson.data.nickname ?? prev.nickname,
+        avatarUrl: profileJson.data.avatarUrl ?? prev.avatarUrl,
+        bio: profileJson.data.bio ?? prev.bio,
+        techStack: profileJson.data.techStack ?? prev.techStack,
       }));
     } catch (err: unknown) {
       toast({
         title: "저장 실패",
-        description: getErrorMessage(err, "프로필 저장 중 오류가 발생했습니다."),
+        description: getErrorMessage(
+          err,
+          "프로필 저장 중 오류가 발생했습니다.",
+        ),
         variant: "destructive",
       });
     } finally {
@@ -345,13 +441,17 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json?.success) throw new Error(json?.error || "이력서 저장 실패");
+      if (!res.ok || !json?.success)
+        throw new Error(json?.error || "이력서 저장 실패");
       setResumeSummary(json?.data?.publicSummary || resumeSummary);
       toast({ title: "이력서가 저장되었습니다." });
     } catch (err: unknown) {
       toast({
         title: "저장 실패",
-        description: getErrorMessage(err, "이력서 저장 중 오류가 발생했습니다."),
+        description: getErrorMessage(
+          err,
+          "이력서 저장 중 오류가 발생했습니다.",
+        ),
         variant: "destructive",
       });
     } finally {
@@ -362,14 +462,20 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const removePost = async (postId: string) => {
     if (!confirm("해당 글을 삭제하시겠습니까?")) return;
     const res = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
-    if (!res.ok) { toast({ title: "삭제 실패", variant: "destructive" }); return; }
+    if (!res.ok) {
+      toast({ title: "삭제 실패", variant: "destructive" });
+      return;
+    }
     setPosts((prev) => prev.filter((item) => item.id !== postId));
   };
 
   const removeComment = async (commentId: string) => {
     if (!confirm("해당 댓글을 삭제하시겠습니까?")) return;
     const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
-    if (!res.ok) { toast({ title: "삭제 실패", variant: "destructive" }); return; }
+    if (!res.ok) {
+      toast({ title: "삭제 실패", variant: "destructive" });
+      return;
+    }
     setComments((prev) => prev.filter((item) => item.id !== commentId));
   };
 
@@ -385,7 +491,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       </div>
 
       <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 flex-1 pb-20">
-
         {/* Profile Header Row */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 sm:-mt-16 mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
@@ -406,7 +511,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                   </Badge>
                 )}
                 {profile.tier && (
-                  <Badge variant="outline" className={`text-[10px] px-1.5 h-5 font-normal ${tierStyle}`}>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-1.5 h-5 font-normal ${tierStyle}`}
+                  >
                     ★ {profile.tier}
                   </Badge>
                 )}
@@ -429,20 +537,27 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
         {/* Two-column grid */}
         <div className="grid grid-cols-1 lg:grid-cols-[288px_1fr] gap-6 items-start">
-
           {/* Sidebar */}
           <aside className="space-y-4 lg:sticky lg:top-20">
             <Card className="overflow-hidden">
               <CardContent className="p-5 space-y-4">
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  {profile.bio ? profile.bio : <span className="italic">소개가 없습니다.</span>}
+                  {profile.bio ? (
+                    profile.bio
+                  ) : (
+                    <span className="italic">소개가 없습니다.</span>
+                  )}
                 </p>
                 {profile.techStack.length > 0 && (
                   <>
                     <Separator />
                     <div className="flex flex-wrap gap-1.5">
                       {profile.techStack.map((tech) => (
-                        <Badge key={tech} variant="secondary" className="text-xs font-normal">
+                        <Badge
+                          key={tech}
+                          variant="secondary"
+                          className="text-xs font-normal"
+                        >
                           {tech}
                         </Badge>
                       ))}
@@ -456,16 +571,67 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               <CardContent className="p-0">
                 <div className="grid grid-cols-3 divide-x">
                   {[
-                    { value: stats.postCount,      label: "글" },
-                    { value: stats.commentCount,   label: "댓글" },
+                    { value: stats.postCount, label: "글" },
+                    { value: stats.commentCount, label: "댓글" },
                     { value: stats.workspaceCount, label: "스페이스" },
                   ].map(({ value, label }) => (
-                    <div key={label} className="flex flex-col items-center py-5 gap-0.5">
-                      <span className="text-2xl font-bold tabular-nums">{value}</span>
-                      <span className="text-[11px] text-muted-foreground">{label}</span>
+                    <div
+                      key={label}
+                      className="flex flex-col items-center py-5 gap-0.5"
+                    >
+                      <span className="text-2xl font-bold tabular-nums">
+                        {value}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {label}
+                      </span>
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    링크
+                  </span>
+                </div>
+                <Separator />
+                {(portfolioSummary.links.github || portfolioSummary.links.blog) ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      {portfolioSummary.links.github && (
+                        <a
+                          href={portfolioSummary.links.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Github className="w-3 h-3" />
+                          GitHub
+                        </a>
+                      )}
+                      {portfolioSummary.links.blog && (
+                        <a
+                          href={portfolioSummary.links.blog}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Link2 className="w-3 h-3" />
+                          Blog
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    외부 링크를 추가해 주세요.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -485,11 +651,17 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </p>
                     {(resumeSummary.topSkills || []).length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {(resumeSummary.topSkills as string[]).slice(0, 5).map((s: string) => (
-                          <Badge key={s} variant="outline" className="text-[10px] h-4 px-1.5">
-                            {s}
-                          </Badge>
-                        ))}
+                        {(resumeSummary.topSkills as string[])
+                          .slice(0, 5)
+                          .map((s: string) => (
+                            <Badge
+                              key={s}
+                              variant="outline"
+                              className="text-[10px] h-4 px-1.5"
+                            >
+                              {s}
+                            </Badge>
+                          ))}
                       </div>
                     )}
                     <Badge className="text-[10px] h-5 px-1.5 bg-primary/10 text-primary border-0">
@@ -497,7 +669,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Badge>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground italic">이력서 정보가 없습니다.</p>
+                  <p className="text-xs text-muted-foreground italic">
+                    이력서 정보가 없습니다.
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -505,11 +679,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
           {/* Content */}
           <div className="min-w-0 space-y-4">
-
             {/* Tab Nav */}
             <div className="border-b">
               <nav className="flex" role="tablist">
-                {TABS.map(({ key, label, icon: Icon }) => {
+                {visibleTabs.map(({ key, label, icon: Icon }) => {
                   const count = tabCounts[key];
                   const active = activeTab === key;
                   return (
@@ -533,7 +706,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                         <span
                           className={[
                             "ml-0.5 text-[10px] px-1.5 rounded-full tabular-nums font-normal",
-                            active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                            active
+                              ? "bg-primary/15 text-primary"
+                              : "bg-muted text-muted-foreground",
                           ].join(" ")}
                         >
                           {count}
@@ -552,7 +727,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 error={tabError.posts}
                 posts={posts}
                 isOwner={isOwner}
-                onOpenPost={(postId) => router.push(`/community/board/${postId}`)}
+                onOpenPost={(postId) =>
+                  router.push(`/community/board/${postId}`)
+                }
                 onRemovePost={removePost}
               />
             )}
@@ -594,18 +771,19 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 onChangeResumePayload={setResumePayload}
                 onSaveResume={saveResume}
                 saving={saving}
-                onGoSetup={() => router.push("/interview/setup?import=active_resume")}
+                onGoSetup={() =>
+                  router.push("/interview/setup?import=active_resume")
+                }
                 resumeSummary={resumeSummary}
               />
             )}
 
-            {/* Tab: 활동 */}
+            {/* Tab: 활동 (스페이스) */}
             {activeTab === "activity" && (
-              <ActivityTab
+              <WorkspaceActivityTab
                 loading={tabLoading.activity}
                 error={tabError.activity}
-                heatmap={heatmap}
-                activityTotal={activityTotal}
+                workspaces={workspaces}
               />
             )}
           </div>
@@ -618,7 +796,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           <SheetContent className="w-full sm:max-w-md flex flex-col gap-0 p-0">
             <SheetHeader className="px-6 pt-6 pb-4 border-b">
               <SheetTitle>프로필 편집</SheetTitle>
-              <SheetDescription>변경 사항은 저장 즉시 반영됩니다.</SheetDescription>
+              <SheetDescription>
+                변경 사항은 저장 즉시 반영됩니다.
+              </SheetDescription>
             </SheetHeader>
             <ScrollArea className="flex-1">
               <div className="px-6 py-5 space-y-5">
@@ -640,28 +820,80 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 </div>
                 <Separator />
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">닉네임</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    닉네임
+                  </Label>
                   <Input
                     value={profileForm.nickname}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, nickname: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileForm((p) => ({
+                        ...p,
+                        nickname: e.target.value,
+                      }))
+                    }
                     placeholder="표시될 이름"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">한 줄 소개</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    한 줄 소개
+                  </Label>
                   <Textarea
                     value={profileForm.bio}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, bio: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileForm((p) => ({ ...p, bio: e.target.value }))
+                    }
                     placeholder="나를 한 줄로 소개하세요"
                     className="resize-none min-h-[80px]"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">기술 스택 (쉼표 구분)</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    기술 스택 (쉼표 구분)
+                  </Label>
                   <Input
                     value={profileForm.techStack}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, techStack: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileForm((p) => ({
+                        ...p,
+                        techStack: e.target.value,
+                      }))
+                    }
                     placeholder="React, Node.js, Python..."
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    GitHub 링크
+                  </Label>
+                  <Input
+                    value={profileForm.github}
+                    onChange={(e) =>
+                      setProfileForm((p) => ({
+                        ...p,
+                        github: e.target.value,
+                      }))
+                    }
+                    placeholder="https://github.com/..."
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Blog 링크
+                  </Label>
+                  <Input
+                    value={profileForm.blog}
+                    onChange={(e) =>
+                      setProfileForm((p) => ({
+                        ...p,
+                        blog: e.target.value,
+                      }))
+                    }
+                    placeholder="https://..."
                   />
                 </div>
               </div>
@@ -675,7 +907,11 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               >
                 취소
               </Button>
-              <Button onClick={saveProfile} disabled={saving} className="flex-1">
+              <Button
+                onClick={saveProfile}
+                disabled={saving}
+                className="flex-1"
+              >
                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 저장
               </Button>

@@ -2,6 +2,7 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "regions": ["icn1"],
   "functions": {
     "app/api/cron/rss-crawler/route.ts": {
       "maxDuration": 300

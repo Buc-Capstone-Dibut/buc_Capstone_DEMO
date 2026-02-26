@@ -2,10 +2,19 @@ export type TabKey = "posts" | "comments" | "bookmarks" | "resume" | "activity";
 
 export type BookmarkView = "card" | "list";
 
-export interface ActivityHeatmapPoint {
-  date: string;
-  count: number;
-  level: number;
+export interface ProfileWorkspaceItem {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  category: string;
+  role: string;
+  joinedAt: string | null;
+  stats: {
+    docsCreated: number;
+    tasksAssigned: number;
+    messagesSent: number;
+    totalActivities: number;
+  };
 }
 
 export interface ResumePayload {
@@ -14,7 +23,11 @@ export interface ResumePayload {
     email: string;
     phone: string;
     intro: string;
-    links: { github?: string; blog?: string; [key: string]: string | undefined };
+    links: {
+      github?: string;
+      blog?: string;
+      [key: string]: string | undefined;
+    };
   };
   education: unknown[];
   experience: Array<{
@@ -100,7 +113,7 @@ export interface InitialData {
   posts: ProfilePostItem[];
   comments: ProfileCommentItem[];
   bookmarks: ProfileBookmarkItem[];
-  heatmap: ActivityHeatmapPoint[];
+  workspaces: ProfileWorkspaceItem[];
   resumePayload: unknown;
   prefetchedTabs?: Partial<Record<TabKey, boolean>>;
 }

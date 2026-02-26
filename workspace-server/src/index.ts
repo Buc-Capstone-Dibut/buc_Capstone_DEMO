@@ -1,3 +1,4 @@
+import "./config/env";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { setupSocketGateway } from "./modules/socket/socket.gateway";

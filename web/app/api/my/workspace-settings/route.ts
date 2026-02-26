@@ -4,16 +4,36 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { ensureProfileForUser } from "@/lib/my-profile";
 
-function buildWorkspacePublicSummary(settingsPayload: any) {
-  const notifications = settingsPayload?.notifications || {};
-  const channels = Array.isArray(settingsPayload?.defaultChannels)
-    ? settingsPayload.defaultChannels
-    : [];
+function sanitizeText(value: unknown, maxLen: number): string {
+  return String(value || "").trim().slice(0, maxLen);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error) return error;
+  return fallback;
+}
+
+function buildWorkspacePublicSummary(input: unknown) {
+  const source = asRecord(input);
+  const linksSource = asRecord(source.links);
+  const rawLinks = Object.keys(linksSource).length > 0 ? linksSource : source;
+
+  const links = {
+    github: sanitizeText(rawLinks.github, 200),
+    blog: sanitizeText(rawLinks.blog, 200),
+  };
 
   return {
-    notificationsEnabled: Boolean(notifications?.enabled),
-    defaultChannelCount: channels.length,
-    visibility: "public-summary",
+    version: 1,
+    links,
   };
 }
 
@@ -38,19 +58,28 @@ export async function PATCH(req: Request) {
       email: user.email ?? null,
     });
 
-    const body = await req.json();
-    const settingsPayload = body.settingsPayload || {};
-    const publicSummary = body.publicSummary || buildWorkspacePublicSummary(settingsPayload);
+    const bodyRaw = await req.json();
+    const body = asRecord(bodyRaw);
+    const hasSettingsPayload = Object.prototype.hasOwnProperty.call(
+      body,
+      "settingsPayload",
+    );
+    const settingsPayload = hasSettingsPayload ? body.settingsPayload : undefined;
+    const publicSummary = buildWorkspacePublicSummary(body.publicSummary ?? {});
+
+    const updateData: Record<string, unknown> = {
+      public_summary: publicSummary,
+    };
+    if (hasSettingsPayload) {
+      updateData.settings_payload = settingsPayload ?? {};
+    }
 
     const row = await prisma.user_workspace_settings.upsert({
       where: { user_id: user.id },
-      update: {
-        settings_payload: settingsPayload,
-        public_summary: publicSummary,
-      },
+      update: updateData,
       create: {
         user_id: user.id,
-        settings_payload: settingsPayload,
+        settings_payload: settingsPayload ?? {},
         public_summary: publicSummary,
       },
       select: {
@@ -70,9 +99,12 @@ export async function PATCH(req: Request) {
         updatedAt: row.updated_at,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to save workspace settings" },
+      {
+        success: false,
+        error: getErrorMessage(error, "Failed to save workspace settings"),
+      },
       { status: 500 },
     );
   }
