@@ -67,7 +67,7 @@ const coreServices = [
 ];
 
 export default function HomePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth({ loadProfile: false });
 
   return (
     <div className="text-neutral-900 overflow-hidden bg-white min-h-screen">

@@ -66,7 +66,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(initialData?.tech_stack || []);
   const [noTechStack, setNoTechStack] = useState(false);
-  const { user } = useAuth(); // Get user from auth hook
+  const { user } = useAuth({ loadProfile: false }); // Get user from auth hook
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {

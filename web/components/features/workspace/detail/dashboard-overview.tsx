@@ -1,7 +1,6 @@
 "use client";
 
 import useSWR from "swr";
-import { useAuth } from "@/hooks/use-auth";
 import { ProjectHero } from "./overview/project-hero";
 import { TeamPulse } from "./overview/team-pulse";
 
@@ -16,8 +15,6 @@ interface DashboardOverviewProps {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function DashboardOverview({ projectId }: DashboardOverviewProps) {
-  const { user } = useAuth();
-
   // 1. Fetch Project Details
   const { data: project, isLoading: isProjectLoading } = useSWR(
     `/api/workspaces/${projectId}`,
@@ -44,7 +41,7 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
   // Assuming 'done' status id is likely 'done' or 'completed' based on column title logic
   // API returns status as lowercase-hyphenated title.
   const completedTasks = tasks.filter(
-    (t: any) =>
+    (t: { status?: string }) =>
       t.status === "done" ||
       t.status === "completed" ||
       t.status === "finished",

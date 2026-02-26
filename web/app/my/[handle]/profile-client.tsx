@@ -19,7 +19,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { GlobalHeader } from "@/components/layout/global-header";
 import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
@@ -615,7 +614,9 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [resumePayload, setResumePayload] = useState<ResumePayload>(
     normalizeResumePayload(initialData.resumePayload || null)
   );
-  const [tabLoading, setTabLoading] = useState<Partial<Record<TabKey, boolean>>>({});
+  const [tabLoading, setTabLoading] = useState<Partial<Record<TabKey, boolean>>>({
+    posts: (initialData.posts || []).length === 0,
+  });
   const [tabLoaded, setTabLoaded] = useState<Partial<Record<TabKey, boolean>>>({
     posts: (initialData.posts || []).length > 0,
     comments: (initialData.comments || []).length > 0,
@@ -645,13 +646,14 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     [heatmap]
   );
   const bookmarkTotalCount = tabLoaded.bookmarks ? bookmarks.length : stats.bookmarkCount;
+  const activeTabLoaded = Boolean(tabLoaded[activeTab]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadTabData = async () => {
       const tab = activeTab;
-      if (tabLoaded[tab]) return;
+      if (activeTabLoaded) return;
 
       setTabLoading((prev) => ({ ...prev, [tab]: true }));
       setTabError((prev) => ({ ...prev, [tab]: "" }));
@@ -755,9 +757,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     };
   }, [
     activeTab,
+    activeTabLoaded,
     isOwner,
     profile.handle,
-    tabLoaded,
+    toast,
   ]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -837,8 +840,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <GlobalHeader />
-
       {/* Cover Banner */}
       <div className="relative h-36 sm:h-44 overflow-hidden shrink-0">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/40 via-primary/15 to-background" />

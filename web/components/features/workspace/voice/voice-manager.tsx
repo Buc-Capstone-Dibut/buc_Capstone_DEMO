@@ -138,7 +138,7 @@ export function VoiceManager({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const { socket } = useSocketStore();
   const [mounted, setMounted] = useState(false);
 
@@ -195,7 +195,7 @@ export function VoiceManager({ children }: { children: ReactNode }) {
         if (socket && prevProjectId) {
           socket.emit("voice:update", { projectId: prevProjectId });
         }
-      } catch (e) {}
+      } catch {}
     }, 500);
   };
 

@@ -55,7 +55,7 @@ export function SquadCommentSection({
   squadId,
   initialComments,
 }: SquadCommentSectionProps) {
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const [comments, setComments] = useState<SquadComment[]>(initialComments);
   const [content, setContent] = useState("");
   const [replyContent, setReplyContent] = useState("");

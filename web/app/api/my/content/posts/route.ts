@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -27,30 +25,25 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-    const [{ data: { session } }, posts] = await Promise.all([
-      supabase.auth.getSession(),
-      prisma.posts.findMany({
-        where: { author_id: profile.id },
-        orderBy: { created_at: "desc" },
-        take: 50,
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          tags: true,
-          views: true,
-          likes: true,
-          created_at: true,
-          updated_at: true,
-        },
-      }),
-    ]);
+    const posts = await prisma.posts.findMany({
+      where: { author_id: profile.id },
+      orderBy: { created_at: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        tags: true,
+        views: true,
+        likes: true,
+        created_at: true,
+        updated_at: true,
+      },
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        isOwner: Boolean(session?.user?.id && session.user.id === profile.id),
         items: posts.map((item) => ({
           id: item.id,
           title: item.title,

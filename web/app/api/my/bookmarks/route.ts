@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -27,11 +25,6 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
     const rows = await prisma.blog_bookmarks.findMany({
       where: { user_id: profile.id },
       orderBy: { created_at: "desc" },
@@ -57,7 +50,6 @@ export async function GET(req: Request) {
     return NextResponse.json({
       success: true,
       data: {
-        isOwner: Boolean(session?.user?.id && session.user.id === profile.id),
         items: rows.map((row) => ({
           id: row.id,
           createdAt: row.created_at,

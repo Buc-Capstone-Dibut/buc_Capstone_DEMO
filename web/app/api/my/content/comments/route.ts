@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -27,32 +25,27 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-    const [{ data: { session } }, comments] = await Promise.all([
-      supabase.auth.getSession(),
-      prisma.comments.findMany({
-        where: { author_id: profile.id },
-        orderBy: { created_at: "desc" },
-        take: 100,
-        select: {
-          id: true,
-          content: true,
-          post_id: true,
-          created_at: true,
-          posts: {
-            select: {
-              id: true,
-              title: true,
-            },
+    const comments = await prisma.comments.findMany({
+      where: { author_id: profile.id },
+      orderBy: { created_at: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        content: true,
+        post_id: true,
+        created_at: true,
+        posts: {
+          select: {
+            id: true,
+            title: true,
           },
         },
-      }),
-    ]);
+      },
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        isOwner: Boolean(session?.user?.id && session.user.id === profile.id),
         items: comments.map((item) => ({
           id: item.id,
           content: item.content,

@@ -24,7 +24,7 @@ const fetcher = async (url: string) => {
 
 export function TeamChat({ projectId }: TeamChatProps) {
   const { messages, activeChannelId, sendMessage, channels } = useSocketStore();
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const { setActiveTaskId } = useWorkspaceStore();
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);

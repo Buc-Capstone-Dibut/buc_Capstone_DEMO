@@ -18,7 +18,7 @@ export const usePresence = () => {
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const userId = user?.id;
 
   useEffect(() => {
@@ -39,14 +39,14 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         const onlineIds = new Set(Object.keys(newState));
         setOnlineUsers(onlineIds);
       })
-      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+      .on("presence", { event: "join" }, ({ key }) => {
         setOnlineUsers((prev) => {
           const newSet = new Set(prev);
           newSet.add(key);
           return newSet;
         });
       })
-      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+      .on("presence", { event: "leave" }, ({ key }) => {
         setOnlineUsers((prev) => {
           const newSet = new Set(prev);
           newSet.delete(key);

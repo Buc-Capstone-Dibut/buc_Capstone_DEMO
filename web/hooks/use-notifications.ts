@@ -18,7 +18,7 @@ export interface Notification {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const {
     data: notifications,
     mutate,

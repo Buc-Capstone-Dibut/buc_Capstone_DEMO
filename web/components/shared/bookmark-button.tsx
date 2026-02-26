@@ -23,7 +23,7 @@ export function BookmarkButton({
   onLoginClick,
   onBookmarkRemoved,
 }: BookmarkButtonProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth({ loadProfile: false });
   const { toast } = useToast();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(false);

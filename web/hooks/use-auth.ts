@@ -3,6 +3,36 @@ import { getUserProfile, UserProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 
+let initialSessionPromise: Promise<Session | null> | null = null;
+const inflightProfileByUser = new Map<string, Promise<UserProfile | null>>();
+
+function getInitialSessionOnce(): Promise<Session | null> {
+  if (!initialSessionPromise) {
+    initialSessionPromise = supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => session ?? null)
+      .finally(() => {
+        // Keep only for current mount burst.
+        setTimeout(() => {
+          initialSessionPromise = null;
+        }, 0);
+      });
+  }
+  return initialSessionPromise;
+}
+
+function getUserProfileOnce(user: User): Promise<UserProfile | null> {
+  const key = user.id;
+  const cached = inflightProfileByUser.get(key);
+  if (cached) return cached;
+
+  const request = getUserProfile(user.id, user).finally(() => {
+    inflightProfileByUser.delete(key);
+  });
+  inflightProfileByUser.set(key, request);
+  return request;
+}
+
 interface UseAuthOptions {
   loadProfile?: boolean;
 }
@@ -20,7 +50,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     // 1. Define the logic to fetch profile based on user
     const fetchProfile = async (currentUser: User) => {
       try {
-        const userProfile = await getUserProfile(currentUser.id, currentUser);
+        const userProfile = await getUserProfileOnce(currentUser);
         if (mounted) setProfile(userProfile);
       } catch (error) {
         console.error("Profile fetch error:", error);
@@ -46,9 +76,14 @@ export function useAuth(options: UseAuthOptions = {}) {
     };
 
     // 3. Initial Session Check (Get current state)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) handleSession(session);
-    });
+    getInitialSessionOnce()
+      .then((session) => {
+        if (mounted) handleSession(session);
+      })
+      .catch((error) => {
+        if (mounted) setLoading(false);
+        console.error("Session fetch error:", error);
+      });
 
     // 4. Listen for Auth Changes (Sign in, Sign out, etc.)
     const {

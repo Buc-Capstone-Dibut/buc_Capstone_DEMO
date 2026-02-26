@@ -87,7 +87,7 @@ export function WorkspaceSidebar({
     activeChannelId,
   } = useSocketStore();
   const { notifications, markAsRead } = useNotifications();
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
 
   // Real-time Presence (Global)
   const { onlineUsers } = usePresence();

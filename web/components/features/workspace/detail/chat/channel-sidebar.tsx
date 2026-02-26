@@ -25,7 +25,7 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ projectId }: ChannelSidebarProps) {
   const { channels, activeChannelId, joinChannel, createChannel } =
     useSocketStore();
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");

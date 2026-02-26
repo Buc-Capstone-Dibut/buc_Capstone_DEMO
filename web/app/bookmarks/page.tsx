@@ -15,7 +15,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Blog } from "@/lib/supabase";
 
 export default function BookmarksPage() {
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth({
+    loadProfile: false,
+  });
   const { toast } = useToast();
   const [bookmarkedBlogs, setBookmarkedBlogs] = useState<BookmarkedBlog[]>([]);
   const [loading, setLoading] = useState(true);

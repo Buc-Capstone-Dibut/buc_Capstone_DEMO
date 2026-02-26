@@ -45,7 +45,7 @@ export function CommentSection({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const currentUserId = user?.id; // Use authenticated user ID
 
   const handleSubmit = async (parentId: string | null = null, text: string) => {

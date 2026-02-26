@@ -47,7 +47,7 @@ export default function PostForm({ initialData }: PostFormProps) {
   const [content, setContent] = useState(initialData?.content || "");
   const [category, setCategory] = useState(initialData?.category || "");
 
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
 
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

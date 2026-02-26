@@ -119,7 +119,7 @@ export default function WorkspaceDetailPage() {
   const realMembers = boardData?.members || [];
 
   const { connectSocket, disconnectSocket } = useSocketStore();
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
 
   // Find the active task from Real Data first, then Store (fallback)
   const activeTask =

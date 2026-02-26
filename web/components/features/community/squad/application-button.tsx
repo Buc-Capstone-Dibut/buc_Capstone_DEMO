@@ -40,7 +40,7 @@ export default function ApplicationButton({
   const [loading, setLoading] = useState(false);
 
   // Use Client Side Auth
-  const { user } = useAuth();
+  const { user } = useAuth({ loadProfile: false });
   const currentUserId = user?.id;
 
   const [applicationStatus, setApplicationStatus] = useState<
