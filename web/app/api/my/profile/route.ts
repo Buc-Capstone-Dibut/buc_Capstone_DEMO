@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { ensureProfileForUser, generateUniqueHandle, normalizeHandle } from "@/lib/my-profile";
+import { ensureProfileForUser } from "@/lib/my-profile";
 
 export async function PATCH(req: Request) {
   try {
@@ -36,12 +36,6 @@ export async function PATCH(req: Request) {
         .map((item: any) => String(item || "").trim())
         .filter(Boolean)
         .slice(0, 20);
-    }
-
-    if (body.handle !== undefined) {
-      const normalized = normalizeHandle(String(body.handle || ""));
-      const resolved = await generateUniqueHandle(normalized, profile.id);
-      updates.handle = resolved;
     }
 
     const updated = await prisma.profiles.update({
