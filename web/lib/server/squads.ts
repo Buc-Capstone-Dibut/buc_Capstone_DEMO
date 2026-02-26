@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export async function fetchRecentSquads(limit = 9) {
@@ -56,10 +57,13 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all" } = {}) {
     return { squads: [], totalCount: 0, totalPages: 0 };
   }
 
-  // 3. Map Activity
-  const { fetchDevEvents } = await import("./dev-events");
-  const { events } = await fetchDevEvents();
-  const eventMap = new Map(events.map((e) => [e.id, e.title]));
+  // 3. Map Activity — cache()로 같은 요청 내 중복 파일 파싱 방지
+  const getEventMap = cache(async () => {
+    const { fetchDevEvents } = await import("./dev-events");
+    const { events } = await fetchDevEvents();
+    return new Map(events.map((e: { id: string; title: string }) => [e.id, e.title]));
+  });
+  const eventMap = await getEventMap();
 
   const enhancedSquads =
     (squads as any[])?.map((s) => ({

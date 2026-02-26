@@ -18,11 +18,22 @@ export async function getPosts(category?: string, page = 1, limit = 15) {
       prisma.posts.count({ where }),
       prisma.posts.findMany({
         where,
-        include: {
-          profiles: true, // author
-          _count: {
-            select: { comments: true },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          category: true,
+          tags: true,
+          views: true,
+          likes: true,
+          has_accepted_answer: true,
+          created_at: true,
+          updated_at: true,
+          author_id: true,
+          profiles: {
+            select: { id: true, nickname: true, avatar_url: true, handle: true },
           },
+          _count: { select: { comments: true } },
         },
         orderBy: { created_at: "desc" },
         skip,
@@ -55,11 +66,33 @@ export async function getPost(id: string) {
   try {
     const rawPost = await prisma.posts.findUnique({
       where: { id },
-      include: {
-        profiles: true, // author
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        category: true,
+        tags: true,
+        views: true,
+        likes: true,
+        created_at: true,
+        updated_at: true,
+        author_id: true,
+        profiles: {
+          select: { id: true, nickname: true, avatar_url: true, handle: true },
+        },
         comments: {
-          include: {
-            profiles: true, // comment author
+          select: {
+            id: true,
+            content: true,
+            parent_id: true,
+            post_id: true,
+            is_accepted: true,
+            created_at: true,
+            updated_at: true,
+            author_id: true,
+            profiles: {
+              select: { id: true, nickname: true, avatar_url: true, handle: true },
+            },
           },
           orderBy: { created_at: "asc" },
         },
