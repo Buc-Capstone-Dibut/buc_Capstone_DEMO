@@ -1,35 +1,13 @@
 import { notFound } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
-import { MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 import { ProfileClient } from "./profile-client";
 import type {
-  ActivityHeatmapPoint,
   ProfilePostItem,
   PublicResumeSummary,
   TabKey,
 } from "./profile-types";
-
-const HEATMAP_INCLUDED_EVENT_TYPES = [
-  MY_ACTIVITY_EVENT_TYPES.interviewCompleted,
-  MY_ACTIVITY_EVENT_TYPES.portfolioDefenseCompleted,
-  MY_ACTIVITY_EVENT_TYPES.communityPostCreated,
-  MY_ACTIVITY_EVENT_TYPES.communityCommentCreated,
-  MY_ACTIVITY_EVENT_TYPES.workspaceCreated,
-  MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
-];
-
-function toDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function levelByCount(count: number): number {
-  if (count <= 0) return 0;
-  if (count <= 1) return 1;
-  if (count <= 3) return 2;
-  if (count <= 6) return 3;
-  return 4;
-}
 
 function toIsoString(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
@@ -48,6 +26,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function shouldLogPerf() {
   return process.env.NODE_ENV === "production" || process.env.MY_PROFILE_PERF_LOG === "1";
 }
+
+type SummaryRow = {
+  postCount: number;
+  commentCount: number;
+  workspaceCount: number;
+  bookmarkCount: number;
+  resumeSummary: Prisma.JsonValue | null;
+  workspaceSummary: Prisma.JsonValue | null;
+};
 
 export default async function MyProfilePage({
   params,
@@ -83,33 +70,18 @@ export default async function MyProfilePage({
   if (!profileRaw) notFound();
 
   const isOwner = Boolean(session?.user?.id && session.user.id === profileRaw.id);
-  const heatmapStart = new Date();
-  heatmapStart.setUTCHours(0, 0, 0, 0);
-  heatmapStart.setUTCDate(heatmapStart.getUTCDate() - 364);
 
   const phase2Start = Date.now();
-  const [
-    postCount,
-    commentCount,
-    workspaceCount,
-    bookmarkCount,
-    resumeRow,
-    wsSettingsRow,
-    postsRaw,
-    activityRows,
-  ] = await Promise.all([
-    prisma.posts.count({ where: { author_id: profileRaw.id } }),
-    prisma.comments.count({ where: { author_id: profileRaw.id } }),
-    prisma.workspace_members.count({ where: { user_id: profileRaw.id } }),
-    prisma.blog_bookmarks.count({ where: { user_id: profileRaw.id } }),
-    prisma.user_resume_profiles.findUnique({
-      where: { user_id: profileRaw.id },
-      select: { public_summary: true },
-    }),
-    prisma.user_workspace_settings.findUnique({
-      where: { user_id: profileRaw.id },
-      select: { public_summary: true },
-    }),
+  const [summaryRows, postsRaw] = await Promise.all([
+    prisma.$queryRaw<SummaryRow[]>`
+      SELECT
+        (SELECT COUNT(*)::int FROM "public"."posts" p WHERE p.author_id = ${profileRaw.id}) AS "postCount",
+        (SELECT COUNT(*)::int FROM "public"."comments" c WHERE c.author_id = ${profileRaw.id}) AS "commentCount",
+        (SELECT COUNT(*)::int FROM "public"."workspace_members" wm WHERE wm.user_id = ${profileRaw.id}) AS "workspaceCount",
+        (SELECT COUNT(*)::int FROM "public"."blog_bookmarks" bb WHERE bb.user_id = ${profileRaw.id}) AS "bookmarkCount",
+        (SELECT urp.public_summary FROM "public"."user_resume_profiles" urp WHERE urp.user_id = ${profileRaw.id} LIMIT 1) AS "resumeSummary",
+        (SELECT uws.public_summary FROM "public"."user_workspace_settings" uws WHERE uws.user_id = ${profileRaw.id} LIMIT 1) AS "workspaceSummary"
+    `,
     prisma.posts.findMany({
       where: { author_id: profileRaw.id },
       orderBy: { created_at: "desc" },
@@ -125,18 +97,14 @@ export default async function MyProfilePage({
         updated_at: true,
       },
     }),
-    prisma.user_activity_events.findMany({
-      where: {
-        user_id: profileRaw.id,
-        event_type: { in: HEATMAP_INCLUDED_EVENT_TYPES },
-        created_at: { gte: heatmapStart },
-      },
-      select: {
-        created_at: true,
-      },
-    }),
   ]);
   const phase2Ms = Date.now() - phase2Start;
+
+  const summary = summaryRows[0];
+  const postCount = summary?.postCount ?? 0;
+  const commentCount = summary?.commentCount ?? 0;
+  const workspaceCount = summary?.workspaceCount ?? 0;
+  const bookmarkCount = summary?.bookmarkCount ?? 0;
 
   const posts: ProfilePostItem[] = postsRaw.map((item) => ({
     id: item.id,
@@ -149,28 +117,8 @@ export default async function MyProfilePage({
     updatedAt: toIsoString(item.updated_at),
   }));
 
-  const dailyCount = new Map<string, number>();
-  for (const row of activityRows) {
-    const key = toDateKey(row.created_at);
-    dailyCount.set(key, (dailyCount.get(key) || 0) + 1);
-  }
-
-  const heatmap: ActivityHeatmapPoint[] = [];
-  for (let i = 0; i < 365; i += 1) {
-    const date = new Date(heatmapStart);
-    date.setUTCDate(heatmapStart.getUTCDate() + i);
-    const key = toDateKey(date);
-    const count = dailyCount.get(key) || 0;
-    heatmap.push({
-      date: key,
-      count,
-      level: levelByCount(count),
-    });
-  }
-
   const prefetchedTabs: Partial<Record<TabKey, boolean>> = {
     posts: true,
-    activity: true,
     resume: !isOwner,
   };
 
@@ -179,7 +127,7 @@ export default async function MyProfilePage({
     console.log(
       `[my-profile] handle=${handle} total_ms=${totalMs} phase1_ms=${phase1Ms} phase2_ms=${phase2Ms}` +
         ` counts={posts:${postCount},comments:${commentCount},bookmarks:${bookmarkCount}}` +
-        ` preloaded={posts:${posts.length},heatmap:${heatmap.length}}`,
+        ` preloaded={posts:${posts.length},heatmap:0}`,
     );
   }
 
@@ -203,7 +151,7 @@ export default async function MyProfilePage({
         posts,
         comments: [],
         bookmarks: [],
-        heatmap,
+        heatmap: [],
         resumePayload: null,
         prefetchedTabs,
       }}

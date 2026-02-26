@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
@@ -21,6 +22,17 @@ function levelByCount(count: number): number {
   if (count <= 3) return 2;
   if (count <= 6) return 3;
   return 4;
+}
+
+type HeatmapDailyRow = {
+  date: string;
+  count: number;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.length > 0) return error;
+  return "Failed to fetch heatmap";
 }
 
 export async function GET(req: Request) {
@@ -51,21 +63,21 @@ export async function GET(req: Request) {
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCDate(start.getUTCDate() - 364);
 
-    const rows = await prisma.user_activity_events.findMany({
-      where: {
-        user_id: profile.id,
-        event_type: { in: INCLUDED_EVENT_TYPES },
-        created_at: { gte: start },
-      },
-      select: {
-        created_at: true,
-      },
-    });
+    const dailyRows = await prisma.$queryRaw<HeatmapDailyRow[]>`
+      SELECT
+        to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
+        COUNT(*)::int AS count
+      FROM "public"."user_activity_events"
+      WHERE user_id = ${profile.id}
+        AND created_at >= ${start}
+        AND event_type IN (${Prisma.join(INCLUDED_EVENT_TYPES)})
+      GROUP BY 1
+      ORDER BY 1
+    `;
 
     const counter = new Map<string, number>();
-    for (const row of rows) {
-      const key = toDateKey(row.created_at);
-      counter.set(key, (counter.get(key) || 0) + 1);
+    for (const row of dailyRows) {
+      counter.set(row.date, row.count || 0);
     }
 
     const points: Array<{ date: string; count: number; level: number }> = [];
@@ -88,9 +100,9 @@ export async function GET(req: Request) {
         includedEventTypes: INCLUDED_EVENT_TYPES,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch heatmap" },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 },
     );
   }
