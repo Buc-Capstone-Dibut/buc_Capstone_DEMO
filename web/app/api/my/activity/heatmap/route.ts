@@ -68,7 +68,7 @@ export async function GET(req: Request) {
         to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
         COUNT(*)::int AS count
       FROM "public"."user_activity_events"
-      WHERE user_id = ${profile.id}
+      WHERE user_id = ${profile.id}::uuid
         AND created_at >= ${start}
         AND event_type IN (${Prisma.join(INCLUDED_EVENT_TYPES)})
       GROUP BY 1

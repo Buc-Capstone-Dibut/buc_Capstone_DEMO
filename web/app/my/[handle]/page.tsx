@@ -75,12 +75,12 @@ export default async function MyProfilePage({
   const [summaryRows, postsRaw] = await Promise.all([
     prisma.$queryRaw<SummaryRow[]>`
       SELECT
-        (SELECT COUNT(*)::int FROM "public"."posts" p WHERE p.author_id = ${profileRaw.id}) AS "postCount",
-        (SELECT COUNT(*)::int FROM "public"."comments" c WHERE c.author_id = ${profileRaw.id}) AS "commentCount",
-        (SELECT COUNT(*)::int FROM "public"."workspace_members" wm WHERE wm.user_id = ${profileRaw.id}) AS "workspaceCount",
-        (SELECT COUNT(*)::int FROM "public"."blog_bookmarks" bb WHERE bb.user_id = ${profileRaw.id}) AS "bookmarkCount",
-        (SELECT urp.public_summary FROM "public"."user_resume_profiles" urp WHERE urp.user_id = ${profileRaw.id} LIMIT 1) AS "resumeSummary",
-        (SELECT uws.public_summary FROM "public"."user_workspace_settings" uws WHERE uws.user_id = ${profileRaw.id} LIMIT 1) AS "workspaceSummary"
+        (SELECT COUNT(*)::int FROM "public"."posts" p WHERE p.author_id = ${profileRaw.id}::uuid) AS "postCount",
+        (SELECT COUNT(*)::int FROM "public"."comments" c WHERE c.author_id = ${profileRaw.id}::uuid) AS "commentCount",
+        (SELECT COUNT(*)::int FROM "public"."workspace_members" wm WHERE wm.user_id = ${profileRaw.id}::uuid) AS "workspaceCount",
+        (SELECT COUNT(*)::int FROM "public"."blog_bookmarks" bb WHERE bb.user_id = ${profileRaw.id}::uuid) AS "bookmarkCount",
+        (SELECT urp.public_summary FROM "public"."user_resume_profiles" urp WHERE urp.user_id = ${profileRaw.id}::uuid LIMIT 1) AS "resumeSummary",
+        (SELECT uws.public_summary FROM "public"."user_workspace_settings" uws WHERE uws.user_id = ${profileRaw.id}::uuid LIMIT 1) AS "workspaceSummary"
     `,
     prisma.posts.findMany({
       where: { author_id: profileRaw.id },
@@ -145,8 +145,8 @@ export default async function MyProfilePage({
           tier: profileRaw.tier || "Unranked",
         },
         stats: { postCount, commentCount, workspaceCount, bookmarkCount },
-        resumeSummary: asPublicResumeSummary(resumeRow?.public_summary ?? null),
-        workspaceSummary: asRecord(wsSettingsRow?.public_summary ?? null),
+        resumeSummary: asPublicResumeSummary(summary?.resumeSummary ?? null),
+        workspaceSummary: asRecord(summary?.workspaceSummary ?? null),
         isOwner,
         posts,
         comments: [],
