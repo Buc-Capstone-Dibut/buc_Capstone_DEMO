@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
@@ -11,11 +12,6 @@ export async function GET(request: Request) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-
-    console.log(
-      "[API] Workspaces Check Session:",
-      session ? `User ${session.user.id}` : "No Session",
-    );
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,25 +44,53 @@ export async function GET(request: Request) {
 
     const workspaceIds = memberships.map((m) => m.workspace.id);
 
-    // 2단계: 최근 멤버 배치 조회 (워크스페이스 수에 관계없이 쿼리 1번)
-    const recentMembersRaw = await prisma.workspace_members.findMany({
-      where: { workspace_id: { in: workspaceIds } },
-      select: {
-        workspace_id: true,
-        joined_at: true,
-        user: { select: { id: true, nickname: true, avatar_url: true } },
-      },
-      orderBy: { joined_at: "desc" },
-    });
+    // 2단계: 워크스페이스별 최근 멤버 4명만 SQL 레벨에서 조회
+    type RecentMemberRow = {
+      workspace_id: string;
+      id: string;
+      nickname: string | null;
+      avatar_url: string | null;
+    };
+    const workspaceIdParams = Prisma.join(
+      workspaceIds.map((workspaceId) => Prisma.sql`${workspaceId}::uuid`),
+    );
+    const recentMembersRaw = workspaceIds.length
+      ? await prisma.$queryRaw<RecentMemberRow[]>`
+          SELECT
+            ranked.workspace_id,
+            ranked.user_id::text AS id,
+            p.nickname,
+            p.avatar_url
+          FROM (
+            SELECT
+              wm.workspace_id,
+              wm.user_id,
+              ROW_NUMBER() OVER (
+                PARTITION BY wm.workspace_id
+                ORDER BY wm.joined_at DESC
+              ) AS rn
+            FROM "public"."workspace_members" wm
+            WHERE wm.workspace_id IN (${workspaceIdParams})
+          ) ranked
+          LEFT JOIN "public"."profiles" p
+            ON p.id = ranked.user_id
+          WHERE ranked.rn <= 4
+          ORDER BY ranked.workspace_id, ranked.rn
+        `
+      : [];
 
-    // 워크스페이스별 최근 4명 그룹핑 (메모리 내 처리)
-    const recentMembersByWs = new Map<string, { id: string; nickname: string | null; avatar_url: string | null }[]>();
-    for (const m of recentMembersRaw) {
-      const list = recentMembersByWs.get(m.workspace_id) ?? [];
-      if (list.length < 4) {
-        list.push({ id: m.user.id, nickname: m.user.nickname, avatar_url: m.user.avatar_url });
-        recentMembersByWs.set(m.workspace_id, list);
-      }
+    const recentMembersByWs = new Map<
+      string,
+      { id: string; nickname: string | null; avatar_url: string | null }[]
+    >();
+    for (const row of recentMembersRaw) {
+      const list = recentMembersByWs.get(row.workspace_id) ?? [];
+      list.push({
+        id: row.id,
+        nickname: row.nickname,
+        avatar_url: row.avatar_url,
+      });
+      recentMembersByWs.set(row.workspace_id, list);
     }
 
     const workspaces = memberships.map((m) => ({

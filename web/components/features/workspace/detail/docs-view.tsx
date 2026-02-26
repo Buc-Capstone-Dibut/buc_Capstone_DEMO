@@ -130,12 +130,6 @@ export function DocsView({ projectId }: DocsViewProps) {
     [debouncedUpdate],
   );
 
-  console.log("[DocsView] Render", {
-    activeDocId,
-    isLoadingActiveDoc,
-    hasActiveDoc: !!activeDoc,
-  });
-
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);

@@ -67,13 +67,9 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
   connectSocket: (url, userId, projectId) => {
     if (get().socket) {
-      console.log("[Socket] Socket already exists, skipping connection.");
       return;
     }
 
-    console.log(
-      `[Socket] Connecting to ${url} with userId: ${userId}, projectId: ${projectId}`,
-    );
     set({ currentUserId: userId });
 
     const socket = io(url, {
@@ -83,7 +79,6 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     });
 
     socket.on("connect", () => {
-      console.log("[Socket] Connected!", socket.id);
       set({ isConnected: true });
       get().fetchChannels(projectId, socket); // Pass socket instance
     });
@@ -93,8 +88,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       toast.error(`Socket connection error: ${err.message}`);
     });
 
-    socket.on("disconnect", (reason) => {
-      console.log("[Socket] Disconnected:", reason);
+    socket.on("disconnect", () => {
       set({ isConnected: false });
     });
 
@@ -105,40 +99,20 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       const mentionPattern = `[@${state.currentUserId}:`;
       const hasMention = message.content.includes(mentionPattern);
 
-      console.log("[Socket] Message received:", message.channelId);
-      console.log("[Socket] Has Mention:", hasMention);
-
-      if (hasMention) {
-        console.log(
-          "[Socket] Mention detected! (Notification handled by server-side DB persistence)",
-        );
-      }
-
       // If it's the active channel, append message
       if (message.channelId === state.activeChannelId) {
-        console.log(
-          `[Socket] Message is for active channel ${state.activeChannelId}, skipping badge update.`,
-        );
         set((state) => ({ messages: [...state.messages, message] }));
       } else {
-        console.log(
-          `[Socket] Message is for INACTIVE channel (Active: ${state.activeChannelId}, Msg: ${message.channelId}). Updating badges.`,
-        );
         // If inactive, update badge counts
         set((state) => {
           const updatedChannels = state.channels.map((ch) => {
             if (ch.id === message.channelId) {
-              console.log(
-                `[SocketStore] Updating channel ${ch.name}: +1 unread, Mention=${hasMention}`,
-              );
               return {
                 ...ch,
                 unreadCount: (ch.unreadCount || 0) + 1,
                 hasMention: ch.hasMention || hasMention,
               };
             }
-            // Log if we are scanning other channels to ensure IDs match
-            // console.log(`[SocketStore] Skipping channel ${ch.name} (${ch.id})`);
             return ch;
           });
 
@@ -178,9 +152,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     // Allow passing socket instance
     const socket = socketInstance || get().socket;
     if (socket) {
-      console.log(`[Socket] Fetching channels for workspace: ${workspaceId}`);
       socket.emit("chat:get_channels", { workspaceId }, (res: any) => {
-        console.log("[Socket] fetchChannels response:", res);
         if (res.success) {
           set({ channels: res.data });
           const state = get();

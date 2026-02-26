@@ -13,18 +13,15 @@ import {
   Hash,
   Plus,
   Volume2,
-  Bell,
-  Briefcase,
   ChevronDown,
   LogOut,
   Settings,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { InviteMemberModal } from "@/components/features/workspace/dialogs/invite-member-modal";
-import { DocumentList } from "@/components/features/workspace/docs/document-list";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -93,16 +90,26 @@ export function WorkspaceSidebar({
   const { onlineUsers } = usePresence();
 
   // Voice Channels
-  const { joinRoom, currentRoom, isConnected } = useVoice();
+  const { joinRoom, currentRoom } = useVoice();
+
+  const swrOptions = {
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+  } as const;
 
   // Fetch all workspaces for the switcher
-  const { data: workspaces } = useSWR<any[]>("/api/workspaces", fetcher);
+  const { data: workspaces } = useSWR<any[]>(
+    "/api/workspaces",
+    fetcher,
+    swrOptions,
+  );
 
   // Poll for Room Participants (Socket-driven + 60s fallback)
   const { data: roomParticipants, mutate: mutateRooms } = useSWR(
     "/api/livekit/rooms",
     fetcher,
     {
+      revalidateOnFocus: false,
       refreshInterval: 60000,
     },
   );
@@ -113,7 +120,6 @@ export function WorkspaceSidebar({
     if (!socket) return;
 
     const handleVoiceUpdate = () => {
-      console.log("[Sidebar] Received voice update, refreshing list...");
       mutateRooms();
     };
 
@@ -158,11 +164,11 @@ export function WorkspaceSidebar({
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDesc, setNewChannelDesc] = useState("");
 
-  const {
-    data: project,
-    error,
-    isLoading,
-  } = useSWR(`/api/workspaces/${projectId}`, fetcher);
+  const { data: project, isLoading } = useSWR(
+    `/api/workspaces/${projectId}`,
+    fetcher,
+    swrOptions,
+  );
 
   // Leave Workspace Handler
   const handleLeaveWorkspace = async () => {

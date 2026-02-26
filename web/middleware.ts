@@ -15,7 +15,5 @@ export const config = {
     "/my/:path*",
     "/workspace/:path*",
     "/bookmarks/:path*",
-    "/api/my/:path*",
-    "/api/notifications/:path*",
   ],
 };

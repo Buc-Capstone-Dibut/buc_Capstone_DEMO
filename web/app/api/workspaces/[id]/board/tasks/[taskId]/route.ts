@@ -1,10 +1,8 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function PATCH(
   request: Request,
@@ -25,10 +23,12 @@ export async function PATCH(
     const updates = await request.json();
 
     // Verify workspace membership
-    const member = await prisma.workspace_members.findFirst({
+    const member = await prisma.workspace_members.findUnique({
       where: {
-        workspace_id: workspaceId,
-        user_id: user.id,
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: user.id,
+        },
       },
     });
 
@@ -122,10 +122,12 @@ export async function DELETE(
   try {
     const { id: workspaceId, taskId } = params;
 
-    const member = await prisma.workspace_members.findFirst({
+    const member = await prisma.workspace_members.findUnique({
       where: {
-        workspace_id: workspaceId,
-        user_id: user.id,
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: user.id,
+        },
       },
     });
 

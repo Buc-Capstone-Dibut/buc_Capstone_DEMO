@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import useSWR from "swr";
+import useSWR, { type KeyedMutator } from "swr";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -17,44 +17,84 @@ export interface Notification {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function useNotifications() {
+let sharedNotificationUserId: string | null = null;
+let sharedNotificationChannel: ReturnType<typeof supabase.channel> | null = null;
+let sharedSubscriberCount = 0;
+const sharedMutators = new Set<KeyedMutator<Notification[]>>();
+
+interface UseNotificationsOptions {
+  enabled?: boolean;
+}
+
+export function useNotifications(options: UseNotificationsOptions = {}) {
+  const { enabled = true } = options;
   const { user } = useAuth({ loadProfile: false });
   const {
     data: notifications,
     mutate,
     isLoading,
-  } = useSWR<Notification[]>(user ? "/api/notifications" : null, fetcher);
+  } = useSWR<Notification[]>(
+    user && enabled ? "/api/notifications" : null,
+    fetcher,
+  );
+
+  useEffect(() => {
+    if (!enabled) return;
+    sharedMutators.add(mutate);
+    return () => {
+      sharedMutators.delete(mutate);
+    };
+  }, [enabled, mutate]);
 
   const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
 
-  // Realtime Subscription
+  // Realtime subscription is shared across hook instances.
   useEffect(() => {
-    if (!user) return;
+    if (!enabled || !user?.id) return;
 
-    const channel = supabase
-      .channel("realtime-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newNotif = payload.new as Notification;
-          // Optimistic Update
-          mutate((currentData) => {
-            return [newNotif, ...(currentData || [])];
-          }, false);
-        },
-      )
-      .subscribe();
+    sharedSubscriberCount += 1;
+
+    const ensureChannel = () => {
+      if (sharedNotificationChannel && sharedNotificationUserId === user.id) return;
+
+      if (sharedNotificationChannel) {
+        supabase.removeChannel(sharedNotificationChannel);
+      }
+
+      sharedNotificationUserId = user.id;
+      sharedNotificationChannel = supabase
+        .channel(`realtime-notifications:${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newNotif = payload.new as Notification;
+            sharedMutators.forEach((instanceMutate) => {
+              instanceMutate((currentData) => {
+                return [newNotif, ...(currentData || [])];
+              }, false);
+            });
+          },
+        )
+        .subscribe();
+    };
+
+    ensureChannel();
 
     return () => {
-      supabase.removeChannel(channel);
+      sharedSubscriberCount = Math.max(0, sharedSubscriberCount - 1);
+      if (sharedSubscriberCount === 0 && sharedNotificationChannel) {
+        supabase.removeChannel(sharedNotificationChannel);
+        sharedNotificationChannel = null;
+        sharedNotificationUserId = null;
+      }
     };
-  }, [user, mutate]);
+  }, [enabled, user?.id]);
 
   const markAsRead = async (id?: string) => {
     // Optimistic update

@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import useSWR from "swr";
-import { SidebarLayout } from "@/components/layout/sidebar-layout";
 import { WorkspaceSidebar } from "@/components/features/workspace/detail/workspace-sidebar";
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
 import dynamic from "next/dynamic";
@@ -97,34 +95,11 @@ import { useAuth } from "@/hooks/use-auth";
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { activeTaskId, setActiveTaskId, tasks, updateTask, deleteTask, tags } =
-    useWorkspaceStore();
+  const { activeTaskId, setActiveTaskId } = useWorkspaceStore();
   const [activeTab, setActiveTab] = useState("overview");
-
-  // Fetcher for SWR
-  const fetcher = async (url: string) => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch data");
-    return res.json();
-  };
-
-  const { data: boardData } = useSWR(
-    `/api/workspaces/${projectId}/board`,
-    fetcher,
-  );
-
-  // Combine store tasks (optimistic/mock) with real tasks if needed,
-  // but preferentially use real tasks for the modal to ensure ID matches.
-  const realTasks = boardData?.tasks || [];
-  const realMembers = boardData?.members || [];
 
   const { connectSocket, disconnectSocket } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
-
-  // Find the active task from Real Data first, then Store (fallback)
-  const activeTask =
-    realTasks.find((t: any) => t.id === activeTaskId) ||
-    tasks.find((t) => t.id === activeTaskId);
 
   useEffect(() => {
     if (projectId && user) {

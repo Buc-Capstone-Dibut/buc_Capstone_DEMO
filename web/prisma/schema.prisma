@@ -414,19 +414,19 @@ model users {
 }
 
 model blogs {
-  id            Int       @id @default(autoincrement())
-  title         String    @db.VarChar(500)
+  id            Int              @id @default(autoincrement())
+  title         String           @db.VarChar(500)
   summary       String?
-  author        String    @db.VarChar(100)
-  tags          String[]  @default([])
-  published_at  DateTime? @default(now()) @db.Timestamptz(6)
+  author        String           @db.VarChar(100)
+  tags          String[]         @default([])
+  published_at  DateTime?        @default(now()) @db.Timestamptz(6)
   thumbnail_url String?
   external_url  String
-  views         Int?      @default(0)
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
-  blog_type     String?   @default("company") @db.VarChar(50)
-  category      String?   @db.VarChar(50)
+  views         Int?             @default(0)
+  created_at    DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?        @default(now()) @db.Timestamptz(6)
+  blog_type     String?          @default("company") @db.VarChar(50)
+  category      String?          @db.VarChar(50)
   bookmarks     blog_bookmarks[]
 
   @@index([external_url], map: "idx_blogs_external_url")
@@ -452,22 +452,23 @@ model comments {
   posts          posts?     @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([author_id, created_at(sort: Desc)])
+  @@index([post_id, created_at(sort: Desc)])
   @@schema("public")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model squad_comments {
-  id                   String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  squad_id             String            @db.Uuid
-  author_id            String?           @db.Uuid
+  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  squad_id             String           @db.Uuid
+  author_id            String?          @db.Uuid
   content              String
-  parent_id            String?           @db.Uuid
-  created_at           DateTime?         @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime?         @default(now()) @db.Timestamptz(6)
-  profiles             profiles?         @relation(fields: [author_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  squads               squads            @relation(fields: [squad_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  squad_comments       squad_comments?   @relation("squad_commentsTosquad_comments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  other_squad_comments squad_comments[]  @relation("squad_commentsTosquad_comments")
+  parent_id            String?          @db.Uuid
+  created_at           DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?        @default(now()) @db.Timestamptz(6)
+  profiles             profiles?        @relation(fields: [author_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  squads               squads           @relation(fields: [squad_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  squad_comments       squad_comments?  @relation("squad_commentsTosquad_comments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other_squad_comments squad_comments[] @relation("squad_commentsTosquad_comments")
 
   @@index([parent_id], map: "idx_squad_comments_parent_id")
   @@index([squad_id, created_at], map: "idx_squad_comments_squad_created_at")
@@ -491,6 +492,7 @@ model posts {
   profiles            profiles?  @relation(fields: [author_id], references: [id], onUpdate: NoAction)
 
   @@index([author_id, created_at(sort: Desc)])
+  @@index([category, created_at(sort: Desc)])
   @@schema("public")
 }
 
@@ -513,7 +515,7 @@ model profiles {
   squad_applications squad_applications[]
   squad_members      squad_members[]
   squads             squads[]
-  
+
   // Workspace & Notification Relations
   workspace_members  workspace_members[]
   workspace_invites  workspace_invites[]
@@ -530,36 +532,36 @@ model profiles {
 }
 
 model user_resume_profiles {
-  user_id          String    @id @db.Uuid
+  user_id          String   @id @db.Uuid
   resume_payload   Json
   public_summary   Json
-  source_type      String    @default("manual")
+  source_type      String   @default("manual")
   source_file_name String?
-  created_at       DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  profiles         profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }
 
 model user_workspace_settings {
-  user_id          String    @id @db.Uuid
+  user_id          String   @id @db.Uuid
   settings_payload Json
   public_summary   Json
-  created_at       DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  profiles         profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }
 
 model blog_bookmarks {
-  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id    String    @db.Uuid
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
   blog_id    Int
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  blogs      blogs     @relation(fields: [blog_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  profiles   profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  blogs      blogs    @relation(fields: [blog_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, blog_id])
   @@index([user_id, created_at(sort: Desc)])
@@ -567,15 +569,16 @@ model blog_bookmarks {
 }
 
 model user_activity_events {
-  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id    String    @db.Uuid
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
   event_type String
   ref_id     String?
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  profiles   profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id, created_at(sort: Desc)])
   @@index([event_type])
+  @@index([user_id, event_type, created_at(sort: Desc)])
   @@schema("public")
 }
 
@@ -613,41 +616,41 @@ model squad_members {
 // --- WORKSPACE SYSTEM ---
 
 model workspaces {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String
   description String?
   icon_url    String?
-  category    String   @default("Side Project")
-  
+  category    String  @default("Side Project")
+
   // Optional link to origin squad
   from_squad_id String? @unique @db.Uuid
-  
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
 
-  members     workspace_members[]
-  invites     workspace_invites[]
-  
-  columns     kanban_columns[]
-  tags        kanban_tags[]
-  docs        workspace_docs[]
-  channels    workspace_channels[]
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  squad       squads?  @relation(fields: [from_squad_id], references: [id])
+  members workspace_members[]
+  invites workspace_invites[]
+
+  columns  kanban_columns[]
+  tags     kanban_tags[]
+  docs     workspace_docs[]
+  channels workspace_channels[]
+
+  squad squads? @relation(fields: [from_squad_id], references: [id])
 
   @@schema("public")
 }
 
 model workspace_members {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String   @db.Uuid
-  user_id      String   @db.Uuid
-  
-  role         String   @default("member") // owner, admin, member, viewer
-  joined_at    DateTime @default(now())
+  id           String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String @db.Uuid
+  user_id      String @db.Uuid
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  user         profiles   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role      String   @default("member") // owner, admin, member, viewer
+  joined_at DateTime @default(now())
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user      profiles   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([workspace_id, user_id])
   @@index([user_id])
@@ -655,18 +658,18 @@ model workspace_members {
 }
 
 model workspace_invites {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String   @db.Uuid
+  id           String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String @db.Uuid
   email        String
-  token        String   @unique
-  role         String   @default("member")
-  inviter_id   String   @db.Uuid
-  
-  expires_at   DateTime
-  created_at   DateTime @default(now())
+  token        String @unique
+  role         String @default("member")
+  inviter_id   String @db.Uuid
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  inviter      profiles   @relation(fields: [inviter_id], references: [id])
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  inviter   profiles   @relation(fields: [inviter_id], references: [id])
 
   @@schema("public")
 }
@@ -681,8 +684,9 @@ model kanban_columns {
   order        Int
   tasks        kanban_tasks[]
 
-  workspace    workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
+  @@index([workspace_id, order])
   @@schema("public")
 }
 
@@ -693,28 +697,30 @@ model kanban_tags {
   color        String
   created_at   DateTime @default(now())
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
   @@unique([workspace_id, name])
   @@schema("public")
 }
 
 model kanban_tasks {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  column_id   String   @db.Uuid
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  column_id   String    @db.Uuid
   title       String
   description String?
-  assignee_id String?  @db.Uuid
-  priority    String?  @default("medium")
+  assignee_id String?   @db.Uuid
+  priority    String?   @default("medium")
   tags        String[]
   order       Int
   due_date    DateTime?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 
-  column      kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
-  assignee    profiles?      @relation(fields: [assignee_id], references: [id])
+  column   kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
+  assignee profiles?      @relation(fields: [assignee_id], references: [id])
 
+  @@index([column_id, order])
+  @@index([assignee_id])
   @@schema("public")
 }
 
@@ -731,11 +737,13 @@ model workspace_docs {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  workspace    workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  author       profiles         @relation(fields: [author_id], references: [id])
-  parent       workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
-  children     workspace_docs[] @relation("DocHierarchy")
+  workspace workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  author    profiles         @relation(fields: [author_id], references: [id])
+  parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
+  children  workspace_docs[] @relation("DocHierarchy")
 
+  @@index([workspace_id, updated_at(sort: Desc)])
+  @@index([parent_id])
   @@schema("public")
 }
 
@@ -748,8 +756,8 @@ model workspace_channels {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  workspace    workspaces           @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  messages     workspace_messages[]
+  workspace workspaces           @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  messages  workspace_messages[]
 
   @@unique([workspace_id, name])
   @@schema("public")
@@ -764,8 +772,8 @@ model workspace_messages {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  channel    workspace_channels @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  sender     profiles           @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+  channel workspace_channels @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender  profiles           @relation(fields: [sender_id], references: [id], onDelete: Cascade)
 
   @@index([channel_id, created_at])
   @@schema("public")
@@ -774,17 +782,19 @@ model workspace_messages {
 // --- GLOBAL NOTIFICATION SYSTEM ---
 
 model notifications {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id     String   @db.Uuid
-  type        String   // INVITE, SQUAD, COMMENT, SYSTEM
-  title       String
-  message     String
-  link        String?
-  is_read     Boolean  @default(false)
-  created_at  DateTime @default(now())
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
+  type       String // INVITE, SQUAD, COMMENT, SYSTEM
+  title      String
+  message    String
+  link       String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
 
-  user        profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, is_read])
   @@schema("public")
 }
 
@@ -811,6 +821,8 @@ model squads {
   squad_members      squad_members[]
   profiles           profiles?            @relation(fields: [leader_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([status, created_at(sort: Desc)])
+  @@index([type, created_at(sort: Desc)])
   @@schema("public")
 }
 

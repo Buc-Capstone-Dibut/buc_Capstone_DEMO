@@ -33,34 +33,35 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 2. Fetch Board Data — select 기반으로 필요한 필드만 조회 (N+1 제거)
-  const [columns, tasks, members, tags] = await Promise.all([
-    prisma.kanban_columns.findMany({
-      where: { workspace_id: workspaceId },
-      orderBy: { order: "asc" },
-    }),
+  // 2. Fetch columns first, then use column_id IN (...) for task lookup.
+  // This is more index-friendly than relation filtering on high-cardinality data.
+  const columns = await prisma.kanban_columns.findMany({
+    where: { workspace_id: workspaceId },
+    orderBy: { order: "asc" },
+  });
+  const columnIds = columns.map((column) => column.id);
 
-    // assignee 전체 대신 필요한 필드만 select
-    prisma.kanban_tasks.findMany({
-      where: { column: { workspace_id: workspaceId } },
-      select: {
-        id: true,
-        column_id: true,
-        title: true,
-        description: true,
-        order: true,
-        due_date: true,
-        assignee_id: true,
-        tags: true,
-        priority: true,
-        assignee: {
-          select: { nickname: true, avatar_url: true },
-        },
-      },
-      orderBy: { order: "asc" },
-    }),
-
-    // user 전체 대신 필요한 필드만 select
+  const [tasks, members, tags] = await Promise.all([
+    columnIds.length > 0
+      ? prisma.kanban_tasks.findMany({
+          where: { column_id: { in: columnIds } },
+          select: {
+            id: true,
+            column_id: true,
+            title: true,
+            description: true,
+            order: true,
+            due_date: true,
+            assignee_id: true,
+            tags: true,
+            priority: true,
+            assignee: {
+              select: { nickname: true, avatar_url: true },
+            },
+          },
+          orderBy: { order: "asc" },
+        })
+      : Promise.resolve<any[]>([]),
     prisma.workspace_members.findMany({
       where: { workspace_id: workspaceId },
       select: {
@@ -71,7 +72,6 @@ export async function GET(
         },
       },
     }),
-
     prisma.kanban_tags.findMany({
       where: { workspace_id: workspaceId },
       orderBy: { name: "asc" },
@@ -101,6 +101,16 @@ export async function GET(
     },
   ];
 
+  const columnMetaById = new Map(
+    columns.map((c) => [
+      c.id,
+      {
+        category: c.category || "todo",
+        status: c.title.toLowerCase().replace(/\s+/g, "-"),
+      },
+    ]),
+  );
+
   return NextResponse.json({
     columns: columns.map((c: any) => ({
       id: c.id,
@@ -114,27 +124,26 @@ export async function GET(
             ? "green"
             : "gray",
     })),
-    tasks: tasks.map((t: any) => ({
-      id: t.id,
-      columnId: t.column_id,
-      projectId: workspaceId, // Important for frontend filter
-      title: t.title,
-      description: t.description,
-      order: t.order,
-      dueDate: t.due_date,
-      assignee: t.assignee ? t.assignee.nickname : null,
-      assigneeId: t.assignee_id,
-      tags: t.tags,
-      priority: t.priority || "medium",
-      priorityId: t.priority || "medium",
-      // Stable category for styling: 'todo', 'in-progress', 'done'
-      category: columns.find((c) => c.id === t.column_id)?.category || "todo",
-      status:
-        columns
-          .find((c) => c.id === t.column_id)
-          ?.title.toLowerCase()
-          .replace(/\s+/g, "-") || "todo",
-    })),
+    tasks: tasks.map((t: any) => {
+      const columnMeta = columnMetaById.get(t.column_id);
+      return {
+        id: t.id,
+        columnId: t.column_id,
+        projectId: workspaceId, // Important for frontend filter
+        title: t.title,
+        description: t.description,
+        order: t.order,
+        dueDate: t.due_date,
+        assignee: t.assignee ? t.assignee.nickname : null,
+        assigneeId: t.assignee_id,
+        tags: t.tags,
+        priority: t.priority || "medium",
+        priorityId: t.priority || "medium",
+        // Stable category for styling: 'todo', 'in-progress', 'done'
+        category: columnMeta?.category || "todo",
+        status: columnMeta?.status || "todo",
+      };
+    }),
     members: formattedMembers,
     tags: tags.map((t: any) => ({ id: t.id, name: t.name, color: t.color })), // Return Tags
     views: mockViews,

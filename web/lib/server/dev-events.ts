@@ -2,6 +2,30 @@ import path from "path";
 import fs from "fs";
 import { DevEvent } from "@/lib/types/dev-event";
 
+let cachedEvents: DevEvent[] | null = null;
+let cachedEventsAt = 0;
+const DEV_EVENTS_CACHE_TTL_MS = 60_000;
+
+function loadDevEventsFromFile(): DevEvent[] {
+  const now = Date.now();
+  if (cachedEvents && now - cachedEventsAt < DEV_EVENTS_CACHE_TTL_MS) {
+    return cachedEvents;
+  }
+
+  const filePath = path.join(process.cwd(), "public", "data", "dev-events.json");
+  if (!fs.existsSync(filePath)) {
+    console.warn("dev-events.json not found");
+    cachedEvents = [];
+    cachedEventsAt = now;
+    return [];
+  }
+
+  const fileContents = fs.readFileSync(filePath, "utf8");
+  cachedEvents = JSON.parse(fileContents) as DevEvent[];
+  cachedEventsAt = now;
+  return cachedEvents;
+}
+
 // 개발자 행사 목록 조회 (JSON 파일 기반)
 // Server-Only: fs 사용
 export async function fetchDevEvents({
@@ -18,20 +42,7 @@ export async function fetchDevEvents({
   limit?: number;
 } = {}) {
   try {
-    const filePath = path.join(
-      process.cwd(),
-      "public",
-      "data",
-      "dev-events.json",
-    );
-
-    if (!fs.existsSync(filePath)) {
-      console.warn("dev-events.json not found");
-      return { events: [], totalCount: 0 };
-    }
-
-    const fileContents = fs.readFileSync(filePath, "utf8");
-    const allEvents = JSON.parse(fileContents) as DevEvent[];
+    const allEvents = loadDevEventsFromFile();
 
     let filteredEvents = allEvents;
 

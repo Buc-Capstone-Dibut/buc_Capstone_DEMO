@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import useSWR from "swr";
+import { useEffect, useState } from "react";
 import { Bell, Check, X } from "lucide-react";
 import {
   Popover,
@@ -13,9 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import { supabase } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { toast } from "sonner"; // Assuming sonner is installed
+import { useNotifications } from "@/hooks/use-notifications";
+import { toast } from "sonner";
 
 interface Notification {
   id: string;
@@ -27,73 +25,19 @@ interface Notification {
   created_at: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
 export function NotificationCenter() {
-  const { user } = useAuth({ loadProfile: false });
-  const { data: notifications, mutate } = useSWR<Notification[]>(
-    user ? "/api/notifications" : null,
-    fetcher,
-  );
-
   const [isOpen, setIsOpen] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(false);
 
-  // Realtime Subscription
   useEffect(() => {
-    if (!user) return;
+    if (isOpen) setShouldLoad(true);
+  }, [isOpen]);
 
-    console.log("Setting up realtime subscription for user:", user.id);
-
-    const channel = supabase
-      .channel("realtime-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log("New Notification received!", payload);
-          const newNotif = payload.new as Notification;
-
-          // Toast Alert
-          toast.info(newNotif.title, {
-            description: newNotif.message,
-          });
-
-          // Optimistic Update: Add to list immediately
-          mutate((currentData) => {
-            return [newNotif, ...(currentData || [])];
-          }, false); // false to prevent revalidation
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, mutate]);
-
-  const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
+  const { notifications, unreadCount, markAsRead, deleteNotification } =
+    useNotifications({ enabled: shouldLoad });
 
   const handleMarkAsRead = async (id?: string) => {
-    // Optimistic update
-    if (!notifications) return;
-
-    const updated = notifications.map((n) =>
-      id && n.id !== id ? n : { ...n, is_read: true },
-    );
-
-    mutate(updated, false);
-
-    await fetch("/api/notifications", {
-      method: "PATCH",
-      body: JSON.stringify({ id }),
-    });
-
-    mutate();
+    await markAsRead(id);
   };
 
   const handleInviteAction = async (
@@ -137,25 +81,10 @@ export function NotificationCenter() {
   const handleDeleteNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Optimistic Update
-    if (!notifications) return;
-    const updated = notifications.filter((n) => n.id !== id);
-    mutate(updated, false);
-
     try {
-      const res = await fetch(`/api/notifications?id=${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to delete");
-      }
-
-      mutate(); // Revalidate
+      await deleteNotification(id);
     } catch (error) {
-      console.error(error);
       toast.error("알림 삭제 실패");
-      mutate(); // Rollback on error
     }
   };
 
@@ -188,14 +117,14 @@ export function NotificationCenter() {
           )}
         </div>
         <ScrollArea className="h-[300px]">
-          {notifications?.length === 0 ? (
+          {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-8">
               <Bell className="w-8 h-8 opacity-20 mb-2" />
               <span className="text-sm">새로운 알림이 없습니다.</span>
             </div>
           ) : (
             <div className="flex flex-col divide-y">
-              {notifications?.map((notification) => (
+              {notifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={cn(

@@ -45,10 +45,6 @@ export async function GET(req: NextRequest) {
       targetRooms.map(async (roomName) => {
         try {
           const participants = await svc.listParticipants(roomName);
-          console.log(
-            `[API] Room ${roomName} participants:`,
-            participants.length,
-          );
           // Map to simplified objects
           roomsData[roomName] = participants.map((p) => {
             let avatarUrl = "";

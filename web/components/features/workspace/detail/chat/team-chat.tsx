@@ -29,10 +29,16 @@ export function TeamChat({ projectId }: TeamChatProps) {
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 
+  const swrOptions = {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  } as const;
+
   // Fetch members for mention parsing
   const { data: boardData } = useSWR(
     `/api/workspaces/${projectId}/board`,
     fetcher,
+    swrOptions,
   );
   const members = boardData?.members || [];
   const tasks = boardData?.tasks || [];

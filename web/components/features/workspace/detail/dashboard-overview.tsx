@@ -15,16 +15,23 @@ interface DashboardOverviewProps {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function DashboardOverview({ projectId }: DashboardOverviewProps) {
+  const swrOptions = {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  } as const;
+
   // 1. Fetch Project Details
   const { data: project, isLoading: isProjectLoading } = useSWR(
     `/api/workspaces/${projectId}`,
     fetcher,
+    swrOptions,
   );
 
   // 2. Fetch Board Data (Tasks)
   const { data: boardData, isLoading: isBoardLoading } = useSWR(
     `/api/workspaces/${projectId}/board`,
     fetcher,
+    swrOptions,
   );
 
   if (isProjectLoading || isBoardLoading) {

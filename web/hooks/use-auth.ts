@@ -4,18 +4,26 @@ import { supabase } from "@/lib/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 
 let initialSessionPromise: Promise<Session | null> | null = null;
+let initialSessionCache: { value: Session | null; at: number } | null = null;
 const inflightProfileByUser = new Map<string, Promise<UserProfile | null>>();
+const SESSION_CACHE_TTL_MS = 15_000;
 
 function getInitialSessionOnce(): Promise<Session | null> {
+  const now = Date.now();
+  if (initialSessionCache && now - initialSessionCache.at < SESSION_CACHE_TTL_MS) {
+    return Promise.resolve(initialSessionCache.value);
+  }
+
   if (!initialSessionPromise) {
     initialSessionPromise = supabase.auth
       .getSession()
-      .then(({ data: { session } }) => session ?? null)
+      .then(({ data: { session } }) => {
+        const value = session ?? null;
+        initialSessionCache = { value, at: Date.now() };
+        return value;
+      })
       .finally(() => {
-        // Keep only for current mount burst.
-        setTimeout(() => {
-          initialSessionPromise = null;
-        }, 0);
+        initialSessionPromise = null;
       });
   }
   return initialSessionPromise;
@@ -89,6 +97,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      initialSessionCache = { value: session ?? null, at: Date.now() };
       if (mounted) handleSession(session);
     });
 

@@ -68,9 +68,14 @@ export function AdvancedTaskModal({
   const { mutate } = useSWRConfig();
 
   // --- Data Fetching ---
+  const swrOptions = {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  } as const;
   const { data: boardData } = useSWR(
     projectId && open ? `/api/workspaces/${projectId}/board` : null,
     fetcher,
+    swrOptions,
   );
 
   const tasks: Task[] = boardData?.tasks || [];

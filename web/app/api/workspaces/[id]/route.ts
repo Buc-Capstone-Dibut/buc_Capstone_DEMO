@@ -42,27 +42,16 @@ export async function GET(
         members: {
           include: {
             user: {
-              // THIS IS PROFILE
               select: {
                 id: true,
                 nickname: true,
                 avatar_url: true,
-                users: {
-                  // NESTED USER MODEL FOR EMAIL
-                  select: {
-                    email: true,
-                  },
-                },
               },
             },
           },
         },
       },
     });
-
-    console.log(
-      `[API] Workspace Detail Found: ${workspace?.id} / Name: ${workspace?.name}`,
-    );
 
     if (!workspace) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -73,7 +62,7 @@ export async function GET(
       ...workspace,
       members: workspace.members.map((wm) => ({
         id: wm.user?.id,
-        name: wm.user?.nickname || wm.user?.users?.email || "Unknown", // Fallback to email if nickname is null
+        name: wm.user?.nickname || "Unknown",
         avatar: wm.user?.avatar_url,
         role: wm.role,
         online: false, // TODO: integrate with presence later

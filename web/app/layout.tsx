@@ -7,8 +7,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { GlobalHeader } from "@/components/layout/global-header";
 import { GlobalMobileNav } from "@/components/layout/mobile-nav";
 import { Suspense } from "react";
-import { PresenceProvider } from "@/components/providers/presence-provider";
-import { VoiceManager } from "@/components/features/workspace/voice/voice-manager";
+import { AppSWRProvider } from "@/components/providers/swr-provider";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dibut.dev";
 
@@ -75,8 +74,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <PresenceProvider>
-            <VoiceManager>
+          <AppSWRProvider>
               <div className="relative flex min-h-screen flex-col">
                 <Suspense
                   fallback={
@@ -88,11 +86,10 @@ export default function RootLayout({
                 <div className="flex-1">{children}</div>
                 <GlobalMobileNav />
               </div>
-            </VoiceManager>
             <Toaster />
             <SonnerToaster />
             <Analytics />
-          </PresenceProvider>
+          </AppSWRProvider>
         </ThemeProvider>
       </body>
     </html>

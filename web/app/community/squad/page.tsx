@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { fetchSquads } from "@/lib/server/squads";
 import { PaginationControl } from "@/components/ui/pagination-control";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 interface PageProps {
   searchParams: Promise<{ page?: string; type?: string }>;

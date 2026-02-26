@@ -35,20 +35,22 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all" } = {}) {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // 1. Build Query
-  let query = supabase.from("squads").select("*", { count: "exact" });
-  if (type !== "all") {
-    query = query.eq("type", type);
-  }
-
-  // 1. Get Count & Data
-  const { data: squads, count, error } = await query
-    .select(`
+  // Build single query with projection + pagination.
+  // planned count is significantly cheaper than exact on large tables.
+  let query = supabase.from("squads").select(
+    `
       *,
       leader:leader_id (
         id, nickname, avatar_url, tier
       )
-    `)
+    `,
+    { count: "planned" },
+  );
+  if (type !== "all") {
+    query = query.eq("type", type);
+  }
+
+  const { data: squads, count, error } = await query
     .order("created_at", { ascending: false })
     .range(from, to);
 

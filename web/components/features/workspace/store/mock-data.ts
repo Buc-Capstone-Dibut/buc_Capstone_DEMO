@@ -160,121 +160,15 @@ export interface Doc {
 
 export const MOCK_PROJECTS: Project[] = [
   {
-    id: "p-1",
-    title: "Sumsung SDS 해커톤 팀",
-    description: "알고리즘 트랙 본선 준비 및 API 연동 프로젝트",
-    type: "hackathon",
-    status: "live",
-    lastActive: "2시간 전",
-    members: [
-      { id: "u1", name: "Junghwan", avatar: "J", role: "leader", online: true },
-      { id: "u2", name: "Frontend", avatar: "F", role: "member", online: true },
-      {
-        id: "u3",
-        name: "Designer",
-        avatar: "D",
-        role: "member",
-        online: false,
-      },
-    ],
-    dDay: "2025-02-15",
-    externalLink: {
-      title: "Samsung SDS 해커톤 공지",
-      url: "https://samsungsds.com/hackathon",
-    },
-    customFields: [
-      {
-        id: "cf-1",
-        projectId: "p-1",
-        name: "Priority",
-        type: "select",
-        options: ["High", "Medium", "Low"],
-      },
-      { id: "cf-2", projectId: "p-1", name: "Story Points", type: "number" },
-    ],
-    views: [
-      {
-        id: "v-1",
-        projectId: "p-1",
-        name: "메인 보드",
-        type: "kanban",
-        groupBy: "status",
-        columns: [
-          {
-            id: "col-1",
-            title: "할 일",
-            statusId: "todo",
-            color: "bg-gray-500",
-            category: "todo",
-          },
-          {
-            id: "col-2",
-            title: "진행 중",
-            statusId: "in-progress",
-            color: "bg-blue-500",
-            category: "in-progress",
-          },
-          {
-            id: "col-3",
-            title: "완료",
-            statusId: "done",
-            color: "bg-green-500",
-            category: "done",
-          },
-        ],
-        isSystem: true,
-      },
-      {
-        id: "v-team",
-        projectId: "p-1",
-        name: "팀 뷰",
-        type: "kanban",
-        groupBy: "assignee",
-        color: "green",
-        icon: "👥",
-        columns: [], // Columns generated dynamically for assignee
-        isSystem: true,
-      },
-      {
-        id: "v-priority",
-        projectId: "p-1",
-        name: "우선순위 뷰",
-        type: "kanban",
-        groupBy: "priority",
-        color: "red",
-        icon: "🚨",
-        columns: [], // Columns generated dynamically
-        isSystem: true,
-      },
-      {
-        id: "v-tag",
-        projectId: "p-1",
-        name: "태그 별 뷰",
-        type: "kanban",
-        groupBy: "tag",
-        color: "yellow",
-        icon: "🏷️",
-        columns: [], // Columns generated dynamically
-        isSystem: true,
-      },
-    ],
-  },
-  {
-    id: "p-2", // simplified for brevity
+    id: "p-2",
     title: "Dibut 사이드 프로젝트",
     description: "개발자 커리어 플랫폼 클론 코딩",
     type: "side-project",
     status: "live",
-    lastActive: "5시간 전",
+    lastActive: "방금 전",
     members: [
       { id: "u1", name: "Junghwan", avatar: "J", role: "leader", online: true },
-      {
-        id: "u2",
-        name: "Frontend",
-        avatar: "F",
-        role: "member",
-        online: false,
-      },
+      { id: "u2", name: "Frontend", avatar: "F", role: "member", online: false },
     ],
     customFields: [],
     views: [
@@ -286,7 +180,8 @@ export const MOCK_PROJECTS: Project[] = [
         groupBy: "status",
         columns: [
           { id: "col-1", title: "To Do", statusId: "todo", category: "todo" },
-          { id: "col-2", title: "Done", statusId: "done", category: "done" },
+          { id: "col-2", title: "In Progress", statusId: "in-progress", category: "in-progress" },
+          { id: "col-3", title: "Done", statusId: "done", category: "done" },
         ],
         isSystem: true,
       },
@@ -296,8 +191,6 @@ export const MOCK_PROJECTS: Project[] = [
         name: "Team View",
         type: "kanban",
         groupBy: "assignee",
-        color: "green",
-        icon: "👥",
         columns: [],
         isSystem: true,
       },
@@ -307,8 +200,6 @@ export const MOCK_PROJECTS: Project[] = [
         name: "Priority View",
         type: "kanban",
         groupBy: "priority",
-        color: "red",
-        icon: "🚨",
         columns: [],
         isSystem: true,
       },
@@ -318,8 +209,6 @@ export const MOCK_PROJECTS: Project[] = [
         name: "Tag View",
         type: "kanban",
         groupBy: "tag",
-        color: "yellow",
-        icon: "🏷️",
         columns: [],
         isSystem: true,
       },
@@ -328,215 +217,52 @@ export const MOCK_PROJECTS: Project[] = [
 ];
 
 export const INITIAL_TASKS: Task[] = [
-  // Sprint 1: Core Features
   {
-    id: "t-1",
-    projectId: "p-1",
-    title: "기획서 초안 작성",
-    status: "done",
+    id: "t-demo-1",
+    projectId: "p-2",
+    title: "프로젝트 구조 정리",
+    status: "in-progress",
     assignee: "Junghwan",
-    dueDate: "2025-01-10",
+    dueDate: "2026-03-01",
     customFieldValues: [],
     comments: [],
     history: [],
     tags: ["tag-2"],
-    priorityId: "p-high",
+    priorityId: "high",
   },
   {
-    id: "t-2",
-    projectId: "p-1",
-    title: "API 명세서 정리",
-    status: "in-progress",
-    assignee: "Junghwan",
-    dueDate: "2025-01-12",
-    docRef: "d-1",
+    id: "t-demo-2",
+    projectId: "p-2",
+    title: "워크스페이스 대시보드 개선",
+    status: "todo",
+    assignee: "Frontend",
+    dueDate: "2026-03-05",
     customFieldValues: [],
     comments: [],
     history: [],
     tags: ["tag-3"],
-    priorityId: "p-urgent",
-  },
-  {
-    id: "t-3",
-    projectId: "p-1",
-    title: "로그인 페이지 UI 구현",
-    status: "todo",
-    assignee: "Frontend",
-    dueDate: "2025-01-15",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-2"],
-    priorityId: "p-medium",
-  },
-
-  // Design Tasks
-  {
-    id: "t-4",
-    projectId: "p-1",
-    title: "메인 대시보드 시안 제작",
-    status: "in-progress",
-    assignee: "Designer",
-    dueDate: "2025-01-20",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-2"],
-    priorityId: "p-medium",
-  },
-  {
-    id: "t-5",
-    projectId: "p-1",
-    title: "모바일 반응형 가이드",
-    status: "todo",
-    assignee: "Designer",
-    dueDate: "2025-01-22",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-2"],
-    priorityId: "p-low",
-  },
-
-  // Backend & Bugs
-  {
-    id: "t-6",
-    projectId: "p-1",
-    title: "DB 스키마 마이그레이션",
-    status: "todo",
-    assignee: "Junghwan",
-    dueDate: "2025-01-18",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-3"],
-    priorityId: "p-high",
-  },
-  {
-    id: "t-7",
-    projectId: "p-1",
-    title: "이미지 업로드 500 에러 해결",
-    status: "urgent",
-    assignee: "Junghwan",
-    dueDate: "2025-01-11",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-1", "tag-3"],
-    priorityId: "p-urgent",
-  },
-
-  // Additional Tasks (renumbered to avoid conflict if any)
-  {
-    id: "t-8",
-    projectId: "p-1",
-    title: "다크모드 토글 추가",
-    status: "backlog",
-    assignee: "Frontend",
-    dueDate: "2025-02-01",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-2"],
-    priorityId: "p-low",
-  },
-  {
-    id: "t-9",
-    projectId: "p-1",
-    title: "소셜 로그인 (Google, GitHub)",
-    status: "backlog",
-    assignee: "Junghwan",
-    dueDate: "2025-02-10",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: [],
-    priorityId: "p-medium",
+    priorityId: "medium",
   },
 ];
 
 export const INITIAL_DOCS: Doc[] = [
   {
-    id: "d-1",
-    projectId: "p-1",
-    title: "API Specification v1.0",
-    updatedAt: "2025-01-05",
-    content: [{ type: "paragraph", content: "Specs..." }],
-  },
-  // Add some templates to existing project for demo
-  {
-    id: "d-2",
-    projectId: "p-1",
-    title: "📝 1. Product Requirements Document (PRD)",
-    updatedAt: "2025-01-06",
+    id: "d-demo-1",
+    projectId: "p-2",
+    title: "프로젝트 개요",
+    updatedAt: "2026-02-26",
     content: [
-      { type: "heading", content: "Product Requirements Document" },
-      { type: "paragraph", content: "This is a template for PRD." },
+      { type: "heading", content: "Dibut Workspace" },
+      { type: "paragraph", content: "실시간 협업 문서입니다." },
     ],
   },
-  {
-    id: "d-3",
-    projectId: "p-1",
-    title: "📅 2. Project Roadmap",
-    updatedAt: "2025-01-06",
-    content: [{ type: "heading", content: "Project Roadmap" }],
-  },
-  {
-    id: "d-4",
-    projectId: "p-1",
-    title: "🏗️ 3. Tech Architecture",
-    updatedAt: "2025-01-06",
-    content: [{ type: "heading", content: "System Architecture" }],
-  },
-  {
-    id: "d-5",
-    projectId: "p-1",
-    title: "🤝 4. Team Ground Rules",
-    updatedAt: "2025-01-06",
-    content: [{ type: "heading", content: "Team Ground Rules" }],
-  },
 ];
 
-export const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n-1",
-    userId: "u1",
-    type: "mention",
-    message: 'Frontend mentioned you in "API Spec"',
-    read: false,
-    timestamp: "10 mins ago",
-    link: "/workspace/p-1",
-  },
-];
+export const INITIAL_NOTIFICATIONS: Notification[] = [];
 
-export const INITIAL_PRIVATE_DOCS: PrivateDoc[] = [
-  {
-    id: "pd-1",
-    userId: "u1",
-    title: "My Scratchpad",
-    content: [],
-    updatedAt: "Today",
-  },
-];
+export const INITIAL_PRIVATE_DOCS: PrivateDoc[] = [];
 
-export const INITIAL_MESSAGES: ChannelMessage[] = [
-  {
-    id: "m-1",
-    channelId: "general",
-    senderId: "u1",
-    type: "user",
-    content: "Welcome to the team chat!",
-    timestamp: "10:00 AM",
-  },
-  {
-    id: "m-2",
-    channelId: "general",
-    senderId: "u2",
-    type: "user",
-    content: "Thanks! Excited to work on this.",
-    timestamp: "10:05 AM",
-  },
-];
+export const INITIAL_MESSAGES: ChannelMessage[] = [];
 
 // --- Template Generators ---
 
@@ -544,94 +270,21 @@ export const generateTemplates = (projectId: string): Doc[] => [
   {
     id: `d-${Date.now()}-1`,
     projectId,
-    title: "📝 1. Product Requirements Document (PRD)",
+    title: "📝 Product Requirements Document (PRD)",
     updatedAt: new Date().toISOString(),
     content: [
-      {
-        type: "heading",
-        content: "🚀 Product Requirements Document",
-        props: { level: 1 },
-      },
-      {
-        type: "paragraph",
-        content: "프로젝트의 핵심 목표와 기능을 정의하는 문서입니다.",
-      },
-      {
-        type: "heading",
-        content: "1. 배경 및 목적 (Background & Goals)",
-        props: { level: 2 },
-      },
-      { type: "bulletListItem", content: "문제 정의: " },
-      { type: "bulletListItem", content: "해결 방안: " },
-      {
-        type: "heading",
-        content: "2. 타겟 유저 (Target User)",
-        props: { level: 2 },
-      },
-      { type: "bulletListItem", content: "페르소나 A: " },
-      {
-        type: "heading",
-        content: "3. 핵심 기능 (Core Features - MVP)",
-        props: { level: 2 },
-      },
-      { type: "checkListItem", content: "회원가입/로그인" },
-      { type: "checkListItem", content: "메인 대시보드" },
+      { type: "heading", content: "Product Requirements Document" },
+      { type: "paragraph", content: "프로젝트의 핵심 목표와 기능을 정리하세요." },
     ],
   },
   {
     id: `d-${Date.now()}-2`,
     projectId,
-    title: "📅 2. Project Roadmap",
+    title: "📅 Project Roadmap",
     updatedAt: new Date().toISOString(),
     content: [
-      {
-        type: "heading",
-        content: "📅 Project Schedule & Milestones",
-        props: { level: 1 },
-      },
-      { type: "heading", content: "1주차: 기획 및 설계", props: { level: 2 } },
-      { type: "bulletListItem", content: "Day 1: 아이디어 확정" },
-      { type: "bulletListItem", content: "Day 2: 와이어프레임 & ERD 설계" },
-      {
-        type: "heading",
-        content: "2주차: 핵심 기능 개발",
-        props: { level: 2 },
-      },
-      { type: "bulletListItem", content: "Day 1: 개발 환경 세팅" },
-    ],
-  },
-  {
-    id: `d-${Date.now()}-3`,
-    projectId,
-    title: "🏗️ 3. Tech Architecture",
-    updatedAt: new Date().toISOString(),
-    content: [
-      {
-        type: "heading",
-        content: "🏗️ Technical Architecture Spec",
-        props: { level: 1 },
-      },
-      { type: "heading", content: "Frontend Stack", props: { level: 2 } },
-      { type: "bulletListItem", content: "Framework: Next.js 14" },
-      { type: "bulletListItem", content: "Styling: Tailwind CSS" },
-      { type: "heading", content: "Backend Stack", props: { level: 2 } },
-      { type: "bulletListItem", content: "Language: Python / Node.js" },
-      { type: "bulletListItem", content: "Database: Supabase (PostgreSQL)" },
-    ],
-  },
-  {
-    id: `d-${Date.now()}-4`,
-    projectId,
-    title: "🤝 4. Team Ground Rules",
-    updatedAt: new Date().toISOString(),
-    content: [
-      { type: "heading", content: "🤝 Team Ground Rules", props: { level: 1 } },
-      { type: "heading", content: "Communication", props: { level: 2 } },
-      { type: "bulletListItem", content: "모든 회의록은 Docs에 남긴다." },
-      { type: "bulletListItem", content: "Slack 응답은 1시간 이내에." },
-      { type: "heading", content: "Git Convention", props: { level: 2 } },
-      { type: "bulletListItem", content: "feat: 새로운 기능 추가" },
-      { type: "bulletListItem", content: "fix: 버그 수정" },
+      { type: "heading", content: "Project Roadmap" },
+      { type: "paragraph", content: "주차별 목표와 마일스톤을 작성하세요." },
     ],
   },
 ];
@@ -804,10 +457,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   activeTaskId: null,
   activeDocId: null, // Start with no doc selected
 
-  setActiveTaskId: (id) => {
-    console.log("[WorkspaceStore] Setting activeTaskId:", id);
-    set({ activeTaskId: id });
-  },
+  setActiveTaskId: (id) => set({ activeTaskId: id }),
   setActiveDocId: (id) => set({ activeDocId: id }),
 
   syncProjectData: (projectId, data) =>
