@@ -102,4 +102,5 @@ export interface InitialData {
   bookmarks: ProfileBookmarkItem[];
   heatmap: ActivityHeatmapPoint[];
   resumePayload: unknown;
+  prefetchedTabs?: Partial<Record<TabKey, boolean>>;
 }

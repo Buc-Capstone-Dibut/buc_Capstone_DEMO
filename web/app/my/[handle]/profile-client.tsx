@@ -142,18 +142,23 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [comments, setComments] = useState(initialData.comments || []);
   const [bookmarks, setBookmarks] = useState(initialData.bookmarks || []);
   const [heatmap, setHeatmap] = useState(initialData.heatmap || []);
+  const prefetchedTabs = initialData.prefetchedTabs || {};
   const [resumePayload, setResumePayload] = useState<ResumePayload>(
     normalizeResumePayload(initialData.resumePayload || null)
   );
   const [tabLoading, setTabLoading] = useState<Partial<Record<TabKey, boolean>>>({
-    posts: (initialData.posts || []).length === 0,
+    posts: !Boolean(prefetchedTabs.posts),
+    comments: !Boolean(prefetchedTabs.comments),
+    bookmarks: !Boolean(prefetchedTabs.bookmarks),
+    activity: !Boolean(prefetchedTabs.activity),
+    resume: !Boolean(prefetchedTabs.resume),
   });
   const [tabLoaded, setTabLoaded] = useState<Partial<Record<TabKey, boolean>>>({
-    posts: (initialData.posts || []).length > 0,
-    comments: (initialData.comments || []).length > 0,
-    bookmarks: (initialData.bookmarks || []).length > 0,
-    activity: (initialData.heatmap || []).length > 0,
-    resume: Boolean(initialData.resumePayload),
+    posts: Boolean(prefetchedTabs.posts),
+    comments: Boolean(prefetchedTabs.comments),
+    bookmarks: Boolean(prefetchedTabs.bookmarks),
+    activity: Boolean(prefetchedTabs.activity),
+    resume: Boolean(prefetchedTabs.resume),
   });
   const [tabError, setTabError] = useState<Partial<Record<TabKey, string>>>({});
 
