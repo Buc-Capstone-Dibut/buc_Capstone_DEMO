@@ -18,9 +18,9 @@ from app.schemas.interview import InterviewPhase, NextQuestionDraft, QuestionPla
 
 PHASE_BY_SLOT: dict[int, InterviewPhase] = {
     1: "introduction",
-    2: "experience",
-    3: "technical",
-    4: "problem_solving",
+    2: "situational",
+    3: "situational",
+    4: "technical",
     5: "closing",
 }
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
@@ -297,6 +297,30 @@ Output JSON Format:
             return "냉철하고 날카로운 톤으로 허점을 파고드는 압박 면접 스타일을 유지하세요."
         return "전문적이고 구조화된 톤으로 논리와 근거를 끌어내는 면접관처럼 진행하세요."
 
+    def _build_interviewer_persona(self, job_data: dict[str, Any]) -> str:
+        company = job_data.get("company", "이 회사")
+        role = job_data.get("role", "해당 직무")
+        description = job_data.get("description", "")
+        culture = job_data.get("culture", [])
+        responsibilities = job_data.get("responsibilities", [])
+        tech_stack = job_data.get("techStack", [])
+
+        culture_text = "\n".join(f"- {c}" for c in (culture or [])[:4]) or "정보 없음"
+        resp_text = "\n".join(f"- {r}" for r in (responsibilities or [])[:4]) or "정보 없음"
+        tech_text = ", ".join((tech_stack or [])[:6]) or "정보 없음"
+        desc_text = (description or "")[:200]
+
+        return f"""당신은 {company}의 {role} 채용 담당 기술 면접관입니다.
+회사 소개: {desc_text}
+주요 업무:
+{resp_text}
+기술 스택: {tech_text}
+조직 문화:
+{culture_text}
+
+이 회사의 실제 업무 맥락과 문화를 반영한 질문을 하세요.
+SJT 시나리오는 {company}에서 실제로 발생할 법한 상황으로 구성하세요."""
+
     def _default_question_plan(self, context: dict[str, Any]) -> list[QuestionPlanItem]:
         job_data = context.get("jobData", {}) or {}
         role = job_data.get("role", "지원 직무")
@@ -313,27 +337,27 @@ Output JSON Format:
             ),
             QuestionPlanItem(
                 slot=2,
-                phase="experience",
-                intent="가장 관련도 높은 실전 경험 검증",
-                questionBlueprint="핵심 프로젝트 하나를 STAR 구조로 설명하게 유도",
-                targetCompetency="문제 해결력",
-                evaluationSignals=["문제 정의 명확성", "본인 기여도", "성과 지표"],
+                phase="situational",
+                intent="팀/협업 상황에서 지원자의 판단력과 우선순위 결정 능력 평가",
+                questionBlueprint="배포 D-1 또는 팀원 갈등 시나리오 등 직무 현실 기반 SJT 질문. '~상황이라면 어떻게 하시겠습니까?' 형식",
+                targetCompetency="상황 판단력/협업",
+                evaluationSignals=["대안 고려 여부", "우선순위 판단 근거", "커뮤니케이션 방식"],
             ),
             QuestionPlanItem(
                 slot=3,
-                phase="technical",
-                intent="기술 의사결정 깊이 점검",
-                questionBlueprint=f"{tech_stack} 관련 설계/트레이드오프 질문",
-                targetCompetency="기술 깊이",
-                evaluationSignals=["대안 비교", "근거", "리스크 인지"],
+                phase="situational",
+                intent="기술/아키텍처 선택 딜레마 상황에서 지원자의 엔지니어링 판단 기준 평가",
+                questionBlueprint=f"레거시 vs 리팩터링, 속도 vs 안정성 같은 기술 트레이드오프 SJT. {tech_stack} 맥락에서 '만약 ~라는 제약이 있다면?' 형식",
+                targetCompetency="기술적 판단력",
+                evaluationSignals=["트레이드오프 인식", "결정 기준 명확성", "리스크 인지"],
             ),
             QuestionPlanItem(
                 slot=4,
-                phase="problem_solving",
-                intent="협업 및 실패 대응 역량 확인",
-                questionBlueprint="갈등, 장애, 실패 복구 중 하나를 구체 사례로 답하게 유도",
-                targetCompetency="협업/태도",
-                evaluationSignals=["회고 능력", "커뮤니케이션", "재발 방지"],
+                phase="technical",
+                intent="실제 경험한 기술적 어려움과 해결 과정, 기술 선택 이유 검증",
+                questionBlueprint=f"'{tech_stack} 중 가장 어려웠던 기술적 문제는?', '왜 이 기술을 선택했나요?', '대안은 고려했나요?' 중 하나",
+                targetCompetency="기술 깊이/문제해결",
+                evaluationSignals=["구체적 문제 정의", "해결 접근법", "배운 점"],
             ),
             QuestionPlanItem(
                 slot=5,
@@ -398,8 +422,11 @@ Output JSON Format:
             items = "\n".join(f"- {r}" for r in unmatched)
             gap_section = f"\n[미매칭 JD 요구사항 - 이 항목을 다루는 질문 1개 이상 포함]\n{items}"
 
+        persona = self._build_interviewer_persona(job_data)
+
         prompt = f"""
-당신은 시니어 기술 면접관입니다.
+{persona}
+
 아래 JD와 이력서를 기반으로 "5문항 고정" 질문 설계를 JSON으로 작성하세요.
 문항 간 난이도는 점진적으로 상승해야 하며, 마지막 문항은 마무리 질문입니다.
 
@@ -416,8 +443,19 @@ Output JSON Format:
 출력 규칙:
 1) 반드시 JSON만 출력
 2) plan 배열은 정확히 5개
-3) slot은 1~5, phase는 각 slot과 동일하게
-slot1=introduction, slot2=experience, slot3=technical, slot4=problem_solving, slot5=closing
+3) slot은 1~5, phase는 아래 매핑과 정확히 일치시킬 것
+
+슬롯 매핑:
+- slot1: introduction (자기소개/지원동기)
+- slot2: situational (SJT: 팀/협업 상황 판단. "~상황이라면 어떻게 하시겠습니까?" 형식)
+- slot3: situational (SJT: 기술/아키텍처 결정 딜레마. "만약 ~라면?" 형식)
+- slot4: technical (기술 심층: 어려웠던 점, 기술 선택 이유, 트레이드오프)
+- slot5: closing (마무리)
+
+SJT 질문 작성 원칙:
+- 과거 경험이 아닌 가상/미래 시나리오를 제시하세요
+- 정답이 없는 딜레마를 설정하고 지원자의 판단 기준을 끌어내세요
+- JD와 회사 문화를 반영한 현실적 시나리오를 사용하세요
 
 JSON 형식:
 {{
@@ -498,9 +536,9 @@ JSON 형식:
         role = (context.get("jobData", {}) or {}).get("role", "해당 직무")
         fallback_by_slot = {
             1: f"{role} 포지션에 지원한 이유와 본인의 핵심 강점을 한 가지 사례와 함께 말씀해 주세요.",
-            2: "가장 성과가 좋았던 프로젝트 하나를 골라 문제, 본인 역할, 결과를 수치 중심으로 설명해 주세요.",
-            3: "기술 선택에서 두 가지 대안을 비교해 의사결정했던 경험을 말씀해 주세요. 기준과 트레이드오프를 포함해 주세요.",
-            4: "협업 중 충돌이나 장애를 겪었던 사례를 설명하고, 본인이 어떻게 해결했는지 구체적으로 말씀해 주세요.",
+            2: "배포 하루 전에 팀원이 대규모 리팩터링 PR을 올렸다면 어떻게 하시겠습니까? 본인의 판단 기준과 팀과의 조율 방식을 말씀해 주세요.",
+            3: "마감이 하루 남은 상황에서 시니어가 현재 아키텍처를 전면 변경하자고 한다면, 어떻게 대응하시겠습니까?",
+            4: "지금까지 사용해본 기술 중 가장 어려웠던 기술적 문제를 하나 꼽고, 해결 과정과 배운 점을 설명해 주세요.",
             5: "입사 후 90일 동안 가장 먼저 실행할 계획을 우선순위와 함께 설명해 주세요.",
         }
         blueprint = (plan_item.questionBlueprint or "").strip()
@@ -554,10 +592,36 @@ JSON 형식:
         asked_questions = [m.get("parts", "") for m in chat_history if m.get("role") == "model"]
         recent_history = chat_history[-8:]
 
-        prompt = f"""
-당신은 숙련된 기술 면접관입니다.
-이번 턴에서 질문을 1개만 생성하세요. 반드시 JSON만 출력하세요.
+        job_data = context.get("jobData", {}) or {}
+        persona = self._build_interviewer_persona(job_data)
 
+        has_prior_answer = bool(previous_answer and previous_answer.strip())
+        transition_guide = """
+[자연스러운 전환 작성법]
+직전 답변이 있을 경우, question 필드를 다음 3단계로 구성하세요:
+  1) 반응 (1문장): 직전 답변의 핵심 키워드를 짧게 인정. 과도한 칭찬 금지.
+     예) "네, 그 경험이 잘 전달됐습니다." / "흥미로운 판단 기준이네요." / "구체적인 사례 감사합니다."
+  2) 전환 (1문장, 선택): 다음 질문으로 자연스럽게 연결.
+     예) "그 연장선에서 한 가지 더 여쭤볼게요." / "조금 다른 상황을 가정해볼게요."
+  3) 질문 (1문장): 본 질문.
+직전 답변이 없으면(첫 질문) 반응/전환 없이 질문만 출력하세요.
+""" if has_prior_answer else ""
+
+        sjt_guide = """
+[SJT 작성 원칙]
+- 과거 경험을 묻지 마세요. 가상/미래 상황을 제시하세요.
+- "만약 ~라면 어떻게 하시겠습니까?", "~상황에서 당신이라면?" 형식을 사용하세요.
+- 정답이 없는 딜레마를 설정하고 판단 기준을 끌어내세요.
+- 직무 현실에 기반한 구체적인 시나리오를 제시하세요.
+  예) "배포 1시간 전에 팀원이 대규모 리팩터링 PR을 올린다면?"
+      "코드 리뷰에서 시니어가 잘못된 방향을 고집한다면?"
+""" if phase_hint == "situational" else ""
+
+        prompt = f"""
+{persona}
+
+이번 턴에서 질문을 1개만 생성하세요. 반드시 JSON만 출력하세요.
+{transition_guide}{sjt_guide}
 [질문 슬롯]
 question_index: {question_index} / {safe_total_questions}
 phase: {phase_hint}
@@ -585,7 +649,7 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
 
 출력 JSON 형식:
 {{
-  "question": "지원자에게 바로 전달할 질문 한 문장",
+  "question": "반응(선택) + 전환(선택) + 질문 — 전체를 하나의 자연스러운 텍스트로",
   "phase": "{phase_hint}",
   "rationale": "왜 이 질문이 필요한지",
   "expectedSignal": "좋은 답변에서 확인할 신호"
@@ -596,7 +660,7 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
 2) 동일 의미 질문 반복 금지
 3) 한국어로 작성
 4) {question_index}번 문항이 마지막 턴이면 질문 끝에 반드시 "{CLOSING_SENTENCE}" 포함
-5) 인사/설명문만 출력하지 말고 질문 핵심이 먼저 나오게 작성
+5) 빈 칭찬("정말 훌륭합니다" 등) 금지 — 반응은 사실적이고 중립적으로
 """
 
         try:
@@ -671,11 +735,37 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
         asked_questions = [m.get("parts", "") for m in chat_history if m.get("role") == "model"]
         recent_history = chat_history[-8:]
 
-        prompt = f"""
-당신은 숙련된 기술 면접관입니다.
-이번 턴에서 지원자에게 전달할 질문 "한 문장"만 생성하세요.
-설명문/서론 없이 질문 텍스트만 출력하고, JSON/마크다운/따옴표를 사용하지 마세요.
+        job_data_stream = context.get("jobData", {}) or {}
+        persona_stream = self._build_interviewer_persona(job_data_stream)
 
+        has_prior_answer_stream = bool(previous_answer and previous_answer.strip())
+        transition_guide_stream = """
+[자연스러운 전환 작성법]
+직전 답변이 있을 경우, 다음 3단계로 출력하세요 (모두 합쳐 2-4문장):
+  1) 반응 (1문장): 직전 답변의 핵심 키워드를 짧게 인정. 과도한 칭찬 금지.
+     예) "네, 그 상황이 잘 그려지네요." / "흥미로운 접근이군요." / "명확하게 설명해주셨네요."
+  2) 전환 (1문장, 선택): 다음 질문으로 자연스럽게 연결.
+     예) "그럼 조금 다른 상황을 가정해볼게요." / "그 연장선에서 한 가지 더 여쭤볼게요."
+  3) 질문 (1문장): 본 질문.
+직전 답변이 없으면(첫 질문) 반응/전환 없이 질문만 출력하세요.
+""" if has_prior_answer_stream else ""
+
+        sjt_guide_stream = """
+[SJT 작성 원칙]
+- 과거 경험을 묻지 마세요. 가상/미래 상황을 제시하세요.
+- "만약 ~라면 어떻게 하시겠습니까?", "~상황에서 당신이라면?" 형식을 사용하세요.
+- 정답이 없는 딜레마를 설정하고 판단 기준을 끌어내세요.
+- 직무 현실에 기반한 구체적인 시나리오를 제시하세요.
+  예) "배포 1시간 전에 팀원이 대규모 리팩터링 PR을 올린다면?"
+      "코드 리뷰에서 시니어가 잘못된 방향을 고집한다면?"
+""" if phase_hint == "situational" else ""
+
+        prompt = f"""
+{persona_stream}
+
+이번 턴에서 지원자에게 전달할 텍스트를 생성하세요.
+JSON/마크다운/따옴표를 사용하지 마세요. 플레인 텍스트로만 출력하세요.
+{transition_guide_stream}{sjt_guide_stream}
 [질문 슬롯]
 question_index: {question_index} / {safe_total_questions}
 phase: {phase_hint}
@@ -706,7 +796,7 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
 2) 동일 의미 질문 반복 금지
 3) 한국어로 작성
 4) {question_index}번 문항이 마지막 턴이면 질문 끝에 반드시 "{CLOSING_SENTENCE}" 포함
-5) 인사/설명문 없이 질문 핵심부터 시작
+5) 빈 칭찬("정말 훌륭합니다" 등) 금지 — 반응은 사실적이고 중립적으로
 """
 
         emitted = False

@@ -82,8 +82,9 @@ class AnalyzeRequest(BaseModel):
 
 InterviewPhase = Literal[
     "introduction",
-    "experience",
+    "situational",
     "technical",
+    "experience",
     "problem_solving",
     "closing",
 ]

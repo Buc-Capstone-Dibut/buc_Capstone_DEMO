@@ -62,11 +62,12 @@ def _phase_for_question_index(question_index: int, is_closing: bool = False) -> 
         return "closing"
     if question_index <= 1:
         return "introduction"
-    if question_index == 2:
-        return "experience"
-    if question_index == 3:
+    if question_index in (2, 3):
+        return "situational"
+    if question_index == 4:
         return "technical"
-    return "problem_solving"
+    # 동적 추가 질문: situational 70% / technical 30% 교대
+    return "situational" if question_index % 3 != 0 else "technical"
 
 
 def _elapsed_seconds(started_at: datetime | None) -> int:
@@ -149,7 +150,7 @@ def _build_answer_quality_hint(answer: str) -> str:
     if not has_metric:
         hints.append("수치화된 성과나 지표를 반드시 다시 요청하세요.")
     if not has_structure:
-        hints.append("문제-행동-결과 구조(STAR)에 맞춰 다시 답변하도록 유도하세요.")
+        hints.append("답변에 구체적인 맥락과 본인의 판단 근거가 부족합니다. 더 구체적인 설명을 요청하세요.")
 
     return " ".join(hints)
 
