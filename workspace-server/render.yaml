@@ -9,3 +9,7 @@ services:
         value: 4000
       - key: DATABASE_URL
         sync: false
+      - key: BFF_URL
+        sync: false
+      - key: INTERNAL_API_SECRET
+        sync: false
