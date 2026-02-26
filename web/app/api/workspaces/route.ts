@@ -23,47 +23,57 @@ export async function GET(request: Request) {
 
     const userId = session.user.id;
 
-    // Find workspaces where I am a member
-    // Find workspaces where I am a member
+    // 1단계: 내 멤버십 + 워크스페이스 기본 정보 + 멤버 수만 조회 (N+1 없음)
     const memberships = await prisma.workspace_members.findMany({
       where: { user_id: userId },
-      include: {
+      select: {
+        role: true,
+        joined_at: true,
         workspace: {
-          include: {
-            _count: {
-              select: { members: true },
-            },
-            members: {
-              take: 4,
-              orderBy: { joined_at: "desc" },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    nickname: true,
-                    avatar_url: true,
-                  },
-                },
-              },
-            },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            icon_url: true,
+            category: true,
+            created_at: true,
+            updated_at: true,
+            from_squad_id: true,
+            _count: { select: { members: true } },
           },
         },
       },
-      orderBy: {
-        joined_at: "desc",
-      },
+      orderBy: { joined_at: "desc" },
     });
 
-    // Flatten structure
+    const workspaceIds = memberships.map((m) => m.workspace.id);
+
+    // 2단계: 최근 멤버 배치 조회 (워크스페이스 수에 관계없이 쿼리 1번)
+    const recentMembersRaw = await prisma.workspace_members.findMany({
+      where: { workspace_id: { in: workspaceIds } },
+      select: {
+        workspace_id: true,
+        joined_at: true,
+        user: { select: { id: true, nickname: true, avatar_url: true } },
+      },
+      orderBy: { joined_at: "desc" },
+    });
+
+    // 워크스페이스별 최근 4명 그룹핑 (메모리 내 처리)
+    const recentMembersByWs = new Map<string, { id: string; nickname: string | null; avatar_url: string | null }[]>();
+    for (const m of recentMembersRaw) {
+      const list = recentMembersByWs.get(m.workspace_id) ?? [];
+      if (list.length < 4) {
+        list.push({ id: m.user.id, nickname: m.user.nickname, avatar_url: m.user.avatar_url });
+        recentMembersByWs.set(m.workspace_id, list);
+      }
+    }
+
     const workspaces = memberships.map((m) => ({
       ...m.workspace,
       my_role: m.role,
       member_count: m.workspace._count.members,
-      recent_members: m.workspace.members.map((wm) => ({
-        id: wm.user.id,
-        avatar_url: wm.user.avatar_url,
-        nickname: wm.user.nickname,
-      })),
+      recent_members: recentMembersByWs.get(m.workspace.id) ?? [],
     }));
 
     return NextResponse.json(workspaces);

@@ -83,6 +83,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       if (!res.ok) throw new Error("Failed to fetch board data");
       return res.json();
     },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30_000,
+    },
   );
 
   const { mutate } = useSWRConfig();
@@ -110,7 +114,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     () => projects.find((p) => p.id === projectId) || null,
     [projects, projectId],
   );
-  const tasks = storeTasks.filter((t) => t.projectId === projectId);
+  const tasks = useMemo(
+    () => storeTasks.filter((t) => t.projectId === projectId),
+    [storeTasks, projectId],
+  );
 
   // --- View State ---
   const [activeViewId, setActiveViewId] = useState<string>("default");
@@ -163,7 +170,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
           id: p.id,
           title: p.name,
           statusId: p.id,
-          color: p.color.split(" ")[0].replace("bg-", "").replace("-100", ""),
+          color: p.color.split(" ")[0].replace(/^bg-|-100$|-500$/g, ""),
           category: "todo" as const,
         }));
       const noPriorityColumn = {
@@ -179,10 +186,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         id: t.id,
         title: t.name,
         statusId: t.id,
-        color: t.color
-          .replace("bg-", "")
-          .replace("-100", "")
-          .replace("-500", ""),
+        color: t.color.replace(/^bg-|-100$|-500$/g, ""),
         category: "todo" as const,
       }));
       const noTagColumn = {

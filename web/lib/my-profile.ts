@@ -15,23 +15,34 @@ export function normalizeHandle(value: string): string {
 
 export async function generateUniqueHandle(baseValue: string, excludeUserId?: string): Promise<string> {
   const base = normalizeHandle(baseValue);
-  let candidate = base;
-  let cursor = 2;
 
-  while (cursor < 5000) {
-    const existing = await prisma.profiles.findUnique({
-      where: { handle: candidate },
-      select: { id: true },
-    });
+  // 1차: base 그대로 시도 (쿼리 1번)
+  const first = await prisma.profiles.findUnique({
+    where: { handle: base },
+    select: { id: true },
+  });
 
-    if (!existing || existing.id === excludeUserId) {
-      return candidate;
-    }
-
-    candidate = `${base}-${cursor}`;
-    cursor += 1;
+  if (!first || first.id === excludeUserId) {
+    return base;
   }
 
+  // 2차: base-2 ~ base-100 한 번에 배치 조회 (쿼리 1번)
+  const BATCH = 99;
+  const candidates = Array.from({ length: BATCH }, (_, i) => `${base}-${i + 2}`);
+  const taken = await prisma.profiles.findMany({
+    where: { handle: { in: candidates } },
+    select: { handle: true, id: true },
+  });
+
+  const takenSet = new Set(
+    taken.filter((r) => r.id !== excludeUserId).map((r) => r.handle),
+  );
+
+  for (const candidate of candidates) {
+    if (!takenSet.has(candidate)) return candidate;
+  }
+
+  // 3차: 랜덤 suffix fallback
   return `${base}-${Math.random().toString(36).slice(2, 8)}`;
 }
 

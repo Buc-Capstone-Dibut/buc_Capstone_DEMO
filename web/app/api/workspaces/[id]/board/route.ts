@@ -33,37 +33,45 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 2. Fetch Board Data
-  // We need columns, tasks, and members for the UI
+  // 2. Fetch Board Data — select 기반으로 필요한 필드만 조회 (N+1 제거)
   const [columns, tasks, members, tags] = await Promise.all([
-    // Fetch Columns
     prisma.kanban_columns.findMany({
       where: { workspace_id: workspaceId },
       orderBy: { order: "asc" },
     }),
 
-    // Fetch Tasks (across all columns)
+    // assignee 전체 대신 필요한 필드만 select
     prisma.kanban_tasks.findMany({
-      where: {
-        column: {
-          workspace_id: workspaceId,
+      where: { column: { workspace_id: workspaceId } },
+      select: {
+        id: true,
+        column_id: true,
+        title: true,
+        description: true,
+        order: true,
+        due_date: true,
+        assignee_id: true,
+        tags: true,
+        priority: true,
+        assignee: {
+          select: { nickname: true, avatar_url: true },
         },
-      },
-      include: {
-        assignee: true, // Fetch profile details
       },
       orderBy: { order: "asc" },
     }),
 
-    // Fetch Members (for Assignee dropdowns etc.)
+    // user 전체 대신 필요한 필드만 select
     prisma.workspace_members.findMany({
       where: { workspace_id: workspaceId },
-      include: {
-        user: true,
+      select: {
+        user_id: true,
+        role: true,
+        user: {
+          select: { id: true, nickname: true, avatar_url: true },
+        },
       },
     }),
 
-    // Fetch Tags
     prisma.kanban_tags.findMany({
       where: { workspace_id: workspaceId },
       orderBy: { name: "asc" },
@@ -72,11 +80,10 @@ export async function GET(
 
   // 3. Transform Data for Frontend
 
-  // Transform Members
   const formattedMembers = members.map((m) => ({
     id: m.user_id,
-    name: m.user.nickname || null, // use nickname
-    email: null, // we can't easily get email here without deeper nesting, keeping null for now as it's optional in some views
+    name: m.user.nickname || null,
+    email: null,
     avatar: m.user.avatar_url,
     role: m.role,
   }));

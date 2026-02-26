@@ -70,10 +70,17 @@ interface Workspace {
   }[];
 }
 
+type FetchError = Error & { status?: number };
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error("Failed to fetch");
+    const errorBody = await res.json().catch(() => null);
+    const error: FetchError = new Error(
+      errorBody?.error || "Failed to fetch",
+    );
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 };
@@ -84,7 +91,11 @@ export function ProjectList() {
     error,
     isLoading,
     mutate,
-  } = useSWR<Workspace[]>("/api/workspaces", fetcher);
+  } = useSWR<Workspace[]>("/api/workspaces", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    focusThrottleInterval: 300_000,
+  });
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(
     null,
@@ -120,6 +131,21 @@ export function ProjectList() {
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-[280px] w-full rounded-xl" />
         ))}
+      </div>
+    );
+  }
+
+  const isUnauthorized =
+    error instanceof Error && (error as FetchError).status === 401;
+
+  if (isUnauthorized) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        <h3 className="text-lg font-semibold">로그인이 필요합니다</h3>
+        <p className="mt-2 text-sm">
+          워크스페이스 조회/생성은 로그인 후 사용할 수 있습니다. 우측 상단의
+          로그인 버튼으로 먼저 로그인해 주세요.
+        </p>
       </div>
     );
   }
