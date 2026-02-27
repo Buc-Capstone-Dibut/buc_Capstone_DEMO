@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 // import { acceptApplicant, rejectApplicant } from "@/lib/actions/community"; // Unused now
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Check, X, UserPlus, MessageSquare, Loader2 } from "lucide-react";
+import { Check, X, UserPlus, MessageSquare } from "lucide-react";
 
 interface Applicant {
   id: string; // Application ID
@@ -27,6 +28,7 @@ interface Applicant {
     nickname: string;
     avatar_url: string;
     tier: string;
+    handle?: string | null;
   };
 }
 
@@ -44,14 +46,12 @@ export default function ApplicantManager({
   const [applications, setApplications] =
     useState<Applicant[]>(initialApplications);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [loadingApps, setLoadingApps] = useState(false);
 
   // Fetch applications when dialog opens if we don't have them (or if we want fresh data)
   // Since we rely on this component for Client Side Leader View (where server passed 0 props),
   // we should fetch on mount or open.
 
-  const fetchApplications = async () => {
-    setLoadingApps(true);
+  const fetchApplications = useCallback(async () => {
     try {
       const res = await fetch(`/api/squads/applications?squad_id=${squadId}`);
       const json = await res.json();
@@ -60,10 +60,8 @@ export default function ApplicantManager({
       }
     } catch (e) {
       console.error(e);
-    } finally {
-      setLoadingApps(false);
     }
-  };
+  }, [squadId]);
 
   // If initialApplications is empty, we force fetch on open
   // Or we just expose a button to refresh.
@@ -79,7 +77,7 @@ export default function ApplicantManager({
     if (open && applications.length === 0) {
       fetchApplications();
     }
-  }, [open]);
+  }, [open, applications.length, fetchApplications]);
 
   const handleAccept = async (appId: string, userId: string) => {
     if (!confirm("이 팀원을 수락하시겠습니까?")) return;
@@ -104,8 +102,10 @@ export default function ApplicantManager({
       toast.success("팀원을 수락했습니다.");
       setApplications((prev) => prev.filter((app) => app.id !== appId)); // Remove from list
       router.refresh();
-    } catch (error: any) {
-      toast.error(error.message || "처리 중 오류가 발생했습니다.");
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : "처리 중 오류가 발생했습니다.",
+      );
     } finally {
       setProcessingId(null);
     }
@@ -134,8 +134,10 @@ export default function ApplicantManager({
       toast.success("지원을 거절했습니다.");
       setApplications((prev) => prev.filter((app) => app.id !== appId));
       router.refresh();
-    } catch (error: any) {
-      toast.error(error.message || "처리 중 오류가 발생했습니다.");
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : "처리 중 오류가 발생했습니다.",
+      );
     } finally {
       setProcessingId(null);
     }
@@ -172,18 +174,40 @@ export default function ApplicantManager({
                 >
                   {/* User Profile */}
                   <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={app.user.avatar_url} />
-                      <AvatarFallback>{app.user.nickname[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-semibold text-sm">
-                        {app.user.nickname}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {app.user.tier}
-                      </p>
-                    </div>
+                    {app.user.handle ? (
+                      <Link
+                        href={`/my/${encodeURIComponent(app.user.handle)}`}
+                        className="flex items-center gap-3 hover:underline"
+                      >
+                        <Avatar>
+                          <AvatarImage src={app.user.avatar_url} />
+                          <AvatarFallback>{app.user.nickname[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-semibold text-sm">
+                            {app.user.nickname}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {app.user.tier}
+                          </p>
+                        </div>
+                      </Link>
+                    ) : (
+                      <>
+                        <Avatar>
+                          <AvatarImage src={app.user.avatar_url} />
+                          <AvatarFallback>{app.user.nickname[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-semibold text-sm">
+                            {app.user.nickname}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {app.user.tier}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Message */}

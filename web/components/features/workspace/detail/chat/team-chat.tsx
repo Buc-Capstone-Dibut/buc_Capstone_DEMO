@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Paperclip, Smile, Hash, AtSign } from "lucide-react";
+import { Send, Hash } from "lucide-react";
 import { useSocketStore } from "../../store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
 import { SmartInput } from "../../common/smart-input";
@@ -16,11 +15,42 @@ interface TeamChatProps {
   projectId: string;
 }
 
+interface BoardMember {
+  id: string;
+  nickname?: string | null;
+  name?: string | null;
+}
+
+interface BoardTask {
+  id: string;
+  title?: string | null;
+}
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch data");
   return res.json();
 };
+
+function formatMessageTime(message: {
+  createdAt?: string;
+  fullTimestamp?: string;
+  timestamp?: string;
+}) {
+  const raw = message.createdAt || message.fullTimestamp || message.timestamp;
+  if (!raw) return "";
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  return message.timestamp || "";
+}
 
 export function TeamChat({ projectId }: TeamChatProps) {
   const { messages, activeChannelId, sendMessage, channels } = useSocketStore();
@@ -40,8 +70,8 @@ export function TeamChat({ projectId }: TeamChatProps) {
     fetcher,
     swrOptions,
   );
-  const members = boardData?.members || [];
-  const tasks = boardData?.tasks || [];
+  const members: BoardMember[] = boardData?.members || [];
+  const tasks: BoardTask[] = boardData?.tasks || [];
 
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -65,13 +95,13 @@ export function TeamChat({ projectId }: TeamChatProps) {
 
     // 1. Process Members
     if (members.length > 0) {
-      const sortedMembers = [...members].sort((a: any, b: any) => {
+      const sortedMembers = [...members].sort((a, b) => {
         const nameA = a.nickname || a.name || "";
         const nameB = b.nickname || b.name || "";
         return nameB.length - nameA.length;
       });
 
-      sortedMembers.forEach((member: any) => {
+      sortedMembers.forEach((member) => {
         const name = member.nickname || member.name;
         if (!name) return;
 
@@ -95,11 +125,11 @@ export function TeamChat({ projectId }: TeamChatProps) {
 
     // 2. Process Tasks
     if (tasks.length > 0) {
-      const sortedTasks = [...tasks].sort((a: any, b: any) => {
+      const sortedTasks = [...tasks].sort((a, b) => {
         return (b.title?.length || 0) - (a.title?.length || 0);
       });
 
-      sortedTasks.forEach((task: any) => {
+      sortedTasks.forEach((task) => {
         const title = task.title;
         if (!title) return;
 
@@ -225,7 +255,9 @@ export function TeamChat({ projectId }: TeamChatProps) {
                   <div key={msg.id} className="flex justify-center my-4">
                     <span className="text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border">
                       <span dangerouslySetInnerHTML={{ __html: msg.content }} />
-                      <span className="ml-2 opacity-70">{msg.timestamp}</span>
+                      <span className="ml-2 opacity-70">
+                        {formatMessageTime(msg)}
+                      </span>
                     </span>
                   </div>
                 );
@@ -245,7 +277,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
                         {msg.sender.nickname || "Unknown"}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {msg.timestamp}
+                        {formatMessageTime(msg)}
                       </span>
                     </div>
                     <p className="text-sm mt-1 text-foreground/90 leading-relaxed whitespace-pre-wrap">
@@ -261,47 +293,26 @@ export function TeamChat({ projectId }: TeamChatProps) {
       </div>
 
       <div className="p-4 border-t bg-background mt-auto">
-        <div className="border rounded-xl shadow-sm bg-muted/30 focus-within:ring-1 ring-primary/30 transition-shadow">
-          <SmartInput
-            value={inputValue}
-            onChange={setInputValue}
-            onEnter={handleSend}
-            className="px-4 py-3"
-            placeholder={`Message #${activeChannel?.name || "chat"}`}
-            projectId={projectId}
-            members={members}
-            tasks={tasks}
-          />
-          <div className="flex items-center justify-between px-2 pb-2">
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={() => setInputValue((prev) => prev + "@")}
-              >
-                <AtSign className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              >
-                <Smile className="h-4 w-4" />
-              </Button>
+        <div className="border rounded-xl shadow-sm bg-muted/30 focus-within:ring-1 ring-primary/30 transition-shadow px-2 py-2">
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <SmartInput
+                value={inputValue}
+                onChange={setInputValue}
+                onEnter={handleSend}
+                multiline
+                className="px-3 py-[8px] text-sm"
+                placeholder={`Message #${activeChannel?.name || "chat"}`}
+                projectId={projectId}
+                members={members}
+                tasks={tasks}
+              />
             </div>
             <Button
               size="sm"
               onClick={handleSend}
               disabled={!inputValue.trim()}
-              className={!inputValue.trim() ? "opacity-50" : ""}
+              className={`h-9 shrink-0 ${!inputValue.trim() ? "opacity-50" : ""}`}
             >
               <Send className="h-4 w-4 mr-2" />
               Send

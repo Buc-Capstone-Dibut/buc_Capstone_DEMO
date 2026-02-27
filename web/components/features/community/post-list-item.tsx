@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Database } from "@/lib/database.types";
@@ -20,6 +21,7 @@ type Post = Omit<
   author: {
     nickname: string | null;
     avatar_url: string | null;
+    handle?: string | null;
   } | null;
   comments_count?: number;
   category: string;
@@ -37,17 +39,33 @@ interface PostListItemProps {
 }
 
 export function PostListItem({ post, href, className }: PostListItemProps) {
+  const router = useRouter();
   // Extract first image from markdown content
   // Matches ![alt](url) or HTML <img> but specifically markdown for now as per editor
   // Also Tiptap might save generic markdown.
   const imageMatch = post.content?.match(/!\[.*?\]\((.*?)\)/);
   const thumbnailUrl = imageMatch ? imageMatch[1] : null;
+  const authorHref = post.author?.handle
+    ? `/my/${encodeURIComponent(post.author.handle)}`
+    : null;
+
+  const handleNavigatePost = () => {
+    router.push(href);
+  };
 
   return (
-    <Link
-      href={href}
+    <article
+      role="link"
+      tabIndex={0}
+      onClick={handleNavigatePost}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleNavigatePost();
+        }
+      }}
       className={cn(
-        "block group py-4 px-2 hover:bg-muted/30 transition-colors",
+        "group py-4 px-2 hover:bg-muted/30 transition-colors cursor-pointer",
         className,
       )}
     >
@@ -55,15 +73,25 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
         {/* Main Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1.5 text-xs text-muted-foreground">
-            <span className="font-medium text-primary/80">
-              {post.category === "qna"
-                ? "질문/답변"
-                : post.category === "tech"
-                  ? "기술토론"
-                  : post.category.toUpperCase()}
-            </span>
-            <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
-            <span>{post.author?.nickname || "익명"}</span>
+              <span className="font-medium text-primary/80">
+                {post.category === "qna"
+                  ? "질문/답변"
+                  : post.category === "tech"
+                    ? "기술토론"
+                    : post.category.toUpperCase()}
+              </span>
+              <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
+              {authorHref ? (
+                <Link
+                  href={authorHref}
+                  className="hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {post.author?.nickname || "익명"}
+                </Link>
+              ) : (
+                <span>{post.author?.nickname || "익명"}</span>
+              )}
             <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
             <span>
               {formatDistanceToNow(new Date(post.created_at || new Date()), {
@@ -74,9 +102,13 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
           </div>
 
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+            <Link
+              href={href}
+              className="text-base font-semibold text-foreground group-hover:text-primary transition-colors truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
               {post.title}
-            </h3>
+            </Link>
             {post.comments_count! > 0 && (
               <div className="flex items-center gap-0.5 text-xs text-primary font-medium bg-primary/5 px-1.5 py-0.5 rounded shrink-0">
                 <MessageSquare className="w-3 h-3" />
@@ -131,6 +163,6 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
           </div>
         )}
       </div>
-    </Link>
+    </article>
   );
 }

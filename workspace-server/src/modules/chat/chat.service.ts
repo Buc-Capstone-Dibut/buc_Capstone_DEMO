@@ -3,6 +3,34 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function toMessagePayload(msg: {
+  id: string;
+  channel_id: string;
+  content: string;
+  sender_id: string;
+  sender: {
+    id: string;
+    nickname: string | null;
+    avatar_url: string | null;
+  } | null;
+  created_at: Date;
+  type: string;
+}) {
+  const createdAtIso = msg.created_at.toISOString();
+
+  return {
+    id: msg.id,
+    channelId: msg.channel_id,
+    content: msg.content,
+    senderId: msg.sender_id,
+    sender: msg.sender,
+    createdAt: createdAtIso,
+    // Keep legacy key for compatibility; client should prefer createdAt.
+    timestamp: createdAtIso,
+    type: msg.type.toLowerCase(), // 'TEXT' -> 'text'
+  };
+}
+
 export class ChatService {
   // --- Channel Management ---
 
@@ -79,20 +107,8 @@ export class ChatService {
       },
     });
 
-    // Map to client expected format
-    return messages.map((msg) => ({
-      id: msg.id,
-      channelId: msg.channel_id,
-      content: msg.content,
-      senderId: msg.sender_id,
-      sender: msg.sender, // { id, nickname, avatar_url }
-      timestamp: msg.created_at.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      fullTimestamp: msg.created_at,
-      type: msg.type.toLowerCase(), // 'TEXT' -> 'text'
-    }));
+    // Send absolute time; UI should render in client locale/timezone.
+    return messages.map((msg) => toMessagePayload(msg));
   }
 
   static async saveMessage(
@@ -170,18 +186,6 @@ export class ChatService {
       }
     })();
 
-    return {
-      id: msg.id,
-      channelId: msg.channel_id,
-      content: msg.content,
-      senderId: msg.sender_id,
-      sender: msg.sender,
-      timestamp: msg.created_at.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      fullTimestamp: msg.created_at,
-      type: msg.type.toLowerCase(),
-    };
+    return toMessagePayload(msg);
   }
 }

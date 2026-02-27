@@ -47,11 +47,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
       `
       *,
       leader:leader_id (
-        id, nickname, avatar_url, tier, bio
+        id, nickname, avatar_url, tier, bio, handle
       ),
       members:squad_members (
         user_id, role,
-        profile:user_id (id, nickname, avatar_url)
+        profile:user_id (id, nickname, avatar_url, handle)
       )
     `,
     )
@@ -95,7 +95,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
     const { data: apps } = await supabase
       .from("squad_applications")
       // @ts-ignore
-      .select(`*, user:user_id(id, nickname, avatar_url, tier)`)
+      .select(`*, user:user_id(id, nickname, avatar_url, tier, handle)`)
       .eq("squad_id", id)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
@@ -127,6 +127,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
             select: {
               nickname: true,
               avatar_url: true,
+              handle: true,
             },
           },
         },
@@ -146,6 +147,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
       ? {
           nickname: comment.profiles.nickname,
           avatar_url: comment.profiles.avatar_url,
+          handle: comment.profiles.handle,
         }
       : null,
   }));
@@ -177,15 +179,38 @@ export default async function SquadDetailPage({ params }: PageProps) {
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-6 border-b">
               <div className="flex items-center gap-2">
-                <Avatar className="w-6 h-6">
-                  {/* @ts-ignore */}
-                  <AvatarImage src={squad.leader?.avatar_url} />
-                  <AvatarFallback>{squad.leader?.nickname?.[0]}</AvatarFallback>
-                </Avatar>
-                {/* @ts-ignore */}
-                <span className="font-medium text-foreground">
-                  {squad.leader?.nickname}
-                </span>
+                {squad.leader?.handle ? (
+                  <Link
+                    href={`/my/${encodeURIComponent(squad.leader.handle)}`}
+                    className="flex items-center gap-2 hover:underline"
+                  >
+                    <Avatar className="w-6 h-6">
+                      {/* @ts-ignore */}
+                      <AvatarImage src={squad.leader?.avatar_url} />
+                      <AvatarFallback>
+                        {squad.leader?.nickname?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* @ts-ignore */}
+                    <span className="font-medium text-foreground">
+                      {squad.leader?.nickname}
+                    </span>
+                  </Link>
+                ) : (
+                  <>
+                    <Avatar className="w-6 h-6">
+                      {/* @ts-ignore */}
+                      <AvatarImage src={squad.leader?.avatar_url} />
+                      <AvatarFallback>
+                        {squad.leader?.nickname?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* @ts-ignore */}
+                    <span className="font-medium text-foreground">
+                      {squad.leader?.nickname}
+                    </span>
+                  </>
+                )}
               </div>
               <span>·</span>
               <span>
@@ -427,22 +452,48 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 {/* @ts-ignore */}
                 {squad.members?.map((member) => (
                   <div key={member.user_id} className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src={member.profile?.avatar_url} />
-                      <AvatarFallback>
-                        {member.profile?.nickname?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {member.profile?.nickname}
-                        {member.role === "leader" && (
-                          <span className="ml-1 text-xs text-primary font-bold">
-                            👑
-                          </span>
-                        )}
-                      </p>
-                    </div>
+                    {member.profile?.handle ? (
+                      <Link
+                        href={`/my/${encodeURIComponent(member.profile.handle)}`}
+                        className="flex items-center gap-3 min-w-0 hover:underline"
+                      >
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={member.profile?.avatar_url} />
+                          <AvatarFallback>
+                            {member.profile?.nickname?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {member.profile?.nickname}
+                            {member.role === "leader" && (
+                              <span className="ml-1 text-xs text-primary font-bold">
+                                👑
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </Link>
+                    ) : (
+                      <>
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={member.profile?.avatar_url} />
+                          <AvatarFallback>
+                            {member.profile?.nickname?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {member.profile?.nickname}
+                            {member.role === "leader" && (
+                              <span className="ml-1 text-xs text-primary font-bold">
+                                👑
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

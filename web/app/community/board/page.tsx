@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { getPosts } from "@/lib/server/community";
 import { PostListItem } from "@/components/features/community/post-list-item";
@@ -17,7 +18,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
       ? parseInt(resolvedSearchParams.page)
       : 1;
 
-  const { posts, totalPages, totalCount } = await getPosts(category, page, 10);
+  const { posts, totalPages } = await getPosts(category, page, 10);
 
   const categories = [
     { id: "all", label: "전체" },
@@ -63,19 +64,20 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
         {posts.length > 0 ? (
           <>
             {posts.map((post) => (
-              //@ts-ignore
               <PostListItem
                 key={post.id}
-                post={post}
+                post={post as ComponentProps<typeof PostListItem>["post"]}
                 href={`/community/board/${post.id}`}
               />
             ))}
-            <div className="py-8">
-              <PaginationControl
-                currentPage={page}
-                totalPages={totalPages || 0}
-              />
-            </div>
+            {totalPages > 1 && (
+              <div className="py-8">
+                <PaginationControl
+                  currentPage={page}
+                  totalPages={totalPages || 0}
+                />
+              </div>
+            )}
           </>
         ) : (
           <div className="py-20 text-center text-muted-foreground bg-muted/30">

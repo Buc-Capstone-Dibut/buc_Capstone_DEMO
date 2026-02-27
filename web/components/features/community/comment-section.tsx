@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createComment } from "@/lib/actions/community"; // I will add this function next
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,7 @@ type Comment = Omit<
   author: {
     nickname: string | null;
     avatar_url: string | null;
+    handle?: string | null;
   } | null;
   post_id: string | null;
   is_accepted: boolean | null;
@@ -28,7 +29,6 @@ type Comment = Omit<
 interface CommentSectionProps {
   postId: string;
   comments: Comment[];
-  currentUser?: any; // For checking ownership if needed
 }
 
 import { useAuth } from "@/hooks/use-auth";
@@ -38,7 +38,6 @@ import { useAuth } from "@/hooks/use-auth";
 export function CommentSection({
   postId,
   comments,
-  currentUser,
 }: CommentSectionProps) {
   const [content, setContent] = useState("");
   const [replyContent, setReplyContent] = useState("");
@@ -81,7 +80,7 @@ export function CommentSection({
         toast.success("댓글이 등록되었습니다.");
         window.location.reload();
       }
-    } catch (e) {
+    } catch {
       toast.error("전송 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -101,7 +100,7 @@ export function CommentSection({
       }
       toast.success("댓글이 삭제되었습니다.");
       window.location.reload();
-    } catch (e) {
+    } catch {
       toast.error("삭제 중 오류가 발생했습니다.");
     }
   };
@@ -150,18 +149,38 @@ export function CommentSection({
         {rootComments.map((comment) => (
           <div key={comment.id} className="group">
             <div className="flex gap-4">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={comment.author?.avatar_url || ""} />
-                <AvatarFallback>
-                  {comment.author?.nickname?.[0] || "?"}
-                </AvatarFallback>
-              </Avatar>
+              {comment.author?.handle ? (
+                <Link href={`/my/${encodeURIComponent(comment.author.handle)}`}>
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={comment.author?.avatar_url || ""} />
+                    <AvatarFallback>
+                      {comment.author?.nickname?.[0] || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              ) : (
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={comment.author?.avatar_url || ""} />
+                  <AvatarFallback>
+                    {comment.author?.nickname?.[0] || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              )}
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">
-                      {comment.author?.nickname || "익명"}
-                    </span>
+                    {comment.author?.handle ? (
+                      <Link
+                        href={`/my/${encodeURIComponent(comment.author.handle)}`}
+                        className="font-semibold text-sm hover:underline"
+                      >
+                        {comment.author?.nickname || "익명"}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-sm">
+                        {comment.author?.nickname || "익명"}
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(
                         new Date(comment.created_at || new Date()),
@@ -236,18 +255,38 @@ export function CommentSection({
               <div className="ml-14 mt-4 space-y-4 border-l-2 pl-4">
                 {getReplies(comment.id).map((reply) => (
                   <div key={reply.id} className="flex gap-3 group/reply">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={reply.author?.avatar_url || ""} />
-                      <AvatarFallback>
-                        {reply.author?.nickname?.[0] || "?"}
-                      </AvatarFallback>
-                    </Avatar>
+                    {reply.author?.handle ? (
+                      <Link href={`/my/${encodeURIComponent(reply.author.handle)}`}>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={reply.author?.avatar_url || ""} />
+                          <AvatarFallback>
+                            {reply.author?.nickname?.[0] || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
+                    ) : (
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={reply.author?.avatar_url || ""} />
+                        <AvatarFallback>
+                          {reply.author?.nickname?.[0] || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">
-                            {reply.author?.nickname || "익명"}
-                          </span>
+                          {reply.author?.handle ? (
+                            <Link
+                              href={`/my/${encodeURIComponent(reply.author.handle)}`}
+                              className="font-semibold text-sm hover:underline"
+                            >
+                              {reply.author?.nickname || "익명"}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-sm">
+                              {reply.author?.nickname || "익명"}
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {formatDistanceToNow(
                               new Date(reply.created_at || new Date()),

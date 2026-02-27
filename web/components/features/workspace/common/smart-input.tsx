@@ -15,7 +15,21 @@ import {
   PopoverAnchor,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Hash, User } from "lucide-react";
+import { Hash } from "lucide-react";
+
+interface SmartInputMember {
+  id: string;
+  nickname?: string | null;
+  name?: string | null;
+}
+
+interface SmartInputTask {
+  id: string;
+  title?: string | null;
+}
+
+const MIN_TEXTAREA_HEIGHT = 36;
+const MAX_TEXTAREA_HEIGHT = 140;
 
 interface SmartInputProps {
   value: string;
@@ -25,8 +39,8 @@ interface SmartInputProps {
   className?: string;
   multiline?: boolean;
   projectId?: string;
-  members?: any[];
-  tasks?: any[];
+  members?: SmartInputMember[];
+  tasks?: SmartInputTask[];
 }
 
 export function SmartInput({
@@ -45,9 +59,35 @@ export function SmartInput({
   const [cursorPos, setCursorPos] = useState(0);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = "0px";
+    const nextHeight = Math.max(
+      MIN_TEXTAREA_HEIGHT,
+      Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT),
+    );
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY =
+      el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+  };
+
+  useEffect(() => {
+    if (!multiline) return;
+    const el = inputRef.current;
+    if (!el || !(el instanceof HTMLTextAreaElement)) return;
+    resizeTextarea(el);
+  }, [value, multiline]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter" && !open) {
+      if (multiline) {
+        // Chat UX: Enter sends, Shift+Enter inserts newline.
+        if (e.shiftKey) return;
+        e.preventDefault();
+        onEnter?.();
+        return;
+      }
+
       if (!multiline) {
         e.preventDefault();
         onEnter?.();
@@ -62,6 +102,10 @@ export function SmartInput({
     const newPos = e.target.selectionStart || 0;
     setCursorPos(newPos);
     onChange(newVal);
+
+    if (multiline && e.target instanceof HTMLTextAreaElement) {
+      resizeTextarea(e.target);
+    }
 
     // Check for triggers
     const lastChar = newVal.slice(newPos - 1, newPos);
@@ -102,7 +146,7 @@ export function SmartInput({
   };
 
   // Shared classes
-  const inputClasses = `w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground ${className}`;
+  const inputClasses = `block w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground ${className}`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -111,11 +155,12 @@ export function SmartInput({
           {multiline ? (
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+              rows={1}
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
-              className={`${inputClasses} resize-none min-h-[44px]`}
+              className={`${inputClasses} box-border h-9 resize-none min-h-[36px] max-h-[140px] leading-5`}
             />
           ) : (
             <input
@@ -147,7 +192,7 @@ export function SmartInput({
               heading={triggerType === "user" ? "Members" : "Tasks"}
             >
               {triggerType === "user" &&
-                members.map((member: any) => (
+                members.map((member) => (
                   <CommandItem
                     key={member.id}
                     value={`${member.nickname || member.name}-${member.id}`}
@@ -165,7 +210,7 @@ export function SmartInput({
                   </CommandItem>
                 ))}
               {triggerType === "task" &&
-                tasks.map((task: any) => (
+                tasks.map((task) => (
                   <CommandItem
                     key={task.id}
                     value={`${task.title}-${task.id}`}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { AnyExtension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import ImageExtension from "@tiptap/extension-image";
 import LinkExtension from "@tiptap/extension-link";
 import { Markdown } from "tiptap-markdown";
 import { common, createLowlight } from "lowlight";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -29,6 +30,7 @@ import {
   Heading2,
   Heading3,
 } from "lucide-react";
+import { toast } from "sonner";
 import "highlight.js/styles/github-dark.css"; // Or any style you prefer
 
 // Initialize lowlight for syntax highlighting
@@ -41,6 +43,12 @@ interface MarkdownEditorProps {
   className?: string;
 }
 
+function extractMarkdown(instance: {
+  storage: { markdown?: { getMarkdown?: () => string } };
+}) {
+  return instance.storage.markdown?.getMarkdown?.() ?? "";
+}
+
 export default function MarkdownEditor({
   initialContent = "",
   onChange,
@@ -48,6 +56,7 @@ export default function MarkdownEditor({
   className,
 }: MarkdownEditorProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -56,7 +65,6 @@ export default function MarkdownEditor({
   const editor = useEditor({
     immediatelyRender: false,
     editable,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extensions: [
       StarterKit.configure({
         codeBlock: false, // Disable default codeBlock to use Lowlight
@@ -77,7 +85,7 @@ export default function MarkdownEditor({
         transformPastedText: true,
         transformCopiedText: true,
       }),
-    ] as any[],
+    ] as AnyExtension[],
     content: initialContent,
     editorProps: {
       attributes: {
@@ -85,62 +93,79 @@ export default function MarkdownEditor({
           "prose prose-sm sm:prose-base dark:prose-invert focus:outline-none max-w-none min-h-[300px] p-4",
       },
       handleDrop: (view, event, slice, moved) => {
-        if (
-          !moved &&
-          event.dataTransfer &&
-          event.dataTransfer.files &&
-          event.dataTransfer.files[0]
-        ) {
-          const file = event.dataTransfer.files[0];
-          if (file.type.startsWith("image/")) {
-            event.preventDefault(); // Stop default Drop
-            uploadCommunityImage(file).then((url) => {
-              const { schema } = view.state;
-              const coordinates = view.posAtCoords({
-                left: event.clientX,
-                top: event.clientY,
-              });
-              if (coordinates) {
-                view.dispatch(
-                  view.state.tr.insert(
-                    coordinates.pos,
-                    schema.nodes.image.create({ src: url })
-                  )
-                );
+        if (!moved && event.dataTransfer?.files?.length) {
+          const files = Array.from(event.dataTransfer.files).filter((file) =>
+            file.type.startsWith("image/"),
+          );
+          if (files.length === 0) return false;
+
+          event.preventDefault(); // Stop default Drop
+
+          const { schema } = view.state;
+          const coordinates = view.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          });
+          const insertPos = coordinates?.pos ?? view.state.selection.from;
+
+          void (async () => {
+            let currentPos = insertPos;
+            for (const file of files) {
+              try {
+                const url = await uploadCommunityImage(file);
+                const imageNode = schema.nodes.image.create({ src: url });
+                view.dispatch(view.state.tr.insert(currentPos, imageNode));
+                currentPos += imageNode.nodeSize;
+              } catch (error) {
+                console.error(error);
+                toast.error("이미지 업로드에 실패했습니다.");
               }
-            });
-            return true;
-          }
+            }
+          })();
+
+          return true;
         }
         return false;
       },
       handlePaste: (view, event) => {
-        const items = Array.from(event.clipboardData?.items || []);
-        const imageItem = items.find((item) => item.type.startsWith("image"));
+        const items = Array.from(event.clipboardData?.items || []).filter(
+          (item) => item.type.startsWith("image"),
+        );
 
-        if (imageItem) {
+        if (items.length > 0) {
           event.preventDefault();
-          const file = imageItem.getAsFile();
-          if (file) {
-            uploadCommunityImage(file).then((url) => {
-              const { schema } = view.state;
-              view.dispatch(
-                view.state.tr.insert(
-                  view.state.selection.from,
-                  schema.nodes.image.create({ src: url })
-                )
-              );
-            });
-            return true;
-          }
+
+          const files = items
+            .map((item) => item.getAsFile())
+            .filter((file): file is File => !!file);
+
+          if (files.length === 0) return false;
+
+          void (async () => {
+            const { schema } = view.state;
+            let currentPos = view.state.selection.from;
+
+            for (const file of files) {
+              try {
+                const url = await uploadCommunityImage(file);
+                const imageNode = schema.nodes.image.create({ src: url });
+                view.dispatch(view.state.tr.insert(currentPos, imageNode));
+                currentPos += imageNode.nodeSize;
+              } catch (error) {
+                console.error(error);
+                toast.error("이미지 업로드에 실패했습니다.");
+              }
+            }
+          })();
+
+          return true;
         }
         return false;
       },
     },
     onUpdate: ({ editor }) => {
       if (onChange) {
-        // @ts-ignore
-        const markdown = editor.storage.markdown.getMarkdown();
+        const markdown = extractMarkdown(editor);
         onChange(markdown);
       }
     },
@@ -151,8 +176,7 @@ export default function MarkdownEditor({
     if (
       editor &&
       initialContent &&
-      // @ts-ignore
-      editor.storage.markdown.getMarkdown() !== initialContent
+      extractMarkdown(editor) !== initialContent
     ) {
       // Only set content if it's vastly different or empty?
       // Actually Tiptap content prop is initial content.
@@ -171,6 +195,23 @@ export default function MarkdownEditor({
   if (!editor) {
     return null;
   }
+
+  const uploadFilesAndInsert = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+
+    for (const file of imageFiles) {
+      try {
+        const url = await uploadCommunityImage(file);
+        editor.chain().focus().setImage({ src: url }).run();
+      } catch (error) {
+        console.error(error);
+        toast.error("이미지 업로드에 실패했습니다.");
+      }
+    }
+  };
 
   // Toolbar
   const Toolbar = () => (
@@ -257,13 +298,25 @@ export default function MarkdownEditor({
       <div className="w-[1px] h-6 bg-border mx-1" />
 
       {/* Image Upload Button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          if (!event.target.files?.length) return;
+          void uploadFilesAndInsert(event.target.files);
+          event.target.value = "";
+        }}
+      />
       <Button
         size="icon"
         variant="ghost"
         onClick={() => {
-          const url = window.prompt("이미지 URL을 입력하세요:");
-          if (url) editor.chain().focus().setImage({ src: url }).run();
+          fileInputRef.current?.click();
         }}
+        title="이미지 업로드"
       >
         <ImageIcon className="w-4 h-4" />
       </Button>

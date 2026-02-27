@@ -26,6 +26,7 @@ export async function GET(request: Request) {
             nickname: true,
             avatar_url: true,
             tier: true,
+            handle: true,
           },
         },
       },
@@ -41,8 +42,11 @@ export async function GET(request: Request) {
     // JSON.parse(JSON.stringify) to handle any complex objects if needed (like Dates to strings)
     // Next.js NextResponse.json handles Dates automatically as ISO strings.
     return NextResponse.json({ applications });
-  } catch (e: any) {
-    console.error("API: App Fetch Exception", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("API: App Fetch Exception", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    );
   }
 }

@@ -23,6 +23,8 @@ export interface Message {
     avatar_url: string | null;
   };
   timestamp: string;
+  createdAt?: string;
+  fullTimestamp?: string;
   type: string;
   workspaceId?: string;
 }

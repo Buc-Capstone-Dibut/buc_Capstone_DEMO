@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Loader2, CornerDownRight } from "lucide-react";
@@ -22,6 +23,7 @@ export interface SquadComment {
   author: {
     nickname: string | null;
     avatar_url: string | null;
+    handle?: string | null;
   } | null;
 }
 
@@ -106,7 +108,7 @@ export function SquadCommentSection({
       setReplyContent("");
       setReplyingTo(null);
       toast.success("댓글이 등록되었습니다.");
-    } catch (error) {
+    } catch {
       toast.error("전송 중 오류가 발생했습니다.");
     } finally {
       setSubmitting(false);
@@ -131,7 +133,7 @@ export function SquadCommentSection({
 
       setComments((prev) => removeCommentWithReplies(prev, commentId));
       toast.success("댓글이 삭제되었습니다.");
-    } catch (error) {
+    } catch {
       toast.error("삭제 중 오류가 발생했습니다.");
     } finally {
       setDeletingId(null);
@@ -184,19 +186,39 @@ export function SquadCommentSection({
           {rootComments.map((comment) => (
             <div key={comment.id} className="group">
               <div className="flex gap-4">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={comment.author?.avatar_url || ""} />
-                  <AvatarFallback>
-                    {comment.author?.nickname?.[0] || "?"}
-                  </AvatarFallback>
-                </Avatar>
+                {comment.author?.handle ? (
+                  <Link href={`/my/${encodeURIComponent(comment.author.handle)}`}>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={comment.author?.avatar_url || ""} />
+                      <AvatarFallback>
+                        {comment.author?.nickname?.[0] || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                ) : (
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={comment.author?.avatar_url || ""} />
+                    <AvatarFallback>
+                      {comment.author?.nickname?.[0] || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
 
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">
-                        {comment.author?.nickname || "익명"}
-                      </span>
+                      {comment.author?.handle ? (
+                        <Link
+                          href={`/my/${encodeURIComponent(comment.author.handle)}`}
+                          className="font-semibold text-sm hover:underline"
+                        >
+                          {comment.author?.nickname || "익명"}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-sm">
+                          {comment.author?.nickname || "익명"}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {formatDistanceToNow(
                           new Date(comment.created_at || new Date()),
@@ -276,19 +298,39 @@ export function SquadCommentSection({
                 <div className="ml-14 mt-4 space-y-4 border-l-2 pl-4">
                   {getReplies(comment.id).map((reply) => (
                     <div key={reply.id} className="flex gap-3 group/reply">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={reply.author?.avatar_url || ""} />
-                        <AvatarFallback>
-                          {reply.author?.nickname?.[0] || "?"}
-                        </AvatarFallback>
-                      </Avatar>
+                      {reply.author?.handle ? (
+                        <Link href={`/my/${encodeURIComponent(reply.author.handle)}`}>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={reply.author?.avatar_url || ""} />
+                            <AvatarFallback>
+                              {reply.author?.nickname?.[0] || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                      ) : (
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={reply.author?.avatar_url || ""} />
+                          <AvatarFallback>
+                            {reply.author?.nickname?.[0] || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
 
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs">
-                              {reply.author?.nickname || "익명"}
-                            </span>
+                            {reply.author?.handle ? (
+                              <Link
+                                href={`/my/${encodeURIComponent(reply.author.handle)}`}
+                                className="font-semibold text-xs hover:underline"
+                              >
+                                {reply.author?.nickname || "익명"}
+                              </Link>
+                            ) : (
+                              <span className="font-semibold text-xs">
+                                {reply.author?.nickname || "익명"}
+                              </span>
+                            )}
                             <span className="text-[10px] text-muted-foreground">
                               {formatDistanceToNow(
                                 new Date(reply.created_at || new Date()),

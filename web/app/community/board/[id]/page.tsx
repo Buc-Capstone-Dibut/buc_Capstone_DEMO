@@ -1,6 +1,7 @@
 import { getPost } from "@/lib/server/community";
 
 export const dynamic = "force-dynamic";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -32,6 +33,10 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
     notFound();
   }
 
+  const authorHref = post.author?.handle
+    ? `/my/${encodeURIComponent(post.author.handle)}`
+    : null;
+
   return (
     <div className="max-w-4xl mx-auto py-8">
       {/* Meta */}
@@ -62,23 +67,53 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Avatar>
-              <AvatarImage src={post.author?.avatar_url || ""} />
-              <AvatarFallback>
-                {post.author?.nickname?.[0] || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="font-medium text-sm">
-                {post.author?.nickname || "익명"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(post.created_at || new Date()), {
-                  addSuffix: true,
-                  locale: ko,
-                })}
-              </div>
-            </div>
+            {authorHref ? (
+              <Link href={authorHref} className="flex items-center gap-3 group">
+                <Avatar>
+                  <AvatarImage src={post.author?.avatar_url || ""} />
+                  <AvatarFallback>
+                    {post.author?.nickname?.[0] || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium text-sm group-hover:underline">
+                    {post.author?.nickname || "익명"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(
+                      new Date(post.created_at || new Date()),
+                      {
+                        addSuffix: true,
+                        locale: ko,
+                      },
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ) : (
+              <>
+                <Avatar>
+                  <AvatarImage src={post.author?.avatar_url || ""} />
+                  <AvatarFallback>
+                    {post.author?.nickname?.[0] || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium text-sm">
+                    {post.author?.nickname || "익명"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(
+                      new Date(post.created_at || new Date()),
+                      {
+                        addSuffix: true,
+                        locale: ko,
+                      },
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-4 text-sm text-muted-foreground">

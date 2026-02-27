@@ -14,7 +14,11 @@ function mapCommentWithAuthor(
     parent_id: string | null;
     created_at: Date | null;
     updated_at: Date | null;
-    profiles?: { nickname: string | null; avatar_url: string | null } | null;
+    profiles?: {
+      nickname: string | null;
+      avatar_url: string | null;
+      handle: string | null;
+    } | null;
   },
 ) {
   return {
@@ -29,6 +33,7 @@ function mapCommentWithAuthor(
       ? {
           nickname: comment.profiles.nickname,
           avatar_url: comment.profiles.avatar_url,
+          handle: comment.profiles.handle,
         }
       : null,
   };
@@ -62,7 +67,7 @@ export async function GET(
       where: { squad_id: squadId },
       include: {
         profiles: {
-          select: { nickname: true, avatar_url: true },
+          select: { nickname: true, avatar_url: true, handle: true },
         },
       },
       orderBy: { created_at: "asc" },
@@ -72,9 +77,12 @@ export async function GET(
       success: true,
       data: comments.map(mapCommentWithAuthor),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Squad Comments GET Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -165,7 +173,7 @@ export async function POST(
       },
       include: {
         profiles: {
-          select: { nickname: true, avatar_url: true },
+          select: { nickname: true, avatar_url: true, handle: true },
         },
       },
     });
@@ -174,8 +182,11 @@ export async function POST(
       success: true,
       data: mapCommentWithAuthor(created),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Squad Comments POST Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    );
   }
 }

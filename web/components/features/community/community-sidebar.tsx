@@ -1,12 +1,78 @@
 "use client";
 
 import Link from "next/link";
+import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flame, Megaphone, Users } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ko } from "date-fns/locale";
+
+interface PopularTopicItem {
+  tag: string;
+  count: number;
+}
+
+interface RecruitingSquadItem {
+  id: string;
+  title: string;
+  type: string;
+  place_type: string | null;
+  location: string | null;
+  created_at: string;
+}
+
+interface CommunitySidebarPayload {
+  popularTopics: PopularTopicItem[];
+  recruitingSquads: RecruitingSquadItem[];
+  meta: {
+    popularTopicsWindowDays: number;
+    popularTopicsMaxPosts: number;
+  };
+}
+
+const fetcher = async (url: string): Promise<CommunitySidebarPayload> => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error("Failed to load sidebar data");
+  }
+  return res.json();
+};
+
+function getSquadTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    project: "프로젝트",
+    study: "스터디",
+    contest: "공모전",
+    mogakco: "모각코",
+    "side-project": "사이드 프로젝트",
+  };
+
+  return labels[type] || type;
+}
+
+function getPlaceText(placeType: string | null, location: string | null) {
+  if (placeType === "online") return "온라인";
+  if (placeType === "offline") return location || "오프라인";
+  if (placeType === "hybrid") return location || "온/오프라인";
+  return location || "장소 미정";
+}
 
 export function CommunitySidebar() {
+  const { data } = useSWR<CommunitySidebarPayload>(
+    "/api/community/sidebar",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 60_000,
+      dedupingInterval: 30_000,
+    },
+  );
+
+  const popularTopics = data?.popularTopics || [];
+  const recruitingSquads = data?.recruitingSquads || [];
+
   return (
     <div className="space-y-6">
       {/* 1. Write Button (Mobile prominent, but good to have here too or just info) */}
@@ -21,16 +87,20 @@ export function CommunitySidebar() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {["Next.js", "React", "취업", "이직", "회고", "TypeScript"].map(
-              (tag) => (
+            {popularTopics.length > 0 ? (
+              popularTopics.map((topic) => (
                 <Badge
-                  key={tag}
+                  key={topic.tag}
                   variant="secondary"
-                  className="cursor-pointer hover:bg-secondary/80 font-normal"
+                  className="font-normal"
                 >
-                  #{tag}
+                  #{topic.tag}
                 </Badge>
-              )
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                아직 집계된 토픽이 없습니다.
+              </span>
             )}
           </div>
         </CardContent>
@@ -53,28 +123,37 @@ export function CommunitySidebar() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Mock Squad Items */}
-          <Link href="/community/squad" className="block group">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium group-hover:text-primary truncate">
-                사이드 프로젝트 프론트엔드 구해요
-              </span>
-              <span className="text-xs text-muted-foreground">
-                프로젝트 · 서울/온라인
-              </span>
+          {recruitingSquads.length > 0 ? (
+            recruitingSquads.map((squad, idx) => (
+              <div key={squad.id}>
+                {idx > 0 && <div className="h-px bg-border mb-4" />}
+                <Link
+                  href={`/community/squad/${squad.id}`}
+                  className="block group"
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium group-hover:text-primary truncate">
+                      {squad.title}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {getSquadTypeLabel(squad.type)} ·{" "}
+                      {getPlaceText(squad.place_type, squad.location)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(squad.created_at), {
+                        addSuffix: true,
+                        locale: ko,
+                      })}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            ))
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              현재 모집 중인 모임이 없습니다.
             </div>
-          </Link>
-          <div className="h-px bg-border" />
-          <Link href="/community/squad" className="block group">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium group-hover:text-primary truncate">
-                매일 아침 7시 기상 모각코
-              </span>
-              <span className="text-xs text-muted-foreground">
-                모각코 · 온라인
-              </span>
-            </div>
-          </Link>
+          )}
 
           <Link href="/community/squad">
             <Button
@@ -96,13 +175,10 @@ export function CommunitySidebar() {
             공지사항
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm space-y-2">
-          <Link href="#" className="block hover:underline truncate">
-            💡 클린 커뮤니티 가이드라인
-          </Link>
-          <Link href="#" className="block hover:underline truncate">
-            📢 2월 업데이트 안내
-          </Link>
+        <CardContent className="text-sm">
+          <div className="text-xs text-muted-foreground">
+            등록된 공지사항이 없습니다.
+          </div>
         </CardContent>
       </Card>
 
