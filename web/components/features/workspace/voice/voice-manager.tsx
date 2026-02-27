@@ -5,17 +5,20 @@ import {
   useContext,
   useState,
   useEffect,
+  type MutableRefObject,
+  useRef,
   ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  useRoomContext,
   useTracks,
   VideoTrack,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Track } from "livekit-client";
+import { RoomEvent, Track } from "livekit-client";
 import { Video, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActiveCallControl } from "./active-call-control";
@@ -39,6 +42,155 @@ const VoiceContext = createContext<VoiceContextType>({
 });
 
 export const useVoice = () => useContext(VoiceContext);
+
+const SOUND_DEBOUNCE_MS = 800;
+const VOICE_JOIN_SOUND = "/sound/Join_Sound.mp3";
+const VOICE_LEAVE_SOUND = "/sound/Leave_Sound.mp3";
+const VOICE_SOUND_VOLUME = 0.35;
+const voiceSoundPlayedAt = new Map<string, number>();
+const voiceSoundCache = new Map<string, HTMLAudioElement>();
+let voiceSoundUnlockAttempted = false;
+let hasLoggedVoiceSoundError = false;
+
+type VoiceSoundKind = "join" | "leave";
+
+function getCachedVoiceSound(src: string) {
+  const cached = voiceSoundCache.get(src);
+  if (cached) {
+    return cached;
+  }
+
+  const audio = new Audio(src);
+  audio.preload = "auto";
+  voiceSoundCache.set(src, audio);
+  return audio;
+}
+
+function playFallbackTone(kind: VoiceSoundKind) {
+  if (typeof window === "undefined") return;
+
+  const Ctx =
+    window.AudioContext ||
+    (window as Window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!Ctx) return;
+
+  try {
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    const baseFreq = kind === "join" ? 880 : 440;
+    const endAt = now + 0.2;
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.08);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.02, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(endAt);
+    osc.onended = () => {
+      void ctx.close().catch(() => {});
+    };
+  } catch {
+    // Ignore fallback tone errors.
+  }
+}
+
+async function unlockVoiceSoundPlayback() {
+  if (typeof window === "undefined" || voiceSoundUnlockAttempted) return;
+  voiceSoundUnlockAttempted = true;
+
+  const sources = [VOICE_JOIN_SOUND, VOICE_LEAVE_SOUND];
+  await Promise.allSettled(
+    sources.map(async (src) => {
+      const audio = getCachedVoiceSound(src);
+      audio.muted = true;
+      audio.currentTime = 0;
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+    }),
+  );
+}
+
+function playVoiceSound(src: string, key: string, kind: VoiceSoundKind) {
+  if (typeof window === "undefined") return;
+
+  const now = Date.now();
+  const prev = voiceSoundPlayedAt.get(key) || 0;
+  if (now - prev < SOUND_DEBOUNCE_MS) return;
+
+  voiceSoundPlayedAt.set(key, now);
+  const audio = getCachedVoiceSound(src).cloneNode(true) as HTMLAudioElement;
+  audio.volume = VOICE_SOUND_VOLUME;
+  void audio.play().catch((error) => {
+    if (!hasLoggedVoiceSoundError) {
+      hasLoggedVoiceSoundError = true;
+      console.warn("[Voice] Sound playback failed. Using fallback tone.", error);
+    }
+    playFallbackTone(kind);
+  });
+}
+
+function VoiceParticipantSoundEvents({
+  roomName,
+  suppressRef,
+}: {
+  roomName: string;
+  suppressRef: MutableRefObject<boolean>;
+}) {
+  const room = useRoomContext();
+  const knownParticipantsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    knownParticipantsRef.current = new Set(room.remoteParticipants.keys());
+
+    const handleParticipantConnected = (participant: { identity: string }) => {
+      if (suppressRef.current) return;
+
+      const known = knownParticipantsRef.current.has(participant.identity);
+      knownParticipantsRef.current.add(participant.identity);
+      if (known) return;
+
+      playVoiceSound(
+        VOICE_JOIN_SOUND,
+        `voice-remote-join:${roomName}:${participant.identity}`,
+        "join",
+      );
+    };
+
+    const handleParticipantDisconnected = (participant: { identity: string }) => {
+      if (suppressRef.current) return;
+
+      const wasKnown = knownParticipantsRef.current.delete(participant.identity);
+      if (!wasKnown) return;
+
+      playVoiceSound(
+        VOICE_LEAVE_SOUND,
+        `voice-remote-leave:${roomName}:${participant.identity}`,
+        "leave",
+      );
+    };
+
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      room.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+    };
+  }, [room, roomName, suppressRef]);
+
+  return null;
+}
 
 // Sub-component to handle screen share rendering logic
 // Sub-component to handle video rendering logic
@@ -141,6 +293,7 @@ export function VoiceManager({ children }: { children: ReactNode }) {
   const { user } = useAuth({ loadProfile: false });
   const { socket } = useSocketStore();
   const [mounted, setMounted] = useState(false);
+  const suppressRemoteVoiceEventsRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -151,8 +304,15 @@ export function VoiceManager({ children }: { children: ReactNode }) {
       toast.error("로그인이 필요합니다.");
       return;
     }
+    if (currentRoom === roomName && token) {
+      return;
+    }
 
     try {
+      suppressRemoteVoiceEventsRef.current = false;
+      await unlockVoiceSoundPlayback();
+      playVoiceSound(VOICE_JOIN_SOUND, `voice-join:${roomName}`, "join");
+
       const response = await fetch(`/api/livekit/token?room=${roomName}`);
 
       if (!response.ok) {
@@ -163,18 +323,6 @@ export function VoiceManager({ children }: { children: ReactNode }) {
       setToken(data.token);
       setCurrentRoom(roomName);
       setActiveProjectId(projectId);
-
-      // Trigger immediate update of sidebar list (Local)
-      try {
-        mutate("/api/livekit/rooms");
-      } catch (e) {
-        console.error("Revalidation failed", e);
-      }
-
-      // Broadcast to others (Socket)
-      if (socket && projectId) {
-        socket.emit("voice:update", { projectId });
-      }
     } catch (error) {
       console.error("Failed to join room:", error);
       toast.error("보이스 채널 접속에 실패했습니다.");
@@ -182,10 +330,15 @@ export function VoiceManager({ children }: { children: ReactNode }) {
   };
 
   const leaveRoom = () => {
+    suppressRemoteVoiceEventsRef.current = true;
+    const prevRoom = currentRoom;
     const prevProjectId = activeProjectId;
     setToken(null);
     setCurrentRoom(null);
     setActiveProjectId(null);
+    if (prevRoom) {
+      playVoiceSound(VOICE_LEAVE_SOUND, `voice-leave:${prevRoom}`, "leave");
+    }
 
     // Trigger immediate update when leaving
     setTimeout(() => {
@@ -220,11 +373,27 @@ export function VoiceManager({ children }: { children: ReactNode }) {
               token={token}
               serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
               connect={true}
+              onConnected={() => {
+                try {
+                  mutate("/api/livekit/rooms");
+                  if (socket && activeProjectId) {
+                    socket.emit("voice:update", { projectId: activeProjectId });
+                  }
+                } catch (e) {
+                  console.error("Revalidation failed", e);
+                }
+              }}
               onDisconnected={leaveRoom}
               style={{ width: "auto", height: "auto" }}
             >
               {/* Audio Handling (Invisible) */}
               <RoomAudioRenderer />
+              {currentRoom && (
+                <VoiceParticipantSoundEvents
+                  roomName={currentRoom}
+                  suppressRef={suppressRemoteVoiceEventsRef}
+                />
+              )}
 
               <div className="flex flex-col items-end gap-2">
                 {/* Video Overlay (Visible when cameras are on) */}
@@ -232,7 +401,7 @@ export function VoiceManager({ children }: { children: ReactNode }) {
 
                 {/* Controls (Interactive) */}
                 <div className="pointer-events-auto">
-                  <ActiveCallControl />
+                  <ActiveCallControl onLeave={leaveRoom} />
                 </div>
               </div>
             </LiveKitRoom>

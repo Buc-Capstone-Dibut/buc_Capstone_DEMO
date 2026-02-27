@@ -11,7 +11,6 @@ import {
   MicOff,
   PhoneOff,
   Volume2,
-  Users,
   Video,
   VideoOff,
   Maximize2,
@@ -24,7 +23,11 @@ import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ConnectionQuality } from "livekit-client";
 
-export function ActiveCallControl() {
+interface ActiveCallControlProps {
+  onLeave?: () => void;
+}
+
+export function ActiveCallControl({ onLeave }: ActiveCallControlProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
@@ -69,6 +72,10 @@ export function ActiveCallControl() {
 
   const handleDisconnect = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (onLeave) {
+      onLeave();
+      return;
+    }
     room.disconnect();
   };
 
@@ -189,7 +196,7 @@ export function ActiveCallControl() {
                     const meta = JSON.parse(p.metadata);
                     avatarUrl = meta.avatarUrl;
                   }
-                } catch (e) {
+                } catch {
                   // ignore invalid metadata
                 }
 

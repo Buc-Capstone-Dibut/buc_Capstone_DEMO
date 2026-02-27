@@ -103,13 +103,15 @@ export function WorkspaceSidebar({
     swrOptions,
   );
 
-  // Poll for Room Participants (Socket-driven + 60s fallback)
+  // Poll for Room Participants (Socket-driven + 15s fallback)
   const { data: roomParticipants, mutate: mutateRooms } = useSWR(
     "/api/livekit/rooms",
     fetcher,
     {
-      revalidateOnFocus: false,
-      refreshInterval: 60000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      refreshInterval: 15000,
+      dedupingInterval: 5000,
     },
   );
 

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { useWorkspaceStore } from "./mock-data";
 
 export interface Channel {
   id: string;
@@ -26,6 +25,24 @@ export interface Message {
   timestamp: string;
   type: string;
   workspaceId?: string;
+}
+
+interface ChannelsAck {
+  success: boolean;
+  data: Channel[];
+  error?: string;
+}
+
+interface MessagesAck {
+  success: boolean;
+  data: Message[];
+  error?: string;
+}
+
+interface CreateChannelAck {
+  success: boolean;
+  data: Channel;
+  error?: string;
 }
 
 interface SocketStore {
@@ -80,6 +97,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
     socket.on("connect", () => {
       set({ isConnected: true });
+      socket.emit("join", { userId, projectId });
       get().fetchChannels(projectId, socket); // Pass socket instance
     });
 
@@ -152,7 +170,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     // Allow passing socket instance
     const socket = socketInstance || get().socket;
     if (socket) {
-      socket.emit("chat:get_channels", { workspaceId }, (res: any) => {
+      socket.emit("chat:get_channels", { workspaceId }, (res: ChannelsAck) => {
         if (res.success) {
           set({ channels: res.data });
           const state = get();
@@ -184,7 +202,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     if (socket) {
       socket.emit("chat:join", { channelId });
 
-      socket.emit("chat:get_messages", { channelId }, (res: any) => {
+      socket.emit("chat:get_messages", { channelId }, (res: MessagesAck) => {
         if (res.success) {
           set({ messages: res.data });
         }
@@ -206,7 +224,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       socket.emit(
         "chat:create_channel",
         { workspaceId, name, description, userId },
-        (res: any) => {
+        (res: CreateChannelAck) => {
           if (res.success) {
             set((state) => ({ channels: [...state.channels, res.data] }));
             get().joinChannel(res.data.id);
