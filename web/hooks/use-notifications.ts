@@ -82,14 +82,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
             table: "notifications",
             filter: `user_id=eq.${user.id}`,
           },
-          (payload) => {
-            const newNotif = payload.new as Notification;
-            void globalMutate(
-              "/api/notifications",
-              (currentData: Notification[] = []) =>
-                dedupeNotifications([newNotif, ...currentData]),
-              false,
-            );
+          () => {
+            // Revalidate from API instead of trusting raw realtime payload.
+            // This prevents timestamp format drift between realtime and API responses.
+            void globalMutate("/api/notifications");
           },
         )
         .subscribe();

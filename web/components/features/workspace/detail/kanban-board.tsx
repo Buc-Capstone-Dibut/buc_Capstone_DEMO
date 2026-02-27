@@ -28,7 +28,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-import { TaskDetailModal } from "../modules/task/detail-modal";
 import { ViewCreationWizard } from "../modules/view-settings/view-creation-wizard";
 import { ViewManagerModal } from "../modules/view-settings/view-manager-modal";
 import { TagManagerModal } from "../modules/tag/tag-manager-modal";
@@ -69,7 +68,6 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     updateViewCardProperties,
     updateView,
     deleteView,
-    activeTaskId,
     setActiveTaskId,
     projects,
     tasks: storeTasks,
@@ -647,19 +645,6 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       </div>
 
       {/* Modals */}
-      {activeTaskId && (
-        <TaskDetailModal
-          taskId={activeTaskId}
-          task={tasks.find((t) => t.id === activeTaskId)}
-          members={project.members}
-          detailedTags={tags} // Use system tags
-          availableTags={tags}
-          onClose={() => setActiveTaskId(null)}
-          onUpdate={handleUpdateTask}
-          onDelete={handleDeleteTask}
-        />
-      )}
-
       <ViewCreationWizard
         projectId={projectId}
         isOpen={isWizardOpen}

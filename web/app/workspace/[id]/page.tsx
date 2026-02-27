@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { WorkspaceSidebar } from "@/components/features/workspace/detail/workspace-sidebar";
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
 import dynamic from "next/dynamic";
@@ -92,14 +97,56 @@ import { useWorkspaceStore } from "@/components/features/workspace/store/mock-da
 import { useSocketStore } from "@/components/features/workspace/store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
 
+const ALLOWED_TABS = new Set([
+  "overview",
+  "board",
+  "schedule",
+  "docs",
+  "ideas",
+  "inbox",
+  "briefcase",
+  "huddle",
+]);
+
+const normalizeTab = (tab: string | null) => {
+  if (!tab) return "overview";
+  if (tab.startsWith("chat-")) return tab;
+  return ALLOWED_TABS.has(tab) ? tab : "overview";
+};
+
 export default function WorkspaceDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const projectId = params.id as string;
   const { activeTaskId, setActiveTaskId } = useWorkspaceStore();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() =>
+    normalizeTab(searchParams.get("tab")),
+  );
 
   const { connectSocket, disconnectSocket } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
+
+  const handleTabChange = (tab: string) => {
+    const normalized = normalizeTab(tab);
+    setActiveTab(normalized);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (normalized === "overview") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", normalized);
+    }
+
+    const query = nextParams.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  useEffect(() => {
+    const nextTab = normalizeTab(searchParams.get("tab"));
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+  }, [searchParams]);
 
   useEffect(() => {
     if (projectId && user) {
@@ -122,7 +169,7 @@ export default function WorkspaceDetailPage() {
       return (
         <LiveHuddle
           projectId={projectId}
-          onClose={() => setActiveTab("overview")}
+          onClose={() => handleTabChange("overview")}
         />
       );
     }
@@ -133,7 +180,7 @@ export default function WorkspaceDetailPage() {
           <div className="h-full p-6">
             <KanbanBoard
               projectId={projectId}
-              onNavigateToDoc={() => setActiveTab("docs")}
+              onNavigateToDoc={() => handleTabChange("docs")}
             />
           </div>
         );
@@ -173,7 +220,7 @@ export default function WorkspaceDetailPage() {
       <WorkspaceSidebar
         projectId={projectId}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
       <main className="flex-1 overflow-y-auto h-full">
         {renderContent()}

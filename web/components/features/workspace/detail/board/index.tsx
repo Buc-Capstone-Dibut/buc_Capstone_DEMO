@@ -34,7 +34,7 @@ import { KanbanColumn } from "../../views/kanban/column";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import { TaskCard } from "../../modules/task/card";
-import { TaskDetailModal } from "../../modules/task/detail-modal";
+import { AdvancedTaskModal } from "./advanced-task-modal";
 import { DraggablePropertySettings } from "../../modules/view-settings/property-settings";
 import { ViewCreationWizard } from "../../modules/view-settings/view-creation-wizard";
 import { ViewManagerModal } from "../../modules/view-settings/view-manager-modal";
@@ -729,18 +729,12 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       {/* ... (Modals remain same) ... */}
       {/* Modal for Task Details */}
       {activeTaskId && (
-        <TaskDetailModal
+        <AdvancedTaskModal
           taskId={activeTaskId}
-          task={tasks.find((t) => t.id === activeTaskId)}
-          members={project.members}
-          availableTags={tags}
-          detailedTags={tags}
-          onClose={() => setActiveTaskId(null)}
-          onUpdate={(id, updates) => updateTask(id, updates)}
-          onDelete={(id) => {
-            // Implement delete logic if needed, or pass store action
-            // For now just close
-            setActiveTaskId(null);
+          projectId={projectId}
+          open={!!activeTaskId}
+          onOpenChange={(open) => {
+            if (!open) setActiveTaskId(null);
           }}
         />
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,8 @@ import {
   Calendar as CalendarIcon,
   User,
   Flag,
+  Tag,
+  Plus,
   CheckCircle2,
   Trash2,
 } from "lucide-react";
@@ -46,8 +48,33 @@ interface Task {
   dueDate?: string;
   assigneeId?: string | null;
   assignee?: { id: string; name: string; avatar?: string };
-  tags?: any[];
-  [key: string]: any;
+  tags?: unknown[];
+  [key: string]: unknown;
+}
+
+interface TagOption {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+interface BoardColumn {
+  id: string;
+  title: string;
+  statusId?: string;
+}
+
+interface BoardMember {
+  id: string;
+  name: string | null;
+  avatar?: string | null;
+}
+
+interface BoardData {
+  tasks: Task[];
+  columns: BoardColumn[];
+  members: BoardMember[];
+  tags: TagOption[];
 }
 
 interface AdvancedTaskModalProps {
@@ -59,6 +86,57 @@ interface AdvancedTaskModalProps {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+const TAG_BADGE_CLASS: Record<string, string> = {
+  gray: "bg-slate-100 text-slate-700",
+  red: "bg-red-100 text-red-700",
+  orange: "bg-orange-100 text-orange-700",
+  yellow: "bg-yellow-100 text-yellow-700",
+  green: "bg-green-100 text-green-700",
+  blue: "bg-blue-100 text-blue-700",
+  purple: "bg-purple-100 text-purple-700",
+  pink: "bg-pink-100 text-pink-700",
+};
+
+const TAG_DOT_CLASS: Record<string, string> = {
+  gray: "bg-slate-400",
+  red: "bg-red-400",
+  orange: "bg-orange-400",
+  yellow: "bg-yellow-400",
+  green: "bg-green-400",
+  blue: "bg-blue-400",
+  purple: "bg-purple-400",
+  pink: "bg-pink-400",
+};
+
+const normalizeTagColor = (color?: string) => {
+  if (!color) return "gray";
+  const firstToken = color.toLowerCase().split(" ")[0];
+  return firstToken.replace(/^bg-/, "").replace(/-(100|500)$/, "");
+};
+
+const normalizeTagIds = (tags: unknown): string[] => {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .map((tag) => {
+      if (typeof tag === "string") return tag;
+      if (tag && typeof tag === "object" && "id" in tag) {
+        return String((tag as { id: unknown }).id);
+      }
+      return null;
+    })
+    .filter((tagId): tagId is string => !!tagId);
+};
+
+const getTagColorClass = (color?: string) => {
+  const normalized = normalizeTagColor(color);
+  return TAG_BADGE_CLASS[normalized] || TAG_BADGE_CLASS.gray;
+};
+
+const getTagDotClass = (color?: string) => {
+  const normalized = normalizeTagColor(color);
+  return TAG_DOT_CLASS[normalized] || TAG_DOT_CLASS.gray;
+};
+
 export function AdvancedTaskModal({
   taskId,
   projectId,
@@ -66,27 +144,30 @@ export function AdvancedTaskModal({
   onOpenChange,
 }: AdvancedTaskModalProps) {
   const { mutate } = useSWRConfig();
+  const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
 
   // --- Data Fetching ---
   const swrOptions = {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   } as const;
-  const { data: boardData } = useSWR(
+  const { data: boardData } = useSWR<BoardData>(
     projectId && open ? `/api/workspaces/${projectId}/board` : null,
     fetcher,
     swrOptions,
   );
 
   const tasks: Task[] = boardData?.tasks || [];
-  const columns: any[] = boardData?.columns || [];
-  const members = boardData?.members || [];
+  const columns: BoardColumn[] = boardData?.columns || [];
+  const members: BoardMember[] = boardData?.members || [];
+  const tagOptions = useMemo(() => boardData?.tags || [], [boardData?.tags]);
 
   const task = tasks.find((t) => t.id === taskId);
 
   // --- Local State ---
   // We use a local state to drive the UI immediately (Optimistic UI)
   const [localTask, setLocalTask] = useState<Partial<Task>>({});
+  const [newTag, setNewTag] = useState("");
 
   useEffect(() => {
     if (task) {
@@ -97,24 +178,38 @@ export function AdvancedTaskModal({
         priority: task.priority || "medium",
         assigneeId: task.assigneeId || "unassigned",
         dueDate: task.dueDate,
-        tags: task.tags || [],
+        tags: normalizeTagIds(task.tags),
       });
+      setNewTag("");
     }
   }, [task]);
+
+  const selectedTagIds = useMemo(
+    () => normalizeTagIds(localTask.tags),
+    [localTask.tags],
+  );
+
+  const filteredTagOptions = useMemo(() => {
+    const keyword = newTag.trim().toLowerCase();
+    return tagOptions.filter((tag) => {
+      if (selectedTagIds.includes(tag.id)) return false;
+      if (!keyword) return true;
+      return tag.name.toLowerCase().includes(keyword);
+    });
+  }, [newTag, selectedTagIds, tagOptions]);
 
   // --- Handlers ---
 
   const handleUpdate = async (updates: Partial<Task>) => {
-    if (!task || !projectId) return;
+    if (!task || !projectId || !boardEndpoint) return;
 
     // 1. Optimistic Update Local State
     setLocalTask((prev) => ({ ...prev, ...updates }));
 
     // 2. Optimistic Update SWR Cache
-    const endpoint = `/api/workspaces/${projectId}/board`;
     await mutate(
-      endpoint,
-      (current: any) => {
+      boardEndpoint,
+      (current: BoardData | undefined) => {
         if (!current) return current;
         const newTasks = current.tasks.map((t: Task) =>
           t.id === task.id ? { ...t, ...updates } : t,
@@ -138,11 +233,11 @@ export function AdvancedTaskModal({
       if (!res.ok) throw new Error("Failed to update");
 
       // Success: Revalidate to ensure consistency
-      mutate(endpoint);
+      mutate(boardEndpoint);
     } catch (error) {
       console.error(error);
       toast.error("Failed to save changes");
-      mutate(endpoint); // Revert on error by re-fetching
+      mutate(boardEndpoint); // Revert on error by re-fetching
     }
   };
 
@@ -167,14 +262,63 @@ export function AdvancedTaskModal({
       });
       toast.success("Task deleted");
       onOpenChange(false);
-      mutate(`/api/workspaces/${projectId}/board`);
-    } catch (e) {
+      if (boardEndpoint) mutate(boardEndpoint);
+    } catch {
       toast.error("Failed to delete task");
     }
   };
 
+  const handleAddTag = async (tagId: string) => {
+    if (selectedTagIds.includes(tagId)) return;
+    await handleUpdate({ tags: [...selectedTagIds, tagId] });
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    await handleUpdate({
+      tags: selectedTagIds.filter((selectedId) => selectedId !== tagId),
+    });
+  };
+
+  const handleCreateTag = async () => {
+    if (!projectId) return;
+    const tagName = newTag.trim();
+    if (!tagName) return;
+
+    const existingTag = tagOptions.find(
+      (tag) => tag.name.toLowerCase() === tagName.toLowerCase(),
+    );
+    if (existingTag) {
+      await handleAddTag(existingTag.id);
+      setNewTag("");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/workspaces/${projectId}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tagName, color: "gray" }),
+      });
+
+      if (res.status === 409) {
+        toast.error("이미 존재하는 태그입니다. 목록에서 선택해주세요.");
+        if (boardEndpoint) mutate(boardEndpoint);
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to create tag");
+
+      const createdTag: TagOption = await res.json();
+      await handleUpdate({ tags: [...selectedTagIds, createdTag.id] });
+      setNewTag("");
+      if (boardEndpoint) mutate(boardEndpoint);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to create tag");
+    }
+  };
+
   // --- Helpers ---
-  const currentMember = members.find((m: any) => m.id === localTask.assigneeId);
+  const currentMember = members.find((m) => m.id === localTask.assigneeId);
   const selectedDate = localTask.dueDate
     ? new Date(localTask.dueDate)
     : undefined;
@@ -316,7 +460,7 @@ export function AdvancedTaskModal({
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {members.map((m: any) => (
+                    {members.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         <div className="flex items-center gap-2">
                           <Avatar className="h-5 w-5">
@@ -364,6 +508,94 @@ export function AdvancedTaskModal({
                     <SelectItem value="urgent">Urgent</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase">
+                  Tags
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTagIds.map((tagId) => {
+                    const tagInfo = tagOptions.find((tag) => tag.id === tagId);
+                    return (
+                      <Badge
+                        key={tagId}
+                        variant="secondary"
+                        className={cn(
+                          "px-2 py-0.5 text-xs font-normal",
+                          getTagColorClass(tagInfo?.color),
+                        )}
+                      >
+                        {tagInfo?.name || tagId}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tagId)}
+                          className="ml-1 inline-flex items-center rounded-sm opacity-60 hover:opacity-100"
+                          aria-label="Remove tag"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 border-dashed text-xs"
+                      >
+                        <Tag className="h-3 w-3 mr-1" />+ Add
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <form
+                        className="flex items-center gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleCreateTag();
+                        }}
+                      >
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          placeholder="Search or create tag"
+                          className="h-8 text-xs"
+                        />
+                        <Button type="submit" size="icon" className="h-8 w-8">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </form>
+
+                      <div className="mt-2 max-h-44 overflow-y-auto space-y-1">
+                        {filteredTagOptions.length > 0 ? (
+                          filteredTagOptions.map((tag) => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted flex items-center justify-between"
+                              onClick={() => handleAddTag(tag.id)}
+                            >
+                              <span>{tag.name}</span>
+                              <span
+                                className={cn(
+                                  "h-2 w-2 rounded-full",
+                                  getTagDotClass(tag.color),
+                                )}
+                              />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            선택 가능한 태그가 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
               {/* Due Date */}
