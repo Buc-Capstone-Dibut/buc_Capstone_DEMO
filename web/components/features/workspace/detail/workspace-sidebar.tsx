@@ -81,7 +81,6 @@ export function WorkspaceSidebar({
     joinChannel,
     createChannel,
     setChannelMention,
-    activeChannelId,
   } = useSocketStore();
   const { notifications, markAsRead } = useNotifications();
   const { user } = useAuth({ loadProfile: false });
@@ -137,12 +136,17 @@ export function WorkspaceSidebar({
 
     notifications.forEach((n) => {
       if (!n.is_read && n.type === "MENTION") {
-        // Find channel by name matching the notification title
-        const channel = channels.find((c) => n.title.includes(`#${c.name}`));
+        // Find channel by name matching the notification title (case-insensitive).
+        const titleLower = n.title.toLowerCase();
+        const channel = channels.find((c) =>
+          titleLower.includes(`#${c.name}`.toLowerCase()),
+        );
 
         if (channel) {
-          // Skip if this is the currently active channel (User is already viewing it)
-          if (channel.id === activeChannelId) {
+          // Mark as read only when the user is actually viewing this chat tab.
+          const isViewingChannel = activeTab === `chat-${channel.id}`;
+          if (isViewingChannel) {
+            setChannelMention(channel.id, false);
             // IF we are viewing it, mark the notification as read immediately
             // This prevents it from appearing as a badge later when we switch channels
             markAsRead(n.id);
@@ -156,7 +160,7 @@ export function WorkspaceSidebar({
         }
       }
     });
-  }, [notifications, channels, setChannelMention, activeChannelId]);
+  }, [notifications, channels, setChannelMention, activeTab, markAsRead]);
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isLeaveAlertOpen, setIsLeaveAlertOpen] = useState(false);
@@ -328,18 +332,22 @@ export function WorkspaceSidebar({
                     isMentioned && "text-primary",
                   )}
                   onClick={() => {
-                    joinChannel(channel.id);
-                    onTabChange(`chat-${channel.id}`);
-
-                    // Mark mentions as read in Inbox when entering channel
-                    // This syncs "Channel Visit" -> "Inbox Read"
                     const relevantNotifications = notifications?.filter(
                       (n) =>
                         !n.is_read &&
                         n.type === "MENTION" &&
-                        n.title.includes(`#${channel.name}`),
+                        n.title
+                          .toLowerCase()
+                          .includes(`#${channel.name}`.toLowerCase()),
                     );
-                    relevantNotifications?.forEach((n) => markAsRead(n.id));
+                    // Clear channel mention badge immediately on enter.
+                    setChannelMention(channel.id, false);
+                    relevantNotifications?.forEach((n) => {
+                      void markAsRead(n.id);
+                    });
+
+                    joinChannel(channel.id);
+                    onTabChange(`chat-${channel.id}`);
                   }}
                 >
                   <div className="flex items-center min-w-0">

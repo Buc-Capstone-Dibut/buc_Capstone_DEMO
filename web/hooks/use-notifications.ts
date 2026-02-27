@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import useSWR, { type KeyedMutator } from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -15,12 +15,30 @@ export interface Notification {
   created_at: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+function dedupeNotifications(items: Notification[]): Notification[] {
+  const map = new Map<string, Notification>();
+  items.forEach((item) => {
+    if (!map.has(item.id)) {
+      map.set(item.id, item);
+    }
+  });
+
+  // Preserve incoming order:
+  // - API already returns DESC(created_at)
+  // - Realtime inserts are prepended at the call-site
+  return Array.from(map.values());
+}
+
+const fetcher = async (url: string): Promise<Notification[]> => {
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!Array.isArray(json)) return [];
+  return dedupeNotifications(json as Notification[]);
+};
 
 let sharedNotificationUserId: string | null = null;
 let sharedNotificationChannel: ReturnType<typeof supabase.channel> | null = null;
 let sharedSubscriberCount = 0;
-const sharedMutators = new Set<KeyedMutator<Notification[]>>();
 
 interface UseNotificationsOptions {
   enabled?: boolean;
@@ -37,16 +55,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     user && enabled ? "/api/notifications" : null,
     fetcher,
   );
-
-  useEffect(() => {
-    if (!enabled) return;
-    sharedMutators.add(mutate);
-    return () => {
-      sharedMutators.delete(mutate);
-    };
-  }, [enabled, mutate]);
-
-  const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
+  const safeNotifications = dedupeNotifications(notifications || []);
+  const unreadCount = safeNotifications.filter((n) => !n.is_read).length;
 
   // Realtime subscription is shared across hook instances.
   useEffect(() => {
@@ -74,11 +84,12 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
           },
           (payload) => {
             const newNotif = payload.new as Notification;
-            sharedMutators.forEach((instanceMutate) => {
-              instanceMutate((currentData) => {
-                return [newNotif, ...(currentData || [])];
-              }, false);
-            });
+            void globalMutate(
+              "/api/notifications",
+              (currentData: Notification[] = []) =>
+                dedupeNotifications([newNotif, ...currentData]),
+              false,
+            );
           },
         )
         .subscribe();
@@ -98,9 +109,9 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   const markAsRead = async (id?: string) => {
     // Optimistic update
-    if (!notifications) return;
+    if (!safeNotifications.length) return;
 
-    const updated = notifications.map((n) =>
+    const updated = safeNotifications.map((n) =>
       id && n.id !== id ? n : { ...n, is_read: true },
     );
 
@@ -115,8 +126,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   };
 
   const deleteNotification = async (id: string) => {
-    if (!notifications) return;
-    const updated = notifications.filter((n) => n.id !== id);
+    if (!safeNotifications.length) return;
+    const updated = safeNotifications.filter((n) => n.id !== id);
     mutate(updated, false);
 
     try {
@@ -124,13 +135,13 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         method: "DELETE",
       });
       mutate();
-    } catch (error) {
+    } catch {
       mutate();
     }
   };
 
   return {
-    notifications: notifications || [],
+    notifications: safeNotifications,
     unreadCount,
     isLoading,
     markAsRead,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell, Check, X } from "lucide-react";
 import {
   Popover,
@@ -27,14 +27,9 @@ interface Notification {
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [shouldLoad, setShouldLoad] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) setShouldLoad(true);
-  }, [isOpen]);
 
   const { notifications, unreadCount, markAsRead, deleteNotification } =
-    useNotifications({ enabled: shouldLoad });
+    useNotifications();
 
   const handleMarkAsRead = async (id?: string) => {
     await markAsRead(id);
@@ -83,7 +78,7 @@ export function NotificationCenter() {
 
     try {
       await deleteNotification(id);
-    } catch (error) {
+    } catch {
       toast.error("알림 삭제 실패");
     }
   };
