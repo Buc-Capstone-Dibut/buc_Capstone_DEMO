@@ -6,6 +6,11 @@ import { buildResumePublicSummary, ensureProfileForUser } from "@/lib/my-profile
 
 export const dynamic = "force-dynamic";
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "";
+}
+
 async function getSessionUser() {
   const supabase = createRouteHandlerClient({ cookies });
   const {
@@ -37,14 +42,16 @@ export async function GET() {
     });
 
     if (!row) {
-      return NextResponse.json(
-        { success: false, error: "Active resume not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({
+        success: true,
+        data: null,
+        exists: false,
+      });
     }
 
     return NextResponse.json({
       success: true,
+      exists: true,
       data: {
         userId: row.user_id,
         resumePayload: row.resume_payload,
@@ -54,9 +61,12 @@ export async function GET() {
         updatedAt: row.updated_at,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch active resume" },
+      {
+        success: false,
+        error: getErrorMessage(error) || "Failed to fetch active resume",
+      },
       { status: 500 },
     );
   }
@@ -126,9 +136,12 @@ export async function PUT(req: Request) {
         updatedAt: upserted.updated_at,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to save active resume" },
+      {
+        success: false,
+        error: getErrorMessage(error) || "Failed to save active resume",
+      },
       { status: 500 },
     );
   }

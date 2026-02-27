@@ -16,6 +16,11 @@ async function getUserIdFromSession(): Promise<string | null> {
   }
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "";
+}
+
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
@@ -64,13 +69,24 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = getErrorMessage(error);
+    const isUpstreamConnectionError =
+      error instanceof TypeError &&
+      message.toLowerCase().includes("fetch failed");
+
+    const fallbackMessage = isUpstreamConnectionError
+      ? `Resume parser server is unreachable. Check AI_INTERVIEW_BASE_URL (${AI_BASE_URL}) and ensure the AI server is running.`
+      : "Resume parse failed";
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Resume parse failed",
+        error: isUpstreamConnectionError
+          ? fallbackMessage
+          : message || fallbackMessage,
       },
-      { status: 500 },
+      { status: isUpstreamConnectionError ? 503 : 500 },
     );
   }
 }

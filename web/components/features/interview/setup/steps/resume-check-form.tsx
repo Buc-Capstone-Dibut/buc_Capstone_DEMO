@@ -17,11 +17,19 @@ interface ResumeCheckFormProps {
 export function ResumeCheckForm({ resumeData, updateResumeData }: ResumeCheckFormProps) {
     const [newSkill, setNewSkill] = useState("");
     const { parsedContent } = resumeData;
-
-    const safePersonalInfo = parsedContent.personalInfo || {
-        name: (parsedContent as any).name || "",
-        email: (parsedContent as any).email || "",
-        phone: (parsedContent as any).phone || ""
+    const parsedPersonalInfo = parsedContent.personalInfo || {
+      name: "",
+      email: "",
+      phone: "",
+      intro: "",
+      links: {},
+    };
+    const safePersonalInfo = {
+      name: parsedPersonalInfo.name || "",
+      email: parsedPersonalInfo.email || "",
+      phone: parsedPersonalInfo.phone || "",
+      intro: parsedPersonalInfo.intro || "",
+      links: parsedPersonalInfo.links || {},
     };
 
     const addSkill = () => {
@@ -53,7 +61,7 @@ export function ResumeCheckForm({ resumeData, updateResumeData }: ResumeCheckFor
         <div className="grid gap-6">
             {/* Personal Info Check */}
             <Card>
-                <CardHeader pb-4>
+                <CardHeader className="pb-4">
                     <CardTitle className="text-lg flex items-center gap-2">
                         <User className="w-5 h-5 text-muted-foreground" /> 기본 정보 & 한 줄 소개
                     </CardTitle>

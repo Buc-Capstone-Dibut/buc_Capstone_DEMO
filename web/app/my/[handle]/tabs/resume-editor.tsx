@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, X, Trash2, Plus, Loader2 } from "lucide-react";
+import { Sparkles, X, Trash2, Plus, Loader2, Upload } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
+import { normalizeResumePayload } from "../profile-utils";
 
 interface ResumeEditorProps {
   payload: ResumePayload;
@@ -26,6 +28,9 @@ export function ResumeEditor({
   onGoSetup,
 }: ResumeEditorProps) {
   const [newSkill, setNewSkill] = useState("");
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { toast } = useToast();
 
   const pi = payload.personalInfo;
 
@@ -127,6 +132,42 @@ export function ResumeEditor({
     onChange({ ...payload, projects: next });
   };
 
+  const parseResumeFile = async (file: File) => {
+    setIsParsingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/interview/parse-resume", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success || !result?.data) {
+        throw new Error(result?.error || "이력서 파일 파싱에 실패했습니다.");
+      }
+
+      onChange(normalizeResumePayload(result.data));
+      toast({
+        title: "이력서 파싱 완료",
+        description: "파싱된 내용이 편집 폼에 반영되었습니다. 저장 버튼을 눌러 확정하세요.",
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "이력서 파싱 중 오류가 발생했습니다.";
+      toast({
+        title: "파싱 실패",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsParsingFile(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -139,14 +180,47 @@ export function ResumeEditor({
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onGoSetup}
-          className="shrink-0 gap-1.5 text-xs"
-        >
-          면접 시작하기
-        </Button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void parseResumeFile(file);
+              event.target.value = "";
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            className="shrink-0 gap-1.5 text-xs"
+            disabled={isParsingFile}
+          >
+            {isParsingFile ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                파싱 중...
+              </>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5" />
+                파일 불러와 파싱
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onGoSetup}
+            className="shrink-0 gap-1.5 text-xs"
+          >
+            면접 시작하기
+          </Button>
+        </div>
       </div>
 
       <Card>
