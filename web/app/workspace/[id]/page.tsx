@@ -62,6 +62,26 @@ const TeamChat = dynamic(
     loading: () => <Skeleton className="h-full w-full rounded-lg" />,
   },
 );
+const WorkspaceMembersView = dynamic(
+  () =>
+    import("@/components/features/workspace/detail/workspace-members-view").then(
+      (mod) => mod.WorkspaceMembersView,
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+  },
+);
+const WorkspaceSettingsView = dynamic(
+  () =>
+    import(
+      "@/components/features/workspace/detail/workspace-settings-view"
+    ).then((mod) => mod.WorkspaceSettingsView),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+  },
+);
 const LiveHuddle = dynamic(
   () =>
     import("@/components/features/workspace/detail/huddle/live-huddle").then(
@@ -103,6 +123,8 @@ const ALLOWED_TABS = new Set([
   "schedule",
   "docs",
   "ideas",
+  "members",
+  "settings",
   "inbox",
   "briefcase",
   "huddle",
@@ -192,6 +214,18 @@ export default function WorkspaceDetailPage() {
         return (
           <div className="h-full">
             <IdeaBoard projectId={projectId} />
+          </div>
+        );
+      case "members":
+        return (
+          <div className="h-full overflow-y-auto p-6">
+            <WorkspaceMembersView projectId={projectId} />
+          </div>
+        );
+      case "settings":
+        return (
+          <div className="h-full overflow-y-auto p-6">
+            <WorkspaceSettingsView projectId={projectId} />
           </div>
         );
       case "inbox":

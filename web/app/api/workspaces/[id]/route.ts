@@ -3,8 +3,12 @@ import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
+const getErrorMessage = (error: unknown) => {
+  return error instanceof Error ? error.message : "Unknown error";
+};
+
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -46,6 +50,11 @@ export async function GET(
                 id: true,
                 nickname: true,
                 avatar_url: true,
+                users: {
+                  select: {
+                    email: true,
+                  },
+                },
               },
             },
           },
@@ -61,18 +70,21 @@ export async function GET(
     const formattedWorkspace = {
       ...workspace,
       members: workspace.members.map((wm) => ({
-        id: wm.user?.id,
+        id: wm.user_id,
         name: wm.user?.nickname || "Unknown",
+        nickname: wm.user?.nickname || "Unknown",
+        email: wm.user?.users?.email || null,
         avatar: wm.user?.avatar_url,
         role: wm.role,
+        joined_at: wm.joined_at,
         online: false, // TODO: integrate with presence later
       })),
     };
 
     return NextResponse.json(formattedWorkspace);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Get Workspace Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -120,14 +132,14 @@ export async function PATCH(
     });
 
     return NextResponse.json(updated);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Update Workspace Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -168,8 +180,8 @@ export async function DELETE(
     });
 
     return NextResponse.json({ message: "Workspace deleted successfully" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Delete Workspace Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -17,6 +17,7 @@ import {
   LogOut,
   Settings,
   UserPlus,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -61,6 +62,31 @@ interface WorkspaceSidebarProps {
   onTabChange: (tab: string) => void;
 }
 
+type WorkspaceSummary = {
+  id: string;
+  name: string;
+};
+
+type VoiceParticipant = {
+  identity: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+};
+
+type RoomParticipants = Record<string, VoiceParticipant[]>;
+
+type SidebarMember = {
+  id: string;
+  name: string;
+  role: string;
+};
+
+type SidebarProject = {
+  id: string;
+  name: string;
+  members?: SidebarMember[];
+};
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
@@ -97,14 +123,14 @@ export function WorkspaceSidebar({
   } as const;
 
   // Fetch all workspaces for the switcher
-  const { data: workspaces } = useSWR<any[]>(
+  const { data: workspaces } = useSWR<WorkspaceSummary[]>(
     "/api/workspaces",
     fetcher,
     swrOptions,
   );
 
   // Poll for Room Participants (Socket-driven + 15s fallback)
-  const { data: roomParticipants, mutate: mutateRooms } = useSWR(
+  const { data: roomParticipants, mutate: mutateRooms } = useSWR<RoomParticipants>(
     "/api/livekit/rooms",
     fetcher,
     {
@@ -170,7 +196,7 @@ export function WorkspaceSidebar({
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDesc, setNewChannelDesc] = useState("");
 
-  const { data: project, isLoading } = useSWR(
+  const { data: project, isLoading } = useSWR<SidebarProject>(
     `/api/workspaces/${projectId}`,
     fetcher,
     swrOptions,
@@ -208,6 +234,8 @@ export function WorkspaceSidebar({
     { id: "board", label: "Board", icon: Kanban },
     { id: "docs", label: "Documents", icon: FileText },
     { id: "ideas", label: "Ideas", icon: Lightbulb },
+    { id: "members", label: "Members", icon: Users },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
@@ -400,7 +428,7 @@ export function WorkspaceSidebar({
             </Button>
             {roomParticipants?.["dev-room"]?.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {roomParticipants["dev-room"].map((p: any) => (
+                {roomParticipants["dev-room"].map((p) => (
                   <div
                     key={p.identity}
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
@@ -443,7 +471,7 @@ export function WorkspaceSidebar({
             </Button>
             {roomParticipants?.["lounge"]?.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {roomParticipants["lounge"].map((p: any) => (
+                {roomParticipants["lounge"].map((p) => (
                   <div
                     key={p.identity}
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
@@ -492,7 +520,11 @@ export function WorkspaceSidebar({
                   <UserPlus className="mr-2 h-4 w-4" />
                   팀원 초대
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onTabChange("members")}>
+                  <Users className="mr-2 h-4 w-4" />
+                  멤버 탭 이동
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onTabChange("settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   워크스페이스 설정
                 </DropdownMenuItem>
@@ -509,11 +541,11 @@ export function WorkspaceSidebar({
           </div>
         </div>
         <div className="space-y-1">
-          {project?.members?.map((member: any, i: number) => {
+          {project?.members?.map((member) => {
             const isOnline = onlineUsers.has(member.id);
             return (
               <div
-                key={i}
+                key={member.id}
                 className="flex items-center justify-between px-2 py-1.5 text-sm group hover:bg-muted/50 rounded-md"
               >
                 <div className="flex items-center overflow-hidden">
