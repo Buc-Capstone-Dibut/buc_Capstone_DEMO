@@ -53,15 +53,12 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
       t.status === "completed" ||
       t.status === "finished",
   ).length;
-  const progress =
-    totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6 animate-in fade-in duration-500">
       {/* Top Hero Section */}
       <ProjectHero
         project={project}
-        progress={progress}
         totalTasks={totalTasks}
         completedTasks={completedTasks}
       />

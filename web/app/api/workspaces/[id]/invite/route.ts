@@ -33,7 +33,7 @@ export async function POST(
   }
 
   try {
-    // 1. Check if inviter exists and has permission (is member)
+    // 1. Check if inviter exists and has permission (owner only)
     const inviterMember = await prisma.workspace_members.findUnique({
       where: {
         workspace_id_user_id: {
@@ -46,6 +46,13 @@ export async function POST(
     if (!inviterMember) {
       return NextResponse.json(
         { error: "You are not a member of this workspace" },
+        { status: 403 },
+      );
+    }
+
+    if (inviterMember.role !== "owner") {
+      return NextResponse.json(
+        { error: "Only the workspace owner can invite members" },
         { status: 403 },
       );
     }

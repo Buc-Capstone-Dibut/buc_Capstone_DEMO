@@ -28,6 +28,7 @@ type WorkspaceMember = {
 };
 
 type WorkspaceResponse = {
+  my_role?: string | null;
   members?: WorkspaceMember[];
 };
 
@@ -70,6 +71,7 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
   );
 
   const members = useMemo(() => data?.members ?? [], [data?.members]);
+  const isOwner = data?.my_role === "owner";
 
   return (
     <div className="p-6 md:p-10 max-w-4xl min-w-0 mx-auto space-y-8 animate-in fade-in duration-300">
@@ -80,13 +82,15 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
             워크스페이스에 참여 중인 팀원들의 권한과 정보를 확인하고 관리합니다.
           </p>
         </div>
-        <Button
-          onClick={() => setInviteOpen(true)}
-          className="gap-2 shadow-sm shrink-0"
-        >
-          <UserPlus className="h-4 w-4" />
-          새로운 팀원 초대
-        </Button>
+        {isOwner && (
+          <Button
+            onClick={() => setInviteOpen(true)}
+            className="gap-2 shadow-sm shrink-0"
+          >
+            <UserPlus className="h-4 w-4" />
+            새로운 팀원 초대
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -190,14 +194,16 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <InviteMemberModal
-        workspaceId={projectId}
-        isOpen={inviteOpen}
-        onClose={() => {
-          setInviteOpen(false);
-          void mutate();
-        }}
-      />
+      {isOwner && (
+        <InviteMemberModal
+          workspaceId={projectId}
+          isOpen={inviteOpen}
+          onClose={() => {
+            setInviteOpen(false);
+            void mutate();
+          }}
+        />
+      )}
     </div>
   );
 }

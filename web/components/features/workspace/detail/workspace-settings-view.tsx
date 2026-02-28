@@ -7,9 +7,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Loader2, Save, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   Form,
   FormControl,
@@ -27,6 +35,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const formSchema = z.object({
   name: z
@@ -43,6 +59,7 @@ const formSchema = z.object({
 type WorkspaceResponse = {
   id: string;
   name: string;
+  my_role?: string | null;
   category?: string | null;
   description?: string | null;
 };
@@ -57,11 +74,20 @@ const fetcher = async (url: string) => {
 };
 
 export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const { data, isLoading } = useSWR(`/api/workspaces/${projectId}`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   });
+
+  const workspaceName = data?.name ?? "";
+  const canManageSettings = data?.my_role === "owner";
+  const canDelete =
+    workspaceName.length > 0 && deleteConfirmName.trim() === workspaceName;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -80,6 +106,12 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       description: data.description || "",
     });
   }, [data, form]);
+
+  useEffect(() => {
+    if (!isLoading && data && !canManageSettings) {
+      router.replace(`/workspace/${projectId}`);
+    }
+  }, [canManageSettings, data, isLoading, projectId, router]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -109,14 +141,49 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!canDelete) return;
+
+    try {
+      setDeleting(true);
+      const response = await fetch(`/api/workspaces/${projectId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(
+          result.error || "워크스페이스 삭제에 실패했습니다. 다시 시도해주세요.",
+        );
+      }
+
+      toast.success("워크스페이스가 삭제되었습니다.");
+      setDeleteDialogOpen(false);
+      setDeleteConfirmName("");
+      void globalMutate("/api/workspaces");
+      router.push("/workspace");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "워크스페이스 삭제 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6 pb-12">
       <div>
         <h2 className="text-xl font-semibold">워크스페이스 설정</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mt-1">
           이름, 유형, 설명을 이 탭에서 바로 관리할 수 있습니다.
         </p>
       </div>
+
+      <Separator />
 
       <Card>
         <CardHeader className="pb-3">
@@ -216,6 +283,116 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
           )}
         </CardContent>
       </Card>
+
+      <Card className="shadow-sm mt-8">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Settings className="h-4 w-4" />
+            워크스페이스 관리
+          </CardTitle>
+          <CardDescription>
+            워크스페이스의 상태를 변경하거나 데이터를 영구적으로 삭제할 수
+            있습니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-medium">워크스페이스 종료</h4>
+              <p className="text-sm text-muted-foreground leading-snug">
+                새로운 멤버를 초대할 수 없게 되며 읽기 전용으로 종료됩니다.
+              </p>
+            </div>
+            <Button variant="outline" className="shrink-0 h-9">
+              종료
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-medium text-destructive">
+                워크스페이스 삭제
+              </h4>
+              <p className="text-sm text-muted-foreground leading-snug">
+                워크스페이스와 관련된 모든 데이터가 삭제되며 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              className="shrink-0 h-9"
+              onClick={() => {
+                setDeleteConfirmName("");
+                setDeleteDialogOpen(true);
+              }}
+            >
+              삭제
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setDeleteConfirmName("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>워크스페이스 삭제</DialogTitle>
+            <DialogDescription>
+              이 작업은 되돌릴 수 없습니다. 아래 안내를 확인하고 정확한
+              워크스페이스 이름을 입력해야 삭제가 가능합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-foreground">
+              삭제하려면 워크스페이스 이름{" "}
+              <span className="font-bold">{workspaceName}</span>을(를) 정확히
+              입력하세요.
+            </p>
+            <div className="space-y-2">
+              <Input
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder="프로젝트 이름을 입력해 주세요"
+                autoComplete="off"
+              />
+              {!canDelete && deleteConfirmName.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  입력한 이름이 워크스페이스 이름과 일치하지 않습니다.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleting}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteWorkspace}
+              disabled={!canDelete || deleting}
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              삭제
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

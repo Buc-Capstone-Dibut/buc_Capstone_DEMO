@@ -16,13 +16,11 @@ import {
   ChevronDown,
   LogOut,
   Settings,
-  UserPlus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { InviteMemberModal } from "@/components/features/workspace/dialogs/invite-member-modal";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -84,6 +82,7 @@ type SidebarMember = {
 type SidebarProject = {
   id: string;
   name: string;
+  my_role?: string | null;
   members?: SidebarMember[];
 };
 
@@ -190,7 +189,6 @@ export function WorkspaceSidebar({
     });
   }, [notifications, channels, setChannelMention, activeTab, markAsRead]);
 
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isLeaveAlertOpen, setIsLeaveAlertOpen] = useState(false);
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
@@ -201,6 +199,7 @@ export function WorkspaceSidebar({
     fetcher,
     swrOptions,
   );
+  const isOwner = project?.my_role === "owner";
 
   // Leave Workspace Handler
   const handleLeaveWorkspace = async () => {
@@ -229,13 +228,21 @@ export function WorkspaceSidebar({
     setIsChannelDialogOpen(false);
   };
 
+  const handleOpenLeave = () => {
+    if (isOwner) {
+      toast.error("소유자는 워크스페이스에서 나갈 수 없습니다.");
+      return;
+    }
+    setIsLeaveAlertOpen(true);
+  };
+
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "board", label: "Board", icon: Kanban },
     { id: "docs", label: "Documents", icon: FileText },
     { id: "ideas", label: "Ideas", icon: Lightbulb },
     { id: "members", label: "Members", icon: Users },
-    { id: "settings", label: "Settings", icon: Settings },
+    ...(isOwner ? [{ id: "settings", label: "Settings", icon: Settings }] : []),
   ];
 
   return (
@@ -507,38 +514,15 @@ export function WorkspaceSidebar({
       <div className="p-4 border-t">
         <div className="mb-2 px-2 text-xs font-semibold text-muted-foreground flex items-center justify-between group">
           Team
-          <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Settings className="h-3.5 w-3.5 cursor-pointer hover:text-primary transition-colors" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-                  프로젝트 관리
-                </DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setIsInviteModalOpen(true)}>
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  팀원 초대
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onTabChange("members")}>
-                  <Users className="mr-2 h-4 w-4" />
-                  멤버 탭 이동
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onTabChange("settings")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  워크스페이스 설정
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => setIsLeaveAlertOpen(true)}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  워크스페이스 나가기
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <button
+            type="button"
+            onClick={handleOpenLeave}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-red-600 hover:bg-muted"
+            aria-label="워크스페이스 나가기"
+            title="워크스페이스 나가기"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
         <div className="space-y-1">
           {project?.members?.map((member) => {
@@ -562,12 +546,6 @@ export function WorkspaceSidebar({
           })}
         </div>
       </div>
-
-      <InviteMemberModal
-        workspaceId={projectId}
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-      />
 
       {/* Channel Creation Dialog */}
       <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>

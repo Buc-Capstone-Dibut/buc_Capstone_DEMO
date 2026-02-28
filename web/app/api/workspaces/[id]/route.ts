@@ -69,6 +69,7 @@ export async function GET(
     // Transform response to match frontend expectation
     const formattedWorkspace = {
       ...workspace,
+      my_role: memberCheck.role,
       members: workspace.members.map((wm) => ({
         id: wm.user_id,
         name: wm.user?.nickname || "Unknown",

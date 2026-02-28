@@ -3,30 +3,32 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  ExternalLink,
-  Plus,
-  FileText,
-  Video,
-  CheckCircle2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { EditWorkspaceDialog } from "../../dialogs/edit-workspace-dialog";
+import { Plus, FileText, CheckCircle2, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+type HeroProject = {
+  id: string;
+  name: string;
+  category?: string | null;
+  description?: string | null;
+  my_role?: string | null;
+  members?: Array<unknown>;
+};
 
 interface ProjectHeroProps {
-  project: any;
-  progress: number;
+  project: HeroProject | null | undefined;
   totalTasks: number;
   completedTasks: number;
 }
 
 export function ProjectHero({
   project,
-  progress,
   totalTasks,
   completedTasks,
 }: ProjectHeroProps) {
+  const router = useRouter();
   if (!project) return null;
+  const isOwner = project?.my_role === "owner";
 
   return (
     <Card className="border bg-background shadow-sm">
@@ -60,7 +62,16 @@ export function ProjectHero({
               새 문서
             </Button>
 
-            <EditWorkspaceDialog workspace={project} />
+            {isOwner && (
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => router.push(`/workspace/${project.id}?tab=settings`)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                설정
+              </Button>
+            )}
           </div>
         </div>
 
