@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } },
 ) {
   try {
@@ -25,7 +25,7 @@ export async function DELETE(
     // Verify ownership
     const comment = await prisma.comments.findUnique({
       where: { id },
-      select: { author_id: true },
+      select: { author_id: true, is_accepted: true },
     });
 
     if (!comment) {
@@ -39,13 +39,21 @@ export async function DELETE(
       );
     }
 
+    if (comment.is_accepted) {
+      return NextResponse.json(
+        { error: "Accepted comment cannot be deleted." },
+        { status: 409 },
+      );
+    }
+
     await prisma.comments.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Delete Comment Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

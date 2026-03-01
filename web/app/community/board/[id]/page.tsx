@@ -19,6 +19,16 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { PostActions } from "@/components/features/community/post-actions";
 
+const isQnaCategory = (category: string | null | undefined) => {
+  if (!category) return false;
+  const normalized = category.toLowerCase();
+  return (
+    normalized === "qna" ||
+    normalized === "질문게시판" ||
+    normalized === "질문/답변"
+  );
+};
+
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const { id } = await params;
   const post = await getPost(id);
@@ -36,6 +46,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const authorHref = post.author?.handle
     ? `/my/${encodeURIComponent(post.author.handle)}`
     : null;
+  const isQna = isQnaCategory(post.category);
 
   return (
     <div className="max-w-4xl mx-auto py-8">
@@ -49,6 +60,11 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
             >
               {post.category?.toUpperCase()}
             </Badge>
+            {isQna && post.has_accepted_answer && (
+              <Badge className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                채택 완료
+              </Badge>
+            )}
             {post.tags?.map((tag) => (
               <Badge
                 key={tag}
@@ -134,7 +150,13 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
       </div>
 
       {/* Comments */}
-      <CommentSection postId={post.id} comments={post.comments || []} />
+      <CommentSection
+        postId={post.id}
+        comments={post.comments || []}
+        postCategory={post.category}
+        hasAcceptedAnswer={Boolean(post.has_accepted_answer)}
+        isPostAuthor={isAuthor}
+      />
     </div>
   );
 }

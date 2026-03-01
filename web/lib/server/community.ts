@@ -74,6 +74,7 @@ export async function getPost(id: string) {
         tags: true,
         views: true,
         likes: true,
+        has_accepted_answer: true,
         created_at: true,
         updated_at: true,
         author_id: true,

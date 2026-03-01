@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Database } from "@/lib/database.types";
-import { Eye, Heart, MessageSquare } from "lucide-react";
+import { Eye, Heart, MessageSquare, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Post = Omit<
@@ -48,6 +48,7 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
   const authorHref = post.author?.handle
     ? `/my/${encodeURIComponent(post.author.handle)}`
     : null;
+  const isQna = post.category?.toLowerCase() === "qna";
 
   const handleNavigatePost = () => {
     router.push(href);
@@ -109,6 +110,12 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
             >
               {post.title}
             </Link>
+            {isQna && post.has_accepted_answer && (
+              <div className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">
+                <CheckCircle2 className="w-3 h-3" />
+                채택완료
+              </div>
+            )}
             {post.comments_count! > 0 && (
               <div className="flex items-center gap-0.5 text-xs text-primary font-medium bg-primary/5 px-1.5 py-0.5 rounded shrink-0">
                 <MessageSquare className="w-3 h-3" />
