@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import {
+  REPUTATION_DELTAS,
+  REPUTATION_EVENT_TYPES,
+  tryApplyReputationEvent,
+} from "@/lib/server/reputation";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +41,7 @@ export async function POST(
       select: {
         id: true,
         post_id: true,
+        author_id: true,
         is_accepted: true,
       },
     });
@@ -101,22 +107,41 @@ export async function POST(
       );
     }
 
-    await prisma.$transaction([
-      prisma.comments.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.comments.update({
         where: { id: targetComment.id },
         data: {
           is_accepted: true,
           updated_at: new Date(),
         },
-      }),
-      prisma.posts.update({
+      });
+
+      await tx.posts.update({
         where: { id: post.id },
         data: {
           has_accepted_answer: true,
           updated_at: new Date(),
         },
-      }),
-    ]);
+      });
+
+      // Self-accept is allowed functionally, but no reputation is granted.
+      if (
+        targetComment.author_id &&
+        targetComment.author_id !== session.user.id
+      ) {
+        await tryApplyReputationEvent({
+          tx,
+          userId: targetComment.author_id,
+          eventType: REPUTATION_EVENT_TYPES.qnaAnswerAccepted,
+          delta: REPUTATION_DELTAS.qnaAnswerAccepted,
+          sourceType: "comment",
+          sourceId: targetComment.id,
+          actorId: session.user.id,
+          dedupeKey: `qna_answer_accept:${targetComment.id}`,
+          metadata: { postId: post.id },
+        });
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

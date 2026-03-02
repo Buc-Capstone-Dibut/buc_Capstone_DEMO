@@ -3,9 +3,24 @@ import prisma from "@/lib/prisma";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import {
+  REPUTATION_DELTAS,
+  REPUTATION_EVENT_TYPES,
+  tryApplyReputationEvent,
+} from "@/lib/server/reputation";
 
 // Community post creation is session-authenticated and always uses session.user.id
 // as the author to avoid forged user_id payloads.
+
+const isQnaCategory = (category: string | null | undefined) => {
+  if (!category) return false;
+  const normalized = category.toLowerCase();
+  return (
+    normalized === "qna" ||
+    normalized === "질문게시판" ||
+    normalized === "질문/답변"
+  );
+};
 
 export async function POST(request: Request) {
   try {
@@ -71,6 +86,17 @@ export async function POST(request: Request) {
       MY_ACTIVITY_EVENT_TYPES.communityPostCreated,
       post.id,
     );
+
+    if (isQnaCategory(category)) {
+      await tryApplyReputationEvent({
+        userId: user_id,
+        eventType: REPUTATION_EVENT_TYPES.qnaQuestionCreated,
+        delta: REPUTATION_DELTAS.qnaQuestionCreated,
+        sourceType: "post",
+        sourceId: post.id,
+        dedupeKey: `qna_question_create:${post.id}`,
+      });
+    }
 
     return NextResponse.json({ success: true, id: post.id });
   } catch (e: unknown) {

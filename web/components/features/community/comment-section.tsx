@@ -32,6 +32,7 @@ type Comment = Omit<
     nickname: string | null;
     avatar_url: string | null;
     handle?: string | null;
+    tier?: string | null;
   } | null;
   post_id: string | null;
   is_accepted: boolean | null;
@@ -69,6 +70,14 @@ const sortComments = (items: Comment[]) => {
     const bTime = new Date(b.created_at || 0).getTime();
     return aTime - bTime;
   });
+};
+
+const AUTHOR_TIER_STYLE: Record<string, string> = {
+  Bronze: "border-amber-400/70 text-amber-700 bg-amber-50",
+  Silver: "border-slate-400/70 text-slate-700 bg-slate-50",
+  Gold: "border-yellow-400/70 text-yellow-700 bg-yellow-50",
+  Platinum: "border-cyan-400/70 text-cyan-700 bg-cyan-50",
+  Diamond: "border-violet-400/70 text-violet-700 bg-violet-50",
 };
 
 export function CommentSection({
@@ -277,6 +286,17 @@ export function CommentSection({
                         {comment.author?.nickname || "익명"}
                       </span>
                     )}
+                    {comment.author?.tier ? (
+                      <span
+                        className={cn(
+                          "rounded border px-1.5 py-0 text-[10px] font-medium",
+                          AUTHOR_TIER_STYLE[comment.author.tier] ??
+                            "border-muted text-muted-foreground",
+                        )}
+                      >
+                        {comment.author.tier}
+                      </span>
+                    ) : null}
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(
                         new Date(comment.created_at || new Date()),
@@ -415,6 +435,17 @@ export function CommentSection({
                               {reply.author?.nickname || "익명"}
                             </span>
                           )}
+                          {reply.author?.tier ? (
+                            <span
+                              className={cn(
+                                "rounded border px-1.5 py-0 text-[10px] font-medium",
+                                AUTHOR_TIER_STYLE[reply.author.tier] ??
+                                  "border-muted text-muted-foreground",
+                              )}
+                            >
+                              {reply.author.tier}
+                            </span>
+                          ) : null}
                           <span className="text-xs text-muted-foreground">
                             {formatDistanceToNow(
                               new Date(reply.created_at || new Date()),

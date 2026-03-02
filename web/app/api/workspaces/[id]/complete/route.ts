@@ -4,6 +4,11 @@ import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
+import {
+  REPUTATION_DELTAS,
+  REPUTATION_EVENT_TYPES,
+  tryApplyReputationEvent,
+} from "@/lib/server/reputation";
 
 function normalizeOptionalText(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -83,6 +88,27 @@ export async function POST(
         result_note: true,
       },
     });
+
+    const members = await prisma.workspace_members.findMany({
+      where: { workspace_id: workspaceId },
+      select: { user_id: true },
+    });
+
+    await Promise.all(
+      members
+        .filter((member) => Boolean(member.user_id))
+        .map((member) =>
+          tryApplyReputationEvent({
+            userId: member.user_id,
+            eventType: REPUTATION_EVENT_TYPES.workspaceCompleted,
+            delta: REPUTATION_DELTAS.workspaceCompleted,
+            sourceType: "workspace",
+            sourceId: workspaceId,
+            actorId: userId,
+            dedupeKey: `workspace_completed:${workspaceId}:${member.user_id}`,
+          }),
+        ),
+    );
 
     return NextResponse.json({ success: true, workspace: updated });
   } catch (error: unknown) {

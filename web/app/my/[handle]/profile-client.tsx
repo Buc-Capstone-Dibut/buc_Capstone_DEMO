@@ -139,6 +139,8 @@ function parsePortfolioSummary(
 }
 
 const TIER_BADGE: Record<string, string> = {
+  Unranked:
+    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
   Bronze:
     "border-amber-400/70 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20",
   Silver:
@@ -518,6 +520,12 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     ★ {profile.tier}
                   </Badge>
                 )}
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 h-5 font-normal border-primary/30 text-primary"
+                >
+                  점수 {Math.max(0, profile.reputation || 0).toLocaleString()}
+                </Badge>
               </div>
               <p className="text-sm text-muted-foreground">@{profile.handle}</p>
             </div>

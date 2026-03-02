@@ -4,6 +4,11 @@ import { NextResponse } from "next/server";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 import prisma from "@/lib/prisma";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
+import {
+  REPUTATION_DELTAS,
+  REPUTATION_EVENT_TYPES,
+  tryApplyReputationEvent,
+} from "@/lib/server/reputation";
 
 export async function PATCH(
   request: Request,
@@ -52,7 +57,16 @@ export async function PATCH(
       updates.due_date = new Date(updates.dueDate);
     }
 
-    const allowedUpdates: any = {};
+    const allowedUpdates: {
+      title?: string;
+      description?: string;
+      column_id?: string;
+      assignee_id?: string | null;
+      tags?: string[];
+      due_date?: Date | null;
+      order?: number;
+      priority?: string | null;
+    } = {};
     if (updates.title !== undefined) allowedUpdates.title = updates.title;
     if (updates.description !== undefined)
       allowedUpdates.description = updates.description;
@@ -101,6 +115,15 @@ export async function PATCH(
           MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
           updatedTask.id,
         );
+        await tryApplyReputationEvent({
+          userId: user.id,
+          eventType: REPUTATION_EVENT_TYPES.workspaceTaskCompleted,
+          delta: REPUTATION_DELTAS.workspaceTaskCompleted,
+          sourceType: "workspace_task",
+          sourceId: updatedTask.id,
+          dedupeKey: `workspace_task_completed:${updatedTask.id}:${user.id}`,
+          metadata: { workspaceId },
+        });
       }
     }
 

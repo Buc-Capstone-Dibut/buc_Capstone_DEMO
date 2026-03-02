@@ -31,7 +31,13 @@ export async function getPosts(category?: string, page = 1, limit = 15) {
           updated_at: true,
           author_id: true,
           profiles: {
-            select: { id: true, nickname: true, avatar_url: true, handle: true },
+            select: {
+              id: true,
+              nickname: true,
+              avatar_url: true,
+              handle: true,
+              tier: true,
+            },
           },
           _count: { select: { comments: true } },
         },
@@ -79,7 +85,13 @@ export async function getPost(id: string) {
         updated_at: true,
         author_id: true,
         profiles: {
-          select: { id: true, nickname: true, avatar_url: true, handle: true },
+          select: {
+            id: true,
+            nickname: true,
+            avatar_url: true,
+            handle: true,
+            tier: true,
+          },
         },
         comments: {
           select: {
@@ -92,7 +104,13 @@ export async function getPost(id: string) {
             updated_at: true,
             author_id: true,
             profiles: {
-              select: { id: true, nickname: true, avatar_url: true, handle: true },
+              select: {
+                id: true,
+                nickname: true,
+                avatar_url: true,
+                handle: true,
+                tier: true,
+              },
             },
           },
           orderBy: { created_at: "asc" },

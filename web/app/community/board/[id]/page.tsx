@@ -29,6 +29,14 @@ const isQnaCategory = (category: string | null | undefined) => {
   );
 };
 
+const AUTHOR_TIER_STYLE: Record<string, string> = {
+  Bronze: "border-amber-400/70 text-amber-700 bg-amber-50",
+  Silver: "border-slate-400/70 text-slate-700 bg-slate-50",
+  Gold: "border-yellow-400/70 text-yellow-700 bg-yellow-50",
+  Platinum: "border-cyan-400/70 text-cyan-700 bg-cyan-50",
+  Diamond: "border-violet-400/70 text-violet-700 bg-violet-50",
+};
+
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
   const { id } = await params;
   const post = await getPost(id);
@@ -92,8 +100,17 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="font-medium text-sm group-hover:underline">
-                    {post.author?.nickname || "익명"}
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-sm group-hover:underline">
+                      {post.author?.nickname || "익명"}
+                    </div>
+                    {post.author?.tier ? (
+                      <span
+                        className={`rounded border px-1.5 py-0 text-[10px] font-medium ${AUTHOR_TIER_STYLE[post.author.tier] ?? "border-muted text-muted-foreground"}`}
+                      >
+                        {post.author.tier}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatDistanceToNow(
@@ -115,8 +132,17 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="font-medium text-sm">
-                    {post.author?.nickname || "익명"}
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-sm">
+                      {post.author?.nickname || "익명"}
+                    </div>
+                    {post.author?.tier ? (
+                      <span
+                        className={`rounded border px-1.5 py-0 text-[10px] font-medium ${AUTHOR_TIER_STYLE[post.author.tier] ?? "border-muted text-muted-foreground"}`}
+                      >
+                        {post.author.tier}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatDistanceToNow(

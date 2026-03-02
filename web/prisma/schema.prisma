@@ -527,6 +527,7 @@ model profiles {
   resume_profile     user_resume_profiles?
   workspace_settings user_workspace_settings?
   activity_events    user_activity_events[]
+  reputation_events  reputation_events[]
 
   @@schema("public")
 }
@@ -579,6 +580,24 @@ model user_activity_events {
   @@index([user_id, created_at(sort: Desc)])
   @@index([event_type])
   @@index([user_id, event_type, created_at(sort: Desc)])
+  @@schema("public")
+}
+
+model reputation_events {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String    @db.Uuid
+  event_type String
+  delta      Int
+  source_type String?
+  source_id  String?
+  actor_id   String?   @db.Uuid
+  dedupe_key String?   @unique
+  metadata   Json?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([event_type, created_at(sort: Desc)])
   @@schema("public")
 }
 
