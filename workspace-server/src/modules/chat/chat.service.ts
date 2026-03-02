@@ -2,6 +2,7 @@ import "../../config/env";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const READ_ONLY_ERROR = "이 워크스페이스는 종료되어 읽기 전용입니다.";
 
 function toMessagePayload(msg: {
   id: string;
@@ -32,6 +33,29 @@ function toMessagePayload(msg: {
 }
 
 export class ChatService {
+  static async isWorkspaceReadOnly(workspaceId: string): Promise<boolean> {
+    try {
+      const rows = await prisma.$queryRaw<Array<{ lifecycle_status: string }>>`
+        SELECT w.lifecycle_status::text AS lifecycle_status
+        FROM "public"."workspaces" w
+        WHERE w.id = ${workspaceId}::uuid
+        LIMIT 1
+      `;
+      return rows[0]?.lifecycle_status === "COMPLETED";
+    } catch (error) {
+      // Keep chat available if lifecycle fields are not ready yet.
+      console.warn("[Service] read-only check skipped:", error);
+      return false;
+    }
+  }
+
+  static async assertWorkspaceWritable(workspaceId: string): Promise<void> {
+    const readOnly = await this.isWorkspaceReadOnly(workspaceId);
+    if (readOnly) {
+      throw new Error(READ_ONLY_ERROR);
+    }
+  }
+
   // --- Channel Management ---
 
   static async getChannels(workspaceId: string) {
@@ -45,6 +69,11 @@ export class ChatService {
     console.log(`[Service] DB returned ${channels.length} channels`);
 
     if (channels.length === 0) {
+      const readOnly = await this.isWorkspaceReadOnly(workspaceId);
+      if (readOnly) {
+        return [];
+      }
+
       console.log(
         `[Service] No channels found. Creating default 'general' channel.`,
       );
@@ -65,6 +94,8 @@ export class ChatService {
     name: string,
     description: string = "",
   ) {
+    await this.assertWorkspaceWritable(workspaceId);
+
     // Check duplicate name
     const existing = await prisma.workspace_channels.findFirst({
       where: { workspace_id: workspaceId, name },
@@ -116,9 +147,10 @@ export class ChatService {
     content: string,
     senderId: string,
   ) {
-    // Ensure channel exists
-    // const channel = await this.getChannelById(channelId);
-    // if (!channel) throw new Error("Channel not found");
+    const channel = await this.getChannelById(channelId);
+    if (!channel) throw new Error("Channel not found");
+
+    await this.assertWorkspaceWritable(channel.workspace_id);
 
     const msg = await prisma.workspace_messages.create({
       data: {

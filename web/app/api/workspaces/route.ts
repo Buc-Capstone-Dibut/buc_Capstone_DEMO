@@ -5,8 +5,29 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 
+type WorkspaceMembership = {
+  role: string;
+  joined_at: Date;
+  workspace: {
+    id: string;
+    name: string;
+    description: string | null;
+    icon_url: string | null;
+    category: string;
+    lifecycle_status: "IN_PROGRESS" | "COMPLETED";
+    completed_at: Date | null;
+    result_type: string | null;
+    result_link: string | null;
+    result_note: string | null;
+    created_at: Date;
+    updated_at: Date;
+    from_squad_id: string | null;
+    _count: { members: number };
+  };
+};
+
 // GET: List My Workspaces
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const {
@@ -20,27 +41,69 @@ export async function GET(request: Request) {
     const userId = session.user.id;
 
     // 1단계: 내 멤버십 + 워크스페이스 기본 정보 + 멤버 수만 조회 (N+1 없음)
-    const memberships = await prisma.workspace_members.findMany({
-      where: { user_id: userId },
-      select: {
-        role: true,
-        joined_at: true,
-        workspace: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            icon_url: true,
-            category: true,
-            created_at: true,
-            updated_at: true,
-            from_squad_id: true,
-            _count: { select: { members: true } },
+    let memberships: WorkspaceMembership[] = [];
+    try {
+      memberships = await prisma.workspace_members.findMany({
+        where: { user_id: userId },
+        select: {
+          role: true,
+          joined_at: true,
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              icon_url: true,
+              category: true,
+              lifecycle_status: true,
+              completed_at: true,
+              result_type: true,
+              result_link: true,
+              result_note: true,
+              created_at: true,
+              updated_at: true,
+              from_squad_id: true,
+              _count: { select: { members: true } },
+            },
           },
         },
-      },
-      orderBy: { joined_at: "desc" },
-    });
+        orderBy: { joined_at: "desc" },
+      });
+    } catch {
+      // Fallback for pre-migration environments.
+      const legacyMemberships = await prisma.workspace_members.findMany({
+        where: { user_id: userId },
+        select: {
+          role: true,
+          joined_at: true,
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              icon_url: true,
+              category: true,
+              created_at: true,
+              updated_at: true,
+              from_squad_id: true,
+              _count: { select: { members: true } },
+            },
+          },
+        },
+        orderBy: { joined_at: "desc" },
+      });
+      memberships = legacyMemberships.map((row) => ({
+        ...row,
+        workspace: {
+          ...row.workspace,
+          lifecycle_status: "IN_PROGRESS" as const,
+          completed_at: null,
+          result_type: null,
+          result_link: null,
+          result_note: null,
+        },
+      }));
+    }
 
     const workspaceIds = memberships.map((m) => m.workspace.id);
 

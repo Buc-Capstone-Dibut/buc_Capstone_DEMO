@@ -2,6 +2,10 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import {
+  getWorkspaceLifecycle,
+  isWorkspaceCompleted,
+} from "@/lib/server/workspace-lifecycle";
 
 export async function GET(
   request: Request,
@@ -31,6 +35,12 @@ export async function GET(
 
   if (!memberCheck) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const workspace = await getWorkspaceLifecycle(workspaceId);
+
+  if (!workspace) {
+    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
 
   // 2. Fetch columns first, then use column_id IN (...) for task lookup.
@@ -112,6 +122,14 @@ export async function GET(
   );
 
   return NextResponse.json({
+    workspace: {
+      lifecycleStatus: workspace.lifecycle_status,
+      completedAt: workspace.completed_at,
+      resultType: workspace.result_type,
+      resultLink: workspace.result_link,
+      resultNote: workspace.result_note,
+      readOnly: isWorkspaceCompleted(workspace),
+    },
     columns: columns.map((c: any) => ({
       id: c.id,
       title: c.title,

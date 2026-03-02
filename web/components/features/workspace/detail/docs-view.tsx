@@ -11,7 +11,6 @@ import {
   FileText,
   Smile,
   Slash,
-  Clock,
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,8 +24,6 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { useDebouncedCallback } from "use-debounce";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
 
 // Stable color generator
 const stringToColor = (str: string) => {
@@ -46,12 +43,26 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function DocsView({ projectId }: DocsViewProps) {
   const { user, profile } = useAuth();
+  const swrOptions = {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  } as const;
+
+  const { data: workspaceMeta } = useSWR(
+    `/api/workspaces/${projectId}`,
+    fetcher,
+    swrOptions,
+  );
+  const isReadOnly = Boolean(
+    workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
+  );
+
   // Fetch Docs
   const {
     data: docs,
     mutate: mutateDocs,
     isLoading,
-  } = useSWR<any[]>(`/api/workspaces/${projectId}/docs`, fetcher);
+  } = useSWR<any[]>(`/api/workspaces/${projectId}/docs`, fetcher, swrOptions);
 
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
@@ -90,6 +101,10 @@ export function DocsView({ projectId }: DocsViewProps) {
   };
 
   const handleCreateRootDoc = async () => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     try {
       const res = await fetch(`/api/workspaces/${projectId}/docs`, {
         method: "POST",
@@ -108,6 +123,7 @@ export function DocsView({ projectId }: DocsViewProps) {
 
   // --- Header Update Logic (Shared with Page) ---
   const debouncedUpdate = useDebouncedCallback(async (updates: any) => {
+    if (isReadOnly) return;
     if (!activeDocId) return;
     try {
       await fetch(`/api/workspaces/${projectId}/docs/${activeDocId}`, {
@@ -158,6 +174,7 @@ export function DocsView({ projectId }: DocsViewProps) {
             size="icon"
             className="h-7 w-7"
             onClick={handleCreateRootDoc}
+            disabled={isReadOnly}
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -175,6 +192,7 @@ export function DocsView({ projectId }: DocsViewProps) {
               <DocumentList
                 workspaceId={projectId}
                 docs={docs}
+                readOnly={isReadOnly}
                 onExpand={toggleDoc}
                 expanded={expandedDocs}
                 onSelect={setActiveDocId}
@@ -188,6 +206,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleCreateRootDoc}
+                  disabled={isReadOnly}
                 >
                   Create First
                 </Button>
@@ -217,6 +236,11 @@ export function DocsView({ projectId }: DocsViewProps) {
               </div>
 
               <div className="flex items-center gap-1">
+                {isReadOnly && (
+                  <span className="text-[11px] text-muted-foreground rounded-md border bg-muted/30 px-2 py-1 mr-2">
+                    읽기 전용
+                  </span>
+                )}
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
                   {lastSaved ? (
                     <>
@@ -251,6 +275,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                           variant="ghost"
                           size="sm"
                           className="text-muted-foreground h-6 px-1.5 text-xs"
+                          disabled={isReadOnly}
                         >
                           <Smile className="w-3.5 h-3.5 mr-1" /> Add Icon
                         </Button>
@@ -274,7 +299,9 @@ export function DocsView({ projectId }: DocsViewProps) {
                   <div className="group relative w-fit mb-4">
                     <Popover>
                       <PopoverTrigger asChild>
-                        <div className="text-[72px] leading-none cursor-pointer hover:bg-muted rounded-md px-1 transition-colors">
+                        <div
+                          className={`text-[72px] leading-none rounded-md px-1 transition-colors ${isReadOnly ? "cursor-not-allowed opacity-60 pointer-events-none" : "cursor-pointer hover:bg-muted"}`}
+                        >
                           {emoji}
                         </div>
                       </PopoverTrigger>
@@ -294,6 +321,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                       size="icon"
                       className="absolute -top-2 -right-6 opacity-0 group-hover:opacity-100 h-6 w-6 rounded-full"
                       onClick={handleRemoveEmoji}
+                      disabled={isReadOnly}
                     >
                       <span className="sr-only">Remove</span>×
                     </Button>
@@ -305,6 +333,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                   value={title}
                   onChange={handleTitleChange}
                   placeholder="Untitled"
+                  disabled={isReadOnly}
                   className="text-4xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto placeholder:text-muted-foreground/50"
                   autoFocus
                 />
@@ -318,6 +347,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                 docId={activeDocId}
                 initialContent={activeDoc?.content}
                 onSave={handleContentSave}
+                readOnly={isReadOnly}
                 user={
                   user
                     ? {

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 export async function POST(
   request: Request,
@@ -32,6 +33,14 @@ export async function POST(
       return NextResponse.json(
         { error: "You are not a member of this workspace" },
         { status: 404 },
+      );
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
       );
     }
 

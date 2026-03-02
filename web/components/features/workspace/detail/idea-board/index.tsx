@@ -21,8 +21,9 @@ const IdeaBoardSDK = dynamic(
 
 interface IdeaBoardProps {
   projectId: string;
+  readOnly?: boolean;
 }
 
-export function IdeaBoard({ projectId }: IdeaBoardProps) {
-  return <IdeaBoardSDK projectId={projectId} />;
+export function IdeaBoard({ projectId, readOnly = false }: IdeaBoardProps) {
+  return <IdeaBoardSDK projectId={projectId} readOnly={readOnly} />;
 }

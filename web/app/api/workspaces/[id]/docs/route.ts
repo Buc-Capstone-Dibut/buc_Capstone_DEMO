@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 // GET: List All Documents in Workspace (for Sidebar)
 export async function GET(
@@ -77,6 +78,27 @@ export async function POST(
     const workspaceId = params.id;
     const body = await request.json();
     const { title, parentId, emoji, coverUrl, content } = body;
+
+    const membership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: session.user.id,
+        },
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
+    }
 
     const doc = await prisma.workspace_docs.create({
       data: {

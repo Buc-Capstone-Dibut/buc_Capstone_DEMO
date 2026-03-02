@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   ChevronDown,
-  FileText,
   Plus,
   MoreHorizontal,
   Trash2,
@@ -16,7 +14,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -32,6 +29,7 @@ interface Doc {
 interface DocumentListProps {
   workspaceId: string;
   docs: Doc[];
+  readOnly?: boolean;
   level?: number;
   parentId?: string | null;
   onExpand?: (id: string) => void;
@@ -43,6 +41,7 @@ interface DocumentListProps {
 export function DocumentList({
   workspaceId,
   docs,
+  readOnly = false,
   level = 0,
   parentId = null,
   onExpand,
@@ -59,6 +58,7 @@ export function DocumentList({
 
   const handleCreateChild = async (e: React.MouseEvent, parentId: string) => {
     e.stopPropagation();
+    if (readOnly) return;
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/docs`, {
         method: "POST",
@@ -79,13 +79,14 @@ export function DocumentList({
       // Expand parent to show new child
       if (onExpand) onExpand(parentId);
       toast.success("문서가 생성되었습니다.");
-    } catch (error) {
+    } catch {
       toast.error("문서 생성 실패");
     }
   };
 
   const handleDelete = async (e: React.MouseEvent, docId: string) => {
     e.stopPropagation();
+    if (readOnly) return;
     if (!confirm("정말 삭제하시겠습니까?")) return;
 
     try {
@@ -99,7 +100,7 @@ export function DocumentList({
       // We rely on SWR revalidation or global state update here.
       // Ideally mutate parent.
       location.reload(); // Temporary reload for simplicity
-    } catch (error) {
+    } catch {
       toast.error("삭제 실패");
     }
   };
@@ -158,34 +159,38 @@ export function DocumentList({
               </div>
 
               <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                {!readOnly && (
+                  <>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div
+                          role="button"
+                          className="h-full rounded-sm hover:bg-muted/70 p-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-48">
+                        <DropdownMenuItem
+                          onClick={(e) => handleDelete(e, doc.id)}
+                          className="text-red-500 focus:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          삭제
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
                     <div
                       role="button"
-                      className="h-full rounded-sm hover:bg-muted/70 p-0.5"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => handleCreateChild(e, doc.id)}
+                      className="ml-1 h-full rounded-sm hover:bg-muted/70 p-0.5"
                     >
-                      <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
+                      <Plus className="h-3 w-3 text-muted-foreground" />
                     </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem
-                      onClick={(e) => handleDelete(e, doc.id)}
-                      className="text-red-500 focus:text-red-500"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      삭제
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <div
-                  role="button"
-                  onClick={(e) => handleCreateChild(e, doc.id)}
-                  className="ml-1 h-full rounded-sm hover:bg-muted/70 p-0.5"
-                >
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -193,6 +198,7 @@ export function DocumentList({
               <DocumentList
                 workspaceId={workspaceId}
                 docs={docs}
+                readOnly={readOnly}
                 level={level + 1}
                 parentId={doc.id}
                 onExpand={onExpand}

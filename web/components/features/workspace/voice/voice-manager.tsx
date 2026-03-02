@@ -313,10 +313,13 @@ export function VoiceManager({ children }: { children: ReactNode }) {
       await unlockVoiceSoundPlayback();
       playVoiceSound(VOICE_JOIN_SOUND, `voice-join:${roomName}`, "join");
 
-      const response = await fetch(`/api/livekit/token?room=${roomName}`);
+      const response = await fetch(
+        `/api/livekit/token?room=${encodeURIComponent(roomName)}&workspaceId=${encodeURIComponent(projectId)}`,
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch token");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch token");
       }
 
       const data = await response.json();

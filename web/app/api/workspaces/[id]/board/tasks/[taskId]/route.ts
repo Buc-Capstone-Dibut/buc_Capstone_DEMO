@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 import prisma from "@/lib/prisma";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 export async function PATCH(
   request: Request,
@@ -34,6 +35,14 @@ export async function PATCH(
 
     if (!member) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
     }
 
     if (updates.due_date) {
@@ -133,6 +142,14 @@ export async function DELETE(
 
     if (!member) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
     }
 
     await prisma.kanban_tasks.delete({

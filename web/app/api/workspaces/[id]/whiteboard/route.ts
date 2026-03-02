@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 // workspace-server → BFF 서버 간 내부 통신 인증
 const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET ?? "";
@@ -46,6 +47,14 @@ export async function PUT(
 
   if (!yjs_state || typeof yjs_state !== "string") {
     return NextResponse.json({ error: "Invalid yjs_state" }, { status: 400 });
+  }
+
+  const writableCheck = await ensureWorkspaceWritable(params.id);
+  if (!writableCheck.ok) {
+    return NextResponse.json(
+      { error: writableCheck.error },
+      { status: writableCheck.status },
+    );
   }
 
   await prisma.workspace_whiteboards.upsert({

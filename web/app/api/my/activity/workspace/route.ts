@@ -7,6 +7,23 @@ type CountRow = {
   count: number;
 };
 
+type WorkspaceActivityMember = {
+  role: string;
+  joined_at: Date;
+  workspace: {
+    id: string;
+    name: string;
+    icon_url: string | null;
+    category: string;
+    created_at: Date;
+    lifecycle_status: "IN_PROGRESS" | "COMPLETED";
+    completed_at: Date | null;
+    result_type: string | null;
+    result_link: string | null;
+    result_note: string | null;
+  };
+};
+
 function toIso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
 }
@@ -45,20 +62,56 @@ export async function GET(req: Request) {
       );
     }
 
-    const members = await prisma.workspace_members.findMany({
-      where: { user_id: profile.id },
-      include: {
-        workspace: {
-          select: {
-            id: true,
-            name: true,
-            icon_url: true,
-            category: true,
+    let members: WorkspaceActivityMember[] = [];
+    try {
+      members = await prisma.workspace_members.findMany({
+        where: { user_id: profile.id },
+        include: {
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              icon_url: true,
+              category: true,
+              created_at: true,
+              lifecycle_status: true,
+              completed_at: true,
+              result_type: true,
+              result_link: true,
+              result_note: true,
+            },
           },
         },
-      },
-      orderBy: { joined_at: "desc" },
-    });
+        orderBy: { joined_at: "desc" },
+      });
+    } catch {
+      const legacyMembers = await prisma.workspace_members.findMany({
+        where: { user_id: profile.id },
+        include: {
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              icon_url: true,
+              category: true,
+              created_at: true,
+            },
+          },
+        },
+        orderBy: { joined_at: "desc" },
+      });
+      members = legacyMembers.map((member) => ({
+        ...member,
+        workspace: {
+          ...member.workspace,
+          lifecycle_status: "IN_PROGRESS" as const,
+          completed_at: null,
+          result_type: null,
+          result_link: null,
+          result_note: null,
+        },
+      }));
+    }
 
     if (members.length === 0) {
       return NextResponse.json({
@@ -141,7 +194,13 @@ export async function GET(req: Request) {
           iconUrl: member.workspace.icon_url,
           category: member.workspace.category,
           role: member.role,
+          startedAt: toIso(member.workspace.created_at),
           joinedAt: toIso(member.joined_at),
+          lifecycleStatus: member.workspace.lifecycle_status,
+          completedAt: toIso(member.workspace.completed_at),
+          resultType: member.workspace.result_type,
+          resultLink: member.workspace.result_link,
+          resultNote: member.workspace.result_note,
           stats: {
             docsCreated,
             tasksAssigned,
@@ -150,9 +209,27 @@ export async function GET(req: Request) {
           },
         };
       })
-      .sort(
-        (a, b) => b.stats.totalActivities - a.stats.totalActivities,
-      );
+      .sort((a, b) => {
+        const aCompleted = a.lifecycleStatus === "COMPLETED";
+        const bCompleted = b.lifecycleStatus === "COMPLETED";
+        if (aCompleted !== bCompleted) {
+          return aCompleted ? 1 : -1;
+        }
+
+        if (aCompleted && bCompleted) {
+          const aCompletedAt = a.completedAt
+            ? new Date(a.completedAt).getTime()
+            : 0;
+          const bCompletedAt = b.completedAt
+            ? new Date(b.completedAt).getTime()
+            : 0;
+          if (aCompletedAt !== bCompletedAt) {
+            return bCompletedAt - aCompletedAt;
+          }
+        }
+
+        return b.stats.totalActivities - a.stats.totalActivities;
+      });
 
     return NextResponse.json({
       success: true,

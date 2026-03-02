@@ -45,6 +45,7 @@ import {
 import { DraggablePropertySettings } from "../modules/view-settings/property-settings";
 import { cn } from "@/lib/utils";
 import { Eye } from "lucide-react";
+import { toast } from "sonner";
 
 interface KanbanBoardProps {
   projectId: string;
@@ -88,6 +89,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   );
 
   const { mutate } = useSWRConfig();
+  const isReadOnly = Boolean(boardData?.workspace?.readOnly);
 
   // --- Sync Logic ---
   useEffect(() => {
@@ -254,6 +256,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   // --- Handlers ---
 
   const handleCreateColumn = async (title: string, category: string) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     try {
       await fetch(`/api/workspaces/${projectId}/board/columns`, {
         method: "POST",
@@ -266,6 +272,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   };
 
   const handleUpdateColumn = async (columnId: string, updates: any) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     try {
       await fetch(`/api/workspaces/${projectId}/board/columns/${columnId}`, {
         method: "PATCH",
@@ -279,6 +289,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   };
 
   const handleDeleteColumn = async (columnId: string) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     if (
       !confirm(
         "이 섹션을 삭제하시겠습니까? 포함된 모든 태스크가 함께 삭제됩니다.",
@@ -299,6 +313,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   };
 
   const handleCreateTask = async (taskProps: any) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     try {
       let targetColumnId =
         taskProps.columnId || taskProps.status || taskProps.statusId;
@@ -336,6 +354,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     if (!confirm("이 태스크를 삭제하시겠습니까?")) return;
     try {
       const res = await fetch(
@@ -351,6 +373,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   };
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     try {
       await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}`, {
         method: "PATCH",
@@ -368,6 +394,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     fromIndex: number,
     toIndex: number,
   ) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     const reordered = [...displayColumns];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
@@ -389,6 +419,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     newStatus: string,
     newIndex: number,
   ) => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     const targetColumn = displayColumns.find(
       (col) =>
         (groupBy === "status" &&
@@ -560,6 +594,12 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
             </Button>
           </div>
         </div>
+
+        {isReadOnly && (
+          <div className="px-6 py-2 border-b bg-muted/20 text-xs text-muted-foreground">
+            이 워크스페이스는 종료되어 보드가 읽기 전용입니다.
+          </div>
+        )}
 
         {/* View Content */}
         <div className="flex-1 overflow-hidden relative">

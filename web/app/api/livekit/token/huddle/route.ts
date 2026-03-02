@@ -4,10 +4,13 @@ import { AccessToken } from "livekit-server-sdk";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import prisma from "@/lib/prisma";
+import { getWorkspaceLifecycle, isWorkspaceCompleted } from "@/lib/server/workspace-lifecycle";
 
 const schema = z.object({
   roomId: z.string().min(1, "Room ID is required"),
   username: z.string().optional(),
+  workspaceId: z.string().uuid().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,12 +25,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { roomId, username } = result.data;
+    const { roomId, username, workspaceId } = result.data;
 
     // 1. Authenticate User
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     /*
     if (authError || !user) {
@@ -42,21 +47,37 @@ export async function POST(req: NextRequest) {
         user_metadata: { name: "Guest Developer" }
     };
 
-    // 2. Authorization: Verify Project Membership
-    // [DEV MODE]: Bypassing strict DB check for easier testing.
-    // Ensure you are authenticated, but we assume if you have the ID, you can join.
-    /*
-    const { data: member, error: memberError } = await supabase
-      .from("project_members")
-      .select("role")
-      .eq("project_id", roomId)
-      .eq("user_id", user.id)
-      .single();
-
-    if (memberError || !member) {
-      return NextResponse.json({ error: "Forbidden: Not a project member" }, { status: 403 });
+    if (workspaceId && !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    */
+
+    if (workspaceId && user) {
+      const membership = await prisma.workspace_members.findUnique({
+        where: {
+          workspace_id_user_id: {
+            workspace_id: workspaceId,
+            user_id: user.id,
+          },
+        },
+        select: { user_id: true },
+      });
+
+      if (!membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      const workspace = await getWorkspaceLifecycle(workspaceId);
+      if (!workspace) {
+        return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      }
+
+      if (isWorkspaceCompleted(workspace)) {
+        return NextResponse.json(
+          { error: "이 워크스페이스는 종료되어 음성 채널에 참여할 수 없습니다." },
+          { status: 403 },
+        );
+      }
+    }
 
     // 3. Generate Token
     const apiKey = process.env.LIVEKIT_API_KEY_WORKSPACE;

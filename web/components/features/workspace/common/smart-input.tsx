@@ -38,6 +38,7 @@ interface SmartInputProps {
   placeholder?: string;
   className?: string;
   multiline?: boolean;
+  disabled?: boolean;
   projectId?: string;
   members?: SmartInputMember[];
   tasks?: SmartInputTask[];
@@ -50,6 +51,7 @@ export function SmartInput({
   placeholder,
   className,
   multiline,
+  disabled = false,
   projectId,
   members = [],
   tasks = [],
@@ -146,7 +148,7 @@ export function SmartInput({
   };
 
   // Shared classes
-  const inputClasses = `block w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground ${className}`;
+  const inputClasses = `block w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed ${className}`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -160,6 +162,7 @@ export function SmartInput({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
+              disabled={disabled}
               className={`${inputClasses} box-border h-9 resize-none min-h-[36px] max-h-[140px] leading-5`}
             />
           ) : (
@@ -169,6 +172,7 @@ export function SmartInput({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
+              disabled={disabled}
               className={inputClasses}
             />
           )}

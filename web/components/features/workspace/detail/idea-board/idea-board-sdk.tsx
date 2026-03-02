@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
-import { Loader2, Cloud, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
@@ -10,6 +10,7 @@ import { ExcalidrawBinding } from "y-excalidraw";
 
 export interface IdeaBoardSDKProps {
   projectId: string;
+  readOnly?: boolean;
 }
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "ws://localhost:4000";
@@ -27,12 +28,16 @@ const userColors = [
 ];
 const randomColor = userColors[Math.floor(Math.random() * userColors.length)];
 const randomColorLight = `${randomColor}33`;
+type ExcalidrawApi = object;
 
-export default function IdeaBoardSDK({ projectId }: IdeaBoardSDKProps) {
+export default function IdeaBoardSDK({
+  projectId,
+  readOnly = false,
+}: IdeaBoardSDKProps) {
   const { theme } = useTheme();
 
   // Yjs State
-  const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawApi | null>(null);
   const [isSynced, setIsSynced] = useState(false);
   const [awarenessUsers, setAwarenessUsers] = useState<number>(0);
 
@@ -61,7 +66,7 @@ export default function IdeaBoardSDK({ projectId }: IdeaBoardSDKProps) {
     });
 
     // 3. Status Check
-    provider.current.on('status', (event: any) => {
+    provider.current.on("status", (event: { status: string }) => {
         setIsSynced(event.status === 'connected');
     });
 
@@ -110,6 +115,11 @@ export default function IdeaBoardSDK({ projectId }: IdeaBoardSDKProps) {
             {isSynced ? 'Live Sync' : 'Connecting...'}
           </span>
         </div>
+        {readOnly && (
+          <div className="bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-sm text-xs text-gray-700 dark:text-gray-200 pointer-events-auto">
+            읽기 전용
+          </div>
+        )}
         {isSynced && (
           <div className="bg-white/60 dark:bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200/50 dark:border-zinc-800/50 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 transition-opacity duration-500">
             <Users className="h-3 w-3" />
@@ -122,7 +132,8 @@ export default function IdeaBoardSDK({ projectId }: IdeaBoardSDKProps) {
          <div ref={wrapperRef} className="absolute inset-0" style={{ width: '100%', height: '100%' }}>
             <Excalidraw
           excalidrawAPI={(api)=> setExcalidrawAPI(api)}
-          onPointerUpdate={binding.current?.onPointerUpdate}
+          onPointerUpdate={readOnly ? undefined : binding.current?.onPointerUpdate}
+          viewModeEnabled={readOnly}
           theme={theme === "dark" ? "dark" : "light"}
           UIOptions={{
             canvasActions: {

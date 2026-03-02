@@ -8,7 +8,13 @@ export interface ProfileWorkspaceItem {
   iconUrl: string | null;
   category: string;
   role: string;
+  startedAt: string | null;
   joinedAt: string | null;
+  lifecycleStatus: "IN_PROGRESS" | "COMPLETED";
+  completedAt: string | null;
+  resultType: string | null;
+  resultLink: string | null;
+  resultNote: string | null;
   stats: {
     docsCreated: number;
     tasksAssigned: number;

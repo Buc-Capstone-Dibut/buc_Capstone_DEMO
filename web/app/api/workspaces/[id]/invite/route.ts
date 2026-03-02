@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { addDays } from "date-fns";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 export async function POST(
   request: Request,
@@ -54,6 +55,14 @@ export async function POST(
       return NextResponse.json(
         { error: "Only the workspace owner can invite members" },
         { status: 403 },
+      );
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
       );
     }
 

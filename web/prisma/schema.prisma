@@ -621,6 +621,11 @@ model workspaces {
   description String?
   icon_url    String?
   category    String  @default("Side Project")
+  lifecycle_status workspace_lifecycle_status @default(IN_PROGRESS)
+  completed_at     DateTime?
+  result_type      String?
+  result_link      String?
+  result_note      String?
 
   // Optional link to origin squad
   from_squad_id String? @unique @db.Uuid
@@ -638,6 +643,13 @@ model workspaces {
   whiteboard workspace_whiteboards?
 
   squad squads? @relation(fields: [from_squad_id], references: [id])
+
+  @@schema("public")
+}
+
+enum workspace_lifecycle_status {
+  IN_PROGRESS
+  COMPLETED
 
   @@schema("public")
 }

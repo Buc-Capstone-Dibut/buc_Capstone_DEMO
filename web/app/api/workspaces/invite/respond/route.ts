@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -59,6 +60,14 @@ export async function POST(request: Request) {
     }
 
     if (action === "accept") {
+      const writableCheck = await ensureWorkspaceWritable(invite.workspace_id);
+      if (!writableCheck.ok) {
+        return NextResponse.json(
+          { error: writableCheck.error },
+          { status: writableCheck.status },
+        );
+      }
+
       // Create Member
       await prisma.workspace_members.create({
         data: {

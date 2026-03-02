@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useSWR from "swr";
 import {
   useParams,
   usePathname,
@@ -136,6 +137,19 @@ const normalizeTab = (tab: string | null) => {
   return ALLOWED_TABS.has(tab) ? tab : "overview";
 };
 
+type WorkspaceMeta = {
+  read_only?: boolean;
+  lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
+};
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error("Failed to fetch workspace");
+  }
+  return res.json() as Promise<WorkspaceMeta>;
+};
+
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -149,6 +163,17 @@ export default function WorkspaceDetailPage() {
 
   const { connectSocket, disconnectSocket } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
+  const { data: workspaceMeta } = useSWR(
+    projectId ? `/api/workspaces/${projectId}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30_000,
+    },
+  );
+  const isReadOnly = Boolean(
+    workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
+  );
 
   const handleTabChange = (tab: string) => {
     const normalized = normalizeTab(tab);
@@ -213,7 +238,7 @@ export default function WorkspaceDetailPage() {
       case "ideas":
         return (
           <div className="h-full">
-            <IdeaBoard projectId={projectId} />
+            <IdeaBoard projectId={projectId} readOnly={isReadOnly} />
           </div>
         );
       case "members":
@@ -257,6 +282,14 @@ export default function WorkspaceDetailPage() {
         onTabChange={handleTabChange}
       />
       <main className="flex-1 overflow-y-auto h-full">
+        {isReadOnly && (
+          <div className="px-6 pt-4">
+            <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+              이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대, 전송은
+              비활성화됩니다.
+            </div>
+          </div>
+        )}
         {renderContent()}
       </main>
 

@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 export async function PATCH(
   request: Request,
@@ -32,6 +33,14 @@ export async function PATCH(
 
     if (!member) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
     }
 
     if (!items || !Array.isArray(items)) {

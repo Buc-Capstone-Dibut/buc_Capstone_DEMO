@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 // GET /api/workspaces/[id]/tags
 export async function GET(
@@ -18,6 +19,19 @@ export async function GET(
   }
 
   const workspaceId = params.id;
+  const memberCheck = await prisma.workspace_members.findUnique({
+    where: {
+      workspace_id_user_id: {
+        workspace_id: workspaceId,
+        user_id: session.user.id,
+      },
+    },
+    select: { user_id: true },
+  });
+
+  if (!memberCheck) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const tags = await prisma.kanban_tags.findMany({
     where: { workspace_id: workspaceId },
@@ -42,6 +56,28 @@ export async function POST(
   }
 
   const workspaceId = params.id;
+  const memberCheck = await prisma.workspace_members.findUnique({
+    where: {
+      workspace_id_user_id: {
+        workspace_id: workspaceId,
+        user_id: session.user.id,
+      },
+    },
+    select: { user_id: true },
+  });
+
+  if (!memberCheck) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const writableCheck = await ensureWorkspaceWritable(workspaceId);
+  if (!writableCheck.ok) {
+    return NextResponse.json(
+      { error: writableCheck.error },
+      { status: writableCheck.status },
+    );
+  }
+
   const body = await request.json();
   const { name, color } = body;
 

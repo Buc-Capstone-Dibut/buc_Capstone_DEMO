@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
 // GET: Fetch Single Document
 export async function GET(
@@ -19,6 +20,20 @@ export async function GET(
     }
 
     const { id: workspaceId, docId } = params;
+
+    const membership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: session.user.id,
+        },
+      },
+      select: { user_id: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
 
     const doc = await prisma.workspace_docs.findUnique({
       where: {
@@ -67,6 +82,28 @@ export async function PATCH(
     const { id: workspaceId, docId } = params;
     const body = await request.json();
 
+    const membership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: session.user.id,
+        },
+      },
+      select: { user_id: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
+    }
+
     // Spread fields to update
     const { title, content, emoji, coverUrl, parentId, isArchived } = body;
 
@@ -109,6 +146,28 @@ export async function DELETE(
     }
 
     const { id: workspaceId, docId } = params;
+
+    const membership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: session.user.id,
+        },
+      },
+      select: { user_id: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
+    }
 
     // Per plan: DELETE method performs Soft Delete (is_archived = true)
     await prisma.workspace_docs.update({

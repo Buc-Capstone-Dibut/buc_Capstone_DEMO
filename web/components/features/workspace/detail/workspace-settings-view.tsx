@@ -5,11 +5,12 @@ import useSWR, { mutate as globalMutate } from "swr";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, Save, Settings } from "lucide-react";
+import { CheckCircle2, Loader2, Lock, Save, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -26,6 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -60,6 +62,12 @@ type WorkspaceResponse = {
   id: string;
   name: string;
   my_role?: string | null;
+  read_only?: boolean;
+  lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
+  completed_at?: string | null;
+  result_type?: string | null;
+  result_link?: string | null;
+  result_note?: string | null;
   category?: string | null;
   description?: string | null;
 };
@@ -79,6 +87,11 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [resultType, setResultType] = useState("");
+  const [resultLink, setResultLink] = useState("");
+  const [resultNote, setResultNote] = useState("");
   const { data, isLoading } = useSWR(`/api/workspaces/${projectId}`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
@@ -86,6 +99,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
 
   const workspaceName = data?.name ?? "";
   const canManageSettings = data?.my_role === "owner";
+  const isCompleted =
+    data?.lifecycle_status === "COMPLETED" || Boolean(data?.read_only);
   const canDelete =
     workspaceName.length > 0 && deleteConfirmName.trim() === workspaceName;
 
@@ -113,6 +128,13 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     }
   }, [canManageSettings, data, isLoading, projectId, router]);
 
+  useEffect(() => {
+    if (!data) return;
+    setResultType(data.result_type || "");
+    setResultLink(data.result_link || "");
+    setResultNote(data.result_note || "");
+  }, [data]);
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setSaving(true);
@@ -138,6 +160,41 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCompleteWorkspace = async () => {
+    if (isCompleted) return;
+    try {
+      setCompleting(true);
+      const response = await fetch(`/api/workspaces/${projectId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultType,
+          resultLink,
+          resultNote,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || "워크스페이스 종료에 실패했습니다.");
+      }
+
+      toast.success("워크스페이스가 종료되어 읽기 전용으로 전환되었습니다.");
+      setCompleteDialogOpen(false);
+      void globalMutate(`/api/workspaces/${projectId}`);
+      void globalMutate("/api/workspaces");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "워크스페이스 종료 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -177,10 +234,21 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 pb-12">
       <div>
-        <h2 className="text-xl font-semibold">워크스페이스 설정</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">워크스페이스 설정</h2>
+          <Badge variant={isCompleted ? "secondary" : "outline"}>
+            {isCompleted ? "종료" : "진행중"}
+          </Badge>
+        </div>
         <p className="text-sm text-muted-foreground mt-1">
           이름, 유형, 설명을 이 탭에서 바로 관리할 수 있습니다.
         </p>
+        {isCompleted && (
+          <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5">
+            <Lock className="h-3.5 w-3.5" />이 워크스페이스는 종료되어 읽기
+            전용 상태입니다.
+          </p>
+        )}
       </div>
 
       <Separator />
@@ -210,7 +278,11 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                     <FormItem>
                       <FormLabel>이름</FormLabel>
                       <FormControl>
-                        <Input placeholder="워크스페이스 이름" {...field} />
+                        <Input
+                          placeholder="워크스페이스 이름"
+                          disabled={isCompleted}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -226,6 +298,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
+                        disabled={isCompleted}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -260,6 +333,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                         <Textarea
                           placeholder="프로젝트 설명"
                           className="resize-none"
+                          disabled={isCompleted}
                           {...field}
                         />
                       </FormControl>
@@ -269,7 +343,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 />
 
                 <div className="flex justify-end">
-                  <Button type="submit" disabled={saving}>
+                  <Button type="submit" disabled={saving || isCompleted}>
                     {saving ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -303,8 +377,13 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 새로운 멤버를 초대할 수 없게 되며 읽기 전용으로 종료됩니다.
               </p>
             </div>
-            <Button variant="outline" className="shrink-0 h-9">
-              종료
+            <Button
+              variant="outline"
+              className="shrink-0 h-9"
+              disabled={isCompleted}
+              onClick={() => setCompleteDialogOpen(true)}
+            >
+              {isCompleted ? "종료됨" : "종료"}
             </Button>
           </div>
 
@@ -332,6 +411,81 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={completeDialogOpen}
+        onOpenChange={(open) => {
+          setCompleteDialogOpen(open);
+          if (!open && data) {
+            setResultType(data.result_type || "");
+            setResultLink(data.result_link || "");
+            setResultNote(data.result_note || "");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>워크스페이스 종료</DialogTitle>
+            <DialogDescription>
+              종료하면 모든 쓰기 기능이 차단되고 읽기 전용으로 전환됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resultType">결과 타입 (선택)</Label>
+              <Input
+                id="resultType"
+                value={resultType}
+                onChange={(e) => setResultType(e.target.value)}
+                placeholder="예: 완료, 수상, 중단"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resultLink">결과 링크 (선택)</Label>
+              <Input
+                id="resultLink"
+                value={resultLink}
+                onChange={(e) => setResultLink(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resultNote">결과 메모 (선택)</Label>
+              <Textarea
+                id="resultNote"
+                value={resultNote}
+                onChange={(e) => setResultNote(e.target.value)}
+                placeholder="종료 결과를 간단히 남겨주세요."
+                className="resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCompleteDialogOpen(false)}
+              disabled={completing}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCompleteWorkspace}
+              disabled={completing}
+            >
+              {completing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              종료
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={deleteDialogOpen}

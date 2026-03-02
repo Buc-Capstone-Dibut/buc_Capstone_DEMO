@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import {
+  ensureWorkspaceWritable,
+  getWorkspaceLifecycle,
+  isWorkspaceCompleted,
+} from "@/lib/server/workspace-lifecycle";
 
 const getErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : "Unknown error";
@@ -42,7 +47,15 @@ export async function GET(
     // 2. Fetch Workspace Details (with members)
     const workspace = await prisma.workspaces.findUnique({
       where: { id: workspaceId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        icon_url: true,
+        category: true,
+        from_squad_id: true,
+        created_at: true,
+        updated_at: true,
         members: {
           include: {
             user: {
@@ -66,9 +79,17 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const lifecycle = await getWorkspaceLifecycle(workspaceId);
+
     // Transform response to match frontend expectation
     const formattedWorkspace = {
       ...workspace,
+      lifecycle_status: lifecycle?.lifecycle_status ?? "IN_PROGRESS",
+      completed_at: lifecycle?.completed_at ?? null,
+      result_type: lifecycle?.result_type ?? null,
+      result_link: lifecycle?.result_link ?? null,
+      result_note: lifecycle?.result_note ?? null,
+      read_only: isWorkspaceCompleted(lifecycle),
       my_role: memberCheck.role,
       members: workspace.members.map((wm) => ({
         id: wm.user_id,
@@ -121,6 +142,14 @@ export async function PATCH(
 
     if (!membership || membership.role !== "owner") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const writableCheck = await ensureWorkspaceWritable(workspaceId);
+    if (!writableCheck.ok) {
+      return NextResponse.json(
+        { error: writableCheck.error },
+        { status: writableCheck.status },
+      );
     }
 
     const updated = await prisma.workspaces.update({

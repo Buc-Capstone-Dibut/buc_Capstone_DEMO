@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { SmartInput } from "../../common/smart-input";
 import { useWorkspaceStore } from "../../store/mock-data";
 import useSWR from "swr";
+import { toast } from "sonner";
 
 interface TeamChatProps {
   projectId: string;
@@ -72,6 +73,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
   );
   const members: BoardMember[] = boardData?.members || [];
   const tasks: BoardTask[] = boardData?.tasks || [];
+  const isReadOnly = Boolean(boardData?.workspace?.readOnly);
 
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,10 @@ export function TeamChat({ projectId }: TeamChatProps) {
   }, [messages]);
 
   const handleSend = () => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     if (!inputValue.trim() || !activeChannelId || !user) return;
 
     let contentToSend = inputValue;
@@ -293,6 +299,11 @@ export function TeamChat({ projectId }: TeamChatProps) {
       </div>
 
       <div className="p-4 border-t bg-background mt-auto">
+        {isReadOnly && (
+          <div className="mb-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            이 워크스페이스는 종료되어 채팅을 보낼 수 없습니다.
+          </div>
+        )}
         <div className="border rounded-xl shadow-sm bg-muted/30 focus-within:ring-1 ring-primary/30 transition-shadow px-2 py-2">
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
@@ -301,6 +312,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
                 onChange={setInputValue}
                 onEnter={handleSend}
                 multiline
+                disabled={isReadOnly}
                 className="px-3 py-[8px] text-sm"
                 placeholder={`Message #${activeChannel?.name || "chat"}`}
                 projectId={projectId}
@@ -311,7 +323,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
             <Button
               size="sm"
               onClick={handleSend}
-              disabled={!inputValue.trim()}
+              disabled={isReadOnly || !inputValue.trim()}
               className={`h-9 shrink-0 ${!inputValue.trim() ? "opacity-50" : ""}`}
             >
               <Send className="h-4 w-4 mr-2" />

@@ -29,6 +29,8 @@ type WorkspaceMember = {
 
 type WorkspaceResponse = {
   my_role?: string | null;
+  read_only?: boolean;
+  lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
   members?: WorkspaceMember[];
 };
 
@@ -72,6 +74,8 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
 
   const members = useMemo(() => data?.members ?? [], [data?.members]);
   const isOwner = data?.my_role === "owner";
+  const isReadOnly =
+    data?.read_only || data?.lifecycle_status === "COMPLETED";
 
   return (
     <div className="p-6 md:p-10 max-w-4xl min-w-0 mx-auto space-y-8 animate-in fade-in duration-300">
@@ -82,7 +86,7 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
             워크스페이스에 참여 중인 팀원들의 권한과 정보를 확인하고 관리합니다.
           </p>
         </div>
-        {isOwner && (
+        {isOwner && !isReadOnly && (
           <Button
             onClick={() => setInviteOpen(true)}
             className="gap-2 shadow-sm shrink-0"
@@ -92,6 +96,12 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
           </Button>
         )}
       </div>
+
+      {isReadOnly && (
+        <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+          이 워크스페이스는 종료되어 멤버 초대를 할 수 없습니다.
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
@@ -194,7 +204,7 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {isOwner && (
+      {isOwner && !isReadOnly && (
         <InviteMemberModal
           workspaceId={projectId}
           isOpen={inviteOpen}

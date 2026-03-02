@@ -83,6 +83,8 @@ type SidebarProject = {
   id: string;
   name: string;
   my_role?: string | null;
+  read_only?: boolean;
+  lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
   members?: SidebarMember[];
 };
 
@@ -189,6 +191,9 @@ export function WorkspaceSidebar({
     });
   }, [notifications, channels, setChannelMention, activeTab, markAsRead]);
 
+  const devParticipants = roomParticipants?.["dev-room"] ?? [];
+  const loungeParticipants = roomParticipants?.lounge ?? [];
+
   const [isLeaveAlertOpen, setIsLeaveAlertOpen] = useState(false);
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
@@ -200,6 +205,8 @@ export function WorkspaceSidebar({
     swrOptions,
   );
   const isOwner = project?.my_role === "owner";
+  const isReadOnly =
+    project?.read_only || project?.lifecycle_status === "COMPLETED";
 
   // Leave Workspace Handler
   const handleLeaveWorkspace = async () => {
@@ -221,6 +228,10 @@ export function WorkspaceSidebar({
   };
 
   const handleCreateChannel = () => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     if (!newChannelName.trim() || !user) return;
     createChannel(projectId, newChannelName, newChannelDesc, user.id);
     setNewChannelName("");
@@ -229,6 +240,10 @@ export function WorkspaceSidebar({
   };
 
   const handleOpenLeave = () => {
+    if (isReadOnly) {
+      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      return;
+    }
     if (isOwner) {
       toast.error("소유자는 워크스페이스에서 나갈 수 없습니다.");
       return;
@@ -347,8 +362,19 @@ export function WorkspaceSidebar({
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
             채팅 채널
             <Plus
-              className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary transition-opacity"
-              onClick={() => setIsChannelDialogOpen(true)}
+              className={cn(
+                "h-3 w-3 transition-opacity",
+                isReadOnly
+                  ? "opacity-30 cursor-not-allowed"
+                  : "opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary",
+              )}
+              onClick={() => {
+                if (isReadOnly) {
+                  toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+                  return;
+                }
+                setIsChannelDialogOpen(true);
+              }}
             />
           </div>
           <div className="space-y-0.5">
@@ -429,23 +455,21 @@ export function WorkspaceSidebar({
                 "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
               )}
               onClick={() => joinRoom(projectId, "dev-room")}
+              disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
               Dev Room
             </Button>
-            {roomParticipants?.["dev-room"]?.length > 0 && (
+            {devParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {roomParticipants["dev-room"].map((p) => (
+                {devParticipants.map((p) => (
                   <div
                     key={p.identity}
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
                   >
                     <div className="relative">
                       <Avatar className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm">
-                        <AvatarImage
-                          src={p.avatarUrl}
-                          className="object-cover"
-                        />
+                        <AvatarImage src={p.avatarUrl || undefined} className="object-cover" />
                         <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-medium">
                           {p.name?.[0]?.toUpperCase()}
                         </AvatarFallback>
@@ -472,23 +496,21 @@ export function WorkspaceSidebar({
                 "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
               )}
               onClick={() => joinRoom(projectId, "lounge")}
+              disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
               Lounge
             </Button>
-            {roomParticipants?.["lounge"]?.length > 0 && (
+            {loungeParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {roomParticipants["lounge"].map((p) => (
+                {loungeParticipants.map((p) => (
                   <div
                     key={p.identity}
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
                   >
                     <div className="relative">
                       <Avatar className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm">
-                        <AvatarImage
-                          src={p.avatarUrl}
-                          className="object-cover"
-                        />
+                        <AvatarImage src={p.avatarUrl || undefined} className="object-cover" />
                         <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-medium">
                           {p.name?.[0]?.toUpperCase()}
                         </AvatarFallback>
@@ -572,7 +594,12 @@ export function WorkspaceSidebar({
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleCreateChannel}>생성하기</Button>
+            <Button
+              onClick={handleCreateChannel}
+              disabled={isReadOnly || !newChannelName.trim()}
+            >
+              생성하기
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
