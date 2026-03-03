@@ -139,17 +139,29 @@ function parsePortfolioSummary(
 }
 
 const TIER_BADGE: Record<string, string> = {
+  씨앗:
+    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
+  새싹:
+    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
+  묘목:
+    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
+  나무:
+    "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
+  숲: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
+  거목:
+    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
+
+  // Backward compatibility for rows not migrated yet
   Unranked:
     "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
   Bronze:
-    "border-amber-400/70 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20",
+    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
   Silver:
-    "border-slate-400/60  text-slate-600  dark:text-slate-300  bg-slate-50  dark:bg-slate-800/30",
-  Gold: "border-yellow-400/70 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20",
-  Platinum:
-    "border-cyan-400/70   text-cyan-700   dark:text-cyan-400   bg-cyan-50   dark:bg-cyan-900/20",
+    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
+  Gold: "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
+  Platinum: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
   Diamond:
-    "border-violet-400/70 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20",
+    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
 };
 
 const TABS: { key: TabKey; label: string; icon: ElementType }[] = [

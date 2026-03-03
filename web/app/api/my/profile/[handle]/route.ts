@@ -72,7 +72,7 @@ export async function GET(
           bio: profile.bio,
           techStack: profile.tech_stack || [],
           reputation: profile.reputation ?? 0,
-          tier: profile.tier || "Unranked",
+          tier: profile.tier || "씨앗",
           createdAt: profile.created_at,
         },
         stats: {
@@ -85,9 +85,10 @@ export async function GET(
         isOwner: Boolean(session?.user?.id && session.user.id === profile.id),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to fetch public profile";
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch public profile" },
+      { success: false, error: message },
       { status: 500 },
     );
   }

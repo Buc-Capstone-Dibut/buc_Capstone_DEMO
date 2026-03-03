@@ -18,7 +18,7 @@ async function main() {
         nickname: "코딩하는대학생",
         avatar_url: "https://github.com/shadcn.png",
         bio: "열심히 코딩하는 개발자입니다.",
-        tier: "Gold",
+        tier: "나무",
         tech_stack: ["React", "Next.js", "TypeScript", "Supabase"],
       },
     });

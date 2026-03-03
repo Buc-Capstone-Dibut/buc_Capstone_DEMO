@@ -43,7 +43,7 @@ async function ensureProfileExists(client: ReputationClient, userId: string) {
       handle: getFallbackHandle(userId),
       nickname: "User",
       reputation: 0,
-      tier: "Unranked",
+      tier: "씨앗",
     },
   });
 }
@@ -67,7 +67,7 @@ export async function applyReputationEvent(input: ApplyReputationEventInput) {
   const delta = Number.isFinite(input.delta) ? Math.trunc(input.delta) : 0;
 
   if (!userId || delta === 0 || !input.eventType) {
-    return { applied: false, score: 0, tier: "Unranked" as const };
+    return { applied: false, score: 0, tier: "씨앗" as const };
   }
 
   await ensureProfileExists(client, userId);
@@ -134,7 +134,7 @@ export async function applyReputationEvent(input: ApplyReputationEventInput) {
   }
 
   const nextTier = resolveTierByScore(clampedScore);
-  const currentTier = updated.tier || "Unranked";
+  const currentTier = updated.tier || "씨앗";
 
   if (currentTier !== nextTier) {
     await client.profiles.update({
@@ -159,6 +159,6 @@ export async function tryApplyReputationEvent(input: ApplyReputationEventInput) 
     return await applyReputationEvent(input);
   } catch (error) {
     console.warn("[reputation] apply failed:", error);
-    return { applied: false, score: 0, tier: "Unranked" as const };
+    return { applied: false, score: 0, tier: "씨앗" as const };
   }
 }

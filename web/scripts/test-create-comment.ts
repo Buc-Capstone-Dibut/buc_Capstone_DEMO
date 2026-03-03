@@ -40,7 +40,7 @@ async function debugProfiles() {
           nickname: "RestoredUser",
           avatar_url: null,
           reputation: 0,
-          tier: "Beginner",
+          tier: "씨앗",
           updated_at: new Date(),
         },
       });
@@ -70,8 +70,9 @@ async function debugProfiles() {
     });
 
     console.log("✅ Comment created successfully:", comment.id);
-  } catch (e: any) {
-    console.log("Prisma Error:", e.message);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    console.log("Prisma Error:", message);
   } finally {
     await prisma.$disconnect();
   }

@@ -22,7 +22,7 @@ async function fixProfile() {
     nickname: "User_" + userId.substring(0, 5),
     avatar_url: null,
     reputation: 0,
-    tier: "Beginner",
+    tier: "씨앗",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

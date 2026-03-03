@@ -504,7 +504,7 @@ model profiles {
   avatar_url         String?
   bio                String?
   reputation         Int?                 @default(0)
-  tier               String?              @default("Unranked")
+  tier               String?              @default("씨앗")
   tech_stack         String[]
   created_at         DateTime?            @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?            @default(now()) @db.Timestamptz(6)

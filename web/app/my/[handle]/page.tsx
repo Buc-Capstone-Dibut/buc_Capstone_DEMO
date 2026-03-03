@@ -152,7 +152,7 @@ export default async function MyProfilePage({
           bio: profileRaw.bio,
           techStack: profileRaw.tech_stack || [],
           reputation: profileRaw.reputation ?? 0,
-          tier: profileRaw.tier || "Unranked",
+          tier: profileRaw.tier || "씨앗",
         },
         stats: { postCount, commentCount, workspaceCount, bookmarkCount },
         resumeSummary: asPublicResumeSummary(summary?.resumeSummary ?? null),

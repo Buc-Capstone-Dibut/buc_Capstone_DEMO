@@ -43,7 +43,7 @@ async function main() {
         handle: "test-user-0001",
         nickname: "코딩하는대학생",
         bio: "백엔드 개발자를 꿈꾸는 컴퓨터공학과 4학년입니다. NestJS와 Supabase에 관심이 많습니다.",
-        tier: "Gold",
+        tier: "나무",
         tech_stack: ["React", "Next.js", "TypeScript", "NestJS", "Supabase"],
         avatar_url: "https://github.com/shadcn.png",
       },

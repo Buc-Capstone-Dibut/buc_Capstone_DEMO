@@ -73,11 +73,19 @@ const sortComments = (items: Comment[]) => {
 };
 
 const AUTHOR_TIER_STYLE: Record<string, string> = {
-  Bronze: "border-amber-400/70 text-amber-700 bg-amber-50",
-  Silver: "border-slate-400/70 text-slate-700 bg-slate-50",
-  Gold: "border-yellow-400/70 text-yellow-700 bg-yellow-50",
-  Platinum: "border-cyan-400/70 text-cyan-700 bg-cyan-50",
-  Diamond: "border-violet-400/70 text-violet-700 bg-violet-50",
+  씨앗: "border-zinc-300/70 text-zinc-700 bg-zinc-50",
+  새싹: "border-lime-400/70 text-lime-700 bg-lime-50",
+  묘목: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
+  나무: "border-green-500/70 text-green-700 bg-green-50",
+  숲: "border-teal-500/70 text-teal-700 bg-teal-50",
+  거목: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
+
+  // Backward compatibility for rows not migrated yet
+  Bronze: "border-lime-400/70 text-lime-700 bg-lime-50",
+  Silver: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
+  Gold: "border-green-500/70 text-green-700 bg-green-50",
+  Platinum: "border-teal-500/70 text-teal-700 bg-teal-50",
+  Diamond: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
 };
 
 export function CommentSection({
