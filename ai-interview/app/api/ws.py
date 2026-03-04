@@ -44,8 +44,9 @@ SESSION_GRACE_SEC = 20
 CLOSING_ANNOUNCE_PREFIX = "시간 관계상 마지막 질문 드리겠습니다."
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
 LLM_STREAM_MODES = {"final", "delta"}
-TTS_MODES = {"full", "sentence", "client"}
+TTS_MODES = {"server"}
 AUDIO_PACKET_SEQ = count()
+AI_TURN_SEQ = count(1)
 
 
 @lru_cache
@@ -166,49 +167,12 @@ def _normalize_llm_stream_mode(mode: Any) -> str:
 
 
 def _normalize_tts_mode(mode: Any) -> str:
-    if isinstance(mode, str):
-        lowered = mode.strip().lower()
-        if lowered in TTS_MODES:
-            return lowered
-    return "full"
-
-
-def _split_complete_sentences(buffer: str) -> tuple[list[str], str]:
-    segments: list[str] = []
-    start = 0
-
-    # Strong boundaries: sentence punctuation.
-    # Soft boundaries: comma/semicolon/newline with minimum chunk size.
-    for idx, ch in enumerate(buffer):
-        if ch in ".!?":
-            segment = buffer[start:idx + 1].strip()
-            if segment:
-                segments.append(segment)
-            start = idx + 1
-        elif ch in ",;:\n" and (idx - start) >= 10:
-            segment = buffer[start:idx + 1].strip()
-            if segment:
-                segments.append(segment)
-            start = idx + 1
-
-    remainder = buffer[start:]
-
-    # Low-latency fallback:
-    # even without punctuation, flush partial chunks once they are moderately long.
-    # This reduces "wait until sentence complete" delay in delta TTS mode.
-    while len(remainder) >= 26:
-        cut = remainder.rfind(" ", 12, 26)
-        if cut == -1:
-            cut = remainder.rfind(" ", 0, 36)
-        if cut == -1:
-            break
-
-        segment = remainder[:cut].strip()
-        if segment:
-            segments.append(segment)
-        remainder = remainder[cut + 1:]
-
-    return segments, remainder
+    if not isinstance(mode, str):
+        return "server"
+    lowered = mode.strip().lower()
+    if lowered in {"server", "full", "sentence", "client"}:
+        return "server"
+    return "server"
 
 
 def _to_chat_history(turns: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -237,8 +201,10 @@ class VoiceWsState:
     closing_threshold_sec: int = DEFAULT_CLOSING_THRESHOLD_SEC
     estimated_total_questions: int = _estimated_total_questions(DEFAULT_TARGET_DURATION_SEC)
     planned_questions: list[dict[str, Any]] = field(default_factory=list)
+    plan_attempted: bool = False
+    plan_bootstrap_task: asyncio.Task[None] | None = None
     llm_stream_mode: str = "final"
-    tts_mode: str = "full"
+    tts_mode: str = "server"
     processing_audio: bool = False
     vad: VadSegmenter = field(
         default_factory=lambda: VadSegmenter(
@@ -280,7 +246,14 @@ async def _send_avatar_state(ws: WebSocket, state: AvatarState, session_id: str)
     )
 
 
-async def _send_transcript(ws: WebSocket, session_id: str, role: str, text: str) -> bool:
+async def _send_transcript(
+    ws: WebSocket,
+    session_id: str,
+    role: str,
+    text: str,
+    *,
+    turn_id: str | None = None,
+) -> bool:
     return await _send_json(
         ws,
         {
@@ -288,6 +261,7 @@ async def _send_transcript(ws: WebSocket, session_id: str, role: str, text: str)
             "role": role,
             "text": text,
             "sessionId": session_id,
+            "turnId": turn_id,
             "timestamp": int(time.time()),
         },
     )
@@ -300,6 +274,8 @@ async def _send_transcript_delta(
     delta: str,
     accumulated_text: str,
     sequence: int,
+    *,
+    turn_id: str | None = None,
 ) -> bool:
     return await _send_json(
         ws,
@@ -309,6 +285,7 @@ async def _send_transcript_delta(
             "delta": delta,
             "accumulatedText": accumulated_text,
             "sessionId": session_id,
+            "turnId": turn_id,
             "seq": sequence,
             "timestamp": int(time.time()),
         },
@@ -323,24 +300,50 @@ def _build_context(state: VoiceWsState) -> dict[str, Any]:
     }
 
 
-async def _ensure_plan(state: VoiceWsState) -> None:
-    if not state.session_id or state.planned_questions:
+async def _bootstrap_plan(state: VoiceWsState) -> None:
+    if not state.session_id:
+        state.plan_bootstrap_task = None
         return
 
     gemini = get_gemini_service()
     if not gemini:
+        state.plan_bootstrap_task = None
         return
 
     try:
-        planned_questions = await asyncio.to_thread(
-            gemini.build_interview_plan,
-            _build_context(state),
-            1,
+        planned_questions = await asyncio.wait_for(
+            asyncio.to_thread(
+                gemini.build_interview_plan,
+                _build_context(state),
+                1,
+            ),
+            timeout=6.0,
         )
         state.planned_questions = planned_questions
         await asyncio.to_thread(service.set_planned_questions, state.session_id, planned_questions)
     except Exception:
-        logger.exception("failed to build planned questions", extra={"session_id": state.session_id})
+        logger.info(
+            "planned-question bootstrap failed; continuing without precomputed plan",
+            extra={"session_id": state.session_id},
+        )
+    finally:
+        state.plan_bootstrap_task = None
+
+
+async def _ensure_plan(state: VoiceWsState) -> None:
+    if not state.session_id or state.planned_questions:
+        return
+
+    if state.plan_bootstrap_task:
+        if state.plan_bootstrap_task.done():
+            state.plan_bootstrap_task = None
+        return
+
+    if state.plan_attempted:
+        return
+
+    state.plan_attempted = True
+    state.plan_bootstrap_task = asyncio.create_task(_bootstrap_plan(state))
 
 
 async def _iter_streaming_question_chunks(
@@ -388,7 +391,12 @@ async def _iter_streaming_question_chunks(
         return
 
 
-async def _prepare_tts_audio(ws: WebSocket, text: str) -> PreparedTtsAudio | None:
+async def _prepare_tts_audio(
+    ws: WebSocket,
+    text: str,
+    *,
+    turn_id: str | None = None,
+) -> PreparedTtsAudio | None:
     tts = get_tts_service()
     if not tts.enabled:
         await _send_json(
@@ -396,6 +404,7 @@ async def _prepare_tts_audio(ws: WebSocket, text: str) -> PreparedTtsAudio | Non
             {
                 "type": "warning",
                 "message": "TTS provider is disabled. Set GEMINI_API_KEY to enable synthesized audio.",
+                "turnId": turn_id,
             },
         )
         return None
@@ -404,15 +413,18 @@ async def _prepare_tts_audio(ws: WebSocket, text: str) -> PreparedTtsAudio | Non
     if not tts_result.audio_pcm_bytes:
         logger.warning("tts returned empty audio payload", extra={"text_len": len(text or "")})
         is_quota_exhausted = bool(getattr(tts, "quota_exhausted", False))
+        retry_after = int(getattr(tts, "quota_retry_after_sec", 0) or 0)
+        retry_text = f" (약 {retry_after}초 후 재시도)" if retry_after > 0 else ""
         await _send_json(
             ws,
             {
                 "type": "warning",
                 "message": (
-                    "Gemini TTS 일일 할당량을 초과했습니다. 이번 턴 음성 출력은 생략됩니다."
+                    f"Gemini TTS 할당량/리소스 제한으로 이번 턴 음성 출력은 생략됩니다.{retry_text}"
                     if is_quota_exhausted
                     else "Gemini TTS 오디오 생성에 실패했습니다. 이번 턴 음성 출력은 생략됩니다."
                 ),
+                "turnId": turn_id,
             },
         )
         return None
@@ -431,6 +443,8 @@ async def _send_prepared_tts_audio(
     ws: WebSocket,
     session_id: str,
     prepared: PreparedTtsAudio,
+    *,
+    turn_id: str,
 ) -> bool:
     if not prepared.chunks:
         return ws.client_state == WebSocketState.CONNECTED
@@ -444,6 +458,7 @@ async def _send_prepared_tts_audio(
                 "sampleRate": prepared.sample_rate,
                 "provider": prepared.provider,
                 "sessionId": session_id,
+                "turnId": turn_id,
                 "chunkIndex": idx,
                 "chunkCount": len(prepared.chunks),
                 "packetSeq": next(AUDIO_PACKET_SEQ),
@@ -453,13 +468,6 @@ async def _send_prepared_tts_audio(
         if not sent:
             return False
     return True
-
-
-async def _speak_text(ws: WebSocket, session_id: str, text: str) -> bool:
-    prepared = await _prepare_tts_audio(ws, text)
-    if prepared is None:
-        return ws.client_state == WebSocketState.CONNECTED
-    return await _send_prepared_tts_audio(ws, session_id, prepared)
 
 
 async def _generate_and_send_ai_turn(
@@ -503,9 +511,8 @@ async def _generate_and_send_ai_turn(
         completion_reason = "already_completed"
 
     used_delta_stream = False
-    sentence_tts_complete = False
     streamed_delta_count = 0
-    sentence_spoken_text = ""
+    turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
 
     if completion_reason:
         ai_text = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
@@ -537,78 +544,7 @@ async def _generate_and_send_ai_turn(
                 used_delta_stream = True
                 streamed_text = ""
                 delta_seq = 0
-                sentence_buffer = ""
                 state.current_phase = "closing" if should_announce_closing else phase
-
-                sentence_queue: asyncio.Queue[str | None] | None = None
-                sentence_task: asyncio.Task[None] | None = None
-                sentence_tts_ok = True
-                emit_delta_to_client = state.tts_mode in {"sentence", "client"}
-
-                if state.tts_mode == "sentence":
-                    sentence_queue = asyncio.Queue()
-
-                    async def _sentence_tts_worker() -> None:
-                        nonlocal sentence_tts_ok, sentence_spoken_text
-                        speaking = False
-                        pending_segments: list[str] = []
-                        spoken_segments: list[str] = []
-
-                        async def _flush_pending() -> bool:
-                            nonlocal speaking, sentence_tts_ok, pending_segments
-                            if not pending_segments:
-                                return True
-                            merged = " ".join(pending_segments).strip()
-                            pending_segments = []
-                            if not merged:
-                                return True
-                            if not speaking:
-                                if not await _send_avatar_state(ws, "speaking", state.session_id):
-                                    sentence_tts_ok = False
-                                    return False
-                                speaking = True
-                            if not await _speak_text(ws, state.session_id, merged):
-                                sentence_tts_ok = False
-                                return False
-                            spoken_segments.append(merged)
-                            return True
-
-                        while True:
-                            if pending_segments:
-                                try:
-                                    sentence = await asyncio.wait_for(sentence_queue.get(), timeout=0.10)
-                                except asyncio.TimeoutError:
-                                    if not await _flush_pending():
-                                        return
-                                    continue
-                            else:
-                                sentence = await sentence_queue.get()
-
-                            if sentence is None:
-                                if not await _flush_pending():
-                                    return
-                                break
-
-                            sentence = sentence.strip()
-                            if not sentence:
-                                continue
-                            pending_segments.append(sentence)
-
-                            pending_chars = sum(len(segment) for segment in pending_segments)
-                            flush_threshold = 28 if not speaking else 42
-                            should_flush = (
-                                pending_chars >= flush_threshold
-                                or sentence.endswith((".", "!", "?", ",", ";", ":", "다.", "요.", "니다."))
-                                or len(pending_segments) >= 2
-                            )
-                            if should_flush and not await _flush_pending():
-                                return
-
-                        sentence_spoken_text = re.sub(r"\s+", " ", " ".join(spoken_segments)).strip()
-                        if speaking and not await _send_avatar_state(ws, "idle", state.session_id):
-                            sentence_tts_ok = False
-
-                    sentence_task = asyncio.create_task(_sentence_tts_worker())
 
                 try:
                     async for delta_chunk in _iter_streaming_question_chunks(
@@ -626,22 +562,16 @@ async def _generate_and_send_ai_turn(
                         streamed_text += delta_chunk
                         delta_seq += 1
                         streamed_delta_count = delta_seq
-                        if emit_delta_to_client:
-                            if not await _send_transcript_delta(
-                                ws,
-                                state.session_id,
-                                "ai",
-                                delta_chunk,
-                                streamed_text,
-                                delta_seq,
-                            ):
-                                return {"completed": True, "text": streamed_text}
-
-                        if sentence_queue is not None:
-                            sentence_buffer += delta_chunk
-                            ready_sentences, sentence_buffer = _split_complete_sentences(sentence_buffer)
-                            for sentence in ready_sentences:
-                                await sentence_queue.put(sentence)
+                        if not await _send_transcript_delta(
+                            ws,
+                            state.session_id,
+                            "ai",
+                            delta_chunk,
+                            streamed_text,
+                            delta_seq,
+                            turn_id=turn_id,
+                        ):
+                            return {"completed": True, "text": streamed_text, "turnId": turn_id}
 
                     ai_text = gemini.finalize_streamed_question(
                         text=streamed_text,
@@ -651,35 +581,9 @@ async def _generate_and_send_ai_turn(
                         current_phase=phase,
                         total_questions=prompt_total_questions,
                     )
-
-                    if sentence_queue is not None:
-                        # Prevent duplicate TTS:
-                        # In sentence streaming mode, already spoken chunks must not be re-queued.
-                        # Only append the explicit suffix when finalized text cleanly extends the streamed text.
-                        merged_remainder = sentence_buffer
-                        if ai_text != streamed_text and ai_text.startswith(streamed_text):
-                            suffix = ai_text[len(streamed_text):].strip()
-                            if suffix:
-                                merged_remainder = f"{merged_remainder} {suffix}".strip()
-                        ready_sentences, sentence_buffer = _split_complete_sentences(merged_remainder)
-                        for sentence in ready_sentences:
-                            await sentence_queue.put(sentence)
-                        tail = sentence_buffer.strip()
-                        if tail:
-                            await sentence_queue.put(tail)
-                        await sentence_queue.put(None)
-                        if sentence_task is not None:
-                            await sentence_task
-                            sentence_tts_complete = sentence_tts_ok
-                            if sentence_spoken_text:
-                                ai_text = sentence_spoken_text
                 except Exception:
                     logger.exception("delta streaming failed, fallback to non-streaming", extra={"session_id": state.session_id})
                     used_delta_stream = False
-                    if sentence_queue is not None:
-                        await sentence_queue.put(None)
-                        if sentence_task is not None:
-                            await sentence_task
                     generated = await asyncio.to_thread(
                         gemini.generate_next_question_structured,
                         _build_context(state),
@@ -727,8 +631,9 @@ async def _generate_and_send_ai_turn(
             "closing_threshold_sec": closing_threshold_sec,
             "estimated_total_questions": estimated_total_questions,
             "stream_mode": "delta" if used_delta_stream else "final",
-            "tts_mode": state.tts_mode if used_delta_stream else "full",
+            "tts_mode": state.tts_mode,
             "delta_count": streamed_delta_count,
+            "turn_id": turn_id,
         }
         await asyncio.to_thread(
             service.append_turn,
@@ -748,9 +653,10 @@ async def _generate_and_send_ai_turn(
             "phase": state.current_phase,
             "guide": "voice-turn",
             "message": f"면접 단계: {state.current_phase}",
+            "turnId": turn_id,
         },
     ):
-        return {"completed": True, "text": ai_text}
+        return {"completed": True, "text": ai_text, "turnId": turn_id}
     if not await _send_json(
         ws,
         {
@@ -764,43 +670,36 @@ async def _generate_and_send_ai_turn(
             "isClosingPhase": state.current_phase == "closing",
             "interviewComplete": bool(completion_reason),
             "finishReason": completion_reason,
+            "turnId": turn_id,
         },
     ):
-        return {"completed": True, "text": ai_text}
+        return {"completed": True, "text": ai_text, "turnId": turn_id}
 
-    prepared_tts: PreparedTtsAudio | None = None
-    if state.tts_mode == "client":
-        # Client-side speech synthesis mode: skip server TTS generation entirely.
-        pass
-    elif used_delta_stream and state.tts_mode == "sentence":
-        if not sentence_tts_complete:
-            return {"completed": True, "text": ai_text}
-    else:
-        # Prepare TTS first so transcript display and audio playback start nearly together.
-        prepared_tts = await _prepare_tts_audio(ws, ai_text)
+    # Prepare TTS first so transcript display and audio playback start nearly together.
+    prepared_tts = await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
 
-    if not await _send_transcript(ws, state.session_id, "ai", ai_text):
-        return {"completed": True, "text": ai_text}
-    if not await _send_json(ws, {"type": "full-text", "text": ai_text}):
-        return {"completed": True, "text": ai_text}
+    if not await _send_transcript(ws, state.session_id, "ai", ai_text, turn_id=turn_id):
+        return {"completed": True, "text": ai_text, "turnId": turn_id}
+    if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
+        return {"completed": True, "text": ai_text, "turnId": turn_id}
 
-    if state.tts_mode not in {"client", "sentence"}:
-        if prepared_tts is not None:
-            if not await _send_avatar_state(ws, "speaking", state.session_id):
-                return {"completed": True, "text": ai_text}
-            if not await _send_prepared_tts_audio(ws, state.session_id, prepared_tts):
-                return {"completed": True, "text": ai_text}
-            if not await _send_avatar_state(ws, "idle", state.session_id):
-                return {"completed": True, "text": ai_text}
+    if prepared_tts is not None:
+        if not await _send_avatar_state(ws, "speaking", state.session_id):
+            return {"completed": True, "text": ai_text, "turnId": turn_id}
+        if not await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id):
+            return {"completed": True, "text": ai_text, "turnId": turn_id}
+        if not await _send_avatar_state(ws, "idle", state.session_id):
+            return {"completed": True, "text": ai_text, "turnId": turn_id}
 
     is_complete = bool(completion_reason)
     if not is_complete:
-        if await _send_json(ws, {"type": "control", "text": "start-mic"}):
+        if await _send_json(ws, {"type": "control", "text": "start-mic", "turnId": turn_id}):
             await _send_avatar_state(ws, "listening", state.session_id)
 
     return {
         "completed": is_complete,
         "text": ai_text,
+        "turnId": turn_id,
         "closingAnnounced": announced_closing_this_turn,
         "completionReason": completion_reason,
     }
@@ -978,7 +877,11 @@ async def client_ws(websocket: WebSocket):
                 state.target_duration_sec = target_duration_sec
                 state.closing_threshold_sec = closing_threshold_sec
                 state.estimated_total_questions = _estimated_total_questions(target_duration_sec)
+                if state.plan_bootstrap_task and not state.plan_bootstrap_task.done():
+                    state.plan_bootstrap_task.cancel()
+                state.plan_bootstrap_task = None
                 state.planned_questions = []
+                state.plan_attempted = False
                 state.llm_stream_mode = llm_stream_mode
                 state.tts_mode = tts_mode
                 state.vad = VadSegmenter(
@@ -1093,3 +996,6 @@ async def client_ws(websocket: WebSocket):
         if "WebSocket is not connected" in str(exc):
             return
         raise
+    finally:
+        if state.plan_bootstrap_task and not state.plan_bootstrap_task.done():
+            state.plan_bootstrap_task.cancel()

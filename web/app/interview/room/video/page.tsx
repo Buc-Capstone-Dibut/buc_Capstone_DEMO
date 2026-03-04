@@ -170,7 +170,12 @@ export default function InterviewVideoRoomPage() {
         setStatusMessage(toText(event.message, "면접 단계가 업데이트되었습니다."));
       }
 
-      if (eventType === "warning" || eventType === "error" || eventType === "mic-error") {
+      if (
+        eventType === "warning" ||
+        eventType === "error" ||
+        eventType === "mic-error" ||
+        eventType === "audio-gesture-required"
+      ) {
         setStatusMessage(toText(event.message, "오디오 파이프라인 상태를 확인해 주세요."));
       }
 
@@ -198,8 +203,8 @@ export default function InterviewVideoRoomPage() {
       style: interviewerPersonality || "professional",
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
-      llmStreamMode: "delta",
-      ttsMode: "sentence",
+      llmStreamMode: "final",
+      ttsMode: "server",
       jobData: (jobData as unknown as Record<string, unknown>) || {},
       resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
     });
@@ -264,7 +269,7 @@ export default function InterviewVideoRoomPage() {
       return;
     }
 
-    await startMic();
+    await startMic({ userGesture: true });
     setStatusMessage("마이크를 활성화했습니다.");
   };
 

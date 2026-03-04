@@ -286,24 +286,75 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         self,
         api_key: str | None,
         model: str = "gemini-2.5-flash-preview-tts",
+        generate_model: str | None = None,
         voice: str = "Kore",
         output_sample_rate: int = 24000,
-        timeout_sec: float = 10.0,
+        timeout_sec: float = 20.0,
+        quota_cooldown_sec: int = 300,
     ):
         super().__init__(api_key=api_key)
+        # Keep `model` for compatibility with existing callers/configs.
         self.model = model
+        self.generate_model = (generate_model or model).strip()
+        self.generate_model_candidates = self._build_generate_model_candidates(self.generate_model)
         self.voice = voice
         self.output_sample_rate = output_sample_rate
         self.timeout_sec = timeout_sec
-        self._quota_exhausted = False
+        self._quota_block_until = 0.0
+        self._quota_error_streak = 0
+        self._quota_cooldown_sec = max(60, int(quota_cooldown_sec))
 
     @property
     def quota_exhausted(self) -> bool:
-        return self._quota_exhausted
+        return self.quota_retry_after_sec > 0
+
+    @property
+    def quota_retry_after_sec(self) -> int:
+        remaining = self._quota_block_until - time.monotonic()
+        return max(0, int(remaining))
+
+    def _mark_quota_exhausted(self, exc: Exception) -> None:
+        self._quota_error_streak += 1
+        multiplier = min(6, self._quota_error_streak)
+        cooldown_sec = min(3600, self._quota_cooldown_sec * multiplier)
+        self._quota_block_until = time.monotonic() + cooldown_sec
+        logger.error(
+            "gemini tts quota/resource exhausted; cooldown applied (retry_after=%ss, streak=%s): %s",
+            cooldown_sec,
+            self._quota_error_streak,
+            exc,
+        )
+
+    def _mark_quota_recovered(self) -> None:
+        if self._quota_error_streak:
+            self._quota_error_streak = 0
+        self._quota_block_until = 0.0
+
+    def _sanitize_tts_input(self, text: str) -> str:
+        cleaned = text or ""
+        cleaned = cleaned.replace("<verbatim>", "").replace("</verbatim>", "")
+        cleaned = re.sub(r"`{1,3}", "", cleaned)
+        cleaned = re.sub(r"(\*\*|__|~~)", "", cleaned)
+        cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"^\s*[-*+]\s+", "", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
 
     def _estimate_max_output_tokens(self, text: str, boost: int = 0) -> int:
         base = int(len(text) * 4.0) + 120 + boost
         return max(256, min(1800, base))
+
+    def _build_generate_model_candidates(self, preferred: str) -> tuple[str, ...]:
+        # Reliability-first order:
+        # flash-preview-tts responds significantly faster and more consistently than pro-preview-tts.
+        baseline = "gemini-2.5-flash-preview-tts"
+        candidates: list[str] = []
+        for name in (baseline, preferred):
+            normalized = (name or "").strip()
+            if normalized and normalized not in candidates:
+                candidates.append(normalized)
+        return tuple(candidates)
 
     def _tts_generate_config(self, text: str, boost: int = 0) -> dict[str, Any]:
         return {
@@ -324,6 +375,8 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
     async def _synthesize_via_generate_content(
         self,
         text: str,
+        *,
+        model_name: str,
         boost: int = 0,
         timeout_override: float | None = None,
     ) -> tuple[bytes, int]:
@@ -333,7 +386,7 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         # Keep timeout generous to avoid premature fallback.
         timeout_sec = self.timeout_sec if timeout_override is None else timeout_override
         request_coro = self._client.aio.models.generate_content(
-            model=self.model,
+            model=model_name,
             contents=text,
             config=self._tts_generate_config(text, boost=boost),
         )
@@ -345,7 +398,7 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
 
         return self._extract_audio_from_generate_response(response)
 
-    def _split_tts_segments(self, text: str, max_chars: int = 120) -> list[str]:
+    def _split_tts_segments(self, text: str, max_chars: int = 90) -> list[str]:
         normalized = re.sub(r"\s+", " ", (text or "")).strip()
         if not normalized:
             return []
@@ -381,9 +434,15 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         return [s for s in bounded if s]
 
     def _whole_text_budget_sec(self, text_len: int) -> float:
-        # Dynamic budget: long prompts need more time, but cap to avoid blocking turns too long.
-        estimate = 9.0 + (text_len / 140.0) * 3.0
-        return max(9.0, min(16.0, estimate))
+        estimate = 18.0 + (text_len / 130.0) * 3.0
+        return max(18.0, min(30.0, estimate))
+
+    def _segment_budget_sec(self, text_len: int) -> float:
+        estimate = 14.0 + (text_len / 90.0) * 2.0
+        return max(14.0, min(22.0, estimate))
+
+    def _should_segment_first(self, text_len: int) -> bool:
+        return text_len >= 80
 
     async def _generate_with_retries(
         self,
@@ -392,99 +451,158 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         *,
         max_total_sec: float | None = None,
     ) -> tuple[bytes, int]:
-        started_at = time.monotonic()
-        for attempt_idx, boost in enumerate(boosts, start=1):
-            timeout_override: float | None = None
-            if max_total_sec is not None:
-                elapsed = time.monotonic() - started_at
-                remaining = max_total_sec - elapsed
-                if remaining <= 0:
-                    logger.warning("gemini tts retry budget exhausted (text_len=%s)", len(target_text))
-                    return b"", self.output_sample_rate
-                timeout_override = min(self.timeout_sec, max(0.8, remaining))
+        timeout_override = self.timeout_sec if max_total_sec is None else max(4.0, min(self.timeout_sec, max_total_sec))
+        attempt_no = 0
+        for model_name in self.generate_model_candidates:
+            for boost in boosts:
+                attempt_no += 1
+                try:
+                    payload, sample_rate = await self._synthesize_via_generate_content(
+                        target_text,
+                        model_name=model_name,
+                        boost=boost,
+                        timeout_override=timeout_override,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "gemini tts generate_content timeout (attempt=%s, model=%s, text_len=%s, timeout=%.2fs)",
+                        attempt_no,
+                        model_name,
+                        len(target_text),
+                        timeout_override,
+                    )
+                    payload, sample_rate = b"", self.output_sample_rate
+                except Exception as exc:
+                    if _is_quota_exhausted_error(exc):
+                        self._mark_quota_exhausted(exc)
+                        return b"", self.output_sample_rate
+                    logger.exception(
+                        "gemini tts generate_content failed (attempt=%s, model=%s)",
+                        attempt_no,
+                        model_name,
+                    )
+                    payload, sample_rate = b"", self.output_sample_rate
 
-            try:
-                payload, sample_rate = await self._synthesize_via_generate_content(
-                    target_text,
-                    boost=boost,
-                    timeout_override=timeout_override,
-                )
-            except asyncio.TimeoutError:
+                if payload:
+                    logger.info(
+                        "gemini tts generate_content success (attempt=%s, model=%s, text_len=%s, sample_rate=%s, audio_bytes=%s)",
+                        attempt_no,
+                        model_name,
+                        len(target_text),
+                        sample_rate,
+                        len(payload),
+                    )
+                    self._mark_quota_recovered()
+                    return payload, sample_rate or self.output_sample_rate
+
                 logger.warning(
-                    "gemini tts generate_content timeout (attempt=%s, text_len=%s)",
-                    attempt_idx,
+                    "gemini tts returned empty payload via generate_content (attempt=%s, model=%s, text_len=%s)",
+                    attempt_no,
+                    model_name,
                     len(target_text),
                 )
-                payload, sample_rate = b"", self.output_sample_rate
-            except Exception as exc:
-                if _is_quota_exhausted_error(exc):
-                    logger.error("gemini tts quota exhausted; server-side TTS disabled for this process")
-                    self._quota_exhausted = True
-                    return b"", self.output_sample_rate
-                logger.exception("gemini tts generate_content failed")
-                payload, sample_rate = b"", self.output_sample_rate
-
-            if payload:
-                return payload, sample_rate or self.output_sample_rate
-
-            logger.warning(
-                "gemini tts returned empty payload via generate_content (attempt=%s, text_len=%s)",
-                attempt_idx,
-                len(target_text),
-            )
-            if attempt_idx < len(boosts):
-                await asyncio.sleep(0.2 * attempt_idx)
+                await asyncio.sleep(0.15)
 
         return b"", self.output_sample_rate
 
-    async def synthesize_pcm(self, text: str) -> TtsResult:
-        if not self.enabled or not text.strip():
-            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
-        if self._quota_exhausted:
-            logger.warning("gemini tts skipped due to quota exhausted state")
-            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
-
-        payload_text = re.sub(r"\s+", " ", text).strip()
-        if not payload_text:
-            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
-
-        text_len = len(payload_text)
-        segments = self._split_tts_segments(payload_text, max_chars=120)
-        use_segmented_first = len(segments) > 1 and text_len >= 180
-
-        if not use_segmented_first:
-            # Natural voice priority for short/mid text.
-            whole_payload, whole_rate = await self._generate_with_retries(
-                payload_text,
-                boosts=(0,),
-                max_total_sec=11.0,
-            )
-            if whole_payload:
-                return TtsResult(audio_pcm_bytes=whole_payload, sample_rate=whole_rate, provider=self.provider)
-
-        # For long text (or full-text failure), synthesize by segments.
-        # IMPORTANT: return only when every segment succeeded (no partial/mid-sentence audio).
+    async def _synthesize_segmented(
+        self,
+        payload_text: str,
+        *,
+        max_chars: int,
+        boosts: tuple[int, ...] = (0, 120),
+    ) -> tuple[bytes, int]:
+        segments = self._split_tts_segments(payload_text, max_chars=max_chars)
         if not segments:
             logger.error("gemini tts has no segments")
-            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+            return b"", self.output_sample_rate
 
         merged: list[bytes] = []
         sample_rate_final = self.output_sample_rate
         for segment in segments:
             seg_payload, seg_rate = await self._generate_with_retries(
                 segment,
-                boosts=(0,),
-                max_total_sec=11.0,
+                boosts=boosts,
+                max_total_sec=self._segment_budget_sec(len(segment)),
             )
             if not seg_payload:
+                if merged:
+                    partial_payload = b"".join(merged)
+                    logger.warning(
+                        "gemini tts segmented synthesis partially failed; returning partial audio (completed_segments=%s, failed_segment_len=%s)",
+                        len(merged),
+                        len(segment),
+                    )
+                    return partial_payload, sample_rate_final
                 logger.error("gemini tts segmented synthesis failed (segment_len=%s)", len(segment))
-                return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+                return b"", self.output_sample_rate
             merged.append(seg_payload)
             sample_rate_final = seg_rate
 
         merged_payload = b"".join(merged)
         if not merged_payload:
             logger.error("gemini tts merged segmented payload is empty")
+            return b"", self.output_sample_rate
+
+        logger.info(
+            "gemini tts segmented success (segments=%s, sample_rate=%s, audio_bytes=%s)",
+            len(merged),
+            sample_rate_final,
+            len(merged_payload),
+        )
+        return merged_payload, sample_rate_final
+
+    async def synthesize_pcm(self, text: str) -> TtsResult:
+        if not self.enabled or not text.strip():
+            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+        retry_after_sec = self.quota_retry_after_sec
+        if retry_after_sec > 0:
+            logger.warning("gemini tts skipped due to quota cooldown (retry_after=%ss)", retry_after_sec)
             return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
 
-        return TtsResult(audio_pcm_bytes=merged_payload, sample_rate=sample_rate_final, provider=self.provider)
+        payload_text = self._sanitize_tts_input(text)
+        if not payload_text:
+            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+
+        text_len = len(payload_text)
+        segment_first = self._should_segment_first(text_len)
+
+        # 긴 텍스트는 분할 합성이 평균 지연/실패율이 낮아 우선 시도한다.
+        if segment_first:
+            for segment_size in (72, 56, 42):
+                segmented_payload, segmented_rate = await self._synthesize_segmented(
+                    payload_text,
+                    max_chars=segment_size,
+                    boosts=(0, 120),
+                )
+                if segmented_payload:
+                    return TtsResult(
+                        audio_pcm_bytes=segmented_payload,
+                        sample_rate=segmented_rate,
+                        provider=self.provider,
+                    )
+            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+
+        # 짧은 문장은 whole-text 우선, 실패 시 분할 fallback.
+        whole_payload, whole_rate = await self._generate_with_retries(
+            payload_text,
+            boosts=(0, 120, 240),
+            max_total_sec=self._whole_text_budget_sec(text_len),
+        )
+        if whole_payload:
+            return TtsResult(audio_pcm_bytes=whole_payload, sample_rate=whole_rate, provider=self.provider)
+
+        for segment_size in (64, 48):
+            segmented_payload, segmented_rate = await self._synthesize_segmented(
+                payload_text,
+                max_chars=segment_size,
+                boosts=(0, 120),
+            )
+            if segmented_payload:
+                return TtsResult(
+                    audio_pcm_bytes=segmented_payload,
+                    sample_rate=segmented_rate,
+                    provider=self.provider,
+                )
+
+        return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
