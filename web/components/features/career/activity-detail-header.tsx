@@ -121,16 +121,15 @@ export function ActivityDetailHeader({ event }: ActivityDetailHeaderProps) {
                   target="_blank"
                   className="w-full md:w-auto h-14 px-8 flex items-center justify-center text-lg bg-background text-foreground hover:bg-background/90 rounded-lg font-bold transition-colors"
                 >
-                  참여하기
+                  공식 홈페이지 방문
                   <ExternalLink className="w-5 h-5 ml-2 text-muted-foreground" />
                 </Link>
               </div>
 
               {/* Recruit Team Button */}
               <Link
-                href={`/community/squad/write?activityId=${
-                  event.id
-                }&activityTitle=${encodeURIComponent(event.title)}`}
+                href={`/community/squad/write?activityId=${event.id
+                  }&activityTitle=${encodeURIComponent(event.title)}`}
                 className="w-full md:w-auto h-12 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-lg flex items-center justify-center font-medium transition-colors"
               >
                 <Users className="w-4 h-4 mr-2" />
@@ -143,17 +142,17 @@ export function ActivityDetailHeader({ event }: ActivityDetailHeaderProps) {
                   className={cn(
                     "text-xs font-semibold px-2 py-0.5 rounded",
                     event.status === "recruiting" &&
-                      "bg-emerald-100 text-emerald-700",
+                    "bg-emerald-100 text-emerald-700",
                     event.status === "closed" && "bg-slate-100 text-slate-500",
                     !["recruiting", "closed"].includes(event.status) &&
-                      "bg-blue-100 text-blue-700"
+                    "bg-blue-100 text-blue-700"
                   )}
                 >
                   {event.status === "recruiting"
                     ? "모집중"
                     : event.status === "closed"
-                    ? "마감됨"
-                    : event.status}
+                      ? "마감됨"
+                      : event.status}
                 </span>
               </div>
             </div>
