@@ -199,7 +199,7 @@ export default function InterviewVideoRoomPage() {
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
       llmStreamMode: "delta",
-      ttsMode: "client",
+      ttsMode: "sentence",
       jobData: (jobData as unknown as Record<string, unknown>) || {},
       resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
     });

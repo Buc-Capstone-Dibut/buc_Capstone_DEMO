@@ -403,11 +403,16 @@ async def _prepare_tts_audio(ws: WebSocket, text: str) -> PreparedTtsAudio | Non
     tts_result = await tts.synthesize_pcm(text)
     if not tts_result.audio_pcm_bytes:
         logger.warning("tts returned empty audio payload", extra={"text_len": len(text or "")})
+        is_quota_exhausted = bool(getattr(tts, "quota_exhausted", False))
         await _send_json(
             ws,
             {
                 "type": "warning",
-                "message": "TTS 오디오 생성에 실패했습니다. 다음 턴에서 자동 재시도합니다.",
+                "message": (
+                    "Gemini TTS 일일 할당량을 초과했습니다. 이번 턴 음성 출력은 생략됩니다."
+                    if is_quota_exhausted
+                    else "Gemini TTS 오디오 생성에 실패했습니다. 이번 턴 음성 출력은 생략됩니다."
+                ),
             },
         )
         return None
@@ -763,11 +768,7 @@ async def _generate_and_send_ai_turn(
     ):
         return {"completed": True, "text": ai_text}
 
-    if not await _send_transcript(ws, state.session_id, "ai", ai_text):
-        return {"completed": True, "text": ai_text}
-    if not await _send_json(ws, {"type": "full-text", "text": ai_text}):
-        return {"completed": True, "text": ai_text}
-
+    prepared_tts: PreparedTtsAudio | None = None
     if state.tts_mode == "client":
         # Client-side speech synthesis mode: skip server TTS generation entirely.
         pass
@@ -775,14 +776,22 @@ async def _generate_and_send_ai_turn(
         if not sentence_tts_complete:
             return {"completed": True, "text": ai_text}
     else:
-        if not await _send_avatar_state(ws, "speaking", state.session_id):
-            return {"completed": True, "text": ai_text}
+        # Prepare TTS first so transcript display and audio playback start nearly together.
         prepared_tts = await _prepare_tts_audio(ws, ai_text)
+
+    if not await _send_transcript(ws, state.session_id, "ai", ai_text):
+        return {"completed": True, "text": ai_text}
+    if not await _send_json(ws, {"type": "full-text", "text": ai_text}):
+        return {"completed": True, "text": ai_text}
+
+    if state.tts_mode not in {"client", "sentence"}:
         if prepared_tts is not None:
+            if not await _send_avatar_state(ws, "speaking", state.session_id):
+                return {"completed": True, "text": ai_text}
             if not await _send_prepared_tts_audio(ws, state.session_id, prepared_tts):
                 return {"completed": True, "text": ai_text}
-        if not await _send_avatar_state(ws, "idle", state.session_id):
-            return {"completed": True, "text": ai_text}
+            if not await _send_avatar_state(ws, "idle", state.session_id):
+                return {"completed": True, "text": ai_text}
 
     is_complete = bool(completion_reason)
     if not is_complete:
@@ -1079,3 +1088,8 @@ async def client_ws(websocket: WebSocket):
 
     except WebSocketDisconnect:
         return
+    except RuntimeError as exc:
+        # Browser tab close / reconnect races can raise RuntimeError from receive_text.
+        if "WebSocket is not connected" in str(exc):
+            return
+        raise

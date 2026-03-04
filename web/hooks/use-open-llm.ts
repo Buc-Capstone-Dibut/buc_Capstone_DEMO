@@ -114,11 +114,16 @@ export function useOpenLLM({
   const lastAudioSignatureRef = useRef<string>("");
   const pendingStartMicRef = useRef(false);
   const isClientTtsSpeakingRef = useRef(false);
-  const forceBrowserTtsRef = useRef(true); // keep browser TTS primary for stability
+  const forceBrowserTtsRef = useRef(false); // use server TTS by default, browser TTS as fallback only
+  const allowBrowserFallbackRef = useRef(false); // hard off: use Gemini server TTS only
   const browserSpeechQueueRef = useRef<string[]>([]);
   const activeAiStreamRef = useRef(false);
   const aiAccumulatedRef = useRef("");
   const aiRemainderRef = useRef("");
+  const aiTurnRef = useRef(0);
+  const awaitingServerAudioTurnRef = useRef<number | null>(null);
+  const fallbackFinalTextRef = useRef("");
+  const ignoreLateServerAudioRef = useRef(false);
   const onTranscriptRef = useRef(onTranscript);
   const onEventRef = useRef(onEvent);
 
@@ -180,6 +185,9 @@ export function useOpenLLM({
 
   const disconnect = useCallback(() => {
     pendingStartMicRef.current = false;
+    ignoreLateServerAudioRef.current = false;
+    awaitingServerAudioTurnRef.current = null;
+    fallbackFinalTextRef.current = "";
     if (typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined") {
       window.speechSynthesis.cancel();
     }
@@ -389,6 +397,19 @@ export function useOpenLLM({
             if (forceBrowserTtsRef.current || isClientTtsSpeakingRef.current) {
               break;
             }
+            if (ignoreLateServerAudioRef.current) {
+              break;
+            }
+            if (
+              typeof window !== "undefined" &&
+              typeof window.speechSynthesis !== "undefined" &&
+              (window.speechSynthesis.speaking || window.speechSynthesis.pending || browserSpeechQueueRef.current.length > 0)
+            ) {
+              // Browser fallback TTS is already speaking this turn; ignore late server audio to avoid double playback.
+              break;
+            }
+            awaitingServerAudioTurnRef.current = null;
+            fallbackFinalTextRef.current = "";
             const packetSeq =
               typeof event.packetSeq === "number" ? String(event.packetSeq) : String(event.chunkIndex ?? "na");
             const audioLengthHint = Array.isArray(event.audio)
@@ -436,12 +457,43 @@ export function useOpenLLM({
                   pushAiTextToClientSpeech("", true);
                 }
                 finalizeClientTtsTurn();
+              } else {
+                if (allowBrowserFallbackRef.current) {
+                  aiTurnRef.current += 1;
+                  const currentTurn = aiTurnRef.current;
+                  ignoreLateServerAudioRef.current = false;
+                  awaitingServerAudioTurnRef.current = currentTurn;
+                  fallbackFinalTextRef.current = aiText;
+                } else {
+                  awaitingServerAudioTurnRef.current = null;
+                  fallbackFinalTextRef.current = "";
+                }
               }
             }
           }
           onTranscriptRef.current?.(event.text, event.role);
         }
         break;
+      case "warning": {
+        const message = typeof event.message === "string" ? event.message : "";
+        if (
+          allowBrowserFallbackRef.current &&
+          !forceBrowserTtsRef.current &&
+          awaitingServerAudioTurnRef.current !== null &&
+          /tts|audio/i.test(message)
+        ) {
+          const fallbackText = fallbackFinalTextRef.current.trim();
+          awaitingServerAudioTurnRef.current = null;
+          fallbackFinalTextRef.current = "";
+          if (fallbackText) {
+            ignoreLateServerAudioRef.current = true;
+            pendingStartMicRef.current = true;
+            pushAiTextToClientSpeech(fallbackText, true);
+            finalizeClientTtsTurn();
+          }
+        }
+        break;
+      }
       case "transcript.delta":
         if (event.role === "ai" && forceBrowserTtsRef.current) {
           const accumulatedText =
@@ -474,6 +526,9 @@ export function useOpenLLM({
       case "control":
         if (event.text === "interrupt") {
            pendingStartMicRef.current = false;
+           ignoreLateServerAudioRef.current = false;
+           awaitingServerAudioTurnRef.current = null;
+           fallbackFinalTextRef.current = "";
            if (typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined") {
              window.speechSynthesis.cancel();
            }
@@ -485,6 +540,22 @@ export function useOpenLLM({
            stopMic(false);
            setIsAIProcessing(true);
         } else if (event.text === "start-mic") {
+           if (
+             allowBrowserFallbackRef.current &&
+             !forceBrowserTtsRef.current &&
+             awaitingServerAudioTurnRef.current !== null
+           ) {
+             const fallbackText = fallbackFinalTextRef.current.trim();
+             awaitingServerAudioTurnRef.current = null;
+             fallbackFinalTextRef.current = "";
+             if (fallbackText) {
+               ignoreLateServerAudioRef.current = true;
+               pendingStartMicRef.current = true;
+               pushAiTextToClientSpeech(fallbackText, true);
+               finalizeClientTtsTurn();
+               break;
+             }
+           }
            const ctx = audioContextRef.current;
            const hasQueuedAiAudio = Boolean(ctx) && nextStartTimeRef.current > ctx.currentTime + 0.02;
            const hasQueuedClientTts =
