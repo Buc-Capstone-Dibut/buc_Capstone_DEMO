@@ -9,7 +9,6 @@ PLACEHOLDER_TOKENS = (
     "your_gemini_api_key",
     "your_livekit_api_key",
     "your_livekit_api_secret",
-    "your_openai_api_key",
     "your-livekit-cloud.livekit.cloud",
     "<project-ref>",
     "<password>",
@@ -44,7 +43,7 @@ class Settings(BaseSettings):
 
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     github_token: str | None = Field(default=None, alias="GITHUB_TOKEN")
 
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
@@ -54,11 +53,20 @@ class Settings(BaseSettings):
     livekit_api_key: str | None = Field(default=None, alias="LIVEKIT_API_KEY")
     livekit_api_secret: str | None = Field(default=None, alias="LIVEKIT_API_SECRET")
 
-    # Voice pipeline providers
-    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
-    openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
-    openai_tts_model: str = Field(default="tts-1", alias="OPENAI_TTS_MODEL")
-    openai_tts_voice: str = Field(default="alloy", alias="OPENAI_TTS_VOICE")
+    # Gemini Live voice pipeline providers
+    gemini_live_stt_model: str = Field(
+        default="gemini-2.5-flash-native-audio-latest",
+        alias="GEMINI_LIVE_STT_MODEL",
+    )
+    gemini_live_tts_model: str = Field(
+        default="gemini-2.5-flash-native-audio-latest",
+        alias="GEMINI_LIVE_TTS_MODEL",
+    )
+    gemini_tts_model: str = Field(
+        default="gemini-2.5-flash-preview-tts",
+        alias="GEMINI_TTS_MODEL",
+    )
+    gemini_live_tts_voice: str = Field(default="Kore", alias="GEMINI_LIVE_TTS_VOICE")
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
     voice_vad_threshold: float = Field(default=0.015, alias="VOICE_VAD_THRESHOLD")
@@ -73,7 +81,6 @@ class Settings(BaseSettings):
         "livekit_url",
         "livekit_api_key",
         "livekit_api_secret",
-        "openai_api_key",
         mode="before",
     )
     @classmethod

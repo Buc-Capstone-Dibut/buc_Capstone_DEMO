@@ -10,7 +10,7 @@ import { ArrowLeft, CheckCircle2, Clock3, Loader2, Send } from "lucide-react";
 import { GlobalHeader } from "@/components/layout/global-header";
 import { RubricHelpGuide } from "@/components/features/interview/training/rubric-help-guide";
 import { DibutAvatarPanel, type AvatarState } from "@/components/features/interview/avatar/dibut-avatar-panel";
-import { InterviewVideoRoom } from "@/components/features/interview/livekit/interview-video-room";
+import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 
 const EVALUATION_AXES = [
   {
@@ -68,7 +68,7 @@ const clampDurationMinute = (raw: string | null): 5 | 7 | 10 => {
   return 7;
 };
 
-const resolveInterviewMode = (_raw: string | null): "video" => "video";
+const resolveInterviewMode = (): "video" => "video";
 
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.floor(seconds));
@@ -95,20 +95,11 @@ export default function PortfolioDefenseRoomPage() {
   const readmeSummary = searchParams.get("readmeSummary") || "";
   const treeSummary = searchParams.get("treeSummary") || "";
   const detectedTopics = (searchParams.get("detectedTopics") || "").split(",").filter(Boolean);
-  const mode = resolveInterviewMode(searchParams.get("mode"));
+  const mode = resolveInterviewMode();
   const durationMinutes = clampDurationMinute(searchParams.get("duration"));
   const requestedTargetDurationSec = durationMinutes * 60;
   const isVideo = true;
   const avatarWsUrl = process.env.NEXT_PUBLIC_AI_WS_URL;
-
-  const [videoIdentity] = useState(() => {
-    const fallback = Math.random().toString(36).slice(2, 10);
-    const suffix =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID().slice(0, 8)
-        : fallback;
-    return `portfolio-${sessionId.slice(0, 8)}-${suffix}`;
-  });
 
   const { owner, repo } = repoMeta(repoUrl);
 
@@ -235,15 +226,16 @@ export default function PortfolioDefenseRoomPage() {
         if (data.isComplete || data.meta?.interviewComplete) {
           setIsComplete(true);
         }
-      } catch (err: any) {
-        setError(err.message || "면접 시작 오류");
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "면접 시작 오류";
+        setError(message);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchFirstQuestion();
-  }, [sessionId]);
+  }, [requestedTargetDurationSec, sessionId]);
 
   const handleSend = async () => {
     const value = input.trim();
@@ -314,8 +306,9 @@ export default function PortfolioDefenseRoomPage() {
         }));
       }
       if (data.isComplete || data.meta?.interviewComplete) setIsComplete(true);
-    } catch (err: any) {
-      setError(err.message || "AI 응답 오류");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "AI 응답 오류";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -350,14 +343,9 @@ export default function PortfolioDefenseRoomPage() {
           </div>
         </div>
 
-        {/* LiveKit 화상 룸 (video 모드일 때만) */}
+        {/* 로컬 카메라 프리뷰 (video 모드일 때만) */}
         {isVideo && (
-          <InterviewVideoRoom
-            room={`portfolio-${sessionId}`}
-            identity={videoIdentity}
-            enabled={isVideo}
-            maxHeight={220}
-          />
+          <LocalCameraPreview enabled={isVideo} maxHeight={220} />
         )}
 
         <Card className="border-dashed">

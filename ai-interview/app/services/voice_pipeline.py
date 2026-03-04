@@ -33,6 +33,31 @@ def float_samples_to_wav_bytes(samples: list[float], sample_rate: int = 16000) -
     return buffer.getvalue()
 
 
+def float_samples_to_pcm16le_bytes(samples: list[float]) -> bytes:
+    """Convert mono float32 [-1, 1] samples into raw 16-bit PCM little-endian bytes."""
+    if not samples:
+        return b""
+
+    pcm_frames = bytearray()
+    for sample in samples:
+        clamped = _clamp(sample)
+        pcm_frames.extend(struct.pack("<h", int(clamped * 32767)))
+    return bytes(pcm_frames)
+
+
+def pcm16le_bytes_to_float_samples(pcm_bytes: bytes) -> list[float]:
+    """Decode raw mono 16-bit PCM little-endian bytes to normalized float samples."""
+    if not pcm_bytes:
+        return []
+
+    usable_length = len(pcm_bytes) - (len(pcm_bytes) % 2)
+    if usable_length <= 0:
+        return []
+
+    int_samples = struct.unpack("<" + "h" * (usable_length // 2), pcm_bytes[:usable_length])
+    return [sample / 32768.0 for sample in int_samples]
+
+
 def wav_bytes_to_float_samples(wav_bytes: bytes) -> tuple[list[float], int]:
     """Decode mono/stereo 16-bit WAV bytes to normalized float samples."""
     if not wav_bytes:

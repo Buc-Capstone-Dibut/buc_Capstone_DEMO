@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff } from "lucide-react";
-import { InterviewVideoRoom } from "@/components/features/interview/livekit/interview-video-room";
+import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
 
@@ -70,7 +70,6 @@ export default function InterviewVideoRoomPage() {
     jobData,
     resumeData,
     interviewerPersonality,
-    interviewSessionId,
     setInterviewSessionId,
     setChatHistory,
   } = useInterviewSetupStore();
@@ -96,15 +95,9 @@ export default function InterviewVideoRoomPage() {
   const startedRef = useRef(false);
 
   const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client";
-  const videoIdentity = useMemo(() => {
-    const fallback = Math.random().toString(36).slice(2, 10);
-    const suffix =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID().slice(0, 8)
-        : fallback;
-    return `video-${suffix}`;
-  }, []);
-  const videoRoom = interviewSessionId ? `interview-${interviewSessionId}` : "interview-preview";
+  const jobMeta = (jobData && typeof jobData === "object" ? jobData : {}) as Record<string, unknown>;
+  const jobCompany = typeof jobMeta.company === "string" ? jobMeta.company : "";
+  const jobRole = typeof jobMeta.role === "string" ? jobMeta.role : "";
 
   const {
     connect,
@@ -206,7 +199,7 @@ export default function InterviewVideoRoomPage() {
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
       llmStreamMode: "delta",
-      ttsMode: "sentence",
+      ttsMode: "client",
       jobData: (jobData as unknown as Record<string, unknown>) || {},
       resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
     });
@@ -290,8 +283,8 @@ export default function InterviewVideoRoomPage() {
         <div className="absolute right-4 top-4 z-30 flex items-center gap-2 flex-wrap justify-end">
           <Badge className="bg-blue-600/75 text-white border border-blue-400/30 text-[11px]">
             모의면접
-            {(jobData as any)?.company ? ` · ${(jobData as any).company}` : ""}
-            {(jobData as any)?.role ? ` ${(jobData as any).role}` : ""}
+            {jobCompany ? ` · ${jobCompany}` : ""}
+            {jobRole ? ` ${jobRole}` : ""}
           </Badge>
           <Badge className={timerBadgeClass}>
             <Clock3 className="w-3.5 h-3.5 mr-1.5" /> {formatTime(runtimeMeta.remainingSec)}
@@ -334,7 +327,7 @@ export default function InterviewVideoRoomPage() {
               지원자
             </div>
             <div className="h-full w-full">
-              <InterviewVideoRoom room={videoRoom} identity={videoIdentity} enabled={true} fill hideControlBar />
+              <LocalCameraPreview enabled fill />
             </div>
           </section>
         </div>

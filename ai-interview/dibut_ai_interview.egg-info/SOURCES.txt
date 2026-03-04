@@ -12,6 +12,7 @@ app/db/database.py
 app/schemas/__init__.py
 app/schemas/interview.py
 app/services/__init__.py
+app/services/gemini_live_voice_service.py
 app/services/interview_service.py
 app/services/llm_gemini.py
 app/services/report_agent.py
