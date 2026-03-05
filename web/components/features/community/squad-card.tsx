@@ -21,14 +21,6 @@ interface SquadCardProps {
 export function SquadCard({ squad, className }: SquadCardProps) {
   const isRecruiting = squad.status === "recruiting";
 
-  // Type Label Mapping
-  const typeLabels: Record<string, string> = {
-    project: "프로젝트",
-    study: "스터디",
-    contest: "공모전/대회",
-    mogakco: "모각코",
-  };
-
   return (
     <Link
       href={`/community/squad/${squad.id}`}
@@ -51,9 +43,6 @@ export function SquadCard({ squad, className }: SquadCardProps) {
           >
             {isRecruiting ? "모집중" : "모집완료"}
           </Badge>
-          <span className="text-xs font-medium text-muted-foreground">
-            {typeLabels[squad.type] || squad.type.toUpperCase()}
-          </span>
         </div>
 
         {/* Title */}
@@ -118,11 +107,8 @@ export function SquadCard({ squad, className }: SquadCardProps) {
           </div>
           <div className="flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
-            <span>
-              {formatDistanceToNow(new Date(squad.created_at), {
-                addSuffix: true,
-                locale: ko,
-              })}
+            <span className="truncate max-w-[100px]">
+              {squad.recruitment_period || "상시 모집"}
             </span>
           </div>
         </div>
