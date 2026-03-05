@@ -106,12 +106,16 @@ class VadSegmenter:
         threshold: float = 0.015,
         silence_ms: int = 700,
         min_speech_ms: int = 350,
+        min_utterance_ms: int = 1200,
+        short_utterance_silence_ms: int = 1800,
         max_segment_ms: int = 10000,
     ):
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.silence_ms = silence_ms
         self.min_speech_ms = min_speech_ms
+        self.min_utterance_ms = min_utterance_ms
+        self.short_utterance_silence_ms = max(short_utterance_silence_ms, silence_ms)
         self.max_segment_ms = max_segment_ms
 
         self._buffer: list[float] = []
@@ -148,10 +152,16 @@ class VadSegmenter:
             self._speech_started
             and self._trailing_silence_ms >= self.silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
+            and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
+        )
+        ready_by_short_utterance_silence = (
+            self._speech_started
+            and self._trailing_silence_ms >= self.short_utterance_silence_ms
+            and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
         )
         ready_by_max = len(self._buffer) >= int(self.sample_rate * self.max_segment_ms / 1000.0)
 
-        if not (ready_by_silence or ready_by_max):
+        if not (ready_by_silence or ready_by_short_utterance_silence or ready_by_max):
             return None
 
         segment = self._buffer[:]

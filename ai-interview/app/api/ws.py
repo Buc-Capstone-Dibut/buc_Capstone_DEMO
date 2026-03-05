@@ -212,6 +212,8 @@ class VoiceWsState:
             threshold=settings.voice_vad_threshold,
             silence_ms=settings.voice_vad_silence_ms,
             min_speech_ms=settings.voice_min_speech_ms,
+            min_utterance_ms=settings.voice_vad_min_utterance_ms,
+            short_utterance_silence_ms=settings.voice_vad_short_utterance_silence_ms,
             max_segment_ms=settings.voice_max_segment_ms,
         )
     )
@@ -889,6 +891,8 @@ async def client_ws(websocket: WebSocket):
                     threshold=settings.voice_vad_threshold,
                     silence_ms=settings.voice_vad_silence_ms,
                     min_speech_ms=settings.voice_min_speech_ms,
+                    min_utterance_ms=settings.voice_vad_min_utterance_ms,
+                    short_utterance_silence_ms=settings.voice_vad_short_utterance_silence_ms,
                     max_segment_ms=settings.voice_max_segment_ms,
                 )
 

@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     voice_vad_threshold: float = Field(default=0.015, alias="VOICE_VAD_THRESHOLD")
     voice_vad_silence_ms: int = Field(default=700, alias="VOICE_VAD_SILENCE_MS")
     voice_min_speech_ms: int = Field(default=350, alias="VOICE_MIN_SPEECH_MS")
+    voice_vad_min_utterance_ms: int = Field(default=1200, alias="VOICE_VAD_MIN_UTTERANCE_MS")
+    voice_vad_short_utterance_silence_ms: int = Field(
+        default=1800,
+        alias="VOICE_VAD_SHORT_UTTERANCE_SILENCE_MS",
+    )
     voice_max_segment_ms: int = Field(default=10000, alias="VOICE_MAX_SEGMENT_MS")
 
     @field_validator(

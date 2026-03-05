@@ -86,6 +86,13 @@ _PROMPT_LEAK_TOKENS = (
     "자연스러운 전환 작성법",
 )
 
+_BLUEPRINT_INSTRUCTION_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bSJT\b", re.IGNORECASE),
+    re.compile(r"(형식|중 하나|설계 문장|질문 설계|질문 작성|유도|원칙|의도)", re.IGNORECASE),
+    re.compile(r"(레거시\s*vs|속도\s*vs|트레이드오프)", re.IGNORECASE),
+    re.compile(r"(~상황이라면|만약\s*~|제약이 있다면)", re.IGNORECASE),
+]
+
 
 def _extract_json(text: str) -> dict[str, Any]:
     def _strip_fences(raw: str) -> str:
@@ -547,6 +554,12 @@ JSON 형식:
         lowered = candidate.lower()
         return any(token in lowered for token in _PROMPT_LEAK_TOKENS)
 
+    def _is_instructional_blueprint(self, text: str) -> bool:
+        candidate = (text or "").strip()
+        if not candidate:
+            return True
+        return any(pattern.search(candidate) for pattern in _BLUEPRINT_INSTRUCTION_PATTERNS)
+
     def _sanitize_question(self, text: str) -> str:
         raw = (text or "").strip()
         if not raw:
@@ -628,8 +641,10 @@ JSON 형식:
             4: "지금까지 사용해본 기술 중 가장 어려웠던 기술적 문제를 하나 꼽고, 해결 과정과 배운 점을 설명해 주세요.",
             5: "입사 후 90일 동안 가장 먼저 실행할 계획을 우선순위와 함께 설명해 주세요.",
         }
-        blueprint = (plan_item.questionBlueprint or "").strip()
-        return blueprint if blueprint else fallback_by_slot.get(normalized_slot, fallback_by_slot[5])
+        blueprint = self._sanitize_question(plan_item.questionBlueprint or "")
+        if blueprint and not self._is_instructional_blueprint(blueprint):
+            return blueprint
+        return fallback_by_slot.get(normalized_slot, fallback_by_slot[5])
 
     def generate_next_question_structured(
         self,
