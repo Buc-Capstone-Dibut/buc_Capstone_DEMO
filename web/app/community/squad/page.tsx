@@ -38,29 +38,29 @@ export default async function SquadListPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       {/* Activity Filter Indicator */}
-      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-            {activityId ? <Search className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+      {activityId && (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Search className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-primary">
+                특정 활동의 모집글만 보고 있습니다.
+              </p>
+              <p className="text-xs text-slate-500">
+                연동된 대외활동의 팀원 모집 현황입니다.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-primary">
-              {activityId ? "특정 활동의 모집글만 보고 있습니다." : "원하는 팀원을 찾아보세요."}
-            </p>
-            <p className="text-xs text-slate-500">
-              {activityId ? "연동된 대외활동의 팀원 모집 현황입니다." : "함께 성장할 동료들이 기다리고 있습니다."}
-            </p>
-          </div>
-        </div>
-        {activityId && (
           <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs hover:bg-primary/10" asChild>
             <Link href="/community/squad">
               <X className="w-3.5 h-3.5" />
               필터 해제
             </Link>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Filters & Actions (Board Style) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
