@@ -22,7 +22,9 @@ from app.services.llm_gemini import GeminiService
 from app.services.voice_pipeline import (
     VadSegmenter,
     chunk_float_samples,
+    float_samples_to_wav_bytes,
     pcm16le_bytes_to_float_samples,
+    wav_bytes_to_float_samples,
 )
 
 router = APIRouter(prefix="/v1/interview/ws", tags=["ws"])
@@ -47,6 +49,7 @@ LLM_STREAM_MODES = {"final", "delta"}
 TTS_MODES = {"server"}
 AUDIO_PACKET_SEQ = count()
 AI_TURN_SEQ = count(1)
+VOICE_TURN_END_GRACE_SEC = max(0.2, settings.voice_turn_end_grace_ms / 1000.0)
 
 
 @lru_cache
@@ -189,6 +192,24 @@ def _to_chat_history(turns: list[dict[str, Any]]) -> list[dict[str, str]]:
     return history
 
 
+def _merge_wav_segments(segments: list[bytes]) -> bytes:
+    merged_samples: list[float] = []
+    sample_rate = 16000
+
+    for segment in segments:
+        if not segment:
+            continue
+        samples, detected_rate = wav_bytes_to_float_samples(segment)
+        if not samples:
+            continue
+        sample_rate = detected_rate or sample_rate
+        merged_samples.extend(samples)
+
+    if not merged_samples:
+        return b""
+    return float_samples_to_wav_bytes(merged_samples, sample_rate=sample_rate)
+
+
 @dataclass
 class VoiceWsState:
     session_id: str = ""
@@ -206,6 +227,8 @@ class VoiceWsState:
     llm_stream_mode: str = "final"
     tts_mode: str = "server"
     processing_audio: bool = False
+    pending_user_segments: list[bytes] = field(default_factory=list)
+    pending_user_segment_task: asyncio.Task[None] | None = None
     vad: VadSegmenter = field(
         default_factory=lambda: VadSegmenter(
             sample_rate=16000,
@@ -770,6 +793,60 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
         state.processing_audio = False
 
 
+async def _drain_pending_user_segments(ws: WebSocket, state: VoiceWsState) -> None:
+    if not state.pending_user_segments:
+        return
+    if state.processing_audio:
+        async def _retry() -> None:
+            try:
+                await asyncio.sleep(0.25)
+            except asyncio.CancelledError:
+                return
+            await _drain_pending_user_segments(ws, state)
+
+        if not state.pending_user_segment_task or state.pending_user_segment_task.done():
+            state.pending_user_segment_task = asyncio.create_task(_retry())
+        return
+
+    segments = state.pending_user_segments[:]
+    state.pending_user_segments.clear()
+    merged_wav = _merge_wav_segments(segments)
+    if not merged_wav:
+        return
+    await _process_user_utterance(ws, state, merged_wav)
+
+
+async def _enqueue_user_segment(
+    ws: WebSocket,
+    state: VoiceWsState,
+    segment: bytes,
+    *,
+    flush_now: bool = False,
+) -> None:
+    if segment:
+        state.pending_user_segments.append(segment)
+
+    if state.pending_user_segment_task and not state.pending_user_segment_task.done():
+        state.pending_user_segment_task.cancel()
+        state.pending_user_segment_task = None
+
+    if flush_now:
+        await _drain_pending_user_segments(ws, state)
+        return
+
+    async def _delayed_drain() -> None:
+        current_task = asyncio.current_task()
+        try:
+            await asyncio.sleep(VOICE_TURN_END_GRACE_SEC)
+        except asyncio.CancelledError:
+            return
+        await _drain_pending_user_segments(ws, state)
+        if state.pending_user_segment_task is current_task:
+            state.pending_user_segment_task = None
+
+    state.pending_user_segment_task = asyncio.create_task(_delayed_drain())
+
+
 @router.websocket("/client")
 async def client_ws(websocket: WebSocket):
     await websocket.accept()
@@ -886,6 +963,10 @@ async def client_ws(websocket: WebSocket):
                 state.plan_attempted = False
                 state.llm_stream_mode = llm_stream_mode
                 state.tts_mode = tts_mode
+                if state.pending_user_segment_task and not state.pending_user_segment_task.done():
+                    state.pending_user_segment_task.cancel()
+                state.pending_user_segment_task = None
+                state.pending_user_segments = []
                 state.vad = VadSegmenter(
                     sample_rate=16000,
                     threshold=settings.voice_vad_threshold,
@@ -946,7 +1027,7 @@ async def client_ws(websocket: WebSocket):
 
                 segment = state.vad.feed(audio_chunk)
                 if segment:
-                    await _process_user_utterance(websocket, state, segment)
+                    await _enqueue_user_segment(websocket, state, segment, flush_now=False)
                 continue
 
             if msg_type in {"mic-audio-end", "flush-audio", "end-utterance"}:
@@ -954,7 +1035,9 @@ async def client_ws(websocket: WebSocket):
                     continue
                 segment = state.vad.flush()
                 if segment:
-                    await _process_user_utterance(websocket, state, segment)
+                    await _enqueue_user_segment(websocket, state, segment, flush_now=True)
+                elif state.pending_user_segments:
+                    await _enqueue_user_segment(websocket, state, b"", flush_now=True)
                 else:
                     await _send_json(websocket, {"type": "control", "text": "start-mic"})
                     await _send_avatar_state(websocket, "listening", state.session_id)
@@ -1003,3 +1086,5 @@ async def client_ws(websocket: WebSocket):
     finally:
         if state.plan_bootstrap_task and not state.plan_bootstrap_task.done():
             state.plan_bootstrap_task.cancel()
+        if state.pending_user_segment_task and not state.pending_user_segment_task.done():
+            state.pending_user_segment_task.cancel()
