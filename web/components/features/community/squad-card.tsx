@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 
 type Squad = Database["public"]["Tables"]["squads"]["Row"] & {
   leader: Database["public"]["Tables"]["profiles"]["Row"] | null;
-  activity?: { id: string; title: string } | null; // Placeholder for join if needed
+  activity?: { id: string; title: string } | null;
+  recruitment_period?: string | null; // Explicitly adding for TS if Database types are outdated
 };
 
 interface SquadCardProps {
@@ -51,11 +52,11 @@ export function SquadCard({ squad, className }: SquadCardProps) {
         </h3>
 
         {/* Activity Tag (if linked) */}
-        {squad.activity_id && (
+        {squad.activity?.title && (
           <div className="mb-3">
-            <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md max-w-full truncate">
-              <Star className="w-3 h-3 fill-current" />
-              관련 활동 연동됨
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md max-w-full border border-blue-100 dark:border-blue-800 overflow-hidden">
+              <Star className="w-3.5 h-3.5 fill-current flex-shrink-0" />
+              <span className="truncate">{squad.activity.title}</span>
             </span>
           </div>
         )}
