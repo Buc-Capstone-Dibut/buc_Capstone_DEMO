@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     )
     voice_max_segment_ms: int = Field(default=10000, alias="VOICE_MAX_SEGMENT_MS")
     voice_turn_end_grace_ms: int = Field(default=1200, alias="VOICE_TURN_END_GRACE_MS")
+    voice_short_answer_max_duration_ms: int = Field(
+        default=2400,
+        alias="VOICE_SHORT_ANSWER_MAX_DURATION_MS",
+    )
+    voice_min_answer_chars: int = Field(default=10, alias="VOICE_MIN_ANSWER_CHARS")
 
     @field_validator(
         "database_url",

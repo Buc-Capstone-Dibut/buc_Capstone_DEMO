@@ -50,6 +50,23 @@ TTS_MODES = {"server"}
 AUDIO_PACKET_SEQ = count()
 AI_TURN_SEQ = count(1)
 VOICE_TURN_END_GRACE_SEC = max(0.2, settings.voice_turn_end_grace_ms / 1000.0)
+SHORT_STT_REPROMPT = "이어서 조금만 더 말씀해 주세요."
+_COMPLETE_ANSWER_ENDINGS = (
+    "습니다",
+    "입니다",
+    "니다",
+    "해요",
+    "했어요",
+    "했습니다",
+    "합니다",
+    "예요",
+    "이에요",
+    "네요",
+    "군요",
+    "죠",
+    "어요",
+    "아요",
+)
 
 
 @lru_cache
@@ -141,6 +158,34 @@ def _build_answer_quality_hint(answer: str) -> str:
         hints.append("문제-행동-결과 구조(STAR)에 맞춰 다시 답변하도록 유도하세요.")
 
     return " ".join(hints)
+
+
+def _looks_like_complete_answer(text: str) -> bool:
+    normalized = (text or "").strip().rstrip("\"' ")
+    if not normalized:
+        return False
+    if normalized[-1] in ".!?":
+        return True
+    return any(normalized.endswith(ending) for ending in _COMPLETE_ANSWER_ENDINGS)
+
+
+def _is_short_stt_result(text: str, wav_bytes: bytes) -> bool:
+    tokens = re.findall(r"[0-9A-Za-z가-힣]+", text or "")
+    char_count = sum(len(token) for token in tokens)
+    if char_count <= 2:
+        return True
+
+    complete = _looks_like_complete_answer(text)
+    samples, sample_rate = wav_bytes_to_float_samples(wav_bytes)
+    duration_ms = (len(samples) / max(sample_rate, 1)) * 1000.0 if samples else 0.0
+
+    if not complete and char_count <= settings.voice_min_answer_chars:
+        if duration_ms <= settings.voice_short_answer_max_duration_ms:
+            return True
+        if len(tokens) <= 2 and char_count <= settings.voice_min_answer_chars + 4:
+            return True
+
+    return False
 
 
 def _coerce_audio_chunk(payload: Any, max_len: int = 16000) -> list[float]:
@@ -495,6 +540,25 @@ async def _send_prepared_tts_audio(
     return True
 
 
+async def _send_continue_prompt(ws: WebSocket, state: VoiceWsState, text: str = SHORT_STT_REPROMPT) -> None:
+    if not state.session_id:
+        return
+
+    turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
+    prepared_tts = await _prepare_tts_audio(ws, text, turn_id=turn_id)
+
+    await _send_transcript(ws, state.session_id, "ai", text, turn_id=turn_id)
+    await _send_json(ws, {"type": "full-text", "text": text, "turnId": turn_id})
+
+    if prepared_tts is not None:
+        await _send_avatar_state(ws, "speaking", state.session_id)
+        await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id)
+        await _send_avatar_state(ws, "idle", state.session_id)
+
+    if await _send_json(ws, {"type": "control", "text": "start-mic", "turnId": turn_id}):
+        await _send_avatar_state(ws, "listening", state.session_id)
+
+
 async def _generate_and_send_ai_turn(
     ws: WebSocket,
     state: VoiceWsState,
@@ -760,6 +824,14 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
         if not user_text:
             if await _send_json(ws, {"type": "control", "text": "start-mic"}):
                 await _send_avatar_state(ws, "listening", state.session_id)
+            return
+        if _is_short_stt_result(user_text, wav_bytes):
+            logger.info(
+                "short stt result detected; requesting continuation (text=%r, session_id=%s)",
+                user_text,
+                state.session_id,
+            )
+            await _send_continue_prompt(ws, state)
             return
 
         await asyncio.to_thread(
