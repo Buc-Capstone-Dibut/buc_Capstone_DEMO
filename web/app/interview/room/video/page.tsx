@@ -88,6 +88,7 @@ export default function InterviewVideoRoomPage() {
   });
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [streamingCaption, setStreamingCaption] = useState("");
+  const [streamingUserCaption, setStreamingUserCaption] = useState("");
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -117,6 +118,9 @@ export default function InterviewVideoRoomPage() {
       if (!clean) return;
       if (role === "ai") {
         setStreamingCaption("");
+      }
+      if (role === "user") {
+        setStreamingUserCaption("");
       }
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
@@ -185,6 +189,12 @@ export default function InterviewVideoRoomPage() {
         const delta = typeof event.delta === "string" ? event.delta : "";
         setStreamingCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
       }
+      if (eventType === "transcript.delta" && event.role === "user") {
+        const accumulated =
+          typeof event.accumulatedText === "string" ? event.accumulatedText : "";
+        const delta = typeof event.delta === "string" ? event.delta : "";
+        setStreamingUserCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+      }
     },
   });
 
@@ -203,7 +213,7 @@ export default function InterviewVideoRoomPage() {
       style: interviewerPersonality || "professional",
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
-      llmStreamMode: "final",
+      llmStreamMode: "delta",
       ttsMode: "server",
       jobData: (jobData as unknown as Record<string, unknown>) || {},
       resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
@@ -261,6 +271,7 @@ export default function InterviewVideoRoomPage() {
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
   const activeAiCaption = streamingCaption.trim();
+  const activeUserCaption = streamingUserCaption.trim();
 
   const handleMicToggle = async () => {
     if (isMicOn) {
@@ -344,9 +355,9 @@ export default function InterviewVideoRoomPage() {
                 <Captions className="w-3.5 h-3.5" />
                 실시간 자막
               </div>
-              {latestCaption || activeAiCaption ? (
+              {latestCaption || activeAiCaption || activeUserCaption ? (
                 <div className="space-y-1">
-                  {previousCaption && !activeAiCaption && (
+                  {previousCaption && !activeAiCaption && !activeUserCaption && (
                     <p className="text-[12px] text-white/60 truncate">
                       {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaption.text}
                     </p>
@@ -355,6 +366,11 @@ export default function InterviewVideoRoomPage() {
                     <p className="text-sm font-medium leading-relaxed">
                       <span className="text-emerald-300 mr-1">Dibut:</span>
                       {activeAiCaption}
+                    </p>
+                  ) : activeUserCaption ? (
+                    <p className="text-sm font-medium leading-relaxed">
+                      <span className="text-emerald-300 mr-1">나:</span>
+                      {activeUserCaption}
                     </p>
                   ) : (
                     <p className="text-sm font-medium leading-relaxed">

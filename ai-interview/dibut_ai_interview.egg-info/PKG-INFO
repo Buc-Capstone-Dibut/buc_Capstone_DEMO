@@ -54,9 +54,10 @@ sequenceDiagram
 |---|---|---|
 | `DATABASE_URL` | 예 | Postgres 연결 문자열 |
 | `GEMINI_API_KEY` | 예 | 질문 생성/분석 LLM |
-| `GEMINI_MODEL` | 아니오 | 기본 `gemini-1.5-flash` |
-| `GEMINI_LIVE_STT_MODEL` | 아니오 | 기본 `gemini-live-2.5-flash-preview` |
-| `GEMINI_LIVE_TTS_MODEL` | 아니오 | 기본 `gemini-2.5-flash-native-audio-preview-12-2025` |
+| `GEMINI_MODEL` | 아니오 | 기본 `gemini-2.5-flash` |
+| `GEMINI_LIVE_STT_MODEL` | 아니오 | 기본 `gemini-2.5-flash-native-audio-latest` |
+| `GEMINI_TTS_MODEL` | 아니오 | 기본 `gemini-2.5-flash-preview-tts` |
+| `GEMINI_LIVE_TTS_MODEL` | 아니오 | TTS fallback용 Live 모델(기본 `gemini-2.5-flash-native-audio-latest`) |
 | `GEMINI_LIVE_TTS_VOICE` | 아니오 | 기본 `Kore` |
 | `GITHUB_TOKEN` | 권장 | GitHub API rate limit 회피 및 공개 레포 분석 안정화 |
 | `CORS_ORIGINS` | 예 | 웹 도메인 목록(콤마 구분) |
