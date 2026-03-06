@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import re
 import threading
 import time
+from difflib import SequenceMatcher
 from itertools import count
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -21,9 +23,7 @@ from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService
 from app.services.voice_pipeline import (
     VadSegmenter,
-    chunk_float_samples,
     float_samples_to_wav_bytes,
-    pcm16le_bytes_to_float_samples,
     wav_bytes_to_float_samples,
 )
 
@@ -50,6 +50,8 @@ TTS_MODES = {"server"}
 AUDIO_PACKET_SEQ = count()
 AI_TURN_SEQ = count(1)
 VOICE_TURN_END_GRACE_SEC = max(0.2, settings.voice_turn_end_grace_ms / 1000.0)
+VOICE_AI_ECHO_GUARD_SEC = max(0.5, settings.voice_ai_echo_guard_ms / 1000.0)
+VOICE_AI_PLAYBACK_SKEW_SEC = 0.35
 SHORT_STT_REPROMPT = "이어서 조금만 더 말씀해 주세요."
 _COMPLETE_ANSWER_ENDINGS = (
     "습니다",
@@ -188,6 +190,44 @@ def _is_short_stt_result(text: str, wav_bytes: bytes) -> bool:
     return False
 
 
+def _normalize_compare_text(text: str) -> str:
+    lowered = (text or "").lower()
+    lowered = re.sub(r"\s+", "", lowered)
+    return re.sub(r"[^0-9a-z가-힣]", "", lowered)
+
+
+def _estimate_wav_duration_ms(wav_bytes: bytes) -> float:
+    samples, sample_rate = wav_bytes_to_float_samples(wav_bytes)
+    if not samples:
+        return 0.0
+    return (len(samples) / max(sample_rate, 1)) * 1000.0
+
+
+def _pcm16le_bytes_to_base64_chunks(
+    pcm_bytes: bytes,
+    *,
+    sample_rate: int,
+    chunk_ms: int = 320,
+) -> tuple[list[str], float]:
+    if not pcm_bytes:
+        return [], 0.0
+
+    aligned_sample_rate = max(int(sample_rate or 24000), 1)
+    bytes_per_sample = 2
+    samples_per_chunk = max(int(aligned_sample_rate * chunk_ms / 1000.0), 2048)
+    bytes_per_chunk = max(samples_per_chunk * bytes_per_sample, 4096)
+    if bytes_per_chunk % 2:
+        bytes_per_chunk += 1
+
+    chunks = [
+        base64.b64encode(pcm_bytes[idx:idx + bytes_per_chunk]).decode("ascii")
+        for idx in range(0, len(pcm_bytes), bytes_per_chunk)
+        if pcm_bytes[idx:idx + bytes_per_chunk]
+    ]
+    duration_sec = len(pcm_bytes) / float(aligned_sample_rate * bytes_per_sample)
+    return chunks, duration_sec
+
+
 def _coerce_audio_chunk(payload: Any, max_len: int = 16000) -> list[float]:
     if not isinstance(payload, list):
         return []
@@ -274,6 +314,8 @@ class VoiceWsState:
     processing_audio: bool = False
     pending_user_segments: list[bytes] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
+    last_ai_tts_text: str = ""
+    last_ai_audio_guard_until: float = 0.0
     vad: VadSegmenter = field(
         default_factory=lambda: VadSegmenter(
             sample_rate=16000,
@@ -289,9 +331,10 @@ class VoiceWsState:
 
 @dataclass
 class PreparedTtsAudio:
-    chunks: list[list[float]]
+    chunks: list[str]
     sample_rate: int
     provider: str
+    duration_sec: float = 0.0
 
 
 async def _send_json(ws: WebSocket, payload: dict[str, Any]) -> bool:
@@ -335,6 +378,52 @@ async def _send_transcript(
             "timestamp": int(time.time()),
         },
     )
+
+
+def _remember_ai_tts(state: VoiceWsState, text: str, prepared: PreparedTtsAudio | None) -> None:
+    if not prepared or not prepared.chunks:
+        state.last_ai_tts_text = ""
+        state.last_ai_audio_guard_until = 0.0
+        return
+    state.last_ai_tts_text = (text or "").strip()
+    state.last_ai_audio_guard_until = (
+        time.monotonic() + prepared.duration_sec + VOICE_AI_PLAYBACK_SKEW_SEC + VOICE_AI_ECHO_GUARD_SEC
+    )
+
+
+def _is_probable_ai_echo(state: VoiceWsState, text: str, wav_bytes: bytes) -> bool:
+    if time.monotonic() > state.last_ai_audio_guard_until:
+        return False
+
+    reference = _normalize_compare_text(state.last_ai_tts_text)
+    candidate = _normalize_compare_text(text)
+    if not reference or not candidate:
+        return False
+
+    similarity = SequenceMatcher(None, candidate, reference).ratio()
+    contains = candidate in reference or reference in candidate
+    duration_ms = _estimate_wav_duration_ms(wav_bytes)
+
+    if similarity >= 0.72:
+        return True
+    if contains and len(candidate) >= 6:
+        return True
+    if duration_ms <= 1600 and len(candidate) <= settings.voice_min_answer_chars:
+        return True
+    return False
+
+
+async def _resume_listening(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    turn_id: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {"type": "control", "text": "start-mic"}
+    if turn_id:
+        payload["turnId"] = turn_id
+    if state.session_id and await _send_json(ws, payload):
+        await _send_avatar_state(ws, "listening", state.session_id)
 
 
 async def _send_transcript_delta(
@@ -500,12 +589,15 @@ async def _prepare_tts_audio(
         return None
 
     sample_rate = tts_result.sample_rate
-    samples = pcm16le_bytes_to_float_samples(tts_result.audio_pcm_bytes)
-    chunks = chunk_float_samples(samples, chunk_size=max(int(sample_rate * 0.12), 800))
+    chunks, duration_sec = _pcm16le_bytes_to_base64_chunks(
+        tts_result.audio_pcm_bytes,
+        sample_rate=sample_rate,
+    )
     return PreparedTtsAudio(
         chunks=chunks,
         sample_rate=sample_rate,
         provider=tts_result.provider,
+        duration_sec=duration_sec,
     )
 
 
@@ -524,7 +616,7 @@ async def _send_prepared_tts_audio(
             ws,
             {
                 "type": "audio",
-                "audio": chunk,
+                "audioBase64": chunk,
                 "sampleRate": prepared.sample_rate,
                 "provider": prepared.provider,
                 "sessionId": session_id,
@@ -546,6 +638,7 @@ async def _send_continue_prompt(ws: WebSocket, state: VoiceWsState, text: str = 
 
     turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
     prepared_tts = await _prepare_tts_audio(ws, text, turn_id=turn_id)
+    _remember_ai_tts(state, text, prepared_tts)
 
     await _send_transcript(ws, state.session_id, "ai", text, turn_id=turn_id)
     await _send_json(ws, {"type": "full-text", "text": text, "turnId": turn_id})
@@ -555,8 +648,7 @@ async def _send_continue_prompt(ws: WebSocket, state: VoiceWsState, text: str = 
         await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id)
         await _send_avatar_state(ws, "idle", state.session_id)
 
-    if await _send_json(ws, {"type": "control", "text": "start-mic", "turnId": turn_id}):
-        await _send_avatar_state(ws, "listening", state.session_id)
+    await _resume_listening(ws, state, turn_id=turn_id)
 
 
 async def _generate_and_send_ai_turn(
@@ -766,6 +858,7 @@ async def _generate_and_send_ai_turn(
 
     # Prepare TTS first so transcript display and audio playback start nearly together.
     prepared_tts = await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
+    _remember_ai_tts(state, ai_text, prepared_tts)
 
     if not await _send_transcript(ws, state.session_id, "ai", ai_text, turn_id=turn_id):
         return {"completed": True, "text": ai_text, "turnId": turn_id}
@@ -782,8 +875,7 @@ async def _generate_and_send_ai_turn(
 
     is_complete = bool(completion_reason)
     if not is_complete:
-        if await _send_json(ws, {"type": "control", "text": "start-mic", "turnId": turn_id}):
-            await _send_avatar_state(ws, "listening", state.session_id)
+        await _resume_listening(ws, state, turn_id=turn_id)
 
     return {
         "completed": is_complete,
@@ -815,15 +907,21 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                     "message": "STT provider is disabled. Set GEMINI_API_KEY to enable speech transcription.",
                 },
             )
-            if await _send_json(ws, {"type": "control", "text": "start-mic"}):
-                await _send_avatar_state(ws, "listening", state.session_id)
+            await _resume_listening(ws, state)
             return
 
         stt_result = await stt.transcribe_wav(wav_bytes, "ko")
         user_text = (stt_result.text or "").strip()
         if not user_text:
-            if await _send_json(ws, {"type": "control", "text": "start-mic"}):
-                await _send_avatar_state(ws, "listening", state.session_id)
+            await _resume_listening(ws, state)
+            return
+        if _is_probable_ai_echo(state, user_text, wav_bytes):
+            logger.info(
+                "suppressed probable ai echo from STT (text=%r, session_id=%s)",
+                user_text,
+                state.session_id,
+            )
+            await _resume_listening(ws, state)
             return
         if _is_short_stt_result(user_text, wav_bytes):
             logger.info(
@@ -859,8 +957,8 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                 "message": f"voice pipeline error: {exc}",
             },
         )
-        if sent and state.session_id and await _send_json(ws, {"type": "control", "text": "start-mic"}):
-            await _send_avatar_state(ws, "listening", state.session_id)
+        if sent:
+            await _resume_listening(ws, state)
     finally:
         state.processing_audio = False
 
@@ -1039,6 +1137,8 @@ async def client_ws(websocket: WebSocket):
                     state.pending_user_segment_task.cancel()
                 state.pending_user_segment_task = None
                 state.pending_user_segments = []
+                state.last_ai_tts_text = ""
+                state.last_ai_audio_guard_until = 0.0
                 state.vad = VadSegmenter(
                     sample_rate=16000,
                     threshold=settings.voice_vad_threshold,
@@ -1111,8 +1211,7 @@ async def client_ws(websocket: WebSocket):
                 elif state.pending_user_segments:
                     await _enqueue_user_segment(websocket, state, b"", flush_now=True)
                 else:
-                    await _send_json(websocket, {"type": "control", "text": "start-mic"})
-                    await _send_avatar_state(websocket, "listening", state.session_id)
+                    await _resume_listening(websocket, state)
                 continue
 
             if msg_type == "update-interview-phase":

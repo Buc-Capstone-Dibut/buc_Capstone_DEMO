@@ -1,8 +1,12 @@
+const MIC_CAPTURE_WORKLET_URL = "/worklets/mic-capture-processor.js";
+const MIC_CAPTURE_BUFFER_SIZE = 2048;
+
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private processor: AudioWorkletNode | null = null;
+  private silentGain: GainNode | null = null;
   private onAudioData: (data: Float32Array) => void;
 
   constructor(onAudioData: (data: Float32Array) => void) {
@@ -17,60 +21,92 @@ export class AudioProcessor {
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-          sampleRate: 16000, // Prepare for 16kHz if possible
+          sampleRate: 16000,
         },
       });
 
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 16000, // Force 16kHz context if supported
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error("AudioContext is not supported in this browser.");
+      }
+
+      this.audioContext = new AudioContextClass({
+        sampleRate: 16000,
+        latencyHint: "interactive",
       });
 
+      if (!this.audioContext.audioWorklet) {
+        throw new Error("AudioWorklet is not supported in this browser.");
+      }
+
+      await this.audioContext.audioWorklet.addModule(MIC_CAPTURE_WORKLET_URL);
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      this.processor = new AudioWorkletNode(this.audioContext, "mic-capture-processor", {
+        channelCount: 1,
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
+        processorOptions: {
+          bufferSize: MIC_CAPTURE_BUFFER_SIZE,
+        },
+      });
 
-      // Use ScriptProcessor for broad compatibility (though deprecated, AudioWorklet is complex in simple setup)
-      // Buffer size 4096 gives ~250ms chunks at 16kHz
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-
-      this.processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Clone data to avoid reference issues
-        this.onAudioData(new Float32Array(inputData));
+      this.processor.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        const payload = event.data;
+        if (!(payload instanceof Float32Array) || payload.length === 0) return;
+        this.onAudioData(payload);
       };
 
+      this.silentGain = this.audioContext.createGain();
+      this.silentGain.gain.value = 0;
       this.source.connect(this.processor);
-      this.processor.connect(this.audioContext.destination); // Valid destination required for Chrome
-
+      this.processor.connect(this.silentGain);
+      this.silentGain.connect(this.audioContext.destination);
     } catch (error) {
       console.error("Failed to start audio recording:", error);
+      this.stop();
       throw error;
     }
   }
 
   stop() {
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
-      this.mediaStream = null;
-    }
     if (this.processor) {
+      try {
+        this.processor.port.postMessage({ type: "flush" });
+      } catch {
+        // No-op; the context may already be closing.
+      }
       this.processor.disconnect();
+      this.processor.port.onmessage = null;
       this.processor = null;
+    }
+    if (this.silentGain) {
+      this.silentGain.disconnect();
+      this.silentGain = null;
     }
     if (this.source) {
       this.source.disconnect();
       this.source = null;
     }
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach((track) => track.stop());
+      this.mediaStream = null;
+    }
     if (this.audioContext) {
-      this.audioContext.close();
+      void this.audioContext.close();
       this.audioContext = null;
     }
   }
 }
 
 export const playAudioQueue = async (
-  audioQueue: Float32Array[],
-  audioContext: AudioContext,
-  sampleRate: number = 24000
+  _audioQueue: Float32Array[],
+  _audioContext: AudioContext,
+  _sampleRate: number = 24000
 ) => {
+  void _sampleRate;
   // Simple queue playback implementation would go here
   // For now, this logic will likely live in the hook or a separate player class
 };

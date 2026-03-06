@@ -84,6 +84,7 @@ class Settings(BaseSettings):
         alias="VOICE_SHORT_ANSWER_MAX_DURATION_MS",
     )
     voice_min_answer_chars: int = Field(default=10, alias="VOICE_MIN_ANSWER_CHARS")
+    voice_ai_echo_guard_ms: int = Field(default=1600, alias="VOICE_AI_ECHO_GUARD_MS")
 
     @field_validator(
         "database_url",

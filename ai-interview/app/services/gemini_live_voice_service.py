@@ -428,8 +428,19 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
             if len(segment) <= max_chars:
                 bounded.append(segment)
                 continue
-            for idx in range(0, len(segment), max_chars):
-                bounded.append(segment[idx:idx + max_chars].strip())
+            cursor = 0
+            while cursor < len(segment):
+                upper = min(cursor + max_chars, len(segment))
+                if upper < len(segment):
+                    split_at = segment.rfind(" ", cursor, upper)
+                    if split_at > cursor + max(8, max_chars // 3):
+                        upper = split_at
+                piece = segment[cursor:upper].strip()
+                if piece:
+                    bounded.append(piece)
+                cursor = upper
+                while cursor < len(segment) and segment[cursor] == " ":
+                    cursor += 1
 
         return [s for s in bounded if s]
 
@@ -442,7 +453,7 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         return max(14.0, min(22.0, estimate))
 
     def _should_segment_first(self, text_len: int) -> bool:
-        return text_len >= 80
+        return text_len >= 48
 
     async def _generate_with_retries(
         self,
@@ -526,15 +537,11 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
                 max_total_sec=self._segment_budget_sec(len(segment)),
             )
             if not seg_payload:
-                if merged:
-                    partial_payload = b"".join(merged)
-                    logger.warning(
-                        "gemini tts segmented synthesis partially failed; returning partial audio (completed_segments=%s, failed_segment_len=%s)",
-                        len(merged),
-                        len(segment),
-                    )
-                    return partial_payload, sample_rate_final
-                logger.error("gemini tts segmented synthesis failed (segment_len=%s)", len(segment))
+                logger.warning(
+                    "gemini tts segmented synthesis failed; discarding partial audio (completed_segments=%s, failed_segment_len=%s)",
+                    len(merged),
+                    len(segment),
+                )
                 return b"", self.output_sample_rate
             merged.append(seg_payload)
             sample_rate_final = seg_rate
@@ -569,7 +576,7 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
 
         # 긴 텍스트는 분할 합성이 평균 지연/실패율이 낮아 우선 시도한다.
         if segment_first:
-            for segment_size in (72, 56, 42):
+            for segment_size in (56, 42, 32):
                 segmented_payload, segmented_rate = await self._synthesize_segmented(
                     payload_text,
                     max_chars=segment_size,
@@ -592,7 +599,7 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         if whole_payload:
             return TtsResult(audio_pcm_bytes=whole_payload, sample_rate=whole_rate, provider=self.provider)
 
-        for segment_size in (64, 48):
+        for segment_size in (48, 36, 28):
             segmented_payload, segmented_rate = await self._synthesize_segmented(
                 payload_text,
                 max_chars=segment_size,
