@@ -9,17 +9,20 @@ from fastapi.responses import Response
 
 from app.config import settings
 from app.schemas.interview import TtsRequest
+from app.services.gemini_live_voice_service import GeminiLiveSttService, GeminiLiveTtsService
 from app.services.interview_service import InterviewService
-from app.services.stt_service import OpenAISttService
-from app.services.tts_service import OpenAITtsService
+from app.services.voice_pipeline import float_samples_to_wav_bytes, pcm16le_bytes_to_float_samples
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 service = InterviewService()
-stt_service = OpenAISttService(api_key=settings.openai_api_key, model=settings.openai_stt_model)
-tts_service = OpenAITtsService(
-    api_key=settings.openai_api_key,
-    model=settings.openai_tts_model,
-    voice=settings.openai_tts_voice,
+stt_service = GeminiLiveSttService(
+    api_key=settings.gemini_api_key,
+    model=settings.gemini_live_stt_model,
+)
+tts_service = GeminiLiveTtsService(
+    api_key=settings.gemini_api_key,
+    model=settings.gemini_live_tts_model,
+    voice=settings.gemini_live_tts_voice,
 )
 
 
@@ -67,14 +70,10 @@ async def session_detail(session_id: str):
 async def debug_stt(file: UploadFile = File(...)):
     audio_bytes = await file.read()
     if stt_service.enabled and audio_bytes:
-        result = stt_service.transcribe_bytes(
-            audio_bytes=audio_bytes,
-            filename=file.filename or "speech.wav",
-            language="ko",
-        )
+        result = await stt_service.transcribe_wav(audio_bytes, "ko")
         return {"text": result.text, "provider": result.provider}
     return {
-        "text": f"[STT stub] '{file.filename}' 파일이 업로드되었습니다. OPENAI_API_KEY 설정 시 실제 STT가 동작합니다.",
+        "text": f"[STT stub] '{file.filename}' 파일이 업로드되었습니다. GEMINI_API_KEY 설정 시 실제 STT가 동작합니다.",
         "provider": "stub",
     }
 
@@ -82,8 +81,13 @@ async def debug_stt(file: UploadFile = File(...)):
 @router.post("/debug/tts")
 async def debug_tts(payload: TtsRequest):
     if tts_service.enabled and payload.text.strip():
-        result = tts_service.synthesize_wav(payload.text)
-        wav_bytes = result.audio_wav_bytes or _make_silence_wav()
+        result = await tts_service.synthesize_pcm(payload.text)
+        pcm_samples = pcm16le_bytes_to_float_samples(result.audio_pcm_bytes)
+        wav_bytes = (
+            float_samples_to_wav_bytes(pcm_samples, sample_rate=result.sample_rate)
+            if pcm_samples
+            else _make_silence_wav()
+        )
     else:
         wav_bytes = _make_silence_wav()
     return Response(content=wav_bytes, media_type="audio/wav")

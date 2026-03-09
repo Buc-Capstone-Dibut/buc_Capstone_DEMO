@@ -45,6 +45,54 @@ _FORBIDDEN_PATTERNS: list[re.Pattern] = [
     re.compile(r"(부모님|가족|형제|자매).{0,10}(직업|학력|어디)", re.IGNORECASE),
 ]
 
+_PROMPT_LEAK_LINE_PATTERNS: list[re.Pattern] = [
+    re.compile(
+        r"^\s*\[(자연스러운 전환 작성법|SJT 작성 원칙|질문 슬롯|면접관 톤|현재 설계 문항|답변 품질 힌트|이미 사용한 질문|최근 대화 이력)\]\s*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*(강제\s*규칙|출력\s*JSON\s*형식|JSON\s*형식|question_index|phase|intent|questionBlueprint|targetCompetency|evaluationSignals)\s*[:：]",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*\d+\)\s*(질문은 정확히|동일 의미 질문 반복|한국어로 작성|.*마지막 턴이면|빈 칭찬)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^\s*[-*]\s*(과거 경험을 묻지|정답이 없는 딜레마|직무 현실에 기반|만약)", re.IGNORECASE),
+    re.compile(r"^\s*(반응\(선택\)|전환\(선택\)|질문\s*[—-])", re.IGNORECASE),
+]
+
+_PROMPT_LEAK_INLINE_PATTERNS: list[re.Pattern] = [
+    re.compile(
+        r"\[(자연스러운 전환 작성법|SJT 작성 원칙|질문 슬롯|면접관 톤|현재 설계 문항|답변 품질 힌트|이미 사용한 질문|최근 대화 이력)\]",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(강제\s*규칙|출력\s*JSON\s*형식|JSON\s*형식|question_index\s*:|questionBlueprint\s*:|targetCompetency\s*:|evaluationSignals\s*:)",
+        re.IGNORECASE,
+    ),
+]
+
+_PROMPT_LEAK_TOKENS = (
+    "questionblueprint",
+    "targetcompetency",
+    "evaluationsignals",
+    "question_index",
+    "강제 규칙",
+    "출력 json",
+    "질문 슬롯",
+    "면접관 톤",
+    "sjt 작성 원칙",
+    "자연스러운 전환 작성법",
+)
+
+_BLUEPRINT_INSTRUCTION_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bSJT\b", re.IGNORECASE),
+    re.compile(r"(형식|중 하나|설계 문장|질문 설계|질문 작성|유도|원칙|의도)", re.IGNORECASE),
+    re.compile(r"(레거시\s*vs|속도\s*vs|트레이드오프)", re.IGNORECASE),
+    re.compile(r"(~상황이라면|만약\s*~|제약이 있다면)", re.IGNORECASE),
+]
+
 
 def _extract_json(text: str) -> dict[str, Any]:
     def _strip_fences(raw: str) -> str:
@@ -495,9 +543,61 @@ JSON 형식:
                 return (message.get("parts") or "").strip()
         return ""
 
+    def _contains_prompt_leak(self, text: str) -> bool:
+        candidate = (text or "").strip()
+        if not candidate:
+            return False
+
+        if any(pattern.search(candidate) for pattern in _PROMPT_LEAK_INLINE_PATTERNS):
+            return True
+
+        lowered = candidate.lower()
+        return any(token in lowered for token in _PROMPT_LEAK_TOKENS)
+
+    def _is_instructional_blueprint(self, text: str) -> bool:
+        candidate = (text or "").strip()
+        if not candidate:
+            return True
+        return any(pattern.search(candidate) for pattern in _BLUEPRINT_INSTRUCTION_PATTERNS)
+
     def _sanitize_question(self, text: str) -> str:
-        cleaned = re.sub(r"\s+", " ", (text or "")).strip()
+        raw = (text or "").strip()
+        if not raw:
+            return ""
+
+        # 모델이 JSON/코드블록을 그대로 섞어 보낼 때 질문 필드만 추출한다.
+        try:
+            payload = _extract_json(raw)
+            extracted = _to_text(payload.get("question"))
+            if extracted:
+                raw = extracted
+        except Exception:
+            pass
+
+        cleaned = raw.replace("<verbatim>", " ").replace("</verbatim>", " ")
+        cleaned = re.sub(r"```(?:json)?|```", " ", cleaned, flags=re.IGNORECASE)
+
+        lines = [line.strip() for line in re.split(r"[\r\n]+", cleaned) if line and line.strip()]
+        kept_lines: list[str] = []
+        for line in lines:
+            if any(pattern.search(line) for pattern in _PROMPT_LEAK_LINE_PATTERNS):
+                continue
+            kept_lines.append(line)
+
+        cleaned = re.sub(r"\s+", " ", " ".join(kept_lines)).strip()
+
+        for pattern in _PROMPT_LEAK_INLINE_PATTERNS:
+            matched = pattern.search(cleaned)
+            if matched:
+                cleaned = cleaned[:matched.start()].strip()
+
         cleaned = re.sub(r"^질문\s*\d+\s*[:.)-]\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^Q(?:uestion)?\s*\d+\s*[:.)-]\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^(반응|전환|질문)\s*[:：]\s*", "", cleaned)
+
+        if self._contains_prompt_leak(cleaned):
+            return ""
+
         return cleaned
 
     def _is_biased_question(self, question: str) -> bool:
@@ -541,8 +641,10 @@ JSON 형식:
             4: "지금까지 사용해본 기술 중 가장 어려웠던 기술적 문제를 하나 꼽고, 해결 과정과 배운 점을 설명해 주세요.",
             5: "입사 후 90일 동안 가장 먼저 실행할 계획을 우선순위와 함께 설명해 주세요.",
         }
-        blueprint = (plan_item.questionBlueprint or "").strip()
-        return blueprint if blueprint else fallback_by_slot.get(normalized_slot, fallback_by_slot[5])
+        blueprint = self._sanitize_question(plan_item.questionBlueprint or "")
+        if blueprint and not self._is_instructional_blueprint(blueprint):
+            return blueprint
+        return fallback_by_slot.get(normalized_slot, fallback_by_slot[5])
 
     def generate_next_question_structured(
         self,
@@ -675,6 +777,12 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
             question = self._sanitize_question(self._fallback_question(question_index, plan_item, context))
             phase = phase_hint
             rationale = "fallback-template"
+            expected_signal = ", ".join(plan_item.evaluationSignals)
+
+        if not question:
+            question = self._sanitize_question(self._fallback_question(question_index, plan_item, context))
+            phase = phase_hint
+            rationale = "fallback-sanitized-empty"
             expected_signal = ", ".join(plan_item.evaluationSignals)
 
         if question_index >= safe_total_questions and CLOSING_SENTENCE not in question:

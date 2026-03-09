@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff } from "lucide-react";
-import { InterviewVideoRoom } from "@/components/features/interview/livekit/interview-video-room";
+import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
 
@@ -70,7 +70,6 @@ export default function InterviewVideoRoomPage() {
     jobData,
     resumeData,
     interviewerPersonality,
-    interviewSessionId,
     setInterviewSessionId,
     setChatHistory,
   } = useInterviewSetupStore();
@@ -89,6 +88,7 @@ export default function InterviewVideoRoomPage() {
   });
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [streamingCaption, setStreamingCaption] = useState("");
+  const [streamingUserCaption, setStreamingUserCaption] = useState("");
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -96,15 +96,9 @@ export default function InterviewVideoRoomPage() {
   const startedRef = useRef(false);
 
   const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client";
-  const videoIdentity = useMemo(() => {
-    const fallback = Math.random().toString(36).slice(2, 10);
-    const suffix =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID().slice(0, 8)
-        : fallback;
-    return `video-${suffix}`;
-  }, []);
-  const videoRoom = interviewSessionId ? `interview-${interviewSessionId}` : "interview-preview";
+  const jobMeta = (jobData && typeof jobData === "object" ? jobData : {}) as Record<string, unknown>;
+  const jobCompany = typeof jobMeta.company === "string" ? jobMeta.company : "";
+  const jobRole = typeof jobMeta.role === "string" ? jobMeta.role : "";
 
   const {
     connect,
@@ -124,6 +118,9 @@ export default function InterviewVideoRoomPage() {
       if (!clean) return;
       if (role === "ai") {
         setStreamingCaption("");
+      }
+      if (role === "user") {
+        setStreamingUserCaption("");
       }
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
@@ -177,7 +174,12 @@ export default function InterviewVideoRoomPage() {
         setStatusMessage(toText(event.message, "면접 단계가 업데이트되었습니다."));
       }
 
-      if (eventType === "warning" || eventType === "error" || eventType === "mic-error") {
+      if (
+        eventType === "warning" ||
+        eventType === "error" ||
+        eventType === "mic-error" ||
+        eventType === "audio-gesture-required"
+      ) {
         setStatusMessage(toText(event.message, "오디오 파이프라인 상태를 확인해 주세요."));
       }
 
@@ -186,6 +188,12 @@ export default function InterviewVideoRoomPage() {
           typeof event.accumulatedText === "string" ? event.accumulatedText : "";
         const delta = typeof event.delta === "string" ? event.delta : "";
         setStreamingCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+      }
+      if (eventType === "transcript.delta" && event.role === "user") {
+        const accumulated =
+          typeof event.accumulatedText === "string" ? event.accumulatedText : "";
+        const delta = typeof event.delta === "string" ? event.delta : "";
+        setStreamingUserCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
       }
     },
   });
@@ -206,7 +214,7 @@ export default function InterviewVideoRoomPage() {
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
       llmStreamMode: "delta",
-      ttsMode: "sentence",
+      ttsMode: "server",
       jobData: (jobData as unknown as Record<string, unknown>) || {},
       resumeData: (resumeData?.parsedContent as Record<string, unknown>) || {},
     });
@@ -263,6 +271,7 @@ export default function InterviewVideoRoomPage() {
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
   const activeAiCaption = streamingCaption.trim();
+  const activeUserCaption = streamingUserCaption.trim();
 
   const handleMicToggle = async () => {
     if (isMicOn) {
@@ -271,7 +280,7 @@ export default function InterviewVideoRoomPage() {
       return;
     }
 
-    await startMic();
+    await startMic({ userGesture: true });
     setStatusMessage("마이크를 활성화했습니다.");
   };
 
@@ -290,8 +299,8 @@ export default function InterviewVideoRoomPage() {
         <div className="absolute right-4 top-4 z-30 flex items-center gap-2 flex-wrap justify-end">
           <Badge className="bg-blue-600/75 text-white border border-blue-400/30 text-[11px]">
             모의면접
-            {(jobData as any)?.company ? ` · ${(jobData as any).company}` : ""}
-            {(jobData as any)?.role ? ` ${(jobData as any).role}` : ""}
+            {jobCompany ? ` · ${jobCompany}` : ""}
+            {jobRole ? ` ${jobRole}` : ""}
           </Badge>
           <Badge className={timerBadgeClass}>
             <Clock3 className="w-3.5 h-3.5 mr-1.5" /> {formatTime(runtimeMeta.remainingSec)}
@@ -334,7 +343,7 @@ export default function InterviewVideoRoomPage() {
               지원자
             </div>
             <div className="h-full w-full">
-              <InterviewVideoRoom room={videoRoom} identity={videoIdentity} enabled={true} fill hideControlBar />
+              <LocalCameraPreview enabled fill />
             </div>
           </section>
         </div>
@@ -346,9 +355,9 @@ export default function InterviewVideoRoomPage() {
                 <Captions className="w-3.5 h-3.5" />
                 실시간 자막
               </div>
-              {latestCaption || activeAiCaption ? (
+              {latestCaption || activeAiCaption || activeUserCaption ? (
                 <div className="space-y-1">
-                  {previousCaption && !activeAiCaption && (
+                  {previousCaption && !activeAiCaption && !activeUserCaption && (
                     <p className="text-[12px] text-white/60 truncate">
                       {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaption.text}
                     </p>
@@ -357,6 +366,11 @@ export default function InterviewVideoRoomPage() {
                     <p className="text-sm font-medium leading-relaxed">
                       <span className="text-emerald-300 mr-1">Dibut:</span>
                       {activeAiCaption}
+                    </p>
+                  ) : activeUserCaption ? (
+                    <p className="text-sm font-medium leading-relaxed">
+                      <span className="text-emerald-300 mr-1">나:</span>
+                      {activeUserCaption}
                     </p>
                   ) : (
                     <p className="text-sm font-medium leading-relaxed">

@@ -9,7 +9,7 @@ sequenceDiagram
     participant Web as web (Next.js)
     participant API as ai-interview (FastAPI)
     participant LLM as Gemini
-    participant VOICE as OpenAI STT/TTS
+    participant VOICE as Gemini Live STT/TTS
     participant DB as Supabase
 
     Web->>API: POST /v1/interview/session/start
@@ -35,13 +35,13 @@ sequenceDiagram
 |---|---|---|
 | `DATABASE_URL` | 예 | Postgres 연결 문자열 |
 | `GEMINI_API_KEY` | 예 | 질문 생성/분석 LLM |
-| `GEMINI_MODEL` | 아니오 | 기본 `gemini-1.5-flash` |
+| `GEMINI_MODEL` | 아니오 | 기본 `gemini-2.5-flash` |
+| `GEMINI_LIVE_STT_MODEL` | 아니오 | 기본 `gemini-2.5-flash-native-audio-latest` |
+| `GEMINI_TTS_MODEL` | 아니오 | 기본 `gemini-2.5-flash-preview-tts` |
+| `GEMINI_LIVE_TTS_MODEL` | 아니오 | TTS fallback용 Live 모델(기본 `gemini-2.5-flash-native-audio-latest`) |
+| `GEMINI_LIVE_TTS_VOICE` | 아니오 | 기본 `Kore` |
 | `GITHUB_TOKEN` | 권장 | GitHub API rate limit 회피 및 공개 레포 분석 안정화 |
 | `CORS_ORIGINS` | 예 | 웹 도메인 목록(콤마 구분) |
-| `OPENAI_API_KEY` | 음성 사용 시 예 | STT/TTS 기능 활성화 |
-| `OPENAI_STT_MODEL` | 아니오 | 기본 `whisper-1` |
-| `OPENAI_TTS_MODEL` | 아니오 | 기본 `tts-1` |
-| `OPENAI_TTS_VOICE` | 아니오 | 기본 `alloy` |
 | `LIVEKIT_URL` | 선택 | 라이브킷 연동 시 |
 | `LIVEKIT_API_KEY` | 선택 | 라이브킷 연동 시 |
 | `LIVEKIT_API_SECRET` | 선택 | 라이브킷 연동 시 |
@@ -80,4 +80,4 @@ curl http://localhost:8001/health
 ## 개발 메모
 
 - 루트 `/`는 라우트가 없어 404가 정상입니다.
-- 음성 면접을 운영하려면 `OPENAI_API_KEY`를 반드시 넣어야 합니다.
+- 음성 면접을 운영하려면 `GEMINI_API_KEY`를 반드시 넣어야 합니다.

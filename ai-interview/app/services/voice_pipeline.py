@@ -33,6 +33,31 @@ def float_samples_to_wav_bytes(samples: list[float], sample_rate: int = 16000) -
     return buffer.getvalue()
 
 
+def float_samples_to_pcm16le_bytes(samples: list[float]) -> bytes:
+    """Convert mono float32 [-1, 1] samples into raw 16-bit PCM little-endian bytes."""
+    if not samples:
+        return b""
+
+    pcm_frames = bytearray()
+    for sample in samples:
+        clamped = _clamp(sample)
+        pcm_frames.extend(struct.pack("<h", int(clamped * 32767)))
+    return bytes(pcm_frames)
+
+
+def pcm16le_bytes_to_float_samples(pcm_bytes: bytes) -> list[float]:
+    """Decode raw mono 16-bit PCM little-endian bytes to normalized float samples."""
+    if not pcm_bytes:
+        return []
+
+    usable_length = len(pcm_bytes) - (len(pcm_bytes) % 2)
+    if usable_length <= 0:
+        return []
+
+    int_samples = struct.unpack("<" + "h" * (usable_length // 2), pcm_bytes[:usable_length])
+    return [sample / 32768.0 for sample in int_samples]
+
+
 def wav_bytes_to_float_samples(wav_bytes: bytes) -> tuple[list[float], int]:
     """Decode mono/stereo 16-bit WAV bytes to normalized float samples."""
     if not wav_bytes:
@@ -81,12 +106,16 @@ class VadSegmenter:
         threshold: float = 0.015,
         silence_ms: int = 700,
         min_speech_ms: int = 350,
+        min_utterance_ms: int = 1200,
+        short_utterance_silence_ms: int = 1800,
         max_segment_ms: int = 10000,
     ):
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.silence_ms = silence_ms
         self.min_speech_ms = min_speech_ms
+        self.min_utterance_ms = min_utterance_ms
+        self.short_utterance_silence_ms = max(short_utterance_silence_ms, silence_ms)
         self.max_segment_ms = max_segment_ms
 
         self._buffer: list[float] = []
@@ -123,10 +152,16 @@ class VadSegmenter:
             self._speech_started
             and self._trailing_silence_ms >= self.silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
+            and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
+        )
+        ready_by_short_utterance_silence = (
+            self._speech_started
+            and self._trailing_silence_ms >= self.short_utterance_silence_ms
+            and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
         )
         ready_by_max = len(self._buffer) >= int(self.sample_rate * self.max_segment_ms / 1000.0)
 
-        if not (ready_by_silence or ready_by_max):
+        if not (ready_by_silence or ready_by_short_utterance_silence or ready_by_max):
             return None
 
         segment = self._buffer[:]
