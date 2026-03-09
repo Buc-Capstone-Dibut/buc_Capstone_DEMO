@@ -1,12 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { JdCheckForm } from "./jd-check-form";
 
 export function JdCheckStep() {
-  const { jobData, updateJobData, setStep, targetUrl, targetJobCategory } = useInterviewSetupStore();
+  const { jobData, updateJobData, setStep } = useInterviewSetupStore();
   // Local state for editing to prevent constant store updates on every keystroke if needed,
   // but Zustand is fast enough. We'll use local state for "Add New Item" inputs.
 

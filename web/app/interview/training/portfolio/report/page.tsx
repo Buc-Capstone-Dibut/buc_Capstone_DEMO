@@ -115,7 +115,7 @@ function formatDate(ts?: number): string {
   });
 }
 
-function parseJdPayload(jdText?: string): Record<string, any> {
+function parseJdPayload(jdText?: string): Record<string, unknown> {
   if (!jdText) return {};
   try {
     const parsed = JSON.parse(jdText);
@@ -190,8 +190,9 @@ export default function PortfolioDefenseReportPage() {
           throw new Error(json.error || "세션 정보를 불러오지 못했습니다.");
         }
         setDetail(json.data as SessionDetail);
-      } catch (err: any) {
-        setError(err.message || "리포트를 불러오지 못했습니다.");
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "리포트를 불러오지 못했습니다.";
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -611,7 +612,7 @@ export default function PortfolioDefenseReportPage() {
             <Button variant="outline" onClick={() => router.push("/interview/training")}>
               다른 레포로 시작
             </Button>
-            <Button variant="ghost" onClick={() => router.push("/interview/setup")}>
+            <Button variant="ghost" onClick={() => router.push("/interview/posting/setup")}>
               일반 모의면접으로 이동
             </Button>
           </CardContent>

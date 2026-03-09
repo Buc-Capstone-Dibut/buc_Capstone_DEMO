@@ -51,7 +51,6 @@ export default function InterviewRoomPage() {
    const {
       jobData,
       resumeData,
-      interviewerPersonality,
       interviewSessionId,
       setInterviewSessionId,
       setChatHistory,
@@ -145,7 +144,7 @@ export default function InterviewRoomPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                mode: "chat",
-               personality: interviewerPersonality || 'professional',
+               personality: "professional",
                jobData,
                resumeData,
                targetDurationSec: requestedTargetDurationSec,
@@ -201,7 +200,7 @@ export default function InterviewRoomPage() {
                messages: newMessages,
                jobData,
                resumeData,
-               personality: interviewerPersonality,
+               personality: "professional",
                sessionId,
                targetDurationSec: runtimeMeta.targetDurationSec || requestedTargetDurationSec,
                closingThresholdSec: runtimeMeta.closingThresholdSec || 60,
@@ -274,7 +273,7 @@ export default function InterviewRoomPage() {
                      </Badge>
                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                        {interviewerPersonality === 'cold' ? '압박 모드' : interviewerPersonality === 'friendly' ? '친절 모드' : '전문가 모드'}
+                        실전 모드
                      </div>
                   </div>
                   <div>

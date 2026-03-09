@@ -792,7 +792,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 onSaveResume={saveResume}
                 saving={saving}
                 onGoSetup={() =>
-                  router.push("/interview/setup?import=active_resume")
+                  router.push("/interview/posting/setup?import=active_resume")
                 }
                 resumeSummary={resumeSummary}
               />

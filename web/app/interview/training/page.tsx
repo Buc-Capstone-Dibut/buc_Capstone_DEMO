@@ -118,7 +118,7 @@ export default function InterviewTrainingPage() {
             <Button
               size="lg"
               className="h-12 px-6 rounded-xl shadow-lg shadow-primary/20"
-              onClick={() => router.push("/interview/setup")}
+              onClick={() => router.push("/interview/posting/setup")}
             >
               새로운 모의면접 시작
             </Button>

@@ -69,7 +69,6 @@ export default function InterviewVideoRoomPage() {
   const {
     jobData,
     resumeData,
-    interviewerPersonality,
     setInterviewSessionId,
     setChatHistory,
   } = useInterviewSetupStore();
@@ -210,7 +209,7 @@ export default function InterviewVideoRoomPage() {
 
     initInterviewSession({
       sessionType: "live_interview",
-      style: interviewerPersonality || "professional",
+      style: "professional",
       targetDurationSec: requestedTargetDurationSec,
       closingThresholdSec: 60,
       llmStreamMode: "delta",
@@ -221,7 +220,6 @@ export default function InterviewVideoRoomPage() {
   }, [
     isConnected,
     initInterviewSession,
-    interviewerPersonality,
     requestedTargetDurationSec,
     jobData,
     resumeData,

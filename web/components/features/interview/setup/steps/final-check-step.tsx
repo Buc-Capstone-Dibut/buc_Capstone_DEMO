@@ -7,9 +7,16 @@ import { useRouter } from "next/navigation";
 import { JdCheckForm } from "./jd-check-form";
 import { ResumeCheckForm } from "./resume-check-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { RoleTrainingBriefStep } from "./role-training-brief-step";
 
-export function FinalCheckStep() {
+type SetupTrack = "posting" | "role";
+
+interface FinalCheckStepProps {
+  track?: SetupTrack;
+}
+
+export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
   const router = useRouter();
   const {
     jobData,
@@ -17,14 +24,19 @@ export function FinalCheckStep() {
     resumeData,
     updateResumeData,
     setStep,
-    completeSetup
   } = useInterviewSetupStore();
 
-  const handleStartInterview = () => {
-    setStep('personality-selection');
-  };
+  if (track === "role") {
+    return <RoleTrainingBriefStep />;
+  }
 
-  if (!jobData || !resumeData) {
+  const handleStartInterview = () => {
+    router.push(`/interview/room/video?duration=7&track=${track}`);
+  };
+  const hasResumeData = Boolean(resumeData);
+  const isResumeRequired = track === "posting";
+
+  if (!jobData || (isResumeRequired && !hasResumeData)) {
     return (
       <div className="p-8 text-center">
         <p>필수 데이터가 누락되었습니다. 처음부터 다시 시도해주세요.</p>
@@ -44,43 +56,54 @@ export function FinalCheckStep() {
         </div>
       </div>
 
-      <Tabs defaultValue="resume" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8">
-          <TabsTrigger value="resume">이력서 정보 확인</TabsTrigger>
-          <TabsTrigger value="jd">JD / 채용 공고 확인</TabsTrigger>
+      <Tabs defaultValue={hasResumeData ? "resume" : "jd"} className="w-full">
+        <TabsList className={`grid w-full mb-8 ${hasResumeData ? "grid-cols-2" : "grid-cols-1"}`}>
+          {hasResumeData && <TabsTrigger value="resume">이력서 정보 확인</TabsTrigger>}
+          <TabsTrigger value="jd">{track === "posting" ? "JD / 채용 공고 확인" : "직무 설정 확인"}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="resume" className="space-y-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
-                <CheckCircle2 className="w-5 h-5" /> 이력서 최종 확인
-              </CardTitle>
-              <CardDescription>
-                AI 면접관이 이 정보를 바탕으로 질문합니다. 빠진 내용이 없는지 확인하세요.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <ResumeCheckForm resumeData={resumeData} updateResumeData={updateResumeData} />
-        </TabsContent>
+        {hasResumeData && (
+          <TabsContent value="resume" className="space-y-6">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <CheckCircle2 className="w-5 h-5" /> 이력서 최종 확인
+                </CardTitle>
+                <CardDescription>
+                  AI 면접관이 이 정보를 바탕으로 질문합니다. 빠진 내용이 없는지 확인하세요.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <ResumeCheckForm resumeData={resumeData!} updateResumeData={updateResumeData} />
+          </TabsContent>
+        )}
 
         <TabsContent value="jd" className="space-y-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
-                <CheckCircle2 className="w-5 h-5" /> 채용 공고(JD) 최종 확인
-              </CardTitle>
-              <CardDescription>
-                이 포지션의 요구사항을 기반으로 면접이 진행됩니다.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <CheckCircle2 className="w-5 h-5" />
+                  {track === "posting" ? "채용 공고(JD) 최종 확인" : "직무 설정 최종 확인"}
+                </CardTitle>
+                <CardDescription>
+                  {track === "posting"
+                    ? "이 포지션의 요구사항을 기반으로 면접이 진행됩니다."
+                    : hasResumeData
+                      ? "설정한 목표 직무와 입력한 이력서를 기반으로 면접이 진행됩니다."
+                      : "설정한 목표 직무를 기준으로 이력서 없이 면접이 진행됩니다."}
+                </CardDescription>
+              </CardHeader>
+            </Card>
           <JdCheckForm jobData={jobData} updateJobData={updateJobData} />
         </TabsContent>
       </Tabs>
 
       <div className="flex justify-between mt-10">
-        <Button variant="outline" onClick={() => setStep('resume-check')} className="px-6 h-12">
+        <Button
+          variant="outline"
+          onClick={() => setStep(hasResumeData ? 'resume-check' : 'resume')}
+          className="px-6 h-12"
+        >
           <ArrowLeft className="mr-2 w-4 h-4" /> 이전 단계
         </Button>
 

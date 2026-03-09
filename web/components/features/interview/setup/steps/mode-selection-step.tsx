@@ -7,14 +7,20 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useRouter } from "next/navigation";
 
-export function ModeSelectionStep() {
+type SetupTrack = "posting" | "role";
+
+interface ModeSelectionStepProps {
+    track?: SetupTrack;
+}
+
+export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps) {
     const { setStep } = useInterviewSetupStore();
     const router = useRouter();
     const [durationMinutes, setDurationMinutes] = useState<5 | 7 | 10>(7);
 
     const handleModeSelect = (mode: 'chat' | 'video') => {
         const nextPath = mode === "video" ? "/interview/room/video" : "/interview/room/chat";
-        router.push(`${nextPath}?duration=${durationMinutes}`);
+        router.push(`${nextPath}?duration=${durationMinutes}&track=${track}`);
     };
 
     return (
@@ -22,7 +28,9 @@ export function ModeSelectionStep() {
             <div className="mb-12 text-center space-y-3">
                 <h1 className="text-3xl font-bold tracking-tight">면접 방식 선택</h1>
                 <p className="text-muted-foreground text-lg">
-                    가장 편안하게 집중할 수 있는 면접 방식을 선택해주세요.
+                    {track === "posting"
+                        ? "가장 편안하게 집중할 수 있는 면접 방식을 선택해주세요."
+                        : "설계한 직무 훈련 브리프를 어떤 방식으로 실행할지 선택해주세요."}
                 </p>
                 <div className="pt-4 flex items-center justify-center gap-2">
                     {[5, 7, 10].map((minute) => (
@@ -55,8 +63,17 @@ export function ModeSelectionStep() {
                     </CardHeader>
                     <CardContent className="px-8 pb-10">
                         <CardDescription className="text-sm leading-relaxed mb-8 h-12">
-                            텍스트 채팅을 통해 면접을 진행합니다.<br />
-                            실시간 대화로 차분하게 생각을 정리하여 답변하기 좋습니다.
+                            {track === "posting" ? (
+                                <>
+                                    텍스트 채팅을 통해 면접을 진행합니다.<br />
+                                    실시간 대화로 차분하게 생각을 정리하여 답변하기 좋습니다.
+                                </>
+                            ) : (
+                                <>
+                                    직무 포인트별 사고 과정을 천천히 정리하며 훈련하기 좋습니다.<br />
+                                    답변 구조와 근거를 다듬는 세션에 적합합니다.
+                                </>
+                            )}
                         </CardDescription>
 
                         <div className="flex items-center justify-between">
@@ -83,8 +100,17 @@ export function ModeSelectionStep() {
                     </CardHeader>
                     <CardContent className="px-8 pb-10">
                         <CardDescription className="text-sm leading-relaxed mb-8 h-12">
-                            카메라와 마이크를 사용하여 실전처럼 진행합니다.<br />
-                            LiveKit 베타 연결로 실제 면접 상황을 연습할 수 있습니다.
+                            {track === "posting" ? (
+                                <>
+                                    카메라와 마이크를 사용하여 실전처럼 진행합니다.<br />
+                                    LiveKit 베타 연결로 실제 면접 상황을 연습할 수 있습니다.
+                                </>
+                            ) : (
+                                <>
+                                    실제 압박감에 가깝게 직무 시나리오 대응을 연습합니다.<br />
+                                    현업 질문에 바로 말로 답하는 감각을 점검하기 좋습니다.
+                                </>
+                            )}
                         </CardDescription>
 
                         <div className="flex items-center justify-between">
@@ -98,8 +124,8 @@ export function ModeSelectionStep() {
             </div>
 
             <div className="mt-16 flex justify-center border-t pt-8">
-                <Button variant="ghost" onClick={() => setStep('personality-selection')} className="gap-2 text-muted-foreground hover:text-foreground">
-                    <ArrowLeft className="w-4 h-4" /> 이전 단계: 성격 선택으로
+                <Button variant="ghost" onClick={() => setStep('final-check')} className="gap-2 text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="w-4 h-4" /> 이전 단계: {track === "posting" ? "최종 점검으로" : "훈련 브리프로"}
                 </Button>
             </div>
         </div>
