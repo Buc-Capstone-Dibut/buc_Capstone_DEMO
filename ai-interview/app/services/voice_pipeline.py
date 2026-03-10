@@ -85,15 +85,6 @@ def wav_bytes_to_float_samples(wav_bytes: bytes) -> tuple[list[float], int]:
     mono = [sample / 32768.0 for sample in int_samples]
     return mono, sample_rate
 
-
-def chunk_float_samples(samples: list[float], chunk_size: int = 4800) -> list[list[float]]:
-    if not samples:
-        return []
-    if chunk_size <= 0:
-        return [samples]
-    return [samples[i:i + chunk_size] for i in range(0, len(samples), chunk_size)]
-
-
 class VadSegmenter:
     """
     Lightweight RMS VAD to split user mic stream into utterance segments.

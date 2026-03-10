@@ -70,6 +70,8 @@ LIVE_OPENING_PROMPT = (
     "질문 외 메타설명은 금지합니다."
 )
 AI_TTS_SEGMENT_MAX_CHARS = 96
+AI_SEMANTIC_DELIVERY_MIN_CHARS = 110
+AI_DELIVERY_LOOKAHEAD_SEC = 0.32
 MEMORY_NOTE_LIMIT = 6
 MEMORY_PROMPT_NOTE_LIMIT = 4
 QUESTION_TYPE_LABELS = {
@@ -136,6 +138,30 @@ _MEMORY_STOPWORDS = {
     "말씀",
     "주세요",
 }
+_AI_META_LEADING_PATTERNS = (
+    re.compile(r"^\s*\*{0,2}\s*(reading the text precisely|acknowledging(?: directives| the text)?)\s*\*{0,2}\s*", re.IGNORECASE),
+    re.compile(r"^\s*(i've received|i am now reading|i understand that i must|i will avoid|i will read)\b[^가-힣A-Za-z0-9]*", re.IGNORECASE),
+    re.compile(r"^\s*\[\s*(운영 메모|실행 지시)[^\]]*\]\s*", re.IGNORECASE),
+    re.compile(r"^\s*(운영 메모|실행 지시|메타 발화|지시 사항)\s*[:：]\s*", re.IGNORECASE),
+)
+_AI_META_INLINE_PATTERNS = (
+    re.compile(r"\[\s*(운영 메모|실행 지시)[^\]]*\]", re.IGNORECASE),
+    re.compile(r"\*{0,2}(reading the text precisely|acknowledging(?: directives| the text)?)\*{0,2}", re.IGNORECASE),
+)
+_AI_META_TOKENS = (
+    "reading the text precisely",
+    "acknowledging directives",
+    "acknowledging the text",
+    "i've received the korean text",
+    "i am now reading",
+    "i understand that i must",
+    "운영 메모",
+    "실행 지시",
+    "절대 그대로 읽지 말 것",
+    "이번 턴 우선 질문 유형",
+    "최근 사용한 질문 유형",
+    "직전 답변 검증 포인트",
+)
 
 
 @lru_cache
@@ -243,6 +269,38 @@ def _build_answer_quality_hint(answer: str) -> str:
         hints.append("문제-행동-결과 구조(STAR)에 맞춰 다시 답변하도록 유도하세요.")
 
     return " ".join(hints)
+
+
+def _sanitize_ai_turn_text(text: str) -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+
+    cleaned = raw.replace("<verbatim>", " ").replace("</verbatim>", " ")
+    cleaned = re.sub(r"```(?:json)?|```", " ", cleaned, flags=re.IGNORECASE)
+
+    kept_lines: list[str] = []
+    for line in re.split(r"[\r\n]+", cleaned):
+        candidate = (line or "").strip()
+        if not candidate:
+            continue
+        for pattern in _AI_META_LEADING_PATTERNS:
+            candidate = pattern.sub("", candidate, count=1).strip(" :-")
+        for pattern in _AI_META_INLINE_PATTERNS:
+            candidate = pattern.sub(" ", candidate)
+        candidate = re.sub(r"\s+", " ", candidate).strip(" -*")
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        if any(token in lowered for token in _AI_META_TOKENS):
+            continue
+        kept_lines.append(candidate)
+
+    cleaned = re.sub(r"\s+", " ", " ".join(kept_lines)).strip(" -*")
+    lowered = cleaned.lower()
+    if any(token in lowered for token in _AI_META_TOKENS):
+        return ""
+    return cleaned
 
 
 def _looks_like_complete_answer(text: str) -> bool:
@@ -505,6 +563,9 @@ def _merge_wav_segments(segments: list[bytes]) -> bytes:
 class VoiceWsState:
     session_id: str = ""
     session_type: str = "live_interview"
+    session_status: str = "created"
+    session_started_at: datetime | None = None
+    session_ended_at: datetime | None = None
     personality: str = "professional"
     job_data: dict[str, Any] = field(default_factory=dict)
     resume_data: Any = field(default_factory=dict)
@@ -512,6 +573,8 @@ class VoiceWsState:
     target_duration_sec: int = DEFAULT_TARGET_DURATION_SEC
     closing_threshold_sec: int = DEFAULT_CLOSING_THRESHOLD_SEC
     estimated_total_questions: int = _estimated_total_questions(DEFAULT_TARGET_DURATION_SEC)
+    closing_announced: bool = False
+    model_turn_count: int = 0
     planned_questions: list[dict[str, Any]] = field(default_factory=list)
     plan_attempted: bool = False
     plan_bootstrap_task: asyncio.Task[None] | None = None
@@ -530,14 +593,13 @@ class VoiceWsState:
     last_user_memory: str = ""
     last_model_memory: str = ""
     last_answer_quality_hint: str = ""
+    turn_history: list[dict[str, Any]] = field(default_factory=list)
     turn_end_grace_sec: float = VOICE_TURN_END_GRACE_SEC
     processing_audio: bool = False
     pending_user_segments: list["PendingUserSegment"] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
-    realtime_user_pcm: bytearray = field(default_factory=bytearray)
     realtime_user_transcript: str = ""
     realtime_user_delta_seq: int = 0
-    realtime_user_last_emit_at: float = 0.0
     live_interview: GeminiLiveInterviewSession | None = None
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
@@ -557,12 +619,101 @@ class VoiceWsState:
     )
 
 
+def _reset_voice_runtime_state(
+    state: VoiceWsState,
+    *,
+    llm_stream_mode: str,
+    tts_mode: str,
+) -> None:
+    state.session_id = ""
+    state.session_type = "live_interview"
+    state.session_status = "created"
+    state.session_started_at = None
+    state.session_ended_at = None
+    state.personality = "professional"
+    state.job_data = {}
+    state.resume_data = {}
+    state.runtime_mode = RUNTIME_MODE_LIVE_SINGLE if state.live_interview and state.live_interview.enabled else RUNTIME_MODE_DISABLED
+    state.runtime_mode_reason = "" if state.runtime_mode == RUNTIME_MODE_LIVE_SINGLE else "live-disabled"
+    state.runtime_retry_after_sec = 0
+    state.degraded_until_monotonic = 0.0
+    state.degraded_fail_count = 0
+    state.current_phase = "introduction"
+    state.target_duration_sec = DEFAULT_TARGET_DURATION_SEC
+    state.closing_threshold_sec = DEFAULT_CLOSING_THRESHOLD_SEC
+    state.estimated_total_questions = _estimated_total_questions(DEFAULT_TARGET_DURATION_SEC)
+    state.closing_announced = False
+    state.model_turn_count = 0
+    if state.plan_bootstrap_task and not state.plan_bootstrap_task.done():
+        state.plan_bootstrap_task.cancel()
+    state.plan_bootstrap_task = None
+    state.planned_questions = []
+    state.plan_attempted = False
+    state.llm_stream_mode = llm_stream_mode
+    state.tts_mode = tts_mode
+    if state.pending_user_segment_task and not state.pending_user_segment_task.done():
+        state.pending_user_segment_task.cancel()
+    state.pending_user_segment_task = None
+    state.pending_user_segments = []
+    state.realtime_user_transcript = ""
+    state.realtime_user_delta_seq = 0
+    state.last_ai_tts_text = ""
+    state.last_ai_audio_guard_until = 0.0
+    state.waiting_playback_turn_id = ""
+    state.last_vad_event = {}
+    state.question_type_cursor = 0
+    state.recent_question_types = []
+    state.recent_user_durations_ms = []
+    state.short_reprompt_streak = 0
+    state.memory_notes = []
+    state.last_user_memory = ""
+    state.last_model_memory = ""
+    state.last_answer_quality_hint = ""
+    state.turn_history = []
+    state.turn_end_grace_sec = VOICE_TURN_END_GRACE_SEC
+    _cancel_playback_resume_task(state)
+    state.vad = VadSegmenter(
+        sample_rate=16000,
+        threshold=settings.voice_vad_threshold,
+        silence_ms=settings.voice_vad_silence_ms,
+        min_speech_ms=settings.voice_min_speech_ms,
+        min_utterance_ms=settings.voice_vad_min_utterance_ms,
+        short_utterance_silence_ms=settings.voice_vad_short_utterance_silence_ms,
+        max_segment_ms=settings.voice_max_segment_ms,
+    )
+
+
 @dataclass
 class PreparedTtsAudio:
     chunks: list[str]
     sample_rate: int
     provider: str
     duration_sec: float = 0.0
+
+
+@dataclass
+class PreparedDeliverySegment:
+    text: str
+    prepared_audio: PreparedTtsAudio | None = None
+
+
+@dataclass
+class AiDeliveryPlan:
+    segments: list[PreparedDeliverySegment] = field(default_factory=list)
+    mode: str = "full"
+    provider: str = ""
+
+    @property
+    def total_duration_sec(self) -> float:
+        return sum(
+            segment.prepared_audio.duration_sec
+            for segment in self.segments
+            if segment.prepared_audio is not None
+        )
+
+    @property
+    def segment_count(self) -> int:
+        return len(self.segments)
 
 
 @dataclass
@@ -737,6 +888,205 @@ async def _send_transcript(
     )
 
 
+async def _send_runtime_meta_snapshot(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    turn_id: str | None = None,
+    finish_reason: str = "",
+) -> bool:
+    elapsed_sec, remaining_sec = _runtime_timing(state)
+    return await _send_json(
+        ws,
+        {
+            "type": "runtime.meta",
+            "targetDurationSec": state.target_duration_sec,
+            "closingThresholdSec": state.closing_threshold_sec,
+            "elapsedSec": elapsed_sec,
+            "remainingSec": remaining_sec,
+            "estimatedTotalQuestions": state.estimated_total_questions,
+            "questionCount": state.model_turn_count,
+            "isClosingPhase": state.current_phase == "closing",
+            "interviewComplete": state.session_status == "completed",
+            "finishReason": finish_reason,
+            "runtimeMode": state.runtime_mode,
+            "runtimeReason": state.runtime_mode_reason,
+            "retryAfterSec": _degraded_retry_after_sec(state),
+            "turnId": turn_id,
+        },
+    )
+
+
+async def _send_cached_turn_history(ws: WebSocket, state: VoiceWsState) -> None:
+    if not state.session_id:
+        return
+
+    for turn in state.turn_history:
+        role = turn.get("role")
+        if role not in {"user", "model", "ai"}:
+            continue
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        payload = turn.get("payload") if isinstance(turn.get("payload"), dict) else {}
+        turn_id = str(payload.get("turn_id") or payload.get("turnId") or "").strip() or None
+        normalized_role = "ai" if role in {"model", "ai"} else "user"
+        await _send_transcript(ws, state.session_id, normalized_role, content, turn_id=turn_id)
+
+
+async def _replay_last_model_turn(
+    ws: WebSocket,
+    state: VoiceWsState,
+) -> bool:
+    if not state.session_id or not state.turn_history:
+        return False
+
+    for turn in reversed(state.turn_history):
+        role = turn.get("role")
+        if role not in {"model", "ai"}:
+            continue
+        text = (turn.get("content") or "").strip()
+        if not text:
+            continue
+        payload = turn.get("payload") if isinstance(turn.get("payload"), dict) else {}
+        stored_turn_id = str(payload.get("turn_id") or payload.get("turnId") or "").strip()
+        turn_id = stored_turn_id or f"{state.session_id}:{next(AI_TURN_SEQ)}"
+        delivery_plan = await _build_ai_delivery_plan(ws, text=text, turn_id=turn_id)
+        await _send_json(
+            ws,
+            {
+                "type": "resume.replay",
+                "sessionId": state.session_id,
+                "turnId": turn_id,
+                "message": "연결이 복구되어 마지막 질문을 다시 들려드립니다.",
+            },
+        )
+        await _send_json(
+            ws,
+            {
+                "type": "interview-phase-updated",
+                "phase": state.current_phase,
+                "guide": "resume-replay",
+                "message": "연결이 복구되어 마지막 질문을 다시 들려드립니다.",
+                "turnId": turn_id,
+            },
+        )
+        await _send_json(ws, {"type": "full-text", "text": text, "turnId": turn_id})
+        has_audio = await _stream_prepared_ai_delivery(
+            ws,
+            state,
+            delivery_plan=delivery_plan,
+            turn_id=turn_id,
+            emit_delta=True,
+        )
+        _log_runtime_event(
+            "resume-replay",
+            state,
+            turn_id=turn_id,
+            phase=state.current_phase,
+            delivery_mode=delivery_plan.mode,
+            delivery_segments=delivery_plan.segment_count,
+            audio_duration_ms=int(round(delivery_plan.total_duration_sec * 1000)),
+        )
+        if has_audio:
+            _arm_playback_resume(
+                ws,
+                state,
+                turn_id=turn_id,
+                timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+            )
+        else:
+            await _resume_listening(ws, state, turn_id=turn_id)
+        return True
+    return False
+
+
+async def _resume_existing_session(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    session: dict[str, Any],
+    turns: list[dict[str, Any]],
+) -> bool:
+    _hydrate_state_from_session_row(state, session, turns=turns)
+
+    await _send_json(
+        ws,
+        {
+            "type": "interview-session-created",
+            "client_uid": state.session_id,
+            "mode": "voice",
+            "sessionType": state.session_type,
+            "targetDurationSec": state.target_duration_sec,
+            "closingThresholdSec": state.closing_threshold_sec,
+            "estimatedTotalQuestions": state.estimated_total_questions,
+            "runtimeMode": state.runtime_mode,
+            "runtimeReason": state.runtime_mode_reason,
+            "retryAfterSec": _degraded_retry_after_sec(state),
+            "llmStreamMode": state.llm_stream_mode,
+            "ttsMode": state.tts_mode,
+            "resumed": True,
+            "historyCount": len(state.turn_history),
+        },
+    )
+    await _send_avatar_state(ws, "idle", state.session_id)
+    await _send_cached_turn_history(ws, state)
+    await _send_runtime_meta_snapshot(ws, state, finish_reason="already_completed" if state.session_status == "completed" else "")
+
+    if state.session_status == "completed":
+        await _send_json(
+            ws,
+            {
+                "type": "interview-phase-updated",
+                "phase": state.current_phase,
+                "guide": "resume-complete",
+                "message": "완료된 면접 세션을 복구했습니다.",
+            },
+        )
+        return True
+
+    last_turn = state.turn_history[-1] if state.turn_history else {}
+    last_role = str(last_turn.get("role") or "")
+    if last_role in {"model", "ai"}:
+        return await _replay_last_model_turn(ws, state)
+
+    if last_role == "user":
+        resumed_live_turn = await _generate_and_send_resume_live_turn(ws, state)
+        if not resumed_live_turn:
+            await _send_json(
+                ws,
+                {
+                    "type": "interview-phase-updated",
+                    "phase": state.current_phase,
+                    "guide": "resume-generate-next",
+                    "message": "연결이 복구되어 다음 질문을 이어갑니다.",
+                },
+            )
+            await _generate_and_send_ai_turn(
+                ws,
+                state,
+                answer_quality_hint=state.last_answer_quality_hint or "직전 답변을 이어서 검증하세요.",
+                forced_question_type=_derive_question_type_preference(
+                    state,
+                    _latest_user_answer(_to_chat_history(state.turn_history)),
+                    is_closing=state.current_phase == "closing",
+                ),
+            )
+        return True
+
+    await _send_json(
+        ws,
+        {
+            "type": "interview-phase-updated",
+            "phase": state.current_phase,
+            "guide": "resume-listening",
+            "message": "연결이 복구되었습니다. 이어서 답변해 주세요.",
+        },
+    )
+    await _resume_listening(ws, state)
+    return True
+
+
 def _remember_ai_tts(state: VoiceWsState, text: str, prepared: PreparedTtsAudio | None) -> None:
     if not prepared or not prepared.chunks:
         state.last_ai_tts_text = ""
@@ -813,7 +1163,6 @@ async def _send_transcript_delta(
 def _reset_realtime_user_transcript(state: VoiceWsState) -> None:
     state.realtime_user_transcript = ""
     state.realtime_user_delta_seq = 0
-    state.realtime_user_last_emit_at = 0.0
 
 
 async def _emit_realtime_user_delta(
@@ -837,7 +1186,6 @@ async def _emit_realtime_user_delta(
         delta = cleaned
     state.realtime_user_transcript = cleaned
     state.realtime_user_delta_seq += 1
-    state.realtime_user_last_emit_at = time.monotonic()
     await _send_transcript_delta(
         ws,
         state.session_id,
@@ -857,6 +1205,159 @@ def _build_context(state: VoiceWsState) -> dict[str, Any]:
         "recentQuestionTypes": state.recent_question_types[-4:],
         "lastAnswerQualityHint": state.last_answer_quality_hint,
     }
+
+
+def _append_cached_turn(
+    state: VoiceWsState,
+    *,
+    role: str,
+    content: str,
+    channel: str = "text",
+    payload: dict[str, Any] | None = None,
+    turn_index: int | None = None,
+    created_at: datetime | None = None,
+) -> None:
+    cached_turn: dict[str, Any] = {
+        "role": (role or "user").strip() or "user",
+        "channel": (channel or "text").strip() or "text",
+        "content": (content or "").strip(),
+        "payload": payload if isinstance(payload, dict) else {},
+    }
+    if turn_index is not None:
+        cached_turn["turn_index"] = turn_index
+    if isinstance(created_at, datetime):
+        cached_turn["created_at"] = created_at
+    state.turn_history.append(cached_turn)
+    if cached_turn["role"] in {"model", "ai"}:
+        state.model_turn_count += 1
+
+
+def _mark_session_status(state: VoiceWsState, status: str, *, phase: str | None = None) -> None:
+    normalized = (status or state.session_status or "created").strip() or "created"
+    state.session_status = normalized
+    if phase:
+        state.current_phase = phase
+    if normalized in {"running", "in_progress"} and state.session_started_at is None:
+        state.session_started_at = datetime.now(timezone.utc)
+    if normalized == "completed":
+        state.session_ended_at = datetime.now(timezone.utc)
+    else:
+        state.session_ended_at = None
+
+
+def _hydrate_state_from_turns(state: VoiceWsState, turns: list[dict[str, Any]]) -> None:
+    state.turn_history = []
+    state.model_turn_count = 0
+    state.recent_question_types = []
+    state.question_type_cursor = 0
+    state.memory_notes = []
+    state.last_user_memory = ""
+    state.last_model_memory = ""
+
+    for turn in turns:
+        _append_cached_turn(
+            state,
+            role=str(turn.get("role") or "user"),
+            content=str(turn.get("content") or ""),
+            channel=str(turn.get("channel") or "text"),
+            payload=turn.get("payload") if isinstance(turn.get("payload"), dict) else {},
+            turn_index=turn.get("turn_index"),
+            created_at=turn.get("created_at"),
+        )
+
+    for turn in state.turn_history:
+        payload = turn.get("payload") if isinstance(turn.get("payload"), dict) else {}
+        question_type = (payload.get("question_type") or "").strip()
+        if question_type:
+            _record_question_type(state, question_type)
+
+    for turn in state.turn_history[-8:]:
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        role = turn.get("role")
+        payload = turn.get("payload") if isinstance(turn.get("payload"), dict) else {}
+        if role in {"model", "ai"}:
+            _remember_model_turn(state, content, question_type=(payload.get("question_type") or "").strip() or None)
+        elif role == "user":
+            _remember_user_turn(state, content)
+
+    latest_user_text = ""
+    for turn in reversed(state.turn_history):
+        if turn.get("role") == "user":
+            latest_user_text = (turn.get("content") or "").strip()
+            break
+    state.last_answer_quality_hint = _build_answer_quality_hint(latest_user_text) if latest_user_text else ""
+
+
+def _hydrate_state_from_session_row(
+    state: VoiceWsState,
+    session: dict[str, Any] | None,
+    *,
+    turns: list[dict[str, Any]] | None = None,
+) -> None:
+    if not session:
+        return
+
+    state.session_id = str(session.get("id") or state.session_id or "")
+    state.session_type = str(session.get("session_type") or state.session_type or "live_interview")
+    state.session_status = str(session.get("status") or state.session_status or "created")
+    state.personality = str(session.get("personality") or state.personality or "professional")
+
+    job_payload = session.get("job_payload")
+    if job_payload is not None:
+        state.job_data = job_payload
+    resume_payload = session.get("resume_payload")
+    if resume_payload is not None:
+        state.resume_data = resume_payload
+
+    state.current_phase = str(session.get("current_phase") or state.current_phase or "introduction")
+    state.target_duration_sec = _clamp_target_duration(session.get("target_duration_sec") or state.target_duration_sec)
+    state.closing_threshold_sec = _clamp_closing_threshold(
+        session.get("closing_threshold_sec") or state.closing_threshold_sec
+    )
+    state.estimated_total_questions = _estimated_total_questions(state.target_duration_sec)
+    state.closing_announced = bool(session.get("closing_announced", state.closing_announced))
+
+    started_at = session.get("started_at")
+    state.session_started_at = started_at if isinstance(started_at, datetime) else state.session_started_at
+    ended_at = session.get("ended_at")
+    state.session_ended_at = ended_at if isinstance(ended_at, datetime) else None
+
+    planned_questions = session.get("planned_questions")
+    if isinstance(planned_questions, list):
+        state.planned_questions = planned_questions
+        state.plan_attempted = bool(planned_questions)
+
+    if turns is not None:
+        _hydrate_state_from_turns(state, turns)
+
+
+def _runtime_timing(state: VoiceWsState) -> tuple[int, int]:
+    elapsed_sec = _elapsed_seconds(state.session_started_at)
+    remaining_sec = max(0, state.target_duration_sec - elapsed_sec)
+    return elapsed_sec, remaining_sec
+
+
+def _log_runtime_event(
+    event: str,
+    state: VoiceWsState,
+    *,
+    turn_id: str = "",
+    **fields: Any,
+) -> None:
+    extra: dict[str, Any] = {
+        "session_id": state.session_id,
+        "turn_id": turn_id,
+        "runtime_mode": state.runtime_mode,
+        "runtime_reason": state.runtime_mode_reason,
+        "live_model": _live_active_model(state),
+    }
+    for key, value in fields.items():
+        if value in (None, "", [], {}):
+            continue
+        extra[key] = value
+    logger.info("voice runtime %s", event, extra=extra)
 
 
 def _compact_context_text(value: Any, max_chars: int = 1200) -> str:
@@ -1136,51 +1637,115 @@ def _split_ai_delivery_text(text: str, max_chars: int = AI_TTS_SEGMENT_MAX_CHARS
     return [segment for segment in segments if segment]
 
 
-async def _stream_ai_tts_by_segments(
+async def _build_ai_delivery_plan(
+    ws: WebSocket,
+    *,
+    text: str,
+    turn_id: str,
+    preferred_full_audio: PreparedTtsAudio | None = None,
+) -> AiDeliveryPlan:
+    normalized = re.sub(r"\s+", " ", (text or "")).strip()
+    if not normalized:
+        return AiDeliveryPlan()
+
+    semantic_segments = _split_ai_delivery_text(normalized)
+    use_semantic = (
+        len(semantic_segments) > 1
+        and len(normalized) >= AI_SEMANTIC_DELIVERY_MIN_CHARS
+    )
+    if use_semantic and preferred_full_audio is not None and not get_tts_service().enabled:
+        return AiDeliveryPlan(
+            segments=[PreparedDeliverySegment(text=normalized, prepared_audio=preferred_full_audio)],
+            mode="full-disabled-fallback",
+            provider=preferred_full_audio.provider,
+        )
+    if not use_semantic:
+        full_audio = preferred_full_audio or await _prepare_tts_audio(ws, normalized, turn_id=turn_id)
+        provider = full_audio.provider if full_audio is not None else ""
+        return AiDeliveryPlan(
+            segments=[PreparedDeliverySegment(text=normalized, prepared_audio=full_audio)],
+            mode="full",
+            provider=provider,
+        )
+
+    prepared_segments: list[PreparedDeliverySegment] = []
+    for segment_text in semantic_segments:
+        prepared = await _prepare_tts_audio(ws, segment_text, turn_id=turn_id)
+        if prepared is None:
+            fallback_audio = preferred_full_audio or await _prepare_tts_audio(ws, normalized, turn_id=turn_id)
+            if fallback_audio is not None:
+                return AiDeliveryPlan(
+                    segments=[PreparedDeliverySegment(text=normalized, prepared_audio=fallback_audio)],
+                    mode="full-fallback",
+                    provider=fallback_audio.provider,
+                )
+            return AiDeliveryPlan(
+                segments=[PreparedDeliverySegment(text=item, prepared_audio=None) for item in semantic_segments],
+                mode="text-only",
+                provider="",
+            )
+        prepared_segments.append(PreparedDeliverySegment(text=segment_text, prepared_audio=prepared))
+
+    provider = prepared_segments[0].prepared_audio.provider if prepared_segments else ""
+    return AiDeliveryPlan(
+        segments=prepared_segments,
+        mode="semantic",
+        provider=provider,
+    )
+
+
+async def _stream_prepared_ai_delivery(
     ws: WebSocket,
     state: VoiceWsState,
     *,
-    text: str,
+    delivery_plan: AiDeliveryPlan,
     turn_id: str,
     emit_delta: bool,
     starting_seq: int = 0,
 ) -> bool:
-    if not state.session_id:
+    if not state.session_id or not delivery_plan.segments:
         return False
-
-    segments = _split_ai_delivery_text(text)
-    if not segments:
-        segments = [(text or "").strip()] if (text or "").strip() else []
 
     has_audio = False
     delta_seq = starting_seq
     accumulated = ""
-    for segment in segments:
-        accumulated = f"{accumulated} {segment}".strip() if accumulated else segment
+    for idx, segment in enumerate(delivery_plan.segments):
+        segment_text = (segment.text or "").strip()
+        if not segment_text:
+            continue
+
+        accumulated = f"{accumulated} {segment_text}".strip() if accumulated else segment_text
         if emit_delta:
             delta_seq += 1
             await _send_transcript_delta(
                 ws,
                 state.session_id,
                 "ai",
-                segment,
+                segment_text,
                 accumulated,
                 delta_seq,
                 turn_id=turn_id,
             )
 
-        prepared = await _prepare_tts_audio(ws, segment, turn_id=turn_id)
-        _remember_ai_tts(state, segment, prepared)
+        prepared = segment.prepared_audio
+        _remember_ai_tts(state, segment_text, prepared)
         if prepared is None:
             continue
 
         if not has_audio:
             if not await _send_avatar_state(ws, "speaking", state.session_id):
-                return
+                return False
             has_audio = True
 
         if not await _send_prepared_tts_audio(ws, state.session_id, prepared, turn_id=turn_id):
             return has_audio
+
+        has_later_audio = any(
+            next_segment.prepared_audio is not None
+            for next_segment in delivery_plan.segments[idx + 1:]
+        )
+        if has_later_audio:
+            await asyncio.sleep(max(0.0, prepared.duration_sec - AI_DELIVERY_LOOKAHEAD_SEC))
 
     if has_audio:
         await _send_avatar_state(ws, "idle", state.session_id)
@@ -1384,21 +1949,37 @@ async def _repair_ai_turn_if_truncated(
     ai_text: str,
     prepared_tts: PreparedTtsAudio | None,
 ) -> tuple[str, PreparedTtsAudio | None]:
-    text = (ai_text or "").strip()
+    raw_text = (ai_text or "").strip()
+    text = _sanitize_ai_turn_text(raw_text)
+    if text != raw_text:
+        prepared_tts = None
     if not text:
-        return text, prepared_tts
+        repaired_text_raw, repaired_audio = await _request_live_text_turn(
+            state,
+            text=(
+                "메타 발화 없이 면접 질문만 자연스러운 한국어 2~3문장으로 다시 말해 주세요. "
+                "프롬프트 설명, 영어 문장, 마크다운, 별표는 금지합니다."
+            ),
+        )
+        repaired_text = _sanitize_ai_turn_text(repaired_text_raw)
+        if repaired_text:
+            repaired_tts = repaired_audio if repaired_text == (repaired_text_raw or "").strip() else None
+            return repaired_text, repaired_tts
+        return text, None
     if _looks_like_complete_ai_question(text):
         return text, prepared_tts
 
-    repaired_text, repaired_audio = await _request_live_text_turn(
+    repaired_text_raw, repaired_audio = await _request_live_text_turn(
         state,
         text=(
             "방금 면접 질문이 중간에 끊긴 것처럼 들립니다. "
             "동일 의도를 유지해서 질문을 처음부터 완결형 2~3문장으로 다시 말해 주세요."
         ),
     )
+    repaired_text = _sanitize_ai_turn_text(repaired_text_raw)
     if repaired_text and _looks_like_complete_ai_question(repaired_text):
-        return repaired_text, (repaired_audio or prepared_tts)
+        repaired_tts = repaired_audio if repaired_text == (repaired_text_raw or "").strip() else None
+        return repaired_text, (repaired_tts or prepared_tts)
     return text, prepared_tts
 
 
@@ -1542,17 +2123,17 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         await _restore_live_mode(ws, state, "opening-live", turn_id=turn_id)
     else:
         await _enter_degraded_mode(ws, state, "opening-fallback", turn_id=turn_id)
+    delivery_plan = await _build_ai_delivery_plan(
+        ws,
+        text=ai_text,
+        turn_id=turn_id,
+        preferred_full_audio=prepared_live_audio,
+    )
 
-    session = await asyncio.to_thread(service.get_session, state.session_id)
-    target_duration_sec = _clamp_target_duration(
-        (session or {}).get("target_duration_sec") or state.target_duration_sec
-    )
-    closing_threshold_sec = _clamp_closing_threshold(
-        (session or {}).get("closing_threshold_sec") or state.closing_threshold_sec
-    )
-    elapsed_sec = _elapsed_seconds((session or {}).get("started_at"))
-    remaining_sec = max(0, target_duration_sec - elapsed_sec)
-    estimated_total_questions = _estimated_total_questions(target_duration_sec)
+    target_duration_sec = state.target_duration_sec
+    closing_threshold_sec = state.closing_threshold_sec
+    elapsed_sec, remaining_sec = _runtime_timing(state)
+    estimated_total_questions = state.estimated_total_questions
 
     state.current_phase = "introduction"
     payload = {
@@ -1565,19 +2146,21 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         "estimated_total_questions": estimated_total_questions,
         "stream_mode": "live-single",
         "tts_mode": "live-single",
+        "delivery_mode": delivery_plan.mode,
+        "delivery_segments": delivery_plan.segment_count,
         "turn_id": turn_id,
         "question_type": opening_question_type,
         "runtime_mode": state.runtime_mode,
         "runtime_reason": state.runtime_mode_reason,
-        "provider": prepared_live_audio.provider if prepared_live_audio is not None else "",
+        "provider": delivery_plan.provider,
         "latency_ms": int((time.monotonic() - opening_started_at) * 1000),
-        "audio_duration_ms": int(round((prepared_live_audio.duration_sec if prepared_live_audio else 0.0) * 1000)),
+        "audio_duration_ms": int(round(delivery_plan.total_duration_sec * 1000)),
         "repair_applied": repair_applied,
         "live_model": _live_active_model(state),
         "vad_config": _snapshot_vad_config(state),
         "memory_snapshot": _build_memory_snapshot(state),
     }
-    await asyncio.to_thread(
+    inserted_turn = await asyncio.to_thread(
         service.append_turn,
         state.session_id,
         "model",
@@ -1585,8 +2168,30 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         "voice",
         payload,
     )
+    _append_cached_turn(
+        state,
+        role=str((inserted_turn or {}).get("role") or "model"),
+        content=str((inserted_turn or {}).get("content") or ai_text),
+        channel=str((inserted_turn or {}).get("channel") or "voice"),
+        payload=(inserted_turn or {}).get("payload") or payload,
+        turn_index=(inserted_turn or {}).get("turn_index"),
+        created_at=(inserted_turn or {}).get("created_at"),
+    )
     _remember_model_turn(state, ai_text, question_type=opening_question_type)
     await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
+    _mark_session_status(state, "in_progress", phase=state.current_phase)
+    _log_runtime_event(
+        "opening-turn",
+        state,
+        turn_id=turn_id,
+        phase=state.current_phase,
+        question_index=1,
+        question_type=opening_question_type,
+        delivery_mode=delivery_plan.mode,
+        delivery_segments=delivery_plan.segment_count,
+        latency_ms=payload["latency_ms"],
+        audio_duration_ms=payload["audio_duration_ms"],
+    )
 
     if not await _send_json(
         ws,
@@ -1608,7 +2213,7 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
             "elapsedSec": elapsed_sec,
             "remainingSec": remaining_sec,
             "estimatedTotalQuestions": estimated_total_questions,
-            "questionCount": 1,
+            "questionCount": state.model_turn_count,
             "isClosingPhase": False,
             "interviewComplete": False,
             "finishReason": "",
@@ -1625,17 +2230,197 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
     if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
         return False
 
-    prepared_tts = prepared_live_audio or await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
     _record_question_type(state, opening_question_type)
-    _remember_ai_tts(state, ai_text, prepared_tts)
-    if prepared_tts is not None:
-        if not await _send_avatar_state(ws, "speaking", state.session_id):
-            return False
-        if not await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id):
-            return False
-        if not await _send_avatar_state(ws, "idle", state.session_id):
-            return False
-        _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=prepared_tts.duration_sec + 1.2)
+    has_audio = await _stream_prepared_ai_delivery(
+        ws,
+        state,
+        delivery_plan=delivery_plan,
+        turn_id=turn_id,
+        emit_delta=True,
+    )
+    if has_audio:
+        _arm_playback_resume(
+            ws,
+            state,
+            turn_id=turn_id,
+            timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+        )
+    else:
+        await _resume_listening(ws, state, turn_id=turn_id)
+    return True
+
+
+async def _generate_and_send_resume_live_turn(ws: WebSocket, state: VoiceWsState) -> bool:
+    if not state.session_id:
+        return False
+
+    turn_started_at = time.monotonic()
+    history = _to_chat_history(state.turn_history)
+    latest_user_text = _latest_user_answer(history)
+    answer_quality_hint = state.last_answer_quality_hint or _build_answer_quality_hint(latest_user_text)
+    model_count = state.model_turn_count
+    target_duration_sec = state.target_duration_sec
+    closing_threshold_sec = state.closing_threshold_sec
+    elapsed_sec, remaining_sec = _runtime_timing(state)
+    estimated_total_questions = state.estimated_total_questions
+    question_index = model_count + 1
+    should_announce_closing = (
+        state.closing_announced
+        or remaining_sec <= closing_threshold_sec
+        or question_index >= estimated_total_questions
+        or question_index >= MAX_DYNAMIC_QUESTIONS
+    )
+    question_type = _select_next_question_type(
+        state,
+        preferred=_derive_question_type_preference(
+            state,
+            latest_user_text,
+            is_closing=should_announce_closing or state.current_phase == "closing",
+        ) or ("priority_judgment" if should_announce_closing else None),
+    )
+    next_phase = _phase_for_question_index(question_index, is_closing=should_announce_closing)
+    state.current_phase = next_phase
+    turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
+
+    live_prompt = (
+        "연결이 복구되었습니다. 직전 지원자 답변을 자연스럽게 이어 받아 다음 질문 1개만 2~3문장으로 말하세요."
+    )
+    if should_announce_closing:
+        live_prompt = (
+            "연결이 복구되었습니다. 이번 턴은 마지막 질문입니다. "
+            "반드시 마지막 질문 안내 후 질문 1개를 하고, 마지막에 "
+            f"'{CLOSING_SENTENCE}' 문장을 포함해 마무리하세요."
+        )
+
+    ai_text, prepared_live_audio = await _request_live_text_turn(
+        state,
+        text=live_prompt,
+        question_type=question_type,
+        extra_instruction="연결 복구 직후이므로 이전 면접관의 말투와 질문 깊이를 그대로 유지할 것",
+        user_text=latest_user_text,
+    )
+    if not ai_text:
+        return False
+
+    original_ai_text = ai_text
+    ai_text, prepared_live_audio = await _repair_ai_turn_if_truncated(
+        state,
+        ai_text=ai_text,
+        prepared_tts=prepared_live_audio,
+    )
+    repair_applied = ai_text != original_ai_text
+
+    if should_announce_closing:
+        if CLOSING_ANNOUNCE_PREFIX not in ai_text:
+            ai_text = f"{CLOSING_ANNOUNCE_PREFIX} {ai_text}".strip()
+        if CLOSING_SENTENCE not in ai_text:
+            ai_text = f"{ai_text} {CLOSING_SENTENCE}".strip()
+        await asyncio.to_thread(service.set_closing_announced, state.session_id, True)
+        state.closing_announced = True
+
+    if prepared_live_audio is not None and ai_text:
+        await _restore_live_mode(ws, state, "resume-live", turn_id=turn_id)
+    else:
+        await _enter_degraded_mode(ws, state, "resume-live-fallback", turn_id=turn_id)
+
+    delivery_plan = await _build_ai_delivery_plan(
+        ws,
+        text=ai_text,
+        turn_id=turn_id,
+        preferred_full_audio=prepared_live_audio,
+    )
+    payload = {
+        "phase": state.current_phase,
+        "question_index": question_index,
+        "question_type": question_type,
+        "answer_quality_hint": answer_quality_hint,
+        "channel": "voice",
+        "remaining_sec": remaining_sec,
+        "target_duration_sec": target_duration_sec,
+        "closing_threshold_sec": closing_threshold_sec,
+        "estimated_total_questions": estimated_total_questions,
+        "stream_mode": "live-single",
+        "tts_mode": "live-single",
+        "delivery_mode": delivery_plan.mode,
+        "delivery_segments": delivery_plan.segment_count,
+        "turn_id": turn_id,
+        "runtime_mode": state.runtime_mode,
+        "runtime_reason": state.runtime_mode_reason,
+        "provider": delivery_plan.provider,
+        "latency_ms": int((time.monotonic() - turn_started_at) * 1000),
+        "audio_duration_ms": int(round(delivery_plan.total_duration_sec * 1000)),
+        "repair_applied": repair_applied,
+        "live_model": _live_active_model(state),
+        "vad_config": _snapshot_vad_config(state),
+        "memory_snapshot": _build_memory_snapshot(state),
+        "resume_generated": True,
+    }
+    inserted_turn = await asyncio.to_thread(
+        service.append_turn,
+        state.session_id,
+        "model",
+        ai_text,
+        "voice",
+        payload,
+    )
+    _append_cached_turn(
+        state,
+        role=str((inserted_turn or {}).get("role") or "model"),
+        content=str((inserted_turn or {}).get("content") or ai_text),
+        channel=str((inserted_turn or {}).get("channel") or "voice"),
+        payload=(inserted_turn or {}).get("payload") or payload,
+        turn_index=(inserted_turn or {}).get("turn_index"),
+        created_at=(inserted_turn or {}).get("created_at"),
+    )
+    _record_question_type(state, question_type)
+    _remember_model_turn(state, ai_text, question_type=question_type)
+    await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
+    _mark_session_status(state, "in_progress", phase=state.current_phase)
+    _log_runtime_event(
+        "resume-live-turn",
+        state,
+        turn_id=turn_id,
+        phase=state.current_phase,
+        question_index=question_index,
+        question_type=question_type,
+        delivery_mode=delivery_plan.mode,
+        delivery_segments=delivery_plan.segment_count,
+        latency_ms=payload["latency_ms"],
+        audio_duration_ms=payload["audio_duration_ms"],
+    )
+
+    if not await _send_json(
+        ws,
+        {
+            "type": "interview-phase-updated",
+            "phase": state.current_phase,
+            "guide": "resume-live-turn",
+            "message": "연결이 복구되어 다음 질문을 이어갑니다.",
+            "turnId": turn_id,
+        },
+    ):
+        return False
+    if not await _send_runtime_meta_snapshot(ws, state, turn_id=turn_id):
+        return False
+    if not await _send_transcript(ws, state.session_id, "ai", ai_text, turn_id=turn_id):
+        return False
+    if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
+        return False
+
+    has_audio = await _stream_prepared_ai_delivery(
+        ws,
+        state,
+        delivery_plan=delivery_plan,
+        turn_id=turn_id,
+        emit_delta=True,
+    )
+    if has_audio:
+        _arm_playback_resume(
+            ws,
+            state,
+            turn_id=turn_id,
+            timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+        )
     else:
         await _resume_listening(ws, state, turn_id=turn_id)
     return True
@@ -1653,24 +2438,13 @@ async def _generate_and_send_ai_turn(
     await _ensure_plan(state)
     state.last_answer_quality_hint = (answer_quality_hint or "").strip()
 
-    turns = await asyncio.to_thread(service.get_turns, state.session_id)
-    history = _to_chat_history(turns)
-    model_count = len([message for message in history if message.get("role") == "model"])
-    session = await asyncio.to_thread(service.get_session, state.session_id)
-    target_duration_sec = _clamp_target_duration(
-        (session or {}).get("target_duration_sec") or state.target_duration_sec
-    )
-    closing_threshold_sec = _clamp_closing_threshold(
-        (session or {}).get("closing_threshold_sec") or state.closing_threshold_sec
-    )
-    elapsed_sec = _elapsed_seconds((session or {}).get("started_at"))
-    remaining_sec = max(0, target_duration_sec - elapsed_sec)
-    estimated_total_questions = _estimated_total_questions(target_duration_sec)
-    closing_announced = bool((session or {}).get("closing_announced", False))
-
-    state.target_duration_sec = target_duration_sec
-    state.closing_threshold_sec = closing_threshold_sec
-    state.estimated_total_questions = estimated_total_questions
+    history = _to_chat_history(state.turn_history)
+    model_count = state.model_turn_count
+    target_duration_sec = state.target_duration_sec
+    closing_threshold_sec = state.closing_threshold_sec
+    elapsed_sec, remaining_sec = _runtime_timing(state)
+    estimated_total_questions = state.estimated_total_questions
+    closing_announced = state.closing_announced
 
     completion_reason = ""
     announced_closing_this_turn = False
@@ -1680,7 +2454,7 @@ async def _generate_and_send_ai_turn(
         completion_reason = "time_limit_reached"
     elif model_count >= MAX_DYNAMIC_QUESTIONS:
         completion_reason = "question_cap_reached"
-    elif (session or {}).get("status") == "completed":
+    elif state.session_status == "completed":
         completion_reason = "already_completed"
 
     used_delta_stream = False
@@ -1688,13 +2462,14 @@ async def _generate_and_send_ai_turn(
     turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
     await _enter_degraded_mode(ws, state, "legacy-llm-tts", turn_id=turn_id)
     turn_started_at = time.monotonic()
+    delivery_plan = AiDeliveryPlan()
 
     if completion_reason:
         ai_text = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
         state.current_phase = "closing"
-        last_turn = turns[-1] if turns else {}
+        last_turn = state.turn_history[-1] if state.turn_history else {}
         if last_turn.get("role") != "model" or CLOSING_SENTENCE not in (last_turn.get("content") or ""):
-            await asyncio.to_thread(
+            inserted_turn = await asyncio.to_thread(
                 service.append_turn,
                 state.session_id,
                 "model",
@@ -1702,7 +2477,27 @@ async def _generate_and_send_ai_turn(
                 "voice",
                 {"phase": "closing", "finish_reason": completion_reason, "channel": "voice"},
             )
+            _append_cached_turn(
+                state,
+                role=str((inserted_turn or {}).get("role") or "model"),
+                content=str((inserted_turn or {}).get("content") or ai_text),
+                channel=str((inserted_turn or {}).get("channel") or "voice"),
+                payload=(inserted_turn or {}).get("payload")
+                or {"phase": "closing", "finish_reason": completion_reason, "channel": "voice"},
+                turn_index=(inserted_turn or {}).get("turn_index"),
+                created_at=(inserted_turn or {}).get("created_at"),
+            )
+            _remember_model_turn(state, ai_text)
         await asyncio.to_thread(service.update_session_status, state.session_id, "completed", "closing")
+        _mark_session_status(state, "completed", phase="closing")
+        _log_runtime_event(
+            "fallback-closing-turn",
+            state,
+            turn_id=turn_id,
+            phase="closing",
+            finish_reason=completion_reason,
+            question_count=model_count,
+        )
     else:
         question_index = model_count + 1
         should_announce_closing = (
@@ -1803,7 +2598,13 @@ async def _generate_and_send_ai_turn(
             if CLOSING_SENTENCE not in ai_text:
                 ai_text = f"{ai_text} {CLOSING_SENTENCE}".strip()
             await asyncio.to_thread(service.set_closing_announced, state.session_id, True)
+            state.closing_announced = True
 
+        delivery_plan = await _build_ai_delivery_plan(
+            ws,
+            text=ai_text,
+            turn_id=turn_id,
+        )
         payload = {
             "phase": state.current_phase,
             "question_index": question_index,
@@ -1816,6 +2617,8 @@ async def _generate_and_send_ai_turn(
             "estimated_total_questions": estimated_total_questions,
             "stream_mode": "delta" if used_delta_stream else "final",
             "tts_mode": state.tts_mode,
+            "delivery_mode": delivery_plan.mode,
+            "delivery_segments": delivery_plan.segment_count,
             "delta_count": streamed_delta_count,
             "turn_id": turn_id,
             "runtime_mode": state.runtime_mode,
@@ -1824,8 +2627,10 @@ async def _generate_and_send_ai_turn(
             "live_model": _live_active_model(state),
             "vad_config": _snapshot_vad_config(state),
             "memory_snapshot": _build_memory_snapshot(state),
+            "audio_duration_ms": int(round(delivery_plan.total_duration_sec * 1000)),
+            "provider": delivery_plan.provider,
         }
-        await asyncio.to_thread(
+        inserted_turn = await asyncio.to_thread(
             service.append_turn,
             state.session_id,
             "model",
@@ -1833,10 +2638,32 @@ async def _generate_and_send_ai_turn(
             "voice",
             payload,
         )
+        _append_cached_turn(
+            state,
+            role=str((inserted_turn or {}).get("role") or "model"),
+            content=str((inserted_turn or {}).get("content") or ai_text),
+            channel=str((inserted_turn or {}).get("channel") or "voice"),
+            payload=(inserted_turn or {}).get("payload") or payload,
+            turn_index=(inserted_turn or {}).get("turn_index"),
+            created_at=(inserted_turn or {}).get("created_at"),
+        )
         _record_question_type(state, question_type)
         _remember_model_turn(state, ai_text, question_type=question_type)
 
         await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
+        _mark_session_status(state, "in_progress", phase=state.current_phase)
+        _log_runtime_event(
+            "fallback-model-turn",
+            state,
+            turn_id=turn_id,
+            phase=state.current_phase,
+            question_index=question_index,
+            question_type=question_type,
+            delivery_mode=delivery_plan.mode,
+            delivery_segments=delivery_plan.segment_count,
+            latency_ms=payload["latency_ms"],
+            audio_duration_ms=payload["audio_duration_ms"],
+        )
 
     if not await _send_json(
         ws,
@@ -1875,10 +2702,16 @@ async def _generate_and_send_ai_turn(
     if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
         return {"completed": True, "text": ai_text, "turnId": turn_id}
 
-    has_audio = await _stream_ai_tts_by_segments(
+    if not delivery_plan.segments:
+        delivery_plan = await _build_ai_delivery_plan(
+            ws,
+            text=ai_text,
+            turn_id=turn_id,
+        )
+    has_audio = await _stream_prepared_ai_delivery(
         ws,
         state,
-        text=ai_text,
+        delivery_plan=delivery_plan,
         turn_id=turn_id,
         emit_delta=not used_delta_stream,
         starting_seq=streamed_delta_count,
@@ -1887,7 +2720,12 @@ async def _generate_and_send_ai_turn(
     is_complete = bool(completion_reason)
     if not is_complete:
         if has_audio:
-            _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=max(1.2, len(ai_text) / 18.0))
+            _arm_playback_resume(
+                ws,
+                state,
+                turn_id=turn_id,
+                timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+            )
         else:
             await _resume_listening(ws, state, turn_id=turn_id)
 
@@ -1981,7 +2819,7 @@ async def _process_user_utterance(
         state.last_answer_quality_hint = _build_answer_quality_hint(user_text)
         _remember_user_turn(state, user_text)
 
-        await asyncio.to_thread(
+        inserted_user_turn = await asyncio.to_thread(
             service.append_turn,
             state.session_id,
             "user",
@@ -2001,16 +2839,47 @@ async def _process_user_utterance(
                 "memory_snapshot": _build_memory_snapshot(state),
             },
         )
+        _append_cached_turn(
+            state,
+            role=str((inserted_user_turn or {}).get("role") or "user"),
+            content=str((inserted_user_turn or {}).get("content") or user_text),
+            channel=str((inserted_user_turn or {}).get("channel") or "voice"),
+            payload=(inserted_user_turn or {}).get("payload")
+            or {
+                "provider": provider_name,
+                "input": "speech",
+                "runtime_mode": state.runtime_mode,
+                "runtime_reason": state.runtime_mode_reason,
+                "speech_duration_ms": round(utterance_duration_ms, 1),
+                "stt_text_len": len(user_text),
+                "live_model": _live_active_model(state),
+                "vad": effective_vad_meta,
+                "vad_config": _snapshot_vad_config(state),
+                "answer_quality_hint": state.last_answer_quality_hint,
+                "memory_snapshot": _build_memory_snapshot(state),
+            },
+            turn_index=(inserted_user_turn or {}).get("turn_index"),
+            created_at=(inserted_user_turn or {}).get("created_at"),
+        )
         if not await _send_transcript(ws, state.session_id, "user", user_text):
             return
         _reset_realtime_user_transcript(state)
-        state.realtime_user_pcm.clear()
+        _log_runtime_event(
+            "user-turn",
+            state,
+            phase=state.current_phase,
+            question_count=state.model_turn_count,
+            provider=provider_name,
+            speech_duration_ms=round(utterance_duration_ms, 1),
+            stt_text_len=len(user_text),
+            vad_reason=effective_vad_meta.get("reason"),
+        )
 
         is_short_answer = _is_short_stt_result(user_text, wav_bytes)
         _retune_vad_for_next_turn(state, utterance_duration_ms=utterance_duration_ms, short_answer=is_short_answer)
 
         if is_short_answer:
-            await asyncio.to_thread(
+            inserted_system_turn = await asyncio.to_thread(
                 service.append_turn,
                 state.session_id,
                 "system",
@@ -2029,27 +2898,44 @@ async def _process_user_utterance(
                     "memory_snapshot": _build_memory_snapshot(state),
                 },
             )
+            _append_cached_turn(
+                state,
+                role=str((inserted_system_turn or {}).get("role") or "system"),
+                content=str((inserted_system_turn or {}).get("content") or SHORT_STT_REPROMPT),
+                channel=str((inserted_system_turn or {}).get("channel") or "voice"),
+                payload=(inserted_system_turn or {}).get("payload")
+                or {
+                    "phase": state.current_phase,
+                    "channel": "voice",
+                    "reason": "short-answer-reprompt",
+                    "runtime_mode": state.runtime_mode,
+                    "runtime_reason": state.runtime_mode_reason,
+                    "speech_duration_ms": round(utterance_duration_ms, 1),
+                    "vad": effective_vad_meta,
+                    "vad_config": _snapshot_vad_config(state),
+                    "answer_quality_hint": state.last_answer_quality_hint,
+                    "memory_snapshot": _build_memory_snapshot(state),
+                },
+                turn_index=(inserted_system_turn or {}).get("turn_index"),
+                created_at=(inserted_system_turn or {}).get("created_at"),
+            )
+            _log_runtime_event(
+                "short-answer-reprompt",
+                state,
+                phase=state.current_phase,
+                speech_duration_ms=round(utterance_duration_ms, 1),
+                stt_text_len=len(user_text),
+                vad_reason=effective_vad_meta.get("reason"),
+            )
             await _send_continue_prompt(ws, state)
             return
 
-        turns = await asyncio.to_thread(service.get_turns, state.session_id)
-        model_count = len([turn for turn in turns if turn.get("role") in {"model", "ai"}])
-        session = await asyncio.to_thread(service.get_session, state.session_id)
-
-        target_duration_sec = _clamp_target_duration(
-            (session or {}).get("target_duration_sec") or state.target_duration_sec
-        )
-        closing_threshold_sec = _clamp_closing_threshold(
-            (session or {}).get("closing_threshold_sec") or state.closing_threshold_sec
-        )
-        elapsed_sec = _elapsed_seconds((session or {}).get("started_at"))
-        remaining_sec = max(0, target_duration_sec - elapsed_sec)
-        estimated_total_questions = _estimated_total_questions(target_duration_sec)
-        closing_announced = bool((session or {}).get("closing_announced", False))
-
-        state.target_duration_sec = target_duration_sec
-        state.closing_threshold_sec = closing_threshold_sec
-        state.estimated_total_questions = estimated_total_questions
+        model_count = state.model_turn_count
+        target_duration_sec = state.target_duration_sec
+        closing_threshold_sec = state.closing_threshold_sec
+        elapsed_sec, remaining_sec = _runtime_timing(state)
+        estimated_total_questions = state.estimated_total_questions
+        closing_announced = state.closing_announced
 
         completion_reason = ""
         announced_closing_this_turn = False
@@ -2059,7 +2945,7 @@ async def _process_user_utterance(
             completion_reason = "time_limit_reached"
         elif model_count >= MAX_DYNAMIC_QUESTIONS:
             completion_reason = "question_cap_reached"
-        elif (session or {}).get("status") == "completed":
+        elif state.session_status == "completed":
             completion_reason = "already_completed"
 
         turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
@@ -2084,6 +2970,15 @@ async def _process_user_utterance(
                 await _enter_degraded_mode(ws, state, "closing-fallback", turn_id=turn_id)
             state.current_phase = "closing"
             await asyncio.to_thread(service.update_session_status, state.session_id, "completed", "closing")
+            _mark_session_status(state, "completed", phase="closing")
+            _log_runtime_event(
+                "live-closing-turn",
+                state,
+                turn_id=turn_id,
+                phase="closing",
+                finish_reason=completion_reason,
+                question_count=model_count,
+            )
         else:
             question_index = model_count + 1
             should_announce_closing = (
@@ -2110,14 +3005,14 @@ async def _process_user_utterance(
                 if CLOSING_SENTENCE not in ai_text:
                     ai_text = f"{ai_text} {CLOSING_SENTENCE}".strip()
                 await asyncio.to_thread(service.set_closing_announced, state.session_id, True)
+                state.closing_announced = True
 
             if ai_text and prepared_tts is not None and provider_name == live.provider:
                 await _restore_live_mode(ws, state, "live-turn", turn_id=turn_id)
 
             if not ai_text:
                 await _enter_degraded_mode(ws, state, "llm-fallback", turn_id=turn_id)
-                turns = await asyncio.to_thread(service.get_turns, state.session_id)
-                history = _to_chat_history(turns)
+                history = _to_chat_history(state.turn_history)
                 answer_quality_hint = _build_answer_quality_hint(_latest_user_answer(history))
                 state.last_answer_quality_hint = answer_quality_hint
                 fallback_question_type = _select_next_question_type(
@@ -2146,6 +3041,12 @@ async def _process_user_utterance(
         repair_applied = bool(ai_text) and ai_text != ai_text_before_repair and not completion_reason
         if ai_text and prepared_tts is None:
             await _enter_degraded_mode(ws, state, "tts-pending-fallback", turn_id=turn_id)
+        delivery_plan = await _build_ai_delivery_plan(
+            ws,
+            text=ai_text,
+            turn_id=turn_id,
+            preferred_full_audio=prepared_tts,
+        )
 
         payload = {
             "phase": state.current_phase,
@@ -2157,14 +3058,16 @@ async def _process_user_utterance(
             "estimated_total_questions": estimated_total_questions,
             "stream_mode": "live-single",
             "tts_mode": "live-single",
+            "delivery_mode": delivery_plan.mode,
+            "delivery_segments": delivery_plan.segment_count,
             "turn_id": turn_id,
             "question_type": "" if completion_reason else planned_question_type,
             "completion_reason": completion_reason,
             "runtime_mode": state.runtime_mode,
             "runtime_reason": state.runtime_mode_reason,
-            "provider": prepared_tts.provider if prepared_tts is not None else live_provider or "",
+            "provider": delivery_plan.provider or live_provider or "",
             "latency_ms": int((time.monotonic() - user_turn_started_at) * 1000),
-            "audio_duration_ms": int(round((prepared_tts.duration_sec if prepared_tts else 0.0) * 1000)),
+            "audio_duration_ms": int(round(delivery_plan.total_duration_sec * 1000)),
             "repair_applied": repair_applied,
             "live_model": _live_active_model(state),
             "vad_config": _snapshot_vad_config(state),
@@ -2174,13 +3077,22 @@ async def _process_user_utterance(
             "memory_snapshot": _build_memory_snapshot(state),
         }
 
-        await asyncio.to_thread(
+        inserted_model_turn = await asyncio.to_thread(
             service.append_turn,
             state.session_id,
             "model",
             ai_text,
             "voice",
             payload,
+        )
+        _append_cached_turn(
+            state,
+            role=str((inserted_model_turn or {}).get("role") or "model"),
+            content=str((inserted_model_turn or {}).get("content") or ai_text),
+            channel=str((inserted_model_turn or {}).get("channel") or "voice"),
+            payload=(inserted_model_turn or {}).get("payload") or payload,
+            turn_index=(inserted_model_turn or {}).get("turn_index"),
+            created_at=(inserted_model_turn or {}).get("created_at"),
         )
         if not completion_reason:
             _record_question_type(state, planned_question_type)
@@ -2189,6 +3101,20 @@ async def _process_user_utterance(
             _remember_model_turn(state, ai_text)
         if not completion_reason:
             await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
+            _mark_session_status(state, "in_progress", phase=state.current_phase)
+            _log_runtime_event(
+                "live-model-turn",
+                state,
+                turn_id=turn_id,
+                phase=state.current_phase,
+                question_index=model_count + 1,
+                question_type=planned_question_type,
+                delivery_mode=delivery_plan.mode,
+                delivery_segments=delivery_plan.segment_count,
+                latency_ms=payload["latency_ms"],
+                audio_duration_ms=payload["audio_duration_ms"],
+                vad_reason=effective_vad_meta.get("reason"),
+            )
 
         if not await _send_json(
             ws,
@@ -2226,22 +3152,32 @@ async def _process_user_utterance(
         if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
             return
 
-        if prepared_tts is None:
+        if delivery_plan.total_duration_sec <= 0 and prepared_tts is None:
             prepared_tts = await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
+            if prepared_tts is not None:
+                delivery_plan = AiDeliveryPlan(
+                    segments=[PreparedDeliverySegment(text=ai_text, prepared_audio=prepared_tts)],
+                    mode="full-retry-fallback",
+                    provider=prepared_tts.provider,
+                )
             await _enter_degraded_mode(ws, state, "tts-fallback", turn_id=turn_id)
         elif live_ai_text and live_prepared_tts is not None and provider_name == live.provider:
             await _restore_live_mode(ws, state, "live-turn", turn_id=turn_id)
-        _remember_ai_tts(state, ai_text, prepared_tts)
-
-        if prepared_tts is not None:
-            if not await _send_avatar_state(ws, "speaking", state.session_id):
-                return
-            if not await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id):
-                return
-            if not await _send_avatar_state(ws, "idle", state.session_id):
-                return
+        has_audio = await _stream_prepared_ai_delivery(
+            ws,
+            state,
+            delivery_plan=delivery_plan,
+            turn_id=turn_id,
+            emit_delta=True,
+        )
+        if has_audio:
             if not completion_reason:
-                _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=prepared_tts.duration_sec + 1.2)
+                _arm_playback_resume(
+                    ws,
+                    state,
+                    turn_id=turn_id,
+                    timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+                )
         elif not completion_reason:
             await _resume_listening(ws, state, turn_id=turn_id)
 
@@ -2381,6 +3317,7 @@ async def client_ws(websocket: WebSocket):
                     if requested_session_type in {"live_interview", "portfolio_defense"}
                     else "live_interview"
                 )
+                requested_session_id = str(data.get("sessionId") or "").strip()
                 personality = data.get("style", "professional")
                 target_duration_sec = _clamp_target_duration(data.get("targetDurationSec"))
                 closing_threshold_sec = _clamp_closing_threshold(data.get("closingThresholdSec"))
@@ -2402,6 +3339,28 @@ async def client_ws(websocket: WebSocket):
                 else:
                     resume_data = {"raw": data.get("resume", "")}
 
+                if state.live_interview is not None:
+                    await state.live_interview.close()
+                state.live_interview = _create_live_interview_session()
+                _reset_voice_runtime_state(
+                    state,
+                    llm_stream_mode=llm_stream_mode,
+                    tts_mode=tts_mode,
+                )
+
+                if requested_session_id:
+                    existing_session = await asyncio.to_thread(service.get_session, requested_session_id)
+                    if existing_session and str(existing_session.get("session_type") or "") == session_type:
+                        existing_turns = await asyncio.to_thread(service.get_turns, requested_session_id)
+                        resumed = await _resume_existing_session(
+                            websocket,
+                            state,
+                            session=existing_session,
+                            turns=existing_turns,
+                        )
+                        if resumed:
+                            continue
+
                 session = await asyncio.to_thread(
                     service.create_session,
                     None,
@@ -2416,62 +3375,7 @@ async def client_ws(websocket: WebSocket):
                     target_duration_sec,
                     closing_threshold_sec,
                 )
-
-                if state.live_interview is not None:
-                    await state.live_interview.close()
-                state.live_interview = _create_live_interview_session()
-                state.session_id = session["id"]
-                state.session_type = session_type
-                state.personality = personality
-                state.job_data = job_data
-                state.resume_data = resume_data
-                state.runtime_mode = RUNTIME_MODE_LIVE_SINGLE if state.live_interview.enabled else RUNTIME_MODE_DISABLED
-                state.runtime_mode_reason = "" if state.live_interview.enabled else "live-disabled"
-                state.runtime_retry_after_sec = 0
-                state.degraded_until_monotonic = 0.0
-                state.degraded_fail_count = 0
-                state.current_phase = "introduction"
-                state.target_duration_sec = target_duration_sec
-                state.closing_threshold_sec = closing_threshold_sec
-                state.estimated_total_questions = _estimated_total_questions(target_duration_sec)
-                if state.plan_bootstrap_task and not state.plan_bootstrap_task.done():
-                    state.plan_bootstrap_task.cancel()
-                state.plan_bootstrap_task = None
-                state.planned_questions = []
-                state.plan_attempted = False
-                state.llm_stream_mode = llm_stream_mode
-                state.tts_mode = tts_mode
-                if state.pending_user_segment_task and not state.pending_user_segment_task.done():
-                    state.pending_user_segment_task.cancel()
-                state.pending_user_segment_task = None
-                state.pending_user_segments = []
-                state.realtime_user_pcm.clear()
-                state.realtime_user_transcript = ""
-                state.realtime_user_delta_seq = 0
-                state.realtime_user_last_emit_at = 0.0
-                state.last_ai_tts_text = ""
-                state.last_ai_audio_guard_until = 0.0
-                state.waiting_playback_turn_id = ""
-                state.last_vad_event = {}
-                state.question_type_cursor = 0
-                state.recent_question_types = []
-                state.recent_user_durations_ms = []
-                state.short_reprompt_streak = 0
-                state.memory_notes = []
-                state.last_user_memory = ""
-                state.last_model_memory = ""
-                state.last_answer_quality_hint = ""
-                state.turn_end_grace_sec = VOICE_TURN_END_GRACE_SEC
-                _cancel_playback_resume_task(state)
-                state.vad = VadSegmenter(
-                    sample_rate=16000,
-                    threshold=settings.voice_vad_threshold,
-                    silence_ms=settings.voice_vad_silence_ms,
-                    min_speech_ms=settings.voice_min_speech_ms,
-                    min_utterance_ms=settings.voice_vad_min_utterance_ms,
-                    short_utterance_silence_ms=settings.voice_vad_short_utterance_silence_ms,
-                    max_segment_ms=settings.voice_max_segment_ms,
-                )
+                _hydrate_state_from_session_row(state, session, turns=[])
 
                 await _send_json(
                     websocket,
@@ -2488,6 +3392,7 @@ async def client_ws(websocket: WebSocket):
                         "retryAfterSec": _degraded_retry_after_sec(state),
                         "llmStreamMode": state.llm_stream_mode,
                         "ttsMode": state.tts_mode,
+                        "resumed": False,
                     },
                 )
                 await _send_avatar_state(websocket, "idle", session["id"])
@@ -2527,7 +3432,6 @@ async def client_ws(websocket: WebSocket):
                 if not audio_chunk:
                     continue
 
-                state.realtime_user_pcm.extend(float_samples_to_pcm16le_bytes(audio_chunk))
                 segment = state.vad.feed(audio_chunk)
                 if segment:
                     state.last_vad_event = dict(state.vad.last_segment_info)
@@ -2557,7 +3461,6 @@ async def client_ws(websocket: WebSocket):
                     await _enqueue_user_segment(websocket, state, b"", flush_now=True)
                 else:
                     _reset_realtime_user_transcript(state)
-                    state.realtime_user_pcm.clear()
                     await _resume_listening(websocket, state)
                 continue
 

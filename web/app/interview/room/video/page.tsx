@@ -72,6 +72,7 @@ export default function InterviewVideoRoomPage() {
   const {
     jobData,
     resumeData,
+    interviewSessionId,
     setInterviewSessionId,
     setChatHistory,
   } = useInterviewSetupStore();
@@ -141,7 +142,11 @@ export default function InterviewVideoRoomPage() {
       if (eventType === "interview-session-created") {
         const uid = typeof event.client_uid === "string" ? event.client_uid : "";
         if (!uid) return;
+        const resumed = Boolean(event.resumed);
 
+        setTranscript([]);
+        setStreamingCaption("");
+        setStreamingUserCaption("");
         setInterviewSessionId(uid);
         setRuntimeMeta((prev) => ({
           ...prev,
@@ -154,7 +159,11 @@ export default function InterviewVideoRoomPage() {
           retryAfterSec: toNumber(event.retryAfterSec, prev.retryAfterSec),
         }));
         setIsSessionReady(true);
-        setStatusMessage("면접 세션이 시작되었습니다. 답변해 주세요.");
+        setStatusMessage(
+          resumed
+            ? "이전 면접 세션을 복구했습니다. 이어서 진행합니다."
+            : "면접 세션이 시작되었습니다. 답변해 주세요.",
+        );
       }
 
       if (eventType === "runtime.meta") {
@@ -199,7 +208,9 @@ export default function InterviewVideoRoomPage() {
         eventType === "warning" ||
         eventType === "error" ||
         eventType === "mic-error" ||
-        eventType === "audio-gesture-required"
+        eventType === "audio-gesture-required" ||
+        eventType === "socket-reconnecting" ||
+        eventType === "socket-resumed"
       ) {
         setStatusMessage(toText(event.message, "오디오 파이프라인 상태를 확인해 주세요."));
       }
@@ -230,6 +241,7 @@ export default function InterviewVideoRoomPage() {
     setStatusMessage("면접 세션 초기화 중...");
 
     initInterviewSession({
+      sessionId: interviewSessionId || undefined,
       sessionType: "live_interview",
       style: "professional",
       targetDurationSec: requestedTargetDurationSec,
@@ -245,6 +257,7 @@ export default function InterviewVideoRoomPage() {
     requestedTargetDurationSec,
     jobData,
     resumeData,
+    interviewSessionId,
   ]);
 
   useEffect(() => {
