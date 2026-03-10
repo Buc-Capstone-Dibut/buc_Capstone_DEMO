@@ -143,7 +143,7 @@ export function RoleTrainingBriefStep() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           직무 설계로
         </Button>
-        <Button onClick={() => router.push("/interview/room/video?duration=7&track=role")} className="h-11 rounded-full px-6">
+        <Button onClick={() => router.push("/interview/room/video?duration=10&track=role")} className="h-11 rounded-full px-6">
           화상면접 시작
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>

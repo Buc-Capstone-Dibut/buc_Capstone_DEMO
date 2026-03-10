@@ -6,10 +6,8 @@ import {
   ArrowRight,
   Briefcase,
   ExternalLink,
-  Filter,
   GitBranch,
   LayoutDashboard,
-  Search,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -356,15 +354,19 @@ function DibeotCharacter({ typeName }: { typeName: string }) {
 function AxisCard({
   axis,
   value,
-  trend,
 }: {
   axis: AxisDefinition;
   value: number;
-  trend: number;
 }) {
-  const dominant = getAxisLabel(axis, value);
-  const secondaryValue = 100 - value;
-  const trendLabel = `${trend > 0 ? "+" : ""}${trend}`;
+  const isLeftDominant = value >= 50;
+  const dominant = isLeftDominant ? axis.left : axis.right;
+  const distance = Math.abs(value - 50);
+  const leaningText =
+    distance < 8
+      ? `${axis.left}과 ${axis.right}이 비슷하지만, 현재는 ${dominant} 쪽에 조금 더 가깝습니다.`
+      : distance < 18
+        ? `두 성향 중 현재는 ${dominant} 쪽에 조금 더 가까운 흐름입니다.`
+        : `지금 답변 흐름은 ${dominant} 성향이 더 분명하게 드러납니다.`;
 
   return (
     <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
@@ -376,26 +378,23 @@ function AxisCard({
           </div>
           <div
             className={cn(
-              "min-w-[72px] shrink-0 whitespace-nowrap rounded-2xl px-3 py-1.5 text-center text-xs font-semibold",
-              axis.bgClass,
-              axis.colorClass,
+              "shrink-0 whitespace-nowrap rounded-2xl border border-[#e7ebf1] bg-[#fbfcfe] px-3 py-1.5 text-center text-xs font-semibold text-foreground",
             )}
           >
-            {dominant}
+            {axis.left} ↔ {axis.right}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className={cn("font-semibold", axis.colorClass)}>{axis.left}</span>
-            <span className="text-muted-foreground">{value}%</span>
+        <div className="border-t border-[#eef2f6] pt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className={cn("font-semibold", axis.colorClass)}>{dominant}</span>
+            <span className="text-muted-foreground">쪽에 더 가까움</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className={cn("h-full rounded-full", axis.bgClass.replace("/10", ""))} style={{ width: `${value}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{axis.right} {secondaryValue}%</span>
-            <span>최근 변화 {trendLabel}</span>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{leaningText}</p>
+          <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className={cn(isLeftDominant && "font-semibold text-foreground")}>{axis.left}</span>
+            <div className="h-px flex-1 bg-[#dfe5ee]" />
+            <span className={cn(!isLeftDominant && "font-semibold text-foreground")}>{axis.right}</span>
           </div>
         </div>
       </CardContent>
@@ -503,7 +502,6 @@ function QuadrantMapCard({
 
 export default function InterviewAnalysisPage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedTab, setSelectedTab] = useState<TabKind>("all");
   const [displayName, setDisplayName] = useState("회원");
   const [profileTags, setProfileTags] = useState<string[]>([]);
@@ -512,17 +510,8 @@ export default function InterviewAnalysisPage() {
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
 
   const filteredSessions = useMemo(() => {
-    return ALL_SESSIONS.filter((session) => {
-      const matchesTab = selectedTab === "all" || session.kind === selectedTab;
-      const matchesSearch =
-        !searchTerm.trim() ||
-        session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        session.subtitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        session.typeName.toLowerCase().includes(searchTerm.toLowerCase());
-
-      return matchesTab && matchesSearch;
-    });
-  }, [searchTerm, selectedTab]);
+    return ALL_SESSIONS.filter((session) => selectedTab === "all" || session.kind === selectedTab);
+  }, [selectedTab]);
 
   const recentSessions = useMemo(() => ALL_SESSIONS.slice(0, 5), []);
   const recentProfileBase = useMemo(
@@ -713,7 +702,7 @@ export default function InterviewAnalysisPage() {
       <GlobalHeader />
 
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-8 md:px-10">
-        <section className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <section className="space-y-2">
           <div className="space-y-2">
             <h1 className="flex items-center gap-3 text-4xl font-black tracking-tight">
               <LayoutDashboard className="h-10 w-10 text-primary" />
@@ -722,41 +711,6 @@ export default function InterviewAnalysisPage() {
             <p className="text-lg text-muted-foreground">
               면접과 포트폴리오 디펜스 기록을 바탕으로 내 4축 성향과 전체 흐름을 확인합니다.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="직무, 기업, 프로젝트 검색"
-                className="h-11 w-full rounded-2xl border border-[#e7ebf1] bg-white pl-10 pr-4 text-sm outline-none transition-all focus:border-primary/30 focus:ring-2 focus:ring-primary/10 sm:w-64"
-              />
-            </div>
-            <div className="flex items-center rounded-2xl border border-[#e7ebf1] bg-white p-1">
-              {[
-                { key: "all", label: "전체" },
-                { key: "mock", label: "모의면접" },
-                { key: "defense", label: "디펜스" },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setSelectedTab(tab.key as TabKind)}
-                  className={cn(
-                    "rounded-xl px-3 py-2 text-sm font-medium transition-all",
-                    selectedTab === tab.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <Button variant="outline" size="icon" className="h-11 w-11 rounded-2xl border-[#e7ebf1] bg-white">
-              <Filter className="h-4 w-4" />
-            </Button>
           </div>
         </section>
 
@@ -780,40 +734,61 @@ export default function InterviewAnalysisPage() {
                     </p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#eef2f6] pt-4 text-sm">
                     {[
                       { label: "총 세션", value: `${totalSessions}회` },
                       { label: "모의면접", value: `${totalMockSessions}회` },
                       { label: "포트폴리오 디펜스", value: `${totalDefenseSessions}회` },
-                      { label: "최근 30일", value: `${recentThirtyDays}회` },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3">
-                        <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-                        <p className="mt-1 text-lg font-bold">{item.value}</p>
+                    ].map((item, index, array) => (
+                      <div key={item.label} className="flex items-center gap-1.5 text-muted-foreground">
+                        <span className="font-medium">{item.label}</span>
+                        <span>:</span>
+                        <span className="font-semibold text-foreground">{item.value}</span>
+                        {index < array.length - 1 ? <span className="ml-2 text-[#cfd6e2]">|</span> : null}
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-[#e7ebf1] bg-[#fbfcfe] px-5 py-5">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <div>
+              <div className="rounded-[28px] border border-[#e7ebf1] bg-white px-5 py-4">
+                <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">기록 허브</p>
-                    <p className="mt-1 text-xs text-muted-foreground">최근 면접과 디펜스 기록을 빠르게 확인하고 상세 리포트로 이동할 수 있습니다.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">면접과 디펜스 기록 중 필요한 결과만 바로 확인할 수 있습니다.</p>
                   </div>
-                  <Badge variant="outline" className="rounded-full border-[#dfe5ee] bg-white px-3 py-1 text-xs">
-                    최근 {Math.min(filteredSessions.length, 4)}개
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="inline-flex items-center rounded-full border border-[#e5eaf1] bg-[#f8fafc] p-1">
+                      {[
+                        { key: "all", label: "전체" },
+                        { key: "mock", label: "모의면접" },
+                        { key: "defense", label: "디펜스" },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setSelectedTab(tab.key as TabKind)}
+                          className={cn(
+                            "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                            selectedTab === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {filteredSessions.slice(0, 4).map((session) => (
+                <div className="divide-y divide-[#eef2f6]">
+                  {filteredSessions.slice(0, 3).map((session) => (
                     <button
                       key={session.id}
                       type="button"
                       onClick={() => router.push(session.href)}
-                      className="flex w-full items-center justify-between rounded-[22px] border border-[#e7ebf1] bg-white px-4 py-4 text-left transition-all hover:border-primary/20 hover:bg-primary/[0.03]"
+                      className="flex w-full items-center justify-between px-1 py-4 text-left transition-colors hover:bg-primary/[0.03]"
                     >
                       <div className="min-w-0 pr-4">
                         <div className="flex flex-wrap items-center gap-2">
@@ -852,7 +827,6 @@ export default function InterviewAnalysisPage() {
               key={axis.key}
               axis={axis}
               value={representativeAxes[axis.key]}
-              trend={axisTrends[axis.key]}
             />
           ))}
         </section>

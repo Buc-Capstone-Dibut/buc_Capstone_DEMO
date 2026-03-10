@@ -29,7 +29,7 @@ interface RuntimeMeta {
   finishReason: string;
 }
 
-const DEFAULT_TARGET_DURATION_SEC = 7 * 60;
+const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 
 const AVATAR_ASSETS = {
   idle: "/interview/avatar/dibut-idle.svg",
@@ -38,10 +38,10 @@ const AVATAR_ASSETS = {
   speaking: "/interview/avatar/dibut-speaking.svg",
 } as const;
 
-const clampDurationMinute = (raw: string | null): 5 | 7 | 10 => {
+const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   const parsed = Number(raw);
-  if (parsed === 5 || parsed === 7 || parsed === 10) return parsed;
-  return 7;
+  if (parsed === 5 || parsed === 10 || parsed === 15) return parsed;
+  return 10;
 };
 
 const formatTime = (seconds: number) => {
@@ -241,7 +241,7 @@ export default function InterviewVideoRoomPage() {
       remaining -= 1;
       if (remaining <= 0) {
         clearInterval(tick);
-        router.push("/interview/result");
+        router.push(`/interview/result?duration=${durationMinutes}`);
       } else {
         setStatusMessage(`면접이 완료되었습니다. ${remaining}초 후 결과 페이지로 이동합니다...`);
       }
@@ -288,7 +288,7 @@ export default function InterviewVideoRoomPage() {
       parts: item.text,
     }));
     setChatHistory(chatHistory);
-    router.push("/interview/result");
+      router.push(`/interview/result?duration=${durationMinutes}`);
   };
 
   return (

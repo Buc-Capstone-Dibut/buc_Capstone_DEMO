@@ -27,13 +27,13 @@ interface RuntimeMeta {
    finishReason: string;
 }
 
-const DEFAULT_TARGET_DURATION_SEC = 7 * 60;
+const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 
 const clampDurationMinute = (raw: string | null): number => {
-   if (!raw) return 7;
+   if (!raw) return 10;
    const parsed = Number(raw);
-   if (parsed === 5 || parsed === 7 || parsed === 10) return parsed;
-   return 7;
+   if (parsed === 5 || parsed === 10 || parsed === 15) return parsed;
+   return 10;
 };
 
 const formatTime = (seconds: number): string => {
@@ -237,7 +237,7 @@ export default function InterviewRoomPage() {
                setInterviewComplete(true);
                setTimeout(() => {
                   setChatHistory(updatedMessages);
-                  router.push('/interview/result');
+                  router.push(`/interview/result?duration=${durationMinutes}`);
                }, 1800);
             }
          } else {
@@ -256,7 +256,7 @@ export default function InterviewRoomPage() {
       if (confirm("면접을 종료하고 결과를 확인하시겠습니까?")) {
          setInterviewComplete(true);
          setChatHistory(messages);
-         router.push('/interview/result');
+         router.push(`/interview/result?duration=${durationMinutes}`);
       }
    };
 
