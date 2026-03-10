@@ -87,6 +87,8 @@ export function useOpenLLM({
   const pendingAudioQueueRef = useRef<PendingAudioChunk[]>([]);
   const lastAudioSignatureRef = useRef("");
   const latestAiTurnSeqRef = useRef(0);
+  const pendingPlaybackCompleteTurnIdRef = useRef("");
+  const lastCompletedPlaybackTurnIdRef = useRef("");
   const audioUnlockedRef = useRef(false);
   const lastAudioUnlockNoticeAtRef = useRef(0);
   const pendingMicRestartTimerRef = useRef<number | null>(null);
@@ -181,9 +183,15 @@ export function useOpenLLM({
     source.onended = () => {
       queuedAudioSourcesRef.current = Math.max(0, queuedAudioSourcesRef.current - 1);
       const hasQueuedAudio =
-        queuedAudioSourcesRef.current > 0 || nextStartTimeRef.current > ctx.currentTime + 0.03;
+        queuedAudioSourcesRef.current > 0 ||
+        nextStartTimeRef.current > ctx.currentTime + 0.03 ||
+        pendingAudioQueueRef.current.length > 0;
       if (!hasQueuedAudio) {
         setIsAISpeaking(false);
+        const completedTurnId = pendingPlaybackCompleteTurnIdRef.current;
+        if (completedTurnId) {
+          sendPlaybackComplete(completedTurnId);
+        }
         if (pendingStartMicRef.current) {
           schedulePendingMicRestart();
         }
@@ -191,7 +199,7 @@ export function useOpenLLM({
     };
 
     return true;
-  }, [getOrCreateAudioContext, schedulePendingMicRestart]);
+  }, [getOrCreateAudioContext, schedulePendingMicRestart, sendPlaybackComplete]);
 
   const flushPendingAudioQueue = useCallback(() => {
     if (!audioUnlockedRef.current) return;
@@ -269,6 +277,20 @@ export function useOpenLLM({
     socketRef.current.send(JSON.stringify(payload));
     return true;
   }, []);
+
+  const sendPlaybackComplete = useCallback((turnId: string) => {
+    const normalized = turnId.trim();
+    if (!normalized) return false;
+    if (normalized === lastCompletedPlaybackTurnIdRef.current) {
+      pendingPlaybackCompleteTurnIdRef.current = "";
+      return true;
+    }
+    const sent = sendJson({ type: "audio-playback-complete", turnId: normalized });
+    if (!sent) return false;
+    lastCompletedPlaybackTurnIdRef.current = normalized;
+    pendingPlaybackCompleteTurnIdRef.current = "";
+    return true;
+  }, [sendJson]);
 
   const initInterviewSession = useCallback((payload: WsInterviewInitPayload = {}) => {
     return sendJson({
@@ -365,6 +387,8 @@ export function useOpenLLM({
     nextStartTimeRef.current = 0;
     lastAudioSignatureRef.current = "";
     latestAiTurnSeqRef.current = 0;
+    pendingPlaybackCompleteTurnIdRef.current = "";
+    lastCompletedPlaybackTurnIdRef.current = "";
     audioUnlockedRef.current = false;
     socketRef.current?.close();
     socketRef.current = null;
@@ -404,6 +428,10 @@ export function useOpenLLM({
         ? event.audio.filter((value): value is number => typeof value === "number")
         : decodePcm16Base64(event.audioBase64);
       if (!audio.length) return;
+      const turnId = typeof event.turnId === "string" ? event.turnId : "";
+      if (event.isFinalChunk === true && turnId) {
+        pendingPlaybackCompleteTurnIdRef.current = turnId;
+      }
 
       clearPendingMicRestart();
       const scheduled = playAudioChunk(audio, Number(event.sampleRate) || 24000, turnSeq);
@@ -473,6 +501,7 @@ export function useOpenLLM({
         nextStartTimeRef.current = 0;
         queuedAudioSourcesRef.current = 0;
         pendingAudioQueueRef.current = [];
+        pendingPlaybackCompleteTurnIdRef.current = "";
         setIsAIProcessing(false);
         setIsAISpeaking(false);
         return;
@@ -516,6 +545,8 @@ export function useOpenLLM({
     const ws = new WebSocket(serverUrl);
     socketRef.current = ws;
     lastAudioSignatureRef.current = "";
+    pendingPlaybackCompleteTurnIdRef.current = "";
+    lastCompletedPlaybackTurnIdRef.current = "";
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -526,6 +557,8 @@ export function useOpenLLM({
       clearPendingMicRestart();
       stopMic(false);
       pendingAudioQueueRef.current = [];
+      pendingPlaybackCompleteTurnIdRef.current = "";
+      lastCompletedPlaybackTurnIdRef.current = "";
       audioUnlockedRef.current = false;
       setIsAIProcessing(false);
       setIsAISpeaking(false);

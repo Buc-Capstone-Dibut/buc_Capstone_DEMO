@@ -54,6 +54,12 @@ LLM_STREAM_MODES = {"final", "delta"}
 TTS_MODES = {"server"}
 AUDIO_PACKET_SEQ = count()
 AI_TURN_SEQ = count(1)
+RUNTIME_MODE_LIVE_SINGLE = "live-single"
+RUNTIME_MODE_DEGRADED_FALLBACK = "degraded-fallback"
+RUNTIME_MODE_DISABLED = "disabled"
+DEGRADED_MODE_SHORT_COOLDOWN_SEC = 18
+DEGRADED_MODE_BASE_COOLDOWN_SEC = 45
+DEGRADED_MODE_MAX_COOLDOWN_SEC = 180
 VOICE_TURN_END_GRACE_SEC = max(0.2, settings.voice_turn_end_grace_ms / 1000.0)
 VOICE_AI_ECHO_GUARD_SEC = max(0.5, settings.voice_ai_echo_guard_ms / 1000.0)
 VOICE_AI_PLAYBACK_SKEW_SEC = 0.35
@@ -63,11 +69,26 @@ LIVE_OPENING_PROMPT = (
     "마지막 문장에서 첫 질문 1개를 구체적으로 하세요. "
     "질문 외 메타설명은 금지합니다."
 )
-USER_REALTIME_STT_SAMPLE_RATE = 16000
-USER_REALTIME_STT_MIN_BUFFER_SEC = 0.7
-USER_REALTIME_STT_MIN_APPEND_SEC = 0.45
-USER_REALTIME_STT_COOLDOWN_SEC = 0.55
 AI_TTS_SEGMENT_MAX_CHARS = 96
+MEMORY_NOTE_LIMIT = 6
+MEMORY_PROMPT_NOTE_LIMIT = 4
+QUESTION_TYPE_LABELS = {
+    "motivation_validation": "지원 동기 및 적합성 검증",
+    "metric_validation": "성과 지표 검증",
+    "tradeoff": "트레이드오프 판단",
+    "failure_recovery": "장애/실패 복기",
+    "design_decision": "설계 의사결정",
+    "collaboration_conflict": "협업 갈등 해결",
+    "priority_judgment": "우선순위 판단",
+}
+QUESTION_TYPE_ROTATION = (
+    "metric_validation",
+    "tradeoff",
+    "failure_recovery",
+    "design_decision",
+    "collaboration_conflict",
+    "priority_judgment",
+)
 _COMPLETE_ANSWER_ENDINGS = (
     "습니다",
     "입니다",
@@ -84,6 +105,37 @@ _COMPLETE_ANSWER_ENDINGS = (
     "어요",
     "아요",
 )
+_MEMORY_STOPWORDS = {
+    "그냥",
+    "정도",
+    "부분",
+    "경우",
+    "관련",
+    "이번",
+    "저희",
+    "회사",
+    "업무",
+    "프로젝트",
+    "문제",
+    "해결",
+    "결과",
+    "경험",
+    "이유",
+    "생각",
+    "부분이",
+    "부분은",
+    "있는",
+    "있습니다",
+    "합니다",
+    "했던",
+    "있었고",
+    "그리고",
+    "그래서",
+    "그때",
+    "이어서",
+    "말씀",
+    "주세요",
+}
 
 
 @lru_cache
@@ -254,6 +306,109 @@ def _estimate_wav_duration_ms(wav_bytes: bytes) -> float:
     return (len(samples) / max(sample_rate, 1)) * 1000.0
 
 
+def _live_active_model(state: VoiceWsState) -> str:
+    live = state.live_interview
+    if live is None:
+        return ""
+    return getattr(live, "active_model", "") or getattr(live, "model", "")
+
+
+def _snapshot_vad_config(state: VoiceWsState) -> dict[str, Any]:
+    return {
+        "threshold": float(state.vad.threshold),
+        "silence_ms": int(state.vad.silence_ms),
+        "short_utterance_silence_ms": int(state.vad.short_utterance_silence_ms),
+        "min_utterance_ms": int(state.vad.min_utterance_ms),
+        "turn_end_grace_ms": int(round(state.turn_end_grace_sec * 1000.0)),
+    }
+
+
+def _merge_vad_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    valid = [event for event in events if event]
+    if not valid:
+        return {}
+    duration_ms = sum(float(event.get("duration_ms") or 0.0) for event in valid)
+    merged = dict(valid[-1])
+    merged["segment_count"] = len(valid)
+    merged["duration_ms"] = round(duration_ms, 1)
+    merged["reasons"] = [str(event.get("reason") or "") for event in valid if event.get("reason")]
+    return merged
+
+
+def _retune_vad_for_next_turn(state: VoiceWsState, *, utterance_duration_ms: float, short_answer: bool) -> None:
+    if utterance_duration_ms > 0:
+        state.recent_user_durations_ms.append(float(utterance_duration_ms))
+        if len(state.recent_user_durations_ms) > 5:
+            state.recent_user_durations_ms = state.recent_user_durations_ms[-5:]
+
+    if short_answer:
+        state.short_reprompt_streak = min(state.short_reprompt_streak + 1, 3)
+    else:
+        state.short_reprompt_streak = 0
+
+    recent = state.recent_user_durations_ms[-3:]
+    avg_ms = sum(recent) / len(recent) if recent else 0.0
+    silence_ms = settings.voice_vad_silence_ms
+    short_silence_ms = settings.voice_vad_short_utterance_silence_ms
+    turn_end_grace_ms = settings.voice_turn_end_grace_ms
+
+    if short_answer:
+        silence_ms += 260
+        short_silence_ms += 320
+        turn_end_grace_ms += 180
+    elif avg_ms >= 5200:
+        silence_ms += 220
+        short_silence_ms += 260
+        turn_end_grace_ms += 140
+    elif avg_ms >= 3200:
+        silence_ms += 120
+        short_silence_ms += 160
+        turn_end_grace_ms += 80
+    elif avg_ms and avg_ms <= 1800:
+        silence_ms -= 80
+        short_silence_ms -= 120
+        turn_end_grace_ms -= 80
+
+    if state.short_reprompt_streak >= 2:
+        silence_ms += 140
+        short_silence_ms += 180
+        turn_end_grace_ms += 120
+
+    silence_ms = max(500, min(short_silence_ms, silence_ms))
+    short_silence_ms = max(silence_ms + 120, min(2600, short_silence_ms))
+    turn_end_grace_ms = max(800, min(2200, turn_end_grace_ms))
+
+    state.turn_end_grace_sec = turn_end_grace_ms / 1000.0
+    state.vad.reconfigure(
+        silence_ms=silence_ms,
+        short_utterance_silence_ms=short_silence_ms,
+    )
+
+
+def _degraded_retry_after_sec(state: VoiceWsState) -> int:
+    remaining = state.degraded_until_monotonic - time.monotonic()
+    return max(0, int(round(remaining)))
+
+
+def _degraded_cooldown_for_reason(reason: str, fail_count: int = 0) -> int:
+    normalized = (reason or "").strip().lower()
+    if normalized in {"stt-fallback", "continue-fallback"}:
+        base = DEGRADED_MODE_SHORT_COOLDOWN_SEC
+    elif normalized in {"live-disabled"}:
+        base = DEGRADED_MODE_MAX_COOLDOWN_SEC
+    else:
+        base = DEGRADED_MODE_BASE_COOLDOWN_SEC
+    if fail_count > 1:
+        base += min((fail_count - 1) * 15, 60)
+    return min(DEGRADED_MODE_MAX_COOLDOWN_SEC, base)
+
+
+def _live_attempt_allowed(state: VoiceWsState) -> bool:
+    if state.runtime_mode != RUNTIME_MODE_DEGRADED_FALLBACK:
+        return True
+    return _degraded_retry_after_sec(state) <= 0
+
+
 def _pcm16le_bytes_to_base64_chunks(
     pcm_bytes: bytes,
     *,
@@ -362,18 +517,33 @@ class VoiceWsState:
     plan_bootstrap_task: asyncio.Task[None] | None = None
     llm_stream_mode: str = "delta"
     tts_mode: str = "server"
+    runtime_mode: str = RUNTIME_MODE_LIVE_SINGLE
+    runtime_mode_reason: str = ""
+    runtime_retry_after_sec: int = 0
+    degraded_until_monotonic: float = 0.0
+    degraded_fail_count: int = 0
+    question_type_cursor: int = 0
+    recent_question_types: list[str] = field(default_factory=list)
+    recent_user_durations_ms: list[float] = field(default_factory=list)
+    short_reprompt_streak: int = 0
+    memory_notes: list[str] = field(default_factory=list)
+    last_user_memory: str = ""
+    last_model_memory: str = ""
+    last_answer_quality_hint: str = ""
+    turn_end_grace_sec: float = VOICE_TURN_END_GRACE_SEC
     processing_audio: bool = False
-    pending_user_segments: list[bytes] = field(default_factory=list)
+    pending_user_segments: list["PendingUserSegment"] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
     realtime_user_pcm: bytearray = field(default_factory=bytearray)
     realtime_user_transcript: str = ""
     realtime_user_delta_seq: int = 0
-    realtime_user_last_snapshot_bytes: int = 0
     realtime_user_last_emit_at: float = 0.0
-    realtime_user_stt_task: asyncio.Task[None] | None = None
     live_interview: GeminiLiveInterviewSession | None = None
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
+    waiting_playback_turn_id: str = ""
+    playback_resume_task: asyncio.Task[None] | None = None
+    last_vad_event: dict[str, Any] = field(default_factory=dict)
     vad: VadSegmenter = field(
         default_factory=lambda: VadSegmenter(
             sample_rate=16000,
@@ -393,6 +563,12 @@ class PreparedTtsAudio:
     sample_rate: int
     provider: str
     duration_sec: float = 0.0
+
+
+@dataclass
+class PendingUserSegment:
+    audio: bytes
+    vad: dict[str, Any] = field(default_factory=dict)
 
 
 async def _send_json(ws: WebSocket, payload: dict[str, Any]) -> bool:
@@ -415,6 +591,129 @@ async def _send_avatar_state(ws: WebSocket, state: AvatarState, session_id: str)
             "timestamp": int(time.time()),
         },
     )
+
+
+async def _set_runtime_mode(
+    ws: WebSocket,
+    state: VoiceWsState,
+    mode: str,
+    reason: str = "",
+    *,
+    turn_id: str | None = None,
+    retry_after_sec: int | None = None,
+) -> None:
+    normalized_mode = (mode or "").strip() or RUNTIME_MODE_DISABLED
+    normalized_reason = (reason or "").strip()
+    normalized_retry_after = max(0, int(retry_after_sec or 0))
+    if (
+        state.runtime_mode == normalized_mode
+        and state.runtime_mode_reason == normalized_reason
+        and state.runtime_retry_after_sec == normalized_retry_after
+    ):
+        return
+
+    state.runtime_mode = normalized_mode
+    state.runtime_mode_reason = normalized_reason
+    state.runtime_retry_after_sec = normalized_retry_after
+    if not state.session_id:
+        return
+
+    message = ""
+    if normalized_mode == RUNTIME_MODE_DEGRADED_FALLBACK:
+        message = "실시간 음성 경로가 불안정해 보조 처리 경로로 전환되었습니다."
+    elif normalized_mode == RUNTIME_MODE_LIVE_SINGLE:
+        message = "실시간 음성 경로가 정상화되었습니다."
+    elif normalized_mode == RUNTIME_MODE_DISABLED:
+        message = "실시간 음성 경로가 비활성화되어 있습니다."
+    if normalized_retry_after > 0:
+        message = f"{message} 약 {normalized_retry_after}초 뒤 Live 재시도를 허용합니다.".strip()
+
+    payload: dict[str, Any] = {
+        "type": "runtime.mode",
+        "runtimeMode": normalized_mode,
+        "runtimeReason": normalized_reason,
+        "retryAfterSec": normalized_retry_after,
+        "sessionId": state.session_id,
+        "timestamp": int(time.time()),
+        "message": message,
+    }
+    if turn_id:
+        payload["turnId"] = turn_id
+    await _send_json(ws, payload)
+
+
+async def _enter_degraded_mode(
+    ws: WebSocket,
+    state: VoiceWsState,
+    reason: str,
+    *,
+    turn_id: str | None = None,
+) -> None:
+    normalized_reason = (reason or "").strip()
+    active_cooldown = _degraded_retry_after_sec(state) > 0
+    if active_cooldown and state.runtime_mode == RUNTIME_MODE_DEGRADED_FALLBACK:
+        await _set_runtime_mode(
+            ws,
+            state,
+            RUNTIME_MODE_DEGRADED_FALLBACK,
+            state.runtime_mode_reason or normalized_reason,
+            turn_id=turn_id,
+            retry_after_sec=_degraded_retry_after_sec(state),
+        )
+        return
+
+    if state.runtime_mode_reason != normalized_reason:
+        state.degraded_fail_count += 1
+    cooldown_sec = _degraded_cooldown_for_reason(normalized_reason, state.degraded_fail_count)
+    state.degraded_until_monotonic = max(state.degraded_until_monotonic, time.monotonic() + cooldown_sec)
+    await _set_runtime_mode(
+        ws,
+        state,
+        RUNTIME_MODE_DEGRADED_FALLBACK,
+        normalized_reason,
+        turn_id=turn_id,
+        retry_after_sec=_degraded_retry_after_sec(state),
+    )
+
+
+async def _restore_live_mode(
+    ws: WebSocket,
+    state: VoiceWsState,
+    reason: str,
+    *,
+    turn_id: str | None = None,
+) -> None:
+    state.degraded_until_monotonic = 0.0
+    state.degraded_fail_count = 0
+    await _set_runtime_mode(ws, state, RUNTIME_MODE_LIVE_SINGLE, reason, turn_id=turn_id)
+
+
+def _cancel_playback_resume_task(state: VoiceWsState) -> None:
+    if state.playback_resume_task and not state.playback_resume_task.done():
+        state.playback_resume_task.cancel()
+    state.playback_resume_task = None
+
+
+def _arm_playback_resume(ws: WebSocket, state: VoiceWsState, *, turn_id: str, timeout_sec: float) -> None:
+    state.waiting_playback_turn_id = turn_id
+    _cancel_playback_resume_task(state)
+
+    async def _resume_on_timeout() -> None:
+        try:
+            await asyncio.sleep(max(0.8, timeout_sec))
+        except asyncio.CancelledError:
+            return
+        if state.waiting_playback_turn_id != turn_id:
+            return
+        logger.warning(
+            "audio playback ack timeout; forcing mic resume",
+            extra={"session_id": state.session_id, "turn_id": turn_id},
+        )
+        state.waiting_playback_turn_id = ""
+        state.playback_resume_task = None
+        await _resume_listening(ws, state, turn_id=turn_id)
+
+    state.playback_resume_task = asyncio.create_task(_resume_on_timeout())
 
 
 async def _send_transcript(
@@ -477,6 +776,8 @@ async def _resume_listening(
     *,
     turn_id: str | None = None,
 ) -> None:
+    state.waiting_playback_turn_id = ""
+    _cancel_playback_resume_task(state)
     payload: dict[str, Any] = {"type": "control", "text": "start-mic"}
     if turn_id:
         payload["turnId"] = turn_id
@@ -513,13 +814,6 @@ def _reset_realtime_user_transcript(state: VoiceWsState) -> None:
     state.realtime_user_transcript = ""
     state.realtime_user_delta_seq = 0
     state.realtime_user_last_emit_at = 0.0
-    state.realtime_user_last_snapshot_bytes = 0
-
-
-def _cancel_realtime_user_stt_task(state: VoiceWsState) -> None:
-    if state.realtime_user_stt_task and not state.realtime_user_stt_task.done():
-        state.realtime_user_stt_task.cancel()
-    state.realtime_user_stt_task = None
 
 
 async def _emit_realtime_user_delta(
@@ -554,57 +848,14 @@ async def _emit_realtime_user_delta(
     )
 
 
-def _should_run_realtime_stt(state: VoiceWsState) -> bool:
-    snapshot_len = len(state.realtime_user_pcm)
-    if snapshot_len <= 0:
-        return False
-    bytes_per_sec = USER_REALTIME_STT_SAMPLE_RATE * 2
-    if snapshot_len < int(bytes_per_sec * USER_REALTIME_STT_MIN_BUFFER_SEC):
-        return False
-    if snapshot_len - state.realtime_user_last_snapshot_bytes < int(bytes_per_sec * USER_REALTIME_STT_MIN_APPEND_SEC):
-        return False
-    if time.monotonic() - state.realtime_user_last_emit_at < USER_REALTIME_STT_COOLDOWN_SEC:
-        return False
-    return True
-
-
-async def _run_realtime_user_stt(ws: WebSocket, state: VoiceWsState, pcm_snapshot: bytes) -> None:
-    try:
-        if state.processing_audio:
-            return
-        stt = get_stt_service()
-        if not stt.enabled:
-            return
-        result = await stt.transcribe_pcm(pcm_snapshot, sample_rate=USER_REALTIME_STT_SAMPLE_RATE, language="ko")
-        text = (result.text or "").strip()
-        if not text:
-            return
-        await _emit_realtime_user_delta(ws, state, text)
-    except asyncio.CancelledError:
-        return
-    except Exception:
-        logger.exception("realtime user stt delta failed", extra={"session_id": state.session_id})
-    finally:
-        state.realtime_user_stt_task = None
-
-
-def _schedule_realtime_user_stt(ws: WebSocket, state: VoiceWsState) -> None:
-    if state.processing_audio or not _should_run_realtime_stt(state):
-        return
-    if state.realtime_user_stt_task and not state.realtime_user_stt_task.done():
-        return
-    pcm_snapshot = bytes(state.realtime_user_pcm)
-    if not pcm_snapshot:
-        return
-    state.realtime_user_last_snapshot_bytes = len(pcm_snapshot)
-    state.realtime_user_stt_task = asyncio.create_task(_run_realtime_user_stt(ws, state, pcm_snapshot))
-
-
 def _build_context(state: VoiceWsState) -> dict[str, Any]:
     return {
         "jobData": state.job_data,
         "resumeData": state.resume_data,
         "personality": state.personality,
+        "memoryNotes": state.memory_notes[-MEMORY_NOTE_LIMIT:],
+        "recentQuestionTypes": state.recent_question_types[-4:],
+        "lastAnswerQualityHint": state.last_answer_quality_hint,
     }
 
 
@@ -619,7 +870,155 @@ def _compact_context_text(value: Any, max_chars: int = 1200) -> str:
     return f"{normalized[:max_chars]}..."
 
 
-def _build_live_system_instruction(state: VoiceWsState) -> str:
+def _compress_memory_text(text: str, max_chars: int = 120) -> str:
+    normalized = re.sub(r"\s+", " ", (text or "")).strip()
+    if not normalized:
+        return ""
+    clipped = normalized if len(normalized) <= max_chars else f"{normalized[:max_chars].rstrip()}..."
+    sentence_parts = [piece.strip() for piece in re.split(r"(?<=[.!?])\s+", clipped) if piece.strip()]
+    return sentence_parts[0] if sentence_parts else clipped
+
+
+def _extract_memory_keywords(text: str, *, max_items: int = 3) -> list[str]:
+    tokens = re.findall(r"[0-9A-Za-z가-힣]{2,}", (text or "").lower())
+    keywords: list[str] = []
+    for token in tokens:
+        if token in _MEMORY_STOPWORDS:
+            continue
+        if token.isdigit():
+            continue
+        if token not in keywords:
+            keywords.append(token)
+        if len(keywords) >= max_items:
+            break
+    return keywords
+
+
+def _append_memory_note(state: VoiceWsState, note: str) -> None:
+    normalized = (note or "").strip()
+    if not normalized:
+        return
+    if state.memory_notes and state.memory_notes[-1] == normalized:
+        return
+    state.memory_notes.append(normalized)
+    if len(state.memory_notes) > MEMORY_NOTE_LIMIT:
+        state.memory_notes = state.memory_notes[-MEMORY_NOTE_LIMIT:]
+
+
+def _remember_user_turn(state: VoiceWsState, text: str) -> None:
+    summary = _compress_memory_text(text, max_chars=110)
+    if not summary:
+        return
+    keywords = _extract_memory_keywords(text)
+    note = f"지원자 답변: {summary}"
+    if keywords:
+        note = f"{note} | 키워드: {', '.join(keywords)}"
+    state.last_user_memory = note
+    _append_memory_note(state, note)
+
+
+def _remember_model_turn(state: VoiceWsState, text: str, *, question_type: str | None = None) -> None:
+    summary = _compress_memory_text(text, max_chars=110)
+    if not summary:
+        return
+    label = _question_type_label(question_type) if question_type else "일반 심층 검증"
+    note = f"최근 질문({label}): {summary}"
+    state.last_model_memory = note
+    _append_memory_note(state, note)
+
+
+def _build_memory_snapshot(state: VoiceWsState, *, max_chars: int = 420) -> str:
+    notes: list[str] = []
+    if state.last_model_memory:
+        notes.append(state.last_model_memory)
+    if state.last_user_memory:
+        notes.append(state.last_user_memory)
+    for note in state.memory_notes[-MEMORY_PROMPT_NOTE_LIMIT:]:
+        if note not in notes:
+            notes.append(note)
+    if not notes:
+        return ""
+
+    joined = " / ".join(notes[-MEMORY_PROMPT_NOTE_LIMIT:])
+    if len(joined) <= max_chars:
+        return joined
+    return f"{joined[:max_chars].rstrip()}..."
+
+
+def _question_type_label(question_type: str | None) -> str:
+    normalized = (question_type or "").strip()
+    return QUESTION_TYPE_LABELS.get(normalized, normalized or "일반 심층 검증")
+
+
+def _derive_question_type_preference(
+    state: VoiceWsState,
+    answer_text: str,
+    *,
+    is_closing: bool = False,
+) -> str | None:
+    if is_closing:
+        return "priority_judgment"
+
+    normalized = re.sub(r"\s+", " ", (answer_text or "")).strip().lower()
+    if not normalized:
+        return None
+
+    recent = set(state.recent_question_types[-2:])
+    has_metric = bool(re.search(r"\d+[%건명개번일월년]|\d+\s*(ms|sec|s|배)", normalized))
+    has_failure = bool(re.search(r"(실패|장애|이슈|문제|사고|rollback|에러|error|incident|트러블)", normalized))
+    has_design = bool(re.search(r"(설계|구조|아키텍처|architecture|db|database|api|모듈|시스템)", normalized))
+    has_collaboration = bool(re.search(r"(협업|팀|갈등|커뮤니케이션|리뷰|stakeholder|동료|조율)", normalized))
+    has_priority = bool(re.search(r"(우선|priority|마감|일정|impact|리소스|순서|급한)", normalized))
+    has_tradeoff = bool(re.search(r"(트레이드오프|장단점|비용|속도|안정성|복잡도|선택 기준)", normalized))
+
+    candidates: list[str] = []
+    if not has_metric:
+        candidates.append("metric_validation")
+    if has_failure:
+        candidates.append("failure_recovery")
+    if has_design:
+        candidates.append("design_decision")
+    if has_collaboration:
+        candidates.append("collaboration_conflict")
+    if has_priority:
+        candidates.append("priority_judgment")
+    if has_tradeoff:
+        candidates.append("tradeoff")
+
+    for candidate in candidates:
+        if candidate not in recent:
+            return candidate
+    return candidates[0] if candidates else None
+
+
+def _select_next_question_type(state: VoiceWsState, *, preferred: str | None = None) -> str:
+    recent = set(state.recent_question_types[-2:])
+    if preferred and preferred not in recent:
+        return preferred
+
+    total = len(QUESTION_TYPE_ROTATION)
+    start = state.question_type_cursor % max(total, 1)
+    for offset in range(total):
+        candidate = QUESTION_TYPE_ROTATION[(start + offset) % total]
+        if candidate not in recent:
+            return candidate
+
+    return QUESTION_TYPE_ROTATION[start]
+
+
+def _record_question_type(state: VoiceWsState, question_type: str | None) -> None:
+    normalized = (question_type or "").strip()
+    if not normalized:
+        return
+    state.recent_question_types.append(normalized)
+    if len(state.recent_question_types) > 5:
+        state.recent_question_types = state.recent_question_types[-5:]
+    if normalized in QUESTION_TYPE_ROTATION:
+        idx = QUESTION_TYPE_ROTATION.index(normalized)
+        state.question_type_cursor = (idx + 1) % len(QUESTION_TYPE_ROTATION)
+
+
+def _build_live_session_instruction(state: VoiceWsState) -> str:
     personality = (state.personality or "professional").strip()
     job_brief = _compact_context_text(state.job_data, max_chars=900)
     resume_brief = _compact_context_text(state.resume_data, max_chars=900)
@@ -633,14 +1032,44 @@ def _build_live_system_instruction(state: VoiceWsState) -> str:
         "4) 지원자 답변을 직접 대신 말하지 않는다.\n"
         "5) 질문은 구체적이고 검증 가능한 꼬리질문 위주로 한다.\n"
         "6) 각 턴은 2~4문장으로 구성하고, 전체 길이는 대략 80~220자 내에서 자연스럽게 말한다.\n"
-        "7) 직전 답변 키워드를 최소 1개 반영하고, 매 턴 질문 유형을 바꾼다.\n"
-        "질문 유형 순환 예시: 성과지표 검증, 트레이드오프, 장애/실패 복기, 설계 의사결정, 협업 갈등 해결, 우선순위 판단.\n"
+        "7) 대괄호로 둘러싼 운영 메모는 내부 지시다. 절대 그대로 읽거나 노출하지 말고 질문 생성 제어에만 사용한다.\n"
+        "8) 직전 답변 키워드를 최소 1개 반영하고, 매 턴 질문 유형을 바꾼다.\n"
         f"면접 스타일: {personality}\n"
         f"권장 면접 길이: 약 {target_min}분\n"
         f"채용 맥락 요약: {job_brief}\n"
         f"지원자 요약: {resume_brief}\n"
         "출력은 자연스러운 한국어 음성 문장으로만 생성한다."
     )
+
+
+def _build_live_turn_prompt(
+    state: VoiceWsState,
+    *,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    user_text: str = "",
+    extra_instruction: str = "",
+) -> str:
+    parts: list[str] = ["[운영 메모 - 절대 그대로 읽지 말 것]"]
+    if question_type:
+        parts.append(f"- 이번 턴 우선 질문 유형: {_question_type_label(question_type)}")
+    recent_type_labels = ", ".join(_question_type_label(item) for item in state.recent_question_types[-3:])
+    if recent_type_labels:
+        parts.append(f"- 최근 사용한 질문 유형: {recent_type_labels}")
+    memory_snapshot = _build_memory_snapshot(state)
+    if memory_snapshot:
+        parts.append(f"- 최근 면접 메모: {memory_snapshot}")
+    quality_hint = (answer_quality_hint or state.last_answer_quality_hint or "").strip()
+    if quality_hint:
+        parts.append(f"- 직전 답변 검증 포인트: {quality_hint}")
+    else:
+        parts.append("- 직전 답변에서 수치, 근거, 의사결정 기준이 빠졌다면 그 부분을 우선 검증할 것")
+    if user_text:
+        parts.append(f"- 참고 사용자 답변: {_compact_context_text(user_text, max_chars=240)}")
+    if extra_instruction:
+        parts.append(f"- 추가 지시: {extra_instruction}")
+    parts.append("- 위 메모를 참고하되, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
+    return "\n".join(parts)
 
 
 def _hard_split_text(text: str, max_chars: int) -> list[str]:
@@ -715,9 +1144,9 @@ async def _stream_ai_tts_by_segments(
     turn_id: str,
     emit_delta: bool,
     starting_seq: int = 0,
-) -> None:
+) -> bool:
     if not state.session_id:
-        return
+        return False
 
     segments = _split_ai_delivery_text(text)
     if not segments:
@@ -751,10 +1180,11 @@ async def _stream_ai_tts_by_segments(
             has_audio = True
 
         if not await _send_prepared_tts_audio(ws, state.session_id, prepared, turn_id=turn_id):
-            return
+            return has_audio
 
     if has_audio:
         await _send_avatar_state(ws, "idle", state.session_id)
+    return has_audio
 
 
 async def _bootstrap_plan(state: VoiceWsState) -> None:
@@ -881,13 +1311,22 @@ async def _request_live_text_turn(
     state: VoiceWsState,
     *,
     text: str,
+    question_type: str | None = None,
+    extra_instruction: str = "",
+    user_text: str = "",
 ) -> tuple[str, PreparedTtsAudio | None]:
     live = _get_or_create_live_interview(state)
-    if not live.enabled:
+    if not live.enabled or not _live_attempt_allowed(state):
         return "", None
 
     result = await live.request_text_turn(
-        system_instruction=_build_live_system_instruction(state),
+        session_instruction=_build_live_session_instruction(state),
+        turn_prompt=_build_live_turn_prompt(
+            state,
+            question_type=question_type,
+            user_text=user_text,
+            extra_instruction=extra_instruction,
+        ),
         text=text,
     )
     prepared = _to_prepared_tts_audio_from_pcm(
@@ -902,9 +1341,12 @@ async def _request_live_audio_turn(
     state: VoiceWsState,
     *,
     wav_bytes: bytes,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
 ) -> tuple[str, str, PreparedTtsAudio | None, str]:
     live = _get_or_create_live_interview(state)
-    if not live.enabled:
+    if not live.enabled or not _live_attempt_allowed(state):
         return "", "", None, ""
 
     samples, sample_rate = wav_bytes_to_float_samples(wav_bytes)
@@ -913,7 +1355,13 @@ async def _request_live_audio_turn(
 
     pcm_bytes = float_samples_to_pcm16le_bytes(samples)
     result = await live.request_audio_turn(
-        system_instruction=_build_live_system_instruction(state),
+        session_instruction=_build_live_session_instruction(state),
+        turn_prompt=_build_live_turn_prompt(
+            state,
+            question_type=question_type,
+            answer_quality_hint=answer_quality_hint,
+            user_text=prompt_user_text,
+        ),
         pcm_bytes=pcm_bytes,
         sample_rate=sample_rate,
     )
@@ -1048,33 +1496,52 @@ async def _send_continue_prompt(ws: WebSocket, state: VoiceWsState, text: str = 
     )
     prompt_text = live_text or text
     prepared_tts = live_prepared_tts or await _prepare_tts_audio(ws, prompt_text, turn_id=turn_id)
+    if live_text and live_prepared_tts is not None:
+        await _restore_live_mode(ws, state, "continue-live", turn_id=turn_id)
+    else:
+        await _enter_degraded_mode(ws, state, "continue-fallback", turn_id=turn_id)
     _remember_ai_tts(state, prompt_text, prepared_tts)
 
     await _send_transcript(ws, state.session_id, "ai", prompt_text, turn_id=turn_id)
     await _send_json(ws, {"type": "full-text", "text": prompt_text, "turnId": turn_id})
+    _remember_model_turn(state, prompt_text)
 
     if prepared_tts is not None:
         await _send_avatar_state(ws, "speaking", state.session_id)
         await _send_prepared_tts_audio(ws, state.session_id, prepared_tts, turn_id=turn_id)
         await _send_avatar_state(ws, "idle", state.session_id)
+        _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=prepared_tts.duration_sec + 1.2)
+    else:
+        await _resume_listening(ws, state, turn_id=turn_id)
 
     _reset_realtime_user_transcript(state)
-    await _resume_listening(ws, state, turn_id=turn_id)
 
 
 async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsState) -> bool:
     if not state.session_id:
         return False
 
+    opening_started_at = time.monotonic()
     turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
-    ai_text, prepared_live_audio = await _request_live_text_turn(state, text=LIVE_OPENING_PROMPT)
+    opening_question_type = "motivation_validation"
+    ai_text, prepared_live_audio = await _request_live_text_turn(
+        state,
+        text=LIVE_OPENING_PROMPT,
+        question_type=opening_question_type,
+    )
     if not ai_text:
         ai_text = _fallback_opening_question_text()
+    original_ai_text = ai_text
     ai_text, prepared_live_audio = await _repair_ai_turn_if_truncated(
         state,
         ai_text=ai_text,
         prepared_tts=prepared_live_audio,
     )
+    repair_applied = ai_text != original_ai_text
+    if prepared_live_audio is not None and ai_text:
+        await _restore_live_mode(ws, state, "opening-live", turn_id=turn_id)
+    else:
+        await _enter_degraded_mode(ws, state, "opening-fallback", turn_id=turn_id)
 
     session = await asyncio.to_thread(service.get_session, state.session_id)
     target_duration_sec = _clamp_target_duration(
@@ -1099,6 +1566,16 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         "stream_mode": "live-single",
         "tts_mode": "live-single",
         "turn_id": turn_id,
+        "question_type": opening_question_type,
+        "runtime_mode": state.runtime_mode,
+        "runtime_reason": state.runtime_mode_reason,
+        "provider": prepared_live_audio.provider if prepared_live_audio is not None else "",
+        "latency_ms": int((time.monotonic() - opening_started_at) * 1000),
+        "audio_duration_ms": int(round((prepared_live_audio.duration_sec if prepared_live_audio else 0.0) * 1000)),
+        "repair_applied": repair_applied,
+        "live_model": _live_active_model(state),
+        "vad_config": _snapshot_vad_config(state),
+        "memory_snapshot": _build_memory_snapshot(state),
     }
     await asyncio.to_thread(
         service.append_turn,
@@ -1108,6 +1585,7 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         "voice",
         payload,
     )
+    _remember_model_turn(state, ai_text, question_type=opening_question_type)
     await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
 
     if not await _send_json(
@@ -1134,6 +1612,9 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
             "isClosingPhase": False,
             "interviewComplete": False,
             "finishReason": "",
+            "runtimeMode": state.runtime_mode,
+            "runtimeReason": state.runtime_mode_reason,
+            "retryAfterSec": _degraded_retry_after_sec(state),
             "turnId": turn_id,
         },
     ):
@@ -1145,6 +1626,7 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         return False
 
     prepared_tts = prepared_live_audio or await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
+    _record_question_type(state, opening_question_type)
     _remember_ai_tts(state, ai_text, prepared_tts)
     if prepared_tts is not None:
         if not await _send_avatar_state(ws, "speaking", state.session_id):
@@ -1153,8 +1635,9 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
             return False
         if not await _send_avatar_state(ws, "idle", state.session_id):
             return False
-
-    await _resume_listening(ws, state, turn_id=turn_id)
+        _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=prepared_tts.duration_sec + 1.2)
+    else:
+        await _resume_listening(ws, state, turn_id=turn_id)
     return True
 
 
@@ -1162,11 +1645,13 @@ async def _generate_and_send_ai_turn(
     ws: WebSocket,
     state: VoiceWsState,
     answer_quality_hint: str,
+    forced_question_type: str | None = None,
 ) -> dict[str, Any]:
     if not state.session_id:
         return {"completed": False, "text": ""}
 
     await _ensure_plan(state)
+    state.last_answer_quality_hint = (answer_quality_hint or "").strip()
 
     turns = await asyncio.to_thread(service.get_turns, state.session_id)
     history = _to_chat_history(turns)
@@ -1201,6 +1686,8 @@ async def _generate_and_send_ai_turn(
     used_delta_stream = False
     streamed_delta_count = 0
     turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
+    await _enter_degraded_mode(ws, state, "legacy-llm-tts", turn_id=turn_id)
+    turn_started_at = time.monotonic()
 
     if completion_reason:
         ai_text = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
@@ -1225,6 +1712,14 @@ async def _generate_and_send_ai_turn(
         )
         phase = _phase_for_question_index(question_index, is_closing=should_announce_closing)
         gemini = get_gemini_service()
+        question_type = forced_question_type or _select_next_question_type(
+            state,
+            preferred="priority_judgment" if should_announce_closing else None,
+        )
+        if question_type:
+            answer_quality_hint = (
+                f"{answer_quality_hint} 이번 질문 유형은 {_question_type_label(question_type)}입니다."
+            ).strip()
 
         if gemini:
             prompt_total_questions = question_index if should_announce_closing else estimated_total_questions
@@ -1312,6 +1807,7 @@ async def _generate_and_send_ai_turn(
         payload = {
             "phase": state.current_phase,
             "question_index": question_index,
+            "question_type": question_type,
             "answer_quality_hint": answer_quality_hint,
             "channel": "voice",
             "remaining_sec": remaining_sec,
@@ -1322,6 +1818,12 @@ async def _generate_and_send_ai_turn(
             "tts_mode": state.tts_mode,
             "delta_count": streamed_delta_count,
             "turn_id": turn_id,
+            "runtime_mode": state.runtime_mode,
+            "runtime_reason": state.runtime_mode_reason,
+            "latency_ms": int((time.monotonic() - turn_started_at) * 1000),
+            "live_model": _live_active_model(state),
+            "vad_config": _snapshot_vad_config(state),
+            "memory_snapshot": _build_memory_snapshot(state),
         }
         await asyncio.to_thread(
             service.append_turn,
@@ -1331,6 +1833,8 @@ async def _generate_and_send_ai_turn(
             "voice",
             payload,
         )
+        _record_question_type(state, question_type)
+        _remember_model_turn(state, ai_text, question_type=question_type)
 
         await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
 
@@ -1358,6 +1862,9 @@ async def _generate_and_send_ai_turn(
             "isClosingPhase": state.current_phase == "closing",
             "interviewComplete": bool(completion_reason),
             "finishReason": completion_reason,
+            "runtimeMode": state.runtime_mode,
+            "runtimeReason": state.runtime_mode_reason,
+            "retryAfterSec": _degraded_retry_after_sec(state),
             "turnId": turn_id,
         },
     ):
@@ -1368,7 +1875,7 @@ async def _generate_and_send_ai_turn(
     if not await _send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
         return {"completed": True, "text": ai_text, "turnId": turn_id}
 
-    await _stream_ai_tts_by_segments(
+    has_audio = await _stream_ai_tts_by_segments(
         ws,
         state,
         text=ai_text,
@@ -1379,7 +1886,10 @@ async def _generate_and_send_ai_turn(
 
     is_complete = bool(completion_reason)
     if not is_complete:
-        await _resume_listening(ws, state, turn_id=turn_id)
+        if has_audio:
+            _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=max(1.2, len(ai_text) / 18.0))
+        else:
+            await _resume_listening(ws, state, turn_id=turn_id)
 
     return {
         "completed": is_complete,
@@ -1390,12 +1900,20 @@ async def _generate_and_send_ai_turn(
     }
 
 
-async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes: bytes) -> None:
+async def _process_user_utterance(
+    ws: WebSocket,
+    state: VoiceWsState,
+    wav_bytes: bytes,
+    *,
+    vad_meta: dict[str, Any] | None = None,
+) -> None:
     if not state.session_id or state.processing_audio:
         return
 
     state.processing_audio = True
-    _cancel_realtime_user_stt_task(state)
+    user_turn_started_at = time.monotonic()
+    utterance_duration_ms = _estimate_wav_duration_ms(wav_bytes)
+    effective_vad_meta = dict(vad_meta or state.last_vad_event or {})
 
     try:
         if not await _send_json(ws, {"type": "control", "text": "mic-audio-end"}):
@@ -1404,7 +1922,19 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
             return
 
         live = _get_or_create_live_interview(state)
+        prompt_user_text = state.realtime_user_transcript.strip()
+        should_bias_closing = state.current_phase == "closing"
+        preferred_question_type = _derive_question_type_preference(
+            state,
+            prompt_user_text,
+            is_closing=should_bias_closing,
+        )
+        planned_question_type = _select_next_question_type(
+            state,
+            preferred=preferred_question_type or ("priority_judgment" if should_bias_closing else None),
+        )
         if not live.enabled:
+            await _set_runtime_mode(ws, state, RUNTIME_MODE_DISABLED, "live-disabled")
             await _send_json(
                 ws,
                 {
@@ -1418,6 +1948,11 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
         live_user_text, live_ai_text, live_prepared_tts, live_provider = await _request_live_audio_turn(
             state,
             wav_bytes=wav_bytes,
+            question_type=planned_question_type,
+            answer_quality_hint=(
+                _build_answer_quality_hint(prompt_user_text) if prompt_user_text else state.last_answer_quality_hint
+            ),
+            prompt_user_text=prompt_user_text,
         )
         provider_name = live_provider or live.provider
         user_text = live_user_text or state.realtime_user_transcript.strip()
@@ -1428,6 +1963,7 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                 user_text = (stt_result.text or "").strip()
                 if user_text:
                     provider_name = stt_result.provider
+                    await _enter_degraded_mode(ws, state, "stt-fallback")
         if not user_text:
             _reset_realtime_user_transcript(state)
             await _resume_listening(ws, state)
@@ -1442,18 +1978,59 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
             await _resume_listening(ws, state)
             return
 
+        state.last_answer_quality_hint = _build_answer_quality_hint(user_text)
+        _remember_user_turn(state, user_text)
+
         await asyncio.to_thread(
             service.append_turn,
             state.session_id,
             "user",
             user_text,
             "voice",
-            {"provider": provider_name, "input": "speech"},
+            {
+                "provider": provider_name,
+                "input": "speech",
+                "runtime_mode": state.runtime_mode,
+                "runtime_reason": state.runtime_mode_reason,
+                "speech_duration_ms": round(utterance_duration_ms, 1),
+                "stt_text_len": len(user_text),
+                "live_model": _live_active_model(state),
+                "vad": effective_vad_meta,
+                "vad_config": _snapshot_vad_config(state),
+                "answer_quality_hint": state.last_answer_quality_hint,
+                "memory_snapshot": _build_memory_snapshot(state),
+            },
         )
         if not await _send_transcript(ws, state.session_id, "user", user_text):
             return
         _reset_realtime_user_transcript(state)
         state.realtime_user_pcm.clear()
+
+        is_short_answer = _is_short_stt_result(user_text, wav_bytes)
+        _retune_vad_for_next_turn(state, utterance_duration_ms=utterance_duration_ms, short_answer=is_short_answer)
+
+        if is_short_answer:
+            await asyncio.to_thread(
+                service.append_turn,
+                state.session_id,
+                "system",
+                SHORT_STT_REPROMPT,
+                "voice",
+                {
+                    "phase": state.current_phase,
+                    "channel": "voice",
+                    "reason": "short-answer-reprompt",
+                    "runtime_mode": state.runtime_mode,
+                    "runtime_reason": state.runtime_mode_reason,
+                    "speech_duration_ms": round(utterance_duration_ms, 1),
+                    "vad": effective_vad_meta,
+                    "vad_config": _snapshot_vad_config(state),
+                    "answer_quality_hint": state.last_answer_quality_hint,
+                    "memory_snapshot": _build_memory_snapshot(state),
+                },
+            )
+            await _send_continue_prompt(ws, state)
+            return
 
         turns = await asyncio.to_thread(service.get_turns, state.session_id)
         model_count = len([turn for turn in turns if turn.get("role") in {"model", "ai"}])
@@ -1487,6 +2064,7 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
 
         turn_id = f"{state.session_id}:{next(AI_TURN_SEQ)}"
         prepared_tts = live_prepared_tts
+        repair_applied = False
 
         if completion_reason:
             closing_default = f"면접 시간이 종료되어 마무리하겠습니다. {CLOSING_SENTENCE}"
@@ -1500,6 +2078,10 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
             ai_text = closing_text or closing_default
             if closing_audio is not None:
                 prepared_tts = closing_audio
+            if closing_text and closing_audio is not None and provider_name == live.provider:
+                await _restore_live_mode(ws, state, "closing-live", turn_id=turn_id)
+            else:
+                await _enter_degraded_mode(ws, state, "closing-fallback", turn_id=turn_id)
             state.current_phase = "closing"
             await asyncio.to_thread(service.update_session_status, state.session_id, "completed", "closing")
         else:
@@ -1529,18 +2111,41 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                     ai_text = f"{ai_text} {CLOSING_SENTENCE}".strip()
                 await asyncio.to_thread(service.set_closing_announced, state.session_id, True)
 
+            if ai_text and prepared_tts is not None and provider_name == live.provider:
+                await _restore_live_mode(ws, state, "live-turn", turn_id=turn_id)
+
             if not ai_text:
+                await _enter_degraded_mode(ws, state, "llm-fallback", turn_id=turn_id)
                 turns = await asyncio.to_thread(service.get_turns, state.session_id)
                 history = _to_chat_history(turns)
                 answer_quality_hint = _build_answer_quality_hint(_latest_user_answer(history))
-                await _generate_and_send_ai_turn(ws, state, answer_quality_hint)
+                state.last_answer_quality_hint = answer_quality_hint
+                fallback_question_type = _select_next_question_type(
+                    state,
+                    preferred=_derive_question_type_preference(
+                        state,
+                        user_text,
+                        is_closing=state.current_phase == "closing",
+                    )
+                    or planned_question_type,
+                )
+                await _generate_and_send_ai_turn(
+                    ws,
+                    state,
+                    answer_quality_hint,
+                    forced_question_type=fallback_question_type,
+                )
                 return
 
+        ai_text_before_repair = ai_text
         ai_text, prepared_tts = await _repair_ai_turn_if_truncated(
             state,
             ai_text=ai_text,
             prepared_tts=prepared_tts,
         )
+        repair_applied = bool(ai_text) and ai_text != ai_text_before_repair and not completion_reason
+        if ai_text and prepared_tts is None:
+            await _enter_degraded_mode(ws, state, "tts-pending-fallback", turn_id=turn_id)
 
         payload = {
             "phase": state.current_phase,
@@ -1553,7 +2158,20 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
             "stream_mode": "live-single",
             "tts_mode": "live-single",
             "turn_id": turn_id,
+            "question_type": "" if completion_reason else planned_question_type,
             "completion_reason": completion_reason,
+            "runtime_mode": state.runtime_mode,
+            "runtime_reason": state.runtime_mode_reason,
+            "provider": prepared_tts.provider if prepared_tts is not None else live_provider or "",
+            "latency_ms": int((time.monotonic() - user_turn_started_at) * 1000),
+            "audio_duration_ms": int(round((prepared_tts.duration_sec if prepared_tts else 0.0) * 1000)),
+            "repair_applied": repair_applied,
+            "live_model": _live_active_model(state),
+            "vad_config": _snapshot_vad_config(state),
+            "user_speech_duration_ms": round(utterance_duration_ms, 1),
+            "vad": effective_vad_meta,
+            "answer_quality_hint": state.last_answer_quality_hint,
+            "memory_snapshot": _build_memory_snapshot(state),
         }
 
         await asyncio.to_thread(
@@ -1564,6 +2182,11 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
             "voice",
             payload,
         )
+        if not completion_reason:
+            _record_question_type(state, planned_question_type)
+            _remember_model_turn(state, ai_text, question_type=planned_question_type)
+        else:
+            _remember_model_turn(state, ai_text)
         if not completion_reason:
             await asyncio.to_thread(service.update_session_status, state.session_id, "in_progress", state.current_phase)
 
@@ -1591,6 +2214,9 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                 "isClosingPhase": state.current_phase == "closing",
                 "interviewComplete": bool(completion_reason),
                 "finishReason": completion_reason,
+                "runtimeMode": state.runtime_mode,
+                "runtimeReason": state.runtime_mode_reason,
+                "retryAfterSec": _degraded_retry_after_sec(state),
                 "turnId": turn_id,
             },
         ):
@@ -1602,6 +2228,9 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
 
         if prepared_tts is None:
             prepared_tts = await _prepare_tts_audio(ws, ai_text, turn_id=turn_id)
+            await _enter_degraded_mode(ws, state, "tts-fallback", turn_id=turn_id)
+        elif live_ai_text and live_prepared_tts is not None and provider_name == live.provider:
+            await _restore_live_mode(ws, state, "live-turn", turn_id=turn_id)
         _remember_ai_tts(state, ai_text, prepared_tts)
 
         if prepared_tts is not None:
@@ -1611,8 +2240,9 @@ async def _process_user_utterance(ws: WebSocket, state: VoiceWsState, wav_bytes:
                 return
             if not await _send_avatar_state(ws, "idle", state.session_id):
                 return
-
-        if not completion_reason:
+            if not completion_reason:
+                _arm_playback_resume(ws, state, turn_id=turn_id, timeout_sec=prepared_tts.duration_sec + 1.2)
+        elif not completion_reason:
             await _resume_listening(ws, state, turn_id=turn_id)
 
     except Exception as exc:
@@ -1647,10 +2277,12 @@ async def _drain_pending_user_segments(ws: WebSocket, state: VoiceWsState) -> No
 
     segments = state.pending_user_segments[:]
     state.pending_user_segments.clear()
-    merged_wav = _merge_wav_segments(segments)
+    merged_wav = _merge_wav_segments([segment.audio for segment in segments])
     if not merged_wav:
         return
-    await _process_user_utterance(ws, state, merged_wav)
+    merged_vad_meta = _merge_vad_events([segment.vad for segment in segments])
+    state.last_vad_event = dict(merged_vad_meta)
+    await _process_user_utterance(ws, state, merged_wav, vad_meta=merged_vad_meta)
 
 
 async def _enqueue_user_segment(
@@ -1658,10 +2290,11 @@ async def _enqueue_user_segment(
     state: VoiceWsState,
     segment: bytes,
     *,
+    vad_meta: dict[str, Any] | None = None,
     flush_now: bool = False,
 ) -> None:
     if segment:
-        state.pending_user_segments.append(segment)
+        state.pending_user_segments.append(PendingUserSegment(audio=segment, vad=dict(vad_meta or {})))
 
     if state.pending_user_segment_task and not state.pending_user_segment_task.done():
         state.pending_user_segment_task.cancel()
@@ -1674,7 +2307,7 @@ async def _enqueue_user_segment(
     async def _delayed_drain() -> None:
         current_task = asyncio.current_task()
         try:
-            await asyncio.sleep(VOICE_TURN_END_GRACE_SEC)
+            await asyncio.sleep(state.turn_end_grace_sec)
         except asyncio.CancelledError:
             return
         await _drain_pending_user_segments(ws, state)
@@ -1792,6 +2425,11 @@ async def client_ws(websocket: WebSocket):
                 state.personality = personality
                 state.job_data = job_data
                 state.resume_data = resume_data
+                state.runtime_mode = RUNTIME_MODE_LIVE_SINGLE if state.live_interview.enabled else RUNTIME_MODE_DISABLED
+                state.runtime_mode_reason = "" if state.live_interview.enabled else "live-disabled"
+                state.runtime_retry_after_sec = 0
+                state.degraded_until_monotonic = 0.0
+                state.degraded_fail_count = 0
                 state.current_phase = "introduction"
                 state.target_duration_sec = target_duration_sec
                 state.closing_threshold_sec = closing_threshold_sec
@@ -1807,8 +2445,24 @@ async def client_ws(websocket: WebSocket):
                     state.pending_user_segment_task.cancel()
                 state.pending_user_segment_task = None
                 state.pending_user_segments = []
+                state.realtime_user_pcm.clear()
+                state.realtime_user_transcript = ""
+                state.realtime_user_delta_seq = 0
+                state.realtime_user_last_emit_at = 0.0
                 state.last_ai_tts_text = ""
                 state.last_ai_audio_guard_until = 0.0
+                state.waiting_playback_turn_id = ""
+                state.last_vad_event = {}
+                state.question_type_cursor = 0
+                state.recent_question_types = []
+                state.recent_user_durations_ms = []
+                state.short_reprompt_streak = 0
+                state.memory_notes = []
+                state.last_user_memory = ""
+                state.last_model_memory = ""
+                state.last_answer_quality_hint = ""
+                state.turn_end_grace_sec = VOICE_TURN_END_GRACE_SEC
+                _cancel_playback_resume_task(state)
                 state.vad = VadSegmenter(
                     sample_rate=16000,
                     threshold=settings.voice_vad_threshold,
@@ -1829,6 +2483,9 @@ async def client_ws(websocket: WebSocket):
                         "targetDurationSec": target_duration_sec,
                         "closingThresholdSec": closing_threshold_sec,
                         "estimatedTotalQuestions": state.estimated_total_questions,
+                        "runtimeMode": state.runtime_mode,
+                        "runtimeReason": state.runtime_mode_reason,
+                        "retryAfterSec": _degraded_retry_after_sec(state),
                         "llmStreamMode": state.llm_stream_mode,
                         "ttsMode": state.tts_mode,
                     },
@@ -1849,6 +2506,7 @@ async def client_ws(websocket: WebSocket):
                         websocket,
                         state,
                         answer_quality_hint="직전 답변 없음: 기본 난이도로 시작",
+                        forced_question_type="motivation_validation",
                     )
                 continue
 
@@ -1872,7 +2530,14 @@ async def client_ws(websocket: WebSocket):
                 state.realtime_user_pcm.extend(float_samples_to_pcm16le_bytes(audio_chunk))
                 segment = state.vad.feed(audio_chunk)
                 if segment:
-                    await _enqueue_user_segment(websocket, state, segment, flush_now=False)
+                    state.last_vad_event = dict(state.vad.last_segment_info)
+                    await _enqueue_user_segment(
+                        websocket,
+                        state,
+                        segment,
+                        vad_meta=state.last_vad_event,
+                        flush_now=False,
+                    )
                 continue
 
             if msg_type in {"mic-audio-end", "flush-audio", "end-utterance"}:
@@ -1880,13 +2545,28 @@ async def client_ws(websocket: WebSocket):
                     continue
                 segment = state.vad.flush()
                 if segment:
-                    await _enqueue_user_segment(websocket, state, segment, flush_now=True)
+                    state.last_vad_event = dict(state.vad.last_segment_info)
+                    await _enqueue_user_segment(
+                        websocket,
+                        state,
+                        segment,
+                        vad_meta=state.last_vad_event,
+                        flush_now=True,
+                    )
                 elif state.pending_user_segments:
                     await _enqueue_user_segment(websocket, state, b"", flush_now=True)
                 else:
                     _reset_realtime_user_transcript(state)
                     state.realtime_user_pcm.clear()
                     await _resume_listening(websocket, state)
+                continue
+
+            if msg_type == "audio-playback-complete":
+                ack_turn_id = str(data.get("turnId") or "").strip()
+                if ack_turn_id and ack_turn_id == state.waiting_playback_turn_id:
+                    state.waiting_playback_turn_id = ""
+                    _cancel_playback_resume_task(state)
+                    await _resume_listening(websocket, state, turn_id=ack_turn_id)
                 continue
 
             if msg_type == "update-interview-phase":
@@ -1934,6 +2614,6 @@ async def client_ws(websocket: WebSocket):
             state.plan_bootstrap_task.cancel()
         if state.pending_user_segment_task and not state.pending_user_segment_task.done():
             state.pending_user_segment_task.cancel()
-        _cancel_realtime_user_stt_task(state)
+        _cancel_playback_resume_task(state)
         if state.live_interview is not None:
             await state.live_interview.close()

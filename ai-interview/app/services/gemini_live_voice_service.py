@@ -645,12 +645,16 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         self._session: Any | None = None
         self._session_lock = asyncio.Lock()
         self._turn_lock = asyncio.Lock()
-        self._system_instruction: str = ""
+        self._session_instruction: str = ""
         self._connect_block_until = 0.0
 
     @property
     def connected(self) -> bool:
         return self._session is not None
+
+    @property
+    def active_model(self) -> str:
+        return self._active_model
 
     def _build_model_candidates(
         self,
@@ -678,7 +682,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             or "unsupported model" in text
         )
 
-    def _build_live_config(self, system_instruction: str) -> dict[str, Any]:
+    def _build_live_config(self, session_instruction: str) -> dict[str, Any]:
         return {
             "response_modalities": ["AUDIO"],
             "temperature": 0.35,
@@ -693,8 +697,15 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     }
                 }
             },
-            "system_instruction": system_instruction,
+            "system_instruction": session_instruction,
         }
+
+    def _compose_turn_text(self, *, turn_prompt: str, text: str) -> str:
+        prompt = (turn_prompt or "").strip()
+        payload = (text or "").strip()
+        if prompt and payload:
+            return f"{prompt}\n\n[실행 지시]\n{payload}"
+        return prompt or payload
 
     def _sanitize_model_text(self, text: str) -> str:
         cleaned = text or ""
@@ -746,7 +757,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             session = self._session
             self._session_cm = None
             self._session = None
-            self._system_instruction = ""
+            self._session_instruction = ""
 
         try:
             if session_cm is not None:
@@ -756,31 +767,31 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         except Exception:
             logger.warning("gemini live single session close failed", exc_info=True)
 
-    async def _ensure_connected(self, system_instruction: str) -> bool:
+    async def _ensure_connected(self, session_instruction: str) -> bool:
         if not self.enabled:
             return False
         if time.monotonic() < self._connect_block_until:
             return False
 
         async with self._session_lock:
-            if self._session is not None and self._system_instruction == system_instruction:
+            if self._session is not None and self._session_instruction == session_instruction:
                 return True
 
         if self._session is not None:
             await self.close()
 
         async with self._session_lock:
-            if self._session is not None and self._system_instruction == system_instruction:
+            if self._session is not None and self._session_instruction == session_instruction:
                 return True
             last_error: Exception | None = None
             for candidate in self._model_candidates:
                 try:
                     self._session_cm = self._client.aio.live.connect(
                         model=candidate,
-                        config=self._build_live_config(system_instruction),
+                        config=self._build_live_config(session_instruction),
                     )
                     self._session = await self._session_cm.__aenter__()
-                    self._system_instruction = system_instruction
+                    self._session_instruction = session_instruction
                     self._active_model = candidate
                     self._connect_block_until = 0.0
                     logger.info(
@@ -793,7 +804,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     last_error = exc
                     self._session_cm = None
                     self._session = None
-                    self._system_instruction = ""
+                    self._session_instruction = ""
                     if self._is_model_not_supported_error(exc):
                         logger.warning(
                             "gemini live single model unavailable for bidi; trying fallback (model=%s)",
@@ -842,16 +853,22 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             provider=self.provider,
         )
 
-    async def request_text_turn(self, *, system_instruction: str, text: str) -> LiveInterviewTurnResult:
+    async def request_text_turn(
+        self,
+        *,
+        session_instruction: str,
+        text: str,
+        turn_prompt: str = "",
+    ) -> LiveInterviewTurnResult:
         if not self.enabled:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        prompt = (text or "").strip()
+        prompt = self._compose_turn_text(turn_prompt=turn_prompt, text=text)
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
         for attempt in range(1, 3):
-            connected = await self._ensure_connected(system_instruction)
+            connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 break
             try:
@@ -879,20 +896,24 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
     async def request_audio_turn(
         self,
         *,
-        system_instruction: str,
+        session_instruction: str,
         pcm_bytes: bytes,
         sample_rate: int,
+        turn_prompt: str = "",
     ) -> LiveInterviewTurnResult:
         if not self.enabled or not pcm_bytes:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
         normalized_rate = max(8000, int(sample_rate or 16000))
         for attempt in range(1, 3):
-            connected = await self._ensure_connected(system_instruction)
+            connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 break
             try:
                 async with self._turn_lock:
+                    prompt = (turn_prompt or "").strip()
+                    if prompt:
+                        await self._session.send_realtime_input(text=prompt)
                     await self._session.send_realtime_input(
                         audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                     )

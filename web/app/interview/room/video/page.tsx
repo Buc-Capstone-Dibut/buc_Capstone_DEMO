@@ -27,6 +27,9 @@ interface RuntimeMeta {
   isClosingPhase: boolean;
   interviewComplete: boolean;
   finishReason: string;
+  runtimeMode: string;
+  runtimeReason: string;
+  retryAfterSec: number;
 }
 
 const DEFAULT_TARGET_DURATION_SEC = 7 * 60;
@@ -84,6 +87,9 @@ export default function InterviewVideoRoomPage() {
     isClosingPhase: false,
     interviewComplete: false,
     finishReason: "",
+    runtimeMode: "live-single",
+    runtimeReason: "",
+    retryAfterSec: 0,
   });
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [streamingCaption, setStreamingCaption] = useState("");
@@ -143,6 +149,9 @@ export default function InterviewVideoRoomPage() {
           remainingSec: toNumber(event.targetDurationSec, prev.targetDurationSec),
           closingThresholdSec: toNumber(event.closingThresholdSec, prev.closingThresholdSec),
           estimatedTotalQuestions: toNumber(event.estimatedTotalQuestions, prev.estimatedTotalQuestions),
+          runtimeMode: toText(event.runtimeMode, prev.runtimeMode),
+          runtimeReason: toText(event.runtimeReason, prev.runtimeReason),
+          retryAfterSec: toNumber(event.retryAfterSec, prev.retryAfterSec),
         }));
         setIsSessionReady(true);
         setStatusMessage("면접 세션이 시작되었습니다. 답변해 주세요.");
@@ -164,9 +173,22 @@ export default function InterviewVideoRoomPage() {
             isClosingPhase: Boolean(event.isClosingPhase),
             interviewComplete: Boolean(event.interviewComplete),
             finishReason: toText(event.finishReason, ""),
+            runtimeMode: toText(event.runtimeMode, prev.runtimeMode),
+            runtimeReason: toText(event.runtimeReason, prev.runtimeReason),
+            retryAfterSec: toNumber(event.retryAfterSec, prev.retryAfterSec),
             timeProgressPercent: progress,
           };
         });
+      }
+
+      if (eventType === "runtime.mode") {
+        setRuntimeMeta((prev) => ({
+          ...prev,
+          runtimeMode: toText(event.runtimeMode, prev.runtimeMode),
+          runtimeReason: toText(event.runtimeReason, prev.runtimeReason),
+          retryAfterSec: toNumber(event.retryAfterSec, prev.retryAfterSec),
+        }));
+        setStatusMessage(toText(event.message, "음성 런타임 모드가 변경되었습니다."));
       }
 
       if (eventType === "interview-phase-updated") {

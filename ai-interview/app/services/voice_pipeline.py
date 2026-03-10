@@ -121,12 +121,50 @@ class VadSegmenter:
         self._buffer: list[float] = []
         self._speech_started = False
         self._trailing_silence_ms = 0.0
+        self.last_segment_info: dict[str, float | int | str] = {}
 
     def _chunk_rms(self, chunk: list[float]) -> float:
         if not chunk:
             return 0.0
         power = sum(sample * sample for sample in chunk) / len(chunk)
         return math.sqrt(power)
+
+    def _finalize_segment(self, *, reason: str, rms: float = 0.0) -> bytes | None:
+        if not self._buffer:
+            return None
+        segment = self._buffer[:]
+        duration_ms = len(segment) / self.sample_rate * 1000.0
+        self.last_segment_info = {
+            "reason": reason,
+            "duration_ms": round(duration_ms, 1),
+            "trailing_silence_ms": round(self._trailing_silence_ms, 1),
+            "threshold": float(self.threshold),
+            "silence_ms": int(self.silence_ms),
+            "short_utterance_silence_ms": int(self.short_utterance_silence_ms),
+            "max_segment_ms": int(self.max_segment_ms),
+            "last_chunk_rms": round(rms, 5),
+        }
+        self._buffer.clear()
+        self._speech_started = False
+        self._trailing_silence_ms = 0.0
+        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+
+    def reconfigure(
+        self,
+        *,
+        threshold: float | None = None,
+        silence_ms: int | None = None,
+        short_utterance_silence_ms: int | None = None,
+        min_utterance_ms: int | None = None,
+    ) -> None:
+        if threshold is not None:
+            self.threshold = max(0.001, float(threshold))
+        if silence_ms is not None:
+            self.silence_ms = max(150, int(silence_ms))
+        if min_utterance_ms is not None:
+            self.min_utterance_ms = max(200, int(min_utterance_ms))
+        if short_utterance_silence_ms is not None:
+            self.short_utterance_silence_ms = max(int(short_utterance_silence_ms), int(self.silence_ms))
 
     def feed(self, chunk: list[float]) -> bytes | None:
         if not chunk:
@@ -163,12 +201,12 @@ class VadSegmenter:
 
         if not (ready_by_silence or ready_by_short_utterance_silence or ready_by_max):
             return None
-
-        segment = self._buffer[:]
-        self._buffer.clear()
-        self._speech_started = False
-        self._trailing_silence_ms = 0.0
-        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+        reason = "silence"
+        if ready_by_max:
+            reason = "max_segment"
+        elif ready_by_short_utterance_silence:
+            reason = "short_utterance_silence"
+        return self._finalize_segment(reason=reason, rms=rms)
 
     def flush(self) -> bytes | None:
         if not self._buffer:
@@ -177,10 +215,15 @@ class VadSegmenter:
             self._buffer.clear()
             self._speech_started = False
             self._trailing_silence_ms = 0.0
+            self.last_segment_info = {
+                "reason": "flush_too_short",
+                "duration_ms": 0.0,
+                "trailing_silence_ms": round(self._trailing_silence_ms, 1),
+                "threshold": float(self.threshold),
+                "silence_ms": int(self.silence_ms),
+                "short_utterance_silence_ms": int(self.short_utterance_silence_ms),
+                "max_segment_ms": int(self.max_segment_ms),
+                "last_chunk_rms": 0.0,
+            }
             return None
-
-        segment = self._buffer[:]
-        self._buffer.clear()
-        self._speech_started = False
-        self._trailing_silence_ms = 0.0
-        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+        return self._finalize_segment(reason="flush", rms=0.0)
