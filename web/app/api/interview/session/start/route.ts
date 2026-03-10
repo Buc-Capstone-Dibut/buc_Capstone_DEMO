@@ -1,31 +1,21 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
-
-async function getUserIdFromSession(): Promise<string | null> {
-  try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return session?.user?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const userId = await getUserIdFromSession();
+    const userId = await getInterviewRouteUserId();
+    if (!userId) {
+      return unauthorizedInterviewResponse();
+    }
 
     const response = await fetch(`${AI_BASE_URL}/v1/interview/session/start`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(userId ? { "x-user-id": userId } : {}),
+        "x-user-id": userId,
       },
       body: JSON.stringify(body),
       cache: "no-store",
@@ -49,11 +39,12 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to start interview session";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to start interview session",
+        error: message,
       },
       { status: 500 },
     );

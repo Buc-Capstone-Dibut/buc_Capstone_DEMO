@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
-  ChevronRight,
   GitBranch,
   Loader2,
   RefreshCw,
@@ -20,19 +19,31 @@ import { AxisEvidencePanel } from "@/components/features/interview/report/axis-e
 import { AxisProfileBoard } from "@/components/features/interview/report/axis-profile-board";
 import { ReportFooterActions } from "@/components/features/interview/report/report-footer-actions";
 import { SessionReportHero } from "@/components/features/interview/report/session-report-hero";
-import {
-  buildPortfolioDefenseReportModel,
-  PortfolioRubricSnapshot,
-} from "@/lib/interview/report/portfolio-defense-report-adapter";
-
-type RubricKey = "design_intent" | "code_quality" | "ai_usage";
+import { buildPortfolioDefenseReportModel } from "@/lib/interview/report/portfolio-defense-report-adapter";
 
 interface RubricItem {
-  raw: number;
-  weight: number;
-  weighted: number;
-  evidence: string;
-  confidence: number;
+  raw?: number;
+  weighted?: number;
+  evidence?: string;
+  confidence?: number;
+}
+
+interface PortfolioTimelineEntry {
+  prompt?: string;
+  answer?: string;
+  phaseLabel?: string;
+}
+
+interface PortfolioReportView {
+  repoUrl?: string;
+  summary?: string;
+  strengths?: string[];
+  improvements?: string[];
+  nextActions?: string[];
+  rubric?: Record<string, Partial<RubricItem> | number>;
+  comparisonPayload?: {
+    repoUrl?: string;
+  };
 }
 
 interface SessionDetail {
@@ -43,73 +54,19 @@ interface SessionDetail {
     improvements?: string[];
     nextActions?: string[];
   };
-  debug_events?: Array<{
-    summary?: string;
-    payload?: {
-      role?: string;
-    };
-  }>;
+  report_view?: PortfolioReportView | null;
+  timeline?: PortfolioTimelineEntry[];
+  job_payload?: {
+    repoUrl?: string;
+    detectedTopics?: string[];
+  };
   target_duration_sec?: number;
   mode?: string;
-  status?: string;
-  current_phase?: string;
   created_at?: number;
-  jd_text?: string;
   reportStatus?: string;
   reportAttempts?: number;
   reportMaxAttempts?: number;
   reportError?: string;
-}
-
-const RUBRIC_META: Record<RubricKey, { label: string; weight: number }> = {
-  design_intent: { label: "설계 의도 설명", weight: 60 },
-  code_quality: { label: "코드 품질", weight: 10 },
-  ai_usage: { label: "AI 활용", weight: 30 },
-};
-
-const TOPIC_META: Record<string, { label: string; keywords: string[] }> = {
-  architecture: {
-    label: "아키텍처",
-    keywords: ["아키텍처", "설계", "구조", "레이어", "도메인", "msa", "모노리스"],
-  },
-  cicd: {
-    label: "CI/CD",
-    keywords: ["ci", "cd", "pipeline", "깃허브 액션", "github actions", "jenkins", "배포 자동화"],
-  },
-  deployment: {
-    label: "배포 전략",
-    keywords: ["배포", "롤백", "카나리", "블루그린", "k8s", "쿠버네티스", "docker", "도커"],
-  },
-  monitoring: {
-    label: "모니터링",
-    keywords: ["모니터링", "로그", "알림", "grafana", "prometheus", "apm", "observability"],
-  },
-  "incident-response": {
-    label: "장애 대응",
-    keywords: ["장애", "인시던트", "incident", "복구", "포스트모텀", "재발 방지"],
-  },
-  "ai-usage": {
-    label: "AI 활용 방식",
-    keywords: ["ai", "llm", "gpt", "claude", "copilot", "프롬프트", "검증", "hallucination"],
-  },
-};
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function parseJdPayload(jdText?: string): Record<string, unknown> {
-  if (!jdText) return {};
-  try {
-    const parsed = JSON.parse(jdText);
-    return typeof parsed === "object" && parsed ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function normalizeMode(mode?: string): "voice" | "video" {
-  return mode === "video" ? "video" : "voice";
 }
 
 function resolveDurationMinute(targetDurationSec?: number): 5 | 10 | 15 {
@@ -118,33 +75,6 @@ function resolveDurationMinute(targetDurationSec?: number): 5 | 10 | 15 {
   if (minute <= 5) return 5;
   if (minute >= 15) return 15;
   return 10;
-}
-
-function detectCoveredTopics(events: SessionDetail["debug_events"]): Set<string> {
-  const covered = new Set<string>();
-  for (const event of events ?? []) {
-    if (event.payload?.role !== "user") continue;
-    const text = (event.summary || "").toLowerCase();
-    if (!text) continue;
-    for (const [key, topic] of Object.entries(TOPIC_META)) {
-      if (topic.keywords.some((keyword) => text.includes(keyword.toLowerCase()))) {
-        covered.add(key);
-      }
-    }
-  }
-  return covered;
-}
-
-function extractTurns(events: SessionDetail["debug_events"]) {
-  const turns: Array<{ role: "user" | "model"; text: string }> = [];
-  for (const event of events ?? []) {
-    const role = event.payload?.role;
-    if (role !== "user" && role !== "model") continue;
-    const text = (event.summary || "").trim();
-    if (!text) continue;
-    turns.push({ role, text });
-  }
-  return turns;
 }
 
 function InsightListCard({
@@ -164,7 +94,10 @@ function InsightListCard({
       </CardHeader>
       <CardContent className="space-y-2.5">
         {items.map((item, index) => (
-          <div key={`${title}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3 text-sm leading-6 text-foreground">
+          <div
+            key={`${title}-${index}`}
+            className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3 text-sm leading-6 text-foreground"
+          >
             {item}
           </div>
         ))}
@@ -193,10 +126,14 @@ export default function PortfolioDefenseReportPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/interview/sessions/${sessionId}`);
-        const json = await res.json();
-        if (!json.success || !json.data) {
-          throw new Error(json.error || "세션 정보를 불러오지 못했습니다.");
+        const res = await fetch(`/api/interview/sessions/${sessionId}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (res.status === 401) {
+          router.push("/auth/login");
+          return;
+        }
+        if (!json?.success || !json?.data) {
+          throw new Error(json?.error || "세션 정보를 불러오지 못했습니다.");
         }
         setDetail(json.data as SessionDetail);
       } catch (err: unknown) {
@@ -207,8 +144,8 @@ export default function PortfolioDefenseReportPage() {
       }
     };
 
-    fetchDetail();
-  }, [sessionId]);
+    void fetchDetail();
+  }, [router, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !detail) return;
@@ -217,8 +154,12 @@ export default function PortfolioDefenseReportPage() {
     const id = window.setInterval(async () => {
       try {
         const res = await fetch(`/api/interview/sessions/${sessionId}`, { cache: "no-store" });
-        const json = await res.json();
-        if (json.success && json.data) {
+        const json = await res.json().catch(() => null);
+        if (res.status === 401) {
+          router.push("/auth/login");
+          return;
+        }
+        if (json?.success && json?.data) {
           setDetail(json.data as SessionDetail);
         }
       } catch {
@@ -227,77 +168,41 @@ export default function PortfolioDefenseReportPage() {
     }, 5000);
 
     return () => window.clearInterval(id);
-  }, [detail, sessionId]);
+  }, [detail, router, sessionId]);
 
-  const jdPayload = useMemo(() => parseJdPayload(detail?.jd_text), [detail?.jd_text]);
-  const repoUrl = typeof jdPayload.repoUrl === "string" ? jdPayload.repoUrl : "";
-  const mode = normalizeMode(detail?.mode);
   const durationMinute = resolveDurationMinute(detail?.target_duration_sec);
-
-  const rubric = useMemo(() => {
-    const source = detail?.analysis?.rubricScores || {};
-    const keys: RubricKey[] = ["design_intent", "code_quality", "ai_usage"];
-    return keys.reduce((acc, key) => {
-      acc[key] = {
-        raw: clamp(Number(source[key]?.raw ?? 0), 0, 100),
-        weighted: clamp(Number(source[key]?.weighted ?? 0), 0, RUBRIC_META[key].weight),
-      };
-      return acc;
-    }, {} as Record<RubricKey, { raw: number; weighted: number }>);
-  }, [detail?.analysis?.rubricScores]);
-
-  const totalWeightedScore = useMemo(() => {
-    const fromPayload = Number(detail?.analysis?.totalWeightedScore ?? NaN);
-    if (Number.isFinite(fromPayload)) return clamp(fromPayload, 0, 100);
-    return rubric.design_intent.weighted + rubric.code_quality.weighted + rubric.ai_usage.weighted;
-  }, [detail?.analysis?.totalWeightedScore, rubric]);
-
-  const strengths = detail?.analysis?.strengths ?? [];
-  const improvements = detail?.analysis?.improvements ?? [];
-  const nextActions = detail?.analysis?.nextActions ?? [];
-
-  const coveredTopics = useMemo(() => detectCoveredTopics(detail?.debug_events), [detail?.debug_events]);
-  const expectedTopics = useMemo(() => {
-    const fromPayload = Array.isArray(jdPayload.detectedTopics)
-      ? jdPayload.detectedTopics.filter((key: unknown): key is string => typeof key === "string")
-      : [];
-    const normalized = fromPayload.filter((key) => key in TOPIC_META);
-    if (normalized.length > 0) return Array.from(new Set(normalized));
-    return Object.keys(TOPIC_META);
-  }, [jdPayload.detectedTopics]);
-  const coverage = useMemo(
-    () => ({
-      covered: expectedTopics.filter((key) => coveredTopics.has(key)).length,
-      total: expectedTopics.length,
-      items: expectedTopics.map((key) => ({
-        label: TOPIC_META[key]?.label || key,
-        covered: coveredTopics.has(key),
-      })),
-    }),
-    [coveredTopics, expectedTopics],
+  const timeline = useMemo(
+    () => (Array.isArray(detail?.timeline) ? detail.timeline : []),
+    [detail?.timeline],
   );
-
-  const turns = useMemo(() => extractTurns(detail?.debug_events), [detail?.debug_events]);
+  const repoUrl =
+    detail?.report_view?.repoUrl ||
+    detail?.report_view?.comparisonPayload?.repoUrl ||
+    detail?.job_payload?.repoUrl ||
+    "";
+  const detectedTopics = useMemo(
+    () =>
+      Array.isArray(detail?.job_payload?.detectedTopics)
+        ? detail.job_payload.detectedTopics.filter((item): item is string => typeof item === "string")
+        : [],
+    [detail?.job_payload?.detectedTopics],
+  );
 
   const model = useMemo(() => {
     if (!detail) return null;
     return buildPortfolioDefenseReportModel({
-      rubric: {
-        designIntent: rubric.design_intent.raw,
-        codeQuality: rubric.code_quality.raw,
-        aiUsage: rubric.ai_usage.raw,
-        totalWeightedScore,
-      } satisfies PortfolioRubricSnapshot,
-      repoUrl,
-      mode,
-      createdAt: detail.created_at,
-      strengths,
-      improvements,
-      nextActions,
-      coverage,
-      turns,
+      analysis: detail.analysis,
+      reportView: detail.report_view,
+      timeline,
+      session: {
+        repoUrl,
+        detectedTopics,
+        mode: detail.mode,
+        createdAt: detail.created_at,
+        durationMinute,
+      },
     });
-  }, [coverage, detail, improvements, mode, nextActions, repoUrl, rubric, strengths, totalWeightedScore, turns]);
+  }, [detail, detectedTopics, durationMinute, repoUrl, timeline]);
 
   if (loading) {
     return (
@@ -307,7 +212,7 @@ export default function PortfolioDefenseReportPage() {
           <div className="space-y-4 text-center">
             <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
             <h2 className="text-2xl font-bold">포트폴리오 디펜스 리포트를 불러오는 중입니다</h2>
-            <p className="text-muted-foreground">세션 로그와 평가 근거를 기반으로 디벗 리포트를 구성하고 있습니다.</p>
+            <p className="text-muted-foreground">세션 리포트와 타임라인을 기반으로 화면을 구성하고 있습니다.</p>
           </div>
         </main>
       </div>
@@ -341,8 +246,13 @@ export default function PortfolioDefenseReportPage() {
     );
   }
 
-  const hasRubricReport =
-    rubric.design_intent.weighted > 0 || rubric.code_quality.weighted > 0 || rubric.ai_usage.weighted > 0;
+  const hasRubricReport = Boolean(
+    detail.report_view ||
+      detail.analysis?.rubricScores ||
+      detail.analysis?.totalWeightedScore ||
+      detail.analysis?.strengths?.length ||
+      detail.analysis?.improvements?.length,
+  );
   const reportStatus = detail.reportStatus || "";
 
   return (
@@ -397,7 +307,7 @@ export default function PortfolioDefenseReportPage() {
                   className="rounded-full px-6"
                   onClick={() =>
                     router.push(
-                      `/interview/training/portfolio/room?sessionId=${encodeURIComponent(sessionId)}&mode=${mode}&duration=${durationMinute}${repoUrl ? `&repoUrl=${encodeURIComponent(repoUrl)}` : ""}`,
+                      `/interview/training/portfolio/room?sessionId=${encodeURIComponent(sessionId)}&mode=${detail.mode || "video"}&duration=${durationMinute}${repoUrl ? `&repoUrl=${encodeURIComponent(repoUrl)}` : ""}`,
                     )
                   }
                 >
@@ -511,24 +421,27 @@ export default function PortfolioDefenseReportPage() {
             <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">대화 하이라이트</CardTitle>
-                <CardDescription>디펜스 중 마지막 주요 질문과 답변 장면입니다.</CardDescription>
+                <CardDescription>세션 타임라인 기준의 주요 질문과 답변 장면입니다.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2.5">
                 {model.transcriptHighlights.length > 0 ? (
                   model.transcriptHighlights.map((turn, index) => (
                     <div key={`${turn.role}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <Badge variant={turn.role === "model" ? "outline" : "secondary"} className="border-primary/20 bg-white text-primary">
+                        <Badge
+                          variant={turn.role === "model" ? "outline" : "secondary"}
+                          className="border-primary/20 bg-white text-primary"
+                        >
                           {turn.role === "model" ? "면접관" : "지원자"}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">최근 흐름</span>
+                        <span className="text-xs text-muted-foreground">타임라인 기반</span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-foreground">{turn.text}</p>
                     </div>
                   ))
                 ) : (
                   <div className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4 text-sm text-muted-foreground">
-                    아직 대화 하이라이트를 정리할 로그가 충분하지 않습니다.
+                    아직 대화 하이라이트를 정리할 타임라인이 충분하지 않습니다.
                   </div>
                 )}
               </CardContent>

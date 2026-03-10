@@ -13,6 +13,8 @@
     "validate-rss:verbose": "node scripts/validate-rss.js --verbose",
     "test:rss": "node scripts/validate-rss.js",
     "test:ctp-problem-bank": "tsx --test components/features/ctp/playground/browser-judge/*.test.ts",
+    "test:interview-report": "tsx --test lib/interview/report/*.test.ts",
+    "test:interview-flow": "tsx --test lib/interview/interview-session-flow.test.ts",
     "test:push": "node scripts/test-push-notification.js",
     "rss-stats": "node scripts/rss-stats.js",
     "crawl-rss": "node scripts/rss-crawler.js",

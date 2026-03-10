@@ -168,6 +168,26 @@ export function useOpenLLM({
     }, MIC_RESTART_COOLDOWN_MS);
   }, [clearPendingMicRestart]);
 
+  const sendJson = useCallback((payload: Record<string, unknown>) => {
+    if (socketRef.current?.readyState !== WebSocket.OPEN) return false;
+    socketRef.current.send(JSON.stringify(payload));
+    return true;
+  }, []);
+
+  const sendPlaybackComplete = useCallback((turnId: string) => {
+    const normalized = turnId.trim();
+    if (!normalized) return false;
+    if (normalized === lastCompletedPlaybackTurnIdRef.current) {
+      pendingPlaybackCompleteTurnIdRef.current = "";
+      return true;
+    }
+    const sent = sendJson({ type: "audio-playback-complete", turnId: normalized });
+    if (!sent) return false;
+    lastCompletedPlaybackTurnIdRef.current = normalized;
+    pendingPlaybackCompleteTurnIdRef.current = "";
+    return true;
+  }, [sendJson]);
+
   const scheduleAudioChunk = useCallback((audioData: number[], sampleRate: number): boolean => {
     const ctx = getOrCreateAudioContext();
     if (!ctx || !audioData.length || ctx.state !== "running") return false;
@@ -251,7 +271,8 @@ export function useOpenLLM({
 
     try {
       await ctx.resume();
-      audioUnlockedRef.current = ctx.state === "running";
+      const resumedState = ctx.state;
+      audioUnlockedRef.current = resumedState === "running";
       if (!audioUnlockedRef.current) {
         notifyAudioGestureRequired();
         return false;
@@ -285,26 +306,6 @@ export function useOpenLLM({
       audioContextRef.current?.close();
     };
   }, [clearPendingMicRestart, clearReconnectTimer, unlockAudioContext]);
-
-  const sendJson = useCallback((payload: Record<string, unknown>) => {
-    if (socketRef.current?.readyState !== WebSocket.OPEN) return false;
-    socketRef.current.send(JSON.stringify(payload));
-    return true;
-  }, []);
-
-  const sendPlaybackComplete = useCallback((turnId: string) => {
-    const normalized = turnId.trim();
-    if (!normalized) return false;
-    if (normalized === lastCompletedPlaybackTurnIdRef.current) {
-      pendingPlaybackCompleteTurnIdRef.current = "";
-      return true;
-    }
-    const sent = sendJson({ type: "audio-playback-complete", turnId: normalized });
-    if (!sent) return false;
-    lastCompletedPlaybackTurnIdRef.current = normalized;
-    pendingPlaybackCompleteTurnIdRef.current = "";
-    return true;
-  }, [sendJson]);
 
   const initInterviewSession = useCallback((payload: WsInterviewInitPayload = {}) => {
     lastInitPayloadRef.current = {
@@ -600,7 +601,7 @@ export function useOpenLLM({
           resume: lastInitPayloadRef.current.resume,
         }));
         onEventRef.current?.({
-          type: "socket-resumed",
+          type: "connection.resumed",
           message: "연결이 복구되어 이전 면접 세션을 복원 중입니다.",
         });
       }
@@ -626,7 +627,7 @@ export function useOpenLLM({
         reconnectTimerRef.current = window.setTimeout(() => {
           reconnectTimerRef.current = null;
           onEventRef.current?.({
-            type: "socket-reconnecting",
+            type: "connection.reconnecting",
             message: "연결이 끊겨 자동으로 재연결을 시도합니다.",
             attempt: reconnectAttemptsRef.current,
           });

@@ -18,9 +18,8 @@ export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps)
     const router = useRouter();
     const [durationMinutes, setDurationMinutes] = useState<5 | 10 | 15>(10);
 
-    const handleModeSelect = (mode: 'chat' | 'video') => {
-        const nextPath = mode === "video" ? "/interview/room/video" : "/interview/room/chat";
-        router.push(`${nextPath}?duration=${durationMinutes}&track=${track}`);
+    const handleVideoStart = () => {
+        router.push(`/interview/room/video?duration=${durationMinutes}&track=${track}`);
     };
 
     return (
@@ -48,14 +47,12 @@ export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps)
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
-                {/* 1. Chat Interview */}
                 <Card
-                    className="relative overflow-hidden border-2 transition-all duration-300 cursor-pointer group shadow-sm hover:shadow-md hover:border-primary/50"
-                    onClick={() => handleModeSelect('chat')}
+                    className="relative overflow-hidden border-2 border-dashed border-muted-foreground/20 bg-muted/20 shadow-sm"
                 >
                     <CardHeader className="pb-3 px-8 pt-10">
                         <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Chat Interview
                             </span>
                             <CardTitle className="text-2xl font-bold tracking-tight">채팅 면접</CardTitle>
@@ -63,32 +60,22 @@ export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps)
                     </CardHeader>
                     <CardContent className="px-8 pb-10">
                         <CardDescription className="text-sm leading-relaxed mb-8 h-12">
-                            {track === "posting" ? (
-                                <>
-                                    텍스트 채팅을 통해 면접을 진행합니다.<br />
-                                    실시간 대화로 차분하게 생각을 정리하여 답변하기 좋습니다.
-                                </>
-                            ) : (
-                                <>
-                                    직무 포인트별 사고 과정을 천천히 정리하며 훈련하기 좋습니다.<br />
-                                    답변 구조와 근거를 다듬는 세션에 적합합니다.
-                                </>
-                            )}
+                            텍스트 채팅 면접은 현재 제품 경로에서 비활성화되어 있습니다.<br />
+                            아래 실시간 음성 면접만 지원합니다.
                         </CardDescription>
 
                         <div className="flex items-center justify-between">
-                            <div className="h-1 w-12 rounded-full bg-primary" />
-                            <div className="text-xs font-bold text-primary flex items-center gap-1">
-                                지금 시작하기 <ArrowRight className="w-3 h-3" />
+                            <div className="h-1 w-12 rounded-full bg-muted-foreground/30" />
+                            <div className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                                UI 스텁만 유지
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* 2. Video Interview */}
                 <Card
                     className="relative overflow-hidden border-2 transition-all duration-300 cursor-pointer group shadow-sm hover:shadow-md hover:border-primary/50"
-                    onClick={() => handleModeSelect('video')}
+                    onClick={handleVideoStart}
                 >
                     <CardHeader className="pb-3 px-8 pt-10">
                         <div className="space-y-1">

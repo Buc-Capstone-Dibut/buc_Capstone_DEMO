@@ -12,17 +12,26 @@ import { AxisEvidencePanel } from "@/components/features/interview/report/axis-e
 import { AxisProfileBoard } from "@/components/features/interview/report/axis-profile-board";
 import { ReportFooterActions } from "@/components/features/interview/report/report-footer-actions";
 import { SessionReportHero } from "@/components/features/interview/report/session-report-hero";
-import { buildMockInterviewReportModel } from "@/lib/interview/report/mock-interview-report-adapter";
-import { DIBEOT_AXES, getAxisLabel } from "@/lib/interview/report/dibeot-axis";
-import { MOCK_CHAT_MESSAGES, MOCK_INTERVIEW_LIST } from "@/mocks/interview-data";
-import { AnalysisResult, JobData, useInterviewSetupStore } from "@/store/interview-setup-store";
+import {
+  buildSessionInterviewDetailModel,
+  SessionTimelineEntry as TimelineEntry,
+} from "@/lib/interview/report/session-interview-detail-adapter";
+import { buildSessionInterviewReportModel } from "@/lib/interview/report/session-interview-report-adapter";
+import {
+  isPendingReportStatus,
+  shouldRedirectToPortfolioReport,
+} from "@/lib/interview/interview-session-flow";
+import { AnalysisResult, useInterviewSetupStore } from "@/store/interview-setup-store";
 
 interface SessionDetail {
-  analysis?: AnalysisResult & { rubricScores?: Record<string, unknown> };
+  analysis?: SessionAnalysisPayload;
   created_at?: string | number;
   mode?: string;
   status?: string;
   target_duration_sec?: number;
+  reportStatus?: string;
+  report_view?: SessionReportView | null;
+  timeline?: TimelineEntry[];
   job_payload?: {
     role?: string;
     company?: string;
@@ -32,7 +41,26 @@ interface SessionDetail {
   };
 }
 
-function normalizeAnalysisResult(source: AnalysisResult | (typeof MOCK_INTERVIEW_LIST)[number]["analysis"] | null): AnalysisResult | null {
+interface SessionReportView {
+  company?: string;
+  role?: string;
+  repoUrl?: string;
+  summary?: string;
+  strengths?: string[];
+  improvements?: string[];
+  nextActions?: string[];
+}
+
+type SessionAnalysisPayload = AnalysisResult & {
+  rubricScores?: Record<string, unknown>;
+  summary?: string;
+  fitSummary?: string;
+  strengths?: string[];
+  improvements?: string[];
+  nextActions?: string[];
+};
+
+function normalizeAnalysisResult(source: SessionAnalysisPayload | null): SessionAnalysisPayload | null {
   if (!source) return null;
 
   return {
@@ -73,65 +101,11 @@ function InsightListCard({
   );
 }
 
-function buildFollowUpQuestion(question: string, role: string) {
-  if (question.includes("장점") || question.includes("강점")) {
-    return `방금 말한 강점이 ${role} 역할에서 실제 성과로 이어진 사례를 하나만 더 설명해주실 수 있나요?`;
-  }
-
-  if (question.includes("프로젝트") || question.includes("경험")) {
-    return "그 경험에서 본인이 직접 판단하고 실행한 장면을 기준으로, 결과가 어떻게 달라졌는지 구체적으로 설명해주실 수 있나요?";
-  }
-
-  if (question.includes("성능") || question.includes("최적화")) {
-    return "그 판단을 하기 전후로 어떤 지표를 봤고, 왜 그 방법을 선택했는지까지 이어서 설명해주실 수 있나요?";
-  }
-
-  return "방금 답변에서 언급한 내용 중 실제로 본인이 직접 결정하거나 구현한 부분을 한 단계 더 구체적으로 설명해주실 수 있나요?";
-}
-
 function clampSessionDurationMinute(raw: string | null): 5 | 10 | 15 {
   const value = Number(raw);
   if (value === 5 || value === 10 || value === 15) return value;
   return 10;
 }
-
-function formatTimelineTime(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(safe / 60);
-  const remains = safe % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(remains).padStart(2, "0")}`;
-}
-
-type TimelineEntry = {
-  id: string;
-  timeLabel: string;
-  phaseLabel: string;
-  prompt: string;
-  answer: string;
-  hasExactTimestamp: boolean;
-};
-
-type TimelineInsightEntry = TimelineEntry & {
-  recommendedAnswer: string;
-  followUp: string;
-};
-
-type CoreResponseEntry = {
-  label: string;
-  timeLabel: string;
-  question: string;
-  answer: string;
-  analysis: string;
-  improvedAnswer: string;
-  followUp: string;
-};
-
-type TimelineMessage = {
-  id: string;
-  role: "user" | "model";
-  text: string;
-  timestampMs?: number | null;
-};
 
 function resolveDurationMinutes(raw: string | null, targetDurationSec?: number): 5 | 10 | 15 {
   const queryDuration = clampSessionDurationMinute(raw);
@@ -143,359 +117,153 @@ function resolveDurationMinutes(raw: string | null, targetDurationSec?: number):
   return queryDuration;
 }
 
-function toTimelineMessagesFromHistory(messages: { role: "user" | "model"; parts: string }[]): TimelineMessage[] {
-  return messages.map((item, index) => ({
-    id: `history-${index}`,
-    role: item.role,
-    text: item.parts,
-  }));
-}
-
-function toTimelineMessagesFromMock(): TimelineMessage[] {
-  return MOCK_CHAT_MESSAGES.map((item) => ({
-    id: item.id,
-    role: item.role === "ai" ? "model" : "user",
-    text: item.content,
-    timestampMs: Date.parse(item.timestamp),
-  }));
-}
-
-function buildSpeechTimeline(messages: TimelineMessage[], durationMinutes: 5 | 10 | 15): TimelineEntry[] {
-  const totalSec = durationMinutes * 60;
-  const sanitizedMessages = messages.filter((item) => item.text.trim().length > 0);
-  const userMessages = sanitizedMessages.filter((item) => item.role === "user");
-
-  if (userMessages.length === 0) return [];
-
-  const exactTimestamps = sanitizedMessages
-    .map((item) => item.timestampMs)
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  const hasExactTimestamp = exactTimestamps.length >= 2;
-  const firstTimestamp = hasExactTimestamp ? Math.min(...exactTimestamps) : null;
-  const lastTimestamp = hasExactTimestamp ? Math.max(...exactTimestamps) : null;
-  const recordedSpanSec =
-    hasExactTimestamp && firstTimestamp !== null && lastTimestamp !== null
-      ? Math.max(1, Math.round((lastTimestamp - firstTimestamp) / 1000))
-      : null;
-  const scaleRatio =
-    recordedSpanSec && recordedSpanSec > totalSec
-      ? totalSec / recordedSpanSec
-      : 1;
-
-  return userMessages.map((item, index) => {
-    const prompt = [...sanitizedMessages]
-      .slice(0, sanitizedMessages.findIndex((candidate) => candidate.id === item.id))
-      .reverse()
-      .find((candidate) => candidate.role === "model")?.text;
-
-    const timeSec =
-      hasExactTimestamp && item.timestampMs !== undefined && item.timestampMs !== null && firstTimestamp !== null
-        ? Math.min(totalSec, Math.max(0, Math.round(((item.timestampMs - firstTimestamp) / 1000) * scaleRatio)))
-        : Math.round(((index + 1) / (userMessages.length + 1)) * totalSec);
-
-    const progress = totalSec > 0 ? timeSec / totalSec : 0;
-    const phaseLabel = progress < 0.33 ? "도입" : progress < 0.72 ? "전개" : "마무리";
-
-    return {
-      id: item.id,
-      timeLabel: formatTimelineTime(timeSec),
-      phaseLabel,
-      prompt: prompt || "이전 질문 맥락이 없는 응답입니다.",
-      answer: item.text,
-      hasExactTimestamp,
-    };
-  });
-}
-
-function buildRecommendedAnswer(prompt: string, role: string): string {
-  if (prompt.includes("프로젝트") || prompt.includes("최근에")) {
-    return `프로젝트 설명은 문제 상황, 맡은 역할, 선택한 해결 방식, 결과 순서로 정리해보세요. ${role} 면접에서는 이 네 단계가 한 번에 들리는 답변이 가장 안정적으로 읽힙니다.`;
-  }
-
-  if (prompt.includes("성능") || prompt.includes("지표")) {
-    return "성능 관련 답변은 병목을 어떻게 발견했는지, 어떤 지표를 봤는지, 개선 뒤 무엇이 달라졌는지를 한 묶음으로 말하면 설득력이 올라갑니다.";
-  }
-
-  if (prompt.includes("협업") || prompt.includes("조율")) {
-    return "협업 질문에서는 팀 전체보다 내가 직접 조율한 판단과, 그 판단이 결과에 미친 영향을 먼저 말하는 편이 좋습니다.";
-  }
-
-  return `${role} 면접에서는 결론, 선택 이유, 실제 사례를 짧게 이어서 말하는 답변이 가장 안정적으로 들립니다.`;
-}
-
-function buildAggregatedFeedback(
-  analysis: AnalysisResult,
-  role: string,
-  durationMinutes: 5 | 10 | 15,
-): {
-  coreResponses: CoreResponseEntry[];
-} {
-  const source = analysis.bestPractices.slice(0, 10);
-  const supplemental = [
-    {
-      question: `${role} 역할에서 가장 강하게 드러난 경험은 무엇인가요?`,
-      userAnswer: analysis.feedback.strengths[0] || `${role} 직무와 연결되는 강점이 비교적 안정적으로 드러났습니다.`,
-      refinedAnswer: "가장 먼저 맡았던 역할과 문제 상황을 말하고, 내가 직접 판단한 장면과 결과를 붙여 설명해보세요.",
-      reason: "강점은 보였지만, 실제로 어떤 역할과 결과였는지까지 이어지면 더 설득력이 올라갑니다.",
-    },
-    {
-      question: "가장 어려웠던 문제를 어떻게 해결했나요?",
-      userAnswer: analysis.feedback.improvements[0] || "문제 해결의 핵심 장면을 더 구조적으로 설명할 필요가 있습니다.",
-      refinedAnswer: "문제 상황, 원인 파악, 선택한 해결책, 결과 순서로 짧게 정리하면 답변의 밀도가 훨씬 좋아집니다.",
-      reason: "핵심 문제 해결 장면은 좋지만, 원인과 선택 근거를 더 명확히 풀어내는 편이 좋습니다.",
-    },
-    {
-      question: "협업 과정에서 본인이 직접 조율하거나 결정한 부분은 무엇이었나요?",
-      userAnswer: analysis.feedback.strengths[0] || "협업 맥락은 보였지만 본인 기여 범위를 더 선명하게 말할 필요가 있습니다.",
-      refinedAnswer: "팀이 아니라 '내가 맡은 판단'을 먼저 말하고, 그 판단이 결과에 어떤 영향을 줬는지 연결해보세요.",
-      reason: "협업 설명은 있었지만, 본인의 기여 지점이 더 선명하게 드러나면 면접관이 이해하기 쉽습니다.",
-    },
-    {
-      question: `${role} 면접에서 자주 나오는 꼬리 질문에 어떻게 대비할 수 있나요?`,
-      userAnswer:
-        analysis.habits.length > 0
-          ? `현재는 "${analysis.habits[0]?.habit}" 같은 습관 표현이 조금 섞여 있습니다.`
-          : "전달 자체는 비교적 안정적이고, 답변 구조를 더 정리하면 좋습니다.",
-      refinedAnswer: "결론, 선택 이유, 실제 사례를 짧게 반복하는 구조를 잡아두면 꼬리 질문이 들어와도 흔들림이 줄어듭니다.",
-      reason: "말하기 습관보다 답변 틀을 먼저 고정하면, 후속 질문에서도 전체 흐름이 덜 흔들립니다.",
-    },
-    {
-      question: "마지막 한 문장으로 본인의 강점을 어떻게 정리하시겠어요?",
-      userAnswer: analysis.feedback.strengths[0] || "직무 강점을 더 짧고 선명하게 정리할 필요가 있습니다.",
-      refinedAnswer: `'저는 ${role} 역할에서 구조를 빠르게 이해하고, 직접 구현까지 연결하는 개발자입니다.'처럼 한 문장으로 닫아보세요.`,
-      reason: "면접 말미에는 긴 설명보다, 본인을 한 문장으로 정리하는 힘이 인상에 더 크게 남습니다.",
-    },
-  ];
-
-  const merged = [...source, ...supplemental].slice(0, Math.min(10, Math.max(5, source.length + supplemental.length)));
-
-  const coreResponses = merged.map((item, index) => {
-    const ratio = (index + 1) / (merged.length + 1);
-    return {
-      label: `핵심 질문 ${index + 1}`,
-      timeLabel: formatTimelineTime(durationMinutes * 60 * ratio),
-      question: item.question,
-      answer: item.userAnswer,
-      analysis: item.reason,
-      improvedAnswer: item.refinedAnswer,
-      followUp: buildFollowUpQuestion(item.question, role),
-    };
-  });
-  return {
-    coreResponses,
-  };
-}
 
 export default function InterviewResultPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const querySessionId = searchParams.get("id");
-  const { chatHistory, jobData, resumeData, interviewSessionId, analysisResult, setAnalysisResult, targetUrl } =
-    useInterviewSetupStore();
+  const interviewSessionId = useInterviewSetupStore((state) => state.interviewSessionId);
+  const resolvedSessionId = querySessionId || interviewSessionId || "";
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
-  const previewSession = !analysisResult && !querySessionId ? MOCK_INTERVIEW_LIST[0] : null;
-  const effectiveAnalysis = normalizeAnalysisResult(analysisResult ?? previewSession?.analysis ?? null);
+  const effectiveAnalysis = normalizeAnalysisResult(sessionDetail?.analysis ?? null);
   const sessionDurationMinutes = useMemo(
     () => resolveDurationMinutes(searchParams.get("duration"), sessionDetail?.target_duration_sec),
     [searchParams, sessionDetail?.target_duration_sec],
   );
 
   useEffect(() => {
-    if (querySessionId) {
-      const fetchSession = async () => {
-        setIsAnalyzing(true);
-        try {
-          const res = await fetch(`/api/interview/sessions/${querySessionId}`);
-          const json = await res.json();
-          if (json.success && json.data?.analysis?.rubricScores) {
-            router.replace(`/interview/training/portfolio/report?id=${querySessionId}`);
-            return;
-          }
-          if (json.success && json.data) {
-            setSessionDetail(json.data as SessionDetail);
-            if (json.data.analysis) {
-              setAnalysisResult(json.data.analysis as AnalysisResult);
-            }
-          }
-        } catch {
-          // ignore and fall back to persisted store data
-        } finally {
-          setIsAnalyzing(false);
-        }
-      };
+    if (!resolvedSessionId) return;
 
-      fetchSession();
-      return;
-    }
+    let cancelled = false;
 
-    const fetchAnalysis = async () => {
-      if (!chatHistory.length || (analysisResult && !querySessionId)) return;
-
+    const fetchSession = async () => {
       setIsAnalyzing(true);
       try {
-        const response = await fetch("/api/interview/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: chatHistory,
-            jobData,
-            resumeData,
-            sessionId: interviewSessionId,
-          }),
-        });
-        const result = await response.json();
-        if (result.success) {
-          setAnalysisResult(result.data);
-        } else {
-          throw new Error(result.error);
+        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+
+        if (res.status === 401) {
+          router.push("/auth/login");
+          return;
         }
+
+        if (!json?.success || !json?.data) {
+          throw new Error(json?.error || "세션 정보를 불러오지 못했습니다.");
+        }
+
+        if (shouldRedirectToPortfolioReport(json.data)) {
+          router.replace(`/interview/training/portfolio/report?id=${resolvedSessionId}`);
+          return;
+        }
+
+        if (cancelled) return;
+        setSessionDetail(json.data as SessionDetail);
+
+        setIsAnalyzing(isPendingReportStatus(String(json.data.reportStatus || "")));
       } catch (error) {
-        console.error("Analysis Error:", error);
-      } finally {
-        setIsAnalyzing(false);
+        console.error("Session Fetch Error:", error);
+        if (!cancelled) {
+          setIsAnalyzing(false);
+        }
       }
     };
 
-    fetchAnalysis();
-  }, [analysisResult, chatHistory, interviewSessionId, jobData, querySessionId, resumeData, router, setAnalysisResult]);
+    void fetchSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSessionId, router]);
+
+  useEffect(() => {
+    if (!resolvedSessionId || !sessionDetail) return;
+    if (!isPendingReportStatus(sessionDetail.reportStatus || "")) return;
+
+    const id = window.setInterval(async () => {
+      try {
+        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!json?.success || !json?.data) return;
+        if (shouldRedirectToPortfolioReport(json.data)) {
+          router.replace(`/interview/training/portfolio/report?id=${resolvedSessionId}`);
+          return;
+        }
+        setSessionDetail(json.data as SessionDetail);
+        setIsAnalyzing(isPendingReportStatus(String(json.data.reportStatus || "")));
+      } catch {
+        // retry on next interval
+      }
+    }, 5000);
+
+    return () => window.clearInterval(id);
+  }, [resolvedSessionId, router, sessionDetail]);
 
   const reportModel = useMemo(() => {
-    if (!effectiveAnalysis) return null;
+    if (!effectiveAnalysis || !sessionDetail) return null;
 
     const sessionJob = sessionDetail?.job_payload || {};
     const originalPostingUrl =
       sessionJob.source_url ||
       sessionJob.original_url ||
       sessionJob.url ||
-      targetUrl ||
       "";
-    const resolvedJobData: JobData | null =
-      jobData ||
-      (previewSession
-        ? ({
-            role: previewSession.role,
-            company: previewSession.company,
-            companyDescription: "",
-            teamCulture: [],
-            techStack: [],
-            responsibilities: [],
-            requirements: [],
-            preferred: [],
-          } as JobData)
-        : null) ||
-      (sessionJob.role || sessionJob.company
-        ? ({
-            role: sessionJob.role || "직무 정보 없음",
-            company: sessionJob.company || "모의면접",
-            companyDescription: "",
-            teamCulture: [],
-            techStack: [],
-            responsibilities: [],
-            requirements: [],
-            preferred: [],
-          } as JobData)
-        : null);
 
-    return buildMockInterviewReportModel({
+    return buildSessionInterviewReportModel({
       analysis: effectiveAnalysis,
-      jobData: resolvedJobData,
+      reportView: sessionDetail.report_view,
       session: {
-        company: sessionJob.company || previewSession?.company,
-        role: sessionJob.role || previewSession?.role,
+        company: sessionJob.company,
+        role: sessionJob.role,
         mode: sessionDetail?.mode || "video",
-        createdAt: sessionDetail?.created_at || previewSession?.date,
-        status: sessionDetail?.status || "preview",
+        createdAt: sessionDetail?.created_at,
         originalUrl: originalPostingUrl,
       },
     });
-  }, [effectiveAnalysis, jobData, previewSession, sessionDetail, targetUrl]);
+  }, [effectiveAnalysis, sessionDetail]);
 
   const roleLabel =
     reportModel?.metaItems.find((item) => item.label === "직무")?.value ||
-    jobData?.role ||
-    previewSession?.role ||
+    sessionDetail?.job_payload?.role ||
+    sessionDetail?.report_view?.role ||
     "개발자";
 
-  const timelineMessages = useMemo(() => {
-    if (previewSession) return toTimelineMessagesFromMock();
-    if (chatHistory.length > 0) return toTimelineMessagesFromHistory(chatHistory);
-    return [];
-  }, [chatHistory, previewSession]);
-
   const sessionTimeline = useMemo(
-    () => buildSpeechTimeline(timelineMessages, sessionDurationMinutes),
-    [sessionDurationMinutes, timelineMessages],
+    () => (Array.isArray(sessionDetail?.timeline) ? sessionDetail.timeline : []),
+    [sessionDetail?.timeline],
   );
 
-  const aggregatedFeedback = useMemo(() => {
-    if (!effectiveAnalysis) {
-      return {
-        coreResponses: [],
-      };
-    }
-
-    return buildAggregatedFeedback(effectiveAnalysis, roleLabel, sessionDurationMinutes);
-  }, [effectiveAnalysis, roleLabel, sessionDurationMinutes]);
-
-  const timelineInsights = useMemo<TimelineInsightEntry[]>(() => {
-    return sessionTimeline.map((item, index) => ({
-      ...item,
-      recommendedAnswer:
-        aggregatedFeedback.coreResponses[index]?.improvedAnswer || buildRecommendedAnswer(item.prompt, roleLabel),
-      followUp:
-        aggregatedFeedback.coreResponses[index]?.followUp || buildFollowUpQuestion(item.prompt, roleLabel),
-    }));
-  }, [aggregatedFeedback.coreResponses, roleLabel, sessionTimeline]);
+  const detailModel = useMemo(
+    () =>
+      buildSessionInterviewDetailModel({
+        analysis: effectiveAnalysis,
+        reportModel,
+        roleLabel,
+        durationMinutes: sessionDurationMinutes,
+        timeline: sessionTimeline,
+      }),
+    [effectiveAnalysis, reportModel, roleLabel, sessionDurationMinutes, sessionTimeline],
+  );
 
   const activeCoreResponse =
-    aggregatedFeedback.coreResponses[selectedCoreResponseIndex] || aggregatedFeedback.coreResponses[0] || null;
+    detailModel.coreResponses[selectedCoreResponseIndex] || detailModel.coreResponses[0] || null;
   const activeTimelineInsight =
-    timelineInsights[selectedTimelineIndex] || timelineInsights[0] || null;
-
-  const positioningGuide = useMemo(() => {
-    if (!reportModel) return null;
-
-    const dominantAxes = DIBEOT_AXES.map((axis) => ({
-      ...axis,
-      dominant: getAxisLabel(axis.key, reportModel.axes[axis.key]),
-    }));
-
-    const strongQuestionTypes = [
-      `${dominantAxes[0]?.dominant} 답변이 드러나는 문제 해결 질문`,
-      `${dominantAxes[1]?.dominant} 시야가 필요한 시스템/구현 질문`,
-      `${dominantAxes[3]?.dominant} 성향이 보이는 협업 또는 실행 질문`,
-    ];
-
-    const guideSteps = [
-      "답변 첫 문장에서 결론과 선택 이유를 먼저 말합니다.",
-      "설계나 구현 중 본인이 직접 판단한 장면을 하나는 반드시 넣습니다.",
-      "마지막 한 문장에서는 결과나 배운 점을 개발자 관점으로 연결합니다.",
-    ];
-
-    const interviewerImpression = `${reportModel.typeName} 성향은 설계 논리와 실행 감각이 함께 보일 때 가장 설득력 있게 읽힙니다. 개발자 면접에서는 '왜 그렇게 판단했는지'와 '직접 무엇을 했는지'를 같이 보여주는 것이 중요합니다.`;
-
-    return {
-      dominantAxes,
-      strongQuestionTypes,
-      guideSteps,
-      interviewerImpression,
-    };
-  }, [reportModel]);
+    detailModel.timelineInsights[selectedTimelineIndex] || detailModel.timelineInsights[0] || null;
+  const positioningGuide = detailModel.positioningGuide;
 
   useEffect(() => {
-    if (selectedCoreResponseIndex >= aggregatedFeedback.coreResponses.length) {
+    if (selectedCoreResponseIndex >= detailModel.coreResponses.length) {
       setSelectedCoreResponseIndex(0);
     }
-  }, [aggregatedFeedback.coreResponses.length, selectedCoreResponseIndex]);
+  }, [detailModel.coreResponses.length, selectedCoreResponseIndex]);
 
   useEffect(() => {
-    if (selectedTimelineIndex >= timelineInsights.length) {
+    if (selectedTimelineIndex >= detailModel.timelineInsights.length) {
       setSelectedTimelineIndex(0);
     }
-  }, [selectedTimelineIndex, timelineInsights.length]);
+  }, [detailModel.timelineInsights.length, selectedTimelineIndex]);
 
   if (isAnalyzing) {
     return (
@@ -588,16 +356,16 @@ export default function InterviewResultPage() {
 
               <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
                 <div className="rounded-[24px] border border-[#e7ebf1] bg-[#fbfcfe] p-4">
-                  {timelineInsights.length > 0 ? (
+                  {detailModel.timelineInsights.length > 0 ? (
                     <div className="max-h-[560px] overflow-y-auto pr-1">
-                      {timelineInsights.map((item, index) => (
+                      {detailModel.timelineInsights.map((item, index) => (
                         <div key={item.id} className="grid grid-cols-[44px_10px_minmax(0,1fr)] gap-1.5">
                           <div className="pt-1 text-[11px] font-semibold text-muted-foreground">
                             {item.timeLabel}
                           </div>
                           <div className="flex flex-col items-center">
                             <div className={`mt-1 h-2.5 w-2.5 rounded-full ${selectedTimelineIndex === index ? "bg-primary" : "bg-[#cfd8e3]"}`} />
-                            {index !== timelineInsights.length - 1 ? <div className="mt-1 h-full w-px bg-[#dfe6ee]" /> : null}
+                            {index !== detailModel.timelineInsights.length - 1 ? <div className="mt-1 h-full w-px bg-[#dfe6ee]" /> : null}
                           </div>
                           <div className="pb-4">
                             <button
@@ -631,7 +399,7 @@ export default function InterviewResultPage() {
                     </div>
                   ) : (
                     <div className="rounded-[18px] border border-dashed border-[#d8dee8] bg-white px-4 py-6 text-sm leading-6 text-muted-foreground">
-                      아직 시간순 발화 로그가 없어 타임라인을 구성하지 못했습니다. 현재는 mock 데이터로만 시각화가 가능합니다.
+                      아직 저장된 질문/답변 타임라인이 없어 시간순 응답 로그를 구성하지 못했습니다.
                     </div>
                   )}
                 </div>
@@ -728,7 +496,7 @@ export default function InterviewResultPage() {
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {aggregatedFeedback.coreResponses.map((item, index) => (
+                  {detailModel.coreResponses.map((item, index) => (
                     <button
                       key={`${item.label}-${item.timeLabel}`}
                       type="button"

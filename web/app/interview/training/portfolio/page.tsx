@@ -40,7 +40,7 @@ const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   return 10;
 };
 
-const resolveInterviewMode = (_raw: string | null): "video" => "video";
+const resolveInterviewMode = (): "video" => "video";
 
 export default function PortfolioTrainingPage() {
   const router = useRouter();
@@ -95,6 +95,11 @@ export default function PortfolioTrainingPage() {
 
       const data = await res.json();
 
+      if (res.status === 401) {
+        router.push("/auth/login");
+        return;
+      }
+
       if (!data.success) {
         if (data.error === "PUBLIC_REPO_ONLY") {
           setError("비공개 레포 또는 접근 불가한 레포입니다. 공개 레포 URL을 사용해주세요. GitHub 레포 Settings → General에서 공개(Public)로 변경 후 다시 시도하세요.");
@@ -113,8 +118,12 @@ export default function PortfolioTrainingPage() {
       }
 
       setAnalysis(data.data);
-    } catch (err: any) {
-      setError(err.message || "네트워크 오류 또는 GitHub API 요청 제한일 수 있습니다. 잠시 후 다시 시도해주세요.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "네트워크 오류 또는 GitHub API 요청 제한일 수 있습니다. 잠시 후 다시 시도해주세요.";
+      setError(message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -142,6 +151,10 @@ export default function PortfolioTrainingPage() {
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        router.push("/auth/login");
+        return;
+      }
       if (!data.success) {
         setError(data.error || "세션 시작 실패");
         return;
@@ -156,11 +169,13 @@ export default function PortfolioTrainingPage() {
         readmeSummary: analysis.readmeSummary,
         treeSummary: analysis.treeSummary,
         detectedTopics: analysis.detectedTopics.join(","),
+        infraHypotheses: analysis.infraHypotheses.join(","),
       });
 
       router.push(`/interview/training/portfolio/room?${params.toString()}`);
-    } catch (err: any) {
-      setError(err.message || "세션 시작 실패");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "세션 시작 실패";
+      setError(message);
     }
   };
 

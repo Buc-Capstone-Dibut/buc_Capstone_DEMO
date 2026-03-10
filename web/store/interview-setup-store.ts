@@ -114,10 +114,6 @@ interface InterviewSetupState {
   resumeData: ResumeData | null;
   rolePrepData: RolePrepData | null;
 
-  // Chat and Result
-  chatHistory: { role: 'user' | 'model', parts: string }[];
-  analysisResult: AnalysisResult | null;
-
   // Actions
   setStep: (step: InterviewSetupStep) => void;
   setTarget: (url: string, category: string) => void;
@@ -127,8 +123,6 @@ interface InterviewSetupState {
   updateResumeData: (data: Partial<ResumeData>) => void;
   setRolePrepData: (data: RolePrepData | null) => void;
   updateRolePrepData: (data: Partial<RolePrepData>) => void;
-  setChatHistory: (history: { role: 'user' | 'model', parts: string }[]) => void;
-  setAnalysisResult: (result: AnalysisResult) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
   setResumePrefillSource: (source: "active_resume" | null) => void;
   completeSetup: () => void;
@@ -146,9 +140,6 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       jobData: null,
       resumeData: null,
       rolePrepData: null,
-      chatHistory: [],
-      analysisResult: null,
-
       setStep: (step) => set({ currentStep: step }),
       setTarget: (url, category) => set({ targetUrl: url, targetJobCategory: category }),
       setJobData: (data) => set({ jobData: data }),
@@ -166,8 +157,6 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         set((state) => ({
           rolePrepData: state.rolePrepData ? { ...state.rolePrepData, ...updates } : null
         })),
-      setChatHistory: (history) => set({ chatHistory: history }),
-      setAnalysisResult: (result) => set({ analysisResult: result }),
       setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
       setResumePrefillSource: (source) => set({ resumePrefillSource: source }),
       completeSetup: () => set({ currentStep: 'complete' }),
@@ -180,8 +169,6 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         jobData: null,
         resumeData: null,
         rolePrepData: null,
-        chatHistory: [],
-        analysisResult: null
       }),
     }),
     {
@@ -201,8 +188,6 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
           }
           : null,
         rolePrepData: state.rolePrepData,
-        chatHistory: state.chatHistory,
-        analysisResult: state.analysisResult
       }),
     }
   )

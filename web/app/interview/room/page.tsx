@@ -12,11 +12,11 @@ const toSingleParam = (value: string | string[] | undefined): string | null => {
 
 export default function InterviewRoomEntryPage({ searchParams }: InterviewRoomEntryPageProps) {
   const modeParam = toSingleParam(searchParams?.mode);
-  const targetPath = modeParam === "video" ? "/interview/room/video" : "/interview/room/chat";
+  const targetPath = "/interview/room/video";
 
   const query = new URLSearchParams();
   Object.entries(searchParams ?? {}).forEach(([key, value]) => {
-    if (key === "mode") return;
+    if (key === "mode" && modeParam !== "video") return;
     if (Array.isArray(value)) {
       value.forEach((item) => {
         if (item != null) query.append(key, item);
@@ -25,6 +25,10 @@ export default function InterviewRoomEntryPage({ searchParams }: InterviewRoomEn
     }
     if (value != null) query.set(key, value);
   });
+
+  if (modeParam && modeParam !== "video") {
+    query.set("legacyMode", modeParam);
+  }
 
   const nextUrl = query.toString() ? `${targetPath}?${query.toString()}` : targetPath;
   redirect(nextUrl);
