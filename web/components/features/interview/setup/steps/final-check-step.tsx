@@ -31,7 +31,7 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
   }
 
   const handleStartInterview = () => {
-    router.push(`/interview/room/video?duration=7&track=${track}`);
+    router.push(`/interview/room/video?duration=10&track=${track}`);
   };
   const hasResumeData = Boolean(resumeData);
   const isResumeRequired = track === "posting";

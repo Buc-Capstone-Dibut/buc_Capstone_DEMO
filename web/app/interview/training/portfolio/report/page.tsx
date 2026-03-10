@@ -2,12 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronRight, Circle, Clock3, Loader2, RefreshCw, Target, Video } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronRight,
+  GitBranch,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { GlobalHeader } from "@/components/layout/global-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RubricHelpGuide } from "@/components/features/interview/training/rubric-help-guide";
+import { AxisEvidencePanel } from "@/components/features/interview/report/axis-evidence-panel";
+import { AxisProfileBoard } from "@/components/features/interview/report/axis-profile-board";
+import { ReportFooterActions } from "@/components/features/interview/report/report-footer-actions";
+import { SessionReportHero } from "@/components/features/interview/report/session-report-hero";
+import {
+  buildPortfolioDefenseReportModel,
+  PortfolioRubricSnapshot,
+} from "@/lib/interview/report/portfolio-defense-report-adapter";
 
 type RubricKey = "design_intent" | "code_quality" | "ai_usage";
 
@@ -43,31 +59,12 @@ interface SessionDetail {
   reportAttempts?: number;
   reportMaxAttempts?: number;
   reportError?: string;
-  reportUpdatedAt?: number;
 }
 
-const RUBRIC_META: Record<RubricKey, { label: string; weight: number; hint: string }> = {
-  design_intent: {
-    label: "설계 의도 설명",
-    weight: 60,
-    hint: "대안 비교와 트레이드오프 근거를 설명했는지",
-  },
-  code_quality: {
-    label: "코드 품질",
-    weight: 10,
-    hint: "구조화, 테스트, 유지보수 전략을 제시했는지",
-  },
-  ai_usage: {
-    label: "AI 활용",
-    weight: 30,
-    hint: "AI 사용 + 검증 + 롤백 루프를 설명했는지",
-  },
-};
-
-const RUBRIC_QUESTION_SAMPLES: Record<RubricKey, string> = {
-  design_intent: "이 구조를 선택한 이유와 대안 대비 장단점을 설명해 주세요.",
-  code_quality: "코드 품질을 개선하기 위해 지금 가장 먼저 바꿀 부분은 어디인가요?",
-  ai_usage: "AI 결과를 실제 반영하기 전에 어떤 검증 절차를 거치나요?",
+const RUBRIC_META: Record<RubricKey, { label: string; weight: number }> = {
+  design_intent: { label: "설계 의도 설명", weight: 60 },
+  code_quality: { label: "코드 품질", weight: 10 },
+  ai_usage: { label: "AI 활용", weight: 30 },
 };
 
 const TOPIC_META: Record<string, { label: string; keywords: string[] }> = {
@@ -101,20 +98,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function toPercent(value: number): string {
-  return `${Math.round(clamp(value, 0, 1) * 100)}%`;
-}
-
-function formatDate(ts?: number): string {
-  if (!ts) return "-";
-  return new Date(ts * 1000).toLocaleString("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function parseJdPayload(jdText?: string): Record<string, unknown> {
   if (!jdText) return {};
   try {
@@ -129,12 +112,12 @@ function normalizeMode(mode?: string): "voice" | "video" {
   return mode === "video" ? "video" : "voice";
 }
 
-function resolveDurationMinute(targetDurationSec?: number): 5 | 7 | 10 {
-  if (!targetDurationSec) return 7;
+function resolveDurationMinute(targetDurationSec?: number): 5 | 10 | 15 {
+  if (!targetDurationSec) return 10;
   const minute = Math.round(targetDurationSec / 60);
   if (minute <= 5) return 5;
-  if (minute >= 10) return 10;
-  return 7;
+  if (minute >= 15) return 15;
+  return 10;
 }
 
 function detectCoveredTopics(events: SessionDetail["debug_events"]): Set<string> {
@@ -162,6 +145,32 @@ function extractTurns(events: SessionDetail["debug_events"]) {
     turns.push({ role, text });
   }
   return turns;
+}
+
+function InsightListCard({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: string[];
+}) {
+  return (
+    <Card className="rounded-[28px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2.5">
+        {items.map((item, index) => (
+          <div key={`${title}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3 text-sm leading-6 text-foreground">
+            {item}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function PortfolioDefenseReportPage() {
@@ -213,12 +222,12 @@ export default function PortfolioDefenseReportPage() {
           setDetail(json.data as SessionDetail);
         }
       } catch {
-        // polling 실패는 다음 주기에서 재시도
+        // retry next interval
       }
     }, 5000);
 
     return () => window.clearInterval(id);
-  }, [sessionId, detail]);
+  }, [detail, sessionId]);
 
   const jdPayload = useMemo(() => parseJdPayload(detail?.jd_text), [detail?.jd_text]);
   const repoUrl = typeof jdPayload.repoUrl === "string" ? jdPayload.repoUrl : "";
@@ -228,32 +237,19 @@ export default function PortfolioDefenseReportPage() {
   const rubric = useMemo(() => {
     const source = detail?.analysis?.rubricScores || {};
     const keys: RubricKey[] = ["design_intent", "code_quality", "ai_usage"];
-    return keys.map((key) => {
-      const fallbackWeight = RUBRIC_META[key].weight;
-      const raw = clamp(Number(source[key]?.raw ?? 0), 0, 100);
-      const weight = clamp(Number(source[key]?.weight ?? fallbackWeight), 0, 100);
-      const weighted = clamp(
-        Number(source[key]?.weighted ?? (raw * weight) / 100),
-        0,
-        fallbackWeight,
-      );
-      return {
-        key,
-        label: RUBRIC_META[key].label,
-        hint: RUBRIC_META[key].hint,
-        raw,
-        weight,
-        weighted,
-        evidence: String(source[key]?.evidence ?? ""),
-        confidence: clamp(Number(source[key]?.confidence ?? 0), 0, 1),
+    return keys.reduce((acc, key) => {
+      acc[key] = {
+        raw: clamp(Number(source[key]?.raw ?? 0), 0, 100),
+        weighted: clamp(Number(source[key]?.weighted ?? 0), 0, RUBRIC_META[key].weight),
       };
-    });
+      return acc;
+    }, {} as Record<RubricKey, { raw: number; weighted: number }>);
   }, [detail?.analysis?.rubricScores]);
 
   const totalWeightedScore = useMemo(() => {
     const fromPayload = Number(detail?.analysis?.totalWeightedScore ?? NaN);
     if (Number.isFinite(fromPayload)) return clamp(fromPayload, 0, 100);
-    return rubric.reduce((sum, item) => sum + item.weighted, 0);
+    return rubric.design_intent.weighted + rubric.code_quality.weighted + rubric.ai_usage.weighted;
   }, [detail?.analysis?.totalWeightedScore, rubric]);
 
   const strengths = detail?.analysis?.strengths ?? [];
@@ -269,42 +265,75 @@ export default function PortfolioDefenseReportPage() {
     if (normalized.length > 0) return Array.from(new Set(normalized));
     return Object.keys(TOPIC_META);
   }, [jdPayload.detectedTopics]);
+  const coverage = useMemo(
+    () => ({
+      covered: expectedTopics.filter((key) => coveredTopics.has(key)).length,
+      total: expectedTopics.length,
+      items: expectedTopics.map((key) => ({
+        label: TOPIC_META[key]?.label || key,
+        covered: coveredTopics.has(key),
+      })),
+    }),
+    [coveredTopics, expectedTopics],
+  );
 
-  const coveredCount = expectedTopics.filter((key) => coveredTopics.has(key)).length;
-  const coverageRatio = expectedTopics.length > 0 ? coveredCount / expectedTopics.length : 0;
   const turns = useMemo(() => extractTurns(detail?.debug_events), [detail?.debug_events]);
+
+  const model = useMemo(() => {
+    if (!detail) return null;
+    return buildPortfolioDefenseReportModel({
+      rubric: {
+        designIntent: rubric.design_intent.raw,
+        codeQuality: rubric.code_quality.raw,
+        aiUsage: rubric.ai_usage.raw,
+        totalWeightedScore,
+      } satisfies PortfolioRubricSnapshot,
+      repoUrl,
+      mode,
+      createdAt: detail.created_at,
+      strengths,
+      improvements,
+      nextActions,
+      coverage,
+      turns,
+    });
+  }, [coverage, detail, improvements, mode, nextActions, repoUrl, rubric, strengths, totalWeightedScore, turns]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="inline-flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            포트폴리오 디펜스 리포트를 불러오는 중입니다...
+        <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
+          <div className="space-y-4 text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+            <h2 className="text-2xl font-bold">포트폴리오 디펜스 리포트를 불러오는 중입니다</h2>
+            <p className="text-muted-foreground">세션 로그와 평가 근거를 기반으로 디벗 리포트를 구성하고 있습니다.</p>
           </div>
         </main>
       </div>
     );
   }
 
-  if (error || !detail) {
+  if (error || !detail || !model) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
-        <main className="flex-1 max-w-3xl mx-auto w-full p-6 md:p-8 space-y-6">
-          <Card className="border-dashed">
-            <CardHeader>
-              <CardTitle>리포트를 불러올 수 없습니다.</CardTitle>
-              <CardDescription>{error || "세션 상세 정보를 찾을 수 없습니다."}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex gap-2">
-              <Button variant="outline" onClick={() => router.push("/interview/training")}>
-                훈련 센터로 이동
-              </Button>
-              <Button onClick={() => window.location.reload()}>
-                다시 시도
-              </Button>
+        <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
+          <Card className="w-full rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+            <CardContent className="space-y-4 p-8 text-center">
+              <AlertTriangle className="mx-auto h-10 w-10 text-orange-500" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">리포트를 불러올 수 없습니다.</h2>
+                <p className="text-muted-foreground">{error || "세션 상세 정보를 찾지 못했습니다."}</p>
+              </div>
+              <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                <Button variant="outline" className="rounded-full px-6" onClick={() => router.push("/interview/training")}>
+                  훈련 센터로
+                </Button>
+                <Button className="rounded-full px-6" onClick={() => window.location.reload()}>
+                  다시 시도
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </main>
@@ -312,311 +341,206 @@ export default function PortfolioDefenseReportPage() {
     );
   }
 
-  const hasRubricReport = rubric.some((item) => item.weighted > 0 || item.raw > 0 || item.evidence);
+  const hasRubricReport =
+    rubric.design_intent.weighted > 0 || rubric.code_quality.weighted > 0 || rubric.ai_usage.weighted > 0;
   const reportStatus = detail.reportStatus || "";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-[#f6f7fb] text-foreground">
       <GlobalHeader />
 
-      <main className="flex-1 max-w-6xl mx-auto w-full p-6 md:p-8 space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" onClick={() => router.push("/interview/training")}>
-            <ArrowLeft className="mr-2 w-4 h-4" /> 훈련 센터
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-6 md:px-10">
+        <section className="flex items-center gap-3">
+          <Button variant="outline" className="rounded-full bg-white" onClick={() => router.push("/interview/analysis")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            나의 인터뷰 분석
           </Button>
-          <Badge variant="outline" className="border-primary/20 text-primary">
+          <Badge variant="outline" className="border-primary/20 bg-white text-primary">
             PORTFOLIO DEFENSE REPORT
           </Badge>
-        </div>
-
-        {["pending", "running"].includes(reportStatus) && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex items-center gap-3">
-            <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary">AI 리포트 생성 중...</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                평가 분석이 진행 중입니다. 페이지는 자동으로 갱신됩니다.
-                {detail.reportAttempts != null && detail.reportMaxAttempts != null && (
-                  <span className="ml-1">({detail.reportAttempts}/{detail.reportMaxAttempts}회 확인)</span>
-                )}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <Card className="border-2">
-          <CardContent className="pt-6 pb-6 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock3 className="w-4 h-4" />
-                {formatDate(detail.created_at)}
-              </div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight">
-                포트폴리오 디펜스 점수{" "}
-                <span className="text-primary">{Math.round(totalWeightedScore)} / 100</span>
-              </h1>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {rubric.map((item) => (
-                  <Badge
-                    key={item.key}
-                    variant="outline"
-                    className="text-xs font-semibold border-primary/30 text-primary"
-                  >
-                    {item.label.replace("설계 의도 설명", "설계").replace("AI 활용", "AI")}{" "}
-                    {Math.round(item.weighted)}/{RUBRIC_META[item.key].weight}pt
-                  </Badge>
-                ))}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                설계 의도 60 / 코드 품질 10 / AI 활용 30 가중치로 계산됩니다.
-              </p>
-              {repoUrl && (
-                <p className="text-sm text-muted-foreground break-all">
-                  대상 레포: {repoUrl}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="capitalize">
-                {mode === "video" ? <Video className="mr-1.5 w-3.5 h-3.5" /> : <Circle className="mr-1.5 w-3.5 h-3.5" />}
-                {mode === "video" ? "화상" : "음성"}
-              </Badge>
-              <Badge variant="outline">{detail.status || "completed"}</Badge>
-              <Badge variant="outline">{detail.current_phase || "closing"}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {!hasRubricReport && (
-          <Card className="border-dashed">
-            <CardHeader>
-              <CardTitle>아직 디펜스 분석이 완료되지 않았습니다.</CardTitle>
-              <CardDescription>
-                {reportStatus === "failed"
-                  ? `리포트 생성이 실패했습니다. ${detail.reportError || ""}`
-                  : "세션 종료 직후 분석이 지연될 수 있습니다. 잠시 후 다시 확인해주세요."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                <RefreshCw className="mr-2 w-4 h-4" />
-                새로고침
-              </Button>
-              <Button
-                onClick={() =>
-                  router.push(
-                    `/interview/training/portfolio/room?sessionId=${encodeURIComponent(sessionId)}&mode=${mode}&duration=${durationMinute}${repoUrl ? `&repoUrl=${encodeURIComponent(repoUrl)}` : ""}`,
-                  )
-                }
-              >
-                세션으로 복귀
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        <section className="grid xl:grid-cols-12 gap-6">
-          <Card className="xl:col-span-4">
-            <CardHeader>
-              <CardTitle className="text-base">60/10/30 질문 가이드</CardTitle>
-              <CardDescription>
-                점수 그래프 대신, 실제 면접에서 어떤 질문이 나오는지 요약해 보여줍니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <RubricHelpGuide
-                items={rubric.map((item) => ({
-                  label: item.label,
-                  weight: RUBRIC_META[item.key].weight,
-                  hint: item.hint,
-                  sampleQuestion: RUBRIC_QUESTION_SAMPLES[item.key],
-                }))}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="xl:col-span-4">
-            <CardHeader>
-              <CardTitle className="text-base">토픽 커버리지</CardTitle>
-              <CardDescription>
-                디펜스 답변에서 다룬 핵심 주제의 비율입니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-xl border bg-muted/20 px-4 py-3 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Coverage</span>
-                  <span>{Math.round(coverageRatio * 100)}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${Math.round(coverageRatio * 100)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {coveredCount} / {expectedTopics.length} topics
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                {expectedTopics.map((key) => {
-                  const label = TOPIC_META[key]?.label || key;
-                  const hit = coveredTopics.has(key);
-                  return (
-                    <div
-                      key={key}
-                      className={`rounded-lg border px-3 py-2 text-sm flex items-center justify-between ${
-                        hit ? "border-primary/30 bg-primary/5" : "border-muted"
-                      }`}
-                    >
-                      <span>{label}</span>
-                      <span className={`text-xs font-semibold ${hit ? "text-primary" : "text-muted-foreground"}`}>
-                        {hit ? "Covered" : "Missed"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="xl:col-span-4">
-            <CardHeader>
-              <CardTitle className="text-base">다음 액션</CardTitle>
-              <CardDescription>
-                다음 디펜스 면접에서 바로 적용할 실천 항목입니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">강점</p>
-                {(strengths.length > 0 ? strengths : ["강점 분석 데이터가 없습니다."]).map((item, idx) => (
-                  <div key={`${item}-${idx}`} className="rounded-lg bg-primary/5 border border-primary/15 px-3 py-2 text-sm">
-                    {item}
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">개선 포인트</p>
-                {(improvements.length > 0 ? improvements : ["개선 포인트 데이터가 없습니다."]).map((item, idx) => (
-                  <div key={`${item}-${idx}`} className="rounded-lg bg-muted/30 border px-3 py-2 text-sm">
-                    {item}
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">실행 액션</p>
-                {(nextActions.length > 0 ? nextActions : ["다음 면접 전 체크리스트를 직접 작성해보세요."]).map((item, idx) => (
-                  <div key={`${item}-${idx}`} className="rounded-lg border-dashed border px-3 py-2 text-sm">
-                    {idx + 1}. {item}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">근거 스냅샷</CardTitle>
-            <CardDescription>각 평가 축의 근거 문장과 신뢰도를 확인합니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-3">
-            {rubric.map((item) => {
-              const isUncertain = item.confidence < 0.7;
-              return (
-                <div
-                  key={item.key}
-                  className={`rounded-xl border p-4 space-y-2 ${
-                    isUncertain
-                      ? "bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-700/50"
-                      : ""
-                  }`}
+        {["pending", "running"].includes(reportStatus) ? (
+          <div className="rounded-[24px] border border-primary/30 bg-primary/5 px-4 py-4">
+            <div className="flex items-start gap-3">
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+              <div>
+                <p className="text-sm font-semibold text-primary">AI 리포트 생성 중입니다</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  평가 분석이 진행 중입니다. 페이지는 자동으로 다시 읽습니다.
+                  {detail.reportAttempts != null && detail.reportMaxAttempts != null
+                    ? ` (${detail.reportAttempts}/${detail.reportMaxAttempts}회 확인)`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {!hasRubricReport ? (
+          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+            <CardContent className="space-y-4 p-8">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">디펜스 분석이 아직 준비되지 않았습니다</h2>
+                <p className="text-muted-foreground">
+                  {reportStatus === "failed"
+                    ? `리포트 생성이 실패했습니다. ${detail.reportError || ""}`
+                    : "세션 종료 직후에는 분석이 지연될 수 있습니다. 잠시 뒤 다시 확인해주세요."}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button variant="outline" className="rounded-full px-6" onClick={() => window.location.reload()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  새로고침
+                </Button>
+                <Button
+                  className="rounded-full px-6"
+                  onClick={() =>
+                    router.push(
+                      `/interview/training/portfolio/room?sessionId=${encodeURIComponent(sessionId)}&mode=${mode}&duration=${durationMinute}${repoUrl ? `&repoUrl=${encodeURIComponent(repoUrl)}` : ""}`,
+                    )
+                  }
                 >
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <p className="font-semibold text-sm">{item.label}</p>
-                    <Badge
-                      variant="outline"
-                      className={
-                        isUncertain
-                          ? "border-amber-300 text-amber-700 dark:text-amber-400 text-[10px]"
-                          : "border-emerald-300 text-emerald-700 dark:text-emerald-400 text-[10px]"
-                      }
-                    >
-                      {isUncertain ? "근거 불확실" : "확인됨"} {toPercent(item.confidence)}
-                    </Badge>
-                  </div>
-                  {isUncertain && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                      이 근거는 불확실할 수 있습니다.
-                    </p>
-                  )}
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {item.evidence ? (
-                      <><span className="text-muted-foreground/60 italic not-italic">평가 근거: </span>{item.evidence}</>
-                    ) : (
-                      "근거 데이터 없음"
-                    )}
-                  </p>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+                  세션으로 복귀
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <SessionReportHero
+              badgeLabel={model.badgeLabel}
+              typeName={model.typeName}
+              typeLabels={model.typeLabels}
+              summary={model.summary}
+              metrics={model.heroMetrics}
+              metaItems={model.metaItems}
+            />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">면접 대화 요약</CardTitle>
-            <CardDescription>질문/답변 흐름의 주요 장면입니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {turns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">대화 로그가 아직 없습니다.</p>
-            ) : (
-              turns.slice(-8).map((turn, idx) => (
-                <div key={`${turn.role}-${idx}`} className="rounded-lg border px-3 py-2">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold">{turn.role === "model" ? "면접관" : "지원자"}</span>
-                    <span className="text-muted-foreground">#{Math.max(1, turns.length - 7 + idx)}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{turn.text}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+            <section className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+              <AxisProfileBoard axes={model.axes} />
+              <AxisEvidencePanel items={model.axisEvidence} />
+            </section>
 
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" /> 다음 훈련으로 이어가기
-            </CardTitle>
-            <CardDescription>
-              같은 레포로 즉시 재도전하거나 다른 레포로 새 디펜스를 시작할 수 있습니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button
-              onClick={() =>
-                router.push(
-                  `/interview/training/portfolio?mode=${mode}&duration=${durationMinute}${repoUrl ? `&repoUrl=${encodeURIComponent(repoUrl)}` : ""}`,
-                )
-              }
-            >
-              같은 레포로 다시 디펜스 <ChevronRight className="ml-1 w-4 h-4" />
-            </Button>
-            <Button variant="outline" onClick={() => router.push("/interview/training")}>
-              다른 레포로 시작
-            </Button>
-            <Button variant="ghost" onClick={() => router.push("/interview/posting/setup")}>
-              일반 모의면접으로 이동
-            </Button>
-          </CardContent>
-        </Card>
+            <section className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+              <Card className="rounded-[28px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    디펜스 요약
+                  </CardTitle>
+                  <CardDescription>총평과 핵심 하이라이트만 짧게 묶어봅니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4 text-sm leading-7 text-foreground">
+                    {model.defenseSummary}
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-foreground">디펜스 하이라이트</p>
+                    </div>
+                    {model.narrativeHighlights.map((highlight, index) => (
+                      <div key={`${highlight.title}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="border-primary/20 bg-white text-primary">
+                            {highlight.label}
+                          </Badge>
+                          <p className="text-sm font-semibold text-foreground">{highlight.title}</p>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{highlight.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-6">
+                <Card className="rounded-[28px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <ShieldCheck className="h-5 w-5 text-primary" />
+                      토픽 커버리지
+                    </CardTitle>
+                    <CardDescription>이번 디펜스에서 실제로 다룬 핵심 주제들입니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-foreground">Coverage</span>
+                        <span className="text-muted-foreground">
+                          {model.topicCoverage.covered} / {model.topicCoverage.total}
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{
+                            width: `${model.topicCoverage.total > 0 ? Math.round((model.topicCoverage.covered / model.topicCoverage.total) * 100) : 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {model.topicCoverage.items.map((item) => (
+                        <div
+                          key={item.label}
+                          className={`flex items-center justify-between rounded-[16px] border px-3 py-2 text-sm ${
+                            item.covered ? "border-primary/20 bg-primary/5" : "border-[#e7ebf1] bg-[#fbfcfe]"
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                          <span className={`text-xs font-semibold ${item.covered ? "text-primary" : "text-muted-foreground"}`}>
+                            {item.covered ? "Covered" : "Missed"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <InsightListCard
+                  title="기여도 / 방어력"
+                  description="다음 디펜스에서 더 또렷하게 말해야 할 포인트입니다."
+                  items={model.contributionInsights}
+                />
+              </div>
+            </section>
+
+            <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">대화 하이라이트</CardTitle>
+                <CardDescription>디펜스 중 마지막 주요 질문과 답변 장면입니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {model.transcriptHighlights.length > 0 ? (
+                  model.transcriptHighlights.map((turn, index) => (
+                    <div key={`${turn.role}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Badge variant={turn.role === "model" ? "outline" : "secondary"} className="border-primary/20 bg-white text-primary">
+                          {turn.role === "model" ? "면접관" : "지원자"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">최근 흐름</span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-foreground">{turn.text}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4 text-sm text-muted-foreground">
+                    아직 대화 하이라이트를 정리할 로그가 충분하지 않습니다.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <ReportFooterActions
+              title="같은 레포로 다시 방어해볼까요?"
+              description="같은 레포로 다시 디펜스를 진행하거나, 훈련 센터로 돌아가 다른 레포를 시작할 수 있습니다."
+              actions={model.footerActions}
+            />
+          </>
+        )}
       </main>
     </div>
   );

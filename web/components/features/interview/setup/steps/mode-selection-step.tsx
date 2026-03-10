@@ -16,7 +16,7 @@ interface ModeSelectionStepProps {
 export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps) {
     const { setStep } = useInterviewSetupStore();
     const router = useRouter();
-    const [durationMinutes, setDurationMinutes] = useState<5 | 7 | 10>(7);
+    const [durationMinutes, setDurationMinutes] = useState<5 | 10 | 15>(10);
 
     const handleModeSelect = (mode: 'chat' | 'video') => {
         const nextPath = mode === "video" ? "/interview/room/video" : "/interview/room/chat";
@@ -33,13 +33,13 @@ export function ModeSelectionStep({ track = "posting" }: ModeSelectionStepProps)
                         : "설계한 직무 훈련 브리프를 어떤 방식으로 실행할지 선택해주세요."}
                 </p>
                 <div className="pt-4 flex items-center justify-center gap-2">
-                    {[5, 7, 10].map((minute) => (
+                    {[5, 10, 15].map((minute) => (
                         <Button
                             key={minute}
                             type="button"
                             variant={durationMinutes === minute ? "default" : "outline"}
                             className="h-8 px-3 text-xs"
-                            onClick={() => setDurationMinutes(minute as 5 | 7 | 10)}
+                            onClick={() => setDurationMinutes(minute as 5 | 10 | 15)}
                         >
                             {minute}분
                         </Button>

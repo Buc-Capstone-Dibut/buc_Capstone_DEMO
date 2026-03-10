@@ -9,15 +9,11 @@ import {
   ArrowRight,
   Calendar,
   ChevronRight,
-  GitBranch,
   Loader2,
-  Sparkles,
-  Target,
   Video,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { GlobalHeader } from "@/components/layout/global-header";
-import { RubricHelpGuide } from "@/components/features/interview/training/rubric-help-guide";
 
 const RUBRIC_HELP = [
   {
@@ -64,7 +60,7 @@ function formatDate(ts: number): string {
 export default function InterviewTrainingPage() {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState<5 | 7 | 10>(7);
+  const [durationMinutes, setDurationMinutes] = useState<5 | 10 | 15>(10);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
 
@@ -108,20 +104,11 @@ export default function InterviewTrainingPage() {
           <Badge variant="outline" className="border-primary/20 text-primary bg-primary/5 px-3 py-1">
             PORTFOLIO DEFENSE TRAINING CENTER
           </Badge>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div className="space-y-2">
-              <h1 className="text-4xl font-black tracking-tight">포트폴리오 디펜스 훈련 센터</h1>
-              <p className="text-muted-foreground text-lg">
-                공개 레포를 기반으로 화상 면접을 진행하고, 설계 의도 설명 역량을 강화합니다.
-              </p>
-            </div>
-            <Button
-              size="lg"
-              className="h-12 px-6 rounded-xl shadow-lg shadow-primary/20"
-              onClick={() => router.push("/interview/posting/setup")}
-            >
-              새로운 모의면접 시작
-            </Button>
+          <div className="space-y-2">
+            <h1 className="text-4xl font-black tracking-tight">포트폴리오 디펜스 훈련 센터</h1>
+            <p className="text-muted-foreground text-lg">
+              공개 레포를 기반으로 화상 면접을 진행하고, 설계 의도 설명 역량을 강화합니다.
+            </p>
           </div>
         </section>
 
@@ -133,23 +120,36 @@ export default function InterviewTrainingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="rounded-xl border bg-primary/5 border-primary/15 px-4 py-3 text-sm text-primary/90">
-                당신이 왜 이 구조를 택했는지 말할 수 있어야 합격에 가까워집니다. 훈련센터는 화상 면접 단일 모드로 운영됩니다.
+            <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-primary/90">
+                  왜 이 구조를 택했는지, 어떤 대안을 버렸는지 설명할 수 있어야 좋은 디펜스로 이어집니다. 훈련센터는 화상 면접 단일 모드로 운영됩니다.
+                </p>
+                <div className="space-y-2">
+                  <p>1. 설계 의사결정은 대안 비교와 트레이드오프까지 함께 설명합니다.</p>
+                  <p>2. 인프라 선택은 비용, 운영성, 장애 대응 관점으로 답합니다.</p>
+                  <p>3. AI 활용은 생성 결과보다 검증과 롤백 루프까지 보여줍니다.</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {[5, 7, 10].map((minute) => (
-                  <Button
-                    key={minute}
-                    type="button"
-                    variant={durationMinutes === minute ? "default" : "outline"}
-                    size="sm"
-                    className="rounded-full h-8 px-3 text-xs"
-                    onClick={() => setDurationMinutes(minute as 5 | 7 | 10)}
-                  >
-                    {minute}분
-                  </Button>
-                ))}
+
+              <div className="space-y-3 rounded-xl border border-[#eef2f6] bg-[#fbfcfe] px-4 py-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">질문 비중</p>
+                  <Badge variant="outline" className="border-primary/20 bg-white text-primary">
+                    60 / 10 / 30
+                  </Badge>
+                </div>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  {RUBRIC_HELP.map((item) => (
+                    <div key={item.label} className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">{item.label}</p>
+                        <p className="mt-0.5 text-xs leading-5">{item.hint}</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-semibold text-primary">{item.weight}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -159,9 +159,7 @@ export default function InterviewTrainingPage() {
           <Card className="border-2 shadow-sm">
             <CardHeader className="space-y-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <GitBranch className="w-5 h-5 text-primary" /> 포트폴리오 디펜스 시작
-                </CardTitle>
+                <CardTitle className="text-xl">포트폴리오 디펜스 시작</CardTitle>
                 <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
                   Public Repo Only
                 </Badge>
@@ -172,7 +170,23 @@ export default function InterviewTrainingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">GitHub Repository URL</label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="text-sm font-medium">GitHub Repository URL</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[5, 10, 15].map((minute) => (
+                      <Button
+                        key={minute}
+                        type="button"
+                        variant={durationMinutes === minute ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 rounded-full px-3 text-xs"
+                        onClick={() => setDurationMinutes(minute as 5 | 10 | 15)}
+                      >
+                        {minute}분
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 <Input
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
@@ -207,9 +221,7 @@ export default function InterviewTrainingPage() {
           <Card className="border-2 shadow-sm">
             <CardHeader className="space-y-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Sparkles className="w-5 h-5 text-primary" /> 최근 디펜스 세션
-                </CardTitle>
+                <CardTitle className="text-xl">최근 디펜스 세션</CardTitle>
                 <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
                   History
                 </Badge>
@@ -262,36 +274,6 @@ export default function InterviewTrainingPage() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid md:grid-cols-3 gap-4">
-          <Card className="bg-primary/5 border-primary/15 md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" /> 코칭 포인트
-              </CardTitle>
-              <CardDescription>포트폴리오 디펜스에서 자주 나오는 핵심 평가 신호입니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p>1. 설계 의사결정은 대안 비교 + 트레이드오프로 설명하세요.</p>
-              <p>2. 인프라 선택 이유를 비용·운영성·장애대응 관점으로 답하세요.</p>
-              <p>3. AI 사용은 결과만 아니라 검증/롤백 루프까지 제시하세요.</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" /> 60/10/30 질문 가이드
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <RubricHelpGuide items={RUBRIC_HELP} compact />
-              <div className="pt-1 text-xs text-muted-foreground">
-                점수 그래프 대신, 실제 질문 출제 방향을 먼저 이해할 수 있게 구성했습니다.
-              </div>
             </CardContent>
           </Card>
         </section>

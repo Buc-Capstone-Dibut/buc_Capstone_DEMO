@@ -34,10 +34,10 @@ const TOPIC_LABEL: Record<string, string> = {
   caching: "캐싱",
 };
 
-const clampDurationMinute = (raw: string | null): 5 | 7 | 10 => {
+const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   const value = Number(raw);
-  if (value === 5 || value === 7 || value === 10) return value;
-  return 7;
+  if (value === 5 || value === 10 || value === 15) return value;
+  return 10;
 };
 
 const resolveInterviewMode = (_raw: string | null): "video" => "video";

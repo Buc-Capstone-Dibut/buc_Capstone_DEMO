@@ -60,12 +60,12 @@ interface RuntimeMeta {
   finishReason: string;
 }
 
-const DEFAULT_TARGET_DURATION_SEC = 7 * 60;
+const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 
-const clampDurationMinute = (raw: string | null): 5 | 7 | 10 => {
+const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   const value = Number(raw);
-  if (value === 5 || value === 7 || value === 10) return value;
-  return 7;
+  if (value === 5 || value === 10 || value === 15) return value;
+  return 10;
 };
 
 const resolveInterviewMode = (): "video" => "video";
