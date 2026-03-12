@@ -122,7 +122,7 @@ export function ResumeInputStep() {
                     PDF 파일을 업로드하거나, 핵심 경력을 직접 입력할 수 있습니다.<br />
                     입력된 내용은 면접관 AI에게 전달됩니다.
                 </p>
-                <div className="pt-2">
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
@@ -138,6 +138,17 @@ export function ResumeInputStep() {
                         ) : (
                             "마이페이지에서 불러오기"
                         )}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                            window.location.href = "/resume?mode=setup";
+                        }}
+                        className="h-10 gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary"
+                    >
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        AI와 함께 새로 작성
                     </Button>
                 </div>
                 {resumePrefillSource === "active_resume" && (

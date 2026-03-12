@@ -14,7 +14,6 @@ interface ResumeTabProps {
   onChangeResumePayload: (payload: ResumePayload) => void;
   onSaveResume: () => void;
   saving: boolean;
-  onGoSetup: () => void;
   resumeSummary: PublicResumeSummary | null;
 }
 
@@ -26,7 +25,6 @@ export function ResumeTab({
   onChangeResumePayload,
   onSaveResume,
   saving,
-  onGoSetup,
   resumeSummary,
 }: ResumeTabProps) {
   if (isOwner) {
@@ -49,7 +47,6 @@ export function ResumeTab({
         onChange={onChangeResumePayload}
         onSave={onSaveResume}
         saving={saving}
-        onGoSetup={onGoSetup}
       />
     );
   }
