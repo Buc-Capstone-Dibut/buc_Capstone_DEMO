@@ -145,7 +145,7 @@ export function ResumeInputStep({ track = "posting" }: ResumeInputStepProps) {
                         경력과 프로젝트를 연결하면 공통 직무 질문이 내 경험 중심 꼬리질문으로 확장됩니다.
                     </p>
                 )}
-                <div className="pt-2">
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
@@ -161,6 +161,17 @@ export function ResumeInputStep({ track = "posting" }: ResumeInputStepProps) {
                         ) : (
                             "마이페이지에서 불러오기"
                         )}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                            window.location.href = "/resume?mode=setup";
+                        }}
+                        className="h-10 gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary"
+                    >
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        AI와 함께 새로 작성
                     </Button>
                 </div>
                 {resumePrefillSource === "active_resume" && (

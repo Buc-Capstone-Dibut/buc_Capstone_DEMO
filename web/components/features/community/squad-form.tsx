@@ -19,6 +19,16 @@ import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { Calendar as CalendarIcon } from "lucide-react";
 
 // Dynamic import for Editor
 const MarkdownEditor = dynamic(
@@ -43,6 +53,7 @@ interface SquadFormProps {
     place_type: "online" | "offline" | "hybrid";
     location?: string;
     tech_stack: string[];
+    recruitment_period?: string;
     activity_id?: string;
     activity_title?: string;
   };
@@ -57,9 +68,11 @@ export default function SquadForm({ initialData }: SquadFormProps) {
 
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState(initialData?.content || "");
-  const [type, setType] = useState(initialData?.type || "project");
   const [placeType, setPlaceType] = useState(
     initialData?.place_type || "online",
+  );
+  const [date, setDate] = useState<Date | undefined>(
+    initialData?.recruitment_period ? new Date(initialData.recruitment_period) : undefined,
   );
 
   // Tag Managment
@@ -98,7 +111,6 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       // Validation
       const missingFields = [];
       if (!titleVal) missingFields.push("제목");
-      if (!type) missingFields.push("모임 유형");
       if (!content) missingFields.push("상세 내용");
       if (placeType !== "online" && !locationVal)
         missingFields.push("주 활동 지역");
@@ -124,11 +136,12 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       const payload = {
         title: titleVal,
         content,
-        type,
+        type: "general",
         capacity: capacityVal,
         tech_stack: noTechStack ? [] : tags,
         place_type: placeType,
         location: locationVal,
+        recruitment_period: date ? format(date, "yyyy-MM-dd") : null,
         activity_id: activityId,
         user_id: user.id,
       };
@@ -186,27 +199,46 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       )}
 
       {/* Basic Info Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div className="space-y-2">
-          <Label htmlFor="type">모임 유형</Label>
-          <Select value={type} onValueChange={setType} name="type">
-            <SelectTrigger>
-              <SelectValue placeholder="유형 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="project">사이드 프로젝트</SelectItem>
-              <SelectItem value="study">스터디</SelectItem>
-              <SelectItem value="contest">공모전/대회</SelectItem>
-              <SelectItem value="mogakco">모각코 (모여서 각자 코딩)</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="recruitment_period">모집 기간</Label>
+          <div className="flex flex-col gap-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="recruitment_period"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-10",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP", { locale: ko }) : <span>날짜를 선택하세요 (상시 모집 시 비워둠)</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            <p className="text-[0.75rem] text-muted-foreground leading-none px-1">
+              * 미선택 시 '상시 모집'으로 표시됩니다.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="capacity">모집 인원 (본인 포함)</Label>
           <Input
+            id="capacity"
             type="number"
             name="capacity"
+            className="h-10"
             defaultValue={initialData?.capacity || 4}
             min={2}
             max={20}
@@ -273,9 +305,8 @@ export default function SquadForm({ initialData }: SquadFormProps) {
         </div>
 
         <div
-          className={`border rounded-md px-3 py-2 bg-background focus-within:ring-2 focus-within:ring-primary/20 flex flex-wrap gap-2 min-h-[42px] ${
-            noTechStack ? "opacity-50 cursor-not-allowed bg-muted" : ""
-          }`}
+          className={`border rounded-md px-3 py-2 bg-background focus-within:ring-2 focus-within:ring-primary/20 flex flex-wrap gap-2 min-h-[42px] ${noTechStack ? "opacity-50 cursor-not-allowed bg-muted" : ""
+            }`}
         >
           {tags.map((tag) => (
             <Badge
