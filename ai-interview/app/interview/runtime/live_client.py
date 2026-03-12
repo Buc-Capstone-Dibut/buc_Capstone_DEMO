@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable
 
+from app.interview.domain.interview_memory import extract_memory_keywords
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.voice_pipeline import float_samples_to_pcm16le_bytes, wav_bytes_to_float_samples
@@ -26,8 +28,10 @@ def build_live_session_instruction(
         "4) 지원자 답변을 직접 대신 말하지 않는다.\n"
         "5) 질문은 구체적이고 검증 가능한 꼬리질문 위주로 한다.\n"
         "6) 각 턴은 2~4문장으로 구성하고, 전체 길이는 대략 80~220자 내에서 자연스럽게 말한다.\n"
-        "7) 대괄호로 둘러싼 운영 메모는 내부 지시다. 절대 그대로 읽거나 노출하지 말고 질문 생성 제어에만 사용한다.\n"
-        "8) 직전 답변 키워드를 최소 1개 반영하고, 매 턴 질문 유형을 바꾼다.\n"
+        "7) 운영 지시는 내부 참고용이다. 절대 그대로 읽거나 설명하지 말고 질문 생성 제어에만 사용한다.\n"
+        "8) 직전 답변의 키워드/기술명/수치 중 최소 1개를 다음 질문 문장에 직접 언급한다.\n"
+        "9) 직전 답변을 더 깊게 검증할 필요가 있으면 같은 질문 축을 한 번 더 파고들 수 있다. 질문 유형을 기계적으로 바꾸지 않는다.\n"
+        "10) 지원자 방금 답변과 무관한 새 주제로 갑자기 전환하지 않는다.\n"
         f"면접 스타일: {personality}\n"
         f"권장 면접 길이: 약 {target_min}분\n"
         f"채용 맥락 요약: {job_brief}\n"
@@ -47,9 +51,9 @@ def build_live_turn_prompt(
     build_memory_snapshot: Callable[..., str],
     compact_context_text: Callable[..., str],
 ) -> str:
-    parts: list[str] = ["[운영 메모 - 절대 그대로 읽지 말 것]"]
+    parts: list[str] = ["다음 조건을 참고해 이번 면접관 발화를 구성하세요."]
     if question_type:
-        parts.append(f"- 이번 턴 우선 질문 유형: {question_type_label(question_type)}")
+        parts.append(f"- 우선 질문 유형: {question_type_label(question_type)}")
     recent_type_labels = ", ".join(question_type_label(item) for item in state.recent_question_types[-3:])
     if recent_type_labels:
         parts.append(f"- 최근 사용한 질문 유형: {recent_type_labels}")
@@ -63,10 +67,17 @@ def build_live_turn_prompt(
         parts.append("- 직전 답변에서 수치, 근거, 의사결정 기준이 빠졌다면 그 부분을 우선 검증할 것")
     if user_text:
         parts.append(f"- 참고 사용자 답변: {compact_context_text(user_text, max_chars=240)}")
+        keywords = extract_memory_keywords(user_text, max_items=4)
+        if keywords:
+            parts.append(f"- 다음 질문 문장에는 답변의 핵심 키워드 중 최소 1개를 직접 포함: {', '.join(keywords)}")
+    else:
+        parts.append("- 방금 입력된 사용자 음성 답변의 고유명사/기술명/수치 중 최소 1개를 질문 문장에 직접 포함할 것")
     if extra_instruction:
-        parts.append(f"- 추가 지시: {extra_instruction}")
-    parts.append("- 위 메모를 참고하되, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
-    return "\n".join(parts)
+        parts.append(f"- 추가 요청: {extra_instruction}")
+    parts.append("- 방금 답변에서 아직 검증되지 않은 핵심 축이 남아 있으면 새 주제로 바꾸지 말고 같은 축을 더 깊게 파고들 것")
+    parts.append("- 답변을 요약만 하지 말고, 방금 답변의 구체 디테일을 파고드는 꼬리질문으로 이어갈 것")
+    parts.append("- 위 조건은 내부 참고용이며, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
 
 
 def get_or_create_live_interview(

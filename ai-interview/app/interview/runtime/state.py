@@ -15,6 +15,7 @@ def build_vad_segmenter() -> VadSegmenter:
     return VadSegmenter(
         sample_rate=16000,
         threshold=settings.voice_vad_threshold,
+        speech_start_ms=settings.voice_vad_speech_start_ms,
         silence_ms=settings.voice_vad_silence_ms,
         min_speech_ms=settings.voice_min_speech_ms,
         min_utterance_ms=settings.voice_vad_min_utterance_ms,

@@ -9,9 +9,15 @@ import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, WifiOff } from "lucid
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import {
   buildInterviewResultPath,
-  shouldResetInterviewOnNavigationType,
   shouldRouteToSetupOnReconnectTimeout,
 } from "@/lib/interview/interview-session-flow";
+import {
+  isLocalInterviewBaseUrl,
+  LOCAL_INTERVIEW_FALLBACK_USER_ID,
+  resolveInterviewBaseUrlFromWsUrl,
+} from "@/lib/interview/dev-auth";
+import { formatTranscriptForDisplay } from "@/lib/transcript-display";
+import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
 
@@ -93,12 +99,11 @@ export default function InterviewVideoRoomPage() {
   const {
     jobData,
     resumeData,
-    interviewSessionId,
     setInterviewSessionId,
     reset,
   } = useInterviewSetupStore();
 
-  const [activeSessionId, setActiveSessionId] = useState(requestedSessionId || interviewSessionId || "");
+  const [activeSessionId, setActiveSessionId] = useState(requestedSessionId || "");
   const [runtimeMeta, setRuntimeMeta] = useState<RuntimeMeta>({
     targetDurationSec: requestedTargetDurationSec || DEFAULT_TARGET_DURATION_SEC,
     closingThresholdSec: 60,
@@ -115,16 +120,23 @@ export default function InterviewVideoRoomPage() {
     runtimeStatus: "created",
   });
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [streamingCaption, setStreamingCaption] = useState("");
+  const [streamingAiCaption, setStreamingAiCaption] = useState("");
+  const [streamingUserCaption, setStreamingUserCaption] = useState("");
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectRemainingSec, setReconnectRemainingSec] = useState(RECONNECT_GRACE_SEC);
+  const [isAudioPrimed, setIsAudioPrimed] = useState(false);
+  const [isPrimingAudio, setIsPrimingAudio] = useState(false);
 
   const startedRef = useRef(false);
   const sessionStartingRef = useRef(false);
   const completionRedirectedRef = useRef(false);
+  const activeSessionIdRef = useRef("");
+  const initRetryTimerRef = useRef<number | null>(null);
+  const initRetryAttemptedRef = useRef(false);
+  const isSessionReadyRef = useRef(false);
 
   const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client";
   const interviewJobData = useMemo(
@@ -165,16 +177,40 @@ export default function InterviewVideoRoomPage() {
     router.replace(sessionType === "portfolio_defense" ? "/interview/training/portfolio" : "/interview");
   }, [reset, router, sessionType]);
 
+  const clearInitRetryTimer = useCallback(() => {
+    if (initRetryTimerRef.current === null) return;
+    window.clearTimeout(initRetryTimerRef.current);
+    initRetryTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    isSessionReadyRef.current = isSessionReady;
+    if (!isSessionReady) return;
+    clearInitRetryTimer();
+    initRetryAttemptedRef.current = false;
+  }, [clearInitRetryTimer, isSessionReady]);
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+
   const ensureSessionId = useCallback(async (): Promise<string | null> => {
-    if (activeSessionId) return activeSessionId;
+    if (activeSessionIdRef.current) return activeSessionIdRef.current;
     if (sessionStartingRef.current) return null;
 
     sessionStartingRef.current = true;
     try {
+      setStatusMessage("면접 세션을 생성하는 중...");
       const endpoint =
         sessionType === "portfolio_defense"
           ? "/api/interview/portfolio/session/start"
           : "/api/interview/session/start";
+      const aiBaseUrl = resolveInterviewBaseUrlFromWsUrl(wsUrl);
+      const allowDirectStartFallback = isLocalInterviewBaseUrl(aiBaseUrl);
+      const directEndpoint =
+        sessionType === "portfolio_defense"
+          ? `${aiBaseUrl}/v1/interview/portfolio/session/start`
+          : `${aiBaseUrl}/v1/interview/session/start`;
       const body =
         sessionType === "portfolio_defense"
           ? {
@@ -197,20 +233,97 @@ export default function InterviewVideoRoomPage() {
               closingThresholdSec: 60,
             };
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const parseSessionStartResponse = async (response: Response) => {
+        const result = await response.json().catch(() => null);
+        if (response.status === 401) {
+          router.push("/auth/login");
+          return null;
+        }
+        if (!response.ok || !result?.success || !result?.data?.sessionId) {
+          throw new Error(result?.error || "면접 세션 시작에 실패했습니다.");
+        }
+        return result;
+      };
 
-      const result = await response.json().catch(() => null);
-      if (response.status === 401) {
-        router.push("/auth/login");
-        return null;
+      const startViaBff = async () => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 6000);
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+          return await parseSessionStartResponse(response);
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      };
+
+      const startDirectWithClientAuth = async () => {
+        if (useDirectStartFirst) {
+          return await startDirectWithUserId(LOCAL_INTERVIEW_FALLBACK_USER_ID);
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const sessionUserId = session?.user?.id ?? null;
+
+        if (!sessionUserId) {
+          const getUserResult = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise<never>((_, reject) =>
+              window.setTimeout(() => reject(new Error("사용자 인증 정보를 확인하는 중 시간이 초과되었습니다.")), 2000),
+            ),
+          ]);
+          const { data, error } = getUserResult as Awaited<ReturnType<typeof supabase.auth.getUser>>;
+          if (error) {
+            throw new Error(error.message || "사용자 인증 정보를 확인하지 못했습니다.");
+          }
+          if (!data.user?.id) {
+            router.push("/auth/login");
+            return null;
+          }
+
+          return await startDirectWithUserId(data.user.id);
+        }
+
+        return await startDirectWithUserId(sessionUserId);
+      };
+
+      const startDirectWithUserId = async (userId: string) => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+        try {
+          const response = await fetch(directEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": userId,
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+          return await parseSessionStartResponse(response);
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      };
+
+      let result: { data?: Record<string, unknown> } | null = null;
+      try {
+        result = await startViaBff();
+      } catch (error) {
+        const isTimeout = error instanceof Error && error.name === "AbortError";
+        if (!isTimeout || !allowDirectStartFallback) {
+          throw error;
+        }
+        setStatusMessage("세션 생성 응답이 지연되어 로컬 AI 서버 직접 연결로 재시도하는 중...");
+        result = await startDirectWithClientAuth();
       }
-      if (!response.ok || !result?.success || !result?.data?.sessionId) {
-        throw new Error(result?.error || "면접 세션 시작에 실패했습니다.");
-      }
+      if (!result?.data?.sessionId) return null;
 
       const nextSessionId = String(result.data.sessionId);
       setActiveSessionId(nextSessionId);
@@ -224,14 +337,16 @@ export default function InterviewVideoRoomPage() {
       }));
       return nextSessionId;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "면접 세션 시작에 실패했습니다.";
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? "면접 세션 생성이 지연되고 있습니다. AI 서버 상태를 확인해 주세요."
+          : (error instanceof Error ? error.message : "면접 세션 시작에 실패했습니다.");
       setStatusMessage(message);
       return null;
     } finally {
       sessionStartingRef.current = false;
     }
   }, [
-    activeSessionId,
     interviewJobData,
     portfolioJobData.detectedTopics,
     portfolioJobData.focus,
@@ -244,12 +359,14 @@ export default function InterviewVideoRoomPage() {
     router,
     sessionType,
     setInterviewSessionId,
+    wsUrl,
   ]);
 
   const {
     connect,
     disconnect,
     initInterviewSession,
+    prepareAudio,
     startMic,
     stopMic,
     isConnected,
@@ -263,7 +380,9 @@ export default function InterviewVideoRoomPage() {
       const clean = text.trim();
       if (!clean) return;
       if (role === "ai") {
-        setStreamingCaption("");
+        setStreamingAiCaption("");
+      } else {
+        setStreamingUserCaption("");
       }
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
@@ -286,7 +405,8 @@ export default function InterviewVideoRoomPage() {
         if (!resumed) {
           setTranscript([]);
         }
-        setStreamingCaption("");
+        setStreamingAiCaption("");
+        setStreamingUserCaption("");
         setRuntimeMeta((prev) => ({
           ...prev,
           targetDurationSec: toNumber(event.targetDurationSec, prev.targetDurationSec),
@@ -365,20 +485,70 @@ export default function InterviewVideoRoomPage() {
         routeToSetup();
       }
 
-      if (eventType === "transcript.delta" && event.role === "ai") {
+      if (eventType === "transcript.delta" && (event.role === "ai" || event.role === "user")) {
         const accumulated = typeof event.accumulatedText === "string" ? event.accumulatedText : "";
         const delta = typeof event.delta === "string" ? event.delta : "";
-        setStreamingCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+        if (event.role === "ai") {
+          setStreamingAiCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+          setStreamingUserCaption("");
+        } else {
+          setStreamingUserCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+          setStreamingAiCaption("");
+        }
       }
     },
   });
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const navigationEntry = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (!shouldResetInterviewOnNavigationType(navigationEntry?.type)) return;
-    routeToSetup();
-  }, [routeToSetup]);
+  const sendInterviewInit = useCallback(async (sessionId: string, attempt: "initial" | "retry" = "initial") => {
+    const payload = {
+      sessionId,
+      sessionType,
+      style: "professional" as const,
+      targetDurationSec: requestedTargetDurationSec,
+      closingThresholdSec: 60,
+      llmStreamMode: "delta" as const,
+      ttsMode: "server" as const,
+      jobData: runtimeJobData,
+      resumeData:
+        sessionType === "portfolio_defense"
+          ? {}
+          : ((resumeData?.parsedContent as Record<string, unknown> | undefined) || {}),
+    };
+
+    let sent = false;
+    for (let retry = 0; retry < 3; retry += 1) {
+      sent = initInterviewSession(payload);
+      if (sent) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 250 * (retry + 1)));
+    }
+
+    if (!sent) {
+      startedRef.current = false;
+      setStatusMessage("실시간 면접 세션 초기화 요청 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      return false;
+    }
+
+    setStatusMessage(
+      attempt === "retry"
+        ? "세션 초기화 응답이 지연되어 다시 요청하는 중..."
+        : "실시간 면접 세션을 초기화하는 중...",
+    );
+    clearInitRetryTimer();
+    initRetryTimerRef.current = window.setTimeout(() => {
+      if (isSessionReadyRef.current || initRetryAttemptedRef.current) return;
+      initRetryAttemptedRef.current = true;
+      void sendInterviewInit(sessionId, "retry");
+    }, 4000);
+
+    return true;
+  }, [
+    clearInitRetryTimer,
+    initInterviewSession,
+    requestedTargetDurationSec,
+    resumeData?.parsedContent,
+    runtimeJobData,
+    sessionType,
+  ]);
 
   useEffect(() => {
     connect();
@@ -386,13 +556,17 @@ export default function InterviewVideoRoomPage() {
   }, [connect, disconnect]);
 
   useEffect(() => {
-    if (!requestedSessionId) return;
+    if (!requestedSessionId) {
+      setActiveSessionId("");
+      setInterviewSessionId(null);
+      return;
+    }
     setActiveSessionId(requestedSessionId);
     setInterviewSessionId(requestedSessionId);
   }, [requestedSessionId, setInterviewSessionId]);
 
   useEffect(() => {
-    if (!isConnected || startedRef.current) return;
+    if (!isConnected || startedRef.current || !isAudioPrimed) return;
 
     let cancelled = false;
     startedRef.current = true;
@@ -405,20 +579,7 @@ export default function InterviewVideoRoomPage() {
         return;
       }
 
-      initInterviewSession({
-        sessionId: nextSessionId,
-        sessionType,
-        style: "professional",
-        targetDurationSec: requestedTargetDurationSec,
-        closingThresholdSec: 60,
-        llmStreamMode: "delta",
-        ttsMode: "server",
-        jobData: runtimeJobData,
-        resumeData:
-          sessionType === "portfolio_defense"
-            ? {}
-            : ((resumeData?.parsedContent as Record<string, unknown> | undefined) || {}),
-      });
+      await sendInterviewInit(nextSessionId);
     })();
 
     return () => {
@@ -426,14 +587,13 @@ export default function InterviewVideoRoomPage() {
     };
   }, [
     ensureSessionId,
-    initInterviewSession,
+    isAudioPrimed,
     isConnected,
     requestedSessionId,
-    requestedTargetDurationSec,
-    resumeData?.parsedContent,
-    runtimeJobData,
-    sessionType,
+    sendInterviewInit,
   ]);
+
+  useEffect(() => () => clearInitRetryTimer(), [clearInitRetryTimer]);
 
   useEffect(() => {
     if (!isReconnecting) return;
@@ -513,7 +673,18 @@ export default function InterviewVideoRoomPage() {
   const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
-  const activeAiCaption = streamingCaption.trim();
+  const activeAiCaption = formatTranscriptForDisplay(streamingAiCaption.trim(), "ai");
+  const activeUserCaption = formatTranscriptForDisplay(streamingUserCaption.trim(), "user");
+  const activeCaptionRole: "ai" | "user" | null = activeAiCaption
+    ? "ai"
+    : (activeUserCaption ? "user" : null);
+  const activeCaptionText = activeCaptionRole === "ai" ? activeAiCaption : activeUserCaption;
+  const latestCaptionText = latestCaption
+    ? formatTranscriptForDisplay(latestCaption.text, latestCaption.role)
+    : "";
+  const previousCaptionText = previousCaption
+    ? formatTranscriptForDisplay(previousCaption.text, previousCaption.role)
+    : "";
 
   const handleMicToggle = async () => {
     if (isReconnecting) return;
@@ -525,6 +696,22 @@ export default function InterviewVideoRoomPage() {
 
     await startMic({ userGesture: true });
     setStatusMessage("마이크를 활성화했습니다.");
+  };
+
+  const handlePrimeAudio = async () => {
+    if (isPrimingAudio) return;
+    setIsPrimingAudio(true);
+    try {
+      const ready = await prepareAudio();
+      if (!ready) {
+        setStatusMessage("오디오 재생을 시작하지 못했습니다. 브라우저에서 사운드 자동재생을 허용해 주세요.");
+        return;
+      }
+      setIsAudioPrimed(true);
+      setStatusMessage("오디오 준비가 완료되었습니다. 면접을 시작합니다.");
+    } finally {
+      setIsPrimingAudio(false);
+    }
   };
 
   const handleFinish = () => {
@@ -593,29 +780,31 @@ export default function InterviewVideoRoomPage() {
 
         {showCaption ? (
           <div className="pointer-events-none absolute bottom-28 left-1/2 z-30 w-[min(960px,92%)] -translate-x-1/2">
-            <div className="rounded-2xl border border-white/20 bg-black/55 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <div className="pointer-events-auto rounded-2xl border border-white/20 bg-black/55 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
               <div className="mb-1.5 flex items-center gap-2 text-[11px] text-white/70">
                 <Captions className="h-3.5 w-3.5" />
                 실시간 자막
               </div>
-              {latestCaption || activeAiCaption ? (
-                <div className="space-y-1">
-                  {previousCaption && !activeAiCaption ? (
-                    <p className="truncate text-[12px] text-white/60">
-                      {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaption.text}
+              {latestCaption || activeCaptionText ? (
+                <div className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
+                  {previousCaption && !activeCaptionText ? (
+                    <p className="break-words text-[12px] leading-relaxed text-white/60">
+                      {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaptionText}
                     </p>
                   ) : null}
-                  {activeAiCaption ? (
-                    <p className="text-sm font-medium leading-relaxed">
-                      <span className="mr-1 text-emerald-300">Dibut:</span>
-                      {activeAiCaption}
+                  {activeCaptionText ? (
+                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
+                      <span className={`mr-1 ${activeCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
+                        {activeCaptionRole === "ai" ? "Dibut" : "나"}:
+                      </span>
+                      {activeCaptionText}
                     </p>
                   ) : latestCaption ? (
-                    <p className="text-sm font-medium leading-relaxed">
+                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
                       <span className="mr-1 text-emerald-300">
                         {latestCaption.role === "ai" ? "Dibut" : "나"}:
                       </span>
-                      {latestCaption.text}
+                      {latestCaptionText}
                     </p>
                   ) : null}
                 </div>
@@ -658,10 +847,31 @@ export default function InterviewVideoRoomPage() {
           </div>
         ) : null}
 
+        {!isAudioPrimed ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#020617]/82 backdrop-blur-sm">
+            <div className="mx-6 w-full max-w-lg rounded-[28px] border border-white/15 bg-[#111827]/92 p-7 text-white shadow-2xl">
+              <p className="text-lg font-semibold">면접 시작 준비</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/75">
+                첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다.
+              </p>
+              <Button
+                className="mt-5 w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
+                onClick={handlePrimeAudio}
+                disabled={isPrimingAudio}
+              >
+                {isPrimingAudio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                면접 시작하기
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="absolute inset-x-0 bottom-0 z-30 px-4 pb-4">
           <div className="mx-auto w-full max-w-5xl rounded-2xl border border-white/20 bg-black/60 px-3 py-3 backdrop-blur-md">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <p className="truncate text-xs text-white/70">{statusMessage}</p>
+              <p className="max-w-2xl break-words whitespace-pre-wrap text-xs leading-relaxed text-white/70">
+                {statusMessage}
+              </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button
                   size="sm"

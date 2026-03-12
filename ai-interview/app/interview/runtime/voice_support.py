@@ -59,6 +59,7 @@ def live_active_model(state: VoiceWsState) -> str:
 def snapshot_vad_config(state: VoiceWsState) -> dict[str, Any]:
     return {
         "threshold": float(state.vad.threshold),
+        "speech_start_ms": int(state.vad.speech_start_ms),
         "silence_ms": int(state.vad.silence_ms),
         "short_utterance_silence_ms": int(state.vad.short_utterance_silence_ms),
         "min_utterance_ms": int(state.vad.min_utterance_ms),

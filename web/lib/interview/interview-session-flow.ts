@@ -30,9 +30,3 @@ export function shouldRouteToSetupOnReconnectTimeout(
 ): boolean {
   return isReconnecting && reconnectRemainingSec <= 0;
 }
-
-export function shouldResetInterviewOnNavigationType(
-  navigationType: string | null | undefined,
-): boolean {
-  return navigationType === "reload";
-}

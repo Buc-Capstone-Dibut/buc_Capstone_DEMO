@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from app.interview.domain.turn_text import sanitize_ai_turn_text, sanitize_user_turn_text
 from app.services.voice_pipeline import (
     float_samples_to_pcm16le_bytes,
     wav_bytes_to_float_samples,
@@ -93,6 +94,8 @@ class _GeminiLiveBaseService:
             model_turn = getattr(server_content, "model_turn", None)
             parts = getattr(model_turn, "parts", None) or []
             for part in parts:
+                if bool(getattr(part, "thought", False)):
+                    continue
                 text = getattr(part, "text", None)
                 if isinstance(text, str) and text.strip():
                     chunks.append(text.strip())
@@ -287,7 +290,7 @@ class GeminiLiveSttService(_GeminiLiveBaseService):
             model_text_chunks = self._extract_model_text_chunks(responses)
             final_text = " ".join(model_text_chunks).strip()
 
-        return SttResult(text=final_text, provider=self.provider)
+        return SttResult(text=sanitize_user_turn_text(final_text), provider=self.provider)
 
 
 class GeminiLiveTtsService(_GeminiLiveBaseService):
@@ -475,11 +478,15 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
     def _build_live_config(self, session_instruction: str) -> dict[str, Any]:
         return {
             "response_modalities": ["AUDIO"],
-            "temperature": 0.35,
+            "temperature": 0.2,
             "top_p": 0.9,
-            "max_output_tokens": 1100,
+            "max_output_tokens": 420,
             "input_audio_transcription": {},
             "output_audio_transcription": {},
+            "thinking_config": {
+                "include_thoughts": False,
+                "thinking_budget": 0,
+            },
             "speech_config": {
                 "voice_config": {
                     "prebuilt_voice_config": {
@@ -494,7 +501,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         prompt = (turn_prompt or "").strip()
         payload = (text or "").strip()
         if prompt and payload:
-            return f"{prompt}\n\n[실행 지시]\n{payload}"
+            return f"{prompt}\n\n{payload}"
         return prompt or payload
 
     def _sanitize_model_text(self, text: str) -> str:
@@ -526,20 +533,52 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         )
         return any(normalized.endswith(ending) for ending in complete_endings)
 
+    def _normalize_ai_text_candidate(self, text: str) -> str:
+        cleaned = self._sanitize_model_text(text)
+        if not cleaned:
+            return ""
+        normalized = sanitize_ai_turn_text(cleaned)
+        if not normalized:
+            return ""
+        normalized = re.sub(r"([.!?])(?=[가-힣A-Za-z])", r"\1 ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
+
     def _select_best_ai_text(self, output_text: str, model_text: str) -> str:
-        candidates = [text for text in (output_text, model_text) if (text or "").strip()]
+        normalized_output = self._normalize_ai_text_candidate(output_text)
+        normalized_model = self._normalize_ai_text_candidate(model_text)
+        output_complete = self._is_likely_complete_ai_text(normalized_output)
+        model_complete = self._is_likely_complete_ai_text(normalized_model)
+
+        if normalized_output:
+            if not normalized_model:
+                return normalized_output
+            model_has_latin = bool(re.search(r"[A-Za-z]", normalized_model))
+            output_has_latin = bool(re.search(r"[A-Za-z]", normalized_output))
+            if output_complete and (
+                not model_complete
+                or len(normalized_output) >= len(normalized_model) - 8
+                or (model_has_latin and not output_has_latin)
+            ):
+                return normalized_output
+            if model_complete and not output_complete:
+                return normalized_model
+            if normalized_model.startswith(normalized_output) and len(normalized_model) >= len(normalized_output) + 10:
+                return normalized_model
+            if normalized_output.startswith(normalized_model) and len(normalized_output) >= len(normalized_model) + 10:
+                return normalized_output
+
+        candidates = [text for text in (normalized_output, normalized_model) if text]
         if not candidates:
             return ""
 
         def _score(candidate: str) -> int:
-            normalized = self._sanitize_model_text(candidate)
-            if not normalized:
-                return -1
-            bonus = 140 if self._is_likely_complete_ai_text(normalized) else 0
-            return len(normalized) + bonus
+            bonus = 140 if self._is_likely_complete_ai_text(candidate) else 0
+            hangul_bonus = 80 if re.search(r"[가-힣]", candidate) else 0
+            return len(candidate) + bonus + hangul_bonus
 
         best = max(candidates, key=_score)
-        return self._sanitize_model_text(best)
+        return best
 
     async def close(self) -> None:
         async with self._session_lock:
@@ -622,10 +661,20 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         model_text_chunks = self._extract_model_text_chunks(responses)
         audio_chunks, sample_rate = self._extract_audio_chunks(responses)
 
-        user_text = self._merge_transcription_chunks(input_chunks)
+        user_text = sanitize_user_turn_text(self._merge_transcription_chunks(input_chunks))
         output_text = self._merge_transcription_chunks(output_chunks)
         model_text = self._merge_transcription_chunks(model_text_chunks)
         ai_text = self._select_best_ai_text(output_text, model_text)
+        logger.info(
+            "gemini live turn parsed (input_len=%s, output_len=%s, model_len=%s, selected_len=%s, audio_bytes=%s)",
+            len(user_text),
+            len(output_text),
+            len(model_text),
+            len(ai_text),
+            sum(len(chunk) for chunk in audio_chunks),
+        )
+        if ai_text:
+            logger.info("gemini live caption ai=%s", ai_text)
 
         payload = b"".join(audio_chunks)
         detected_rate = int(sample_rate or self.output_sample_rate)
@@ -651,27 +700,40 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        connected = await self._ensure_connected(session_instruction)
-        if not connected or self._session is None:
-            return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
-
-        try:
-            async with self._turn_lock:
-                await self._session.send_realtime_input(text=prompt)
-                responses = await self._receive_until_turn_complete(
-                    response_stream=self._session.receive(),
-                    timeout_sec=self.timeout_sec,
+        for attempt in range(1, 3):
+            connected = await self._ensure_connected(session_instruction)
+            if not connected or self._session is None:
+                logger.warning(
+                    "gemini live text turn connect unavailable (attempt=%s, text_len=%s)",
+                    attempt,
+                    len(prompt),
                 )
-            result = self._build_turn_result(responses)
-            if result.ai_text or result.audio_pcm_bytes:
-                return result
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(
-                "gemini live single text turn failed (text_len=%s)",
-                len(prompt),
-            )
+                await self.close()
+                continue
+
+            try:
+                async with self._turn_lock:
+                    await self._session.send_realtime_input(text=prompt)
+                    responses = await self._receive_until_turn_complete(
+                        response_stream=self._session.receive(),
+                        timeout_sec=self.timeout_sec,
+                    )
+                result = self._build_turn_result(responses)
+                if result.ai_text or result.audio_pcm_bytes:
+                    return result
+                logger.warning(
+                    "gemini live text turn empty result (attempt=%s, text_len=%s)",
+                    attempt,
+                    len(prompt),
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "gemini live single text turn failed (attempt=%s, text_len=%s)",
+                    attempt,
+                    len(prompt),
+                )
             await self.close()
 
         return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
@@ -688,34 +750,50 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
         normalized_rate = max(8000, int(sample_rate or 16000))
-        connected = await self._ensure_connected(session_instruction)
-        if not connected or self._session is None:
-            return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        try:
-            async with self._turn_lock:
-                prompt = (turn_prompt or "").strip()
-                if prompt:
-                    await self._session.send_realtime_input(text=prompt)
-                await self._session.send_realtime_input(
-                    audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
+        for attempt in range(1, 3):
+            connected = await self._ensure_connected(session_instruction)
+            if not connected or self._session is None:
+                logger.warning(
+                    "gemini live audio turn connect unavailable (attempt=%s, sample_rate=%s, bytes=%s)",
+                    attempt,
+                    normalized_rate,
+                    len(pcm_bytes),
                 )
-                await self._session.send_realtime_input(audio_stream_end=True)
-                responses = await self._receive_until_turn_complete(
-                    response_stream=self._session.receive(),
-                    timeout_sec=self.timeout_sec,
+                await self.close()
+                continue
+
+            try:
+                async with self._turn_lock:
+                    prompt = (turn_prompt or "").strip()
+                    if prompt:
+                        await self._session.send_realtime_input(text=prompt)
+                    await self._session.send_realtime_input(
+                        audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
+                    )
+                    await self._session.send_realtime_input(audio_stream_end=True)
+                    responses = await self._receive_until_turn_complete(
+                        response_stream=self._session.receive(),
+                        timeout_sec=self.timeout_sec,
+                    )
+                result = self._build_turn_result(responses)
+                if result.user_text or result.ai_text or result.audio_pcm_bytes:
+                    return result
+                logger.warning(
+                    "gemini live audio turn empty result (attempt=%s, sample_rate=%s, bytes=%s)",
+                    attempt,
+                    normalized_rate,
+                    len(pcm_bytes),
                 )
-            result = self._build_turn_result(responses)
-            if result.user_text or result.ai_text or result.audio_pcm_bytes:
-                return result
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(
-                "gemini live single audio turn failed (sample_rate=%s, bytes=%s)",
-                normalized_rate,
-                len(pcm_bytes),
-            )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "gemini live single audio turn failed (attempt=%s, sample_rate=%s, bytes=%s)",
+                    attempt,
+                    normalized_rate,
+                    len(pcm_bytes),
+                )
             await self.close()
 
         return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)

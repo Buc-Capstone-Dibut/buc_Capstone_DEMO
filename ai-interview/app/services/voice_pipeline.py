@@ -95,6 +95,7 @@ class VadSegmenter:
         self,
         sample_rate: int = 16000,
         threshold: float = 0.015,
+        speech_start_ms: int = 180,
         silence_ms: int = 700,
         min_speech_ms: int = 350,
         min_utterance_ms: int = 1200,
@@ -103,6 +104,7 @@ class VadSegmenter:
     ):
         self.sample_rate = sample_rate
         self.threshold = threshold
+        self.speech_start_ms = max(80, int(speech_start_ms))
         self.silence_ms = silence_ms
         self.min_speech_ms = min_speech_ms
         self.min_utterance_ms = min_utterance_ms
@@ -110,6 +112,8 @@ class VadSegmenter:
         self.max_segment_ms = max_segment_ms
 
         self._buffer: list[float] = []
+        self._candidate_buffer: list[float] = []
+        self._candidate_speech_ms = 0.0
         self._speech_started = False
         self._trailing_silence_ms = 0.0
         self.last_segment_info: dict[str, float | int | str] = {}
@@ -136,6 +140,8 @@ class VadSegmenter:
             "last_chunk_rms": round(rms, 5),
         }
         self._buffer.clear()
+        self._candidate_buffer.clear()
+        self._candidate_speech_ms = 0.0
         self._speech_started = False
         self._trailing_silence_ms = 0.0
         return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
@@ -165,17 +171,28 @@ class VadSegmenter:
         rms = self._chunk_rms(chunk)
         is_speech = rms >= self.threshold
 
-        # Drop leading silence until speech is detected.
-        if not self._speech_started and not is_speech:
-            return None
+        if not self._speech_started:
+            if not is_speech:
+                self._candidate_buffer.clear()
+                self._candidate_speech_ms = 0.0
+                return None
 
-        self._buffer.extend(chunk)
+            self._candidate_buffer.extend(chunk)
+            self._candidate_speech_ms += duration_ms
+            if self._candidate_speech_ms < self.speech_start_ms:
+                return None
 
-        if is_speech:
+            self._buffer.extend(self._candidate_buffer)
+            self._candidate_buffer.clear()
+            self._candidate_speech_ms = 0.0
             self._speech_started = True
             self._trailing_silence_ms = 0.0
-        elif self._speech_started:
-            self._trailing_silence_ms += duration_ms
+        else:
+            self._buffer.extend(chunk)
+            if is_speech:
+                self._trailing_silence_ms = 0.0
+            else:
+                self._trailing_silence_ms += duration_ms
 
         ready_by_silence = (
             self._speech_started
@@ -204,6 +221,8 @@ class VadSegmenter:
             return None
         if len(self._buffer) < int(self.sample_rate * self.min_speech_ms / 1000.0):
             self._buffer.clear()
+            self._candidate_buffer.clear()
+            self._candidate_speech_ms = 0.0
             self._speech_started = False
             self._trailing_silence_ms = 0.0
             self.last_segment_info = {

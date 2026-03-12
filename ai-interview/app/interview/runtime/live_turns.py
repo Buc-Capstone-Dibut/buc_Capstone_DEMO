@@ -140,8 +140,13 @@ def prepare_live_user_request(
     build_answer_quality_hint: Callable[[str], str],
     derive_question_type_preference: Callable[[VoiceWsState, str, bool], str | None],
     select_next_question_type: Callable[[VoiceWsState], str] | Callable[..., str],
+    prompt_user_text: str | None = None,
 ) -> LiveUserRequestSpec:
-    prompt_user_text = state.realtime_user_transcript.strip()
+    resolved_prompt_user_text = (
+        prompt_user_text
+        if prompt_user_text is not None
+        else state.realtime_user_transcript
+    ).strip()
     planned_question_type = ""
     extra_instruction = ""
     should_bias_closing = followup_spec.should_announce_closing or state.current_phase == "closing"
@@ -155,7 +160,7 @@ def prepare_live_user_request(
     else:
         preferred_question_type = derive_question_type_preference(
             state,
-            prompt_user_text,
+            resolved_prompt_user_text,
             should_bias_closing,
         )
         planned_question_type = select_next_question_type(
@@ -170,12 +175,12 @@ def prepare_live_user_request(
             )
 
     answer_quality_hint = (
-        build_answer_quality_hint(prompt_user_text)
-        if prompt_user_text
+        build_answer_quality_hint(resolved_prompt_user_text)
+        if resolved_prompt_user_text
         else state.last_answer_quality_hint
     )
     return LiveUserRequestSpec(
-        prompt_user_text=prompt_user_text,
+        prompt_user_text=resolved_prompt_user_text,
         answer_quality_hint=answer_quality_hint,
         planned_question_type=planned_question_type,
         extra_instruction=extra_instruction,

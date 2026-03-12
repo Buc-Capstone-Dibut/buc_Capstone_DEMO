@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 from itertools import count
@@ -13,6 +14,7 @@ from app.interview.runtime.state import AiDeliveryPlan, PreparedDeliverySegment,
 
 AUDIO_PACKET_SEQ = count()
 AI_DELIVERY_LOOKAHEAD_SEC = 0.32
+logger = logging.getLogger("dibut.ws")
 
 
 def remember_ai_tts(
@@ -35,10 +37,14 @@ async def build_ai_delivery_plan(
     *,
     text: str,
     preferred_full_audio: PreparedTtsAudio | None = None,
+    synthesize_tts: Callable[[str], Awaitable[PreparedTtsAudio | None]] | None = None,
 ) -> AiDeliveryPlan:
     normalized = " ".join((text or "").split()).strip()
     if not normalized:
         return AiDeliveryPlan()
+
+    if preferred_full_audio is None and synthesize_tts is not None:
+        preferred_full_audio = await synthesize_tts(normalized)
 
     if preferred_full_audio is None:
         return AiDeliveryPlan(
@@ -84,6 +90,16 @@ async def send_prepared_tts_audio(
 ) -> bool:
     if not prepared.chunks:
         return ws.client_state == WebSocketState.CONNECTED
+
+    logger.info(
+        "audio.out session=%s turn=%s provider=%s chunks=%s sample_rate=%s duration_ms=%s",
+        session_id,
+        turn_id,
+        prepared.provider,
+        len(prepared.chunks),
+        prepared.sample_rate,
+        int(round(prepared.duration_sec * 1000)),
+    )
 
     for idx, chunk in enumerate(prepared.chunks):
         sent = await send_json(

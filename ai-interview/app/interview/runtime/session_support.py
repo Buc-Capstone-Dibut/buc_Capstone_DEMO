@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any
 
 from app.config import settings
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
+
+if TYPE_CHECKING:
+    from app.services.gemini_live_voice_service import GeminiLiveTtsService
 
 
 def create_live_interview_session() -> GeminiLiveInterviewSession:
@@ -13,6 +17,21 @@ def create_live_interview_session() -> GeminiLiveInterviewSession:
         api_key=settings.gemini_api_key,
         model=model_name,
         voice=(settings.gemini_live_tts_voice or "Kore"),
+        timeout_sec=30.0,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_fallback_tts_service() -> GeminiLiveTtsService:
+    from app.services.gemini_live_voice_service import GeminiLiveTtsService
+
+    model_name = (settings.gemini_tts_model or settings.gemini_live_tts_model or "").strip() or "gemini-2.5-flash-preview-tts"
+    return GeminiLiveTtsService(
+        api_key=settings.gemini_api_key,
+        model=model_name,
+        generate_model=model_name,
+        voice=(settings.gemini_live_tts_voice or "Kore"),
+        timeout_sec=16.0,
     )
 
 
@@ -34,5 +53,6 @@ def latest_user_answer(messages: list[dict[str, Any]]) -> str:
 __all__ = [
     "create_live_interview_session",
     "elapsed_seconds",
+    "get_fallback_tts_service",
     "latest_user_answer",
 ]

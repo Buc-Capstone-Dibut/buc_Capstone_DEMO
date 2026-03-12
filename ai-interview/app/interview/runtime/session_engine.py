@@ -9,15 +9,42 @@ from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
+from app.interview.domain.turn_text import sanitize_user_turn_text
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
 from app.interview.runtime.live_turns import prepare_live_user_followup, prepare_live_user_request
-from app.interview.runtime.orchestration import build_voice_user_turn_payload
+from app.interview.runtime.orchestration import build_voice_model_turn_payload, build_voice_user_turn_payload
 from app.interview.runtime.state import PendingUserSegment, PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
 logger = logging.getLogger("dibut.ws")
 
 VALID_SESSION_TYPES = {"live_interview", "portfolio_defense"}
+
+
+def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
+    if state.session_type == "portfolio_defense":
+        return (
+            "안녕하세요. Dibut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
+            "먼저 이 프로젝트를 간단히 소개해 주시고, 본인이 가장 주도적으로 맡은 부분을 함께 말씀해 주세요."
+        )
+
+    job_data = state.job_data if isinstance(state.job_data, dict) else {}
+    company = str(job_data.get("company") or "").strip()
+    role = str(job_data.get("role") or "").strip()
+    if company and role:
+        return (
+            f"안녕하세요. Dibut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
+            "먼저 간단한 자기소개와 함께, 이 포지션에 지원한 이유를 말씀해 주세요."
+        )
+    if role:
+        return (
+            f"안녕하세요. Dibut입니다. {role} 포지션 면접을 시작하겠습니다. "
+            "먼저 간단한 자기소개와 함께, 이 직무에 지원한 이유를 말씀해 주세요."
+        )
+    return (
+        "안녕하세요. Dibut입니다. 면접을 시작하겠습니다. "
+        "먼저 간단한 자기소개와 지원 동기를 함께 말씀해 주세요."
+    )
 
 
 @dataclass(frozen=True)
@@ -217,13 +244,72 @@ async def handle_session_init(
     )
     generated = await deps.generate_and_send_opening_live_turn(ws, state)
     if not generated:
+        logger.error(
+            "opening turn generation failed (session=%s, runtime_mode=%s, phase=%s)",
+            state.session_id,
+            state.runtime_mode,
+            state.current_phase,
+        )
+        fallback_turn_id = deps.next_ai_turn_id(existing_session["id"])
+        fallback_text = _build_session_fallback_opening_text(state)
+        fallback_payload = build_voice_model_turn_payload(
+            phase=state.current_phase,
+            question_index=max(1, state.model_turn_count + 1),
+            remaining_sec=state.target_duration_sec,
+            target_duration_sec=state.target_duration_sec,
+            closing_threshold_sec=state.closing_threshold_sec,
+            estimated_total_questions=state.estimated_total_questions,
+            delivery_mode="text-only",
+            delivery_segments=1,
+            turn_id=fallback_turn_id,
+            runtime_mode=state.runtime_mode,
+            runtime_reason=state.runtime_mode_reason,
+            provider="session-fallback",
+            latency_ms=0,
+            audio_duration_ms=0,
+            live_model=deps.live_active_model(state),
+            vad_config=deps.snapshot_vad_config(state),
+            memory_snapshot=deps.build_memory_snapshot(state),
+            question_type="motivation_validation",
+            repair_applied=False,
+            extra={"opening_fallback": True},
+        )
+        await deps.persist_turn(
+            state,
+            role="model",
+            content=fallback_text,
+            channel="voice",
+            payload=fallback_payload,
+        )
+        state.turn_history.append(
+            {
+                "role": "model",
+                "content": fallback_text,
+                "payload": fallback_payload,
+            }
+        )
+        state.model_turn_count += 1
+        state.session_status = "in_progress"
+        state.runtime_status = "listening"
+        await deps.set_runtime_status(state.session_id, "listening", state.current_phase)
         await deps.send_json(
             ws,
             {
-                "type": "error",
-                "message": "Gemini Live opening turn 생성에 실패했습니다. 새로고침 후 다시 시작해 주세요.",
+                "type": "warning",
+                "message": "Gemini opening 생성이 지연되어 기본 질문으로 면접을 시작합니다.",
+                "turnId": fallback_turn_id,
             },
         )
+        await deps.send_transcript(
+            ws,
+            state.session_id,
+            "ai",
+            fallback_text,
+            turn_id=fallback_turn_id,
+        )
+        await deps.send_json(ws, {"type": "full-text", "text": fallback_text, "turnId": fallback_turn_id})
+        await deps.send_runtime_meta_snapshot(ws, state, turn_id=fallback_turn_id)
+        await deps.resume_listening(ws, state, turn_id=fallback_turn_id)
 
 
 async def process_user_utterance(
@@ -247,18 +333,13 @@ async def process_user_utterance(
     try:
         if not await deps.send_json(ws, {"type": "control", "text": "mic-audio-end"}):
             return
-        if not await deps.send_avatar_state(ws, "thinking", state.session_id):
-            return
-        state.runtime_status = "model_thinking"
-        await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
-        await deps.send_runtime_meta_snapshot(ws, state)
 
         live = deps.get_or_create_live_interview(state)
         user_followup_spec = prepare_live_user_followup(
             state,
             runtime_timing=deps.runtime_timing,
         )
-        user_request_spec = prepare_live_user_request(
+        initial_user_request_spec = prepare_live_user_request(
             state,
             followup_spec=user_followup_spec,
             closing_sentence=closing_sentence,
@@ -281,13 +362,13 @@ async def process_user_utterance(
         live_user_text, live_ai_text, live_prepared_tts, live_provider = await deps.request_live_audio_turn(
             state,
             wav_bytes=wav_bytes,
-            question_type=user_request_spec.planned_question_type or None,
-            answer_quality_hint=user_request_spec.answer_quality_hint,
-            prompt_user_text=user_request_spec.prompt_user_text,
-            extra_instruction=user_request_spec.extra_instruction,
+            question_type=initial_user_request_spec.planned_question_type or None,
+            answer_quality_hint=initial_user_request_spec.answer_quality_hint,
+            prompt_user_text=initial_user_request_spec.prompt_user_text,
+            extra_instruction=initial_user_request_spec.extra_instruction,
         )
         provider_name = live_provider or live.provider
-        user_text = live_user_text or state.realtime_user_transcript.strip()
+        user_text = sanitize_user_turn_text(live_user_text or state.realtime_user_transcript.strip())
         if not user_text:
             deps.reset_realtime_user_transcript(state)
             await deps.resume_listening(ws, state)
@@ -303,8 +384,23 @@ async def process_user_utterance(
             await deps.resume_listening(ws, state)
             return
 
+        if not await deps.send_avatar_state(ws, "thinking", state.session_id):
+            return
+        state.runtime_status = "model_thinking"
+        await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
+        await deps.send_runtime_meta_snapshot(ws, state)
+
         state.last_answer_quality_hint = deps.build_answer_quality_hint(user_text)
         deps.remember_user_turn(state, user_text)
+        user_request_spec = prepare_live_user_request(
+            state,
+            followup_spec=user_followup_spec,
+            closing_sentence=closing_sentence,
+            build_answer_quality_hint=deps.build_answer_quality_hint,
+            derive_question_type_preference=deps.derive_question_type_preference,
+            select_next_question_type=deps.select_next_question_type,
+            prompt_user_text=user_text,
+        )
 
         user_turn_payload = build_voice_user_turn_payload(
             provider=provider_name,
@@ -441,7 +537,8 @@ async def enqueue_user_segment(
         state.pending_user_segment_task.cancel()
         state.pending_user_segment_task = None
 
-    if flush_now:
+    reason = str((vad_meta or {}).get("reason") or "").strip().lower()
+    if flush_now or reason in {"silence", "short_utterance_silence", "max_segment"}:
         await drain_pending_user_segments(
             ws,
             state,

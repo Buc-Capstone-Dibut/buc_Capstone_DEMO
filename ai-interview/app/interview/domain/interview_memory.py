@@ -152,7 +152,6 @@ def build_memory_snapshot(state: VoiceWsState, *, max_chars: int = 420) -> str:
 def derive_question_type_preference(
     state: VoiceWsState,
     answer_text: str,
-    *,
     is_closing: bool = False,
 ) -> str | None:
     if is_closing:
@@ -191,9 +190,17 @@ def derive_question_type_preference(
 
 
 def select_next_question_type(state: VoiceWsState, *, preferred: str | None = None) -> str:
+    normalized_preferred = (preferred or "").strip()
+    if normalized_preferred:
+        consecutive_same = 0
+        for recent_type in reversed(state.recent_question_types):
+            if recent_type != normalized_preferred:
+                break
+            consecutive_same += 1
+        if consecutive_same < 2:
+            return normalized_preferred
+
     recent = set(state.recent_question_types[-2:])
-    if preferred and preferred not in recent:
-        return preferred
 
     total = len(QUESTION_TYPE_ROTATION)
     start = state.question_type_cursor % max(total, 1)

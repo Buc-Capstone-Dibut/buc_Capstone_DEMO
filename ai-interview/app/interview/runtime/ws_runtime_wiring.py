@@ -55,6 +55,7 @@ def build_runtime_executor_deps(
     *,
     request_live_text_turn: Callable[..., Awaitable[tuple[str, Any]]],
     repair_ai_turn_if_truncated: Callable[..., Awaitable[tuple[str, Any]]],
+    looks_like_complete_ai_question: Callable[[str], bool],
     build_ai_delivery_plan: Callable[..., Awaitable[Any]],
     persist_turn: Callable[..., Awaitable[Any]],
     set_runtime_status: Callable[[str, str, str | None], Awaitable[Any]],
@@ -77,6 +78,7 @@ def build_runtime_executor_deps(
     return RuntimeExecutorDeps(
         request_live_text_turn=request_live_text_turn,
         repair_ai_turn_if_truncated=repair_ai_turn_if_truncated,
+        looks_like_complete_ai_question=looks_like_complete_ai_question,
         build_ai_delivery_plan=build_ai_delivery_plan,
         persist_turn=persist_turn,
         set_runtime_status=set_runtime_status,

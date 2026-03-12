@@ -1,5 +1,5 @@
 const MIC_CAPTURE_WORKLET_URL = "/worklets/mic-capture-processor.js";
-const MIC_CAPTURE_BUFFER_SIZE = 2048;
+const MIC_CAPTURE_BUFFER_SIZE = 1024;
 
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;

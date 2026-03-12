@@ -328,6 +328,10 @@ export function useOpenLLM({
     });
   }, [sendJson]);
 
+  const prepareAudio = useCallback(async () => {
+    return await unlockAudioContext(true);
+  }, [unlockAudioContext]);
+
   const startMic = useCallback(async (options: StartMicOptions = {}) => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
     if (isMicStreamingRef.current || isMicStartingRef.current) return;
@@ -541,7 +545,6 @@ export function useOpenLLM({
 
       if (controlText === "mic-audio-end") {
         stopMic(false);
-        setIsAIProcessing(true);
         return;
       }
 
@@ -655,6 +658,7 @@ export function useOpenLLM({
     disconnect,
     initInterviewSession,
     sendJson,
+    prepareAudio,
     startMic,
     stopMic,
     isConnected,

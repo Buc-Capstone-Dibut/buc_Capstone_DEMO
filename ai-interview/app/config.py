@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
+from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -70,6 +71,7 @@ class Settings(BaseSettings):
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
     voice_vad_threshold: float = Field(default=0.015, alias="VOICE_VAD_THRESHOLD")
+    voice_vad_speech_start_ms: int = Field(default=180, alias="VOICE_VAD_SPEECH_START_MS")
     voice_vad_silence_ms: int = Field(default=700, alias="VOICE_VAD_SILENCE_MS")
     voice_min_speech_ms: int = Field(default=350, alias="VOICE_MIN_SPEECH_MS")
     voice_vad_min_utterance_ms: int = Field(default=1200, alias="VOICE_VAD_MIN_UTTERANCE_MS")
@@ -101,7 +103,24 @@ class Settings(BaseSettings):
 
     @cached_property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        expanded = set(origins)
+
+        for origin in origins:
+            parsed = urlparse(origin)
+            hostname = (parsed.hostname or "").strip().lower()
+            if hostname not in {"localhost", "127.0.0.1"}:
+                continue
+
+            sibling_host = "127.0.0.1" if hostname == "localhost" else "localhost"
+            if not parsed.scheme:
+                continue
+
+            port = f":{parsed.port}" if parsed.port else ""
+            expanded.add(f"{parsed.scheme}://{hostname}{port}")
+            expanded.add(f"{parsed.scheme}://{sibling_host}{port}")
+
+        return sorted(expanded)
 
 
 settings = Settings()

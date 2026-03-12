@@ -5,7 +5,6 @@ import {
   buildInterviewResultPath,
   isPendingReportStatus,
   shouldRedirectToPortfolioReport,
-  shouldResetInterviewOnNavigationType,
   shouldRouteToSetupOnReconnectTimeout,
 } from "@/lib/interview/interview-session-flow";
 
@@ -34,11 +33,8 @@ test("buildInterviewResultPath builds route by session type", () => {
   );
 });
 
-test("reconnect timeout and reload helpers reflect route reset rules", () => {
+test("reconnect timeout helper only routes after grace period expires", () => {
   assert.equal(shouldRouteToSetupOnReconnectTimeout(true, 0), true);
   assert.equal(shouldRouteToSetupOnReconnectTimeout(true, 5), false);
   assert.equal(shouldRouteToSetupOnReconnectTimeout(false, 0), false);
-
-  assert.equal(shouldResetInterviewOnNavigationType("reload"), true);
-  assert.equal(shouldResetInterviewOnNavigationType("navigate"), false);
 });

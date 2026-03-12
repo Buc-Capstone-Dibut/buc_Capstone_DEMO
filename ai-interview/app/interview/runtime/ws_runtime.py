@@ -23,6 +23,7 @@ from app.interview.domain.turn_text import (
     looks_like_complete_ai_question as domain_looks_like_complete_ai_question,
     looks_like_complete_answer as domain_looks_like_complete_answer,
     sanitize_ai_turn_text as domain_sanitize_ai_turn_text,
+    sanitize_user_turn_text as domain_sanitize_user_turn_text,
 )
 from app.interview.domain.pacing import (
     DEFAULT_CLOSING_THRESHOLD_SEC,
@@ -45,6 +46,7 @@ from app.interview.runtime.session_interaction import (
 )
 from app.interview.runtime.session_support import (
     create_live_interview_session as runtime_create_live_interview_session,
+    get_fallback_tts_service as runtime_get_fallback_tts_service,
     latest_user_answer as runtime_latest_user_answer,
 )
 from app.interview.runtime.vad_policy import retune_vad_for_next_turn as runtime_retune_vad_for_next_turn
@@ -176,6 +178,7 @@ def _runtime_executor_deps():
     return build_runtime_executor_deps(
         request_live_text_turn=_request_live_text_turn,
         repair_ai_turn_if_truncated=_repair_ai_turn_if_truncated,
+        looks_like_complete_ai_question=domain_looks_like_complete_ai_question,
         build_ai_delivery_plan=_build_ai_delivery_plan,
         persist_turn=service_adapter.persist_turn,
         set_runtime_status=service_adapter.set_runtime_status,
@@ -227,7 +230,7 @@ def _session_engine_deps():
         derive_question_type_preference=domain_derive_question_type_preference,
         select_next_question_type=domain_select_next_question_type,
         request_live_audio_turn=_request_live_audio_turn,
-        emit_realtime_user_delta=runtime_emit_realtime_user_delta,
+        emit_realtime_user_delta=_emit_realtime_user_delta,
         is_probable_ai_echo=lambda state, text, wav_bytes: _is_probable_ai_echo(state, text, wav_bytes),
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
         remember_user_turn=domain_remember_user_turn,
@@ -455,6 +458,7 @@ async def _build_ai_delivery_plan(
     return await runtime_build_ai_delivery_plan(
         text=text,
         preferred_full_audio=preferred_full_audio,
+        synthesize_tts=_synthesize_fallback_tts,
     )
 
 
@@ -481,6 +485,39 @@ async def _stream_prepared_ai_delivery(
     )
 
 
+async def _emit_realtime_user_delta(
+    ws: WebSocket,
+    state: VoiceWsState,
+    text: str,
+) -> None:
+    if not state.session_id:
+        return
+
+    cleaned = domain_sanitize_user_turn_text(text)
+    if not cleaned or cleaned == state.realtime_user_transcript:
+        return
+
+    previous = state.realtime_user_transcript
+    if cleaned.startswith(previous):
+        delta = cleaned[len(previous):]
+    else:
+        delta = cleaned
+
+    state.realtime_user_transcript = cleaned
+    state.realtime_user_delta_seq += 1
+    if not delta:
+        return
+
+    await _send_transcript_delta(
+        ws,
+        state.session_id,
+        "user",
+        delta,
+        cleaned,
+        state.realtime_user_delta_seq,
+    )
+
+
 def _to_prepared_tts_audio_from_pcm(
     pcm_bytes: bytes,
     *,
@@ -492,6 +529,20 @@ def _to_prepared_tts_audio_from_pcm(
         sample_rate=sample_rate,
         provider=provider,
         pcm_to_base64_chunks=runtime_pcm16le_bytes_to_base64_chunks,
+    )
+
+
+async def _synthesize_fallback_tts(text: str) -> PreparedTtsAudio | None:
+    service = runtime_get_fallback_tts_service()
+    if not service.enabled:
+        return None
+    result = await service.synthesize_pcm(text)
+    if not result.audio_pcm_bytes:
+        return None
+    return _to_prepared_tts_audio_from_pcm(
+        result.audio_pcm_bytes,
+        sample_rate=result.sample_rate,
+        provider=result.provider,
     )
 
 

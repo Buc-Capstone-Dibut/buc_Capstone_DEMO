@@ -90,6 +90,15 @@ async def send_transcript(
     *,
     turn_id: str | None = None,
 ) -> bool:
+    normalized = (text or "").strip()
+    if normalized:
+        logger.info(
+            "caption.final session=%s turn=%s role=%s text=%s",
+            session_id,
+            turn_id or "-",
+            role,
+            normalized,
+        )
     return await send_json(
         ws,
         {
@@ -113,6 +122,15 @@ async def send_transcript_delta(
     *,
     turn_id: str | None = None,
 ) -> bool:
+    normalized_delta = (delta or "").strip()
+    if role == "ai" and normalized_delta:
+        logger.info(
+            "caption.delta session=%s turn=%s seq=%s text=%s",
+            session_id,
+            turn_id or "-",
+            sequence,
+            normalized_delta,
+        )
     return await send_json(
         ws,
         {
