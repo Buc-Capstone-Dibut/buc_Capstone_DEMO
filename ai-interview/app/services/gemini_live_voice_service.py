@@ -114,13 +114,33 @@ class _GeminiLiveBaseService:
     def _merge_transcription_chunks(self, chunks: list[str]) -> str:
         merged = ""
         for chunk in chunks:
-            text = (chunk or "").strip()
+            text = " ".join(str(chunk or "").split()).strip()
             if not text:
                 continue
-            if merged and text.startswith(merged):
+            if not merged:
                 merged = text
-            else:
-                merged += text
+                continue
+            if text.startswith(merged):
+                merged = text
+                continue
+            if merged.startswith(text) or text in merged:
+                continue
+            if merged in text:
+                merged = text
+                continue
+
+            max_overlap = min(len(merged), len(text))
+            overlap = 0
+            for size in range(max_overlap, 2, -1):
+                if merged.endswith(text[:size]):
+                    overlap = size
+                    break
+
+            if overlap:
+                merged = f"{merged}{text[overlap:]}"
+                continue
+
+            merged = f"{merged} {text}".strip()
         return merged.strip()
 
     def _blob_to_bytes(self, raw: Any) -> bytes:

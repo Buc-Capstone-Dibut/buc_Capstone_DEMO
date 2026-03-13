@@ -215,6 +215,55 @@ async def get_session(
     return detail
 
 
+@router.post("/sessions/{session_id}/retry-report")
+async def retry_session_report(
+    session_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = _require_authenticated_user(x_user_id)
+    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.get("status") or "") != "completed":
+        raise HTTPException(status_code=409, detail="Completed session only")
+
+    job = service.enqueue_report_job(
+        session_id=session_id,
+        session_type=str(session.get("session_type") or "live_interview"),
+    )
+    return {"success": True, "data": {"status": job.get("status", "pending")}}
+
+
+@router.post("/sessions/{session_id}/complete")
+async def complete_session(
+    session_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = _require_authenticated_user(x_user_id)
+    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if str(session.get("status") or "") != "completed":
+        service.update_session_status(session_id, "completed", "closing")
+        session = service.get_session(session_id, user_id=user_id, require_owner=True) or session
+
+    report_job = service.get_report_job(session_id)
+    if not report_job or str(report_job.get("status") or "") == "failed":
+        report_job = service.enqueue_report_job(
+            session_id=session_id,
+            session_type=str(session.get("session_type") or "live_interview"),
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "status": str(session.get("status") or "completed"),
+            "reportStatus": str((report_job or {}).get("status") or "pending"),
+        },
+    }
+
+
 @router.get("/health")
 async def interview_health() -> dict[str, Any]:
     return {"status": "ok"}

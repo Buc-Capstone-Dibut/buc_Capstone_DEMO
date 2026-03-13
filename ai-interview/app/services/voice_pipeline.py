@@ -124,6 +124,12 @@ class VadSegmenter:
         power = sum(sample * sample for sample in chunk) / len(chunk)
         return math.sqrt(power)
 
+    def is_speech_chunk(self, chunk: list[float], *, threshold_scale: float = 1.0) -> bool:
+        if not chunk:
+            return False
+        threshold = max(0.001, float(self.threshold) * float(threshold_scale))
+        return self._chunk_rms(chunk) >= threshold
+
     def _finalize_segment(self, *, reason: str, rms: float = 0.0) -> bytes | None:
         if not self._buffer:
             return None
@@ -169,7 +175,8 @@ class VadSegmenter:
 
         duration_ms = len(chunk) / self.sample_rate * 1000.0
         rms = self._chunk_rms(chunk)
-        is_speech = rms >= self.threshold
+        continuation_threshold = max(0.001, float(self.threshold) * 0.72)
+        is_speech = rms >= (continuation_threshold if self._speech_started else self.threshold)
 
         if not self._speech_started:
             if not is_speech:
@@ -194,15 +201,25 @@ class VadSegmenter:
             else:
                 self._trailing_silence_ms += duration_ms
 
+        buffered_duration_ms = len(self._buffer) / self.sample_rate * 1000.0
+        effective_silence_ms = int(self.silence_ms)
+        effective_short_silence_ms = int(self.short_utterance_silence_ms)
+        if buffered_duration_ms >= 3500:
+            effective_silence_ms += 120
+            effective_short_silence_ms += 160
+        if buffered_duration_ms >= 7000:
+            effective_silence_ms += 80
+            effective_short_silence_ms += 120
+
         ready_by_silence = (
             self._speech_started
-            and self._trailing_silence_ms >= self.silence_ms
+            and self._trailing_silence_ms > effective_silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
             and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
         )
         ready_by_short_utterance_silence = (
             self._speech_started
-            and self._trailing_silence_ms >= self.short_utterance_silence_ms
+            and self._trailing_silence_ms >= effective_short_silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
         )
         ready_by_max = len(self._buffer) >= int(self.sample_rate * self.max_segment_ms / 1000.0)

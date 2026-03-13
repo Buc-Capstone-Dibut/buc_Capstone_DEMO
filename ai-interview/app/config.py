@@ -72,15 +72,15 @@ class Settings(BaseSettings):
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
     voice_vad_threshold: float = Field(default=0.015, alias="VOICE_VAD_THRESHOLD")
     voice_vad_speech_start_ms: int = Field(default=180, alias="VOICE_VAD_SPEECH_START_MS")
-    voice_vad_silence_ms: int = Field(default=700, alias="VOICE_VAD_SILENCE_MS")
+    voice_vad_silence_ms: int = Field(default=760, alias="VOICE_VAD_SILENCE_MS")
     voice_min_speech_ms: int = Field(default=350, alias="VOICE_MIN_SPEECH_MS")
     voice_vad_min_utterance_ms: int = Field(default=1200, alias="VOICE_VAD_MIN_UTTERANCE_MS")
     voice_vad_short_utterance_silence_ms: int = Field(
         default=1800,
         alias="VOICE_VAD_SHORT_UTTERANCE_SILENCE_MS",
     )
-    voice_max_segment_ms: int = Field(default=10000, alias="VOICE_MAX_SEGMENT_MS")
-    voice_turn_end_grace_ms: int = Field(default=1200, alias="VOICE_TURN_END_GRACE_MS")
+    voice_max_segment_ms: int = Field(default=24000, alias="VOICE_MAX_SEGMENT_MS")
+    voice_turn_end_grace_ms: int = Field(default=140, alias="VOICE_TURN_END_GRACE_MS")
     voice_short_answer_max_duration_ms: int = Field(
         default=2400,
         alias="VOICE_SHORT_ANSWER_MAX_DURATION_MS",

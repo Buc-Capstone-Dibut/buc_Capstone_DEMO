@@ -33,7 +33,7 @@ def is_probable_ai_echo(
         return True
     if contains and len(candidate) >= 6:
         return True
-    if duration_ms <= 1600 and len(candidate) <= voice_min_answer_chars:
+    if duration_ms <= 1600 and len(candidate) <= voice_min_answer_chars and (similarity >= 0.42 or contains):
         return True
     return False
 

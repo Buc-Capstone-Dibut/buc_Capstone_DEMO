@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,21 @@ from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 logger = logging.getLogger("dibut.ws")
 
 VALID_SESSION_TYPES = {"live_interview", "portfolio_defense"}
+COMPLETE_ANSWER_ENDINGS = (
+    "습니다",
+    "입니다",
+    "해요",
+    "했어요",
+    "했습니다",
+    "합니다",
+    "예요",
+    "이에요",
+    "네요",
+    "군요",
+    "죠",
+    "어요",
+    "아요",
+)
 
 
 def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
@@ -44,6 +60,52 @@ def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
     return (
         "안녕하세요. Dibut입니다. 면접을 시작하겠습니다. "
         "먼저 간단한 자기소개와 지원 동기를 함께 말씀해 주세요."
+    )
+
+
+def _looks_like_complete_user_text(text: str) -> bool:
+    normalized = (text or "").strip().rstrip("\"' ")
+    if not normalized:
+        return False
+    if normalized[-1] in ".!?":
+        return True
+    return any(normalized.endswith(ending) for ending in COMPLETE_ANSWER_ENDINGS)
+
+
+def _score_user_text(candidate: str, *, utterance_duration_ms: float) -> int:
+    normalized = sanitize_user_turn_text(candidate)
+    if not normalized:
+        return 0
+
+    score = len(re.findall(r"[0-9A-Za-z가-힣]", normalized))
+    if _looks_like_complete_user_text(normalized):
+        score += 40
+    if utterance_duration_ms >= 2800 and len(normalized) >= 18:
+        score += 25
+    if re.search(r"\d", normalized):
+        score += 10
+    return score
+
+
+def _select_best_user_text(
+    *,
+    live_user_text: str,
+    realtime_user_text: str,
+    fallback_user_text: str,
+    utterance_duration_ms: float,
+) -> str:
+    candidates: list[str] = []
+    for raw in (live_user_text, realtime_user_text, fallback_user_text):
+        normalized = sanitize_user_turn_text(raw)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    if not candidates:
+        return ""
+
+    return max(
+        candidates,
+        key=lambda candidate: _score_user_text(candidate, utterance_duration_ms=utterance_duration_ms),
     )
 
 
@@ -79,6 +141,7 @@ class SessionEngineDeps:
     derive_question_type_preference: Callable[..., str | None]
     select_next_question_type: Callable[..., str]
     request_live_audio_turn: Callable[..., Awaitable[tuple[str, str, PreparedTtsAudio | None, str]]]
+    fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]]
     emit_realtime_user_delta: Callable[..., Awaitable[None]]
     is_probable_ai_echo: Callable[[VoiceWsState, str, bytes], bool]
     reset_realtime_user_transcript: Callable[[VoiceWsState], None]
@@ -333,6 +396,11 @@ async def process_user_utterance(
     try:
         if not await deps.send_json(ws, {"type": "control", "text": "mic-audio-end"}):
             return
+        if not await deps.send_avatar_state(ws, "thinking", state.session_id):
+            return
+        state.runtime_status = "model_thinking"
+        await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
+        await deps.send_runtime_meta_snapshot(ws, state)
 
         live = deps.get_or_create_live_interview(state)
         user_followup_spec = prepare_live_user_followup(
@@ -367,8 +435,29 @@ async def process_user_utterance(
             prompt_user_text=initial_user_request_spec.prompt_user_text,
             extra_instruction=initial_user_request_spec.extra_instruction,
         )
-        provider_name = live_provider or live.provider
-        user_text = sanitize_user_turn_text(live_user_text or state.realtime_user_transcript.strip())
+        ai_provider_name = live_provider or live.provider
+        fallback_user_text = ""
+        fallback_user_provider = ""
+        provisional_user_text = _select_best_user_text(
+            live_user_text=live_user_text,
+            realtime_user_text=state.realtime_user_transcript.strip(),
+            fallback_user_text="",
+            utterance_duration_ms=utterance_duration_ms,
+        )
+        provisional_char_count = len(re.findall(r"[0-9A-Za-z가-힣]", provisional_user_text))
+        if (
+            not provisional_user_text
+            or (utterance_duration_ms >= 2600 and provisional_char_count < 18)
+            or (utterance_duration_ms >= 4200 and provisional_char_count < 28)
+        ):
+            fallback_user_text, fallback_user_provider = await deps.fallback_transcribe_user_audio(wav_bytes)
+        user_text = _select_best_user_text(
+            live_user_text=live_user_text,
+            realtime_user_text=state.realtime_user_transcript.strip(),
+            fallback_user_text=fallback_user_text,
+            utterance_duration_ms=utterance_duration_ms,
+        )
+        user_provider_name = fallback_user_provider or ai_provider_name
         if not user_text:
             deps.reset_realtime_user_transcript(state)
             await deps.resume_listening(ws, state)
@@ -384,12 +473,6 @@ async def process_user_utterance(
             await deps.resume_listening(ws, state)
             return
 
-        if not await deps.send_avatar_state(ws, "thinking", state.session_id):
-            return
-        state.runtime_status = "model_thinking"
-        await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
-        await deps.send_runtime_meta_snapshot(ws, state)
-
         state.last_answer_quality_hint = deps.build_answer_quality_hint(user_text)
         deps.remember_user_turn(state, user_text)
         user_request_spec = prepare_live_user_request(
@@ -403,7 +486,7 @@ async def process_user_utterance(
         )
 
         user_turn_payload = build_voice_user_turn_payload(
-            provider=provider_name,
+            provider=user_provider_name,
             runtime_mode=state.runtime_mode,
             runtime_reason=state.runtime_mode_reason,
             speech_duration_ms=round(utterance_duration_ms, 1),
@@ -430,7 +513,7 @@ async def process_user_utterance(
             state,
             phase=state.current_phase,
             question_count=state.model_turn_count,
-            provider=provider_name,
+            provider=user_provider_name,
             speech_duration_ms=round(utterance_duration_ms, 1),
             stt_text_len=len(user_text),
             vad_reason=effective_vad_meta.get("reason"),
@@ -451,7 +534,7 @@ async def process_user_utterance(
             next_turn_id=deps.next_ai_turn_id(state.session_id),
             live_ai_text=live_ai_text,
             prepared_live_audio=live_prepared_tts,
-            provider_name=provider_name,
+            provider_name=ai_provider_name,
             active_live_provider=live.provider,
             utterance_duration_ms=utterance_duration_ms,
             vad_meta=effective_vad_meta,
@@ -482,6 +565,7 @@ async def drain_pending_user_segments(
     closing_sentence: str,
 ) -> None:
     if not state.pending_user_segments:
+        state.pending_segment_resume_ms = 0.0
         return
     if state.processing_audio:
         async def retry() -> None:
@@ -503,6 +587,7 @@ async def drain_pending_user_segments(
 
     segments = state.pending_user_segments[:]
     state.pending_user_segments.clear()
+    state.pending_segment_resume_ms = 0.0
     merged_wav = deps.merge_wav_segments([segment.audio for segment in segments])
     if not merged_wav:
         return
@@ -532,13 +617,14 @@ async def enqueue_user_segment(
 ) -> None:
     if segment:
         state.pending_user_segments.append(PendingUserSegment(audio=segment, vad=dict(vad_meta or {})))
+        state.pending_segment_resume_ms = 0.0
 
     if state.pending_user_segment_task and not state.pending_user_segment_task.done():
         state.pending_user_segment_task.cancel()
         state.pending_user_segment_task = None
 
     reason = str((vad_meta or {}).get("reason") or "").strip().lower()
-    if flush_now or reason in {"silence", "short_utterance_silence", "max_segment"}:
+    if flush_now:
         await drain_pending_user_segments(
             ws,
             state,
@@ -548,10 +634,16 @@ async def enqueue_user_segment(
         )
         return
 
+    drain_delay_sec = state.turn_end_grace_sec
+    if reason == "max_segment":
+        drain_delay_sec = max(drain_delay_sec, 0.2)
+    elif reason in {"silence", "short_utterance_silence"}:
+        drain_delay_sec = max(drain_delay_sec, 0.12)
+
     async def delayed_drain() -> None:
         current_task = asyncio.current_task()
         try:
-            await asyncio.sleep(state.turn_end_grace_sec)
+            await asyncio.sleep(drain_delay_sec)
         except asyncio.CancelledError:
             return
         await drain_pending_user_segments(

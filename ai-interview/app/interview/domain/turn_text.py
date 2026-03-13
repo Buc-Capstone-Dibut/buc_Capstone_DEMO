@@ -20,7 +20,7 @@ COMPLETE_ANSWER_ENDINGS = (
 )
 HANGUL_PATTERN = re.compile(r"[가-힣]")
 DENSE_HANGUL_MIN_LENGTH = 10
-SPACE_DENSITY_THRESHOLD = 0.06
+SPACE_DENSITY_THRESHOLD = 0.03
 AI_META_LEADING_PATTERNS = (
     re.compile(r"^\s*\*{0,2}\s*(reading the text precisely|acknowledging(?: directives| the text)?)\s*\*{0,2}\s*", re.IGNORECASE),
     re.compile(r"^\s*(i've received|i am now reading|i understand that i must|i will avoid|i will read)\b[^가-힣A-Za-z0-9]*", re.IGNORECASE),

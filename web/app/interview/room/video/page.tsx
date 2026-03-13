@@ -129,6 +129,7 @@ export default function InterviewVideoRoomPage() {
   const [reconnectRemainingSec, setReconnectRemainingSec] = useState(RECONNECT_GRACE_SEC);
   const [isAudioPrimed, setIsAudioPrimed] = useState(false);
   const [isPrimingAudio, setIsPrimingAudio] = useState(false);
+  const [isFinishingSession, setIsFinishingSession] = useState(false);
 
   const startedRef = useRef(false);
   const sessionStartingRef = useRef(false);
@@ -714,13 +715,35 @@ export default function InterviewVideoRoomPage() {
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (!activeSessionId) {
       routeToSetup();
       return;
     }
 
-    router.push(buildResultPath(activeSessionId));
+    if (isFinishingSession) return;
+
+    setIsFinishingSession(true);
+    setStatusMessage("면접 종료와 리포트 생성을 요청하는 중...");
+    try {
+      const response = await fetch(`/api/interview/sessions/${activeSessionId}/complete`, {
+        method: "POST",
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "면접 종료 처리에 실패했습니다.");
+      }
+      completionRedirectedRef.current = true;
+      disconnect();
+      router.push(buildResultPath(activeSessionId));
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "면접 종료 처리에 실패했습니다.";
+      setStatusMessage(message);
+    } finally {
+      setIsFinishingSession(false);
+    }
+
   };
 
   return (
@@ -896,9 +919,9 @@ export default function InterviewVideoRoomPage() {
                   <Captions className="mr-1.5 h-4 w-4" />
                   자막 {showCaption ? "끄기" : "켜기"}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={handleFinish}>
+                <Button size="sm" variant="destructive" onClick={() => void handleFinish()} disabled={isFinishingSession}>
                   <PhoneOff className="mr-1.5 h-4 w-4" />
-                  종료
+                  {isFinishingSession ? "종료 처리 중..." : "종료"}
                 </Button>
               </div>
             </div>

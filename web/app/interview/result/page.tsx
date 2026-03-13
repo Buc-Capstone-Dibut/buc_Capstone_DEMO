@@ -16,6 +16,7 @@ import {
   buildSessionInterviewDetailModel,
   SessionTimelineEntry as TimelineEntry,
 } from "@/lib/interview/report/session-interview-detail-adapter";
+import { coerceSessionAnalysisPayload } from "@/lib/interview/report/session-analysis-guard";
 import { buildSessionInterviewReportModel } from "@/lib/interview/report/session-interview-report-adapter";
 import {
   isPendingReportStatus,
@@ -30,6 +31,9 @@ interface SessionDetail {
   status?: string;
   target_duration_sec?: number;
   reportStatus?: string;
+  reportError?: string;
+  reportAttempts?: number;
+  reportMaxAttempts?: number;
   report_view?: SessionReportView | null;
   timeline?: TimelineEntry[];
   job_payload?: {
@@ -59,21 +63,6 @@ type SessionAnalysisPayload = AnalysisResult & {
   improvements?: string[];
   nextActions?: string[];
 };
-
-function normalizeAnalysisResult(source: SessionAnalysisPayload | null): SessionAnalysisPayload | null {
-  if (!source) return null;
-
-  return {
-    ...source,
-    habits: (source.habits || []).map((habit) => ({
-      ...habit,
-      severity:
-        habit.severity === "high" || habit.severity === "medium" || habit.severity === "low"
-          ? habit.severity
-          : "low",
-    })),
-  };
-}
 
 function InsightListCard({
   title,
@@ -125,10 +114,14 @@ export default function InterviewResultPage() {
   const interviewSessionId = useInterviewSetupStore((state) => state.interviewSessionId);
   const resolvedSessionId = querySessionId || interviewSessionId || "";
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRetryingReport, setIsRetryingReport] = useState(false);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
-  const effectiveAnalysis = normalizeAnalysisResult(sessionDetail?.analysis ?? null);
+  const effectiveAnalysis = useMemo(
+    () => coerceSessionAnalysisPayload(sessionDetail?.analysis ?? null),
+    [sessionDetail?.analysis],
+  );
   const sessionDurationMinutes = useMemo(
     () => resolveDurationMinutes(searchParams.get("duration"), sessionDetail?.target_duration_sec),
     [searchParams, sessionDetail?.target_duration_sec],
@@ -281,6 +274,44 @@ export default function InterviewResultPage() {
   }
 
   if (!reportModel) {
+    const reportStatus = String(sessionDetail?.reportStatus || "");
+    const reportError = String(sessionDetail?.reportError || "").trim();
+    const isReportFailure = reportStatus === "failed";
+    const handleRetryReport = async () => {
+      if (!resolvedSessionId || isRetryingReport) return;
+      setIsRetryingReport(true);
+      try {
+        const response = await fetch(`/api/interview/sessions/${resolvedSessionId}/retry-report`, {
+          method: "POST",
+        });
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.success) {
+          throw new Error(json?.error || "리포트 재생성 요청에 실패했습니다.");
+        }
+        setSessionDetail((prev) => (
+          prev
+            ? {
+                ...prev,
+                reportStatus: "pending",
+                reportError: "",
+              }
+            : prev
+        ));
+        setIsAnalyzing(true);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "리포트 재생성 요청에 실패했습니다.";
+        setSessionDetail((prev) => (
+          prev
+            ? {
+                ...prev,
+                reportError: message,
+              }
+            : prev
+        ));
+      } finally {
+        setIsRetryingReport(false);
+      }
+    };
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
@@ -289,12 +320,37 @@ export default function InterviewResultPage() {
             <CardContent className="space-y-4 p-8">
               <AlertTriangle className="mx-auto h-10 w-10 text-orange-500" />
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold">분석 데이터가 없습니다.</h2>
-                <p className="text-muted-foreground">면접을 마친 뒤 상세 리포트를 확인할 수 있습니다.</p>
+                <h2 className="text-2xl font-bold">
+                  {isReportFailure ? "리포트 생성에 실패했습니다." : "분석 데이터가 없습니다."}
+                </h2>
+                <p className="text-muted-foreground">
+                  {isReportFailure
+                    ? reportError || "리포트 생성 중 오류가 발생했습니다. 새 세션에서 다시 시도해 주세요."
+                    : "면접을 마친 뒤 상세 리포트를 확인할 수 있습니다."}
+                </p>
+                {isReportFailure && sessionDetail?.reportAttempts != null && sessionDetail?.reportMaxAttempts != null ? (
+                  <p className="text-sm text-muted-foreground">
+                    재시도 횟수: {sessionDetail.reportAttempts}/{sessionDetail.reportMaxAttempts}
+                  </p>
+                ) : null}
               </div>
-              <Button className="rounded-full px-6" onClick={() => router.push("/interview")}>
-                면접 메인으로 이동
-              </Button>
+              <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+                {isReportFailure ? (
+                  <Button
+                    className="rounded-full px-6"
+                    onClick={handleRetryReport}
+                    disabled={isRetryingReport}
+                  >
+                    {isRetryingReport ? "리포트 재생성 요청 중..." : "리포트 다시 생성"}
+                  </Button>
+                ) : null}
+                <Button variant="outline" className="rounded-full px-6" onClick={() => window.location.reload()}>
+                  다시 불러오기
+                </Button>
+                <Button className="rounded-full px-6" onClick={() => router.push("/interview")}>
+                  면접 메인으로 이동
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </main>

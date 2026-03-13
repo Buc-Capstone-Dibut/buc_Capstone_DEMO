@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 import unittest
@@ -59,7 +60,14 @@ from app.interview.runtime.executor import (
     execute_live_user_followup_turn,
     execute_opening_live_turn,
 )
-from app.interview.runtime.live_turns import LiveUserFollowupSpec, OpeningTurnSpec, prepare_live_user_request
+from app.interview.runtime.live_turns import (
+    LiveUserFollowupSpec,
+    LiveUserRequestSpec,
+    OpeningTurnSpec,
+    prepare_live_user_request,
+)
+from app.interview.runtime.message_router import ClientMessageRouterDeps, handle_client_message
+from app.interview.runtime.session_interaction import is_probable_ai_echo
 from app.interview.runtime.session_engine import (
     SessionEngineDeps,
     enqueue_user_segment,
@@ -69,6 +77,7 @@ from app.interview.runtime.session_engine import (
 from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
 from app.interview.runtime.state import (
     AiDeliveryPlan,
+    PendingUserSegment,
     PreparedDeliverySegment,
     PreparedTtsAudio,
     VoiceWsState,
@@ -132,6 +141,7 @@ def _session_engine_deps(
     derive_question_type_preference=None,
     select_next_question_type=None,
     request_live_audio_turn=None,
+    fallback_transcribe_user_audio=None,
     emit_realtime_user_delta=None,
     is_probable_ai_echo=None,
     reset_realtime_user_transcript=None,
@@ -180,6 +190,7 @@ def _session_engine_deps(
         select_next_question_type=select_next_question_type or (lambda *args, **kwargs: "tradeoff"),
         request_live_audio_turn=request_live_audio_turn
         or AsyncMock(return_value=("사용자 답변", "다음 질문입니다.", object(), "gemini-live")),
+        fallback_transcribe_user_audio=fallback_transcribe_user_audio or AsyncMock(return_value=("", "")),
         emit_realtime_user_delta=emit_realtime_user_delta or AsyncMock(return_value=None),
         is_probable_ai_echo=is_probable_ai_echo or (lambda state, text, wav_bytes: False),
         reset_realtime_user_transcript=reset_realtime_user_transcript
@@ -550,6 +561,64 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(generated)
         self.assertEqual(send_transcript.await_args.args[3], "안녕하세요. 지원 동기를 말씀해 주세요.")
         resume_listening.assert_awaited_once()
+
+    async def test_opening_turn_keeps_live_audio_when_available(self) -> None:
+        state = VoiceWsState(session_id="session-2a", session_type="live_interview")
+        prepared_audio = PreparedTtsAudio(
+            chunks=["chunk"],
+            sample_rate=24000,
+            provider="gemini-live",
+            duration_sec=1.3,
+        )
+        build_ai_delivery_plan = AsyncMock(return_value=AiDeliveryPlan(
+            segments=[PreparedDeliverySegment(text="안녕하세요. 지원 동기를 말씀해 주세요.", prepared_audio=prepared_audio)],
+            mode="full",
+            provider="gemini-live",
+        ))
+        deps = RuntimeExecutorDeps(
+            request_live_text_turn=AsyncMock(return_value=("안녕하세요. 지원 동기를 말씀해 주세요.", prepared_audio)),
+            repair_ai_turn_if_truncated=AsyncMock(return_value=("안녕하세요. 지원 동기를 말씀해 주세요.", prepared_audio)),
+            looks_like_complete_ai_question=lambda text: text.endswith("요.") or text.endswith("주세요."),
+            build_ai_delivery_plan=build_ai_delivery_plan,
+            persist_turn=AsyncMock(return_value={"id": "turn-1"}),
+            set_runtime_status=AsyncMock(return_value=None),
+            update_session_status=AsyncMock(return_value=None),
+            set_closing_announced=AsyncMock(return_value=None),
+            mark_session_status=lambda *args, **kwargs: None,
+            log_runtime_event=lambda *args, **kwargs: None,
+            send_json=AsyncMock(return_value=True),
+            send_transcript=AsyncMock(return_value=True),
+            stream_prepared_ai_delivery=AsyncMock(return_value=True),
+            arm_playback_resume=lambda *args, **kwargs: None,
+            resume_listening=AsyncMock(return_value=None),
+            reconnect_remaining_sec=lambda state: 0,
+            live_active_model=lambda state: "gemini-live",
+            snapshot_vad_config=lambda state: {},
+            build_memory_snapshot=lambda state: "",
+            remember_model_turn=lambda *args, **kwargs: None,
+            record_question_type=lambda *args, **kwargs: None,
+        )
+
+        generated = await execute_opening_live_turn(
+            object(),
+            state,
+            spec=OpeningTurnSpec(
+                turn_id="session-2a:1",
+                prompt="면접을 시작하세요.",
+                question_type="motivation_validation",
+                phase="introduction",
+                question_index=1,
+                target_duration_sec=600,
+                closing_threshold_sec=60,
+                elapsed_sec=0,
+                remaining_sec=600,
+                estimated_total_questions=6,
+            ),
+            deps=deps,
+        )
+
+        self.assertTrue(generated)
+        self.assertIs(build_ai_delivery_plan.await_args.kwargs["preferred_full_audio"], prepared_audio)
 
     async def test_opening_turn_repairs_incomplete_text_before_delivery(self) -> None:
         state = VoiceWsState(session_id="session-3", session_type="live_interview")
@@ -1026,8 +1095,57 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(followup_request.planned_question_type, "design_decision")
         self.assertIn("근거", followup_request.answer_quality_hint)
 
-    async def test_enqueue_user_segment_drains_immediately_after_vad_finalization(self) -> None:
+    async def test_process_user_utterance_prefers_fallback_stt_when_live_result_is_too_short(self) -> None:
+        state = VoiceWsState(session_id="session-2b", current_phase="technical")
+        state.realtime_user_transcript = "웹소켓을 선택했습니다"
+        state.live_interview = _DummyLiveSession(model="gemini-live-2.5-flash-live", enabled=True)
+
+        fallback_text = (
+            "HTTP 폴링은 요청 반복으로 비용이 컸고 SSE는 단방향이라, 지연과 연결 유지 효율을 비교한 뒤 WebSocket을 선택했습니다."
+        )
+        request_live_audio_turn = AsyncMock(
+            return_value=("웹소켓", "그 비교 기준을 조금 더 설명해 주세요.", object(), "gemini-live")
+        )
+        persist_turn = AsyncMock(return_value={"id": "turn-1"})
+        followup_mock = AsyncMock(return_value=True)
+
+        deps = _session_engine_deps(
+            request_live_audio_turn=request_live_audio_turn,
+            fallback_transcribe_user_audio=AsyncMock(return_value=(fallback_text, "gemini-live-stt")),
+            persist_turn=persist_turn,
+            send_json=AsyncMock(return_value=True),
+            send_avatar_state=AsyncMock(return_value=True),
+            send_runtime_meta_snapshot=AsyncMock(return_value=True),
+            set_runtime_status=AsyncMock(return_value=None),
+            send_transcript=AsyncMock(return_value=True),
+            get_or_create_live_interview=lambda current_state: current_state.live_interview,
+            estimate_wav_duration_ms=lambda _wav_bytes: 4200.0,
+            build_answer_quality_hint=lambda text: f"근거 확인: {text}",
+            derive_question_type_preference=lambda *_args, **_kwargs: "tradeoff",
+            select_next_question_type=lambda _state, preferred=None: preferred or "tradeoff",
+        )
+
+        with patch(
+            "app.interview.runtime.session_engine.execute_live_user_followup_turn",
+            new=followup_mock,
+        ):
+            await process_user_utterance(
+                object(),
+                state,
+                b"wav-bytes",
+                deps=deps,
+                vad_meta={"reason": "silence"},
+                runtime_mode_disabled="disabled",
+                closing_sentence="수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.",
+            )
+
+        self.assertEqual(persist_turn.await_args.kwargs["content"], sanitize_user_turn_text(fallback_text))
+        followup_request = followup_mock.await_args.kwargs["user_request"]
+        self.assertEqual(followup_request.prompt_user_text, sanitize_user_turn_text(fallback_text))
+
+    async def test_enqueue_user_segment_waits_briefly_after_vad_finalization(self) -> None:
         state = VoiceWsState(session_id="session-3")
+        state.turn_end_grace_sec = 0.05
         process_mock = AsyncMock(return_value=None)
         deps = _session_engine_deps()
 
@@ -1046,8 +1164,48 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
                 closing_sentence="수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.",
             )
 
+            process_mock.assert_not_awaited()
+            self.assertEqual(len(state.pending_user_segments), 1)
+            await asyncio.sleep(0.32)
+
         process_mock.assert_awaited_once()
         self.assertEqual(state.pending_user_segments, [])
+
+    async def test_resumed_speech_cancels_pending_segment_drain(self) -> None:
+        state = VoiceWsState(session_id="session-4")
+        state.pending_user_segments.append(PendingUserSegment(audio=b"segment-1", vad={"reason": "silence"}))
+        pending_task = asyncio.create_task(asyncio.sleep(5))
+        state.pending_user_segment_task = pending_task
+
+        deps = ClientMessageRouterDeps(
+            send_json=AsyncMock(return_value=True),
+            send_avatar_state=AsyncMock(return_value=True),
+            handle_session_init=AsyncMock(return_value=None),
+            coerce_audio_chunk=lambda payload: [float(value) for value in payload],
+            enqueue_user_segment=AsyncMock(return_value=None),
+            reset_realtime_user_transcript=lambda current_state: setattr(
+                current_state,
+                "realtime_user_transcript",
+                "",
+            ),
+            resume_listening=AsyncMock(return_value=None),
+            cancel_playback_resume_task=lambda current_state: None,
+        )
+
+        await handle_client_message(
+            object(),
+            state,
+            {
+                "type": "raw-audio-data",
+                "audio": [0.4] * 4096,
+            },
+            deps=deps,
+        )
+        await asyncio.sleep(0)
+
+        self.assertIsNone(state.pending_user_segment_task)
+        self.assertEqual(state.pending_segment_resume_ms, 0.0)
+        self.assertTrue(pending_task.cancelled())
 
 
 class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
@@ -1156,6 +1314,141 @@ class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("redis 캐시 ttl", request_live_text_turn.await_args.kwargs["user_text"].lower())
         self.assertIn("redis 캐시 ttl", send_transcript.await_args.args[3].lower())
 
+    async def test_execute_live_user_followup_turn_falls_back_for_empty_closing_turn(self) -> None:
+        state = VoiceWsState(session_id="session-closing", current_phase="closing")
+        send_transcript = AsyncMock(return_value=True)
+        update_session_status = AsyncMock(return_value=None)
+        send_json = AsyncMock(return_value=True)
+        deps = RuntimeExecutorDeps(
+            request_live_text_turn=AsyncMock(return_value=("", None)),
+            repair_ai_turn_if_truncated=AsyncMock(side_effect=lambda *_args, **_kwargs: ("", None)),
+            looks_like_complete_ai_question=lambda text: text.endswith("요.") or text.endswith("니다."),
+            build_ai_delivery_plan=AsyncMock(return_value=AiDeliveryPlan(mode="text-only", provider="")),
+            persist_turn=AsyncMock(return_value={"id": "turn-closing"}),
+            set_runtime_status=AsyncMock(return_value=None),
+            update_session_status=update_session_status,
+            set_closing_announced=AsyncMock(return_value=None),
+            mark_session_status=lambda current_state, status, *, phase=None: setattr(current_state, "session_status", status),
+            log_runtime_event=lambda *args, **kwargs: None,
+            send_json=send_json,
+            send_transcript=send_transcript,
+            stream_prepared_ai_delivery=AsyncMock(return_value=False),
+            arm_playback_resume=lambda *args, **kwargs: None,
+            resume_listening=AsyncMock(return_value=None),
+            reconnect_remaining_sec=lambda current_state: 0,
+            live_active_model=lambda current_state: "gemini-live",
+            snapshot_vad_config=lambda current_state: {},
+            build_memory_snapshot=lambda current_state: "",
+            remember_model_turn=lambda *args, **kwargs: None,
+            record_question_type=lambda *args, **kwargs: None,
+        )
+
+        generated = await execute_live_user_followup_turn(
+            object(),
+            state,
+            spec=LiveUserFollowupSpec(
+                model_count=8,
+                target_duration_sec=600,
+                closing_threshold_sec=60,
+                elapsed_sec=600,
+                remaining_sec=0,
+                estimated_total_questions=8,
+                completion_reason="closing_answer_submitted",
+                question_index=0,
+                should_announce_closing=False,
+                phase="closing",
+                response_question_index=8,
+            ),
+            user_request=LiveUserRequestSpec(
+                prompt_user_text="WebSocket을 선택한 이유를 설명드렸습니다.",
+                answer_quality_hint="근거 확인",
+                planned_question_type="",
+                extra_instruction=(
+                    "이번 턴은 질문 없이 면접을 종료하는 턴입니다. "
+                    "마지막 문장은 반드시 '수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.' 문장 그대로 사용하세요."
+                ),
+            ),
+            next_turn_id="session-closing:9",
+            live_ai_text="",
+            prepared_live_audio=None,
+            provider_name="gemini-live",
+            active_live_provider="gemini-live",
+            utterance_duration_ms=3200.0,
+            vad_meta={"reason": "silence"},
+            started_at=0.0,
+            deps=deps,
+        )
+
+        self.assertTrue(generated)
+        update_session_status.assert_awaited_once_with("session-closing", "completed", "closing")
+        send_transcript.assert_awaited_once()
+        self.assertIn("이것으로 모든 면접을 마치겠습니다.", send_transcript.await_args.args[3])
+
+    async def test_execute_live_user_followup_turn_falls_back_to_grounded_question_when_ai_text_is_empty(self) -> None:
+        state = VoiceWsState(session_id="session-empty-followup", current_phase="technical")
+        send_transcript = AsyncMock(return_value=True)
+        resume_listening = AsyncMock(return_value=None)
+        deps = RuntimeExecutorDeps(
+            request_live_text_turn=AsyncMock(return_value=("", None)),
+            repair_ai_turn_if_truncated=AsyncMock(side_effect=lambda *_args, **_kwargs: ("", None)),
+            looks_like_complete_ai_question=lambda text: text.endswith("요.") or text.endswith("주세요."),
+            build_ai_delivery_plan=AsyncMock(return_value=AiDeliveryPlan(mode="text-only", provider="")),
+            persist_turn=AsyncMock(return_value={"id": "turn-followup"}),
+            set_runtime_status=AsyncMock(return_value=None),
+            update_session_status=AsyncMock(return_value=None),
+            set_closing_announced=AsyncMock(return_value=None),
+            mark_session_status=lambda *args, **kwargs: None,
+            log_runtime_event=lambda *args, **kwargs: None,
+            send_json=AsyncMock(return_value=True),
+            send_transcript=send_transcript,
+            stream_prepared_ai_delivery=AsyncMock(return_value=False),
+            arm_playback_resume=lambda *args, **kwargs: None,
+            resume_listening=resume_listening,
+            reconnect_remaining_sec=lambda current_state: 0,
+            live_active_model=lambda current_state: "gemini-live",
+            snapshot_vad_config=lambda current_state: {},
+            build_memory_snapshot=lambda current_state: "",
+            remember_model_turn=lambda *args, **kwargs: None,
+            record_question_type=lambda *args, **kwargs: None,
+        )
+
+        generated = await execute_live_user_followup_turn(
+            object(),
+            state,
+            spec=LiveUserFollowupSpec(
+                model_count=2,
+                target_duration_sec=600,
+                closing_threshold_sec=60,
+                elapsed_sec=150,
+                remaining_sec=450,
+                estimated_total_questions=6,
+                completion_reason="",
+                question_index=2,
+                should_announce_closing=False,
+                phase="technical",
+                response_question_index=2,
+            ),
+            user_request=LiveUserRequestSpec(
+                prompt_user_text="Redis 캐시 TTL과 Kafka 재처리 전략을 조정해 p95 응답 시간을 180ms에서 95ms로 줄였습니다.",
+                answer_quality_hint="근거 확인",
+                planned_question_type="metric_validation",
+                extra_instruction="지원자의 직전 답변을 바탕으로 자연스러운 후속 질문을 완성하세요.",
+            ),
+            next_turn_id="session-empty-followup:3",
+            live_ai_text="",
+            prepared_live_audio=None,
+            provider_name="gemini-live",
+            active_live_provider="gemini-live",
+            utterance_duration_ms=2800.0,
+            vad_meta={"reason": "silence"},
+            started_at=0.0,
+            deps=deps,
+        )
+
+        self.assertTrue(generated)
+        self.assertIn("redis", send_transcript.await_args.args[3].lower())
+        resume_listening.assert_awaited_once()
+
 
 class AdaptiveVadTests(unittest.TestCase):
     def test_retune_vad_for_short_answer_relaxes_cutoff(self) -> None:
@@ -1179,9 +1472,9 @@ class AdaptiveVadTests(unittest.TestCase):
 
         self.assertEqual(state.short_reprompt_streak, 0)
         self.assertEqual(len(state.recent_user_durations_ms), 3)
-        self.assertGreaterEqual(state.vad.silence_ms, 820)
-        self.assertGreaterEqual(state.vad.short_utterance_silence_ms, 1760)
-        self.assertGreaterEqual(state.turn_end_grace_sec, 0.8)
+        self.assertGreaterEqual(state.vad.silence_ms, 860)
+        self.assertGreaterEqual(state.vad.short_utterance_silence_ms, 1950)
+        self.assertGreaterEqual(state.turn_end_grace_sec, 0.18)
 
 
 class LiveUserRequestTests(unittest.TestCase):
@@ -1378,6 +1671,47 @@ class VadSegmenterTests(unittest.TestCase):
         self.assertEqual(len(samples), 1300)
         self.assertEqual(segmenter.last_segment_info["reason"], "short_utterance_silence")
         self.assertEqual(segmenter.last_segment_info["duration_ms"], 1300.0)
+
+    def test_segmenter_waits_for_longer_pause_on_long_answer(self) -> None:
+        segmenter = VadSegmenter(
+            sample_rate=1000,
+            threshold=0.1,
+            speech_start_ms=180,
+            silence_ms=700,
+            min_speech_ms=100,
+            min_utterance_ms=800,
+            short_utterance_silence_ms=1200,
+            max_segment_ms=12000,
+        )
+
+        long_speech = [0.4] * 4200
+        medium_pause = [0.0] * 820
+        extra_pause = [0.0] * 420
+
+        self.assertIsNone(segmenter.feed(long_speech))
+        self.assertIsNone(segmenter.feed(medium_pause))
+        payload = segmenter.feed(extra_pause)
+
+        self.assertIsNotNone(payload)
+        assert payload is not None
+        self.assertEqual(segmenter.last_segment_info["reason"], "silence")
+
+
+class AiEchoGuardTests(unittest.TestCase):
+    def test_short_unrelated_user_answer_is_not_suppressed_as_echo(self) -> None:
+        state = VoiceWsState()
+        state.last_ai_tts_text = "안녕하세요. 지원 동기를 말씀해 주세요."
+
+        self.assertFalse(
+            is_probable_ai_echo(
+                state,
+                "네 가능합니다",
+                b"\x00" * 16000,
+                normalize_compare_text=lambda text: "".join(str(text).split()).lower(),
+                estimate_wav_duration_ms=lambda wav_bytes: 900.0,
+                voice_min_answer_chars=10,
+            )
+        )
 
 
 if __name__ == "__main__":

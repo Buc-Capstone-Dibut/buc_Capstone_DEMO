@@ -140,6 +140,64 @@ def _build_grounded_followup_fallback_text(
     return f"방금 말씀하신 {focus_label}와 관련해, 가장 핵심적인 사례를 하나 더 구체적으로 말씀해 주세요."
 
 
+def _extract_required_closing_sentence(extra_instruction: str) -> str:
+    quoted = re.findall(r"'([^']+)'", extra_instruction or "")
+    for candidate in quoted:
+        normalized = " ".join(candidate.split()).strip()
+        if normalized.endswith("면접을 마치겠습니다."):
+            return normalized
+    return "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
+
+
+def _build_fallback_closing_text(
+    state: VoiceWsState,
+    *,
+    user_text: str,
+    closing_sentence: str,
+) -> str:
+    normalized_answer = " ".join((user_text or "").split()).strip()
+    if state.session_type == "portfolio_defense":
+        prefix = (
+            "설명 잘 들었습니다. 프로젝트 의도와 구현 포인트가 잘 전달되었습니다."
+            if normalized_answer
+            else "포트폴리오 설명 잘 들었습니다."
+        )
+        return f"{prefix} {closing_sentence}".strip()
+
+    prefix = (
+        "답변 잘 들었습니다. 오늘 말씀해 주신 경험을 바탕으로 면접을 마무리하겠습니다."
+        if normalized_answer
+        else "오늘 면접 답변 잘 들었습니다. 면접을 마무리하겠습니다."
+    )
+    return f"{prefix} {closing_sentence}".strip()
+
+
+def _normalize_completion_turn_text(
+    state: VoiceWsState,
+    *,
+    text: str,
+    user_text: str,
+    extra_instruction: str,
+) -> str:
+    closing_sentence = _extract_required_closing_sentence(extra_instruction)
+    normalized = " ".join((text or "").split()).strip()
+    if not normalized:
+        return _build_fallback_closing_text(
+            state,
+            user_text=user_text,
+            closing_sentence=closing_sentence,
+        )
+    if closing_sentence in normalized:
+        return normalized
+    if "?" in normalized or normalized.endswith("주세요.") or normalized.endswith("니까"):
+        return _build_fallback_closing_text(
+            state,
+            user_text=user_text,
+            closing_sentence=closing_sentence,
+        )
+    return f"{normalized} {closing_sentence}".strip()
+
+
 def _complete_incomplete_ai_question_text(
     state: VoiceWsState,
     *,
@@ -672,19 +730,15 @@ async def execute_live_user_followup_turn(
     turn_id = next_turn_id
     prepared_audio = prepared_live_audio
     repair_applied = False
+    fallback_followup_used = False
 
     if spec.completion_reason:
-        ai_text = (live_ai_text or "").strip()
-        if not ai_text:
-            await deps.send_json(
-                ws,
-                {
-                    "type": "error",
-                    "message": "면접 종료 멘트를 생성하지 못했습니다. 다시 연결해 주세요.",
-                    "turnId": turn_id,
-                },
-            )
-            return False
+        ai_text = _normalize_completion_turn_text(
+            state,
+            text=live_ai_text or "",
+            user_text=user_request.prompt_user_text,
+            extra_instruction=user_request.extra_instruction,
+        )
         state.current_phase = "closing"
         await deps.update_session_status(state.session_id, "completed", "closing")
         deps.mark_session_status(state, "completed", phase="closing")
@@ -704,16 +758,31 @@ async def execute_live_user_followup_turn(
             state.closing_announced = True
 
         if not ai_text:
+            ai_text = (
+                _build_grounded_followup_fallback_text(
+                    state,
+                    user_text=user_request.prompt_user_text,
+                    question_type=user_request.planned_question_type,
+                )
+                if user_request.prompt_user_text
+                else _fallback_question_for_type(state, user_request.planned_question_type)
+            )
+            prepared_audio = None
+            fallback_followup_used = True
+            logger.warning(
+                "live followup turn falling back after empty ai response (session=%s, turn=%s, user_text=%s)",
+                state.session_id,
+                turn_id,
+                user_request.prompt_user_text,
+            )
             await deps.send_json(
                 ws,
                 {
-                    "type": "error",
-                    "message": "Gemini Live 응답 생성에 실패했습니다. 잠시 후 다시 말씀해 주세요.",
+                    "type": "warning",
+                    "message": "AI 후속 질문 생성이 비어 기본 꼬리질문으로 이어갑니다.",
                     "turnId": turn_id,
                 },
             )
-            await deps.resume_listening(ws, state)
-            return False
 
     ai_text_before_repair = ai_text
     ai_text, prepared_audio = await deps.repair_ai_turn_if_truncated(
@@ -721,6 +790,13 @@ async def execute_live_user_followup_turn(
         ai_text=ai_text,
         prepared_tts=prepared_audio,
     )
+    if spec.completion_reason:
+        ai_text = _normalize_completion_turn_text(
+            state,
+            text=ai_text,
+            user_text=user_request.prompt_user_text,
+            extra_instruction=user_request.extra_instruction,
+        )
     if spec.completion_reason:
         repaired_incomplete = False
     else:
@@ -758,19 +834,47 @@ async def execute_live_user_followup_turn(
         or repaired_incomplete
         or (False if spec.completion_reason else regrounded_followup)
         or (False if spec.completion_reason else repaired_after_regrounding)
+        or fallback_followup_used
     ) and not spec.completion_reason
     if not ai_text:
-        await deps.send_json(
-            ws,
-            {
-                "type": "error",
-                "message": "Gemini Live 응답 텍스트를 복구하지 못했습니다. 다시 연결해 주세요.",
-                "turnId": turn_id,
-            },
-        )
-        if not spec.completion_reason:
-            await deps.resume_listening(ws, state, turn_id=turn_id)
-        return False
+        if spec.completion_reason:
+            ai_text = _build_fallback_closing_text(
+                state,
+                user_text=user_request.prompt_user_text,
+                closing_sentence=_extract_required_closing_sentence(user_request.extra_instruction),
+            )
+            prepared_audio = None
+            logger.warning(
+                "closing turn fell back to deterministic text after empty repair (session=%s, turn=%s)",
+                state.session_id,
+                turn_id,
+            )
+        else:
+            ai_text = (
+                _build_grounded_followup_fallback_text(
+                    state,
+                    user_text=user_request.prompt_user_text,
+                    question_type=user_request.planned_question_type,
+                )
+                if user_request.prompt_user_text
+                else _fallback_question_for_type(state, user_request.planned_question_type)
+            )
+            prepared_audio = None
+            repair_applied = True
+            logger.warning(
+                "live followup turn fell back after failed repair (session=%s, turn=%s, user_text=%s)",
+                state.session_id,
+                turn_id,
+                user_request.prompt_user_text,
+            )
+            await deps.send_json(
+                ws,
+                {
+                    "type": "warning",
+                    "message": "후속 질문 복구에 실패해 기본 꼬리질문으로 이어갑니다.",
+                    "turnId": turn_id,
+                },
+            )
     if prepared_audio is None:
         logger.warning(
             "live followup turn proceeding with synthesized/text delivery (session=%s, turn=%s, ai_text=%s)",
@@ -879,16 +983,28 @@ async def execute_live_user_followup_turn(
         return False
 
     if delivery_plan.total_duration_sec <= 0 and prepared_audio is None:
+        if spec.completion_reason:
+            logger.warning(
+                "closing turn proceeding without audio (session=%s, turn=%s)",
+                state.session_id,
+                turn_id,
+            )
+            return True
+        logger.warning(
+            "live followup turn proceeding text-only without audio (session=%s, turn=%s)",
+            state.session_id,
+            turn_id,
+        )
         await deps.send_json(
             ws,
             {
-                "type": "error",
-                "message": "Gemini Live 오디오 응답을 받지 못했습니다. 잠시 후 다시 말씀해 주세요.",
+                "type": "warning",
+                "message": "이번 질문의 음성 생성이 지연되어 자막 기준으로 먼저 진행합니다.",
                 "turnId": turn_id,
             },
         )
         await deps.resume_listening(ws, state, turn_id=turn_id)
-        return False
+        return True
 
     has_audio = await deps.stream_prepared_ai_delivery(
         ws,

@@ -101,6 +101,7 @@ class VoiceWsState:
     processing_audio: bool = False
     pending_user_segments: list[PendingUserSegment] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
+    pending_segment_resume_ms: float = 0.0
     realtime_user_transcript: str = ""
     realtime_user_delta_seq: int = 0
     live_interview: GeminiLiveInterviewSession | None = None

@@ -46,6 +46,7 @@ from app.interview.runtime.session_interaction import (
 )
 from app.interview.runtime.session_support import (
     create_live_interview_session as runtime_create_live_interview_session,
+    get_fallback_stt_service as runtime_get_fallback_stt_service,
     get_fallback_tts_service as runtime_get_fallback_tts_service,
     latest_user_answer as runtime_latest_user_answer,
 )
@@ -138,7 +139,7 @@ CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치�
 AI_TURN_SEQ = count(1)
 RUNTIME_MODE_LIVE_SINGLE = "live-single"
 RUNTIME_MODE_DISABLED = "disabled"
-VOICE_TURN_END_GRACE_SEC = max(0.2, settings.voice_turn_end_grace_ms / 1000.0)
+VOICE_TURN_END_GRACE_SEC = max(0.1, settings.voice_turn_end_grace_ms / 1000.0)
 VOICE_AI_ECHO_GUARD_SEC = max(0.5, settings.voice_ai_echo_guard_ms / 1000.0)
 VOICE_AI_PLAYBACK_SKEW_SEC = 0.35
 LIVE_OPENING_PROMPT = (
@@ -206,6 +207,7 @@ def _runtime_executor_deps():
         record_question_type=domain_record_question_type,
     )
 
+
 def _session_engine_deps():
     return build_session_engine_deps(
         create_live_interview_session=runtime_create_live_interview_session,
@@ -230,6 +232,7 @@ def _session_engine_deps():
         derive_question_type_preference=domain_derive_question_type_preference,
         select_next_question_type=domain_select_next_question_type,
         request_live_audio_turn=_request_live_audio_turn,
+        fallback_transcribe_user_audio=_fallback_transcribe_user_audio,
         emit_realtime_user_delta=_emit_realtime_user_delta,
         is_probable_ai_echo=lambda state, text, wav_bytes: _is_probable_ai_echo(state, text, wav_bytes),
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
@@ -544,6 +547,14 @@ async def _synthesize_fallback_tts(text: str) -> PreparedTtsAudio | None:
         sample_rate=result.sample_rate,
         provider=result.provider,
     )
+
+
+async def _fallback_transcribe_user_audio(wav_bytes: bytes) -> tuple[str, str]:
+    service = runtime_get_fallback_stt_service()
+    if not service.enabled:
+        return "", ""
+    result = await service.transcribe_wav(wav_bytes, language="ko")
+    return (result.text or "").strip(), result.provider
 
 
 def _get_or_create_live_interview(state: VoiceWsState) -> GeminiLiveInterviewSession:

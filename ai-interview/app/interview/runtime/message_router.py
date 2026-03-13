@@ -65,6 +65,23 @@ async def handle_client_message(
         if not audio_chunk:
             return
 
+        if (
+            state.pending_user_segments
+            and state.pending_user_segment_task
+            and not state.pending_user_segment_task.done()
+            and not state.processing_audio
+        ):
+            chunk_duration_ms = len(audio_chunk) / max(state.vad.sample_rate, 1) * 1000.0
+            if state.vad.is_speech_chunk(audio_chunk):
+                state.pending_segment_resume_ms += chunk_duration_ms
+                resume_threshold_ms = max(160.0, float(state.vad.speech_start_ms))
+                if state.pending_segment_resume_ms >= resume_threshold_ms:
+                    state.pending_user_segment_task.cancel()
+                    state.pending_user_segment_task = None
+                    state.pending_segment_resume_ms = 0.0
+            else:
+                state.pending_segment_resume_ms = 0.0
+
         segment = state.vad.feed(audio_chunk)
         if segment:
             state.last_vad_event = dict(state.vad.last_segment_info)
@@ -91,8 +108,10 @@ async def handle_client_message(
                 flush_now=True,
             )
         elif state.pending_user_segments:
+            state.pending_segment_resume_ms = 0.0
             await deps.enqueue_user_segment(ws, state, b"", flush_now=True)
         else:
+            state.pending_segment_resume_ms = 0.0
             deps.reset_realtime_user_transcript(state)
             await deps.resume_listening(ws, state)
         return

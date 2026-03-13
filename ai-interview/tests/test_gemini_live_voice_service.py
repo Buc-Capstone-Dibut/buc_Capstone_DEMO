@@ -73,6 +73,24 @@ class GeminiLiveInterviewSessionTextSelectionTests(unittest.TestCase):
             ),
         )
 
+    def test_merge_transcription_chunks_keeps_progressive_input_without_cutting_tail(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        merged = session._merge_transcription_chunks([
+            "HTTP 폴링은 요청이 반복되며 네트워크 비용이 커지고",
+            "HTTP 폴링은 요청이 반복되며 네트워크 비용이 커지고 SSE는 단방향 통신만 가능했기 때문에,",
+            "SSE는 단방향 통신만 가능했기 때문에, 연결 유지 효율과 양방향 메시지 지연을 비교한 결과 평균 지연이 가장 낮은 WebSocket을 선택했습니다.",
+        ])
+
+        self.assertEqual(
+            merged,
+            (
+                "HTTP 폴링은 요청이 반복되며 네트워크 비용이 커지고 "
+                "SSE는 단방향 통신만 가능했기 때문에, 연결 유지 효율과 양방향 메시지 지연을 비교한 결과 "
+                "평균 지연이 가장 낮은 WebSocket을 선택했습니다."
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

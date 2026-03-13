@@ -134,6 +134,16 @@ export function useOpenLLM({
     });
   }, []);
 
+  const pauseMic = useCallback((flush: boolean = true) => {
+    isMicStreamingRef.current = false;
+    setIsMicOn(false);
+    setVolume(0);
+
+    if (flush && socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "flush-audio" }));
+    }
+  }, []);
+
   const stopMic = useCallback((flush: boolean = true) => {
     audioProcessorRef.current?.stop();
     audioProcessorRef.current = null;
@@ -204,7 +214,7 @@ export function useOpenLLM({
     source.connect(ctx.destination);
 
     const currentTime = ctx.currentTime;
-    const minLeadSec = 0.04;
+    const minLeadSec = nextStartTimeRef.current <= 0 ? 0.18 : 0.06;
     if (nextStartTimeRef.current < currentTime + minLeadSec) {
       nextStartTimeRef.current = currentTime + minLeadSec;
     }
@@ -240,7 +250,7 @@ export function useOpenLLM({
 
     clearPendingMicRestart();
     if (isMicStreamingRef.current) {
-      stopMic(false);
+      pauseMic(false);
     }
     setIsAIProcessing(false);
     setIsAISpeaking(true);
@@ -254,7 +264,7 @@ export function useOpenLLM({
       pendingAudioQueueRef.current = queued.slice(idx);
       break;
     }
-  }, [clearPendingMicRestart, scheduleAudioChunk, stopMic]);
+  }, [clearPendingMicRestart, pauseMic, scheduleAudioChunk]);
 
   const unlockAudioContext = useCallback(async (fromUserGesture: boolean): Promise<boolean> => {
     const ctx = getOrCreateAudioContext();
@@ -342,7 +352,16 @@ export function useOpenLLM({
         await unlockAudioContext(true);
       }
 
+      if (audioProcessorRef.current) {
+        isMicStreamingRef.current = true;
+        setIsMicOn(true);
+        setIsAIProcessing(false);
+        return;
+      }
+
       audioProcessorRef.current = new AudioProcessor((data) => {
+        if (!isMicStreamingRef.current) return;
+
         let sum = 0;
         for (let i = 0; i < data.length; i += 1) {
           sum += data[i] * data[i];
@@ -473,7 +492,7 @@ export function useOpenLLM({
       const scheduled = playAudioChunk(audio, Number(event.sampleRate) || 24000, turnSeq);
       if (!scheduled) return;
       if (isMicStreamingRef.current) {
-        stopMic(false);
+        pauseMic(false);
       }
       setIsAIProcessing(false);
       setIsAISpeaking(true);
@@ -544,7 +563,8 @@ export function useOpenLLM({
       }
 
       if (controlText === "mic-audio-end") {
-        stopMic(false);
+        pauseMic(false);
+        setIsAIProcessing(true);
         return;
       }
 
@@ -567,7 +587,7 @@ export function useOpenLLM({
         }
       }
     }
-  }, [clearPendingMicRestart, playAudioChunk, startMic, stopMic]);
+  }, [clearPendingMicRestart, pauseMic, playAudioChunk, startMic]);
 
   const connect = useCallback(() => {
     if (

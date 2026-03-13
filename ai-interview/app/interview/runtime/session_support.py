@@ -8,7 +8,7 @@ from app.config import settings
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
 if TYPE_CHECKING:
-    from app.services.gemini_live_voice_service import GeminiLiveTtsService
+    from app.services.gemini_live_voice_service import GeminiLiveSttService, GeminiLiveTtsService
 
 
 def create_live_interview_session() -> GeminiLiveInterviewSession:
@@ -35,6 +35,18 @@ def get_fallback_tts_service() -> GeminiLiveTtsService:
     )
 
 
+@lru_cache(maxsize=1)
+def get_fallback_stt_service() -> GeminiLiveSttService:
+    from app.services.gemini_live_voice_service import GeminiLiveSttService
+
+    model_name = (settings.gemini_live_stt_model or "").strip() or "gemini-2.5-flash-native-audio-latest"
+    return GeminiLiveSttService(
+        api_key=settings.gemini_api_key,
+        model=model_name,
+        timeout_sec=6.0,
+    )
+
+
 def elapsed_seconds(started_at: datetime | None) -> int:
     if not isinstance(started_at, datetime):
         return 0
@@ -53,6 +65,7 @@ def latest_user_answer(messages: list[dict[str, Any]]) -> str:
 __all__ = [
     "create_live_interview_session",
     "elapsed_seconds",
+    "get_fallback_stt_service",
     "get_fallback_tts_service",
     "latest_user_answer",
 ]

@@ -63,6 +63,7 @@ def snapshot_vad_config(state: VoiceWsState) -> dict[str, Any]:
         "silence_ms": int(state.vad.silence_ms),
         "short_utterance_silence_ms": int(state.vad.short_utterance_silence_ms),
         "min_utterance_ms": int(state.vad.min_utterance_ms),
+        "max_segment_ms": int(state.vad.max_segment_ms),
         "turn_end_grace_ms": int(round(state.turn_end_grace_sec * 1000.0)),
     }
 

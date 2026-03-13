@@ -1,5 +1,5 @@
 const DENSE_HANGUL_MIN_LENGTH = 10;
-const SPACE_DENSITY_THRESHOLD = 0.06;
+const SPACE_DENSITY_THRESHOLD = 0.03;
 const COMMON_REPLACEMENTS: Array<[RegExp, string]> = [
   [/AI면접관/gu, "AI 면접관"],
   [/저희회사/gu, "저희 회사"],
@@ -156,6 +156,7 @@ export function formatTranscriptForDisplay(text: string, role: "user" | "ai"): s
   const normalized = applyCommonReplacements(text);
   if (!normalized) return normalized;
   if (role !== "user" && role !== "ai") return normalized;
+  if (role === "user") return normalized;
   if (!shouldApplyKoreanSpacingHeuristic(normalized)) return normalized;
   return formatDenseKoreanTranscript(normalized);
 }

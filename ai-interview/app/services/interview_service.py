@@ -38,6 +38,39 @@ def _to_text_snapshot(payload: Any, max_chars: int = 12000) -> str:
     return json.dumps(payload, ensure_ascii=False)[:max_chars]
 
 
+def _normalize_report_analysis(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+
+    if isinstance(payload.get("rubricScores"), dict):
+        return payload
+
+    evaluation = payload.get("evaluation")
+    feedback = payload.get("feedback")
+    if not isinstance(evaluation, dict) or not isinstance(feedback, dict):
+        return None
+
+    required_scores = ("jobFit", "logic", "communication", "attitude")
+    if not all(isinstance(evaluation.get(key), (int, float)) for key in required_scores):
+        return None
+
+    normalized = dict(payload)
+    normalized["evaluation"] = {
+        key: int(evaluation.get(key) or 0)
+        for key in required_scores
+    }
+    normalized["feedback"] = {
+        "strengths": feedback.get("strengths") if isinstance(feedback.get("strengths"), list) else [],
+        "improvements": feedback.get("improvements") if isinstance(feedback.get("improvements"), list) else [],
+    }
+    normalized["habits"] = payload.get("habits") if isinstance(payload.get("habits"), list) else []
+    normalized["bestPractices"] = payload.get("bestPractices") if isinstance(payload.get("bestPractices"), list) else []
+    normalized["sentimentTimeline"] = (
+        payload.get("sentimentTimeline") if isinstance(payload.get("sentimentTimeline"), list) else []
+    )
+    return normalized
+
+
 class InterviewService:
     def __init__(self, *, report_repository: ReportRepository | None = None) -> None:
         self._report_repository = report_repository or ReportRepository()
@@ -645,7 +678,9 @@ class InterviewService:
             job = row.get("job_payload") or {}
             report = row.get("report_payload") or {}
             report_doc = coerce_report_document(report)
-            compat_analysis = report_doc.get("compatAnalysis") if report_doc else report
+            compat_analysis = _normalize_report_analysis(
+                report_doc.get("compatAnalysis") if report_doc else report
+            )
             result.append(
                 {
                     "id": row["id"],
@@ -667,7 +702,7 @@ class InterviewService:
                     "createdAt": int(row["created_at"].timestamp())
                     if isinstance(row["created_at"], datetime)
                     else 0,
-                    "analysis": compat_analysis if compat_analysis else None,
+                    "analysis": compat_analysis,
                     "reportView": report_doc.get("reportView") if report_doc else None,
                     "reportStatus": row.get("report_status") or "",
                 }
@@ -722,7 +757,9 @@ class InterviewService:
 
         report_payload = (report or {}).get("report_payload") or {}
         report_doc = coerce_report_document(report_payload)
-        compat_analysis = report_doc.get("compatAnalysis") if report_doc else report_payload
+        compat_analysis = _normalize_report_analysis(
+            report_doc.get("compatAnalysis") if report_doc else report_payload
+        )
         timeline = report_doc.get("timeline") if report_doc else None
         if not isinstance(timeline, list):
             timeline = build_timeline_entries(
@@ -781,7 +818,7 @@ class InterviewService:
             "job_payload": session.get("job_payload") or {},
             "resume_payload": session.get("resume_payload") or {},
             "debug_events": debug_events,
-            "analysis": compat_analysis or {},
+            "analysis": compat_analysis,
             "report_view": report_doc.get("reportView") if report_doc else None,
             "timeline": timeline,
             "report_generation_meta": report_doc.get("generationMeta") if report_doc else None,
