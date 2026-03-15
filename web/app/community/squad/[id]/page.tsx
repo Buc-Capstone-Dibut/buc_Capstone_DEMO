@@ -121,18 +121,18 @@ export default async function SquadDetailPage({ params }: PageProps) {
   const squadCommentsModel = (prisma as any).squad_comments;
   const rawSquadComments = squadCommentsModel
     ? await squadCommentsModel.findMany({
-        where: { squad_id: id },
-        include: {
-          profiles: {
-            select: {
-              nickname: true,
-              avatar_url: true,
-              handle: true,
-            },
+      where: { squad_id: id },
+      include: {
+        profiles: {
+          select: {
+            nickname: true,
+            avatar_url: true,
+            handle: true,
           },
         },
-        orderBy: { created_at: "asc" },
-      })
+      },
+      orderBy: { created_at: "asc" },
+    })
     : [];
 
   const squadComments = rawSquadComments.map((comment) => ({
@@ -145,10 +145,10 @@ export default async function SquadDetailPage({ params }: PageProps) {
     updated_at: comment.updated_at?.toISOString() ?? null,
     author: comment.profiles
       ? {
-          nickname: comment.profiles.nickname,
-          avatar_url: comment.profiles.avatar_url,
-          handle: comment.profiles.handle,
-        }
+        nickname: comment.profiles.nickname,
+        avatar_url: comment.profiles.avatar_url,
+        handle: comment.profiles.handle,
+      }
       : null,
   }));
 
@@ -168,9 +168,6 @@ export default async function SquadDetailPage({ params }: PageProps) {
               >
                 {squad.status === "recruiting" ? "모집중" : "모집마감"}
               </Badge>
-              <span className="text-sm font-medium text-muted-foreground uppercase">
-                {squad.type}
-              </span>
             </div>
 
             <h1 className="text-3xl font-bold mb-4 leading-tight">
@@ -414,7 +411,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 <div>
                   <span className="font-semibold block mb-0.5">모집 마감</span>
                   <span className="text-muted-foreground">
-                    상시 모집 (인원 충원 시 마감)
+                    {squad.recruitment_period || "상시 모집 (인원 충원 시 마감)"}
                   </span>
                 </div>
               </div>

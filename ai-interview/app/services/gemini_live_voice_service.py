@@ -8,6 +8,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from app.interview.domain.turn_text import (
+    looks_like_complete_ai_question,
+    sanitize_ai_turn_text,
+    sanitize_user_turn_text,
+)
 from app.services.voice_pipeline import (
     float_samples_to_pcm16le_bytes,
     wav_bytes_to_float_samples,
@@ -23,6 +28,9 @@ except Exception:  # pragma: no cover - optional dependency fallback
 logger = logging.getLogger("dibut.gemini_live_voice")
 
 PCM_RATE_PATTERN = re.compile(r"rate=(\d+)")
+TURN_COMPLETE_TAIL_GRACE_SEC = 0.3
+MISSING_AUDIO_RETRY_GRACE_SEC = 0.85
+TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.75
 
 
 def _is_quota_exhausted_error(exc: Exception) -> bool:
@@ -71,9 +79,17 @@ class _GeminiLiveBaseService:
         timeout_sec: float,
     ) -> list[Any]:
         responses: list[Any] = []
+        turn_complete_seen = False
         while True:
             try:
-                response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout_sec)
+                timeout = timeout_sec
+                if turn_complete_seen:
+                    timeout = (
+                        TURN_COMPLETE_TAIL_GRACE_SEC
+                        if self._responses_have_payload(responses)
+                        else TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC
+                    )
+                response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout)
             except StopAsyncIteration:
                 break
             except asyncio.TimeoutError:
@@ -82,9 +98,19 @@ class _GeminiLiveBaseService:
             responses.append(response)
             server_content = getattr(response, "server_content", None)
             if bool(getattr(server_content, "turn_complete", False)):
-                break
+                turn_complete_seen = True
 
         return responses
+
+    def _responses_have_payload(self, responses: list[Any]) -> bool:
+        if not responses:
+            return False
+        if self._extract_model_text_chunks(responses):
+            return True
+        if self._extract_output_transcription_chunks(responses):
+            return True
+        audio_chunks, _sample_rate = self._extract_audio_chunks(responses)
+        return bool(audio_chunks)
 
     def _extract_model_text_chunks(self, responses: list[Any]) -> list[str]:
         chunks: list[str] = []
@@ -93,6 +119,8 @@ class _GeminiLiveBaseService:
             model_turn = getattr(server_content, "model_turn", None)
             parts = getattr(model_turn, "parts", None) or []
             for part in parts:
+                if bool(getattr(part, "thought", False)):
+                    continue
                 text = getattr(part, "text", None)
                 if isinstance(text, str) and text.strip():
                     chunks.append(text.strip())
@@ -111,13 +139,33 @@ class _GeminiLiveBaseService:
     def _merge_transcription_chunks(self, chunks: list[str]) -> str:
         merged = ""
         for chunk in chunks:
-            text = (chunk or "").strip()
+            text = " ".join(str(chunk or "").split()).strip()
             if not text:
                 continue
-            if merged and text.startswith(merged):
+            if not merged:
                 merged = text
-            else:
-                merged += text
+                continue
+            if text.startswith(merged):
+                merged = text
+                continue
+            if merged.startswith(text) or text in merged:
+                continue
+            if merged in text:
+                merged = text
+                continue
+
+            max_overlap = min(len(merged), len(text))
+            overlap = 0
+            for size in range(max_overlap, 2, -1):
+                if merged.endswith(text[:size]):
+                    overlap = size
+                    break
+
+            if overlap:
+                merged = f"{merged}{text[overlap:]}"
+                continue
+
+            merged = f"{merged} {text}".strip()
         return merged.strip()
 
     def _blob_to_bytes(self, raw: Any) -> bytes:
@@ -287,7 +335,7 @@ class GeminiLiveSttService(_GeminiLiveBaseService):
             model_text_chunks = self._extract_model_text_chunks(responses)
             final_text = " ".join(model_text_chunks).strip()
 
-        return SttResult(text=final_text, provider=self.provider)
+        return SttResult(text=sanitize_user_turn_text(final_text), provider=self.provider)
 
 
 class GeminiLiveTtsService(_GeminiLiveBaseService):
@@ -301,11 +349,10 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         timeout_sec: float = 20.0,
         quota_cooldown_sec: int = 300,
     ):
-        super().__init__(api_key=api_key)
-        # Keep `model` for compatibility with existing callers/configs.
+        super().__init__(api_key=api_key, provider="gemini-live-tts")
+        # Keep `model` and `generate_model` for compatibility with existing callers/configs.
         self.model = model
-        self.generate_model = (generate_model or model).strip()
-        self.generate_model_candidates = self._build_generate_model_candidates(self.generate_model)
+        self.generate_model = (generate_model or model).strip() or "gemini-2.5-flash-preview-tts"
         self.voice = voice
         self.output_sample_rate = output_sample_rate
         self.timeout_sec = timeout_sec
@@ -350,27 +397,16 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
 
-    def _estimate_max_output_tokens(self, text: str, boost: int = 0) -> int:
-        base = int(len(text) * 4.0) + 120 + boost
+    def _estimate_max_output_tokens(self, text: str) -> int:
+        base = int(len(text) * 4.0) + 120
         return max(256, min(1800, base))
 
-    def _build_generate_model_candidates(self, preferred: str) -> tuple[str, ...]:
-        # Reliability-first order:
-        # flash-preview-tts responds significantly faster and more consistently than pro-preview-tts.
-        baseline = "gemini-2.5-flash-preview-tts"
-        candidates: list[str] = []
-        for name in (baseline, preferred):
-            normalized = (name or "").strip()
-            if normalized and normalized not in candidates:
-                candidates.append(normalized)
-        return tuple(candidates)
-
-    def _tts_generate_config(self, text: str, boost: int = 0) -> dict[str, Any]:
+    def _tts_generate_config(self, text: str) -> dict[str, Any]:
         return {
             "response_modalities": ["AUDIO"],
             "temperature": 0.0,
             "top_p": 0.9,
-            "max_output_tokens": self._estimate_max_output_tokens(text, boost=boost),
+            "max_output_tokens": self._estimate_max_output_tokens(text),
             "automatic_function_calling": {"disable": True},
             "speech_config": {
                 "voice_config": {
@@ -384,189 +420,19 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
     async def _synthesize_via_generate_content(
         self,
         text: str,
-        *,
-        model_name: str,
-        boost: int = 0,
-        timeout_override: float | None = None,
     ) -> tuple[bytes, int]:
-        # NOTE:
-        # If timeout is too short, upstream requests can still succeed shortly after timeout
-        # while this task has already failed, which looks like "200 OK but no audio".
-        # Keep timeout generous to avoid premature fallback.
-        timeout_sec = self.timeout_sec if timeout_override is None else timeout_override
         request_coro = self._client.aio.models.generate_content(
-            model=model_name,
+            model=self.generate_model,
             contents=text,
-            config=self._tts_generate_config(text, boost=boost),
+            config=self._tts_generate_config(text),
         )
 
-        if timeout_sec and timeout_sec > 0:
-            response = await asyncio.wait_for(request_coro, timeout=timeout_sec)
+        if self.timeout_sec and self.timeout_sec > 0:
+            response = await asyncio.wait_for(request_coro, timeout=self.timeout_sec)
         else:
             response = await request_coro
 
         return self._extract_audio_from_generate_response(response)
-
-    def _split_tts_segments(self, text: str, max_chars: int = 90) -> list[str]:
-        normalized = re.sub(r"\s+", " ", (text or "")).strip()
-        if not normalized:
-            return []
-
-        # Prefer sentence boundaries first, then merge into bounded chunks.
-        pieces = [p.strip() for p in re.split(r"(?<=[.!?])\s+|(?<=[,;:])\s+", normalized) if p.strip()]
-        if not pieces:
-            pieces = [normalized]
-
-        segments: list[str] = []
-        current = ""
-        for piece in pieces:
-            candidate = f"{current} {piece}".strip() if current else piece
-            if len(candidate) <= max_chars:
-                current = candidate
-                continue
-            if current:
-                segments.append(current)
-            current = piece
-
-        if current:
-            segments.append(current)
-
-        # Hard cut for very long token-without-boundary cases.
-        bounded: list[str] = []
-        for segment in segments:
-            if len(segment) <= max_chars:
-                bounded.append(segment)
-                continue
-            cursor = 0
-            while cursor < len(segment):
-                upper = min(cursor + max_chars, len(segment))
-                if upper < len(segment):
-                    split_at = segment.rfind(" ", cursor, upper)
-                    if split_at > cursor + max(8, max_chars // 3):
-                        upper = split_at
-                piece = segment[cursor:upper].strip()
-                if piece:
-                    bounded.append(piece)
-                cursor = upper
-                while cursor < len(segment) and segment[cursor] == " ":
-                    cursor += 1
-
-        return [s for s in bounded if s]
-
-    def _whole_text_budget_sec(self, text_len: int) -> float:
-        estimate = 18.0 + (text_len / 130.0) * 3.0
-        return max(18.0, min(30.0, estimate))
-
-    def _segment_budget_sec(self, text_len: int) -> float:
-        estimate = 14.0 + (text_len / 90.0) * 2.0
-        return max(14.0, min(22.0, estimate))
-
-    def _should_segment_first(self, text_len: int) -> bool:
-        return text_len >= 48
-
-    async def _generate_with_retries(
-        self,
-        target_text: str,
-        boosts: tuple[int, ...],
-        *,
-        max_total_sec: float | None = None,
-    ) -> tuple[bytes, int]:
-        timeout_override = self.timeout_sec if max_total_sec is None else max(4.0, min(self.timeout_sec, max_total_sec))
-        attempt_no = 0
-        for model_name in self.generate_model_candidates:
-            for boost in boosts:
-                attempt_no += 1
-                try:
-                    payload, sample_rate = await self._synthesize_via_generate_content(
-                        target_text,
-                        model_name=model_name,
-                        boost=boost,
-                        timeout_override=timeout_override,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "gemini tts generate_content timeout (attempt=%s, model=%s, text_len=%s, timeout=%.2fs)",
-                        attempt_no,
-                        model_name,
-                        len(target_text),
-                        timeout_override,
-                    )
-                    payload, sample_rate = b"", self.output_sample_rate
-                except Exception as exc:
-                    if _is_quota_exhausted_error(exc):
-                        self._mark_quota_exhausted(exc)
-                        return b"", self.output_sample_rate
-                    logger.exception(
-                        "gemini tts generate_content failed (attempt=%s, model=%s)",
-                        attempt_no,
-                        model_name,
-                    )
-                    payload, sample_rate = b"", self.output_sample_rate
-
-                if payload:
-                    logger.info(
-                        "gemini tts generate_content success (attempt=%s, model=%s, text_len=%s, sample_rate=%s, audio_bytes=%s)",
-                        attempt_no,
-                        model_name,
-                        len(target_text),
-                        sample_rate,
-                        len(payload),
-                    )
-                    self._mark_quota_recovered()
-                    return payload, sample_rate or self.output_sample_rate
-
-                logger.warning(
-                    "gemini tts returned empty payload via generate_content (attempt=%s, model=%s, text_len=%s)",
-                    attempt_no,
-                    model_name,
-                    len(target_text),
-                )
-                await asyncio.sleep(0.15)
-
-        return b"", self.output_sample_rate
-
-    async def _synthesize_segmented(
-        self,
-        payload_text: str,
-        *,
-        max_chars: int,
-        boosts: tuple[int, ...] = (0, 120),
-    ) -> tuple[bytes, int]:
-        segments = self._split_tts_segments(payload_text, max_chars=max_chars)
-        if not segments:
-            logger.error("gemini tts has no segments")
-            return b"", self.output_sample_rate
-
-        merged: list[bytes] = []
-        sample_rate_final = self.output_sample_rate
-        for segment in segments:
-            seg_payload, seg_rate = await self._generate_with_retries(
-                segment,
-                boosts=boosts,
-                max_total_sec=self._segment_budget_sec(len(segment)),
-            )
-            if not seg_payload:
-                logger.warning(
-                    "gemini tts segmented synthesis failed; discarding partial audio (completed_segments=%s, failed_segment_len=%s)",
-                    len(merged),
-                    len(segment),
-                )
-                return b"", self.output_sample_rate
-            merged.append(seg_payload)
-            sample_rate_final = seg_rate
-
-        merged_payload = b"".join(merged)
-        if not merged_payload:
-            logger.error("gemini tts merged segmented payload is empty")
-            return b"", self.output_sample_rate
-
-        logger.info(
-            "gemini tts segmented success (segments=%s, sample_rate=%s, audio_bytes=%s)",
-            len(merged),
-            sample_rate_final,
-            len(merged_payload),
-        )
-        return merged_payload, sample_rate_final
 
     async def synthesize_pcm(self, text: str) -> TtsResult:
         if not self.enabled or not text.strip():
@@ -580,47 +446,47 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         if not payload_text:
             return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
 
-        text_len = len(payload_text)
-        segment_first = self._should_segment_first(text_len)
-
-        # 긴 텍스트는 분할 합성이 평균 지연/실패율이 낮아 우선 시도한다.
-        if segment_first:
-            for segment_size in (56, 42, 32):
-                segmented_payload, segmented_rate = await self._synthesize_segmented(
-                    payload_text,
-                    max_chars=segment_size,
-                    boosts=(0, 120),
-                )
-                if segmented_payload:
-                    return TtsResult(
-                        audio_pcm_bytes=segmented_payload,
-                        sample_rate=segmented_rate,
-                        provider=self.provider,
-                    )
+        try:
+            payload, sample_rate = await self._synthesize_via_generate_content(payload_text)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "gemini tts generate_content timeout (model=%s, text_len=%s, timeout=%.2fs)",
+                self.generate_model,
+                len(payload_text),
+                self.timeout_sec,
+            )
+            return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+        except Exception as exc:
+            if _is_quota_exhausted_error(exc):
+                self._mark_quota_exhausted(exc)
+                return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
+            logger.exception(
+                "gemini tts generate_content failed (model=%s, text_len=%s)",
+                self.generate_model,
+                len(payload_text),
+            )
             return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
 
-        # 짧은 문장은 whole-text 우선, 실패 시 분할 fallback.
-        whole_payload, whole_rate = await self._generate_with_retries(
-            payload_text,
-            boosts=(0, 120, 240),
-            max_total_sec=self._whole_text_budget_sec(text_len),
-        )
-        if whole_payload:
-            return TtsResult(audio_pcm_bytes=whole_payload, sample_rate=whole_rate, provider=self.provider)
-
-        for segment_size in (48, 36, 28):
-            segmented_payload, segmented_rate = await self._synthesize_segmented(
-                payload_text,
-                max_chars=segment_size,
-                boosts=(0, 120),
+        if payload:
+            logger.info(
+                "gemini tts generate_content success (model=%s, text_len=%s, sample_rate=%s, audio_bytes=%s)",
+                self.generate_model,
+                len(payload_text),
+                sample_rate,
+                len(payload),
             )
-            if segmented_payload:
-                return TtsResult(
-                    audio_pcm_bytes=segmented_payload,
-                    sample_rate=segmented_rate,
-                    provider=self.provider,
-                )
+            self._mark_quota_recovered()
+            return TtsResult(
+                audio_pcm_bytes=payload,
+                sample_rate=sample_rate or self.output_sample_rate,
+                provider=self.provider,
+            )
 
+        logger.warning(
+            "gemini tts returned empty payload via generate_content (model=%s, text_len=%s)",
+            self.generate_model,
+            len(payload_text),
+        )
         return TtsResult(audio_pcm_bytes=b"", sample_rate=self.output_sample_rate, provider=self.provider)
 
 
@@ -629,15 +495,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         self,
         api_key: str | None,
         model: str = "gemini-2.5-flash-native-audio-latest",
-        fallback_models: list[str] | tuple[str, ...] | None = None,
         voice: str = "Kore",
         timeout_sec: float = 18.0,
         output_sample_rate: int = 24000,
     ):
         super().__init__(api_key=api_key, provider="gemini-live-single")
         self.model = (model or "").strip() or "gemini-2.5-flash-native-audio-latest"
-        self._model_candidates = self._build_model_candidates(self.model, fallback_models)
-        self._active_model = self._model_candidates[0]
+        self._active_model = self.model
         self.voice = voice
         self.timeout_sec = max(6.0, float(timeout_sec or 18.0))
         self.output_sample_rate = max(8000, int(output_sample_rate or 24000))
@@ -645,47 +509,29 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         self._session: Any | None = None
         self._session_lock = asyncio.Lock()
         self._turn_lock = asyncio.Lock()
-        self._system_instruction: str = ""
+        self._session_instruction: str = ""
         self._connect_block_until = 0.0
 
     @property
     def connected(self) -> bool:
         return self._session is not None
 
-    def _build_model_candidates(
-        self,
-        preferred: str,
-        fallback_models: list[str] | tuple[str, ...] | None,
-    ) -> tuple[str, ...]:
-        defaults = (
-            "gemini-2.5-flash-native-audio-latest",
-            "gemini-live-2.5-flash-preview",
-            "gemini-2.0-flash-live-001",
-        )
-        ordered: list[str] = []
-        for name in (preferred, *(fallback_models or ()), *defaults):
-            normalized = (name or "").strip()
-            if normalized and normalized not in ordered:
-                ordered.append(normalized)
-        return tuple(ordered) if ordered else (defaults[0],)
+    @property
+    def active_model(self) -> str:
+        return self._active_model
 
-    def _is_model_not_supported_error(self, exc: Exception) -> bool:
-        text = str(exc).lower()
-        return (
-            "is not found for api version" in text
-            or "not supported for bidigeneratecontent" in text
-            or "model not found" in text
-            or "unsupported model" in text
-        )
-
-    def _build_live_config(self, system_instruction: str) -> dict[str, Any]:
+    def _build_live_config(self, session_instruction: str) -> dict[str, Any]:
         return {
             "response_modalities": ["AUDIO"],
-            "temperature": 0.35,
+            "temperature": 0.2,
             "top_p": 0.9,
-            "max_output_tokens": 1100,
+            "max_output_tokens": 420,
             "input_audio_transcription": {},
             "output_audio_transcription": {},
+            "thinking_config": {
+                "include_thoughts": False,
+                "thinking_budget": 0,
+            },
             "speech_config": {
                 "voice_config": {
                     "prebuilt_voice_config": {
@@ -693,8 +539,15 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     }
                 }
             },
-            "system_instruction": system_instruction,
+            "system_instruction": session_instruction,
         }
+
+    def _compose_turn_text(self, *, turn_prompt: str, text: str) -> str:
+        prompt = (turn_prompt or "").strip()
+        payload = (text or "").strip()
+        if prompt and payload:
+            return f"{prompt}\n\n{payload}"
+        return prompt or payload
 
     def _sanitize_model_text(self, text: str) -> str:
         cleaned = text or ""
@@ -725,20 +578,59 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         )
         return any(normalized.endswith(ending) for ending in complete_endings)
 
+    def _normalize_ai_text_candidate(self, text: str) -> str:
+        cleaned = self._sanitize_model_text(text)
+        if not cleaned:
+            return ""
+        normalized = sanitize_ai_turn_text(cleaned)
+        if not normalized:
+            return ""
+        normalized = re.sub(r"([.!?])(?=[가-힣A-Za-z])", r"\1 ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
+
     def _select_best_ai_text(self, output_text: str, model_text: str) -> str:
-        candidates = [text for text in (output_text, model_text) if (text or "").strip()]
+        normalized_output = self._normalize_ai_text_candidate(output_text)
+        normalized_model = self._normalize_ai_text_candidate(model_text)
+        output_complete = self._is_likely_complete_ai_text(normalized_output)
+        model_complete = self._is_likely_complete_ai_text(normalized_model)
+        output_question = looks_like_complete_ai_question(normalized_output)
+        model_question = looks_like_complete_ai_question(normalized_model)
+
+        if normalized_output:
+            if not normalized_model:
+                return normalized_output
+            model_has_latin = bool(re.search(r"[A-Za-z]", normalized_model))
+            output_has_latin = bool(re.search(r"[A-Za-z]", normalized_output))
+            if model_question and not output_question:
+                return normalized_model
+            if output_question and not model_question:
+                return normalized_output
+            if output_complete and (
+                not model_complete
+                or len(normalized_output) >= len(normalized_model) - 8
+                or (model_has_latin and not output_has_latin)
+            ):
+                return normalized_output
+            if model_complete and not output_complete:
+                return normalized_model
+            if normalized_model.startswith(normalized_output) and len(normalized_model) >= len(normalized_output) + 10:
+                return normalized_model
+            if normalized_output.startswith(normalized_model) and len(normalized_output) >= len(normalized_model) + 10:
+                return normalized_output
+
+        candidates = [text for text in (normalized_output, normalized_model) if text]
         if not candidates:
             return ""
 
         def _score(candidate: str) -> int:
-            normalized = self._sanitize_model_text(candidate)
-            if not normalized:
-                return -1
-            bonus = 140 if self._is_likely_complete_ai_text(normalized) else 0
-            return len(normalized) + bonus
+            bonus = 140 if self._is_likely_complete_ai_text(candidate) else 0
+            question_bonus = 220 if looks_like_complete_ai_question(candidate) else 0
+            hangul_bonus = 80 if re.search(r"[가-힣]", candidate) else 0
+            return len(candidate) + bonus + question_bonus + hangul_bonus
 
         best = max(candidates, key=_score)
-        return self._sanitize_model_text(best)
+        return best
 
     async def close(self) -> None:
         async with self._session_lock:
@@ -746,7 +638,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             session = self._session
             self._session_cm = None
             self._session = None
-            self._system_instruction = ""
+            self._session_instruction = ""
 
         try:
             if session_cm is not None:
@@ -756,58 +648,52 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         except Exception:
             logger.warning("gemini live single session close failed", exc_info=True)
 
-    async def _ensure_connected(self, system_instruction: str) -> bool:
+    async def _ensure_connected(self, session_instruction: str) -> bool:
         if not self.enabled:
             return False
         if time.monotonic() < self._connect_block_until:
             return False
 
         async with self._session_lock:
-            if self._session is not None and self._system_instruction == system_instruction:
+            if self._session is not None and self._session_instruction == session_instruction:
                 return True
 
         if self._session is not None:
             await self.close()
 
         async with self._session_lock:
-            if self._session is not None and self._system_instruction == system_instruction:
+            if self._session is not None and self._session_instruction == session_instruction:
                 return True
             last_error: Exception | None = None
-            for candidate in self._model_candidates:
-                try:
-                    self._session_cm = self._client.aio.live.connect(
-                        model=candidate,
-                        config=self._build_live_config(system_instruction),
-                    )
-                    self._session = await self._session_cm.__aenter__()
-                    self._system_instruction = system_instruction
-                    self._active_model = candidate
-                    self._connect_block_until = 0.0
-                    logger.info(
-                        "gemini live single session connected (model=%s, voice=%s)",
-                        candidate,
-                        self.voice,
-                    )
-                    return True
-                except Exception as exc:
-                    last_error = exc
-                    self._session_cm = None
-                    self._session = None
-                    self._system_instruction = ""
-                    if self._is_model_not_supported_error(exc):
-                        logger.warning(
-                            "gemini live single model unavailable for bidi; trying fallback (model=%s)",
-                            candidate,
-                        )
-                        continue
-                    logger.exception("gemini live single session connect failed (model=%s)", candidate)
+            try:
+                self._session_cm = self._client.aio.live.connect(
+                    model=self.model,
+                    config=self._build_live_config(session_instruction),
+                )
+                self._session = await self._session_cm.__aenter__()
+                self._session_instruction = session_instruction
+                self._active_model = self.model
+                self._connect_block_until = 0.0
+                logger.info(
+                    "gemini live single session connected (model=%s, voice=%s)",
+                    self.model,
+                    self.voice,
+                )
+                return True
+            except Exception as exc:
+                last_error = exc
+                self._session_cm = None
+                self._session = None
+                self._session_instruction = ""
+                logger.exception("gemini live single session connect failed (model=%s)", self.model)
 
-            retry_after = 8 if (last_error and self._is_model_not_supported_error(last_error)) else 3
+            retry_after = 3
             self._connect_block_until = time.monotonic() + retry_after
             logger.error(
-                "gemini live single session unavailable; retries paused (retry_after=%ss, candidates=%s)",
+                "gemini live single session unavailable; retries paused (retry_after=%ss, model=%s, error=%s)",
                 retry_after,
-                ",".join(self._model_candidates),
+                self.model,
+                last_error,
             )
             return False
 
@@ -827,10 +713,20 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         model_text_chunks = self._extract_model_text_chunks(responses)
         audio_chunks, sample_rate = self._extract_audio_chunks(responses)
 
-        user_text = self._merge_transcription_chunks(input_chunks)
+        user_text = sanitize_user_turn_text(self._merge_transcription_chunks(input_chunks))
         output_text = self._merge_transcription_chunks(output_chunks)
         model_text = self._merge_transcription_chunks(model_text_chunks)
         ai_text = self._select_best_ai_text(output_text, model_text)
+        logger.info(
+            "gemini live turn parsed (input_len=%s, output_len=%s, model_len=%s, selected_len=%s, audio_bytes=%s)",
+            len(user_text),
+            len(output_text),
+            len(model_text),
+            len(ai_text),
+            sum(len(chunk) for chunk in audio_chunks),
+        )
+        if ai_text:
+            logger.info("gemini live caption ai=%s", ai_text)
 
         payload = b"".join(audio_chunks)
         detected_rate = int(sample_rate or self.output_sample_rate)
@@ -842,28 +738,65 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             provider=self.provider,
         )
 
-    async def request_text_turn(self, *, system_instruction: str, text: str) -> LiveInterviewTurnResult:
+    async def request_text_turn(
+        self,
+        *,
+        session_instruction: str,
+        text: str,
+        turn_prompt: str = "",
+    ) -> LiveInterviewTurnResult:
         if not self.enabled:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        prompt = (text or "").strip()
+        prompt = self._compose_turn_text(turn_prompt=turn_prompt, text=text)
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
         for attempt in range(1, 3):
-            connected = await self._ensure_connected(system_instruction)
+            connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
-                break
+                logger.warning(
+                    "gemini live text turn connect unavailable (attempt=%s, text_len=%s)",
+                    attempt,
+                    len(prompt),
+                )
+                await self.close()
+                continue
+
             try:
                 async with self._turn_lock:
-                    await self._session.send_realtime_input(text=prompt)
+                    await self._session.send_client_content(
+                        turns=types.Content(
+                            role="user",
+                            parts=[types.Part(text=prompt)],
+                        ),
+                        turn_complete=True,
+                    )
                     responses = await self._receive_until_turn_complete(
                         response_stream=self._session.receive(),
                         timeout_sec=self.timeout_sec,
                     )
                 result = self._build_turn_result(responses)
-                if result.ai_text or result.audio_pcm_bytes:
+                if result.ai_text and result.audio_pcm_bytes:
                     return result
+                if result.ai_text and not result.audio_pcm_bytes:
+                    logger.warning(
+                        "gemini live text turn missing audio; reconnecting (attempt=%s, text_len=%s, ai_len=%s)",
+                        attempt,
+                        len(prompt),
+                        len(result.ai_text),
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
+                        await self.close()
+                        continue
+                logger.warning(
+                    "gemini live text turn incomplete result (attempt=%s, text_len=%s, ai_len=%s, audio_bytes=%s)",
+                    attempt,
+                    len(prompt),
+                    len(result.ai_text),
+                    len(result.audio_pcm_bytes),
+                )
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -872,27 +805,40 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     attempt,
                     len(prompt),
                 )
-                await self.close()
+            await self.close()
 
         return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
     async def request_audio_turn(
         self,
         *,
-        system_instruction: str,
+        session_instruction: str,
         pcm_bytes: bytes,
         sample_rate: int,
+        turn_prompt: str = "",
     ) -> LiveInterviewTurnResult:
         if not self.enabled or not pcm_bytes:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
         normalized_rate = max(8000, int(sample_rate or 16000))
+
         for attempt in range(1, 3):
-            connected = await self._ensure_connected(system_instruction)
+            connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
-                break
+                logger.warning(
+                    "gemini live audio turn connect unavailable (attempt=%s, sample_rate=%s, bytes=%s)",
+                    attempt,
+                    normalized_rate,
+                    len(pcm_bytes),
+                )
+                await self.close()
+                continue
+
             try:
                 async with self._turn_lock:
+                    prompt = (turn_prompt or "").strip()
+                    if prompt:
+                        await self._session.send_realtime_input(text=prompt)
                     await self._session.send_realtime_input(
                         audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                     )
@@ -902,8 +848,30 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                         timeout_sec=self.timeout_sec,
                     )
                 result = self._build_turn_result(responses)
-                if result.user_text or result.ai_text or result.audio_pcm_bytes:
+                if result.ai_text and result.audio_pcm_bytes:
                     return result
+                if result.ai_text and not result.audio_pcm_bytes:
+                    logger.warning(
+                        "gemini live audio turn missing audio; reconnecting (attempt=%s, sample_rate=%s, bytes=%s, ai_len=%s, user_len=%s)",
+                        attempt,
+                        normalized_rate,
+                        len(pcm_bytes),
+                        len(result.ai_text),
+                        len(result.user_text),
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
+                        await self.close()
+                        continue
+                logger.warning(
+                    "gemini live audio turn incomplete result (attempt=%s, sample_rate=%s, bytes=%s, user_len=%s, ai_len=%s, audio_bytes=%s)",
+                    attempt,
+                    normalized_rate,
+                    len(pcm_bytes),
+                    len(result.user_text),
+                    len(result.ai_text),
+                    len(result.audio_pcm_bytes),
+                )
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -913,6 +881,6 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     normalized_rate,
                     len(pcm_bytes),
                 )
-                await self.close()
+            await self.close()
 
         return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)

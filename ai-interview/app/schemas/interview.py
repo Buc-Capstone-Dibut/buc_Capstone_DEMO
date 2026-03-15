@@ -21,7 +21,7 @@ class SessionStartRequest(BaseModel):
     personality: str = "professional"
     jobData: dict[str, Any] = Field(default_factory=dict)
     resumeData: Any = None
-    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    targetDurationSec: int = Field(default=600, ge=300, le=900)
     closingThresholdSec: int = Field(default=60, ge=30, le=120)
 
 
@@ -52,7 +52,7 @@ class PortfolioSessionStartRequest(BaseModel):
     treeSummary: str = ""
     infraHypotheses: list[str] = Field(default_factory=list)
     detectedTopics: list[str] = Field(default_factory=list)
-    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    targetDurationSec: int = Field(default=600, ge=300, le=900)
     closingThresholdSec: int = Field(default=60, ge=30, le=120)
 
 
@@ -68,7 +68,7 @@ class ChatRequest(BaseModel):
     resumeData: Any = None
     personality: str = "professional"
     sessionId: str | None = None
-    targetDurationSec: int = Field(default=420, ge=300, le=600)
+    targetDurationSec: int = Field(default=600, ge=300, le=900)
     closingThresholdSec: int = Field(default=60, ge=30, le=120)
 
 

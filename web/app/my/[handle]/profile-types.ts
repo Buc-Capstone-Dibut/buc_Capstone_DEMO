@@ -37,13 +37,16 @@ export interface ResumePayload {
   };
   education: unknown[];
   experience: Array<{
+    id?: string;
     company: string;
     position: string;
     period: string;
     description: string;
   }>;
   skills: Array<{ name: string; level: string; category?: string }>;
+  selfIntroduction: string;
   projects: Array<{
+    id?: string;
     name: string;
     period: string;
     description: string;

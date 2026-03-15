@@ -5,15 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";  // Basic textarea for simple manual input backup
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ArrowRight, FileText, Loader2, Sparkles, Upload } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
-import { MOCK_RESUME_RESULT } from "@/mocks/interview-setup-data";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-export function ResumeInputStep() {
+type SetupTrack = "posting" | "role";
+
+interface ResumeInputStepProps {
+    track?: SetupTrack;
+}
+
+const isRoleTrack = (track: SetupTrack) => track === "role";
+
+export function ResumeInputStep({ track = "posting" }: ResumeInputStepProps) {
     const { setResumeData, setResumePrefillSource, setStep, resumeData, resumePrefillSource } = useInterviewSetupStore();
     const [activeTab, setActiveTab] = useState("file");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -49,10 +55,11 @@ export function ResumeInputStep() {
                 title: "불러오기 완료",
                 description: "마이페이지 활성 이력서를 불러왔습니다.",
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "활성 이력서를 찾을 수 없습니다.";
             toast({
                 title: "불러오기 실패",
-                description: error?.message || "활성 이력서를 찾을 수 없습니다.",
+                description: message,
                 variant: "destructive",
             });
         } finally {
@@ -98,9 +105,10 @@ export function ResumeInputStep() {
             } else {
                 throw new Error(result.error || '분석 중 오류가 발생했습니다.');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "이력서 분석 중 오류가 발생했습니다. 다시 시도해주세요.";
             console.error("Resume Analysis Error:", error);
-            alert(error.message || "이력서 분석 중 오류가 발생했습니다. 다시 시도해주세요.");
+            alert(message);
         } finally {
             setIsAnalyzing(false);
         }
@@ -113,16 +121,31 @@ export function ResumeInputStep() {
     };
 
     const hasExistingData = !!resumeData?.parsedContent;
+    const canSkip = isRoleTrack(track);
+
+    const handleSkip = () => {
+        setResumePrefillSource(null);
+        setStep("final-check");
+    };
 
     return (
         <div className="max-w-3xl mx-auto py-12 px-6">
             <div className="mb-10 text-center space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight">이력서를 등록해주세요</h1>
-                <p className="text-muted-foreground text-lg">
-                    PDF 파일을 업로드하거나, 핵심 경력을 직접 입력할 수 있습니다.<br />
-                    입력된 내용은 면접관 AI에게 전달됩니다.
-                </p>
-                <div className="pt-2">
+                <h1 className="text-3xl font-bold tracking-tight">
+                    {track === "posting" ? "이력서를 등록해주세요" : "직무 브리프에 내 경험을 연결할까요?"}
+                </h1>
+                {track === "posting" ? (
+                    <p className="text-muted-foreground text-lg">
+                        PDF 파일을 업로드하거나, 핵심 경력을 직접 입력할 수 있습니다.<br />
+                        입력된 내용은 면접관 AI에게 전달됩니다.
+                    </p>
+                ) : (
+                    <p className="text-muted-foreground text-lg">
+                        직무 기반 트랙에서는 이 단계가 선택 사항입니다.<br />
+                        경력과 프로젝트를 연결하면 공통 직무 질문이 내 경험 중심 꼬리질문으로 확장됩니다.
+                    </p>
+                )}
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
@@ -138,6 +161,17 @@ export function ResumeInputStep() {
                         ) : (
                             "마이페이지에서 불러오기"
                         )}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                            window.location.href = "/resume?mode=setup";
+                        }}
+                        className="h-10 gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary"
+                    >
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        AI와 함께 새로 작성
                     </Button>
                 </div>
                 {resumePrefillSource === "active_resume" && (
@@ -222,9 +256,25 @@ export function ResumeInputStep() {
             </Tabs>
 
             <div className="flex justify-between mt-10">
-                <Button variant="outline" onClick={() => setStep('jd-check')} className="px-6 h-12">
-                    <ArrowLeft className="mr-2 w-4 h-4" /> 이전 단계 (JD)
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => setStep(track === "posting" ? "jd-check" : "target")}
+                        className="px-6 h-12"
+                    >
+                        <ArrowLeft className="mr-2 w-4 h-4" />
+                        {track === "posting" ? "이전 단계 (공고 확인)" : "이전 단계 (직무 설계)"}
+                    </Button>
+                    {canSkip && (
+                        <Button
+                            variant="ghost"
+                            className="px-6 h-12"
+                            onClick={handleSkip}
+                        >
+                            공통 브리프로 진행
+                        </Button>
+                    )}
+                </div>
 
                 <Button
                     size="lg"

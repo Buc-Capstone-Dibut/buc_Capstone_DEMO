@@ -5,27 +5,32 @@ import { Check } from "lucide-react";
 import { useInterviewSetupStore, InterviewSetupStep } from "@/store/interview-setup-store";
 import { motion } from "framer-motion";
 
-const STEPS: { id: InterviewSetupStep; label: string }[] = [
-    { id: 'target', label: '목표 설정' },
-    { id: 'jd-check', label: 'JD 확인' },
-    { id: 'resume', label: '이력서 입력' },
-    { id: 'resume-check', label: '이력서 확인' },
-    { id: 'final-check', label: '최종 점검' },
+type SetupTrack = "posting" | "role";
+
+const POSTING_STEPS: { id: InterviewSetupStep; label: string }[] = [
+  { id: "target", label: "공고 선택" },
+  { id: "jd-check", label: "공고 확인" },
+  { id: "resume", label: "이력서 입력" },
+  { id: "resume-check", label: "이력서 확인" },
+  { id: "final-check", label: "최종 점검" },
 ];
 
-export function SetupStepper() {
+const ROLE_STEPS: { id: InterviewSetupStep; label: string }[] = [
+  { id: "target", label: "직무 설계" },
+  { id: "final-check", label: "훈련 브리프" },
+];
+
+interface SetupStepperProps {
+  track: SetupTrack;
+}
+
+export function SetupStepper({ track }: SetupStepperProps) {
     const { currentStep, setStep } = useInterviewSetupStore();
+    const steps = track === "role" ? ROLE_STEPS : POSTING_STEPS;
 
     const getStepStatus = (stepId: string) => {
-        const setupSteps = ['target', 'jd-check', 'resume', 'resume-check', 'final-check', 'personality-selection', 'mode-selection', 'complete'];
-
-        let normalizedCurrentStep = currentStep as string;
-        if (normalizedCurrentStep === 'personality-selection' || normalizedCurrentStep === 'mode-selection' || normalizedCurrentStep === 'complete') {
-            normalizedCurrentStep = 'final-check';
-        }
-
-        const stepOrder = STEPS.findIndex(s => s.id === stepId);
-        const currentOrder = STEPS.findIndex(s => s.id === normalizedCurrentStep);
+        const stepOrder = steps.findIndex((s) => s.id === stepId);
+        const currentOrder = steps.findIndex((s) => s.id === currentStep);
 
         if (stepOrder < currentOrder) return 'completed';
         if (stepOrder === currentOrder) return 'current';
@@ -33,23 +38,21 @@ export function SetupStepper() {
     };
 
     return (
-        <div className="w-full py-6 px-4 mb-8">
+        <div className="w-full py-4 px-4 mb-4">
             <div className="max-w-4xl mx-auto">
                 <div className="relative flex justify-between">
-                    {/* Progress Line Background */}
                     <div className="absolute top-4 left-0 w-full h-[2px] bg-muted -z-10" />
 
-                    {/* Active Progress Line */}
                     <motion.div
                         className="absolute top-4 left-0 h-[2px] bg-primary -z-10"
                         initial={{ width: "0%" }}
                         animate={{
-                            width: `${(STEPS.findIndex(s => s.id === (currentStep === 'personality-selection' || currentStep === 'mode-selection' || currentStep === 'complete' ? 'final-check' : currentStep)) / (STEPS.length - 1)) * 100}%`
+                            width: `${(steps.findIndex((s) => s.id === currentStep) / Math.max(1, steps.length - 1)) * 100}%`
                         }}
                         transition={{ duration: 0.5, ease: "easeInOut" }}
                     />
 
-                    {STEPS.map((step, index) => {
+                    {steps.map((step, index) => {
                         const status = getStepStatus(step.id);
                         const isClickable = status === 'completed' || status === 'current';
 

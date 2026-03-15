@@ -31,6 +31,7 @@ import {
   Loader2,
   MessageSquare,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import type {
   BookmarkView,
@@ -86,15 +87,15 @@ function toBookmarkItem(item: unknown): ProfileBookmarkItem {
   const hasBlog = Object.keys(blogRow).length > 0;
   const blog = hasBlog
     ? {
-        id: String(blogRow.id ?? ""),
-        title: readNullableString(blogRow.title),
-        summary: readNullableString(blogRow.summary),
-        author: readNullableString(blogRow.author),
-        tags: readStringArray(blogRow.tags),
-        externalUrl: readNullableString(blogRow.externalUrl),
-        thumbnailUrl: readNullableString(blogRow.thumbnailUrl),
-        publishedAt: readNullableString(blogRow.publishedAt),
-      }
+      id: String(blogRow.id ?? ""),
+      title: readNullableString(blogRow.title),
+      summary: readNullableString(blogRow.summary),
+      author: readNullableString(blogRow.author),
+      tags: readStringArray(blogRow.tags),
+      externalUrl: readNullableString(blogRow.externalUrl),
+      thumbnailUrl: readNullableString(blogRow.thumbnailUrl),
+      publishedAt: readNullableString(blogRow.publishedAt),
+    }
     : null;
 
   return {
@@ -168,7 +169,6 @@ const TABS: { key: TabKey; label: string; icon: ElementType }[] = [
   { key: "posts", label: "글", icon: FileText },
   { key: "comments", label: "댓글", icon: MessageSquare },
   { key: "bookmarks", label: "북마크", icon: Bookmark },
-  { key: "resume", label: "이력서", icon: BookOpen },
   { key: "activity", label: "스페이스 활동", icon: Activity },
 ];
 // ─── Main Client Component ────────────────────────────────────────────────────
@@ -657,11 +657,24 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
             <Card>
               <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    공개 이력서
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      공개 이력서
+                    </span>
+                  </div>
+                  {isOwner && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-[10px] gap-1 px-2"
+                      onClick={() => router.push("/resume?mode=setup")}
+                    >
+                      <Sparkles className="w-3 h-3 text-primary" />
+                      관리
+                    </Button>
+                  )}
                 </div>
                 <Separator />
                 {resumeSummary?.headline ? (
@@ -689,9 +702,22 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Badge>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground italic">
-                    이력서 정보가 없습니다.
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground italic">
+                      이력서 정보가 없습니다.
+                    </p>
+                    {isOwner && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs gap-2 py-5 border-dashed"
+                        onClick={() => router.push("/resume?mode=setup")}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        AI와 함께 만들기
+                      </Button>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -792,7 +818,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 onSaveResume={saveResume}
                 saving={saving}
                 onGoSetup={() =>
-                  router.push("/interview/setup?import=active_resume")
+                  router.push("/interview/posting/setup?import=active_resume")
                 }
                 resumeSummary={resumeSummary}
               />

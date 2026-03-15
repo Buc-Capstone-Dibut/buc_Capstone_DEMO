@@ -12,6 +12,7 @@ export const EMPTY_RESUME: ResumePayload = {
   education: [],
   experience: [],
   skills: [],
+  selfIntroduction: "",
   projects: [],
 };
 
@@ -49,6 +50,7 @@ export function normalizeResumePayload(input: unknown): ResumePayload {
     experience: experienceRaw.map((item) => {
       const row = asRecord(item);
       return {
+        id: typeof row.id === "string" ? row.id : Math.random().toString(36).substring(2, 11),
         company: typeof row.company === "string" ? row.company : "",
         position: typeof row.position === "string" ? row.position : "",
         period: typeof row.period === "string" ? row.period : "",
@@ -66,9 +68,11 @@ export function normalizeResumePayload(input: unknown): ResumePayload {
         category: typeof row.category === "string" ? row.category : undefined,
       };
     }),
+    selfIntroduction: typeof rp.selfIntroduction === "string" ? rp.selfIntroduction : "",
     projects: projectsRaw.map((item) => {
       const row = asRecord(item);
       return {
+        id: typeof row.id === "string" ? row.id : Math.random().toString(36).substring(2, 11),
         name: typeof row.name === "string" ? row.name : "",
         period: typeof row.period === "string" ? row.period : "",
         description: typeof row.description === "string" ? row.description : "",
