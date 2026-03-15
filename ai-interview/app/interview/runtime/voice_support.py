@@ -217,6 +217,9 @@ def reset_voice_runtime_state(
     state.last_ai_tts_text = ""
     state.last_ai_audio_guard_until = 0.0
     state.waiting_playback_turn_id = ""
+    state.active_question_turn_id = ""
+    state.active_question_heard_audio = False
+    state.current_question_retry_count = 0
     state.last_vad_event = {}
     state.question_type_cursor = 0
     state.recent_question_types = []

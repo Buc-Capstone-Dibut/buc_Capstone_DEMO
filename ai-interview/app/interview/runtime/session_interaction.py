@@ -28,12 +28,17 @@ def is_probable_ai_echo(
     similarity = SequenceMatcher(None, candidate, reference).ratio()
     contains = candidate in reference or reference in candidate
     duration_ms = estimate_wav_duration_ms(wav_bytes)
+    candidate_len = len(candidate)
+    reference_len = len(reference)
 
-    if similarity >= 0.72:
+    # Long user answers should not be discarded unless they are almost identical to the AI prompt.
+    if duration_ms >= 2400 and candidate_len >= max(18, voice_min_answer_chars + 6):
+        return similarity >= 0.96 and abs(candidate_len - reference_len) <= 6
+    if similarity >= 0.9 and abs(candidate_len - reference_len) <= 8:
         return True
-    if contains and len(candidate) >= 6:
+    if contains and duration_ms <= 1800 and candidate_len <= max(18, voice_min_answer_chars + 6):
         return True
-    if duration_ms <= 1600 and len(candidate) <= voice_min_answer_chars and (similarity >= 0.42 or contains):
+    if duration_ms <= 1600 and candidate_len <= voice_min_answer_chars and (similarity >= 0.55 or contains):
         return True
     return False
 
@@ -104,6 +109,7 @@ async def resume_listening(
     turn_id: str | None = None,
     deps: ResumeListeningDeps,
 ) -> None:
+    normalized_turn_id = (turn_id or state.active_question_turn_id or "").strip()
     state.waiting_playback_turn_id = ""
     deps.cancel_playback_resume_task(state)
     if state.session_id and state.session_status != "completed":
@@ -113,15 +119,15 @@ async def resume_listening(
         except Exception:
             deps.logger.warning(
                 "failed to persist awaiting_user runtime state",
-                extra={"session_id": state.session_id, "turn_id": turn_id},
+                extra={"session_id": state.session_id, "turn_id": normalized_turn_id},
                 exc_info=True,
             )
     payload: dict[str, Any] = {"type": "control", "text": "start-mic"}
-    if turn_id:
-        payload["turnId"] = turn_id
+    if normalized_turn_id:
+        payload["turnId"] = normalized_turn_id
     if state.session_id and await deps.send_json(ws, payload):
         await deps.send_avatar_state(ws, "listening", state.session_id)
-        await deps.send_runtime_meta_snapshot(ws, state, turn_id=turn_id)
+        await deps.send_runtime_meta_snapshot(ws, state, turn_id=normalized_turn_id or None)
 
 
 def arm_playback_resume(

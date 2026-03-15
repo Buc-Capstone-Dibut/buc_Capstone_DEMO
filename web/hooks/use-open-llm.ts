@@ -38,6 +38,12 @@ interface PendingAudioChunk {
   turnSeq: number;
 }
 
+interface PendingTurnAudioBuffer {
+  chunkCount: number;
+  chunks: Array<number[] | null>;
+  sampleRate: number;
+}
+
 function decodePcm16Base64(base64Data: unknown): number[] {
   if (typeof base64Data !== "string" || !base64Data) return [];
   if (typeof window === "undefined" || typeof window.atob !== "function") return [];
@@ -68,6 +74,26 @@ function extractTurnSeq(turnId: unknown): number {
   return Number.isFinite(seq) && seq > 0 ? seq : 0;
 }
 
+function mergeAudioChunks(chunks: Array<number[] | null>): number[] {
+  const orderedChunks = chunks.filter((chunk): chunk is number[] => Array.isArray(chunk) && chunk.length > 0);
+  if (!orderedChunks.length) return [];
+
+  let totalLength = 0;
+  for (const chunk of orderedChunks) {
+    totalLength += chunk.length;
+  }
+
+  const merged = new Array<number>(totalLength);
+  let offset = 0;
+  for (const chunk of orderedChunks) {
+    for (let i = 0; i < chunk.length; i += 1) {
+      merged[offset + i] = chunk[i];
+    }
+    offset += chunk.length;
+  }
+  return merged;
+}
+
 export function useOpenLLM({
   serverUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client",
   onTranscript,
@@ -88,10 +114,12 @@ export function useOpenLLM({
   const pendingStartMicRef = useRef(false);
   const queuedAudioSourcesRef = useRef(0);
   const pendingAudioQueueRef = useRef<PendingAudioChunk[]>([]);
+  const pendingTurnAudioBuffersRef = useRef<Record<string, PendingTurnAudioBuffer>>({});
   const lastAudioSignatureRef = useRef("");
   const latestAiTurnSeqRef = useRef(0);
   const pendingPlaybackCompleteTurnIdRef = useRef("");
   const lastCompletedPlaybackTurnIdRef = useRef("");
+  const lastStartMicTurnIdRef = useRef("");
   const audioUnlockedRef = useRef(false);
   const lastAudioUnlockNoticeAtRef = useRef(0);
   const pendingMicRestartTimerRef = useRef<number | null>(null);
@@ -136,6 +164,7 @@ export function useOpenLLM({
 
   const pauseMic = useCallback((flush: boolean = true) => {
     isMicStreamingRef.current = false;
+    pendingStartMicRef.current = false;
     setIsMicOn(false);
     setVolume(0);
 
@@ -148,6 +177,7 @@ export function useOpenLLM({
     audioProcessorRef.current?.stop();
     audioProcessorRef.current = null;
     isMicStreamingRef.current = false;
+    pendingStartMicRef.current = false;
     setIsMicOn(false);
     setVolume(0);
 
@@ -230,6 +260,7 @@ export function useOpenLLM({
         nextStartTimeRef.current > ctx.currentTime + 0.03 ||
         pendingAudioQueueRef.current.length > 0;
       if (!hasQueuedAudio) {
+        nextStartTimeRef.current = ctx.currentTime;
         setIsAISpeaking(false);
         const completedTurnId = pendingPlaybackCompleteTurnIdRef.current;
         if (completedTurnId) {
@@ -379,6 +410,7 @@ export function useOpenLLM({
 
       await audioProcessorRef.current.start();
       isMicStreamingRef.current = true;
+      pendingStartMicRef.current = false;
       setIsMicOn(true);
       setIsAIProcessing(false);
     } catch (error) {
@@ -429,11 +461,13 @@ export function useOpenLLM({
     pendingStartMicRef.current = false;
     queuedAudioSourcesRef.current = 0;
     pendingAudioQueueRef.current = [];
+    pendingTurnAudioBuffersRef.current = {};
     nextStartTimeRef.current = 0;
     lastAudioSignatureRef.current = "";
     latestAiTurnSeqRef.current = 0;
     pendingPlaybackCompleteTurnIdRef.current = "";
     lastCompletedPlaybackTurnIdRef.current = "";
+    lastStartMicTurnIdRef.current = "";
     audioUnlockedRef.current = false;
     socketRef.current?.close();
     socketRef.current = null;
@@ -484,12 +518,61 @@ export function useOpenLLM({
         : decodePcm16Base64(event.audioBase64);
       if (!audio.length) return;
       const turnId = typeof event.turnId === "string" ? event.turnId : "";
-      if (event.isFinalChunk === true && turnId) {
-        pendingPlaybackCompleteTurnIdRef.current = turnId;
+      const sampleRate = Number(event.sampleRate) || 24000;
+
+      if (!turnId) {
+        clearPendingMicRestart();
+        const scheduled = playAudioChunk(audio, sampleRate, turnSeq);
+        if (!scheduled) return;
+        if (isMicStreamingRef.current) {
+          pauseMic(false);
+        }
+        setIsAIProcessing(false);
+        setIsAISpeaking(true);
+        return;
       }
 
+      const chunkIndex =
+        typeof event.chunkIndex === "number" && event.chunkIndex >= 0 ? event.chunkIndex : 0;
+      const chunkCount =
+        typeof event.chunkCount === "number" && event.chunkCount > 0
+          ? event.chunkCount
+          : Math.max(chunkIndex + 1, 1);
+
+      const existingBuffer = pendingTurnAudioBuffersRef.current[turnId];
+      const audioBuffer: PendingTurnAudioBuffer = existingBuffer
+        ? {
+            ...existingBuffer,
+            sampleRate,
+            chunkCount: Math.max(existingBuffer.chunkCount, chunkCount),
+            chunks:
+              existingBuffer.chunks.length >= chunkCount
+                ? [...existingBuffer.chunks]
+                : [
+                    ...existingBuffer.chunks,
+                    ...Array.from({ length: chunkCount - existingBuffer.chunks.length }, () => null),
+                  ],
+          }
+        : {
+            chunkCount,
+            chunks: Array.from({ length: chunkCount }, () => null),
+            sampleRate,
+          };
+
+      audioBuffer.chunks[chunkIndex] = audio;
+      pendingTurnAudioBuffersRef.current[turnId] = audioBuffer;
+
+      if (event.isFinalChunk !== true) {
+        return;
+      }
+
+      const mergedAudio = mergeAudioChunks(audioBuffer.chunks);
+      delete pendingTurnAudioBuffersRef.current[turnId];
+      if (!mergedAudio.length) return;
+
+      pendingPlaybackCompleteTurnIdRef.current = turnId;
       clearPendingMicRestart();
-      const scheduled = playAudioChunk(audio, Number(event.sampleRate) || 24000, turnSeq);
+      const scheduled = playAudioChunk(mergedAudio, audioBuffer.sampleRate, turnSeq);
       if (!scheduled) return;
       if (isMicStreamingRef.current) {
         pauseMic(false);
@@ -556,22 +639,36 @@ export function useOpenLLM({
         nextStartTimeRef.current = 0;
         queuedAudioSourcesRef.current = 0;
         pendingAudioQueueRef.current = [];
+        pendingTurnAudioBuffersRef.current = {};
         pendingPlaybackCompleteTurnIdRef.current = "";
+        lastStartMicTurnIdRef.current = "";
         setIsAIProcessing(false);
         setIsAISpeaking(false);
         return;
       }
 
       if (controlText === "mic-audio-end") {
+        lastStartMicTurnIdRef.current = "";
         pauseMic(false);
         setIsAIProcessing(true);
         return;
       }
 
       if (controlText === "start-mic") {
+        const incomingTurnId = typeof event.turnId === "string" ? event.turnId.trim() : "";
         const controlTurnSeq = extractTurnSeq(event.turnId);
         if (controlTurnSeq > 0 && controlTurnSeq < latestAiTurnSeqRef.current) {
           return;
+        }
+        if (
+          incomingTurnId &&
+          incomingTurnId === lastStartMicTurnIdRef.current &&
+          (isMicStreamingRef.current || isMicStartingRef.current || pendingStartMicRef.current)
+        ) {
+          return;
+        }
+        if (incomingTurnId) {
+          lastStartMicTurnIdRef.current = incomingTurnId;
         }
 
         const ctx = audioContextRef.current;
@@ -582,6 +679,7 @@ export function useOpenLLM({
         if (hasQueuedAudio) {
           pendingStartMicRef.current = true;
         } else {
+          pendingStartMicRef.current = false;
           clearPendingMicRestart();
           void startMic();
         }
@@ -603,6 +701,7 @@ export function useOpenLLM({
     lastAudioSignatureRef.current = "";
     pendingPlaybackCompleteTurnIdRef.current = "";
     lastCompletedPlaybackTurnIdRef.current = "";
+    lastStartMicTurnIdRef.current = "";
 
     ws.onopen = () => {
       clearReconnectTimer();
@@ -635,8 +734,10 @@ export function useOpenLLM({
       clearPendingMicRestart();
       stopMic(false);
       pendingAudioQueueRef.current = [];
+      pendingTurnAudioBuffersRef.current = {};
       pendingPlaybackCompleteTurnIdRef.current = "";
       lastCompletedPlaybackTurnIdRef.current = "";
+      lastStartMicTurnIdRef.current = "";
       audioUnlockedRef.current = false;
       setIsAIProcessing(false);
       setIsAISpeaking(false);

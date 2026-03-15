@@ -13,7 +13,11 @@ from fastapi import WebSocket
 from app.interview.domain.turn_text import sanitize_user_turn_text
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
 from app.interview.runtime.live_turns import prepare_live_user_followup, prepare_live_user_request
-from app.interview.runtime.orchestration import build_voice_model_turn_payload, build_voice_user_turn_payload
+from app.interview.runtime.orchestration import (
+    build_runtime_meta_payload,
+    build_voice_model_turn_payload,
+    build_voice_user_turn_payload,
+)
 from app.interview.runtime.state import PendingUserSegment, PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
@@ -35,6 +39,10 @@ COMPLETE_ANSWER_ENDINGS = (
     "어요",
     "아요",
 )
+RETRY_PROMPT_BY_REASON = {
+    "empty-stt": "답변이 중간에 끊겨 들렸습니다. 마지막 문장부터 한 번만 더 말씀해 주세요.",
+    "ai-echo": "질문 음성과 답변이 겹쳐 들렸습니다. 핵심만 한 번 더 말씀해 주세요.",
+}
 
 
 def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
@@ -107,6 +115,164 @@ def _select_best_user_text(
         candidates,
         key=lambda candidate: _score_user_text(candidate, utterance_duration_ms=utterance_duration_ms),
     )
+
+
+def _should_issue_retry_prompt(state: VoiceWsState, *, utterance_duration_ms: float) -> bool:
+    if not state.session_id:
+        return False
+    if state.current_question_retry_count >= 1:
+        return False
+    if state.active_question_heard_audio:
+        return True
+    return utterance_duration_ms >= 1800.0
+
+
+async def _send_capture_retry_prompt(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    reason: str,
+    deps: SessionEngineDeps,
+) -> bool:
+    if not state.session_id:
+        return False
+
+    prompt_text = RETRY_PROMPT_BY_REASON.get(reason, RETRY_PROMPT_BY_REASON["empty-stt"])
+    turn_id = deps.next_ai_turn_id(state.session_id)
+    executor_deps = deps.runtime_executor_deps()
+    elapsed_sec, remaining_sec = deps.runtime_timing(state)
+    started_at = time.monotonic()
+
+    ai_text = prompt_text
+    prepared_audio = None
+    try:
+        generated_text, generated_audio = await executor_deps.request_live_text_turn(
+            state,
+            text=prompt_text,
+            question_type="",
+            extra_instruction=(
+                "지원자 답변 재청취를 위한 짧은 안내만 하세요. "
+                "질문을 새로 만들지 말고, 핵심만 자연스럽게 다시 말하세요."
+            ),
+            user_text="",
+        )
+        if generated_text:
+            ai_text = generated_text
+            prepared_audio = generated_audio
+            ai_text, prepared_audio = await executor_deps.repair_ai_turn_if_truncated(
+                state,
+                ai_text=ai_text,
+                prepared_tts=prepared_audio,
+            )
+            if not ai_text:
+                ai_text = prompt_text
+    except Exception:
+        logger.warning(
+            "failed to generate capture retry prompt (session=%s, reason=%s)",
+            state.session_id,
+            reason,
+            exc_info=True,
+        )
+        ai_text = prompt_text
+        prepared_audio = None
+
+    delivery_plan = await executor_deps.build_ai_delivery_plan(
+        ws,
+        text=ai_text,
+        turn_id=turn_id,
+        preferred_full_audio=prepared_audio,
+    )
+    state.runtime_status = "model_speaking"
+    await executor_deps.set_runtime_status(state.session_id, "model_speaking", state.current_phase)
+
+    payload = build_voice_model_turn_payload(
+        phase=state.current_phase,
+        question_index=max(1, state.model_turn_count),
+        remaining_sec=remaining_sec,
+        target_duration_sec=state.target_duration_sec,
+        closing_threshold_sec=state.closing_threshold_sec,
+        estimated_total_questions=state.estimated_total_questions,
+        delivery_mode=delivery_plan.mode,
+        delivery_segments=delivery_plan.segment_count,
+        turn_id=turn_id,
+        runtime_mode=state.runtime_mode,
+        runtime_reason=state.runtime_mode_reason,
+        provider=delivery_plan.provider or "gemini-live-retry",
+        latency_ms=int((time.monotonic() - started_at) * 1000),
+        audio_duration_ms=int(round(delivery_plan.total_duration_sec * 1000)),
+        live_model=executor_deps.live_active_model(state),
+        vad_config=executor_deps.snapshot_vad_config(state),
+        memory_snapshot=executor_deps.build_memory_snapshot(state),
+        question_type="",
+        repair_applied=False,
+        extra={"capture_retry": True, "retry_reason": reason},
+    )
+    await deps.persist_turn(
+        state,
+        role="model",
+        content=ai_text,
+        channel="voice",
+        payload=payload,
+    )
+    executor_deps.remember_model_turn(state, ai_text)
+    executor_deps.mark_session_status(state, "in_progress", phase=state.current_phase)
+    await deps.send_json(
+        ws,
+        {
+            "type": "interview-phase-updated",
+            "phase": state.current_phase,
+            "guide": "capture-retry",
+            "message": "답변을 다시 확인합니다.",
+            "turnId": turn_id,
+        },
+    )
+    await deps.send_json(
+        ws,
+        build_runtime_meta_payload(
+            target_duration_sec=state.target_duration_sec,
+            closing_threshold_sec=state.closing_threshold_sec,
+            elapsed_sec=elapsed_sec,
+            remaining_sec=remaining_sec,
+            estimated_total_questions=state.estimated_total_questions,
+            question_count=state.model_turn_count,
+            is_closing_phase=state.current_phase == "closing",
+            interview_complete=False,
+            finish_reason="",
+            session_paused=state.runtime_status == "reconnecting",
+            reconnect_remaining_sec=0,
+            runtime_status=state.runtime_status,
+            runtime_mode=state.runtime_mode,
+            runtime_reason=state.runtime_mode_reason,
+            retry_after_sec=0,
+            turn_id=turn_id,
+        ),
+    )
+    if not await deps.send_transcript(ws, state.session_id, "ai", ai_text, turn_id=turn_id):
+        return False
+    if not await deps.send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
+        return False
+
+    state.active_question_turn_id = turn_id
+    state.active_question_heard_audio = False
+    state.current_question_retry_count += 1
+
+    has_audio = await executor_deps.stream_prepared_ai_delivery(
+        ws,
+        state,
+        delivery_plan=delivery_plan,
+        turn_id=turn_id,
+        emit_delta=delivery_plan.mode != "text-only",
+    )
+    if has_audio:
+        executor_deps.arm_playback_resume(
+            ws,
+            state,
+            turn_id=turn_id,
+            timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+        )
+    else:
+        await deps.resume_listening(ws, state, turn_id=turn_id)
+    return True
 
 
 @dataclass(frozen=True)
@@ -394,6 +560,8 @@ async def process_user_utterance(
     effective_vad_meta = dict(vad_meta or state.last_vad_event or {})
 
     try:
+        if state.active_question_turn_id:
+            state.active_question_heard_audio = True
         if not await deps.send_json(ws, {"type": "control", "text": "mic-audio-end"}):
             return
         if not await deps.send_avatar_state(ws, "thinking", state.session_id):
@@ -436,30 +604,24 @@ async def process_user_utterance(
             extra_instruction=initial_user_request_spec.extra_instruction,
         )
         ai_provider_name = live_provider or live.provider
-        fallback_user_text = ""
-        fallback_user_provider = ""
         provisional_user_text = _select_best_user_text(
             live_user_text=live_user_text,
             realtime_user_text=state.realtime_user_transcript.strip(),
             fallback_user_text="",
             utterance_duration_ms=utterance_duration_ms,
         )
-        provisional_char_count = len(re.findall(r"[0-9A-Za-z가-힣]", provisional_user_text))
-        if (
-            not provisional_user_text
-            or (utterance_duration_ms >= 2600 and provisional_char_count < 18)
-            or (utterance_duration_ms >= 4200 and provisional_char_count < 28)
-        ):
-            fallback_user_text, fallback_user_provider = await deps.fallback_transcribe_user_audio(wav_bytes)
         user_text = _select_best_user_text(
             live_user_text=live_user_text,
             realtime_user_text=state.realtime_user_transcript.strip(),
-            fallback_user_text=fallback_user_text,
+            fallback_user_text="",
             utterance_duration_ms=utterance_duration_ms,
         )
-        user_provider_name = fallback_user_provider or ai_provider_name
+        user_provider_name = ai_provider_name
         if not user_text:
             deps.reset_realtime_user_transcript(state)
+            if _should_issue_retry_prompt(state, utterance_duration_ms=utterance_duration_ms):
+                await _send_capture_retry_prompt(ws, state, reason="empty-stt", deps=deps)
+                return
             await deps.resume_listening(ws, state)
             return
 
@@ -470,6 +632,9 @@ async def process_user_utterance(
                 user_text,
                 state.session_id,
             )
+            if _should_issue_retry_prompt(state, utterance_duration_ms=utterance_duration_ms):
+                await _send_capture_retry_prompt(ws, state, reason="ai-echo", deps=deps)
+                return
             await deps.resume_listening(ws, state)
             return
 
@@ -526,7 +691,7 @@ async def process_user_utterance(
             short_answer=is_short_answer,
         )
 
-        await execute_live_user_followup_turn(
+        followup_generated = await execute_live_user_followup_turn(
             ws,
             state,
             spec=user_followup_spec,
@@ -541,6 +706,8 @@ async def process_user_utterance(
             started_at=user_turn_started_at,
             deps=deps.runtime_executor_deps(),
         )
+        if not followup_generated and _should_issue_retry_prompt(state, utterance_duration_ms=utterance_duration_ms):
+            await _send_capture_retry_prompt(ws, state, reason="empty-stt", deps=deps)
     except Exception as exc:
         logger.exception("voice turn processing error", extra={"session_id": state.session_id})
         sent = await deps.send_json(
@@ -636,9 +803,9 @@ async def enqueue_user_segment(
 
     drain_delay_sec = state.turn_end_grace_sec
     if reason == "max_segment":
-        drain_delay_sec = max(drain_delay_sec, 0.2)
+        drain_delay_sec = max(drain_delay_sec, 0.14)
     elif reason in {"silence", "short_utterance_silence"}:
-        drain_delay_sec = max(drain_delay_sec, 0.12)
+        drain_delay_sec = max(drain_delay_sec, 0.08)
 
     async def delayed_drain() -> None:
         current_task = asyncio.current_task()

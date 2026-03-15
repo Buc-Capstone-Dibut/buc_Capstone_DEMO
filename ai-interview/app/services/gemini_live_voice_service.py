@@ -8,7 +8,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app.interview.domain.turn_text import sanitize_ai_turn_text, sanitize_user_turn_text
+from app.interview.domain.turn_text import (
+    looks_like_complete_ai_question,
+    sanitize_ai_turn_text,
+    sanitize_user_turn_text,
+)
 from app.services.voice_pipeline import (
     float_samples_to_pcm16le_bytes,
     wav_bytes_to_float_samples,
@@ -24,6 +28,9 @@ except Exception:  # pragma: no cover - optional dependency fallback
 logger = logging.getLogger("dibut.gemini_live_voice")
 
 PCM_RATE_PATTERN = re.compile(r"rate=(\d+)")
+TURN_COMPLETE_TAIL_GRACE_SEC = 0.3
+MISSING_AUDIO_RETRY_GRACE_SEC = 0.85
+TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.75
 
 
 def _is_quota_exhausted_error(exc: Exception) -> bool:
@@ -72,9 +79,17 @@ class _GeminiLiveBaseService:
         timeout_sec: float,
     ) -> list[Any]:
         responses: list[Any] = []
+        turn_complete_seen = False
         while True:
             try:
-                response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout_sec)
+                timeout = timeout_sec
+                if turn_complete_seen:
+                    timeout = (
+                        TURN_COMPLETE_TAIL_GRACE_SEC
+                        if self._responses_have_payload(responses)
+                        else TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC
+                    )
+                response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout)
             except StopAsyncIteration:
                 break
             except asyncio.TimeoutError:
@@ -83,9 +98,19 @@ class _GeminiLiveBaseService:
             responses.append(response)
             server_content = getattr(response, "server_content", None)
             if bool(getattr(server_content, "turn_complete", False)):
-                break
+                turn_complete_seen = True
 
         return responses
+
+    def _responses_have_payload(self, responses: list[Any]) -> bool:
+        if not responses:
+            return False
+        if self._extract_model_text_chunks(responses):
+            return True
+        if self._extract_output_transcription_chunks(responses):
+            return True
+        audio_chunks, _sample_rate = self._extract_audio_chunks(responses)
+        return bool(audio_chunks)
 
     def _extract_model_text_chunks(self, responses: list[Any]) -> list[str]:
         chunks: list[str] = []
@@ -569,12 +594,18 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         normalized_model = self._normalize_ai_text_candidate(model_text)
         output_complete = self._is_likely_complete_ai_text(normalized_output)
         model_complete = self._is_likely_complete_ai_text(normalized_model)
+        output_question = looks_like_complete_ai_question(normalized_output)
+        model_question = looks_like_complete_ai_question(normalized_model)
 
         if normalized_output:
             if not normalized_model:
                 return normalized_output
             model_has_latin = bool(re.search(r"[A-Za-z]", normalized_model))
             output_has_latin = bool(re.search(r"[A-Za-z]", normalized_output))
+            if model_question and not output_question:
+                return normalized_model
+            if output_question and not model_question:
+                return normalized_output
             if output_complete and (
                 not model_complete
                 or len(normalized_output) >= len(normalized_model) - 8
@@ -594,8 +625,9 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
 
         def _score(candidate: str) -> int:
             bonus = 140 if self._is_likely_complete_ai_text(candidate) else 0
+            question_bonus = 220 if looks_like_complete_ai_question(candidate) else 0
             hangul_bonus = 80 if re.search(r"[가-힣]", candidate) else 0
-            return len(candidate) + bonus + hangul_bonus
+            return len(candidate) + bonus + question_bonus + hangul_bonus
 
         best = max(candidates, key=_score)
         return best
@@ -733,18 +765,37 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
 
             try:
                 async with self._turn_lock:
-                    await self._session.send_realtime_input(text=prompt)
+                    await self._session.send_client_content(
+                        turns=types.Content(
+                            role="user",
+                            parts=[types.Part(text=prompt)],
+                        ),
+                        turn_complete=True,
+                    )
                     responses = await self._receive_until_turn_complete(
                         response_stream=self._session.receive(),
                         timeout_sec=self.timeout_sec,
                     )
                 result = self._build_turn_result(responses)
-                if result.ai_text or result.audio_pcm_bytes:
+                if result.ai_text and result.audio_pcm_bytes:
                     return result
+                if result.ai_text and not result.audio_pcm_bytes:
+                    logger.warning(
+                        "gemini live text turn missing audio; reconnecting (attempt=%s, text_len=%s, ai_len=%s)",
+                        attempt,
+                        len(prompt),
+                        len(result.ai_text),
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
+                        await self.close()
+                        continue
                 logger.warning(
-                    "gemini live text turn empty result (attempt=%s, text_len=%s)",
+                    "gemini live text turn incomplete result (attempt=%s, text_len=%s, ai_len=%s, audio_bytes=%s)",
                     attempt,
                     len(prompt),
+                    len(result.ai_text),
+                    len(result.audio_pcm_bytes),
                 )
             except asyncio.CancelledError:
                 raise
@@ -797,13 +848,29 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                         timeout_sec=self.timeout_sec,
                     )
                 result = self._build_turn_result(responses)
-                if result.user_text or result.ai_text or result.audio_pcm_bytes:
+                if result.ai_text and result.audio_pcm_bytes:
                     return result
+                if result.ai_text and not result.audio_pcm_bytes:
+                    logger.warning(
+                        "gemini live audio turn missing audio; reconnecting (attempt=%s, sample_rate=%s, bytes=%s, ai_len=%s, user_len=%s)",
+                        attempt,
+                        normalized_rate,
+                        len(pcm_bytes),
+                        len(result.ai_text),
+                        len(result.user_text),
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
+                        await self.close()
+                        continue
                 logger.warning(
-                    "gemini live audio turn empty result (attempt=%s, sample_rate=%s, bytes=%s)",
+                    "gemini live audio turn incomplete result (attempt=%s, sample_rate=%s, bytes=%s, user_len=%s, ai_len=%s, audio_bytes=%s)",
                     attempt,
                     normalized_rate,
                     len(pcm_bytes),
+                    len(result.user_text),
+                    len(result.ai_text),
+                    len(result.audio_pcm_bytes),
                 )
             except asyncio.CancelledError:
                 raise

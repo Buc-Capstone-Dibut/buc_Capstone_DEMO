@@ -10,6 +10,16 @@ from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.voice_pipeline import float_samples_to_pcm16le_bytes, wav_bytes_to_float_samples
 
 
+def _normalize_audio_text_signature(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]", "", (text or "").lower())
+
+
+def _is_semantically_same_audio_text(raw_text: str, sanitized_text: str) -> bool:
+    if not raw_text or not sanitized_text:
+        return False
+    return _normalize_audio_text_signature(raw_text) == _normalize_audio_text_signature(sanitized_text)
+
+
 def build_live_session_instruction(
     state: VoiceWsState,
     *,
@@ -109,26 +119,29 @@ async def request_live_text_turn(
     user_text: str = "",
     deps: LiveClientDeps,
 ) -> tuple[str, PreparedTtsAudio | None]:
-    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    live = deps.create_live_interview_session()
     if not live.enabled:
         return "", None
 
-    result = await live.request_text_turn(
-        session_instruction=deps.build_session_instruction(state),
-        turn_prompt=deps.build_turn_prompt(
-            state,
-            question_type=question_type,
-            user_text=user_text,
-            extra_instruction=extra_instruction,
-        ),
-        text=text,
-    )
-    prepared = deps.to_prepared_tts_audio_from_pcm(
-        result.audio_pcm_bytes,
-        sample_rate=result.sample_rate,
-        provider=result.provider,
-    )
-    return (result.ai_text or "").strip(), prepared
+    try:
+        result = await live.request_text_turn(
+            session_instruction=deps.build_session_instruction(state),
+            turn_prompt=deps.build_turn_prompt(
+                state,
+                question_type=question_type,
+                user_text=user_text,
+                extra_instruction=extra_instruction,
+            ),
+            text=text,
+        )
+        prepared = deps.to_prepared_tts_audio_from_pcm(
+            result.audio_pcm_bytes,
+            sample_rate=result.sample_rate,
+            provider=result.provider,
+        )
+        return (result.ai_text or "").strip(), prepared
+    finally:
+        await live.close()
 
 
 async def request_live_audio_turn(
@@ -183,7 +196,7 @@ async def repair_ai_turn_if_truncated(
 ) -> tuple[str, PreparedTtsAudio | None]:
     raw_text = (ai_text or "").strip()
     text = deps.sanitize_ai_turn_text(raw_text)
-    if text != raw_text:
+    if text != raw_text and not _is_semantically_same_audio_text(raw_text, text):
         prepared_tts = None
     if not text:
         return "", None

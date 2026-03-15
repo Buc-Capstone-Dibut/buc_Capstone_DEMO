@@ -67,8 +67,31 @@ QUESTION_ENDINGS = (
     "공유해 주세요",
     "어떻게 했나요",
 )
+QUESTION_INTENT_PATTERNS = (
+    re.compile(r"(말씀|설명|공유|정리|답변)해\s*주(?:세요|실\s*수\s*있을까요|시겠습니까)", re.IGNORECASE),
+    re.compile(r"(어떤|어떻게|왜|무엇|얼마나|어느 정도|구체적으로)\b"),
+    re.compile(r"(역할|경험|사례|근거|이유|과정|문제|장애|지표|수치)\s*(을|를|이|가)?\s*.*(말씀|설명|공유)", re.IGNORECASE),
+    re.compile(r"\?$"),
+)
 KOREAN_SPACING_REPLACEMENTS = (
     (re.compile(r"AI면접관"), "AI 면접관"),
+    (re.compile(r"세션별상태"), "세션별 상태"),
+    (re.compile(r"상태를가볍게"), "상태를 가볍게"),
+    (re.compile(r"가볍게유지하고"), "가볍게 유지하고"),
+    (re.compile(r"이벤트처리"), "이벤트 처리"),
+    (re.compile(r"처리비동기로"), "처리 비동기로"),
+    (re.compile(r"비동기로분"), "비동기로 분"),
+    (re.compile(r"분했으며서버"), "분했으며 서버"),
+    (re.compile(r"서버인스턴"), "서버 인스턴"),
+    (re.compile(r"인스턴나눠"), "인스턴 나눠"),
+    (re.compile(r"나눠연결"), "나눠 연결"),
+    (re.compile(r"시키는방식으로"), "시키는 방식으로"),
+    (re.compile(r"방식으로병목"), "방식으로 병목"),
+    (re.compile(r"병목줄여"), "병목 줄여"),
+    (re.compile(r"줄여수십명접속"), "줄여 수십명 접속"),
+    (re.compile(r"끊김없"), "끊김 없"),
+    (re.compile(r"끊김 없안정적으로"), "끊김 없이 안정적으로"),
+    (re.compile(r"안정적으로운영"), "안정적으로 운영"),
     (re.compile(r"저희회사"), "저희 회사"),
     (re.compile(r"저희팀"), "저희 팀"),
     (re.compile(r"회사서비스"), "회사 서비스"),
@@ -127,6 +150,13 @@ KOREAN_BOUNDARY_PATTERNS = (
         r"\1 ",
     ),
     (
+        re.compile(
+            r"(을|를|이|가|은|는|과|와|도|만|에|에서|로|으로)"
+            r"(?=(비교|선택|설명|진행|구현|분석|정리|설계|검증|개선|적용|도입|확인|사용|처리|구축|운영|말씀|공유|도출|판단|조정|관리|요청|응답|생성|전달|보고|측정|줄였|늘렸|해결|복구|정의|학습|배포|분리|결정|마무리|작성|수립|기록|모니터링))"
+        ),
+        r"\1 ",
+    ),
+    (
         re.compile(r"(합니다|했습니다|있습니다|있었고|중요합니다|필요합니다|가능합니다|어렵습니다|좋습니다|맞습니다|보입니다|보였습니다|느꼈습니다|줄였습니다|늘렸습니다)(?=[가-힣A-Za-z0-9]{2,})"),
         r"\1 ",
     ),
@@ -143,6 +173,53 @@ def _contains_hangul(text: str) -> bool:
 
 def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _collapse_fragmented_transcript_tokens(text: str) -> str:
+    normalized = _normalize_whitespace(text)
+    if not normalized:
+        return ""
+
+    tokens = normalized.split(" ")
+    if len(tokens) < 4:
+        return normalized
+
+    single_token_count = sum(1 for token in tokens if re.fullmatch(r"[0-9A-Za-z가-힣]", token or ""))
+    if single_token_count < max(4, int(len(tokens) * 0.6)):
+        return normalized
+
+    collapsed: list[str] = []
+    fragment_buffer: list[str] = []
+    for token in tokens:
+        if re.fullmatch(r"[0-9A-Za-z가-힣]", token or ""):
+            fragment_buffer.append(token)
+            continue
+        if fragment_buffer:
+            collapsed.append("".join(fragment_buffer))
+            fragment_buffer.clear()
+        collapsed.append(token)
+    if fragment_buffer:
+        collapsed.append("".join(fragment_buffer))
+
+    return " ".join(collapsed).strip()
+
+
+def _should_recompact_fragmented_tokens(text: str) -> bool:
+    normalized = _normalize_whitespace(text)
+    if not normalized:
+        return False
+
+    tokens = normalized.split(" ")
+    if len(tokens) < 5:
+        return False
+
+    compact_lengths = [
+        len(re.sub(r"[^0-9A-Za-z가-힣]", "", token))
+        for token in tokens
+    ]
+    short_token_count = sum(1 for length in compact_lengths if 0 < length <= 2)
+    single_token_count = sum(1 for length in compact_lengths if length == 1)
+    return short_token_count >= max(4, int(len(tokens) * 0.45)) or single_token_count >= 3
 
 
 def _looks_like_meta_english_sentence(text: str) -> bool:
@@ -164,13 +241,15 @@ def _should_apply_korean_spacing_heuristic(text: str) -> bool:
 
 
 def _apply_korean_spacing_heuristic(text: str) -> str:
-    formatted = _normalize_whitespace(text)
+    formatted = _collapse_fragmented_transcript_tokens(text)
     if not formatted:
         return ""
+    if _should_recompact_fragmented_tokens(formatted) and _contains_hangul(formatted):
+        formatted = formatted.replace(" ", "")
 
     formatted = re.sub(r"([,.:!?])(?=\S)", r"\1 ", formatted)
-    formatted = re.sub(r"([A-Za-z])([가-힣])", r"\1 \2", formatted)
-    formatted = re.sub(r"([가-힣])([A-Za-z0-9])", r"\1 \2", formatted)
+    formatted = re.sub(r"([A-Za-z0-9]+)([가-힣])", r"\1 \2", formatted)
+    formatted = re.sub(r"([가-힣])([A-Za-z0-9]+)", r"\1 \2", formatted)
     formatted = re.sub(
         r"([A-Za-z0-9]+)\s+(과|와|을|를|은|는|이|가|도|만|에|의|로|에서|으로)(?=[가-힣A-Za-z0-9])",
         r"\1\2",
@@ -332,6 +411,11 @@ def looks_like_complete_answer(text: str) -> bool:
 def looks_like_complete_ai_question(text: str) -> bool:
     normalized = (text or "").strip().rstrip("\"' ")
     if not normalized:
+        return False
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
+    tail = sentences[-1] if sentences else normalized
+    has_question_intent = any(pattern.search(tail) for pattern in QUESTION_INTENT_PATTERNS)
+    if not has_question_intent:
         return False
     if normalized[-1] in ".?!":
         return True

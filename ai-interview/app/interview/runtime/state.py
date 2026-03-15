@@ -97,7 +97,7 @@ class VoiceWsState:
     last_model_memory: str = ""
     last_answer_quality_hint: str = ""
     turn_history: list[dict[str, Any]] = field(default_factory=list)
-    turn_end_grace_sec: float = 0.2
+    turn_end_grace_sec: float = max(0.08, settings.voice_turn_end_grace_ms / 1000.0)
     processing_audio: bool = False
     pending_user_segments: list[PendingUserSegment] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
@@ -109,5 +109,8 @@ class VoiceWsState:
     last_ai_audio_guard_until: float = 0.0
     waiting_playback_turn_id: str = ""
     playback_resume_task: asyncio.Task[None] | None = None
+    active_question_turn_id: str = ""
+    active_question_heard_audio: bool = False
+    current_question_retry_count: int = 0
     last_vad_event: dict[str, Any] = field(default_factory=dict)
     vad: VadSegmenter = field(default_factory=build_vad_segmenter)

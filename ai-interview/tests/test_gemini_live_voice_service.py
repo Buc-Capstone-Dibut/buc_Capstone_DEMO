@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+import asyncio
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,11 +17,12 @@ SPEC.loader.exec_module(REAL_MODULE)
 GeminiLiveInterviewSession = REAL_MODULE.GeminiLiveInterviewSession
 
 
-def _response(*, parts=None, output_text: str = ""):
+def _response(*, parts=None, output_text: str = "", turn_complete: bool = False):
     return SimpleNamespace(
         server_content=SimpleNamespace(
             model_turn=SimpleNamespace(parts=parts or []),
             output_transcription=SimpleNamespace(text=output_text),
+            turn_complete=turn_complete,
         )
     )
 
@@ -89,6 +91,40 @@ class GeminiLiveInterviewSessionTextSelectionTests(unittest.TestCase):
                 "SSE는 단방향 통신만 가능했기 때문에, 연결 유지 효율과 양방향 메시지 지연을 비교한 결과 "
                 "평균 지연이 가장 낮은 WebSocket을 선택했습니다."
             ),
+        )
+
+
+class GeminiLiveInterviewSessionReceiveTests(unittest.IsolatedAsyncioTestCase):
+    async def test_receive_until_turn_complete_collects_trailing_messages(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        class _Stream:
+            def __init__(self) -> None:
+                self._responses = iter(
+                    [
+                        _response(output_text="안녕하세요.", turn_complete=True),
+                        _response(output_text="지원 동기를 말씀해 주세요."),
+                    ]
+                )
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                await asyncio.sleep(0)
+                try:
+                    return next(self._responses)
+                except StopIteration as exc:
+                    raise StopAsyncIteration from exc
+
+        responses = await session._receive_until_turn_complete(_Stream(), timeout_sec=1.0)
+
+        self.assertEqual(len(responses), 2)
+        self.assertEqual(
+            session._merge_transcription_chunks(
+                [getattr(response.server_content.output_transcription, "text", "") for response in responses]
+            ),
+            "안녕하세요. 지원 동기를 말씀해 주세요.",
         )
 
 

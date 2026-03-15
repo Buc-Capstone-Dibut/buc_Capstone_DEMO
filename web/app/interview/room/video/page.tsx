@@ -715,17 +715,26 @@ export default function InterviewVideoRoomPage() {
     }
   };
 
-  const handleFinish = async () => {
+  const completeSession = useCallback(async ({
+    interruptAudio = false,
+    status,
+  }: {
+    interruptAudio?: boolean;
+    status: string;
+  }) => {
     if (!activeSessionId) {
       routeToSetup();
-      return;
+      return false;
     }
 
-    if (isFinishingSession) return;
+    if (isFinishingSession) return false;
 
     setIsFinishingSession(true);
-    setStatusMessage("면접 종료와 리포트 생성을 요청하는 중...");
+    setStatusMessage(status);
     try {
+      if (interruptAudio) {
+        disconnect();
+      }
       const response = await fetch(`/api/interview/sessions/${activeSessionId}/complete`, {
         method: "POST",
       });
@@ -734,17 +743,56 @@ export default function InterviewVideoRoomPage() {
         throw new Error(result?.error || "면접 종료 처리에 실패했습니다.");
       }
       completionRedirectedRef.current = true;
-      disconnect();
+      if (!interruptAudio) {
+        disconnect();
+      }
       router.push(buildResultPath(activeSessionId));
-      return;
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "면접 종료 처리에 실패했습니다.";
       setStatusMessage(message);
+      return false;
     } finally {
       setIsFinishingSession(false);
     }
+  }, [activeSessionId, buildResultPath, disconnect, isFinishingSession, routeToSetup, router]);
 
+  const handleFinish = async () => {
+    await completeSession({
+      status: "면접 종료와 리포트 생성을 요청하는 중...",
+    });
   };
+
+  useEffect(() => {
+    if (
+      !isSessionReady
+      || !activeSessionId
+      || runtimeMeta.interviewComplete
+      || completionRedirectedRef.current
+      || isFinishingSession
+      || runtimeMeta.remainingSec > 0
+    ) {
+      return;
+    }
+
+    completionRedirectedRef.current = true;
+    void (async () => {
+      const completed = await completeSession({
+        interruptAudio: true,
+        status: "면접 시간이 종료되어 결과를 정리하는 중...",
+      });
+      if (!completed) {
+        completionRedirectedRef.current = false;
+      }
+    })();
+  }, [
+    activeSessionId,
+    completeSession,
+    isFinishingSession,
+    isSessionReady,
+    runtimeMeta.interviewComplete,
+    runtimeMeta.remainingSec,
+  ]);
 
   return (
     <div className="h-[calc(100vh-3.5rem)] overflow-hidden bg-[#0b1220] p-3 md:p-4">
@@ -937,7 +985,8 @@ export default function InterviewVideoRoomPage() {
               <span>{runtimeMeta.isClosingPhase ? "마무리 질문 단계" : "핵심 역량 검증 단계"}</span>
               <span className="inline-flex items-center gap-1.5">
                 {isAIProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                질문 {runtimeMeta.questionCount}/{runtimeMeta.estimatedTotalQuestions} · Mic {Math.round(volume * 100)}%
+                {isAIProcessing ? "응답 생성 중 · " : ""}
+                Mic {Math.round(volume * 100)}%
               </span>
             </div>
           </div>

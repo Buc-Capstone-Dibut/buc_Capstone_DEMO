@@ -46,8 +46,6 @@ from app.interview.runtime.session_interaction import (
 )
 from app.interview.runtime.session_support import (
     create_live_interview_session as runtime_create_live_interview_session,
-    get_fallback_stt_service as runtime_get_fallback_stt_service,
-    get_fallback_tts_service as runtime_get_fallback_tts_service,
     latest_user_answer as runtime_latest_user_answer,
 )
 from app.interview.runtime.vad_policy import retune_vad_for_next_turn as runtime_retune_vad_for_next_turn
@@ -139,7 +137,7 @@ CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치�
 AI_TURN_SEQ = count(1)
 RUNTIME_MODE_LIVE_SINGLE = "live-single"
 RUNTIME_MODE_DISABLED = "disabled"
-VOICE_TURN_END_GRACE_SEC = max(0.1, settings.voice_turn_end_grace_ms / 1000.0)
+VOICE_TURN_END_GRACE_SEC = max(0.08, settings.voice_turn_end_grace_ms / 1000.0)
 VOICE_AI_ECHO_GUARD_SEC = max(0.5, settings.voice_ai_echo_guard_ms / 1000.0)
 VOICE_AI_PLAYBACK_SKEW_SEC = 0.35
 LIVE_OPENING_PROMPT = (
@@ -461,7 +459,6 @@ async def _build_ai_delivery_plan(
     return await runtime_build_ai_delivery_plan(
         text=text,
         preferred_full_audio=preferred_full_audio,
-        synthesize_tts=_synthesize_fallback_tts,
     )
 
 
@@ -535,26 +532,9 @@ def _to_prepared_tts_audio_from_pcm(
     )
 
 
-async def _synthesize_fallback_tts(text: str) -> PreparedTtsAudio | None:
-    service = runtime_get_fallback_tts_service()
-    if not service.enabled:
-        return None
-    result = await service.synthesize_pcm(text)
-    if not result.audio_pcm_bytes:
-        return None
-    return _to_prepared_tts_audio_from_pcm(
-        result.audio_pcm_bytes,
-        sample_rate=result.sample_rate,
-        provider=result.provider,
-    )
-
-
 async def _fallback_transcribe_user_audio(wav_bytes: bytes) -> tuple[str, str]:
-    service = runtime_get_fallback_stt_service()
-    if not service.enabled:
-        return "", ""
-    result = await service.transcribe_wav(wav_bytes, language="ko")
-    return (result.text or "").strip(), result.provider
+    del wav_bytes
+    return "", ""
 
 
 def _get_or_create_live_interview(state: VoiceWsState) -> GeminiLiveInterviewSession:

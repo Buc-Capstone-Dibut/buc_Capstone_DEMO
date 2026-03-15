@@ -205,11 +205,11 @@ class VadSegmenter:
         effective_silence_ms = int(self.silence_ms)
         effective_short_silence_ms = int(self.short_utterance_silence_ms)
         if buffered_duration_ms >= 3500:
-            effective_silence_ms += 120
-            effective_short_silence_ms += 160
-        if buffered_duration_ms >= 7000:
             effective_silence_ms += 80
             effective_short_silence_ms += 120
+        if buffered_duration_ms >= 7000:
+            effective_silence_ms += 60
+            effective_short_silence_ms += 80
 
         ready_by_silence = (
             self._speech_started
