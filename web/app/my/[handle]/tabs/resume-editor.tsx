@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, X, Trash2, Plus, Loader2, Upload } from "lucide-react";
+import { Trash2, Plus, Loader2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
@@ -18,6 +18,8 @@ interface ResumeEditorProps {
   onSave: () => void;
   saving: boolean;
   onGoSetup: () => void;
+  title?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 export function ResumeEditor({
@@ -26,6 +28,8 @@ export function ResumeEditor({
   onSave,
   saving,
   onGoSetup,
+  title = "",
+  onTitleChange,
 }: ResumeEditorProps) {
   const [newSkill, setNewSkill] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -208,15 +212,10 @@ export function ResumeEditor({
 
   return (
     <div className="space-y-5">
+      {/* File parsing banner */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium">이 이력서가 면접 세션에 사용됩니다</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              AI 면접 시 이력서 기반으로 맞춤 질문이 생성됩니다.
-            </p>
-          </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium">기존의 이력서를 가져와 내용을 채울 수 있어요</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <input
@@ -251,16 +250,18 @@ export function ResumeEditor({
               </>
             )}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onGoSetup}
-            className="shrink-0 gap-1.5 text-xs"
-          >
-            면접 시작하기
-          </Button>
         </div>
+      </div>
+
+      {/* Title Input — between banner and basic info */}
+      <div className="px-1 space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">이력서 제목</Label>
+        <Input
+          value={title}
+          onChange={(e) => onTitleChange?.(e.target.value)}
+          placeholder="예: 2024년 상반기 공채 지원용"
+          className="text-base font-medium h-11"
+        />
       </div>
 
       <Card>
@@ -335,9 +336,6 @@ export function ResumeEditor({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               자기소개서 (포트폴리오)
             </p>
-            <Badge variant="outline" className="text-[10px] font-normal border-primary/20 text-primary bg-primary/5">
-              AI 가이드 내용이 반영됨
-            </Badge>
           </div>
           <Textarea
             value={payload.selfIntroduction}
@@ -368,9 +366,9 @@ export function ResumeEditor({
                     e.stopPropagation();
                     removeSkill(index);
                   }}
-                  className="opacity-50 hover:opacity-100 transition p-0.5 hover:bg-slate-200 rounded"
+                  className="opacity-50 hover:opacity-100 transition px-1 text-[10px] font-bold"
                 >
-                  <X className="w-3 h-3" />
+                  삭제
                 </button>
               </Badge>
             ))}
@@ -558,12 +556,13 @@ export function ResumeEditor({
                       className="h-8 text-sm flex-1"
                     />
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      size="sm"
+                      className="text-xs text-muted-foreground h-7 px-2 hover:text-destructive"
                       onClick={() => removeAch(projectIndex, achievementIndex)}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      삭제
                     </Button>
                   </div>
                 ))}
@@ -571,10 +570,10 @@ export function ResumeEditor({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-xs text-muted-foreground h-7 px-2"
+                  className="text-xs text-muted-foreground h-7 px-2 underline"
                   onClick={() => addAch(projectIndex)}
                 >
-                  <Plus className="w-3 h-3 mr-1" /> 성과 추가
+                  항목 추가
                 </Button>
               </div>
             </div>

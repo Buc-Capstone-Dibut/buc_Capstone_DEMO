@@ -20,6 +20,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
@@ -179,7 +185,16 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
   const [saving, setSaving] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [resumeViewerOpen, setResumeViewerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("posts");
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get("tab") as TabKey;
+    if (tab && TABS.some((t) => t.key === tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
   const [bookmarkView, setBookmarkView] = useState<BookmarkView>("card");
 
   // Main payload is loaded lazily per tab to keep first paint fast.
@@ -195,9 +210,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     parsePortfolioSummary(initialData.workspaceSummary),
   );
   const prefetchedTabs = initialData.prefetchedTabs || {};
-  const [resumePayload, setResumePayload] = useState<ResumePayload>(
-    normalizeResumePayload(initialData.resumePayload || null),
-  );
+  const [resumePayload, setResumePayload] = useState<ResumePayload | null>(initialData.resumePayload || null);
   const [tabLoading, setTabLoading] = useState<
     Partial<Record<TabKey, boolean>>
   >({
@@ -316,27 +329,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           }
         }
 
-        if (tab === "resume" && isOwner) {
-          const res = await fetch("/api/my/resume/active", {
-            cache: "no-store",
-          });
-          if (res.status === 404) {
-            if (!cancelled) {
-              setResumePayload(EMPTY_RESUME);
-            }
-          } else {
-            const json = await res.json();
-            if (!res.ok || !json?.success) {
-              throw new Error(json?.error || "이력서를 불러오지 못했습니다.");
-            }
-            if (!cancelled) {
-              setResumePayload(
-                normalizeResumePayload(json?.data?.resumePayload || null),
-              );
-              setResumeSummary(json?.data?.publicSummary || null);
-            }
-          }
-        }
+        // Resume fetching moved to ResumeTab component
 
         if (!cancelled) {
           setTabLoaded((prev) => ({ ...prev, [tab]: true }));
@@ -449,6 +442,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          title: resumeSummary?.resumeTitle,
           resumePayload,
           sourceType: "manual",
           sourceFileName: "마이페이지 입력",
@@ -669,42 +663,66 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                       variant="ghost"
                       size="sm"
                       className="h-7 text-[10px] gap-1 px-2"
-                      onClick={() => router.push("/resume?mode=setup")}
+                      onClick={() => router.push("/my/resumes")}
                     >
-                      <Sparkles className="w-3 h-3 text-primary" />
                       관리
                     </Button>
                   )}
                 </div>
                 <Separator />
-                {resumeSummary?.headline ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium leading-snug">
-                      {resumeSummary.headline}
-                    </p>
-                    {(resumeSummary.topSkills || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {(resumeSummary.topSkills as string[])
-                          .slice(0, 5)
-                          .map((s: string) => (
-                            <Badge
-                              key={s}
-                              variant="outline"
-                              className="text-[10px] h-4 px-1.5"
-                            >
-                              {s}
-                            </Badge>
-                          ))}
-                      </div>
+                {resumeSummary ? (
+                  <div className="space-y-4">
+                    <div
+                      className="space-y-2 cursor-pointer hover:bg-muted/30 p-2 -mx-2 rounded-md transition-colors"
+                      onClick={() => setResumeViewerOpen(true)}
+                    >
+                      {resumeSummary.resumeTitle ? (
+                        <p className="text-sm font-bold leading-snug">
+                          {resumeSummary.resumeTitle}
+                        </p>
+                      ) : resumeSummary.headline ? (
+                        <p className="text-sm font-medium leading-snug">
+                          {resumeSummary.headline}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic leading-snug">
+                          아직 제목이나 한 줄 소개가 작성되지 않았습니다.
+                        </p>
+                      )}
+                      {(resumeSummary.topSkills || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {(resumeSummary.topSkills as string[])
+                            .slice(0, 5)
+                            .map((s: string) => (
+                              <Badge
+                                key={s}
+                                variant="outline"
+                                className="text-[10px] h-4 px-1.5"
+                              >
+                                {s}
+                              </Badge>
+                            ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-1">자세히 보기 &rarr;</p>
+                    </div>
+
+                    {isOwner && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs gap-2 py-4 border-dashed mt-2"
+                        onClick={() => router.push("/resume?mode=setup")}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        AI와 함께 만들기
+                      </Button>
                     )}
-                    <Badge className="text-[10px] h-5 px-1.5 bg-primary/10 text-primary border-0">
-                      면접 setup에 사용됨
-                    </Badge>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs text-muted-foreground italic">
-                      이력서 정보가 없습니다.
+                      공개된 이력서가 없습니다.
                     </p>
                     {isOwner && (
                       <Button
@@ -721,6 +739,129 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 )}
               </CardContent>
             </Card>
+
+            {/* Resume Viewer Dialog */}
+            <Dialog open={resumeViewerOpen} onOpenChange={setResumeViewerOpen}>
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-lg flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-primary" />
+                    {resumeSummary?.resumeTitle || "이력서 상세 정보"}
+                  </DialogTitle>
+                </DialogHeader>
+                {resumePayload ? (
+                  <div className="space-y-6 pt-4">
+                    {/* Header - Personal Info */}
+                    <div className="space-y-2 pb-4 border-b">
+                      <h3 className="text-xl font-bold">{resumePayload.personalInfo?.name || "이름 미입력"}</h3>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {resumePayload.personalInfo?.intro || "한 줄 소개가 작성되지 않았습니다."}
+                      </p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                        {resumePayload.personalInfo?.email && <span>📧 {resumePayload.personalInfo.email}</span>}
+                        {resumePayload.personalInfo?.phone && <span>📞 {resumePayload.personalInfo.phone}</span>}
+                        {resumePayload.personalInfo?.links?.github && (
+                          <span>💻 <a href={resumePayload.personalInfo.links.github} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
+                        )}
+                        {resumePayload.personalInfo?.links?.blog && (
+                          <span>📝 <a href={resumePayload.personalInfo.links.blog} target="_blank" rel="noreferrer" className="hover:underline">Blog</a></span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Self Introduction */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">자기소개서</h4>
+                      {resumePayload.selfIntroduction ? (
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap bg-muted/30 p-3 rounded-md border">
+                          {resumePayload.selfIntroduction}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">작성된 자기소개서가 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* Skills */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">보유 기술</h4>
+                      {resumePayload.skills && resumePayload.skills.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {resumePayload.skills.map((skill: any, i: number) => (
+                            <Badge key={i} variant="secondary" className="font-medium px-2 py-0.5">
+                              {skill.name} {skill.level ? `(${skill.level})` : ""}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">등록된 기술이 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* Experience */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">경력 사항</h4>
+                      {resumePayload.experience && resumePayload.experience.length > 0 ? (
+                        <div className="space-y-3">
+                          {resumePayload.experience.map((exp: any, i: number) => (
+                            <div key={i} className="bg-card border rounded-md p-3 text-sm space-y-1.5">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-semibold text-primary">{exp.company}</p>
+                                  <p className="text-muted-foreground mt-0.5">{exp.position}</p>
+                                </div>
+                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full whitespace-nowrap">{exp.period}</span>
+                              </div>
+                              {exp.description && (
+                                <p className="text-xs text-muted-foreground whitespace-pre-wrap pt-1">{exp.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">등록된 경력이 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* Projects */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">프로젝트</h4>
+                      {resumePayload.projects && resumePayload.projects.length > 0 ? (
+                        <div className="space-y-3">
+                          {resumePayload.projects.map((proj: any, i: number) => (
+                            <div key={i} className="bg-card border rounded-md p-3 text-sm space-y-2">
+                              <div className="flex justify-between items-start">
+                                <p className="font-semibold leading-tight">{proj.name}</p>
+                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full whitespace-nowrap ml-2">{proj.period}</span>
+                              </div>
+                              {proj.description && (
+                                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{proj.description}</p>
+                              )}
+                              {proj.techStack && proj.techStack.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {proj.techStack.map((tech: string, j: number) => (
+                                    <span key={j} className="text-[10px] text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                      {tech}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">등록된 프로젝트가 없습니다.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-10 text-center">
+                    <p className="text-sm text-muted-foreground mb-4">상세 이력서 데이터를 불러올 수 없습니다.</p>
+                    <p className="text-xs text-muted-foreground italic">이력서가 아직 작성되지 않았거나 공개 설정이 불완전할 수 있습니다.</p>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
           </aside>
 
           {/* Content */}
@@ -804,23 +945,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 bookmarkView={bookmarkView}
                 onChangeBookmarkView={setBookmarkView}
                 totalCount={bookmarkTotalCount}
-              />
-            )}
-
-            {/* Tab: 이력서 */}
-            {activeTab === "resume" && (
-              <ResumeTab
-                isOwner={isOwner}
-                loading={tabLoading.resume}
-                error={tabError.resume}
-                resumePayload={resumePayload}
-                onChangeResumePayload={setResumePayload}
-                onSaveResume={saveResume}
-                saving={saving}
-                onGoSetup={() =>
-                  router.push("/interview/posting/setup?import=active_resume")
-                }
-                resumeSummary={resumeSummary}
               />
             )}
 

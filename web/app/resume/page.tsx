@@ -18,6 +18,7 @@ export default function ResumePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
+    const [resumeTitle, setResumeTitle] = useState("");
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
     const [isWizardMode, setIsWizardMode] = useState(false);
 
@@ -27,6 +28,13 @@ export default function ResumePage() {
 
     useEffect(() => {
         const fetchResume = async () => {
+            // In setup mode, we start with a clean slate
+            if (isWizardModeFromUrl) {
+                setResumePayload(EMPTY_RESUME);
+                setLoading(false);
+                return;
+            }
+
             try {
                 const res = await fetch("/api/my/resume/active", { cache: "no-store" });
                 if (res.status === 404) {
@@ -35,6 +43,7 @@ export default function ResumePage() {
                     const json = await res.json();
                     if (res.ok && json.success) {
                         setResumePayload(normalizeResumePayload(json.data.resumePayload));
+                        setResumeTitle(json.data.title || "");
                     }
                 }
             } catch (error) {
@@ -44,15 +53,20 @@ export default function ResumePage() {
             }
         };
         fetchResume();
-    }, []);
+    }, [isWizardModeFromUrl]);
 
     const handleSave = async (silent = false) => {
         setSaving(true);
         try {
-            const res = await fetch("/api/my/resume/active", {
-                method: "PUT",
+            const isNew = searchParams.get("mode") === "setup";
+            const url = isNew ? "/api/my/resume" : "/api/my/resume/active";
+            const method = isNew ? "POST" : "PUT";
+
+            const res = await fetch(url, {
+                method,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    title: resumeTitle.trim() || (resumePayload.personalInfo.name ? `${resumePayload.personalInfo.name}의 이력서` : "AI 연구소 작성 이력서"),
                     resumePayload,
                     sourceType: "manual",
                     sourceFileName: "AI 통합 에디터",
@@ -66,7 +80,7 @@ export default function ResumePage() {
             }
 
             if (!silent && searchParams.get("mode") === "setup") {
-                router.push("/interview/setup?import=active_resume");
+                router.push("/my/resumes");
             }
         } catch (err: any) {
             toast({
@@ -151,26 +165,16 @@ export default function ResumePage() {
                 </div>
             </header>
 
-            <main className="max-w-[1400px] mx-auto flex flex-col lg:flex-row min-h-[calc(100vh-4rem)]">
-                {/* Left: Editor (70%) */}
-                <div className="flex-1 p-4 lg:p-10 overflow-y-auto bg-white shadow-sm border-x border-slate-200/60">
-                    <div className="max-w-4xl mx-auto">
-                        <ResumeEditor
-                            payload={resumePayload}
-                            onChange={setResumePayload}
-                            onSave={() => handleSave()}
-                            saving={saving}
-                        />
-                    </div>
-                </div>
-
-                {/* Right: AI Assistant (30%) */}
-                <aside className="w-full lg:w-[420px] bg-slate-50/80 p-6 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] overflow-y-auto">
-                    <ResumeAiAssistant
-                        currentPayload={resumePayload}
-                        onUpdatePayload={setResumePayload}
-                    />
-                </aside>
+            <main className="max-w-5xl mx-auto p-4 lg:p-10 min-h-[calc(100vh-4rem)] bg-white shadow-sm border-x border-slate-200/60">
+                <ResumeEditor
+                    payload={resumePayload}
+                    onChange={setResumePayload}
+                    onSave={() => handleSave()}
+                    saving={saving}
+                    onGoSetup={() => { }}
+                    title={resumeTitle}
+                    onTitleChange={setResumeTitle}
+                />
             </main>
         </div>
     );
