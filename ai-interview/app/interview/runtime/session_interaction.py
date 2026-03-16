@@ -31,14 +31,14 @@ def is_probable_ai_echo(
     candidate_len = len(candidate)
     reference_len = len(reference)
 
-    # Long user answers should not be discarded unless they are almost identical to the AI prompt.
-    if duration_ms >= 2400 and candidate_len >= max(18, voice_min_answer_chars + 6):
-        return similarity >= 0.96 and abs(candidate_len - reference_len) <= 6
-    if similarity >= 0.9 and abs(candidate_len - reference_len) <= 8:
+    # Long user answers should almost never be discarded as echo.
+    if duration_ms >= 2200 and candidate_len >= max(16, voice_min_answer_chars + 4):
+        return similarity >= 0.985 and abs(candidate_len - reference_len) <= 4
+    if similarity >= 0.96 and abs(candidate_len - reference_len) <= 4:
         return True
-    if contains and duration_ms <= 1800 and candidate_len <= max(18, voice_min_answer_chars + 6):
+    if contains and duration_ms <= 1100 and candidate_len <= max(10, voice_min_answer_chars - 2):
         return True
-    if duration_ms <= 1600 and candidate_len <= voice_min_answer_chars and (similarity >= 0.55 or contains):
+    if duration_ms <= 900 and candidate_len <= max(6, voice_min_answer_chars - 4) and similarity >= 0.8:
         return True
     return False
 

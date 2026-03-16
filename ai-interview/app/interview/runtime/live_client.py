@@ -34,7 +34,8 @@ def build_live_session_instruction(
         "절대 규칙:\n"
         "1) 매 턴 기본적으로 질문 1개만 한다(질문은 마지막 문장에 위치). 단, 운영 메모에 질문 없이 종료하라고 명시된 종료 턴은 예외다.\n"
         "2) 메타발화(예: 지시/프롬프트 설명/영어 문장/마크다운/별표) 금지.\n"
-        "3) 답변이 짧거나 불완전하면 다음 질문 대신 '이어서 조금만 더 말씀해 주세요.'를 말한다.\n"
+        "3) 지원자에게 다시 말해 달라거나 더 길게 답하라고 스스로 요청하지 않는다. "
+        "재청취가 필요하면 서버가 별도 안내 턴을 보낸다.\n"
         "4) 지원자 답변을 직접 대신 말하지 않는다.\n"
         "5) 질문은 구체적이고 검증 가능한 꼬리질문 위주로 한다.\n"
         "6) 각 턴은 2~4문장으로 구성하고, 전체 길이는 대략 80~220자 내에서 자연스럽게 말한다.\n"
@@ -84,8 +85,10 @@ def build_live_turn_prompt(
         parts.append("- 방금 입력된 사용자 음성 답변의 고유명사/기술명/수치 중 최소 1개를 질문 문장에 직접 포함할 것")
     if extra_instruction:
         parts.append(f"- 추가 요청: {extra_instruction}")
+    parts.append("- 필요하면 직전 답변을 들었다는 짧은 반응 1문장을 먼저 말해도 된다. 다만 한 문장 이내로 짧게 끝내고, 곧바로 질문 1개로 이어갈 것")
     parts.append("- 방금 답변에서 아직 검증되지 않은 핵심 축이 남아 있으면 새 주제로 바꾸지 말고 같은 축을 더 깊게 파고들 것")
     parts.append("- 답변을 요약만 하지 말고, 방금 답변의 구체 디테일을 파고드는 꼬리질문으로 이어갈 것")
+    parts.append("- 사용자가 이미 답변했다면 '다시 말씀해 주세요', '이어서 말씀해 주세요' 같은 재청취 문구를 만들지 말 것")
     parts.append("- 위 조건은 내부 참고용이며, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
     return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
 
@@ -119,29 +122,26 @@ async def request_live_text_turn(
     user_text: str = "",
     deps: LiveClientDeps,
 ) -> tuple[str, PreparedTtsAudio | None]:
-    live = deps.create_live_interview_session()
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
     if not live.enabled:
         return "", None
 
-    try:
-        result = await live.request_text_turn(
-            session_instruction=deps.build_session_instruction(state),
-            turn_prompt=deps.build_turn_prompt(
-                state,
-                question_type=question_type,
-                user_text=user_text,
-                extra_instruction=extra_instruction,
-            ),
-            text=text,
-        )
-        prepared = deps.to_prepared_tts_audio_from_pcm(
-            result.audio_pcm_bytes,
-            sample_rate=result.sample_rate,
-            provider=result.provider,
-        )
-        return (result.ai_text or "").strip(), prepared
-    finally:
-        await live.close()
+    result = await live.request_text_turn(
+        session_instruction=deps.build_session_instruction(state),
+        turn_prompt=deps.build_turn_prompt(
+            state,
+            question_type=question_type,
+            user_text=user_text,
+            extra_instruction=extra_instruction,
+        ),
+        text=text,
+    )
+    prepared = deps.to_prepared_tts_audio_from_pcm(
+        result.audio_pcm_bytes,
+        sample_rate=result.sample_rate,
+        provider=result.provider,
+    )
+    return (result.ai_text or "").strip(), prepared
 
 
 async def request_live_audio_turn(

@@ -27,30 +27,30 @@ def retune_vad_for_next_turn(
     turn_end_grace_ms = settings.voice_turn_end_grace_ms
 
     if short_answer:
-        silence_ms += 140
-        short_silence_ms += 220
-        turn_end_grace_ms += 60
+        silence_ms -= 70
+        short_silence_ms -= 180
+        turn_end_grace_ms -= 30
     elif avg_ms >= 5200:
-        silence_ms += 100
-        short_silence_ms += 150
-        turn_end_grace_ms += 30
+        silence_ms += 70
+        short_silence_ms += 110
+        turn_end_grace_ms += 20
     elif avg_ms >= 3200:
-        silence_ms += 50
-        short_silence_ms += 80
+        silence_ms += 35
+        short_silence_ms += 55
         turn_end_grace_ms += 10
     elif avg_ms and avg_ms <= 1800:
-        silence_ms -= 60
-        short_silence_ms -= 100
-        turn_end_grace_ms -= 40
+        silence_ms -= 35
+        short_silence_ms -= 80
+        turn_end_grace_ms -= 20
 
     if state.short_reprompt_streak >= 2:
-        silence_ms += 80
-        short_silence_ms += 120
-        turn_end_grace_ms += 40
+        silence_ms -= 20
+        short_silence_ms -= 40
+        turn_end_grace_ms -= 10
 
-    silence_ms = max(500, min(short_silence_ms, silence_ms))
-    short_silence_ms = max(silence_ms + 120, min(2600, short_silence_ms))
-    turn_end_grace_ms = max(120, min(300, turn_end_grace_ms))
+    silence_ms = max(420, min(short_silence_ms - 120, silence_ms))
+    short_silence_ms = max(silence_ms + 140, min(1600, short_silence_ms))
+    turn_end_grace_ms = max(60, min(180, turn_end_grace_ms))
 
     state.turn_end_grace_sec = turn_end_grace_ms / 1000.0
     state.vad.reconfigure(

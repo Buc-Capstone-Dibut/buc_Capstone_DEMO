@@ -618,7 +618,15 @@ async def execute_opening_live_turn(
             timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
         )
     else:
-        await deps.resume_listening(ws, state, turn_id=spec.turn_id)
+        await deps.send_json(
+            ws,
+            {
+                "type": "error",
+                "message": "첫 질문 음성을 생성하지 못했습니다. 새로고침 후 다시 시작해 주세요.",
+                "turnId": spec.turn_id,
+            },
+        )
+        return False
     return True
 
 
@@ -680,7 +688,7 @@ async def execute_resume_live_turn(
         )
         if prepared_live_audio is None:
             logger.warning(
-                "resume turn proceeding with synthesized/text delivery (session=%s, turn=%s, ai_text=%s)",
+                "resume turn proceeding with text-only delivery (session=%s, turn=%s, ai_text=%s)",
                 state.session_id,
                 spec.turn_id,
                 ai_text,
@@ -799,7 +807,15 @@ async def execute_resume_live_turn(
             timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
         )
     else:
-        await deps.resume_listening(ws, state, turn_id=spec.turn_id)
+        await deps.send_json(
+            ws,
+            {
+                "type": "warning",
+                "message": "다음 질문 음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                "turnId": spec.turn_id,
+            },
+        )
+        return False
     return True
 
 
@@ -901,26 +917,8 @@ async def execute_live_user_followup_turn(
             user_text=user_request.prompt_user_text,
             deps=deps,
         )
-        ai_text, prepared_audio, regrounded_followup = await _regenerate_ungrounded_followup(
-            state,
-            ai_text=ai_text,
-            prepared_audio=prepared_audio,
-            question_type=user_request.planned_question_type,
-            user_text=user_request.prompt_user_text,
-            deps=deps,
-        )
-        if ai_text:
-            ai_text, prepared_audio, repaired_after_regrounding = await _repair_incomplete_ai_question(
-                state,
-                ai_text=ai_text,
-                prepared_audio=prepared_audio,
-                question_type=user_request.planned_question_type,
-                extra_instruction="지원자의 직전 답변을 바탕으로 자연스러운 후속 질문을 완성하세요.",
-                user_text=user_request.prompt_user_text,
-                deps=deps,
-            )
-        else:
-            repaired_after_regrounding = False
+        regrounded_followup = False
+        repaired_after_regrounding = False
     repair_applied = bool(ai_text) and (
         ai_text != ai_text_before_repair
         or repaired_incomplete
@@ -978,7 +976,7 @@ async def execute_live_user_followup_turn(
         )
         if prepared_audio is None:
             logger.warning(
-                "live followup turn proceeding with synthesized/text delivery (session=%s, turn=%s, ai_text=%s)",
+                "live followup turn proceeding with text-only delivery (session=%s, turn=%s, ai_text=%s)",
                 state.session_id,
                 turn_id,
                 ai_text,
@@ -1101,12 +1099,11 @@ async def execute_live_user_followup_turn(
             ws,
             {
                 "type": "warning",
-                "message": "이번 질문의 음성 생성이 지연되어 자막 기준으로 먼저 진행합니다.",
+                "message": "이번 질문 음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.",
                 "turnId": turn_id,
             },
         )
-        await deps.resume_listening(ws, state, turn_id=turn_id)
-        return True
+        return False
 
     has_audio = await deps.stream_prepared_ai_delivery(
         ws,
@@ -1124,5 +1121,13 @@ async def execute_live_user_followup_turn(
                 timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
             )
     elif not spec.completion_reason:
-        await deps.resume_listening(ws, state, turn_id=turn_id)
+        await deps.send_json(
+            ws,
+            {
+                "type": "warning",
+                "message": "이번 질문 음성을 재생하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                "turnId": turn_id,
+            },
+        )
+        return False
     return True

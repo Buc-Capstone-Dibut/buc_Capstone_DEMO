@@ -339,16 +339,16 @@ def build_answer_quality_hint(answer: str) -> str:
 
     hints: list[str] = []
     if length < 60:
-        hints.append("답변이 매우 짧습니다. 추가 맥락과 구체 사례를 요구하세요.")
+        hints.append("답변이 짧을 수 있습니다. 다음 질문에서 추가 맥락과 구체 사례를 자연스럽게 확인하세요.")
     elif length < 140:
-        hints.append("핵심은 있으나 디테일이 부족할 수 있습니다. 근거와 의사결정 기준을 캐물으세요.")
+        hints.append("핵심은 있으나 디테일이 부족할 수 있습니다. 다음 질문에서 근거와 의사결정 기준을 검증하세요.")
     else:
         hints.append("답변 길이는 충분합니다. 깊이와 재현 가능성을 검증하세요.")
 
     if not has_metric:
-        hints.append("수치화된 성과나 지표를 반드시 다시 요청하세요.")
+        hints.append("가능하면 다음 질문에서 수치화된 성과나 지표를 확인하세요.")
     if not has_structure:
-        hints.append("문제-행동-결과 구조(STAR)에 맞춰 다시 답변하도록 유도하세요.")
+        hints.append("다음 질문은 문제-행동-결과 구조가 드러나도록 구체 상황을 확인하는 방향으로 이어가세요.")
 
     return " ".join(hints)
 

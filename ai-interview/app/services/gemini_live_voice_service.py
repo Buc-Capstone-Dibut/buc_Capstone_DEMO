@@ -28,9 +28,9 @@ except Exception:  # pragma: no cover - optional dependency fallback
 logger = logging.getLogger("dibut.gemini_live_voice")
 
 PCM_RATE_PATTERN = re.compile(r"rate=(\d+)")
-TURN_COMPLETE_TAIL_GRACE_SEC = 0.3
-MISSING_AUDIO_RETRY_GRACE_SEC = 0.85
-TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.75
+TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC = 0.34
+TURN_COMPLETE_TEXT_TAIL_GRACE_SEC = 0.38
+TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.2
 
 
 def _is_quota_exhausted_error(exc: Exception) -> bool:
@@ -80,15 +80,12 @@ class _GeminiLiveBaseService:
     ) -> list[Any]:
         responses: list[Any] = []
         turn_complete_seen = False
+        turn_complete_deadline: float | None = None
         while True:
             try:
                 timeout = timeout_sec
-                if turn_complete_seen:
-                    timeout = (
-                        TURN_COMPLETE_TAIL_GRACE_SEC
-                        if self._responses_have_payload(responses)
-                        else TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC
-                    )
+                if turn_complete_seen and turn_complete_deadline is not None:
+                    timeout = max(0.05, turn_complete_deadline - time.monotonic())
                 response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout)
             except StopAsyncIteration:
                 break
@@ -99,16 +96,30 @@ class _GeminiLiveBaseService:
             server_content = getattr(response, "server_content", None)
             if bool(getattr(server_content, "turn_complete", False)):
                 turn_complete_seen = True
+            if turn_complete_seen:
+                now = time.monotonic()
+                if self._responses_have_audio(responses):
+                    turn_complete_deadline = now + TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC
+                elif self._responses_have_text(responses):
+                    existing = turn_complete_deadline if turn_complete_deadline is not None else 0.0
+                    turn_complete_deadline = max(existing, now + TURN_COMPLETE_TEXT_TAIL_GRACE_SEC)
+                else:
+                    existing = turn_complete_deadline if turn_complete_deadline is not None else 0.0
+                    turn_complete_deadline = max(existing, now + TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC)
 
         return responses
 
     def _responses_have_payload(self, responses: list[Any]) -> bool:
         if not responses:
             return False
+        return self._responses_have_text(responses) or self._responses_have_audio(responses)
+
+    def _responses_have_text(self, responses: list[Any]) -> bool:
         if self._extract_model_text_chunks(responses):
             return True
-        if self._extract_output_transcription_chunks(responses):
-            return True
+        return bool(self._extract_output_transcription_chunks(responses))
+
+    def _responses_have_audio(self, responses: list[Any]) -> bool:
         audio_chunks, _sample_rate = self._extract_audio_chunks(responses)
         return bool(audio_chunks)
 
@@ -539,6 +550,11 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     }
                 }
             },
+            "realtime_input_config": {
+                "automatic_activity_detection": {
+                    "disabled": True,
+                }
+            },
             "system_instruction": session_instruction,
         }
 
@@ -752,7 +768,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        for attempt in range(1, 3):
+        for attempt in range(1, 2):
             connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 logger.warning(
@@ -781,15 +797,11 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     return result
                 if result.ai_text and not result.audio_pcm_bytes:
                     logger.warning(
-                        "gemini live text turn missing audio; reconnecting (attempt=%s, text_len=%s, ai_len=%s)",
+                        "gemini live text turn missing audio (attempt=%s, text_len=%s, ai_len=%s)",
                         attempt,
                         len(prompt),
                         len(result.ai_text),
                     )
-                    if attempt < 2:
-                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
-                        await self.close()
-                        continue
                 logger.warning(
                     "gemini live text turn incomplete result (attempt=%s, text_len=%s, ai_len=%s, audio_bytes=%s)",
                     attempt,
@@ -822,7 +834,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
 
         normalized_rate = max(8000, int(sample_rate or 16000))
 
-        for attempt in range(1, 3):
+        for attempt in range(1, 2):
             connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 logger.warning(
@@ -837,12 +849,17 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             try:
                 async with self._turn_lock:
                     prompt = (turn_prompt or "").strip()
+                    if types is not None and hasattr(types, "ActivityStart"):
+                        await self._session.send_realtime_input(activity_start=types.ActivityStart())
                     if prompt:
                         await self._session.send_realtime_input(text=prompt)
                     await self._session.send_realtime_input(
                         audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                     )
-                    await self._session.send_realtime_input(audio_stream_end=True)
+                    if types is not None and hasattr(types, "ActivityEnd"):
+                        await self._session.send_realtime_input(activity_end=types.ActivityEnd())
+                    else:
+                        await self._session.send_realtime_input(audio_stream_end=True)
                     responses = await self._receive_until_turn_complete(
                         response_stream=self._session.receive(),
                         timeout_sec=self.timeout_sec,
@@ -852,17 +869,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     return result
                 if result.ai_text and not result.audio_pcm_bytes:
                     logger.warning(
-                        "gemini live audio turn missing audio; reconnecting (attempt=%s, sample_rate=%s, bytes=%s, ai_len=%s, user_len=%s)",
+                        "gemini live audio turn missing audio (attempt=%s, sample_rate=%s, bytes=%s, ai_len=%s, user_len=%s)",
                         attempt,
                         normalized_rate,
                         len(pcm_bytes),
                         len(result.ai_text),
                         len(result.user_text),
                     )
-                    if attempt < 2:
-                        await asyncio.sleep(MISSING_AUDIO_RETRY_GRACE_SEC)
-                        await self.close()
-                        continue
                 logger.warning(
                     "gemini live audio turn incomplete result (attempt=%s, sample_rate=%s, bytes=%s, user_len=%s, ai_len=%s, audio_bytes=%s)",
                     attempt,
