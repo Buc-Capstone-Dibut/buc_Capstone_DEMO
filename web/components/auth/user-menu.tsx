@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, Bookmark, LogOut, Loader2, LogIn } from "lucide-react";
+import { User, LogOut, Loader2 } from "lucide-react";
 
 interface UserMenuProps {
   onLoginClick: () => void;
@@ -109,12 +108,6 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
           <Link href={myPageHref}>
             <User className="mr-2 h-4 w-4" />
             <span>프로필</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/bookmarks">
-            <Bookmark className="mr-2 h-4 w-4" />
-            <span>북마크</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
