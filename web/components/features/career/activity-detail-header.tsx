@@ -29,9 +29,10 @@ function getGradientClass(str: string) {
 
 export function ActivityDetailHeader({ event }: ActivityDetailHeaderProps) {
   const [imgError, setImgError] = useState(false);
+  const displayHost = event.host || event.source_title || "주최 정보 없음";
   const gradient = useMemo(
-    () => getGradientClass(event.host || event.title),
-    [event.host, event.title]
+    () => getGradientClass(displayHost || event.title),
+    [displayHost, event.title]
   );
 
   const displayImage = event.thumbnail;
@@ -108,7 +109,7 @@ export function ActivityDetailHeader({ event }: ActivityDetailHeaderProps) {
                   {event.date}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  Hosted by {event.host || "Unknown"}
+                  Hosted by {displayHost}
                 </span>
               </div>
             </div>

@@ -15,71 +15,46 @@ def _safe_int(value: str | None, default: int) -> int:
         return default
 
 
-def _resolve_path(path_value: str | None, default_path: Path, base_dir: Path) -> Path:
-    if not path_value:
-        return default_path
-    path = Path(path_value).expanduser()
-    if not path.is_absolute():
-        path = (base_dir / path).resolve()
-    return path
-
-
-def _load_dotenv_files(project_root: Path, crawler_root: Path) -> Path | None:
+def _load_dotenv_files(crawler_root: Path) -> tuple[Path, ...]:
     dotenv_paths = [
-        project_root / ".env",
-        project_root / "web" / ".env.local",
         crawler_root / ".env",
+        crawler_root / ".env.local",
     ]
 
-    last_loaded: Path | None = None
+    loaded_paths: list[Path] = []
     for dotenv_path in dotenv_paths:
         if dotenv_path.exists():
             load_dotenv(dotenv_path=dotenv_path, override=True)
-            last_loaded = dotenv_path
-    return last_loaded
+            loaded_paths.append(dotenv_path)
+    return tuple(loaded_paths)
 
 
 @dataclass
 class Settings:
-    project_root: Path
     crawler_root: Path
-    web_data_dir: Path
-    dev_event_json_path: Path
     blogs_table: str
+    dev_events_table: str
     supabase_url: str | None
-    supabase_key: str | None
+    supabase_service_role_key: str | None
     gemini_api_key: str | None
     firecrawl_api_key: str | None
     tag_request_delay_ms: int
     tag_retry_base_ms: int
     rss_feeds: list[dict[str, Any]]
-    loaded_env_file: Path | None
+    loaded_env_files: tuple[Path, ...]
 
 
 def _build_settings() -> Settings:
     crawler_root = Path(__file__).resolve().parents[3]
-    project_root = crawler_root.parent
-    loaded_env_file = _load_dotenv_files(project_root, crawler_root)
-
-    web_data_dir = _resolve_path(
-        os.getenv("WEB_DATA_DIR"),
-        project_root / "web" / "public" / "data",
-        crawler_root,
-    )
-    dev_event_json_path = _resolve_path(
-        os.getenv("DEV_EVENT_JSON_PATH"),
-        web_data_dir / "dev-events.json",
-        crawler_root,
-    )
+    loaded_env_files = _load_dotenv_files(crawler_root)
+    supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 
     return Settings(
-        project_root=project_root,
         crawler_root=crawler_root,
-        web_data_dir=web_data_dir,
-        dev_event_json_path=dev_event_json_path,
         blogs_table=os.getenv("SUPABASE_BLOGS_TABLE", "blogs"),
-        supabase_url=os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
-        supabase_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
+        dev_events_table=os.getenv("SUPABASE_DEV_EVENTS_TABLE", "dev_events"),
+        supabase_url=supabase_url,
+        supabase_service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
         firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY"),
         tag_request_delay_ms=_safe_int(os.getenv("TAG_REQUEST_DELAY_MS"), 1000),
@@ -121,22 +96,23 @@ def _build_settings() -> Settings:
                 "type": "company",
             },
         ],
-        loaded_env_file=loaded_env_file,
+        loaded_env_files=loaded_env_files,
     )
 
 
 settings = _build_settings()
 
-PROJECT_ROOT = settings.project_root
 CRAWLER_ROOT = settings.crawler_root
-WEB_DATA_DIR = settings.web_data_dir
-DEV_EVENT_JSON_PATH = settings.dev_event_json_path
 
 BLOGS_TABLE = settings.blogs_table
+DEV_EVENTS_TABLE = settings.dev_events_table
 SUPABASE_URL = settings.supabase_url
-SUPABASE_KEY = settings.supabase_key
+SUPABASE_SERVICE_ROLE_KEY = settings.supabase_service_role_key
+# Backward-compatible alias for existing imports.
+SUPABASE_KEY = settings.supabase_service_role_key
 GEMINI_API_KEY = settings.gemini_api_key
 FIRECRAWL_API_KEY = settings.firecrawl_api_key
 TAG_REQUEST_DELAY_MS = settings.tag_request_delay_ms
 TAG_RETRY_BASE_MS = settings.tag_retry_base_ms
 RSS_FEEDS = settings.rss_feeds
+LOADED_ENV_FILES = settings.loaded_env_files

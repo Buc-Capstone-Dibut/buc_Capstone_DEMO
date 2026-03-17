@@ -13,15 +13,17 @@ import { Viewer } from "@/components/features/community/squad-viewer";
 import {
   MapPin,
   Calendar,
-  Users,
   Star,
   Monitor,
   Share2,
   AlertTriangle,
-  UserPlus,
 } from "lucide-react";
-import { fetchDevEventById } from "@/lib/server/dev-events";
+import {
+  fetchDevEventById,
+  MISSING_DEV_EVENT_TITLE,
+} from "@/lib/server/dev-events";
 import prisma from "@/lib/prisma";
+import { buildProfilePath } from "@/lib/profile-path";
 
 // Components
 import ApplicationButton from "@/components/features/community/squad/application-button";
@@ -106,6 +108,8 @@ export default async function SquadDetailPage({ params }: PageProps) {
     activity = await fetchDevEventById(squad.activity_id);
   }
 
+  const hasMissingActivityLink = Boolean(squad.activity_id) && !activity;
+
   if (currentUserId && isMember) {
     const linkedMembership = await prisma.workspace_members.findFirst({
       where: {
@@ -176,9 +180,9 @@ export default async function SquadDetailPage({ params }: PageProps) {
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-6 border-b">
               <div className="flex items-center gap-2">
-                {squad.leader?.handle ? (
+                {buildProfilePath(squad.leader?.id) ? (
                   <Link
-                    href={`/my/${encodeURIComponent(squad.leader.handle)}`}
+                    href={buildProfilePath(squad.leader?.id) || "#"}
                     className="flex items-center gap-2 hover:underline"
                   >
                     <Avatar className="w-6 h-6">
@@ -235,29 +239,66 @@ export default async function SquadDetailPage({ params }: PageProps) {
           </div>
 
           {/* Activity Link Banner */}
-          {activity && (
-            <Card className="bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900">
+          {(activity || hasMissingActivityLink) && (
+            <Card
+              className={
+                activity
+                  ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900"
+                  : "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
+              }
+            >
               <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-lg">
-                  <Star className="w-5 h-5 text-blue-600 dark:text-blue-300 fill-current" />
+                <div
+                  className={
+                    activity
+                      ? "bg-blue-100 dark:bg-blue-800 p-2 rounded-lg"
+                      : "bg-slate-200 dark:bg-slate-800 p-2 rounded-lg"
+                  }
+                >
+                  <Star
+                    className={
+                      activity
+                        ? "w-5 h-5 text-blue-600 dark:text-blue-300 fill-current"
+                        : "w-5 h-5 text-slate-500 dark:text-slate-300"
+                    }
+                  />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-0.5">
+                  <p
+                    className={
+                      activity
+                        ? "text-xs font-semibold text-blue-600 dark:text-blue-400 mb-0.5"
+                        : "text-xs font-semibold text-slate-500 dark:text-slate-400 mb-0.5"
+                    }
+                  >
                     관련 활동
                   </p>
-                  <p className="font-medium text-blue-900 dark:text-blue-100">
-                    {activity.title}
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" className="ml-auto" asChild>
-                  <a
-                    href={`/insights/activities/${activity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <p
+                    className={
+                      activity
+                        ? "font-medium text-blue-900 dark:text-blue-100"
+                        : "font-medium text-slate-900 dark:text-slate-100"
+                    }
                   >
-                    자세히 보기
-                  </a>
-                </Button>
+                    {activity?.title || MISSING_DEV_EVENT_TITLE}
+                  </p>
+                  {!activity && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      연결된 대외활동이 삭제되었거나 더 이상 공개되지 않습니다.
+                    </p>
+                  )}
+                </div>
+                {activity ? (
+                  <Button variant="outline" size="sm" className="ml-auto" asChild>
+                    <a
+                      href={`/insights/activities/${activity.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      자세히 보기
+                    </a>
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           )}
@@ -449,9 +490,9 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 {/* @ts-ignore */}
                 {squad.members?.map((member) => (
                   <div key={member.user_id} className="flex items-center gap-3">
-                    {member.profile?.handle ? (
+                    {buildProfilePath(member.profile?.id) ? (
                       <Link
-                        href={`/my/${encodeURIComponent(member.profile.handle)}`}
+                        href={buildProfilePath(member.profile?.id) || "#"}
                         className="flex items-center gap-3 min-w-0 hover:underline"
                       >
                         <Avatar className="w-8 h-8">

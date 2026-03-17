@@ -1,25 +1,30 @@
+from datetime import datetime
 from datetime import date
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class DevEvent(BaseModel):
+    id: Optional[str] = None
+    source_key: Optional[str] = None
+    source_title: Optional[str] = None
     title: str
     link: str
     host: Optional[str] = None
-    date: str  # Original date string from README
-    start_date: Optional[date] = None # Parsed start date
-    end_date: Optional[date] = None # Parsed end date
-    tags: List[str] = []
-    category: Optional[str] = None # Competition, Education, Conference, etc.
-    status: str = "recruiting" # recruiting, closed, upcoming
+    date: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    tags: list[str] = Field(default_factory=list)
+    category: Optional[str] = None
+    status: str = "recruiting"
     source: str = "github"
     description: Optional[str] = None
     thumbnail: Optional[str] = None
     content: Optional[str] = None
-    
-    # AI Structured Fields
     summary: Optional[str] = None
-    target_audience: List[str] = []
+    target_audience: list[str] = Field(default_factory=list)
     fee: Optional[str] = None
-    schedule: List[str] = []
-    benefits: List[str] = []
+    schedule: list[str] = Field(default_factory=list)
+    benefits: list[str] = Field(default_factory=list)
+    last_seen_at: Optional[datetime] = None

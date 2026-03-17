@@ -28,6 +28,16 @@ export function ClosingSoonWidget({ events }: ClosingSoonWidgetProps) {
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Normalize today to start of day
 
+      const isoDate = new Date(dateStr);
+      if (!Number.isNaN(isoDate.getTime())) {
+        isoDate.setHours(0, 0, 0, 0);
+        const diff = differenceInDays(isoDate, today);
+
+        if (diff === 0) return "D-Day";
+        if (diff < 0) return "마감";
+        return `D-${diff}`;
+      }
+
       // 1. Handle Ranges ("~")
       const parts = dateStr.split("~");
       const endDateStr = parts.length > 1 ? parts[1] : parts[0];

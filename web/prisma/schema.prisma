@@ -2,6 +2,7 @@ generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema", "driverAdapters"]
   output          = "../src/generated/client"
+  binaryTargets   = ["native", "darwin-arm64", "windows"]
 }
 
 datasource db {
@@ -422,7 +423,7 @@ model blogs {
   tags          String[]         @default([])
   published_at  DateTime?        @default(now()) @db.Timestamptz(6)
   thumbnail_url String?
-  external_url  String
+  external_url  String           @unique(map: "idx_blogs_external_url_unique")
   views         Int?             @default(0)
   created_at    DateTime?        @default(now()) @db.Timestamptz(6)
   updated_at    DateTime?        @default(now()) @db.Timestamptz(6)
@@ -434,6 +435,40 @@ model blogs {
   @@index([published_at(sort: Desc)], map: "idx_blogs_published_at")
   @@index([tags], map: "idx_blogs_tags", type: Gin)
   @@index([views(sort: Desc)], map: "idx_blogs_views")
+  @@schema("public")
+}
+
+model dev_events {
+  id              String    @id @db.Uuid
+  source_key      String    @unique(map: "idx_dev_events_source_key_unique")
+  source          String    @default("github")
+  source_title    String
+  title           String
+  link            String
+  host            String?
+  date            String
+  start_date      DateTime? @db.Date
+  end_date        DateTime? @db.Date
+  tags            String[]  @default([])
+  category        String?
+  status          String    @default("recruiting")
+  summary         String?
+  description     String?
+  content         String?
+  thumbnail       String?
+  target_audience String[]  @default([])
+  fee             String?
+  schedule        String[]  @default([])
+  benefits        String[]  @default([])
+  last_seen_at    DateTime  @default(now()) @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([category], map: "idx_dev_events_category")
+  @@index([end_date], map: "idx_dev_events_end_date")
+  @@index([last_seen_at(sort: Desc)], map: "idx_dev_events_last_seen_at")
+  @@index([status], map: "idx_dev_events_status")
+  @@index([tags], map: "idx_dev_events_tags_gin", type: Gin)
   @@schema("public")
 }
 

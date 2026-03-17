@@ -1,5 +1,24 @@
-import { cache } from "react";
+import { Database } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fetchDevEventTitleMap,
+  MISSING_DEV_EVENT_TITLE,
+} from "@/lib/server/dev-events";
+
+type SquadWithLeader = Database["public"]["Tables"]["squads"]["Row"] & {
+  leader: Pick<
+    Database["public"]["Tables"]["profiles"]["Row"],
+    "id" | "nickname" | "avatar_url" | "tier"
+  > | null;
+};
+
+async function buildActivityTitleMap(activityIds: Array<string | null>) {
+  const eventMap = await fetchDevEventTitleMap(
+    activityIds.filter((activityId): activityId is string => Boolean(activityId)),
+  );
+
+  return eventMap;
+}
 
 export async function fetchRecentSquads(limit = 9) {
   const supabase = await createClient();
@@ -62,24 +81,19 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all", activityI
     return { squads: [], totalCount: 0, totalPages: 0 };
   }
 
-  // 3. Map Activity — cache()로 같은 요청 내 중복 파일 파싱 방지
-  const getEventMap = cache(async () => {
-    const { fetchDevEvents } = await import("./dev-events");
-    const { events } = await fetchDevEvents();
-    return new Map(events.map((e: { id: string; title: string }) => [e.id, e.title]));
-  });
-  const eventMap = await getEventMap();
+  const eventMap = await buildActivityTitleMap(
+    ((squads ?? []) as SquadWithLeader[]).map((squad) => squad.activity_id),
+  );
 
   const enhancedSquads =
-    (squads as any[])?.map((s) => ({
+    ((squads ?? []) as SquadWithLeader[]).map((s) => ({
       ...s,
-      // @ts-ignore
       leader: s.leader,
       activity: s.activity_id
         ? {
-          id: s.activity_id,
-          title: eventMap.get(s.activity_id) || "알 수 없는 활동",
-        }
+            id: s.activity_id,
+            title: eventMap.get(s.activity_id) || MISSING_DEV_EVENT_TITLE,
+          }
         : null,
     })) || [];
 
@@ -118,23 +132,19 @@ export async function fetchSquadsByActivityId(activityId: string, limit?: number
     return [];
   }
 
-  // Enhance with activity info (using cache helper as in fetchSquads)
-  const getEventMap = cache(async () => {
-    const { fetchDevEvents } = await import("./dev-events");
-    const { events } = await fetchDevEvents();
-    return new Map(events.map((e: { id: string; title: string }) => [e.id, e.title]));
-  });
-  const eventMap = await getEventMap();
+  const eventMap = await buildActivityTitleMap(
+    ((squads ?? []) as SquadWithLeader[]).map((squad) => squad.activity_id),
+  );
 
   return (
-    (squads as any[])?.map((s) => ({
+    ((squads ?? []) as SquadWithLeader[]).map((s) => ({
       ...s,
       leader: s.leader,
       activity: s.activity_id
         ? {
-          id: s.activity_id,
-          title: eventMap.get(s.activity_id) || "알 수 없는 활동",
-        }
+            id: s.activity_id,
+            title: eventMap.get(s.activity_id) || MISSING_DEV_EVENT_TITLE,
+          }
         : null,
     })) || []
   );
