@@ -37,13 +37,16 @@ export interface ResumePayload {
   };
   education: unknown[];
   experience: Array<{
+    id?: string;
     company: string;
     position: string;
     period: string;
     description: string;
   }>;
   skills: Array<{ name: string; level: string; category?: string }>;
+  selfIntroduction: string;
   projects: Array<{
+    id?: string;
     name: string;
     period: string;
     description: string;
@@ -53,8 +56,18 @@ export interface ResumePayload {
 }
 
 export interface PublicResumeSummary {
+  resumeTitle?: string;
   headline?: string;
   topSkills?: string[];
+  recentExperience?: Array<{
+    company: string;
+    position: string;
+    period: string;
+  }>;
+  topProjects?: Array<{
+    name: string;
+    techStack: string[];
+  }>;
   [key: string]: unknown;
 }
 
@@ -120,6 +133,6 @@ export interface InitialData {
   comments: ProfileCommentItem[];
   bookmarks: ProfileBookmarkItem[];
   workspaces: ProfileWorkspaceItem[];
-  resumePayload: unknown;
+  resumePayload: ResumePayload | null;
   prefetchedTabs?: Partial<Record<TabKey, boolean>>;
 }

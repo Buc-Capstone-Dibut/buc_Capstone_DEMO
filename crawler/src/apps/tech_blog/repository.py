@@ -11,6 +11,5 @@ class TechBlogRepository:
     def fetch_existing_articles(self) -> list[dict[str, Any]]:
         return self._repo.fetch_all_paged("external_url, title, author, published_at")
 
-    def insert_articles(self, rows: list[dict[str, Any]]) -> int:
-        return self._repo.insert_many(rows)
-
+    def upsert_articles(self, rows: list[dict[str, Any]]) -> int:
+        return self._repo.upsert_many(rows, on_conflict="external_url")

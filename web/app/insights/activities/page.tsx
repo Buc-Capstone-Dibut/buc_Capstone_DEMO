@@ -5,7 +5,7 @@ import {
 } from "@/lib/server/dev-events";
 import { EventCard } from "@/components/features/career/event-card";
 import { ActivityFilter } from "@/components/features/career/activity-filter";
-import { RecruitSearchSort } from "@/components/features/career/recruit-search-sort";
+import { ActivitySearchSort } from "@/components/features/career/recruit-search-sort";
 import { Sidebar } from "@/components/layout/sidebar";
 import { RecruitingSquadsWidget } from "@/components/features/community/recruiting-squads-widget";
 import { ClosingSoonWidget } from "@/components/features/career/closing-soon-widget";
@@ -33,6 +33,10 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     typeof resolvedSearchParams.search === "string"
       ? resolvedSearchParams.search
       : undefined;
+  const sort =
+    typeof resolvedSearchParams.sort === "string"
+      ? resolvedSearchParams.sort
+      : "latest";
 
   const page =
     typeof resolvedSearchParams.page === "string"
@@ -43,6 +47,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     search,
     category,
     tags,
+    sort,
     page,
     limit: 12,
   });
@@ -80,7 +85,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
             <ActivityFilter allTags={allTags} />
           </div>
           <div className="shrink-0 w-full md:w-auto">
-            <RecruitSearchSort />
+            <ActivitySearchSort />
           </div>
         </div>
 

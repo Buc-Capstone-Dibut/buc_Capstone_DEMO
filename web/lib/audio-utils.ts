@@ -1,5 +1,5 @@
 const MIC_CAPTURE_WORKLET_URL = "/worklets/mic-capture-processor.js";
-const MIC_CAPTURE_BUFFER_SIZE = 2048;
+const MIC_CAPTURE_BUFFER_SIZE = 1024;
 
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
@@ -100,13 +100,3 @@ export class AudioProcessor {
     }
   }
 }
-
-export const playAudioQueue = async (
-  _audioQueue: Float32Array[],
-  _audioContext: AudioContext,
-  _sampleRate: number = 24000
-) => {
-  void _sampleRate;
-  // Simple queue playback implementation would go here
-  // For now, this logic will likely live in the hook or a separate player class
-};

@@ -8,13 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { useDebounce } from "use-debounce";
 
-export function RecruitSearchSort() {
+export function ActivitySearchSort() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   // Initial States
@@ -42,15 +43,20 @@ export function RecruitSearchSort() {
       params.delete("sort");
     }
 
-    router.push(`?${params.toString()}`);
-  }, [debouncedSearch, sort, router, searchParams]);
+    params.delete("page");
+
+    const nextQuery = params.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
+  }, [debouncedSearch, sort, pathname, router, searchParams]);
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-center">
       <div className="relative w-full sm:w-[300px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="제목, 기업명 검색..."
+          placeholder="행사명, 주최 검색..."
           className="pl-9 h-10 rounded-xl bg-muted/50 border-none focus-visible:ring-1"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -65,10 +71,11 @@ export function RecruitSearchSort() {
           <SelectContent>
             <SelectItem value="latest">최신순</SelectItem>
             <SelectItem value="deadline">마감임박순</SelectItem>
-            <SelectItem value="view">인기순</SelectItem>
           </SelectContent>
         </Select>
       </div>
     </div>
   );
 }
+
+export const RecruitSearchSort = ActivitySearchSort;

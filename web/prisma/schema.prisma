@@ -1,6 +1,8 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema", "driverAdapters"]
+  output          = "../src/generated/client"
+  binaryTargets   = ["native", "darwin-arm64", "windows"]
 }
 
 datasource db {
@@ -421,7 +423,7 @@ model blogs {
   tags          String[]         @default([])
   published_at  DateTime?        @default(now()) @db.Timestamptz(6)
   thumbnail_url String?
-  external_url  String
+  external_url  String           @unique(map: "idx_blogs_external_url_unique")
   views         Int?             @default(0)
   created_at    DateTime?        @default(now()) @db.Timestamptz(6)
   updated_at    DateTime?        @default(now()) @db.Timestamptz(6)
@@ -433,6 +435,40 @@ model blogs {
   @@index([published_at(sort: Desc)], map: "idx_blogs_published_at")
   @@index([tags], map: "idx_blogs_tags", type: Gin)
   @@index([views(sort: Desc)], map: "idx_blogs_views")
+  @@schema("public")
+}
+
+model dev_events {
+  id              String    @id @db.Uuid
+  source_key      String    @unique(map: "idx_dev_events_source_key_unique")
+  source          String    @default("github")
+  source_title    String
+  title           String
+  link            String
+  host            String?
+  date            String
+  start_date      DateTime? @db.Date
+  end_date        DateTime? @db.Date
+  tags            String[]  @default([])
+  category        String?
+  status          String    @default("recruiting")
+  summary         String?
+  description     String?
+  content         String?
+  thumbnail       String?
+  target_audience String[]  @default([])
+  fee             String?
+  schedule        String[]  @default([])
+  benefits        String[]  @default([])
+  last_seen_at    DateTime  @default(now()) @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([category], map: "idx_dev_events_category")
+  @@index([end_date], map: "idx_dev_events_end_date")
+  @@index([last_seen_at(sort: Desc)], map: "idx_dev_events_last_seen_at")
+  @@index([status], map: "idx_dev_events_status")
+  @@index([tags], map: "idx_dev_events_tags_gin", type: Gin)
   @@schema("public")
 }
 
@@ -528,7 +564,25 @@ model profiles {
   workspace_settings user_workspace_settings?
   activity_events    user_activity_events[]
   reputation_events  reputation_events[]
+  resumes            user_resumes[]
 
+  @@schema("public")
+}
+
+model user_resumes {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id          String   @db.Uuid
+  title            String   @default("새 이력서")
+  resume_payload   Json
+  public_summary   Json
+  is_active        Boolean  @default(false)
+  source_type      String   @default("manual")
+  source_file_name String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)])
   @@schema("public")
 }
 
@@ -857,6 +911,7 @@ model squads {
   activity_id        String?
   workspace_id       String?              @db.Uuid
   status             String?              @default("recruiting")
+  recruitment_period String?
   created_at         DateTime?            @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?            @default(now()) @db.Timestamptz(6)
   squad_applications squad_applications[]

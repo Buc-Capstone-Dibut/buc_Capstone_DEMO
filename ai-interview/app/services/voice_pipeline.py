@@ -85,15 +85,6 @@ def wav_bytes_to_float_samples(wav_bytes: bytes) -> tuple[list[float], int]:
     mono = [sample / 32768.0 for sample in int_samples]
     return mono, sample_rate
 
-
-def chunk_float_samples(samples: list[float], chunk_size: int = 4800) -> list[list[float]]:
-    if not samples:
-        return []
-    if chunk_size <= 0:
-        return [samples]
-    return [samples[i:i + chunk_size] for i in range(0, len(samples), chunk_size)]
-
-
 class VadSegmenter:
     """
     Lightweight RMS VAD to split user mic stream into utterance segments.
@@ -104,6 +95,7 @@ class VadSegmenter:
         self,
         sample_rate: int = 16000,
         threshold: float = 0.015,
+        speech_start_ms: int = 180,
         silence_ms: int = 700,
         min_speech_ms: int = 350,
         min_utterance_ms: int = 1200,
@@ -112,6 +104,7 @@ class VadSegmenter:
     ):
         self.sample_rate = sample_rate
         self.threshold = threshold
+        self.speech_start_ms = max(80, int(speech_start_ms))
         self.silence_ms = silence_ms
         self.min_speech_ms = min_speech_ms
         self.min_utterance_ms = min_utterance_ms
@@ -119,8 +112,11 @@ class VadSegmenter:
         self.max_segment_ms = max_segment_ms
 
         self._buffer: list[float] = []
+        self._candidate_buffer: list[float] = []
+        self._candidate_speech_ms = 0.0
         self._speech_started = False
         self._trailing_silence_ms = 0.0
+        self.last_segment_info: dict[str, float | int | str] = {}
 
     def _chunk_rms(self, chunk: list[float]) -> float:
         if not chunk:
@@ -128,59 +124,133 @@ class VadSegmenter:
         power = sum(sample * sample for sample in chunk) / len(chunk)
         return math.sqrt(power)
 
+    def is_speech_chunk(self, chunk: list[float], *, threshold_scale: float = 1.0) -> bool:
+        if not chunk:
+            return False
+        threshold = max(0.001, float(self.threshold) * float(threshold_scale))
+        return self._chunk_rms(chunk) >= threshold
+
+    def _finalize_segment(self, *, reason: str, rms: float = 0.0) -> bytes | None:
+        if not self._buffer:
+            return None
+        segment = self._buffer[:]
+        duration_ms = len(segment) / self.sample_rate * 1000.0
+        self.last_segment_info = {
+            "reason": reason,
+            "duration_ms": round(duration_ms, 1),
+            "trailing_silence_ms": round(self._trailing_silence_ms, 1),
+            "threshold": float(self.threshold),
+            "silence_ms": int(self.silence_ms),
+            "short_utterance_silence_ms": int(self.short_utterance_silence_ms),
+            "max_segment_ms": int(self.max_segment_ms),
+            "last_chunk_rms": round(rms, 5),
+        }
+        self._buffer.clear()
+        self._candidate_buffer.clear()
+        self._candidate_speech_ms = 0.0
+        self._speech_started = False
+        self._trailing_silence_ms = 0.0
+        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+
+    def reconfigure(
+        self,
+        *,
+        threshold: float | None = None,
+        silence_ms: int | None = None,
+        short_utterance_silence_ms: int | None = None,
+        min_utterance_ms: int | None = None,
+    ) -> None:
+        if threshold is not None:
+            self.threshold = max(0.001, float(threshold))
+        if silence_ms is not None:
+            self.silence_ms = max(150, int(silence_ms))
+        if min_utterance_ms is not None:
+            self.min_utterance_ms = max(200, int(min_utterance_ms))
+        if short_utterance_silence_ms is not None:
+            self.short_utterance_silence_ms = max(int(short_utterance_silence_ms), int(self.silence_ms))
+
     def feed(self, chunk: list[float]) -> bytes | None:
         if not chunk:
             return None
 
         duration_ms = len(chunk) / self.sample_rate * 1000.0
         rms = self._chunk_rms(chunk)
-        is_speech = rms >= self.threshold
+        continuation_threshold = max(0.001, float(self.threshold) * 0.72)
+        is_speech = rms >= (continuation_threshold if self._speech_started else self.threshold)
 
-        # Drop leading silence until speech is detected.
-        if not self._speech_started and not is_speech:
-            return None
+        if not self._speech_started:
+            if not is_speech:
+                self._candidate_buffer.clear()
+                self._candidate_speech_ms = 0.0
+                return None
 
-        self._buffer.extend(chunk)
+            self._candidate_buffer.extend(chunk)
+            self._candidate_speech_ms += duration_ms
+            if self._candidate_speech_ms < self.speech_start_ms:
+                return None
 
-        if is_speech:
+            self._buffer.extend(self._candidate_buffer)
+            self._candidate_buffer.clear()
+            self._candidate_speech_ms = 0.0
             self._speech_started = True
             self._trailing_silence_ms = 0.0
-        elif self._speech_started:
-            self._trailing_silence_ms += duration_ms
+        else:
+            self._buffer.extend(chunk)
+            if is_speech:
+                self._trailing_silence_ms = 0.0
+            else:
+                self._trailing_silence_ms += duration_ms
+
+        buffered_duration_ms = len(self._buffer) / self.sample_rate * 1000.0
+        effective_silence_ms = int(self.silence_ms)
+        effective_short_silence_ms = int(self.short_utterance_silence_ms)
+        if buffered_duration_ms >= 3500:
+            effective_silence_ms += 80
+            effective_short_silence_ms += 120
+        if buffered_duration_ms >= 7000:
+            effective_silence_ms += 60
+            effective_short_silence_ms += 80
 
         ready_by_silence = (
             self._speech_started
-            and self._trailing_silence_ms >= self.silence_ms
+            and self._trailing_silence_ms > effective_silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
             and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
         )
         ready_by_short_utterance_silence = (
             self._speech_started
-            and self._trailing_silence_ms >= self.short_utterance_silence_ms
+            and self._trailing_silence_ms >= effective_short_silence_ms
             and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
         )
         ready_by_max = len(self._buffer) >= int(self.sample_rate * self.max_segment_ms / 1000.0)
 
         if not (ready_by_silence or ready_by_short_utterance_silence or ready_by_max):
             return None
-
-        segment = self._buffer[:]
-        self._buffer.clear()
-        self._speech_started = False
-        self._trailing_silence_ms = 0.0
-        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+        reason = "silence"
+        if ready_by_max:
+            reason = "max_segment"
+        elif ready_by_short_utterance_silence:
+            reason = "short_utterance_silence"
+        return self._finalize_segment(reason=reason, rms=rms)
 
     def flush(self) -> bytes | None:
         if not self._buffer:
             return None
         if len(self._buffer) < int(self.sample_rate * self.min_speech_ms / 1000.0):
             self._buffer.clear()
+            self._candidate_buffer.clear()
+            self._candidate_speech_ms = 0.0
             self._speech_started = False
             self._trailing_silence_ms = 0.0
+            self.last_segment_info = {
+                "reason": "flush_too_short",
+                "duration_ms": 0.0,
+                "trailing_silence_ms": round(self._trailing_silence_ms, 1),
+                "threshold": float(self.threshold),
+                "silence_ms": int(self.silence_ms),
+                "short_utterance_silence_ms": int(self.short_utterance_silence_ms),
+                "max_segment_ms": int(self.max_segment_ms),
+                "last_chunk_rms": 0.0,
+            }
             return None
-
-        segment = self._buffer[:]
-        self._buffer.clear()
-        self._speech_started = False
-        self._trailing_silence_ms = 0.0
-        return float_samples_to_wav_bytes(segment, sample_rate=self.sample_rate)
+        return self._finalize_segment(reason="flush", rms=0.0)

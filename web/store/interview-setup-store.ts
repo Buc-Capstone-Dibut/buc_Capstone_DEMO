@@ -7,9 +7,8 @@ export type InterviewSetupStep =
   | 'resume'     // Step 3: Resume Input
   | 'resume-check' // Step 4: Resume Verification
   | 'final-check' // Step 5: Final Check
-  | 'personality-selection' // Step 6: Select Personality
-  | 'mode-selection' // Step 7: Select Mode
-  | 'complete';  // Step 8: Completion
+  | 'mode-selection' // Step 6: Select Mode
+  | 'complete';  // Step 7: Completion
 
 export interface JobData {
   role: string;
@@ -95,6 +94,12 @@ export interface AnalysisResult {
   }[];
 }
 
+export interface RolePrepData {
+  categoryId: string;
+  roleId: string | null;
+  focusAreas: string[];
+}
+
 interface InterviewSetupState {
   currentStep: InterviewSetupStep;
   targetUrl: string;
@@ -107,13 +112,7 @@ interface InterviewSetupState {
 
   // Resume Data
   resumeData: ResumeData | null;
-
-  // Interviewer Personality
-  interviewerPersonality: string;
-
-  // Chat and Result
-  chatHistory: { role: 'user' | 'model', parts: string }[];
-  analysisResult: AnalysisResult | null;
+  rolePrepData: RolePrepData | null;
 
   // Actions
   setStep: (step: InterviewSetupStep) => void;
@@ -122,9 +121,8 @@ interface InterviewSetupState {
   updateJobData: (data: Partial<JobData>) => void;
   setResumeData: (data: ResumeData) => void;
   updateResumeData: (data: Partial<ResumeData>) => void;
-  setInterviewerPersonality: (personality: string) => void;
-  setChatHistory: (history: { role: 'user' | 'model', parts: string }[]) => void;
-  setAnalysisResult: (result: AnalysisResult) => void;
+  setRolePrepData: (data: RolePrepData | null) => void;
+  updateRolePrepData: (data: Partial<RolePrepData>) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
   setResumePrefillSource: (source: "active_resume" | null) => void;
   completeSetup: () => void;
@@ -141,10 +139,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       resumePrefillSource: null,
       jobData: null,
       resumeData: null,
-      interviewerPersonality: 'professional',
-      chatHistory: [],
-      analysisResult: null,
-
+      rolePrepData: null,
       setStep: (step) => set({ currentStep: step }),
       setTarget: (url, category) => set({ targetUrl: url, targetJobCategory: category }),
       setJobData: (data) => set({ jobData: data }),
@@ -157,9 +152,11 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         set((state) => ({
           resumeData: state.resumeData ? { ...state.resumeData, ...updates } : null
         })),
-      setInterviewerPersonality: (personality) => set({ interviewerPersonality: personality }),
-      setChatHistory: (history) => set({ chatHistory: history }),
-      setAnalysisResult: (result) => set({ analysisResult: result }),
+      setRolePrepData: (data) => set({ rolePrepData: data }),
+      updateRolePrepData: (updates) =>
+        set((state) => ({
+          rolePrepData: state.rolePrepData ? { ...state.rolePrepData, ...updates } : null
+        })),
       setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
       setResumePrefillSource: (source) => set({ resumePrefillSource: source }),
       completeSetup: () => set({ currentStep: 'complete' }),
@@ -171,9 +168,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         resumePrefillSource: null,
         jobData: null,
         resumeData: null,
-        interviewerPersonality: 'professional',
-        chatHistory: [],
-        analysisResult: null
+        rolePrepData: null,
       }),
     }),
     {
@@ -192,9 +187,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
             file: undefined // Cannot persist File object
           }
           : null,
-        interviewerPersonality: state.interviewerPersonality,
-        chatHistory: state.chatHistory,
-        analysisResult: state.analysisResult
+        rolePrepData: state.rolePrepData,
       }),
     }
   )

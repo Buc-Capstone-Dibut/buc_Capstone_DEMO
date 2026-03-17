@@ -29,9 +29,10 @@ function getGradientClass(str: string) {
 
 export function EventCard({ event }: EventCardProps) {
   const [imgError, setImgError] = useState(false);
+  const displayHost = event.host || event.source_title || "주최 정보 없음";
   const gradient = useMemo(
-    () => getGradientClass(event.host || event.title),
-    [event.host, event.title]
+    () => getGradientClass(displayHost || event.title),
+    [displayHost, event.title]
   );
 
   // Use DB thumbnail if available
@@ -72,7 +73,7 @@ export function EventCard({ event }: EventCardProps) {
                 </span>
               </div>
               <h2 className="relative z-10 text-white font-black text-2xl tracking-tight leading-none drop-shadow-md opacity-95 break-keep pointer-events-none">
-                {event.host || "Activity"}
+                {displayHost}
               </h2>
             </>
           ) : (
@@ -122,7 +123,7 @@ export function EventCard({ event }: EventCardProps) {
               <span className="font-semibold text-foreground text-xs uppercase w-10 shrink-0">
                 Host
               </span>
-              <span className="truncate text-xs">{event.host}</span>
+              <span className="truncate text-xs">{displayHost}</span>
             </div>
 
             <div className="flex items-center justify-between text-xs font-medium text-zinc-500 dark:text-zinc-400">

@@ -3,14 +3,30 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
-import { useRouter } from "next/navigation";
 import { ResumeCheckForm } from "./resume-check-form";
 
-export function ResumeCheckStep() {
-  const router = useRouter();
+type SetupTrack = "posting" | "role";
+
+interface ResumeCheckStepProps {
+  track?: SetupTrack;
+}
+
+export function ResumeCheckStep({ track = "posting" }: ResumeCheckStepProps) {
   const { resumeData, updateResumeData, setStep } = useInterviewSetupStore();
 
   if (!resumeData) {
+      if (track === "role") {
+        return (
+            <div className="p-8 text-center">
+                <p>이력서를 건너뛴 상태입니다.</p>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <Button variant="outline" onClick={() => setStep('resume')}>이력서 입력하기</Button>
+                  <Button onClick={() => setStep('final-check')}>최종 점검으로 이동</Button>
+                </div>
+            </div>
+        );
+      }
+
       return (
           <div className="p-8 text-center">
               <p>이력서 데이터가 없습니다. 다시 시도해주세요.</p>

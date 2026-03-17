@@ -101,7 +101,7 @@ def parse_feed(feed_config):
         return []
 
 
-def insert_articles(
+def save_articles(
     articles,
     url_set,
     author_title_map,
@@ -140,11 +140,11 @@ def insert_articles(
         return 0, duplicate_count
 
     try:
-        inserted_count = repository.insert_articles(new_articles)
-        print(f"✅ [{feed_name}] Inserted {inserted_count} new articles ({duplicate_count} duplicates)")
-        return inserted_count, duplicate_count
+        upserted_count = repository.upsert_articles(new_articles)
+        print(f"✅ [{feed_name}] Upserted {upserted_count} articles ({duplicate_count} duplicates skipped)")
+        return upserted_count, duplicate_count
     except Exception as e:
-        print(f"❌ [{feed_name}] DB Insert failed: {e}")
+        print(f"❌ [{feed_name}] DB Upsert failed: {e}")
         return 0, duplicate_count
 
 
@@ -161,7 +161,7 @@ def run_tech_blog_crawler(repository: TechBlogRepository | None = None):
 
     for feed in RSS_FEEDS:
         articles = parse_feed(feed)
-        inserted, duplicates = insert_articles(
+        inserted, duplicates = save_articles(
             articles,
             url_set,
             author_title_map,

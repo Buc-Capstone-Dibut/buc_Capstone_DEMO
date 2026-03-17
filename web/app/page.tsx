@@ -2,46 +2,15 @@
 
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
-import { BookOpen, Calendar, Map } from "lucide-react"; // Assuming these icons are available or need to be added. Adding them for syntactic correctness.
+import { motion, Variants } from "framer-motion";
 
 const coreServices = [
   {
     id: 'insight',
-    title: '인사이트', // Keep the main title for the card
-    desc: '최신 기술 트렌드와 기술 블로그, 대외활동 정보를 통해 깊이 있는 인사이트를 얻습니다.', // Keep the main description for the card
-    link: '/insights/tech-blog', // Change the main link to tech-blog as per instruction
+    title: '인사이트',
+    desc: '최신 기술 트렌드와 기술 블로그, 대외활동 정보를 통해 깊이 있는 인사이트를 얻습니다.',
+    link: '/insights/tech-blog',
     comingSoon: false,
-    // The following items are likely intended for an 'insight' landing page,
-    // but for the 'coreServices' array, we'll keep the top-level structure.
-    // If the intention was to embed these directly, the structure of coreServices
-    // would need to change significantly (e.g., `subServices: [...]`).
-    // For now, we'll assume the instruction refers to the content *related* to insight,
-    // and the main card link is the primary change here.
-    // The instruction's code snippet seems to be a partial replacement or
-    // a misunderstanding of the current structure.
-    // I'm interpreting "인사이트 랜딩 페이지의 항목 순서를 기술 블로그, 대외활동, CTP 순으로 재배치합니다"
-    // as a separate instruction for a different file or a conceptual change,
-    // while the `coreServices` array itself should maintain its top-level service structure.
-    // The provided code snippet for the change is syntactically incorrect if directly inserted.
-    // I will apply the link change and keep the existing structure.
-    // If the user intended to embed these as sub-items, the structure would need to be:
-    // id: 'insight',
-    // title: '인사이트',
-    // desc: '...',
-    // link: '/insights/tech-blog',
-    // subItems: [
-    //   { title: "기술 블로그", description: "...", href: "/insights/tech-blog", icon: <BookOpen />, },
-    //   { title: "대외활동", description: "...", href: "/insights/activities", icon: <Calendar />, },
-    //   { title: "CTP (Coding Test Prep)", description: "...", href: "/insights/ctp", icon: <Map />, isComingSoon: true, },
-    // ]
-    // However, the instruction's snippet doesn't show `subItems` key.
-    // Given the prompt "return the full contents of the new code document after the change"
-    // and "Make sure to incorporate the change in a way so that the resulting file is syntactically correct",
-    // I will only apply the link change for the 'insight' service card, as the provided snippet
-    // for the 'insight' object itself is not syntactically valid for direct replacement.
-    // The instruction also mentions "메인 페이지의 서비스 카드 링크를 기술 블로그로 변경하고", which is clear.
-    // The second part "인사이트 랜딩 페이지의 항목 순서를 기술 블로그, 대외활동, CTP 순으로 재배치합니다"
-    // refers to content *within* the insight section, not the `coreServices` array structure itself.
   },
   {
     id: 'community',
@@ -66,6 +35,95 @@ const coreServices = [
   },
 ];
 
+// Animation Variants
+const fadeInUp: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 1.2,
+      ease: [0.21, 0.47, 0.32, 0.98],
+      delay: i * 0.1
+    }
+  })
+};
+
+const fadeInLeft: Variants = {
+  hidden: { opacity: 0, x: -40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 1.2, ease: [0.21, 0.47, 0.32, 0.98] }
+  }
+};
+
+const fadeInRight: Variants = {
+  hidden: { opacity: 0, x: 40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 1.2, ease: [0.21, 0.47, 0.32, 0.98] }
+  }
+};
+
+const scaleUp: Variants = {
+  hidden: { opacity: 0, scale: 0.9 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 1.5, ease: [0.21, 0.47, 0.32, 0.98] }
+  }
+};
+
+const zoomIn: Variants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 100,
+      damping: 20
+    }
+  }
+};
+
+const blurIn: Variants = {
+  hidden: { filter: 'blur(10px)', opacity: 0 },
+  visible: {
+    filter: 'blur(0px)',
+    opacity: 1,
+    transition: { duration: 1.8, ease: [0.21, 0.47, 0.32, 0.98] }
+  }
+};
+
+const maskSlideUp: Variants = {
+  hidden: { y: "110%" },
+  visible: {
+    y: 0,
+    transition: { duration: 1.1, ease: [0.21, 0.47, 0.32, 0.98] }
+  }
+};
+
+const fadeIn: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 1.4, ease: "easeOut" }
+  }
+};
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15
+    }
+  }
+};
+
 export default function HomePage() {
   const { isAuthenticated } = useAuth({ loadProfile: false });
 
@@ -73,20 +131,40 @@ export default function HomePage() {
     <div className="text-neutral-900 overflow-hidden bg-white min-h-screen">
       {/* Hero Section */}
       <section className="relative flex min-h-[90vh] flex-col items-center justify-center px-5 text-center bg-white">
-        <div className="max-w-4xl animate-fade-in">
+        <motion.div
+          className="max-w-4xl"
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+        >
+          <motion.h1
+            className="text-[clamp(2.5rem,8vw,5.5rem)] font-black leading-[1.05] tracking-tight text-neutral-900"
+          >
+            <div className="overflow-hidden">
+              <motion.span variants={maskSlideUp} className="block">
+                취준부터
+              </motion.span>
+            </div>
+            <div className="overflow-hidden">
+              <motion.span variants={maskSlideUp} className="block text-primary">
+                팀 빌딩 <span className="text-neutral-900">까지 한번에.</span>
+              </motion.span>
+            </div>
+          </motion.h1>
 
-          <h1 className="text-[clamp(2.5rem,8vw,5.5rem)] font-black leading-[1.05] tracking-tight text-neutral-900 animate-fade-in-up animation-delay-100">
-            취준부터
-            <br />
-            <span className="text-primary">팀 빌딩</span>까지 한번에.
-          </h1>
-
-          <p className="mt-8 text-[clamp(1rem,2.5vw,1.25rem)] leading-relaxed text-neutral-500 max-w-2xl mx-auto animate-fade-in-up animation-delay-200">
+          <motion.p
+            variants={fadeInUp}
+            className="mt-8 text-[clamp(1rem,2.5vw,1.25rem)] leading-relaxed text-neutral-500 max-w-2xl mx-auto"
+          >
             Dibut은 학습, 커리어 탐색, 활발한 커뮤니티와 팀 협업, 그리고 면접 대비까지
             개발자의 모든 성장 과정을 지원하는 통합 플랫폼입니다.
-          </p>
+          </motion.p>
 
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-4 animate-fade-in-up animation-delay-300">
+          <motion.div
+            variants={zoomIn}
+            transition={{ delay: 1.5 }}
+            className="mt-12 flex flex-wrap items-center justify-center gap-4"
+          >
             <Link
               href={isAuthenticated ? '/interview' : '/auth/signup'}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-[15px] font-bold text-white hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 hover:scale-105 active:scale-95"
@@ -99,38 +177,64 @@ export default function HomePage() {
             >
               서비스 둘러보기
             </Link>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Floating Scroll Indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-25 animate-fade-in animation-delay-500">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.25 }}
+          transition={{ delay: 1, duration: 1 }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+        >
           <span className="h-10 w-px bg-gradient-to-b from-primary to-transparent animate-bounce" />
-        </div>
+        </motion.div>
       </section>
 
       {/* Service Overview Grid */}
       <section className="px-5 py-32 bg-white">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-24 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            className="mb-24 flex flex-col md:flex-row md:items-end justify-between gap-6"
+          >
             <div className="max-w-xl">
-              <span className="text-[12px] font-bold uppercase tracking-widest text-primary mb-4 block animate-fade-in">
+              <motion.span
+                variants={fadeIn}
+                className="text-[12px] font-bold uppercase tracking-widest text-primary mb-4 block"
+              >
                 Our Core Values
-              </span>
-              <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-black tracking-tight leading-[1.1] animate-fade-in-up">
+              </motion.span>
+              <motion.h2
+                variants={fadeInUp}
+                className="text-[clamp(2rem,5vw,3.5rem)] font-black tracking-tight leading-[1.1]"
+              >
                 개발자의 성장이 일어나는 <br />
                 <span className="text-primary">4가지</span> 기록의 조각들
-              </h2>
+              </motion.h2>
             </div>
-            <p className="text-neutral-500 text-[16px] max-w-sm animate-fade-in animation-delay-200">
+            <motion.p
+              variants={fadeInUp}
+              className="text-neutral-500 text-[16px] max-w-sm"
+            >
               어색한 장식을 걷어내고, 오직 당신의 성장에만 집중할 수 있는 본질적인 기능들을 담았습니다.
-            </p>
-          </div>
+            </motion.p>
+          </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-100 border border-neutral-100 overflow-hidden rounded-[2rem]">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-100 border border-neutral-100 overflow-hidden rounded-[2rem]"
+          >
             {coreServices.map((service, i) => (
-              <div
+              <motion.div
                 key={service.id}
-                className={`group relative bg-white p-10 flex flex-col min-h-[400px] transition-colors hover:bg-neutral-50 animate-fade-in animation-delay-${(i + 1) * 100}`}
+                variants={fadeInUp}
+                className="group relative bg-white p-10 flex flex-col min-h-[400px] transition-colors hover:bg-neutral-50"
               >
                 <div className="mb-auto">
                   <span className="block text-[14px] font-mono text-neutral-300 mb-6 group-hover:text-primary transition-colors">
@@ -155,16 +259,22 @@ export default function HomePage() {
                 </div>
 
                 <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-primary transition-all duration-500 group-hover:w-full" />
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Feature Focus: Career */}
       <section className="py-32 px-5 bg-neutral-50 overflow-hidden">
         <div className="mx-auto max-w-6xl grid lg:grid-cols-2 gap-20 items-center">
-          <div className="order-1 relative animate-fade-in">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={zoomIn}
+            className="order-1 relative"
+          >
             <div className="relative z-10 grid grid-cols-2 gap-4">
               <div className="space-y-4">
                 <div className="rounded-2xl bg-white p-6 shadow-xl shadow-primary/5 border border-primary/20">
@@ -192,9 +302,15 @@ export default function HomePage() {
               </div>
             </div>
             <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[120%] w-[120%] bg-primary/10 blur-[100px] rounded-full" />
-          </div>
+          </motion.div>
 
-          <div className="order-2 animate-fade-in-up">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={fadeInRight}
+            className="order-2"
+          >
             <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1 text-[13px] font-bold text-primary mb-6">
               Opportunity Hub
             </div>
@@ -213,14 +329,19 @@ export default function HomePage() {
             >
               기회 찾아보기
             </Link>
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Feature Focus: CTP (Insight) */}
       <section className="py-32 px-5 bg-white">
         <div className="mx-auto max-w-6xl grid lg:grid-cols-2 gap-20 items-center">
-          <div className="animate-fade-in-up">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={fadeInLeft}
+          >
             <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1 text-[13px] font-bold text-primary mb-6">
               Study with Visualization
             </div>
@@ -239,9 +360,15 @@ export default function HomePage() {
             >
               CTP 경험해보기
             </Link>
-          </div>
+          </motion.div>
 
-          <div className="relative animate-fade-in animation-delay-300">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={zoomIn}
+            className="relative"
+          >
             <div className="aspect-video rounded-3xl bg-neutral-900 shadow-2xl overflow-hidden border border-neutral-800">
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
                 <div className="flex gap-1.5">
@@ -258,7 +385,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="absolute -z-10 -top-10 -right-10 h-60 w-60 bg-primary/20 blur-[100px] rounded-full" />
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -266,7 +393,13 @@ export default function HomePage() {
       <section className="py-32 px-5 bg-neutral-50 overflow-hidden">
         <div className="mx-auto max-w-6xl">
           <div className="grid lg:grid-cols-2 gap-20 items-center">
-            <div className="relative animate-fade-in">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.9 }}
+              variants={zoomIn}
+              className="relative"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div className="h-40 rounded-2xl bg-white shadow-lg border border-primary/10 p-6 animate-bounce-subtle">
                   <div className="h-2 w-12 bg-primary/10 rounded mb-4" />
@@ -284,9 +417,14 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[120%] w-[120%] bg-primary/10 blur-[80px] rounded-full" />
-            </div>
+            </motion.div>
 
-            <div className="animate-fade-in-up">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.9 }}
+              variants={fadeInRight}
+            >
               <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1 text-[13px] font-bold text-primary mb-6">
                 Connected Workspace
               </div>
@@ -305,7 +443,7 @@ export default function HomePage() {
               >
                 함께할 동료 찾기
               </Link>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -313,7 +451,12 @@ export default function HomePage() {
       {/* Feature Focus: AI Interview */}
       <section className="py-32 px-5 bg-white overflow-hidden">
         <div className="mx-auto max-w-6xl grid lg:grid-cols-2 gap-20 items-center">
-          <div className="animate-fade-in-up">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={fadeInLeft}
+          >
             <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1 text-[13px] font-bold text-primary mb-6">
               AI-Powered Career Prep
             </div>
@@ -330,9 +473,15 @@ export default function HomePage() {
             >
               AI 면접 시작하기
             </Link>
-          </div>
+          </motion.div>
 
-          <div className="relative animate-fade-in animation-delay-300">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.9 }}
+            variants={zoomIn}
+            className="relative"
+          >
             <div className="rounded-3xl bg-white shadow-2xl border border-neutral-100 p-8 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -357,7 +506,13 @@ export default function HomePage() {
                       <span className="text-neutral-900">{skill.score}%</span>
                     </div>
                     <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${skill.color} rounded-full`} style={{ width: `${skill.score}%` }} />
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${skill.score}%` }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 }}
+                        className={`h-full ${skill.color} rounded-full`}
+                      />
                     </div>
                   </div>
                 ))}
@@ -376,7 +531,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="absolute -z-10 -bottom-10 -left-10 h-64 w-64 bg-primary/10 blur-[100px] rounded-full" />
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -384,7 +539,13 @@ export default function HomePage() {
       <section className="px-5 py-32 bg-primary relative overflow-hidden text-center">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/20 blur-[120px] rounded-full pointer-events-none animate-pulse" />
 
-        <div className="mx-auto max-w-3xl relative z-10 animate-fade-in-up">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.9 }}
+          variants={fadeInUp}
+          className="mx-auto max-w-3xl relative z-10"
+        >
           <h2 className="text-[clamp(2rem,6vw,4rem)] font-black tracking-tight text-white mb-8">
             성장의 모든 과정, <br />
             지금 디벗에서 시작하세요.
@@ -395,7 +556,7 @@ export default function HomePage() {
           >
             무료로 가입하고 시작하기
           </Link>
-        </div>
+        </motion.div>
       </section>
 
       {/* Footer */}
@@ -407,7 +568,6 @@ export default function HomePage() {
           </div>
           <div className="flex gap-8 text-[14px] font-medium text-neutral-500">
             <Link href="/insights/tech-blog" className="hover:text-primary transition-colors">인사이트</Link>
-            <Link href="/insights/activities" className="hover:text-primary transition-colors">대외활동</Link>
             <Link href="/community" className="hover:text-primary transition-colors">커뮤니티</Link>
             <Link href="/workspace" className="hover:text-primary transition-colors">워크스페이스</Link>
             <Link href="/interview" className="hover:text-primary transition-colors">AI 면접</Link>

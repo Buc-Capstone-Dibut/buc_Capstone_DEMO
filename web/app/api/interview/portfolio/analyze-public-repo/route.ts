@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
 
 export async function POST(req: Request) {
   try {
+    const userId = await getInterviewRouteUserId();
+    if (!userId) {
+      return unauthorizedInterviewResponse();
+    }
     const body = await req.json();
 
     const response = await fetch(`${AI_BASE_URL}/v1/interview/portfolio/analyze-public-repo`, {
@@ -28,9 +33,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Repo analysis failed";
     return NextResponse.json(
-      { success: false, error: error.message || "Repo analysis failed" },
+      { success: false, error: message },
       { status: 500 },
     );
   }
