@@ -123,21 +123,126 @@ export const MOCK_CHAT_MESSAGES: MockChatMessage[] = [
     role: "ai",
     content:
       "안녕하세요, 반갑습니다. 간단한 사전 탐색 질문을 시작하겠습니다. 최근에 가장 집중해서 개발했던 프로젝트를 소개해 주세요.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
   },
   {
     id: "msg-2",
     role: "user",
     content:
       "최근에는 Next.js 기반 팀 협업 플랫폼을 개발했고, 상태관리 구조를 개선해서 렌더링 병목을 줄이는 작업을 했습니다.",
-    timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
+    timestamp: new Date(Date.now() - 1000 * 60 * 9).toISOString(),
   },
   {
     id: "msg-3",
     role: "ai",
     content:
       "좋습니다. 당시 병목을 발견한 방식과, 개선 전후 성능 차이를 어떤 지표로 확인했는지 설명해주실 수 있을까요?",
-    timestamp: new Date(Date.now() - 1000 * 60).toISOString(),
+    timestamp: new Date(Date.now() - 1000 * 60 * 7.5).toISOString(),
+  },
+  {
+    id: "msg-4",
+    role: "user",
+    content:
+      "React Profiler와 사용자 세션 리플레이를 같이 봤고, 특정 화면에서 불필요한 재렌더가 반복되는 걸 확인했습니다. 개선 뒤에는 초기 상호작용 시간이 약 30퍼센트 정도 줄었습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 6.5).toISOString(),
+  },
+  {
+    id: "msg-5",
+    role: "ai",
+    content:
+      "그 과정에서 본인이 직접 결정한 구조적 변화는 무엇이었나요?",
+    timestamp: new Date(Date.now() - 1000 * 60 * 5.5).toISOString(),
+  },
+  {
+    id: "msg-6",
+    role: "user",
+    content:
+      "전역 상태를 페이지 단위로 모두 공유하던 구조를 쪼개서 서버 상태와 UI 상태를 분리했습니다. 그래서 변경 영향 범위를 줄이고, 컴포넌트 책임도 더 선명하게 가져갈 수 있었습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 4.2).toISOString(),
+  },
+  {
+    id: "msg-7",
+    role: "ai",
+    content:
+      "협업 관점에서는 어떤 식으로 조율했고, 성과를 팀에 어떻게 설명했는지도 말해 주세요.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 2.8).toISOString(),
+  },
+  {
+    id: "msg-8",
+    role: "user",
+    content:
+      "디자이너와는 체감 속도 기준을 맞추고, 백엔드와는 캐시 전략 영향 범위를 먼저 정리했습니다. 이후 전후 성능 지표와 사용자 이탈률 변화를 같이 공유해서 우선순위를 설득했습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 1.4).toISOString(),
+  },
+  {
+    id: "msg-9",
+    role: "ai",
+    content:
+      "좋습니다. 이번에는 협업보다 구현 관점으로 볼게요. 상태를 분리할 때 가장 중요하게 둔 기준은 무엇이었나요?",
+    timestamp: new Date(Date.now() - 1000 * 60 * 1.3).toISOString(),
+  },
+  {
+    id: "msg-10",
+    role: "user",
+    content:
+      "상태가 바뀌는 주체와 소비 범위를 먼저 나눴습니다. 사용자 입력으로 즉시 반응해야 하는 UI 상태와 서버에서 관리해야 하는 데이터 상태를 섞지 않는 걸 가장 중요하게 봤습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 1.15).toISOString(),
+  },
+  {
+    id: "msg-11",
+    role: "ai",
+    content:
+      "그 기준이 맞다는 건 어떤 순간에 확신하게 됐나요?",
+    timestamp: new Date(Date.now() - 1000 * 60 * 1.05).toISOString(),
+  },
+  {
+    id: "msg-12",
+    role: "user",
+    content:
+      "동일한 화면인데도 데이터 패칭이 반복되면서 렌더링이 불안정해지는 구간이 줄었고, 컴포넌트 테스트를 작성할 때도 mocking 포인트가 명확해졌습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.95).toISOString(),
+  },
+  {
+    id: "msg-13",
+    role: "ai",
+    content:
+      "성능 최적화 외에 개발 생산성 측면에서는 어떤 효과가 있었나요?",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.85).toISOString(),
+  },
+  {
+    id: "msg-14",
+    role: "user",
+    content:
+      "기능 추가 시 어디를 수정해야 하는지가 빨리 보여서 작업 시간이 줄었습니다. 특히 신규 인원이 들어왔을 때 상태 흐름을 설명하기도 훨씬 쉬워졌습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.75).toISOString(),
+  },
+  {
+    id: "msg-15",
+    role: "ai",
+    content:
+      "당시 우선순위 충돌이 있었다면 어떤 방식으로 조율했는지도 설명해 주세요.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.65).toISOString(),
+  },
+  {
+    id: "msg-16",
+    role: "user",
+    content:
+      "사용자 체감 성능에 직접 영향을 주는 화면을 먼저 잡고, 나머지는 리팩토링 범위를 문서로 분리했습니다. 그래서 팀이 한 번에 큰 변경을 받아들이지 않아도 되게 만들었습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.55).toISOString(),
+  },
+  {
+    id: "msg-17",
+    role: "ai",
+    content:
+      "좋습니다. 본인의 개발 강점을 한 문장으로 정리하면 어떻게 말하시겠어요?",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.45).toISOString(),
+  },
+  {
+    id: "msg-18",
+    role: "user",
+    content:
+      "저는 복잡한 프론트엔드 상태를 구조적으로 정리하고, 실제 성능 개선까지 연결하는 개발자라고 설명할 수 있습니다.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 0.35).toISOString(),
   },
 ];
 

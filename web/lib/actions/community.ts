@@ -104,6 +104,7 @@ export async function createSquad(formData: FormData) {
   const techStackString = formData.get("tech_stack") as string;
   const placeType = formData.get("place_type") as string;
   const location = formData.get("location") as string;
+  const recruitmentPeriod = formData.get("recruitment_period") as string;
   const activityId = formData.get("activity_id") as string;
 
   // Use client-provided user_id if valid (for dev) or fall back to session
@@ -114,7 +115,7 @@ export async function createSquad(formData: FormData) {
     leaderId = clientUserId; // Trust client in dev mode if session missing
   }
 
-  if (!title || !content || !type || !leaderId) {
+  if (!title || !content || !leaderId) {
     return { error: "필수 입력 항목이 누락되었거나 로그인이 필요합니다." };
   }
 
@@ -132,11 +133,12 @@ export async function createSquad(formData: FormData) {
         data: {
           title,
           content,
-          type,
+          type: "general", // Always general as per new design
           capacity,
           tech_stack: techStack,
           place_type: placeType,
           location,
+          recruitment_period: recruitmentPeriod || null,
           activity_id: activityId || null,
           leader_id: leaderId,
           recruited_count: 1,

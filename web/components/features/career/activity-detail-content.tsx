@@ -6,17 +6,22 @@ import {
   CalendarClock,
   Gift,
   ExternalLink,
+  Users,
+  Plus,
+  ChevronRight,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { SquadCard } from "@/components/features/community/squad-card";
 
 interface ActivityDetailContentProps {
   event: DevEvent;
+  relatedSquads?: any[];
 }
 
-export function ActivityDetailContent({ event }: ActivityDetailContentProps) {
+export function ActivityDetailContent({ event, relatedSquads = [] }: ActivityDetailContentProps) {
   const hasStructuredData =
     event.summary ||
     (event.target_audience && event.target_audience.length > 0) ||
@@ -155,6 +160,7 @@ export function ActivityDetailContent({ event }: ActivityDetailContentProps) {
             </section>
           )}
 
+
           {/* Empty State */}
           {!hasStructuredData && !event.content && (
             <div className="text-center py-20 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
@@ -190,6 +196,60 @@ export function ActivityDetailContent({ event }: ActivityDetailContentProps) {
               >
                 신청하러 가기
               </Link>
+            </div>
+
+            {/* Related Squads Section (Relocated to Sidebar) */}
+            <div className="p-6 bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="font-bold text-lg">
+                  팀원 모집
+                </h4>
+                <Link
+                  href={`/community/squad?activityId=${event.id}`}
+                  className="text-xs font-bold text-slate-400 hover:text-primary transition-colors flex items-center gap-1"
+                >
+                  더보기 <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+
+              {relatedSquads.length > 0 ? (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {relatedSquads.map((squad) => (
+                    <Link
+                      key={squad.id}
+                      href={`/community/squad/${squad.id}`}
+                      className="block py-4 first:pt-0 last:pb-0 group border-b border-slate-100 last:border-0 dark:border-slate-800"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-sm font-semibold mb-1 group-hover:text-primary transition-colors line-clamp-1">
+                            {squad.title}
+                          </h5>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {squad.recruited_count}/{squad.capacity}
+                            </span>
+                            <span>·</span>
+                            <span>{squad.place_type === "online" ? "온라인" : "오프라인"}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors flex-shrink-0" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <p className="text-xs text-slate-500 mb-4">아직 모집 중인 팀원이 없습니다.</p>
+                  <Link
+                    href={`/community/squad/write?activityId=${event.id}&activityTitle=${encodeURIComponent(event.title)}`}
+                    className="text-xs font-bold px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors inline-block"
+                  >
+                    팀원 모집 시작하기
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Tag Cloud */}
