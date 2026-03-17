@@ -3,7 +3,7 @@ name: tech-blog-sync
 on:
   workflow_dispatch:
   schedule:
-    - cron: "20 */6 * * *"
+    - cron: "0 2 * * *"
 
 permissions:
   contents: read

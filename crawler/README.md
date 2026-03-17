@@ -44,8 +44,8 @@ uv run python -m src.apps.dev_event.seed --file ./data/dev-events.json
 
 ## GitHub Actions
 
-- `dev-event-sync`: 6시간마다 `uv run python -m src.apps.dev_event.cli --limit 0`
-- `tech-blog-sync`: 6시간마다 `uv run python -m src.apps.tech_blog.cli`
+- `dev-event-sync`: 매일 한국 시간 오전 11시 `uv run python -m src.apps.dev_event.cli --limit 0`
+- `tech-blog-sync`: 매일 한국 시간 오전 11시 `uv run python -m src.apps.tech_blog.cli`
 - 둘 다 `workflow_dispatch` 를 지원합니다.
 - Actions secret은 최소 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 가 필요합니다.
 - `GEMINI_API_KEY`, `FIRECRAWL_API_KEY` 는 선택이며 없으면 fallback 경로로 동작합니다.
