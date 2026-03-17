@@ -1,24 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-
-const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
-
-// Helper to simulate streaming for the demo
-function createSimulatedStream(text: string) {
-    const encoder = new TextEncoder();
-    return new ReadableStream({
-        async start(controller) {
-            const chunks = text.split(" ");
-            for (const chunk of chunks) {
-                // Add a small delay to simulate generation
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                controller.enqueue(encoder.encode(chunk + " "));
-            }
-            controller.close();
-        },
-    });
-}
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: Request) {
     try {
@@ -31,34 +14,60 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { action, payload, message, chatHistory } = body;
+        const { action, payload, message } = body;
 
-        // In a real implementation, we would call the AI server with streaming enabled.
-        // For the demo, we'll implement streaming and JSON fallbacks.
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GEMINI_API_KEY is not configured");
+        }
 
-        if (action === "stadri-structure" || action === "chat-refine") {
-            let fullText = "";
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
-            if (action === "stadri-structure") {
-                const { s, t, a, d, r, i } = payload;
+        if (action === "stadri-structure") {
+            const { s, t, a, d, r, i } = payload;
 
-                // 전문적인 이력서 문구 재구성 로직
-                const intro = s ? `${s} 과정에서 ` : "";
-                const objective = t ? `${t}이라는 목표를 달성하기 위해 ` : "주도적으로 프로젝트를 이끌며 ";
-                const actionStep = a ? `핵심적으로 ${a} 전략을 수립하고 실행하였습니다. ` : "최적의 해결책을 모색하였습니다. ";
-                const hurdle = d ? `특히 ${d}와 같은 기술적 난관이 있었으나, 포기하지 않고 분석하여 원인을 규명했습니다. ` : "";
-                const achievement = r ? `그 결과, ${r}라는 유의미한 성과를 거둘 수 있었으며 이는 프로젝트의 완성도를 크게 높였습니다. ` : "프로젝트를 안정적으로 완수하는 성과를 냈습니다. ";
-                const insight = i ? `이 경험을 통해 ${i}의 중요성을 깊이 체감하였으며, 앞으로도 성과 중심의 개발자로 성장하고자 합니다.` : "";
+            const prompt = `당신은 최고 수준의 IT 전문 이력서/자기소개서 컨설턴트입니다. 
+사용자가 제공한 STADRI(상황, 목표, 행동, 어려움, 결과, 인사이트) 기반의 짧은 메모들을 바탕으로, 채용 담당자를 사로잡을 수 있는 매끄럽고 완성도 높은 하나의 유기적인 스토리텔링 중심의 자기소개서를 새롭게 창작해주세요. 
+제시된 키워드를 단순 나열하거나 기계적으로 이어 붙이는 것이 절대 아닙니다!! 
+반드시 전문가의 시각에서 문맥을 이해하여, 자연스러운 흐름과 흡입력 있는 문체로 내용을 기승전결이 있는 완전한 글로 '재작성(Rewrite)'해야 합니다.
 
-                const professionalSummary = `[AI 요약: 전문적인 성과 중심 문구로 재작성되었습니다]\n\n${intro}${objective}${actionStep}${hurdle}${achievement}${insight}`;
+[사용자 입력 메모]
+- Situation (상황/배경): ${s}
+- Task (목표/과제): ${t}
+- Action (핵심 행동/해결책): ${a}
+- Difficulty (어려움/극복 과정): ${d}
+- Result (정량적/정성적 성과): ${r}
+- Insight (배운 점/인사이트): ${i}
 
-                fullText = professionalSummary;
-            } else if (action === "chat-refine") {
-                fullText = `사용자의 피드백("${message}")을 바탕으로 문구를 더욱 정교하게 다듬었습니다.\n\n요청하신 내용을 반영하여 기술적인 구체성과 비즈니스 가치를 동시에 강조하도록 보완했습니다. 현재 문구가 마음에 드시는지 확인 부탁드리며, 추가적인 수정 사항이 있다면 언제든 말씀해주세요.`;
-            }
+[작성 가이드라인 - 엄격히 준수하세요]
+1. 출력 제한 (가장 중요!): "물론입니다.", "작성해 드리겠습니다.", "### 완성된 자기소개서 내용" 등과 같은 인사말, 헤더, 부연 설명은 절대 포함하지 마세요. 반드시 바로 자기소개서 본문의 첫 문장으로 시작하고 끝나야 합니다.
+2. 분량 및 깊이: 내용을 부풀리거나 지어내지 않되, 입력된 키워드 간의 인과관계를 설명하며 살을 붙여서 구체적으로 작성하세요. 최소 2개의 문단으로 나누어, 총 400~500자 이상의 충분한 깊이가 있는 서술이 되어야 합니다.
+3. 어조: 자신감 있고 전문적인 어조 ('~습니다', '~했습니다' 체 사용).
+4. 절대 금지: '상황은 ~입니다', '목표는 ~이었습니다' 처럼 STADRI의 각 항목 이름이나 질문 형태를 그대로 노출하여 반복하는 것.
+5. 스토리텔링: 어떤 배경과 목표에서 출발했고, 어떤 구체적이고 전문적인 행동으로 난관을 극복했는지, 그리고 그 결과가 비즈니스나 프로젝트의 완성도에 어떻게 기여했는지를 전문가의 뉘앙스로 설득력 있게 풀어내세요.
+`;
 
-            // Return a streaming response
-            return new Response(createSimulatedStream(fullText), {
+            const result = await model.generateContentStream(prompt);
+
+            const stream = new ReadableStream({
+                async start(controller) {
+                    const encoder = new TextEncoder();
+                    try {
+                        for await (const chunk of result.stream) {
+                            const chunkText = chunk.text();
+                            controller.enqueue(encoder.encode(chunkText));
+                        }
+                    } catch (err) {
+                        console.error("Streaming error:", err);
+                        controller.enqueue(encoder.encode("\n[AI 모델 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.]"));
+                    } finally {
+                        controller.close();
+                    }
+                }
+            });
+
+            return new Response(stream, {
                 headers: {
                     "Content-Type": "text/plain; charset=utf-8",
                     "Transfer-Encoding": "chunked",
@@ -66,39 +75,58 @@ export async function POST(req: Request) {
             });
         }
 
-        // Standard JSON response for older actions
-        let aiResponseData = {};
-        switch (action) {
-            case "highlight":
-                aiResponseData = {
-                    suggestions: [
-                        "STADRI 구조를 활용하여 경험을 정리하면 더욱 설득력 있는 이력서가 됩니다.",
-                        "다양한 팀 협업 경험을 바탕으로 한 커뮤니케이션 능력이 뛰어납니다.",
-                        "기술적 도전 과제를 해결하는 과정에서 논리적 사고가 돋보입니다.",
-                        "리액트 기반의 프론트엔드 최적화 경험이 다른 후보자 대비 매우 강력합니다."
-                    ]
-                };
-                break;
-            case "refine":
-                const currentIntro = payload.personalInfo?.intro || "";
-                const refinedPayload = JSON.parse(JSON.stringify(payload));
-                if (currentIntro) {
-                    refinedPayload.personalInfo.intro = currentIntro + " (AI 보정: 전문적인 역량 중심의 소개로 강화됨)";
+        if (action === "chat-refine") {
+            const { previousContent } = body;
+            const refinePrompt = `당신은 최고 수준의 IT 전문 이력서/자기소개서 컨설턴트입니다. 
+사용자의 추가 피드백을 바탕으로, 이전에 작성된 자기소개서를 더욱 정교하게 다듬어주세요.
+
+[이전 답변 내용]
+${previousContent || "내용 없음"}
+
+[사용자 피드백]
+${message}
+
+결과물 가이드라인:
+1. **분량 유지**: 이전에 작성된 내용의 깊이와 분량(최소 2문단, 약 500자)을 최대한 유지하거나 더 보강하세요. 피드백을 반영한다고 해서 내용을 대폭 생략하지 마세요.
+2. **출력 제한**: 인사말, 헤더("### 수정본" 등), 부연 설명은 절대 포함하지 마세요. 바로 수정된 자기소개서 본문의 첫 문장으로 시작하고 끝나야 합니다.
+3. **핵심**: 이전 답변의 훌륭한 문장 구조와 전문성을 보존하면서, 사용자의 피드백 포인트만 자연스럽게 녹여내세요.`;
+
+            const refineResult = await model.generateContentStream(refinePrompt);
+
+            const refineStream = new ReadableStream({
+                async start(controller) {
+                    const encoder = new TextEncoder();
+                    try {
+                        for await (const chunk of refineResult.stream) {
+                            controller.enqueue(encoder.encode(chunk.text()));
+                        }
+                    } catch (err) {
+                        console.error("Refine streaming error:", err);
+                        controller.enqueue(encoder.encode("\n[수정 중 에러가 발생했습니다.]"));
+                    } finally {
+                        controller.close();
+                    }
                 }
-                aiResponseData = { updatedPayload: refinedPayload };
-                break;
-            default:
-                break;
+            });
+
+            return new Response(refineStream, {
+                headers: {
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "Transfer-Encoding": "chunked",
+                },
+            });
         }
 
+        // Standard JSON response for other actions
         return NextResponse.json({
             success: true,
-            data: aiResponseData
+            data: { message: "Action not supported via stream in this route." }
         });
 
     } catch (error: any) {
+        console.error("AI HTTP Endpoint error:", error);
         return NextResponse.json(
-            { success: false, error: error.message || "AI Coach failed" },
+            { success: false, error: error.message || "Failed to call AI server" },
             { status: 500 }
         );
     }

@@ -81,13 +81,14 @@ export async function ensureProfileForUser(params: {
   });
 }
 
-export function buildResumePublicSummary(resumePayload: any) {
+export function buildResumePublicSummary(resumePayload: any, title?: string) {
   const personal = resumePayload?.personalInfo || {};
   const skills = Array.isArray(resumePayload?.skills) ? resumePayload.skills : [];
   const experience = Array.isArray(resumePayload?.experience) ? resumePayload.experience : [];
   const projects = Array.isArray(resumePayload?.projects) ? resumePayload.projects : [];
 
   return {
+    resumeTitle: title || "",
     headline: String(personal?.intro || "").slice(0, 160),
     topSkills: skills
       .map((item: any) => item?.name)

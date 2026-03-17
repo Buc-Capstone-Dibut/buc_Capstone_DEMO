@@ -100,7 +100,7 @@ export async function PUT(req: Request) {
 
     const sourceType = String(body.sourceType || "manual");
     const sourceFileName = body.sourceFileName ? String(body.sourceFileName) : null;
-    const publicSummary = buildResumePublicSummary(resumePayload);
+    const publicSummary = buildResumePublicSummary(resumePayload, body.title);
 
     const upserted = await prisma.user_resume_profiles.upsert({
       where: { user_id: user.id },
@@ -125,6 +125,38 @@ export async function PUT(req: Request) {
         updated_at: true,
       },
     });
+
+    // user_resumes (이력서 목록) 테이블에도 동기화
+    // Prisma 클라이언트 생성 이슈 대응: 모델 존재 여부 확인
+    if (prisma && (prisma as any).user_resumes) {
+      const activeResume = await (prisma as any).user_resumes.findFirst({
+        where: { user_id: user.id, is_active: true }
+      });
+
+      if (activeResume) {
+        await (prisma as any).user_resumes.update({
+          where: { id: activeResume.id },
+          data: {
+            title: body.title || activeResume.title,
+            resume_payload: resumePayload as any,
+            public_summary: publicSummary as any,
+            updated_at: new Date(),
+          }
+        });
+      } else {
+        await (prisma as any).user_resumes.create({
+          data: {
+            user_id: user.id,
+            title: body.title || `${user.user_metadata?.nickname || '회원'}님의 이력서`,
+            resume_payload: resumePayload as any,
+            public_summary: publicSummary as any,
+            is_active: true,
+          }
+        });
+      }
+    } else {
+      console.warn("prisma.user_resumes is not defined. Skipping sync.");
+    }
 
     return NextResponse.json({
       success: true,
