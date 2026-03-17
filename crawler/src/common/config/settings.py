@@ -57,7 +57,7 @@ def _build_settings() -> Settings:
         supabase_service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
         firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY"),
-        tag_request_delay_ms=_safe_int(os.getenv("TAG_REQUEST_DELAY_MS"), 1000),
+        tag_request_delay_ms=_safe_int(os.getenv("TAG_REQUEST_DELAY_MS"), 8000),
         tag_retry_base_ms=_safe_int(os.getenv("TAG_RETRY_BASE_MS"), 5000),
         rss_feeds=[
             {"name": "토스", "url": "https://toss.tech/rss.xml", "type": "company"},

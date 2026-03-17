@@ -49,6 +49,7 @@ uv run python -m src.apps.dev_event.seed --file ./data/dev-events.json
 - 둘 다 `workflow_dispatch` 를 지원합니다.
 - Actions secret은 최소 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 가 필요합니다.
 - `GEMINI_API_KEY`, `FIRECRAWL_API_KEY` 는 선택이며 없으면 fallback 경로로 동작합니다.
+- `tech-blog-sync` 는 Gemini 태깅 과부하 방지를 위해 기본 `TAG_REQUEST_DELAY_MS=8000` 으로 실행됩니다.
 
 ## 주요 환경변수
 
