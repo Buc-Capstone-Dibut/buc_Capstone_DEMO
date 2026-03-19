@@ -232,17 +232,22 @@ export async function incrementViews(id: number) {
 }
 
 // 주간 인기글 조회
-export async function fetchWeeklyPopularBlogs(limit = 10) {
+export async function fetchWeeklyPopularBlogs(limit = 10, author?: string) {
   try {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("blogs")
       .select("*")
       .gte("published_at", oneWeekAgo.toISOString())
-      .order("views", { ascending: false })
-      .limit(limit);
+      .order("views", { ascending: false });
+
+    if (author && author.trim()) {
+      query = query.eq("author", author.trim());
+    }
+
+    const { data, error } = await query.limit(limit);
 
     if (error) {
       console.error("주간 인기글 조회 중 Supabase 오류:", error);
