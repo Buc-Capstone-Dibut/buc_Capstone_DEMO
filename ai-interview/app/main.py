@@ -58,6 +58,12 @@ async def structured_logging_middleware(request: Request, call_next):
 
 @app.on_event("startup")
 def startup_event() -> None:
+    logger.info(
+        "voice runtime flags architecture=%s ai_question_repair=%s ai_audio_recovery=%s",
+        settings.voice_runtime_architecture,
+        settings.voice_enable_ai_question_repair,
+        settings.voice_enable_ai_audio_recovery,
+    )
     init_db()
     interview_report_agent.start()
 

@@ -46,6 +46,7 @@ from app.interview.runtime.session_interaction import (
 )
 from app.interview.runtime.session_support import (
     create_live_interview_session as runtime_create_live_interview_session,
+    get_live_stt_service as runtime_get_live_stt_service,
     latest_user_answer as runtime_latest_user_answer,
 )
 from app.interview.runtime.vad_policy import retune_vad_for_next_turn as runtime_retune_vad_for_next_turn
@@ -80,6 +81,7 @@ from app.interview.runtime.turn_entrypoints import (
     generate_and_send_resume_live_turn as runtime_generate_and_send_resume_live_turn,
     process_user_utterance as runtime_entrypoint_process_user_utterance,
 )
+from app.interview.runtime.live_turns import prepare_live_user_followup
 from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
 from app.interview.runtime.delivery import (
     ReplayLastModelTurnDeps,
@@ -91,12 +93,17 @@ from app.interview.runtime.delivery import (
     to_prepared_tts_audio_from_pcm as runtime_to_prepared_tts_audio_from_pcm,
 )
 from app.interview.runtime.live_client import (
+    begin_live_audio_input_stream as runtime_begin_live_audio_input_stream,
     build_live_session_instruction as runtime_build_live_session_instruction,
     build_live_turn_prompt as runtime_build_live_turn_prompt,
+    commit_live_audio_input_stream as runtime_commit_live_audio_input_stream,
     get_or_create_live_interview as runtime_get_or_create_live_interview,
+    push_live_audio_input_chunk as runtime_push_live_audio_input_chunk,
     repair_ai_turn_if_truncated as runtime_repair_ai_turn_if_truncated,
     request_live_audio_turn as runtime_request_live_audio_turn,
+    request_live_spoken_text_turn as runtime_request_live_spoken_text_turn,
     request_live_text_turn as runtime_request_live_text_turn,
+    stream_live_audio_turn as runtime_stream_live_audio_turn,
 )
 from app.interview.runtime.ws_runtime_wiring import (
     build_client_message_router_deps,
@@ -175,9 +182,12 @@ def _live_client_deps():
 
 def _runtime_executor_deps():
     return build_runtime_executor_deps(
+        request_live_spoken_text_turn=_request_live_spoken_text_turn,
         request_live_text_turn=_request_live_text_turn,
         repair_ai_turn_if_truncated=_repair_ai_turn_if_truncated,
         looks_like_complete_ai_question=domain_looks_like_complete_ai_question,
+        enable_ai_question_repair=settings.voice_enable_ai_question_repair,
+        enable_ai_audio_recovery=settings.voice_enable_ai_audio_recovery,
         build_ai_delivery_plan=_build_ai_delivery_plan,
         persist_turn=service_adapter.persist_turn,
         set_runtime_status=service_adapter.set_runtime_status,
@@ -203,6 +213,7 @@ def _runtime_executor_deps():
         build_memory_snapshot=domain_build_memory_snapshot,
         remember_model_turn=domain_remember_model_turn,
         record_question_type=domain_record_question_type,
+        remember_streamed_ai_audio=_remember_streamed_ai_audio,
     )
 
 
@@ -230,7 +241,10 @@ def _session_engine_deps():
         derive_question_type_preference=domain_derive_question_type_preference,
         select_next_question_type=domain_select_next_question_type,
         request_live_audio_turn=_request_live_audio_turn,
-        fallback_transcribe_user_audio=_fallback_transcribe_user_audio,
+        stream_live_audio_turn=_stream_live_audio_turn,
+        fallback_transcribe_user_audio=None,
+        transcribe_user_audio=_transcribe_user_audio,
+        runtime_architecture=settings.voice_runtime_architecture,
         emit_realtime_user_delta=_emit_realtime_user_delta,
         is_probable_ai_echo=lambda state, text, wav_bytes: _is_probable_ai_echo(state, text, wav_bytes),
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
@@ -260,10 +274,12 @@ def _session_engine_deps():
         merge_vad_events=runtime_merge_vad_events,
         resume_listening=_resume_listening,
         next_ai_turn_id=_next_ai_turn_id,
+        commit_live_input_stream=_commit_live_input_stream,
     )
 
 def _client_message_router_deps():
     return build_client_message_router_deps(
+        runtime_architecture=settings.voice_runtime_architecture,
         send_json=_send_json,
         send_avatar_state=_send_avatar_state,
         handle_session_init=lambda ws, state, data: handle_session_init(
@@ -274,6 +290,8 @@ def _client_message_router_deps():
         ),
         coerce_audio_chunk=runtime_coerce_audio_chunk,
         enqueue_user_segment=_enqueue_user_segment,
+        begin_live_input_stream=_begin_live_input_stream,
+        push_live_input_audio_chunk=_push_live_input_audio_chunk,
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
         resume_listening=_resume_listening,
         cancel_playback_resume_task=_cancel_playback_resume_task,
@@ -374,6 +392,24 @@ def _remember_ai_tts(state: VoiceWsState, text: str, prepared: PreparedTtsAudio 
         prepared,
         playback_skew_sec=VOICE_AI_PLAYBACK_SKEW_SEC,
         audio_guard_sec=VOICE_AI_ECHO_GUARD_SEC,
+    )
+
+
+def _remember_streamed_ai_audio(
+    state: VoiceWsState,
+    text: str,
+    duration_sec: float,
+    provider: str,
+) -> None:
+    _remember_ai_tts(
+        state,
+        text,
+        PreparedTtsAudio(
+            chunks=["streamed"],
+            sample_rate=24000,
+            provider=provider or "gemini-live-single",
+            duration_sec=max(0.0, float(duration_sec or 0.0)),
+        ),
     )
 
 
@@ -532,9 +568,15 @@ def _to_prepared_tts_audio_from_pcm(
     )
 
 
-async def _fallback_transcribe_user_audio(wav_bytes: bytes) -> tuple[str, str]:
-    del wav_bytes
-    return "", ""
+async def _transcribe_user_audio(wav_bytes: bytes) -> tuple[str, str]:
+    if not wav_bytes:
+        return "", ""
+    try:
+        result = await runtime_get_live_stt_service().transcribe_wav(wav_bytes)
+    except Exception:
+        logger.warning("live STT transcription failed", exc_info=True)
+        return "", ""
+    return (result.text or "").strip(), (result.provider or "").strip()
 
 
 def _get_or_create_live_interview(state: VoiceWsState) -> GeminiLiveInterviewSession:
@@ -562,6 +604,18 @@ async def _request_live_text_turn(
     )
 
 
+async def _request_live_spoken_text_turn(
+    state: VoiceWsState,
+    *,
+    text: str,
+) -> tuple[str, PreparedTtsAudio | None, str]:
+    return await runtime_request_live_spoken_text_turn(
+        state,
+        text=text,
+        deps=_live_client_deps(),
+    )
+
+
 async def _request_live_audio_turn(
     state: VoiceWsState,
     *,
@@ -580,6 +634,329 @@ async def _request_live_audio_turn(
         extra_instruction=extra_instruction,
         deps=_live_client_deps(),
     )
+
+
+async def _stream_live_audio_turn(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    turn_id: str,
+    wav_bytes: bytes,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
+    extra_instruction: str = "",
+) -> tuple[str, str, str, float, int]:
+    packet_seq = 0
+    streamed_chunk_count = 0
+    speaking_sent = False
+    streamed_sample_rate = 24000
+    audio_provider = "gemini-live-single"
+    ai_delta_seq = 0
+    streamed_ai_text = ""
+    streamed_user_text = ""
+
+    async def on_audio_chunk(chunk_bytes: bytes, sample_rate: int, is_final: bool) -> None:
+        nonlocal packet_seq, streamed_chunk_count, speaking_sent, streamed_sample_rate
+        if not chunk_bytes or not state.session_id:
+            return
+        streamed_sample_rate = max(8000, int(sample_rate or streamed_sample_rate or 24000))
+        if not speaking_sent:
+            speaking_sent = await _send_avatar_state(ws, "speaking", state.session_id)
+        base64_chunks, _duration_sec = runtime_pcm16le_bytes_to_base64_chunks(
+            chunk_bytes,
+            sample_rate=streamed_sample_rate,
+        )
+        for idx, chunk in enumerate(base64_chunks):
+            streamed_chunk_count += 1
+            packet_seq += 1
+            await _send_json(
+                ws,
+                {
+                    "type": "audio",
+                    "audioBase64": chunk,
+                    "sampleRate": streamed_sample_rate,
+                    "provider": audio_provider,
+                    "sessionId": state.session_id,
+                    "turnId": turn_id,
+                    "chunkIndex": streamed_chunk_count - 1,
+                    "chunkCount": None,
+                    "packetSeq": packet_seq,
+                    "isFinalChunk": bool(is_final and idx == len(base64_chunks) - 1),
+                },
+            )
+
+    async def on_ai_text_update(accumulated_text: str) -> None:
+        nonlocal ai_delta_seq, streamed_ai_text
+        if not state.session_id:
+            return
+        normalized = domain_sanitize_ai_turn_text(accumulated_text)
+        if not normalized or normalized == streamed_ai_text:
+            return
+        previous = streamed_ai_text
+        if normalized.startswith(previous):
+            delta = normalized[len(previous):]
+        else:
+            delta = normalized
+        streamed_ai_text = normalized
+        ai_delta_seq += 1
+        await _send_transcript_delta(
+            ws,
+            state.session_id,
+            "ai",
+            delta or normalized,
+            normalized,
+            ai_delta_seq,
+            turn_id=turn_id,
+        )
+
+    async def on_user_text_update(accumulated_text: str) -> None:
+        nonlocal streamed_user_text
+        if not state.session_id:
+            return
+        normalized = domain_sanitize_user_turn_text(accumulated_text)
+        if not normalized or normalized == streamed_user_text:
+            return
+        previous = streamed_user_text
+        if normalized.startswith(previous):
+            delta = normalized[len(previous):]
+        else:
+            delta = normalized
+        streamed_user_text = normalized
+        state.realtime_user_transcript = normalized
+        state.realtime_user_delta_seq += 1
+        await _send_transcript_delta(
+            ws,
+            state.session_id,
+            "user",
+            delta or normalized,
+            normalized,
+            state.realtime_user_delta_seq,
+        )
+
+    user_text, ai_text, provider_name, duration_sec, live_chunk_count = await runtime_stream_live_audio_turn(
+        state,
+        wav_bytes=wav_bytes,
+        question_type=question_type,
+        answer_quality_hint=answer_quality_hint,
+        prompt_user_text=prompt_user_text,
+        extra_instruction=extra_instruction,
+        on_audio_chunk=on_audio_chunk,
+        on_ai_text_update=on_ai_text_update,
+        on_user_text_update=on_user_text_update,
+        deps=_live_client_deps(),
+    )
+    resolved_provider = (provider_name or audio_provider).strip()
+    logger.info(
+        "audio.out session=%s turn=%s provider=%s chunks=%s sample_rate=%s duration_ms=%s",
+        state.session_id,
+        turn_id,
+        resolved_provider,
+        streamed_chunk_count or live_chunk_count,
+        streamed_sample_rate,
+        int(round(duration_sec * 1000)),
+    )
+    return (
+        user_text,
+        ai_text,
+        resolved_provider,
+        duration_sec,
+        streamed_chunk_count or live_chunk_count,
+    )
+
+
+def _build_live_input_stream_request(state: VoiceWsState) -> tuple[str | None, str, str, str]:
+    followup_spec = prepare_live_user_followup(
+        state,
+        runtime_timing=transcript_runtime_timing,
+    )
+    should_bias_closing = followup_spec.should_announce_closing or state.current_phase == "closing"
+    extra_instruction = ""
+    question_type: str | None = None
+    if followup_spec.completion_reason:
+        extra_instruction = (
+            "이번 턴은 질문 없이 면접을 종료하는 턴입니다. "
+            "지원자의 방금 답변을 짧게 받아주고, 추가 질문 없이 종료 멘트만 말하세요. "
+            f"마지막 문장은 반드시 '{CLOSING_SENTENCE}' 문장 그대로 사용하세요."
+        )
+    else:
+        question_type = domain_select_next_question_type(
+            state,
+            preferred="priority_judgment" if should_bias_closing else None,
+        )
+        if followup_spec.should_announce_closing:
+            extra_instruction = "이번 턴은 마지막 질문입니다."
+    return (
+        question_type,
+        (state.last_answer_quality_hint or "").strip(),
+        "",
+        extra_instruction,
+    )
+
+
+def _clear_live_input_stream_state(state: VoiceWsState) -> None:
+    state.live_input_turn_active = False
+    state.live_input_turn_id = ""
+    state.live_input_streamed_user_text = ""
+    state.live_input_streamed_ai_text = ""
+    state.live_input_streamed_provider = ""
+    state.live_input_streamed_audio_duration_sec = 0.0
+    state.live_input_streamed_audio_chunk_count = 0
+
+
+async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
+    if not state.session_id:
+        return False
+    if state.live_input_turn_active:
+        return True
+
+    _clear_live_input_stream_state(state)
+    turn_id = _next_ai_turn_id(state.session_id)
+    packet_seq = 0
+    streamed_chunk_count = 0
+    speaking_sent = False
+    streamed_sample_rate = 24000
+    ai_delta_seq = 0
+    streamed_ai_text = ""
+    streamed_user_text = ""
+    question_type, answer_quality_hint, prompt_user_text, extra_instruction = _build_live_input_stream_request(state)
+
+    async def on_audio_chunk(chunk_bytes: bytes, sample_rate: int, is_final: bool) -> None:
+        nonlocal packet_seq, streamed_chunk_count, speaking_sent, streamed_sample_rate
+        if not chunk_bytes or not state.session_id:
+            return
+        streamed_sample_rate = max(8000, int(sample_rate or streamed_sample_rate or 24000))
+        if not speaking_sent:
+            speaking_sent = await _send_avatar_state(ws, "speaking", state.session_id)
+        base64_chunks, duration_sec = runtime_pcm16le_bytes_to_base64_chunks(
+            chunk_bytes,
+            sample_rate=streamed_sample_rate,
+        )
+        state.live_input_streamed_audio_duration_sec += max(0.0, float(duration_sec or 0.0))
+        for idx, chunk in enumerate(base64_chunks):
+            streamed_chunk_count += 1
+            packet_seq += 1
+            state.live_input_streamed_audio_chunk_count = streamed_chunk_count
+            await _send_json(
+                ws,
+                {
+                    "type": "audio",
+                    "audioBase64": chunk,
+                    "sampleRate": streamed_sample_rate,
+                    "provider": "gemini-live-single",
+                    "sessionId": state.session_id,
+                    "turnId": turn_id,
+                    "chunkIndex": streamed_chunk_count - 1,
+                    "chunkCount": None,
+                    "packetSeq": packet_seq,
+                    "isFinalChunk": bool(is_final and idx == len(base64_chunks) - 1),
+                },
+            )
+
+    async def on_ai_text_update(accumulated_text: str) -> None:
+        nonlocal ai_delta_seq, streamed_ai_text
+        if not state.session_id:
+            return
+        normalized = domain_sanitize_ai_turn_text(accumulated_text)
+        if not normalized or normalized == streamed_ai_text:
+            return
+        previous = streamed_ai_text
+        delta = normalized[len(previous):] if normalized.startswith(previous) else normalized
+        streamed_ai_text = normalized
+        state.live_input_streamed_ai_text = normalized
+        ai_delta_seq += 1
+        await _send_transcript_delta(
+            ws,
+            state.session_id,
+            "ai",
+            delta or normalized,
+            normalized,
+            ai_delta_seq,
+            turn_id=turn_id,
+        )
+
+    async def on_user_text_update(accumulated_text: str) -> None:
+        nonlocal streamed_user_text
+        if not state.session_id:
+            return
+        normalized = domain_sanitize_user_turn_text(accumulated_text)
+        if not normalized or normalized == streamed_user_text:
+            return
+        previous = streamed_user_text
+        delta = normalized[len(previous):] if normalized.startswith(previous) else normalized
+        streamed_user_text = normalized
+        state.realtime_user_transcript = normalized
+        state.live_input_streamed_user_text = normalized
+        state.realtime_user_delta_seq += 1
+        await _send_transcript_delta(
+            ws,
+            state.session_id,
+            "user",
+            delta or normalized,
+            normalized,
+            state.realtime_user_delta_seq,
+        )
+
+    started = await runtime_begin_live_audio_input_stream(
+        state,
+        question_type=question_type,
+        answer_quality_hint=answer_quality_hint,
+        prompt_user_text=prompt_user_text,
+        extra_instruction=extra_instruction,
+        on_audio_chunk=on_audio_chunk,
+        on_ai_text_update=on_ai_text_update,
+        on_user_text_update=on_user_text_update,
+        deps=_live_client_deps(),
+    )
+    if not started:
+        return False
+
+    state.live_input_turn_active = True
+    state.live_input_turn_id = turn_id
+    state.live_input_streamed_provider = "gemini-live-single"
+    return True
+
+
+async def _push_live_input_audio_chunk(
+    state: VoiceWsState,
+    audio_chunk: list[float],
+    sample_rate: int,
+) -> bool:
+    return await runtime_push_live_audio_input_chunk(
+        state,
+        audio_chunk=audio_chunk,
+        sample_rate=sample_rate,
+        deps=_live_client_deps(),
+    )
+
+
+async def _commit_live_input_stream(state: VoiceWsState) -> bool:
+    if not state.live_input_turn_active:
+        return False
+    previous_duration_sec = max(0.0, float(state.live_input_streamed_audio_duration_sec or 0.0))
+    previous_chunk_count = max(0, int(state.live_input_streamed_audio_chunk_count or 0))
+    previous_user_text = (state.live_input_streamed_user_text or "").strip()
+    previous_ai_text = (state.live_input_streamed_ai_text or "").strip()
+    user_text, ai_text, provider_name, duration_sec, live_chunk_count = await runtime_commit_live_audio_input_stream(
+        state,
+        deps=_live_client_deps(),
+    )
+    state.live_input_streamed_user_text = (user_text or previous_user_text).strip()
+    state.live_input_streamed_ai_text = (ai_text or previous_ai_text).strip()
+    state.live_input_streamed_provider = (provider_name or "gemini-live-single").strip()
+    state.live_input_streamed_audio_duration_sec = max(previous_duration_sec, float(duration_sec or 0.0))
+    state.live_input_streamed_audio_chunk_count = max(previous_chunk_count, int(live_chunk_count or 0))
+    state.live_input_turn_active = False
+    logger.info(
+        "audio.out session=%s turn=%s provider=%s chunks=%s sample_rate=%s duration_ms=%s",
+        state.session_id,
+        state.live_input_turn_id,
+        state.live_input_streamed_provider or "gemini-live-single",
+        state.live_input_streamed_audio_chunk_count,
+        24000,
+        int(round(state.live_input_streamed_audio_duration_sec * 1000)),
+    )
+    return True
 
 
 async def _repair_ai_turn_if_truncated(
@@ -689,6 +1066,12 @@ async def _enqueue_user_segment(
 async def run_voice_client_ws(websocket: WebSocket) -> None:
     await websocket.accept()
     state = VoiceWsState()
+    logger.info(
+        "voice ws connected architecture=%s ai_question_repair=%s ai_audio_recovery=%s",
+        settings.voice_runtime_architecture,
+        settings.voice_enable_ai_question_repair,
+        settings.voice_enable_ai_audio_recovery,
+    )
 
     try:
         if not await send_connection_handshake(

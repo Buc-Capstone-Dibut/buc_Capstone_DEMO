@@ -49,6 +49,7 @@ from app.interview.domain.interview_memory import (
     select_next_question_type,
 )
 from app.interview.domain.turn_text import (
+    build_opening_turn_text,
     looks_like_complete_ai_question,
     sanitize_ai_turn_text,
     sanitize_user_turn_text,
@@ -587,6 +588,7 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(send_transcript.await_args.args[3], "안녕하세요. 지원 동기를 말씀해 주세요.")
         resume_listening.assert_not_awaited()
 
+
     async def test_opening_turn_recovers_live_audio_before_resuming(self) -> None:
         state = VoiceWsState(session_id="session-2r", session_type="live_interview")
         prepared_audio = PreparedTtsAudio(
@@ -859,6 +861,37 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(generated)
         self.assertEqual(request_live_text_turn.await_count, 3)
         self.assertTrue(send_transcript.await_args.args[3].endswith("이 직무와 가장 관련 있는 프로젝트 경험 한 가지를 구체적으로 말씀해 주세요."))
+
+
+class OpeningTextTests(unittest.TestCase):
+    def test_build_opening_turn_text_uses_multiple_safe_variants(self) -> None:
+        texts = {
+            build_opening_turn_text(
+                session_type="live_interview",
+                company="Dibut",
+                role="서비스 백엔드 개발자",
+                job_data={"techStack": ["WebSocket", "Redis"]},
+                resume_data={"skills": ["Kafka", "Spring Boot"]},
+                seed_text=f"session-{index}",
+            )
+            for index in range(8)
+        }
+
+        self.assertGreaterEqual(len(texts), 2)
+        for text in texts:
+            self.assertTrue(text.startswith("안녕하세요."))
+            self.assertTrue(text.endswith("?"))
+
+    def test_build_opening_turn_text_can_reference_focus_term(self) -> None:
+        text = build_opening_turn_text(
+            session_type="live_interview",
+            company="Dibut",
+            role="서비스 백엔드 개발자",
+            job_data={"techStack": ["WebSocket"]},
+            seed_text="session-focus",
+        )
+
+        self.assertIn("서비스 백엔드 개발자", text)
 
 
 class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):

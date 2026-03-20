@@ -1,5 +1,6 @@
 const MIC_CAPTURE_WORKLET_URL = "/worklets/mic-capture-processor.js";
 const MIC_CAPTURE_BUFFER_SIZE = 1024;
+const DEFAULT_CAPTURE_SAMPLE_RATE = 24000;
 
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
@@ -7,9 +8,9 @@ export class AudioProcessor {
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: AudioWorkletNode | null = null;
   private silentGain: GainNode | null = null;
-  private onAudioData: (data: Float32Array) => void;
+  private onAudioData: (data: Float32Array, sampleRate: number) => void;
 
-  constructor(onAudioData: (data: Float32Array) => void) {
+  constructor(onAudioData: (data: Float32Array, sampleRate: number) => void) {
     this.onAudioData = onAudioData;
   }
 
@@ -21,7 +22,6 @@ export class AudioProcessor {
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-          sampleRate: 16000,
         },
       });
 
@@ -33,7 +33,7 @@ export class AudioProcessor {
       }
 
       this.audioContext = new AudioContextClass({
-        sampleRate: 16000,
+        sampleRate: DEFAULT_CAPTURE_SAMPLE_RATE,
         latencyHint: "interactive",
       });
 
@@ -56,7 +56,7 @@ export class AudioProcessor {
       this.processor.port.onmessage = (event: MessageEvent<Float32Array>) => {
         const payload = event.data;
         if (!(payload instanceof Float32Array) || payload.length === 0) return;
-        this.onAudioData(payload);
+        this.onAudioData(payload, this.getSampleRate());
       };
 
       this.silentGain = this.audioContext.createGain();
@@ -98,5 +98,10 @@ export class AudioProcessor {
       void this.audioContext.close();
       this.audioContext = null;
     }
+  }
+
+  getSampleRate(): number {
+    const rate = this.audioContext?.sampleRate;
+    return Number.isFinite(rate) && rate && rate > 1000 ? rate : DEFAULT_CAPTURE_SAMPLE_RATE;
   }
 }

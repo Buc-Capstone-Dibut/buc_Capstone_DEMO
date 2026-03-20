@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.interview.domain.turn_text import build_opening_turn_text, compose_ai_question_text
 from app.interview.domain.turn_policy import plan_next_question, resolve_completion_decision, runtime_question_count
 from app.interview.runtime.orchestration import build_resume_live_prompt
 from app.interview.runtime.state import VoiceWsState
@@ -45,6 +46,8 @@ class LiveUserRequestSpec:
     answer_quality_hint: str
     planned_question_type: str
     extra_instruction: str
+    planned_question_text: str = ""
+    strategy: str = "followup"
 
 
 @dataclass(frozen=True)
@@ -71,9 +74,17 @@ def prepare_opening_turn(
     runtime_timing: Callable[[VoiceWsState], tuple[int, int]],
 ) -> OpeningTurnSpec:
     elapsed_sec, remaining_sec = runtime_timing(state)
+    job_data = state.job_data if isinstance(state.job_data, dict) else {}
     return OpeningTurnSpec(
         turn_id=next_turn_id,
-        prompt=prompt,
+        prompt=build_opening_turn_text(
+            session_type=state.session_type,
+            company=str(job_data.get("company") or "").strip(),
+            role=str(job_data.get("role") or "").strip(),
+            job_data=job_data,
+            resume_data=state.resume_data,
+            seed_text=state.session_id or next_turn_id,
+        ),
         question_type=question_type,
         phase="introduction",
         question_index=1,
@@ -104,14 +115,28 @@ def prepare_resume_turn(
         estimated_total_questions=state.estimated_total_questions,
         closing_announced=state.closing_announced,
     )
-    question_type = select_next_question_type(
+    should_bias_closing = turn_plan.should_announce_closing or state.current_phase == "closing"
+    preferred_question_type = derive_question_type_preference(
         state,
-        preferred=derive_question_type_preference(
-            state,
-            latest_user_text,
-            turn_plan.should_announce_closing or state.current_phase == "closing",
-        ) or ("priority_judgment" if turn_plan.should_announce_closing else None),
+        latest_user_text,
+        should_bias_closing,
     )
+    last_type = (state.recent_question_types[-1] if state.recent_question_types else "").strip()
+    if should_bias_closing:
+        strategy = "transition"
+        question_type = select_next_question_type(state, preferred="priority_judgment")
+    elif not latest_user_text.strip():
+        strategy = "retry"
+        question_type = last_type or "motivation_validation"
+    elif preferred_question_type and preferred_question_type != last_type:
+        strategy = "followup"
+        question_type = preferred_question_type
+    else:
+        strategy = "transition"
+        question_type = select_next_question_type(
+            state,
+            preferred=preferred_question_type or None,
+        )
     return ResumeTurnSpec(
         turn_id=next_turn_id,
         latest_user_text=latest_user_text,
@@ -120,9 +145,11 @@ def prepare_resume_turn(
         question_index=turn_plan.question_index,
         should_announce_closing=turn_plan.should_announce_closing,
         phase=turn_plan.phase,
-        prompt=build_resume_live_prompt(
-            should_announce_closing=turn_plan.should_announce_closing,
-            closing_sentence=closing_sentence,
+        prompt=compose_ai_question_text(
+            user_text=latest_user_text,
+            question_type=question_type,
+            strategy=strategy,
+            session_type=state.session_type,
         ),
         target_duration_sec=state.target_duration_sec,
         closing_threshold_sec=state.closing_threshold_sec,
@@ -149,6 +176,8 @@ def prepare_live_user_request(
     ).strip()
     planned_question_type = ""
     extra_instruction = ""
+    planned_question_text = ""
+    strategy = "transition"
     should_bias_closing = followup_spec.should_announce_closing or state.current_phase == "closing"
 
     if followup_spec.completion_reason:
@@ -163,15 +192,34 @@ def prepare_live_user_request(
             resolved_prompt_user_text,
             should_bias_closing,
         )
-        planned_question_type = select_next_question_type(
-            state,
-            preferred=preferred_question_type or ("priority_judgment" if should_bias_closing else None),
+        last_type = (state.recent_question_types[-1] if state.recent_question_types else "").strip()
+        if should_bias_closing:
+            strategy = "transition"
+            planned_question_type = select_next_question_type(
+                state,
+                preferred="priority_judgment",
+            )
+        elif not resolved_prompt_user_text:
+            strategy = "retry"
+            planned_question_type = last_type or "motivation_validation"
+        elif preferred_question_type and preferred_question_type != last_type:
+            strategy = "followup"
+            planned_question_type = preferred_question_type
+        else:
+            strategy = "transition"
+            planned_question_type = select_next_question_type(
+                state,
+                preferred=preferred_question_type or None,
+            )
+        planned_question_text = compose_ai_question_text(
+            user_text=resolved_prompt_user_text,
+            question_type=planned_question_type,
+            strategy=strategy,
+            session_type=state.session_type,
         )
         if followup_spec.should_announce_closing:
             extra_instruction = (
-                "이번 턴은 마지막 질문입니다. "
-                "시간이 얼마 남지 않았음을 자연스럽게 안내한 뒤 질문은 정확히 1개만 하세요. "
-                f"마지막 문장은 반드시 '{closing_sentence}' 문장 그대로 사용하세요."
+                "이번 턴은 마지막 질문입니다."
             )
 
     answer_quality_hint = (
@@ -184,6 +232,8 @@ def prepare_live_user_request(
         answer_quality_hint=answer_quality_hint,
         planned_question_type=planned_question_type,
         extra_instruction=extra_instruction,
+        planned_question_text=planned_question_text,
+        strategy=strategy,
     )
 
 

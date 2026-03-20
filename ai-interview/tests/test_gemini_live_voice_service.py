@@ -75,6 +75,17 @@ class GeminiLiveInterviewSessionTextSelectionTests(unittest.TestCase):
             ),
         )
 
+    def test_select_best_ai_text_prefers_longer_prefix_even_when_output_looks_complete(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+        model_text = "평균 응답 지연을 1초 내외로 유지하셨다니 대단합니다. 당시 어떤 병목을 먼저 줄이셨나요?"
+
+        selected = session._select_best_ai_text(
+            "평균 응답 지연을 1초 내외로 유지하셨다니 대단합니다.",
+            model_text,
+        )
+
+        self.assertEqual(selected, session._normalize_ai_text_candidate(model_text))
+
     def test_merge_transcription_chunks_keeps_progressive_input_without_cutting_tail(self) -> None:
         session = GeminiLiveInterviewSession(api_key=None)
 
@@ -92,6 +103,48 @@ class GeminiLiveInterviewSessionTextSelectionTests(unittest.TestCase):
                 "평균 지연이 가장 낮은 WebSocket을 선택했습니다."
             ),
         )
+
+    def test_pick_better_ai_text_keeps_more_complete_stream_candidate(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        best = ""
+        best = session._pick_better_ai_text(best, "웹소켓 기반 통신으로 실시간 면접 서비스를 구현하셨군요.")
+        best = session._pick_better_ai_text(
+            best,
+            "웹소켓 기반 통신으로 실시간 면접 서비스를 구현하셨군요. 여기서 가장 크게 고려한 지표는 무엇이었나요?",
+        )
+        best = session._pick_better_ai_text(best, "웹소켓 기반 통신으로 실시간 면접 서비스를 구현하셨군요.")
+
+        self.assertEqual(
+            best,
+            "웹소켓 기반 통신으로 실시간 면접 서비스를 구현하셨군요. 여기서 가장 크게 고려한 지표는 무엇이었나요?",
+        )
+
+    def test_pick_better_ai_text_does_not_shrink_after_longer_tail_was_seen(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        best = "평균 응답 지연을 1초 내외로 유지하셨다니 대단합니다. 당시 가장 크게 고려한 기술적"
+        updated = session._pick_better_ai_text(
+            best,
+            "평균 응답 지연을 1초 내외로 유지하셨다니 대단합니다.",
+        )
+
+        self.assertEqual(
+            updated,
+            "평균 응답 지연을 1초 내외로 유지하셨다니 대단합니다. 당시 가장 크게 고려한 기술적",
+        )
+
+    def test_build_stream_turn_result_preserves_best_stream_text_without_responses(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        result = session._build_stream_turn_result(
+            [],
+            best_stream_user_text="실시간 AI 면접 서비스를 개발한 경험이 있습니다.",
+            best_stream_ai_text="웹소켓 기반 통신 구조에서 어떤 안정성 전략을 사용하셨나요?",
+        )
+
+        self.assertEqual(result.user_text, "실시간 AI 면접 서비스를 개발한 경험이 있습니다.")
+        self.assertEqual(result.ai_text, "웹소켓 기반 통신 구조에서 어떤 안정성 전략을 사용하셨나요?")
 
 
 class GeminiLiveInterviewSessionReceiveTests(unittest.IsolatedAsyncioTestCase):
