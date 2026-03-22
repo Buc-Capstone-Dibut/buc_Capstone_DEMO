@@ -45,6 +45,11 @@ interface RuntimeMeta {
   runtimeStatus: string;
 }
 
+interface StickyCaption {
+  role: "user" | "ai";
+  text: string;
+}
+
 const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 const RECONNECT_GRACE_SEC = 60;
 
@@ -122,6 +127,7 @@ export default function InterviewVideoRoomPage() {
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [streamingAiCaption, setStreamingAiCaption] = useState("");
   const [streamingUserCaption, setStreamingUserCaption] = useState("");
+  const [stickyCaption, setStickyCaption] = useState<StickyCaption | null>(null);
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -408,6 +414,7 @@ export default function InterviewVideoRoomPage() {
         }
         setStreamingAiCaption("");
         setStreamingUserCaption("");
+        setStickyCaption(null);
         setRuntimeMeta((prev) => ({
           ...prev,
           targetDurationSec: toNumber(event.targetDurationSec, prev.targetDurationSec),
@@ -491,10 +498,8 @@ export default function InterviewVideoRoomPage() {
         const delta = typeof event.delta === "string" ? event.delta : "";
         if (event.role === "ai") {
           setStreamingAiCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
-          setStreamingUserCaption("");
         } else {
           setStreamingUserCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
-          setStreamingAiCaption("");
         }
       }
     },
@@ -686,6 +691,20 @@ export default function InterviewVideoRoomPage() {
   const previousCaptionText = previousCaption
     ? formatTranscriptForDisplay(previousCaption.text, previousCaption.role)
     : "";
+  const fallbackCaptionRole = stickyCaption?.role ?? null;
+  const fallbackCaptionText = stickyCaption ? formatTranscriptForDisplay(stickyCaption.text, stickyCaption.role) : "";
+  const resolvedCaptionRole = activeCaptionRole ?? (latestCaption ? latestCaption.role : fallbackCaptionRole);
+  const resolvedCaptionText = activeCaptionText || latestCaptionText || fallbackCaptionText;
+
+  useEffect(() => {
+    if (activeCaptionRole && activeCaptionText) {
+      setStickyCaption({ role: activeCaptionRole, text: activeCaptionText });
+      return;
+    }
+    if (latestCaption && latestCaptionText) {
+      setStickyCaption({ role: latestCaption.role, text: latestCaptionText });
+    }
+  }, [activeCaptionRole, activeCaptionText, latestCaption, latestCaptionText]);
 
   const handleMicToggle = async () => {
     if (isReconnecting) return;
@@ -856,26 +875,19 @@ export default function InterviewVideoRoomPage() {
                 <Captions className="h-3.5 w-3.5" />
                 실시간 자막
               </div>
-              {latestCaption || activeCaptionText ? (
+              {resolvedCaptionText ? (
                 <div className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {previousCaption && !activeCaptionText ? (
-                    <p className="break-words text-[12px] leading-relaxed text-white/60">
+                    <p className="break-all [overflow-wrap:anywhere] text-[12px] leading-relaxed text-white/60">
                       {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaptionText}
                     </p>
                   ) : null}
-                  {activeCaptionText ? (
-                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
-                      <span className={`mr-1 ${activeCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
-                        {activeCaptionRole === "ai" ? "Dibut" : "나"}:
+                  {resolvedCaptionText ? (
+                    <p className="break-all whitespace-pre-wrap [overflow-wrap:anywhere] text-sm font-medium leading-relaxed">
+                      <span className={`mr-1 ${resolvedCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
+                        {resolvedCaptionRole === "ai" ? "Dibut" : "나"}:
                       </span>
-                      {activeCaptionText}
-                    </p>
-                  ) : latestCaption ? (
-                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
-                      <span className="mr-1 text-emerald-300">
-                        {latestCaption.role === "ai" ? "Dibut" : "나"}:
-                      </span>
-                      {latestCaptionText}
+                      {resolvedCaptionText}
                     </p>
                   ) : null}
                 </div>

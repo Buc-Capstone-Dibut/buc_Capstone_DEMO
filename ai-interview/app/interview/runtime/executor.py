@@ -185,6 +185,27 @@ def _activate_question_turn(
         state.current_question_retry_count = 0
 
 
+async def _send_audio_turn_end(
+    ws: WebSocket,
+    *,
+    session_id: str,
+    turn_id: str,
+    deps: "RuntimeExecutorDeps",
+) -> None:
+    normalized_turn_id = (turn_id or "").strip()
+    if not session_id or not normalized_turn_id:
+        return
+    await deps.send_json(
+        ws,
+        {
+            "type": "control",
+            "text": "audio-turn-end",
+            "sessionId": session_id,
+            "turnId": normalized_turn_id,
+        },
+    )
+
+
 def _normalize_completion_turn_text(
     state: VoiceWsState,
     *,
@@ -650,6 +671,7 @@ async def execute_opening_live_turn(
         turn_id=spec.turn_id,
         timeout_sec=max(0.9, delivery_plan.total_duration_sec + 0.35),
     )
+    await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=spec.turn_id, deps=deps)
     return True
 
 
@@ -810,6 +832,7 @@ async def execute_resume_live_turn(
         turn_id=spec.turn_id,
         timeout_sec=max(0.9, delivery_plan.total_duration_sec + 0.35),
     )
+    await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=spec.turn_id, deps=deps)
     return True
 
 
@@ -1082,6 +1105,7 @@ async def execute_live_user_followup_turn(
                     0.08 * max(1, int(streamed_audio_chunk_count or 0)),
                 ),
             )
+        await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=turn_id, deps=deps)
     elif not spec.completion_reason:
         await deps.send_json(
             ws,

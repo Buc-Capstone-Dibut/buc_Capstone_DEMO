@@ -4,7 +4,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -264,6 +264,18 @@ class HybridExecutorTests(unittest.IsolatedAsyncioTestCase):
         deps.request_live_spoken_text_turn.assert_awaited_once()
         deps.request_live_text_turn.assert_not_awaited()
         self.assertEqual(send_transcript.await_args.args[3], planned_text)
+        self.assertIn(
+            call(
+                ANY,
+                {
+                    "type": "control",
+                    "text": "audio-turn-end",
+                    "sessionId": "session-2",
+                    "turnId": "session-2:3",
+                },
+            ),
+            deps.send_json.await_args_list,
+        )
 
 
 class HybridSessionEngineTests(unittest.IsolatedAsyncioTestCase):

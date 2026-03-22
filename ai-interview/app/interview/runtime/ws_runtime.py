@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from itertools import count
 from typing import Any
@@ -804,6 +805,25 @@ def _clear_live_input_stream_state(state: VoiceWsState) -> None:
     state.live_input_streamed_audio_chunk_count = 0
 
 
+def _prefer_non_regressing_stream_text(previous: str, candidate: str) -> str:
+    previous_normalized = " ".join((previous or "").split()).strip()
+    candidate_normalized = " ".join((candidate or "").split()).strip()
+    if not previous_normalized:
+        return candidate_normalized
+    if not candidate_normalized:
+        return previous_normalized
+
+    previous_compact = re.sub(r"\s+", "", previous_normalized)
+    candidate_compact = re.sub(r"\s+", "", candidate_normalized)
+    if candidate_compact.startswith(previous_compact):
+        return candidate_normalized
+    if previous_compact.startswith(candidate_compact):
+        return previous_normalized
+    if len(candidate_compact) >= len(previous_compact):
+        return candidate_normalized
+    return previous_normalized
+
+
 async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
     if not state.session_id:
         return False
@@ -941,8 +961,8 @@ async def _commit_live_input_stream(state: VoiceWsState) -> bool:
         state,
         deps=_live_client_deps(),
     )
-    state.live_input_streamed_user_text = (user_text or previous_user_text).strip()
-    state.live_input_streamed_ai_text = (ai_text or previous_ai_text).strip()
+    state.live_input_streamed_user_text = _prefer_non_regressing_stream_text(previous_user_text, user_text)
+    state.live_input_streamed_ai_text = _prefer_non_regressing_stream_text(previous_ai_text, ai_text)
     state.live_input_streamed_provider = (provider_name or "gemini-live-single").strip()
     state.live_input_streamed_audio_duration_sec = max(previous_duration_sec, float(duration_sec or 0.0))
     state.live_input_streamed_audio_chunk_count = max(previous_chunk_count, int(live_chunk_count or 0))

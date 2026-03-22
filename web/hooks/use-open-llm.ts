@@ -684,8 +684,23 @@ export function useOpenLLM({
           void startMic();
         }
       }
+
+      if (controlText === "audio-turn-end") {
+        const completedTurnId = typeof event.turnId === "string" ? event.turnId.trim() : "";
+        if (completedTurnId) {
+          pendingPlaybackCompleteTurnIdRef.current = completedTurnId;
+        }
+        const ctx = audioContextRef.current;
+        const hasQueuedAudio =
+          queuedAudioSourcesRef.current > 0 ||
+          pendingAudioQueueRef.current.length > 0 ||
+          (Boolean(ctx) && nextStartTimeRef.current > (ctx?.currentTime || 0) + 0.02);
+        if (!hasQueuedAudio && completedTurnId) {
+          sendPlaybackComplete(completedTurnId);
+        }
+      }
     }
-  }, [clearPendingMicRestart, pauseMic, playAudioChunk, startMic]);
+  }, [clearPendingMicRestart, pauseMic, playAudioChunk, sendPlaybackComplete, startMic]);
 
   const connect = useCallback(() => {
     if (
