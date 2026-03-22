@@ -19,24 +19,21 @@ export function NotebookTab({
     <div
       onClick={onClick}
       className={cn(
-        "relative w-10 h-32 ml-2 transition-all duration-300 cursor-pointer group select-none",
-        active ? "translate-x-[-8px]" : "hover:translate-x-[-4px]",
+        "relative -ml-px h-32 w-10 cursor-pointer select-none transition-all duration-300 group",
+        active ? "translate-x-0" : "hover:translate-x-[2px]",
       )}
     >
-      {/* Tab Shape */}
       <div
         className={cn(
-          "absolute inset-0 rounded-l-xl shadow-md border-y border-l border-black/10 flex flex-col items-center justify-start pt-3 gap-2",
+          "absolute inset-0 flex flex-col items-center justify-start gap-2 rounded-r-xl border-y border-r border-black/10 pt-3 shadow-md",
           color,
           active
             ? "brightness-110 shadow-lg"
             : "brightness-90 hover:brightness-100",
         )}
       >
-        {/* Icon */}
         <div className="text-white/90">{icon}</div>
 
-        {/* Vertical Text */}
         <div
           className="writing-vertical-rl text-xs font-semibold text-white/90 tracking-widest uppercase rotate-180 h-20 flex items-center justify-center"
           style={{ writingMode: "vertical-rl" }}

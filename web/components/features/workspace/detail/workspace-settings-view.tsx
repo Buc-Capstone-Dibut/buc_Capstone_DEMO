@@ -257,6 +257,41 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
 
       <Separator />
 
+      {isCompleted && (data?.result_type || data?.result_link || data?.result_note) && (
+        <Card className="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              종료 결과
+            </CardTitle>
+            <CardDescription>
+              이 팀 공간은 종료되었고 아래 내용으로 기록이 남아 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {data?.result_type && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground">결과 타입</span>
+                <Badge variant="secondary">{data.result_type}</Badge>
+              </div>
+            )}
+            {data?.result_note && (
+              <p className="text-foreground leading-relaxed">{data.result_note}</p>
+            )}
+            {data?.result_link && (
+              <a
+                href={data.result_link}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-primary underline underline-offset-4"
+              >
+                결과 링크 열기
+              </a>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

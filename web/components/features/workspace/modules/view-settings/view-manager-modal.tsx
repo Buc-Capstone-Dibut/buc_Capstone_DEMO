@@ -12,15 +12,29 @@ interface ViewManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   view: BoardView | null;
+  availableColors?: string[];
+  onUpdateView?: (
+    viewId: string,
+    updates: Partial<BoardView>,
+  ) => Promise<void> | void;
+  onDeleteView?: (viewId: string) => Promise<boolean | void> | boolean | void;
 }
 
-export function ViewManagerModal({ projectId, isOpen, onClose, view }: ViewManagerModalProps) {
+export function ViewManagerModal({
+  projectId,
+  isOpen,
+  onClose,
+  view,
+  availableColors: availableColorsProp,
+  onUpdateView,
+  onDeleteView,
+}: ViewManagerModalProps) {
   const { updateView, deleteView, tags } = useWorkspaceStore();
   const [viewName, setViewName] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedIcon, setSelectedIcon] = useState("");
 
-  const availableColors = Array.from(new Set(tags.map(t => t.color)));
+  const availableColors = availableColorsProp || Array.from(new Set(tags.map(t => t.color)));
 
   // Sync state when view changes - THIS FIXES THE BUG
   useEffect(() => {
@@ -33,20 +47,32 @@ export function ViewManagerModal({ projectId, isOpen, onClose, view }: ViewManag
 
   if (!view) return null;
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!viewName.trim()) return;
 
-    updateView(projectId, view.id, {
-        name: viewName,
-        color: selectedColor,
-        icon: selectedIcon
-    });
+    const updates = {
+      name: viewName,
+      color: selectedColor,
+      icon: selectedIcon,
+    };
+
+    if (onUpdateView) {
+      await onUpdateView(view.id, updates);
+    } else {
+      updateView(projectId, view.id, updates);
+    }
+
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
       if (confirm("정말 이 뷰를 삭제하시겠습니까?")) {
-          deleteView(projectId, view.id);
+          if (onDeleteView) {
+              const result = await onDeleteView(view.id);
+              if (result === false) return;
+          } else {
+              deleteView(projectId, view.id);
+          }
           onClose();
       }
   };

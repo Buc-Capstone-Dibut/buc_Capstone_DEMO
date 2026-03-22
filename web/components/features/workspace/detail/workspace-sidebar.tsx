@@ -239,6 +239,20 @@ export function WorkspaceSidebar({
     setIsChannelDialogOpen(false);
   };
 
+  const openChannelDialog = (
+    defaultName = "",
+    defaultDescription = "",
+  ) => {
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      return;
+    }
+
+    setNewChannelName(defaultName);
+    setNewChannelDesc(defaultDescription);
+    setIsChannelDialogOpen(true);
+  };
+
   const handleOpenLeave = () => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
@@ -286,10 +300,20 @@ export function WorkspaceSidebar({
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <div className="font-semibold text-sm truncate flex items-center gap-1">
-                      {displayProjectName}
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground group-hover/switcher:text-foreground transition-colors" />
+                      <span className="truncate">{displayProjectName}</span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover/switcher:text-foreground transition-colors" />
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {project?.lifecycle_status === "COMPLETED"
+                        ? "종료된 프로젝트"
+                        : "진행 중인 협업 공간"}
                     </div>
                   </div>
+                  {project?.lifecycle_status === "COMPLETED" && (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+                      완료
+                    </span>
+                  )}
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64 p-1">
@@ -368,13 +392,7 @@ export function WorkspaceSidebar({
                   ? "opacity-30 cursor-not-allowed"
                   : "opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary",
               )}
-              onClick={() => {
-                if (isReadOnly) {
-                  toast.error("종료된 팀 공간은 읽기 전용입니다.");
-                  return;
-                }
-                setIsChannelDialogOpen(true);
-              }}
+              onClick={() => openChannelDialog()}
             />
           </div>
           <div className="space-y-0.5">
@@ -433,8 +451,32 @@ export function WorkspaceSidebar({
               );
             })}
             {channels.length === 0 && (
-              <div className="px-2 text-xs text-muted-foreground/50 py-1">
-                No channels
+              <div className="rounded-xl border border-dashed bg-muted/20 px-3 py-3">
+                <div className="text-sm font-medium text-foreground">
+                  아직 채널이 없습니다
+                </div>
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {isReadOnly
+                    ? "종료된 팀 공간이라 새 채널을 만들 수 없습니다."
+                    : "첫 채널을 만들어 공지, 회의, 작업 논의를 바로 시작하세요."}
+                </div>
+                {!isReadOnly && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 h-8 rounded-lg"
+                    onClick={() =>
+                      openChannelDialog(
+                        "general",
+                        "팀 전체 공지와 대화를 위한 기본 채널",
+                      )
+                    }
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    첫 채널 만들기
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -570,7 +612,16 @@ export function WorkspaceSidebar({
       </div>
 
       {/* Channel Creation Dialog */}
-      <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
+      <Dialog
+        open={isChannelDialogOpen}
+        onOpenChange={(open) => {
+          setIsChannelDialogOpen(open);
+          if (!open) {
+            setNewChannelName("");
+            setNewChannelDesc("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>새 채널 생성</DialogTitle>

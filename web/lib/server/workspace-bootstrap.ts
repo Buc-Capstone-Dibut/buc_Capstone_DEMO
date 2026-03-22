@@ -13,6 +13,17 @@ const DEFAULT_WORKSPACE_TAGS = [
   { name: "Enhancement", color: "purple" },
 ] as const;
 
+const DEFAULT_WORKSPACE_CHANNELS = [
+  {
+    name: "general",
+    description: "팀 공지와 기본 대화를 나누는 채널",
+  },
+  {
+    name: "dev-log",
+    description: "작업 진행 상황과 개발 메모를 공유하는 채널",
+  },
+] as const;
+
 export function normalizeWorkspaceCategory(
   value: string | null | undefined,
 ): string {
@@ -37,6 +48,14 @@ export async function seedWorkspaceDefaults(
       workspace_id: workspaceId,
       name: tag.name,
       color: tag.color,
+    })),
+  });
+
+  await tx.workspace_channels.createMany({
+    data: DEFAULT_WORKSPACE_CHANNELS.map((channel) => ({
+      workspace_id: workspaceId,
+      name: channel.name,
+      description: channel.description,
     })),
   });
 }

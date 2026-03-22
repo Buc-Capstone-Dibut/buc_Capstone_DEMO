@@ -6,6 +6,10 @@ import {
   getWorkspaceLifecycle,
   isWorkspaceCompleted,
 } from "@/lib/server/workspace-lifecycle";
+import {
+  ensureWorkspaceViews,
+  serializeWorkspaceView,
+} from "@/lib/server/workspace-views";
 
 export async function GET(
   request: Request,
@@ -23,7 +27,6 @@ export async function GET(
   const workspaceId = params.id;
   const userId = session.user.id;
 
-  // 1. Check Membership
   const memberCheck = await prisma.workspace_members.findUnique({
     where: {
       workspace_id_user_id: {
@@ -43,15 +46,25 @@ export async function GET(
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
 
-  // 2. Fetch columns first, then use column_id IN (...) for task lookup.
-  // This is more index-friendly than relation filtering on high-cardinality data.
   const columns = await prisma.kanban_columns.findMany({
     where: { workspace_id: workspaceId },
     orderBy: { order: "asc" },
   });
   const columnIds = columns.map((column) => column.id);
+  const formattedColumns = columns.map((column) => ({
+    id: column.id,
+    title: column.title,
+    statusId: column.title.toLowerCase().replace(/\s+/g, "-"),
+    category: column.category || "todo",
+    color:
+      column.category === "in-progress"
+        ? "blue"
+        : column.category === "done"
+          ? "green"
+          : "gray",
+  }));
 
-  const [tasks, members, tags] = await Promise.all([
+  const [tasks, members, tags, views] = await Promise.all([
     columnIds.length > 0
       ? prisma.kanban_tasks.findMany({
           where: { column_id: { in: columnIds } },
@@ -71,7 +84,23 @@ export async function GET(
           },
           orderBy: { order: "asc" },
         })
-      : Promise.resolve<any[]>([]),
+      : Promise.resolve<
+          Array<{
+            id: string;
+            column_id: string;
+            title: string;
+            description: string | null;
+            order: number;
+            due_date: Date | null;
+            assignee_id: string | null;
+            tags: string[];
+            priority: string | null;
+            assignee: {
+              nickname: string | null;
+              avatar_url: string | null;
+            } | null;
+          }>
+        >([]),
     prisma.workspace_members.findMany({
       where: { workspace_id: workspaceId },
       select: {
@@ -86,37 +115,24 @@ export async function GET(
       where: { workspace_id: workspaceId },
       orderBy: { name: "asc" },
     }),
+    ensureWorkspaceViews(workspaceId, formattedColumns),
   ]);
 
-  // 3. Transform Data for Frontend
-
-  const formattedMembers = members.map((m) => ({
-    id: m.user_id,
-    name: m.user.nickname || null,
+  const formattedMembers = members.map((member) => ({
+    id: member.user_id,
+    name: member.user.nickname || null,
     email: null,
-    avatar: m.user.avatar_url,
-    role: m.role,
+    avatar: member.user.avatar_url,
+    role: member.role,
   }));
 
-  // Mock Views (Since we don't have a views table yet)
-  // The frontend needs at least one view to render the board
-  const mockViews = [
-    {
-      id: "view-default",
-      name: "Main Board",
-      type: "kanban",
-      groupBy: "status",
-      columns: [], // Will be filled dynamically by the frontend or logic below if needed
-      isSystem: true,
-    },
-  ];
-
   const columnMetaById = new Map(
-    columns.map((c) => [
-      c.id,
+    columns.map((column) => [
+      column.id,
       {
-        category: c.category || "todo",
-        status: c.title.toLowerCase().replace(/\s+/g, "-"),
+        title: column.title,
+        category: column.category || "todo",
+        status: column.title.toLowerCase().replace(/\s+/g, "-"),
       },
     ]),
   );
@@ -130,41 +146,37 @@ export async function GET(
       resultNote: workspace.result_note,
       readOnly: isWorkspaceCompleted(workspace),
     },
-    columns: columns.map((c: any) => ({
-      id: c.id,
-      title: c.title,
-      statusId: c.title.toLowerCase().replace(/\s+/g, "-"), // Generate statusId from title for now
-      category: c.category || "todo",
-      color:
-        c.category === "in-progress"
-          ? "blue"
-          : c.category === "done"
-            ? "green"
-            : "gray",
-    })),
-    tasks: tasks.map((t: any) => {
-      const columnMeta = columnMetaById.get(t.column_id);
+    columns: formattedColumns,
+    tasks: tasks.map((task) => {
+      const columnMeta = columnMetaById.get(task.column_id);
       return {
-        id: t.id,
-        columnId: t.column_id,
-        projectId: workspaceId, // Important for frontend filter
-        title: t.title,
-        description: t.description,
-        order: t.order,
-        dueDate: t.due_date,
-        assignee: t.assignee ? t.assignee.nickname : null,
-        assigneeId: t.assignee_id,
-        tags: t.tags,
-        priority: t.priority || "medium",
-        priorityId: t.priority || "medium",
-        // Stable category for styling: 'todo', 'in-progress', 'done'
+        id: task.id,
+        columnId: task.column_id,
+        projectId: workspaceId,
+        title: task.title,
+        description: task.description,
+        order: task.order,
+        dueDate: task.due_date,
+        assignee: task.assignee ? task.assignee.nickname : null,
+        assigneeProfile: task.assignee
+          ? {
+              id: task.assignee_id,
+              name: task.assignee.nickname || "Unknown",
+              avatar: task.assignee.avatar_url,
+            }
+          : null,
+        assigneeId: task.assignee_id,
+        tags: task.tags,
+        priority: task.priority || "medium",
+        priorityId: task.priority || "medium",
+        columnTitle: columnMeta?.title || null,
         category: columnMeta?.category || "todo",
         status: columnMeta?.status || "todo",
       };
     }),
     members: formattedMembers,
-    tags: tags.map((t: any) => ({ id: t.id, name: t.name, color: t.color })), // Return Tags
-    views: mockViews,
+    tags: tags.map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
+    views: views.map((view) => serializeWorkspaceView(view, formattedColumns)),
     customFields: [],
   });
 }

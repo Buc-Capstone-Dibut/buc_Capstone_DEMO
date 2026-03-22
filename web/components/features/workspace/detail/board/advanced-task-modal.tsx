@@ -86,6 +86,13 @@ interface AdvancedTaskModalProps {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+const PRIORITY_LABEL: Record<string, string> = {
+  low: "낮음",
+  medium: "보통",
+  high: "높음",
+  urgent: "긴급",
+};
+
 const TAG_BADGE_CLASS: Record<string, string> = {
   gray: "bg-slate-100 text-slate-700",
   red: "bg-red-100 text-red-700",
@@ -236,7 +243,7 @@ export function AdvancedTaskModal({
       mutate(boardEndpoint);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to save changes");
+      toast.error("변경 사항 저장에 실패했습니다.");
       mutate(boardEndpoint); // Revert on error by re-fetching
     }
   };
@@ -255,16 +262,16 @@ export function AdvancedTaskModal({
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    if (!confirm("이 태스크를 삭제할까요?")) return;
     try {
       await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}`, {
         method: "DELETE",
       });
-      toast.success("Task deleted");
+      toast.success("태스크를 삭제했습니다.");
       onOpenChange(false);
       if (boardEndpoint) mutate(boardEndpoint);
     } catch {
-      toast.error("Failed to delete task");
+      toast.error("태스크 삭제에 실패했습니다.");
     }
   };
 
@@ -313,7 +320,7 @@ export function AdvancedTaskModal({
       if (boardEndpoint) mutate(boardEndpoint);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to create tag");
+      toast.error("태그 생성에 실패했습니다.");
     }
   };
 
@@ -328,7 +335,7 @@ export function AdvancedTaskModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col gap-0 bg-background overflow-hidden outline-none sm:rounded-lg">
-        <DialogTitle className="sr-only">Task Details</DialogTitle>
+        <DialogTitle className="sr-only">태스크 상세</DialogTitle>
 
         {/* Header Section */}
         <div className="flex-shrink-0 border-b p-6 pb-4">
@@ -387,7 +394,7 @@ export function AdvancedTaskModal({
                 handleUpdate({ title: e.target.value });
             }}
             className="text-2xl font-bold border-none shadow-none px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/40"
-            placeholder="Task Title"
+            placeholder="태스크 제목"
           />
         </div>
 
@@ -400,7 +407,7 @@ export function AdvancedTaskModal({
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4" />
-                  Description
+                  설명
                 </div>
                 <Textarea
                   value={localTask.description || ""}
@@ -414,7 +421,7 @@ export function AdvancedTaskModal({
                     if (e.target.value !== task.description)
                       handleUpdate({ description: e.target.value });
                   }}
-                  placeholder="Add a more detailed description..."
+                  placeholder="작업 설명을 더 자세히 적어보세요."
                   className="min-h-[200px] resize-none border-none bg-muted/30 focus-visible:ring-0 p-4"
                 />
               </div>
@@ -425,7 +432,7 @@ export function AdvancedTaskModal({
               {/* Assignee */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Assignee
+                  담당자
                 </span>
                 <Select
                   value={localTask.assigneeId || "unassigned"}
@@ -441,7 +448,7 @@ export function AdvancedTaskModal({
                       localTask.assigneeId !== "unassigned" ? (
                         <>
                           <Avatar className="h-5 w-5">
-                            <AvatarImage src={currentMember?.avatar} />
+                            <AvatarImage src={currentMember?.avatar ?? undefined} />
                             <AvatarFallback className="text-[10px]">
                               {currentMember?.name?.[0]}
                             </AvatarFallback>
@@ -452,19 +459,19 @@ export function AdvancedTaskModal({
                         <>
                           <User className="h-4 w-4 text-muted-foreground" />
                           <span className="text-muted-foreground">
-                            Unassigned
+                            담당자 없음
                           </span>
                         </>
                       )}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">담당자 없음</SelectItem>
                     {members.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         <div className="flex items-center gap-2">
                           <Avatar className="h-5 w-5">
-                            <AvatarImage src={m.avatar} />
+                            <AvatarImage src={m.avatar ?? undefined} />
                             <AvatarFallback>{m.name?.[0]}</AvatarFallback>
                           </Avatar>
                           <span>{m.name}</span>
@@ -478,7 +485,7 @@ export function AdvancedTaskModal({
               {/* Priority */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Priority
+                  우선순위
                 </span>
                 <Select
                   value={localTask.priority || "medium"}
@@ -498,14 +505,14 @@ export function AdvancedTaskModal({
                                 : "text-blue-500",
                         )}
                       />
-                      {localTask.priority || "Medium"}
+                      {PRIORITY_LABEL[localTask.priority || "medium"] || "보통"}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="low">낮음</SelectItem>
+                    <SelectItem value="medium">보통</SelectItem>
+                    <SelectItem value="high">높음</SelectItem>
+                    <SelectItem value="urgent">긴급</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -513,7 +520,7 @@ export function AdvancedTaskModal({
               {/* Tags */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Tags
+                  태그
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {selectedTagIds.map((tagId) => {
@@ -532,7 +539,7 @@ export function AdvancedTaskModal({
                           type="button"
                           onClick={() => handleRemoveTag(tagId)}
                           className="ml-1 inline-flex items-center rounded-sm opacity-60 hover:opacity-100"
-                          aria-label="Remove tag"
+                          aria-label="태그 제거"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -547,7 +554,7 @@ export function AdvancedTaskModal({
                         size="sm"
                         className="h-6 px-2 border-dashed text-xs"
                       >
-                        <Tag className="h-3 w-3 mr-1" />+ Add
+                        <Tag className="h-3 w-3 mr-1" />+ 추가
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-2" align="start">
@@ -561,7 +568,7 @@ export function AdvancedTaskModal({
                         <Input
                           value={newTag}
                           onChange={(e) => setNewTag(e.target.value)}
-                          placeholder="Search or create tag"
+                          placeholder="태그 검색 또는 새 태그 만들기"
                           className="h-8 text-xs"
                         />
                         <Button type="submit" size="icon" className="h-8 w-8">
@@ -601,7 +608,7 @@ export function AdvancedTaskModal({
               {/* Due Date */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Due Date
+                  마감일
                 </span>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -615,7 +622,7 @@ export function AdvancedTaskModal({
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {selectedDate
                         ? format(selectedDate, "PPP")
-                        : "Pick a date"}
+                        : "날짜 선택"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 z-[100]" align="end">
@@ -639,7 +646,7 @@ export function AdvancedTaskModal({
                   className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Task
+                  태스크 삭제
                 </Button>
               </div>
             </div>

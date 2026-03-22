@@ -7,6 +7,7 @@ import {
   getWorkspaceLifecycle,
   isWorkspaceCompleted,
 } from "@/lib/server/workspace-lifecycle";
+import { buildWorkspaceDetailPayload } from "@/lib/server/workspace-detail";
 import { normalizeTeamType } from "@/lib/team-types";
 
 const getErrorMessage = (error: unknown) => {
@@ -59,6 +60,18 @@ export async function GET(
         from_squad_id: true,
         created_at: true,
         updated_at: true,
+        squad: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            type: true,
+            status: true,
+            activity_id: true,
+            recruitment_period: true,
+            tech_stack: true,
+          },
+        },
         members: {
           include: {
             user: {
@@ -87,6 +100,7 @@ export async function GET(
     }
 
     const lifecycle = await getWorkspaceLifecycle(workspaceId);
+    const detailPayload = await buildWorkspaceDetailPayload(workspace);
 
     // Transform response to match frontend expectation
     const formattedWorkspace = {
@@ -108,6 +122,7 @@ export async function GET(
         joined_at: wm.joined_at,
         online: false, // TODO: integrate with presence later
       })),
+      ...detailPayload,
     };
 
     return NextResponse.json(formattedWorkspace);
@@ -126,7 +141,11 @@ export async function PATCH(
     const resolvedParams = await params;
     const { id: workspaceId } = resolvedParams;
     const body = await request.json();
-    const { name, description, category } = body;
+    const {
+      name,
+      description,
+      category,
+    } = body;
 
     const supabase = createRouteHandlerClient({ cookies });
     const {

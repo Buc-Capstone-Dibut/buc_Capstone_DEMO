@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Hash } from "lucide-react";
+import { Send, Hash, Lock, Plus } from "lucide-react";
 import { useSocketStore } from "../../store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
 import { SmartInput } from "../../common/smart-input";
@@ -54,7 +54,13 @@ function formatMessageTime(message: {
 }
 
 export function TeamChat({ projectId }: TeamChatProps) {
-  const { messages, activeChannelId, sendMessage, channels } = useSocketStore();
+  const {
+    messages,
+    activeChannelId,
+    sendMessage,
+    channels,
+    createChannel,
+  } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
   const { setActiveTaskId } = useWorkspaceStore();
 
@@ -84,6 +90,25 @@ export function TeamChat({ projectId }: TeamChatProps) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  const handleCreateDefaultChannel = () => {
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      return;
+    }
+    if (!user) {
+      toast.error("채널 생성에는 로그인이 필요합니다.");
+      return;
+    }
+
+    createChannel(
+      projectId,
+      "general",
+      "팀 전체 공지와 대화를 위한 기본 채널",
+      user.id,
+    );
+    toast.success("기본 채널을 만들고 있습니다.");
+  };
 
   const handleSend = () => {
     if (isReadOnly) {
@@ -229,9 +254,35 @@ export function TeamChat({ projectId }: TeamChatProps) {
   };
 
   if (!activeChannelId) {
+    const hasChannels = channels.length > 0;
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground">
-        Select a channel to start chatting
+      <div className="h-full flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-2xl border border-dashed bg-muted/20 p-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm">
+            <Hash className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="text-base font-semibold">
+            {hasChannels ? "채널을 선택해 대화를 시작하세요" : "아직 채널이 없습니다"}
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            {hasChannels
+              ? "왼쪽 사이드바에서 채팅 채널을 선택하면 대화와 멘션, 태스크 링크를 바로 이어갈 수 있습니다."
+              : isReadOnly
+                ? "종료된 팀 공간이라 새 채널을 만들 수 없습니다."
+                : "첫 채널을 만들어 팀 공지, 회의 메모, 작업 논의를 바로 시작하세요."}
+          </p>
+          {!hasChannels && !isReadOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 rounded-xl"
+              onClick={handleCreateDefaultChannel}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              기본 채널 만들기
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -247,12 +298,33 @@ export function TeamChat({ projectId }: TeamChatProps) {
           <Hash className="h-5 w-5 text-muted-foreground" />
           {activeChannel?.name || "Channel"}
         </div>
+        {isReadOnly && (
+          <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <Lock className="h-3.5 w-3.5" />
+            읽기 전용
+          </div>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden relative">
         <ScrollArea className="h-full px-6 py-4">
-          <div className="space-y-6">
+          {messages.length === 0 ? (
+            <div className="flex min-h-full items-center justify-center py-10">
+              <div className="w-full max-w-lg rounded-2xl border bg-muted/20 p-6">
+                <div className="text-sm font-semibold text-foreground">
+                  아직 대화가 없습니다
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  이 채널은 작업 조율과 빠른 논의를 위한 공간입니다. <span className="font-medium text-foreground">@이름</span>으로 멤버를 호출하고, <span className="font-medium text-foreground">#태스크명</span>으로 작업을 연결해보세요.
+                </p>
+                <div className="mt-4 rounded-xl border bg-background px-4 py-3 text-xs text-muted-foreground">
+                  예시: <span className="font-medium text-foreground">@Junghwan 오늘 #대시보드 개선 마감 확인 부탁해요</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
             {messages.map((msg) => {
               const isSystem = msg.type === "system";
 
@@ -294,7 +366,8 @@ export function TeamChat({ projectId }: TeamChatProps) {
               );
             })}
             <div ref={scrollRef} />
-          </div>
+            </div>
+          )}
         </ScrollArea>
       </div>
 

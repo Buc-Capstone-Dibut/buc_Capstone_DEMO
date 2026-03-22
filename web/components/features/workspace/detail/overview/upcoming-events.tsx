@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -9,16 +10,33 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, ArrowRight } from "lucide-react";
-import { parseISO, format, isValid, startOfToday } from "date-fns";
+import { parseISO, format, isValid, differenceInCalendarDays } from "date-fns";
+
+type UpcomingTask = {
+  id: string;
+  title: string;
+  dueDate?: string | Date | null;
+  status?: string | null;
+  assignee?: unknown;
+};
 
 interface UpcomingEventsProps {
   projectId: string;
-  tasks?: any[];
+  tasks?: UpcomingTask[];
 }
 
 export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
-  // Filter tasks with future due dates
-  const today = startOfToday();
+  const toDate = (value: unknown) => {
+    if (!value) return null;
+    if (value instanceof Date) return isValid(value) ? value : null;
+    if (typeof value === "string") {
+      const parsed = parseISO(value);
+      return isValid(parsed) ? parsed : null;
+    }
+
+    return null;
+  };
+
   const upcomingTasks = tasks
     .filter((t) => {
       if (!t.dueDate) return false;
@@ -32,19 +50,45 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
       return true;
     })
     .sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+      (a, b) =>
+        (toDate(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY) -
+        (toDate(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY),
     )
     .slice(0, 5);
 
-  const safeFormat = (dateInput: any, formatStr: string) => {
+  const safeFormat = (dateInput: unknown, formatStr: string) => {
     try {
       if (!dateInput) return "";
-      const date =
-        typeof dateInput === "string" ? parseISO(dateInput) : dateInput;
+      const date = toDate(dateInput);
+      if (!date) return "";
       if (!isValid(date)) return "";
       return format(date, formatStr);
-    } catch (e) {
+    } catch {
       return "";
+    }
+  };
+
+  const getAssigneeName = (assignee: unknown) => {
+    if (!assignee) return null;
+    if (typeof assignee === "string") return assignee;
+    if (typeof assignee === "object" && assignee && "name" in assignee) {
+      return String((assignee as { name?: unknown }).name || "");
+    }
+    return null;
+  };
+
+  const getDeadlineLabel = (dueDate: unknown) => {
+    try {
+      const parsed = toDate(dueDate);
+      if (!parsed) return null;
+      if (!isValid(parsed)) return null;
+      const diff = differenceInCalendarDays(parsed, new Date());
+      if (diff < 0) return "지연";
+      if (diff === 0) return "오늘";
+      if (diff === 1) return "D-1";
+      return `D-${diff}`;
+    } catch {
+      return null;
     }
   };
 
@@ -57,11 +101,11 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
           </CardTitle>
           <CardDescription>곧 마감되는 작업입니다</CardDescription>
         </div>
-        {/* 
-         <Button variant="ghost" size="sm" className="gap-1 text-xs">
-            View Calendar <ArrowRight className="h-3 w-3" />
-         </Button>
-         */}
+        <Button asChild variant="ghost" size="sm" className="gap-1 text-xs">
+          <Link href={`/workspace/${projectId}?tab=schedule`}>
+            일정 보기 <ArrowRight className="h-3 w-3" />
+          </Link>
+        </Button>
       </CardHeader>
       <CardContent className="flex-1 px-0 overflow-y-auto">
         {upcomingTasks.length > 0 ? (
@@ -80,17 +124,24 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 py-1">
-                  <div className="font-medium text-sm truncate">
-                    {task.title}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-medium text-sm truncate">
+                      {task.title}
+                    </div>
+                    {getDeadlineLabel(task.dueDate) && (
+                      <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground border">
+                        {getDeadlineLabel(task.dueDate)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
-                    {task.assignee && (
+                    {getAssigneeName(task.assignee) && (
                       <div className="flex items-center gap-1.5 bg-background px-1.5 py-0.5 rounded-md border">
                         <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                        <span>{task.assignee.name || "Assigned"}</span>
+                        <span>{getAssigneeName(task.assignee)}</span>
                       </div>
                     )}
-                    {!task.assignee && <span>담당자 없음</span>}
+                    {!getAssigneeName(task.assignee) && <span>담당자 없음</span>}
                   </div>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
@@ -6,7 +7,6 @@ import {
   MoreHorizontal,
   Plus,
   Trash2,
-  Settings,
   Pencil,
   Palette,
 } from "lucide-react";
@@ -73,7 +73,6 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({
   id,
-  column,
   title,
   tasks,
   customFields,
@@ -88,6 +87,7 @@ export function KanbanColumn({
   groupBy = "status",
   category,
   onDeleteTask,
+  className,
 }: KanbanColumnProps) {
   const {
     attributes,
@@ -130,19 +130,13 @@ export function KanbanColumn({
     }
   };
 
-  const categoryColors = {
-    todo: "bg-slate-100 text-slate-600",
-    "in-progress": "bg-blue-100 text-blue-600",
-    done: "bg-green-100 text-green-600",
-  };
-
   if (isDragging) {
     return (
       <div
         ref={setNodeRef}
         style={style}
         className={cn(
-          "w-80 h-full flex-shrink-0 rounded-xl bg-slate-100/50 border-2 border-dashed border-primary/20 opacity-50",
+          "h-full w-80 flex-shrink-0 rounded-xl bg-slate-100/50 border-2 border-dashed border-primary/20 opacity-50",
         )}
       />
     );
@@ -153,9 +147,10 @@ export function KanbanColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "w-80 h-full flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
+        "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
         colorConfig.value,
         colorConfig.border,
+        className,
       )}
       {...attributes}
     >

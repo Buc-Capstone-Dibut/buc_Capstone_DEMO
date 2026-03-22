@@ -140,6 +140,8 @@ const normalizeTab = (tab: string | null) => {
 type WorkspaceMeta = {
   read_only?: boolean;
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
+  result_type?: string | null;
+  result_link?: string | null;
 };
 
 const fetcher = async (url: string) => {
@@ -285,8 +287,27 @@ export default function WorkspaceDetailPage() {
         {isReadOnly && (
           <div className="px-6 pt-4">
             <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
-              이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대, 전송은
-              비활성화됩니다.
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>
+                  이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대,
+                  전송은 비활성화됩니다.
+                </span>
+                {workspaceMeta?.result_type && (
+                  <span className="font-medium text-foreground">
+                    결과: {workspaceMeta.result_type}
+                  </span>
+                )}
+                {workspaceMeta?.result_link && (
+                  <a
+                    href={workspaceMeta.result_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline underline-offset-4"
+                  >
+                    결과 링크
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}

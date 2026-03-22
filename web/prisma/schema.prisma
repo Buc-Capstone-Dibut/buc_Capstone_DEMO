@@ -677,6 +677,7 @@ model workspaces {
 
   columns    kanban_columns[]
   tags       kanban_tags[]
+  views      workspace_views[]
   docs       workspace_docs[]
   channels   workspace_channels[]
   whiteboard workspace_whiteboards?
@@ -746,6 +747,30 @@ model kanban_columns {
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
   @@index([workspace_id, order])
+  @@schema("public")
+}
+
+model workspace_views {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id    String   @db.Uuid
+  name            String
+  type            String   @default("kanban")
+  group_by        String
+  icon            String?
+  color           String?
+  columns         Json?
+  card_properties Json?
+  filters         Json?
+  show_empty_groups Boolean @default(true)
+  column_order    Json?
+  is_system       Boolean  @default(false)
+  view_order      Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@index([workspace_id, view_order])
   @@schema("public")
 }
 
