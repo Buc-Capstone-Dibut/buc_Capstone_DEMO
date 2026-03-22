@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -26,27 +29,70 @@ export async function POST(request: Request) {
         });
       }
 
-      // Transaction: Update App -> Add Member -> Increment Count
-      await prisma.$transaction([
-        // Update Application
-        prisma.squad_applications.updateMany({
+      await prisma.$transaction(async (tx) => {
+        await tx.squad_applications.updateMany({
           where: { squad_id, user_id },
           data: { status: "accepted" },
-        }),
-        // Add Member
-        prisma.squad_members.create({
-          data: {
-            squad_id,
-            user_id,
-            role: "member",
+        });
+
+        const existingSquadMember = await tx.squad_members.findFirst({
+          where: { squad_id, user_id },
+          select: { id: true },
+        });
+
+        if (!existingSquadMember) {
+          await tx.squad_members.create({
+            data: {
+              squad_id,
+              user_id,
+              role: "member",
+            },
+          });
+
+          await tx.squads.update({
+            where: { id: squad_id },
+            data: { recruited_count: { increment: 1 } },
+          });
+        }
+
+        const linkedWorkspace = await tx.workspaces.findUnique({
+          where: { from_squad_id: squad_id },
+          select: { id: true, space_status: true },
+        });
+
+        if (!linkedWorkspace) {
+          return;
+        }
+
+        if (linkedWorkspace.space_status === "DRAFT") {
+          await tx.workspaces.update({
+            where: { id: linkedWorkspace.id },
+            data: {
+              space_status: "ACTIVE",
+              activated_at: new Date(),
+            },
+          });
+        }
+
+        const existingWorkspaceMember = await tx.workspace_members.findUnique({
+          where: {
+            workspace_id_user_id: {
+              workspace_id: linkedWorkspace.id,
+              user_id,
+            },
           },
-        }),
-        // Increment Count
-        prisma.squads.update({
-          where: { id: squad_id },
-          data: { recruited_count: { increment: 1 } },
-        }),
-      ]);
+        });
+
+        if (!existingWorkspaceMember) {
+          await tx.workspace_members.create({
+            data: {
+              workspace_id: linkedWorkspace.id,
+              user_id,
+              role: "member",
+            },
+          });
+        }
+      });
     } else if (action === "reject") {
       await prisma.squad_applications.updateMany({
         where: { squad_id, user_id },
@@ -57,13 +103,11 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (e: any) {
-    if (e.code === "P2002") {
-      // Member already exists constraint
-      console.warn("Member already exists, ignoring duplicate insert attempt");
-      return NextResponse.json({ success: true });
-    }
-    console.error("API: Squad Manage Exception", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("API: Squad Manage Exception", error);
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }

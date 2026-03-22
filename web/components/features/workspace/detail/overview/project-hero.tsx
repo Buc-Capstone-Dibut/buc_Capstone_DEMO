@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, CheckCircle2, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 type HeroProject = {
   id: string;
@@ -41,7 +42,7 @@ export function ProjectHero({
                 variant="outline"
                 className="bg-background border-primary/20 text-primary"
               >
-                {project.category || "사이드 프로젝트"}
+                {getTeamTypeLabel(project.category)}
               </Badge>
             </div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">

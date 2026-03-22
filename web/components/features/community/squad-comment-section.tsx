@@ -159,7 +159,7 @@ export function SquadCommentSection({
             onChange={(e) => setContent(e.target.value)}
             placeholder={
               user?.id
-                ? "모집글에 궁금한 점을 남겨보세요..."
+                ? "이 팀에 궁금한 점을 남겨보세요..."
                 : "로그인 후 댓글을 작성할 수 있습니다."
             }
             className="resize-none min-h-[100px]"

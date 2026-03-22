@@ -657,7 +657,9 @@ model workspaces {
   name        String
   description String?
   icon_url    String?
-  category    String  @default("Side Project")
+  category    String  @default("project")
+  space_status workspace_space_status @default(ACTIVE)
+  activated_at DateTime?
   lifecycle_status workspace_lifecycle_status @default(IN_PROGRESS)
   completed_at     DateTime?
   result_type      String?
@@ -680,6 +682,13 @@ model workspaces {
   whiteboard workspace_whiteboards?
 
   squad squads? @relation(fields: [from_squad_id], references: [id])
+
+  @@schema("public")
+}
+
+enum workspace_space_status {
+  DRAFT
+  ACTIVE
 
   @@schema("public")
 }

@@ -51,6 +51,7 @@ import type {
   BookmarkView,
   ContentTabKey,
   InitialData,
+  PaginationState,
   ProfileBookmarkItem,
   ProfileDataKey,
   TabKey,
@@ -166,12 +167,47 @@ function CompactEmptyState({
   );
 }
 
-function CompactLoadingState({ message }: { message: string }) {
+function OverviewShortcutRow({
+  icon: Icon,
+  title,
+  description,
+  count,
+  actionLabel,
+  onAction,
+}: {
+  icon: ElementType;
+  title: string;
+  description: string;
+  count: number;
+  actionLabel: string;
+  onAction: () => void;
+}) {
   return (
-    <div className="flex min-h-32 items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      <span>{message}</span>
-    </div>
+    <button
+      type="button"
+      onClick={onAction}
+      className="flex w-full items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="truncate text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          {count.toLocaleString()}개
+        </span>
+        <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+          {actionLabel}
+        </span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </button>
   );
 }
 
@@ -227,7 +263,7 @@ const NAV_ITEMS: {
   {
     key: "activity",
     label: "스페이스",
-    description: "워크스페이스 활동 기록",
+    description: "팀 공간 활동 기록",
     icon: Activity,
   },
 ];
@@ -241,6 +277,22 @@ const CONTENT_VIEWS: {
   { key: "comments", label: "댓글", icon: MessageSquare },
 ];
 
+const PAGE_SIZE = 10;
+
+const EMPTY_PAGINATION_STATE: PaginationState = {
+  hasMore: false,
+  nextCursor: null,
+};
+
+function getInitialPaginationState(initialData: InitialData) {
+  return {
+    posts: initialData.pagination?.posts ?? EMPTY_PAGINATION_STATE,
+    comments: initialData.pagination?.comments ?? EMPTY_PAGINATION_STATE,
+    bookmarks: initialData.pagination?.bookmarks ?? EMPTY_PAGINATION_STATE,
+    activity: initialData.pagination?.activity ?? EMPTY_PAGINATION_STATE,
+  };
+}
+
 export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -253,7 +305,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [bookmarkView, setBookmarkView] = useState<BookmarkView>("card");
 
   const [profile, setProfile] = useState(initialData.profile);
-  const [stats] = useState(initialData.stats);
+  const [stats, setStats] = useState(initialData.stats);
   const [posts, setPosts] = useState(initialData.posts || []);
   const [comments, setComments] = useState(initialData.comments || []);
   const [bookmarks, setBookmarks] = useState(initialData.bookmarks || []);
@@ -263,14 +315,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     parsePortfolioSummary(initialData.workspaceSummary),
   );
   const prefetchedData = initialData.prefetchedData || {};
+  const [pagination, setPagination] = useState(getInitialPaginationState(initialData));
   const [dataLoading, setDataLoading] = useState<
     Partial<Record<ProfileDataKey, boolean>>
-  >({
-    posts: !Boolean(prefetchedData.posts),
-    comments: !Boolean(prefetchedData.comments),
-    bookmarks: !Boolean(prefetchedData.bookmarks),
-    activity: !Boolean(prefetchedData.activity),
-  });
+  >({});
   const [dataLoaded, setDataLoaded] = useState<
     Partial<Record<ProfileDataKey, boolean>>
   >({
@@ -318,41 +366,76 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   }, [activeTab, contentView]);
 
   const loadData = useCallback(
-    async (key: ProfileDataKey) => {
-      if (dataLoaded[key] || pendingLoads.current.has(key)) return;
+    async (key: ProfileDataKey, options?: { append?: boolean }) => {
+      const append = options?.append === true;
+      if ((!append && dataLoaded[key]) || pendingLoads.current.has(key)) return;
+      if (append && (!pagination[key].hasMore || !pagination[key].nextCursor)) {
+        return;
+      }
 
       pendingLoads.current.add(key);
       setDataLoading((prev) => ({ ...prev, [key]: true }));
       setDataError((prev) => ({ ...prev, [key]: "" }));
 
       try {
+        const searchParams = new URLSearchParams({
+          handle: profile.handle,
+          limit: String(PAGE_SIZE),
+        });
+
+        if (append && pagination[key].nextCursor) {
+          searchParams.set("cursor", pagination[key].nextCursor);
+        }
+
         if (key === "posts") {
           const res = await fetch(
-            `/api/my/content/posts?profileId=${encodeURIComponent(profile.id)}`,
+            `/api/my/content/posts?${searchParams.toString()}`,
             { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "글을 불러오지 못했습니다.");
           }
-          setPosts(json?.data?.items || []);
+          const nextItems = Array.isArray(json?.data?.items) ? json.data.items : [];
+          setPosts((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            posts: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
         if (key === "comments") {
           const res = await fetch(
-            `/api/my/content/comments?profileId=${encodeURIComponent(profile.id)}`,
+            `/api/my/content/comments?${searchParams.toString()}`,
             { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "댓글을 불러오지 못했습니다.");
           }
-          setComments(json?.data?.items || []);
+          const nextItems = Array.isArray(json?.data?.items) ? json.data.items : [];
+          setComments((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            comments: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
         if (key === "bookmarks") {
           const res = await fetch(
-            `/api/my/bookmarks?profileId=${encodeURIComponent(profile.id)}`,
+            `/api/my/bookmarks?${searchParams.toString()}`,
             { cache: "no-store" },
           );
           const json = await res.json();
@@ -362,12 +445,23 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           const rawItems = Array.isArray(json?.data?.items)
             ? json.data.items
             : [];
-          setBookmarks(rawItems.map(toBookmarkItem));
+          const nextItems = rawItems.map(toBookmarkItem);
+          setBookmarks((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            bookmarks: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
         if (key === "activity") {
           const res = await fetch(
-            `/api/my/activity/workspace?profileId=${encodeURIComponent(profile.id)}`,
+            `/api/my/activity/workspace?${searchParams.toString()}`,
             { cache: "no-store" },
           );
           const json = await res.json();
@@ -376,7 +470,20 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               json?.error || "스페이스 활동 기록을 불러오지 못했습니다.",
             );
           }
-          setWorkspaces(json?.data?.workspaces || []);
+          const nextItems = Array.isArray(json?.data?.items)
+            ? json.data.items
+            : [];
+          setWorkspaces((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            activity: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
         setDataLoaded((prev) => ({ ...prev, [key]: true }));
@@ -393,13 +500,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         setDataLoading((prev) => ({ ...prev, [key]: false }));
       }
     },
-    [dataLoaded, profile.id, toast],
+    [dataLoaded, pagination, profile.handle, toast],
   );
 
   const requiredKeys = useMemo(() => {
-    if (activeTab === "overview") {
-      return ["comments", "bookmarks", "activity"] as ProfileDataKey[];
-    }
     if (activeTab === "content") {
       return [contentView] as ProfileDataKey[];
     }
@@ -499,6 +603,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       return;
     }
     setPosts((prev) => prev.filter((item) => item.id !== postId));
+    setStats((prev) => ({
+      ...prev,
+      postCount: Math.max(prev.postCount - 1, 0),
+    }));
   };
 
   const removeComment = async (commentId: string) => {
@@ -509,6 +617,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       return;
     }
     setComments((prev) => prev.filter((item) => item.id !== commentId));
+    setStats((prev) => ({
+      ...prev,
+      commentCount: Math.max(prev.commentCount - 1, 0),
+    }));
   };
 
   const handleTabChange = (
@@ -524,15 +636,29 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const tierStyle =
     TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
 
-  const displayStats = {
-    postCount: dataLoaded.posts ? posts.length : stats.postCount,
-    commentCount: dataLoaded.comments ? comments.length : stats.commentCount,
-    bookmarkCount: dataLoaded.bookmarks ? bookmarks.length : stats.bookmarkCount,
-    workspaceCount: dataLoaded.activity ? workspaces.length : stats.workspaceCount,
-  };
+  const displayStats = stats;
+  const contentCount = stats.postCount + stats.commentCount;
+  const renderLoadMoreButton = (key: ProfileDataKey, itemCount: number) => {
+    if (!pagination[key].hasMore) {
+      return null;
+    }
 
-  const contentCount = displayStats.postCount + displayStats.commentCount;
-  const featuredWorkspaces = workspaces.slice(0, 3);
+    const isLoadingMore = Boolean(dataLoading[key] && itemCount > 0);
+
+    return (
+      <div className="mt-5 flex justify-center">
+        <Button
+          variant="outline"
+          onClick={() => void loadData(key, { append: true })}
+          disabled={Boolean(dataLoading[key])}
+          className="gap-2"
+        >
+          {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isLoadingMore ? "불러오는 중..." : "더보기"}
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -759,7 +885,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </CardContent>
                   </Card>
 
-                  <div className="grid gap-6 xl:grid-cols-3">
+                  <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
                     <Card className="min-h-[320px]">
                       <CardHeader className="pb-4">
                         <div className="flex items-center justify-between gap-3">
@@ -781,20 +907,13 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {dataLoading.posts && posts.length === 0 ? (
-                          <CompactLoadingState message="글을 불러오는 중..." />
-                        ) : dataError.posts ? (
-                          <CompactEmptyState
-                            icon={FileText}
-                            message={dataError.posts}
-                          />
-                        ) : posts.length === 0 ? (
+                        {posts.length === 0 ? (
                           <CompactEmptyState
                             icon={FileText}
                             message="작성한 글이 없습니다."
                           />
                         ) : (
-                          posts.slice(0, 4).map((post) => (
+                          posts.slice(0, 5).map((post) => (
                             <button
                               key={post.id}
                               type="button"
@@ -828,227 +947,43 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                       </CardContent>
                     </Card>
 
-                    <Card className="min-h-[320px]">
-                      <CardHeader className="pb-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <CardTitle className="text-lg">최근 댓글</CardTitle>
-                            <CardDescription>
-                              어떤 글에 참여했는지 바로 이어서 볼 수 있습니다.
-                            </CardDescription>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 px-2"
-                            onClick={() => handleTabChange("content", "comments")}
-                          >
-                            전체
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg">빠른 이동</CardTitle>
+                        <CardDescription>
+                          필요한 목록만 눌렀을 때 불러옵니다.
+                        </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {dataLoading.comments && comments.length === 0 ? (
-                          <CompactLoadingState message="댓글을 불러오는 중..." />
-                        ) : dataError.comments ? (
-                          <CompactEmptyState
-                            icon={MessageSquare}
-                            message={dataError.comments}
-                          />
-                        ) : comments.length === 0 ? (
-                          <CompactEmptyState
-                            icon={MessageSquare}
-                            message="작성한 댓글이 없습니다."
-                          />
-                        ) : (
-                          comments.slice(0, 4).map((comment) => (
-                            <button
-                              key={comment.id}
-                              type="button"
-                              onClick={() => {
-                                if (!comment.postId) return;
-                                router.push(`/community/board/${comment.postId}`);
-                              }}
-                              className="w-full rounded-xl border px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
-                            >
-                              <p className="line-clamp-3 text-sm leading-relaxed">
-                                {comment.content}
-                              </p>
-                              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                <span className="truncate font-medium">
-                                  {comment.postTitle || "원문 없음"}
-                                </span>
-                                {comment.createdAt && (
-                                  <span className="shrink-0">
-                                    {formatDate(comment.createdAt)}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
+                        <OverviewShortcutRow
+                          icon={MessageSquare}
+                          title="댓글"
+                          description="내가 남긴 댓글"
+                          count={displayStats.commentCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("content", "comments")}
+                        />
 
-                    <Card className="min-h-[320px]">
-                      <CardHeader className="pb-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <CardTitle className="text-lg">북마크</CardTitle>
-                            <CardDescription>
-                              저장한 콘텐츠를 다시 읽기 쉬운 목록으로 정리합니다.
-                            </CardDescription>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 px-2"
-                            onClick={() => handleTabChange("bookmarks")}
-                          >
-                            전체
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {dataLoading.bookmarks && bookmarks.length === 0 ? (
-                          <CompactLoadingState message="북마크를 불러오는 중..." />
-                        ) : dataError.bookmarks ? (
-                          <CompactEmptyState
-                            icon={Bookmark}
-                            message={dataError.bookmarks}
-                          />
-                        ) : bookmarks.length === 0 ? (
-                          <CompactEmptyState
-                            icon={Bookmark}
-                            message="북마크한 글이 없습니다."
-                          />
-                        ) : (
-                          bookmarks.slice(0, 4).map((bookmark) => (
-                            <button
-                              key={bookmark.id}
-                              type="button"
-                              onClick={() => {
-                                if (!bookmark.blog?.externalUrl) return;
-                                window.open(
-                                  bookmark.blog.externalUrl,
-                                  "_blank",
-                                  "noopener,noreferrer",
-                                );
-                              }}
-                              className="w-full rounded-xl border px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="line-clamp-2 text-sm font-semibold">
-                                  {bookmark.blog?.title || "제목 없음"}
-                                </p>
-                                {bookmark.blog?.publishedAt && (
-                                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                                    {formatDate(bookmark.blog.publishedAt)}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                                {bookmark.blog?.author && (
-                                  <span>{bookmark.blog.author}</span>
-                                )}
-                                {(bookmark.blog?.tags || []).slice(0, 2).map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="rounded-full bg-primary/8 px-1.5 py-0.5 text-primary"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </button>
-                          ))
-                        )}
+                        <OverviewShortcutRow
+                          icon={Bookmark}
+                          title="북마크"
+                          description="저장한 글 목록"
+                          count={displayStats.bookmarkCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("bookmarks")}
+                        />
+
+                        <OverviewShortcutRow
+                          icon={Activity}
+                          title="스페이스 활동"
+                          description="참여한 워크스페이스"
+                          count={displayStats.workspaceCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("activity")}
+                        />
                       </CardContent>
                     </Card>
                   </div>
-
-                  <Card>
-                    <CardHeader className="pb-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <CardTitle className="text-lg">스페이스 활동</CardTitle>
-                          <CardDescription>
-                            참여한 스페이스를 최근 기준으로 바로 확인합니다.
-                          </CardDescription>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-1 px-2"
-                          onClick={() => handleTabChange("activity")}
-                        >
-                          전체
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {dataLoading.activity && workspaces.length === 0 ? (
-                        <CompactLoadingState message="스페이스를 불러오는 중..." />
-                      ) : dataError.activity ? (
-                        <CompactEmptyState
-                          icon={Activity}
-                          message={dataError.activity}
-                        />
-                      ) : featuredWorkspaces.length === 0 ? (
-                        <CompactEmptyState
-                          icon={Activity}
-                          message="참여 중인 스페이스 활동이 없습니다."
-                        />
-                      ) : (
-                        featuredWorkspaces.map((workspace) => (
-                          <div
-                            key={workspace.id}
-                            className="rounded-xl border px-4 py-4"
-                          >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold">
-                                  {workspace.name}
-                                </p>
-                                <p className="mt-1 text-[11px] text-muted-foreground">
-                                  {workspace.category || "스페이스"} ·{" "}
-                                  {workspace.role === "owner" ? "리더" : "멤버"}
-                                </p>
-                                <p className="mt-2 text-[11px] text-muted-foreground">
-                                  참여 시작{" "}
-                                  {formatDate(
-                                    workspace.startedAt || workspace.joinedAt,
-                                  )}
-                                  {workspace.completedAt
-                                    ? ` · 종료 ${formatDate(workspace.completedAt)}`
-                                    : ""}
-                                </p>
-                              </div>
-                              {workspace.resultLink && (
-                                <a
-                                  href={workspace.resultLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
-                                >
-                                  결과 링크
-                                  <ArrowRight className="h-3.5 w-3.5" />
-                                </a>
-                              )}
-                            </div>
-                            {workspace.resultNote && (
-                              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                                {workspace.resultNote}
-                              </p>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </CardContent>
-                  </Card>
                 </>
               )}
 
@@ -1095,28 +1030,34 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 </CardHeader>
                 <CardContent>
                   {contentView === "posts" ? (
-                    <PostsTab
-                      loading={dataLoading.posts}
-                      error={dataError.posts}
-                      posts={posts}
-                      isOwner={isOwner}
-                      onOpenPost={(postId) =>
-                        router.push(`/community/board/${postId}`)
-                      }
-                      onRemovePost={removePost}
-                    />
+                    <>
+                      <PostsTab
+                        loading={dataLoading.posts}
+                        error={dataError.posts}
+                        posts={posts}
+                        isOwner={isOwner}
+                        onOpenPost={(postId) =>
+                          router.push(`/community/board/${postId}`)
+                        }
+                        onRemovePost={removePost}
+                      />
+                      {renderLoadMoreButton("posts", posts.length)}
+                    </>
                   ) : (
-                    <CommentsTab
-                      loading={dataLoading.comments}
-                      error={dataError.comments}
-                      comments={comments}
-                      isOwner={isOwner}
-                      onOpenCommentPost={(postId) => {
-                        if (!postId) return;
-                        router.push(`/community/board/${postId}`);
-                      }}
-                      onRemoveComment={removeComment}
-                    />
+                    <>
+                      <CommentsTab
+                        loading={dataLoading.comments}
+                        error={dataError.comments}
+                        comments={comments}
+                        isOwner={isOwner}
+                        onOpenCommentPost={(postId) => {
+                          if (!postId) return;
+                          router.push(`/community/board/${postId}`);
+                        }}
+                        onRemoveComment={removeComment}
+                      />
+                      {renderLoadMoreButton("comments", comments.length)}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1131,14 +1072,17 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <BookmarksTab
-                    loading={dataLoading.bookmarks}
-                    error={dataError.bookmarks}
-                    bookmarks={bookmarks}
-                    bookmarkView={bookmarkView}
-                    onChangeBookmarkView={setBookmarkView}
-                    totalCount={displayStats.bookmarkCount}
-                  />
+                  <>
+                    <BookmarksTab
+                      loading={dataLoading.bookmarks}
+                      error={dataError.bookmarks}
+                      bookmarks={bookmarks}
+                      bookmarkView={bookmarkView}
+                      onChangeBookmarkView={setBookmarkView}
+                      totalCount={displayStats.bookmarkCount}
+                    />
+                    {renderLoadMoreButton("bookmarks", bookmarks.length)}
+                  </>
                 </CardContent>
               </Card>
             )}
@@ -1148,15 +1092,18 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 <CardHeader className="pb-4">
                   <CardTitle className="text-xl">스페이스 활동</CardTitle>
                   <CardDescription>
-                    참여한 워크스페이스를 한 페이지에서 바로 확인합니다.
+                    참여한 팀 공간을 한 페이지에서 바로 확인합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <WorkspaceActivityTab
-                    loading={dataLoading.activity}
-                    error={dataError.activity}
-                    workspaces={workspaces}
-                  />
+                  <>
+                    <WorkspaceActivityTab
+                      loading={dataLoading.activity}
+                      error={dataError.activity}
+                      workspaces={workspaces}
+                    />
+                    {renderLoadMoreButton("activity", workspaces.length)}
+                  </>
                 </CardContent>
               </Card>
             )}

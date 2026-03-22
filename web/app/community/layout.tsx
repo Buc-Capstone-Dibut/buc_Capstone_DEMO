@@ -21,7 +21,7 @@ export default function CommunityLayout({
       active: pathname?.startsWith("/community/board"),
     },
     {
-      name: "팀원 모집",
+      name: "팀 찾기",
       href: "/community/squad",
       icon: Users,
       active: pathname?.startsWith("/community/squad"),

@@ -1,46 +1,25 @@
 import { notFound } from "next/navigation";
-import { Prisma } from "@prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
+import { encodeProfileCursor } from "@/lib/server/my-profile-pagination";
 import { ProfileClient } from "./profile-client";
 
 export const dynamic = "force-dynamic";
 import type {
   ProfilePostItem,
-  PublicResumeSummary,
-  ResumePayload,
-  TabKey,
-  InitialData
+  ProfileDataKey,
 } from "./profile-types";
+
+type ProfileSummaryRow = {
+  post_count: number;
+  comment_count: number;
+  workspace_count: number;
+  bookmark_count: number;
+  workspace_summary_json: unknown;
+};
 
 function toIsoString(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
-}
-
-function asPublicResumeSummary(value: unknown): PublicResumeSummary | null {
-  if (!value) return null;
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as PublicResumeSummary;
-    } catch {
-      return null;
-    }
-  }
-  if (typeof value !== "object") return null;
-  return value as PublicResumeSummary;
-}
-
-function asResumePayload(value: unknown): ResumePayload | null {
-  if (!value) return null;
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as ResumePayload;
-    } catch {
-      return null;
-    }
-  }
-  if (typeof value !== "object") return null;
-  return value as ResumePayload;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -95,21 +74,18 @@ export default async function MyProfilePage({
   // Fetch summary stats, resume info, and recent posts using a single query to ensure consistency
   // Use lowercase aliases as some Postgres clients may fold unquoted names, or we just handle both
   const [summaryRows, postsRaw] = await Promise.all([
-    prisma.$queryRaw<any[]>`
+    prisma.$queryRaw<ProfileSummaryRow[]>`
       SELECT
         (SELECT COUNT(*)::int FROM "public"."posts" p WHERE p.author_id = ${profileRaw.id}::uuid) AS post_count,
         (SELECT COUNT(*)::int FROM "public"."comments" c WHERE c.author_id = ${profileRaw.id}::uuid) AS comment_count,
         (SELECT COUNT(*)::int FROM "public"."workspace_members" wm WHERE wm.user_id = ${profileRaw.id}::uuid) AS workspace_count,
         (SELECT COUNT(*)::int FROM "public"."blog_bookmarks" bb WHERE bb.user_id = ${profileRaw.id}::uuid) AS bookmark_count,
-        (SELECT ur.public_summary FROM "public"."user_resumes" ur WHERE ur.user_id = ${profileRaw.id}::uuid AND ur.is_active = true LIMIT 1) AS resume_summary_json,
-        (SELECT ur.resume_payload FROM "public"."user_resumes" ur WHERE ur.user_id = ${profileRaw.id}::uuid AND ur.is_active = true LIMIT 1) AS resume_payload_json,
-        (SELECT ur.title FROM "public"."user_resumes" ur WHERE ur.user_id = ${profileRaw.id}::uuid AND ur.is_active = true LIMIT 1) AS resume_title,
         (SELECT uws.public_summary FROM "public"."user_workspace_settings" uws WHERE uws.user_id = ${profileRaw.id}::uuid LIMIT 1) AS workspace_summary_json
     `,
     prisma.posts.findMany({
       where: { author_id: profileRaw.id },
       orderBy: { created_at: "desc" },
-      take: 50,
+      take: 5,
       select: {
         id: true,
         title: true,
@@ -133,14 +109,6 @@ export default async function MyProfilePage({
   const workspaceCount = Number(row.workspace_count || 0);
   const bookmarkCount = Number(row.bookmark_count || 0);
 
-  let resumeSummary = asPublicResumeSummary(row.resume_summary_json);
-  const resumeTitle = row.resume_title;
-
-  // Force inject the title from the column if it exists, to override stale JSON summaries
-  if (resumeSummary && resumeTitle) {
-    resumeSummary.resumeTitle = String(resumeTitle);
-  }
-
   const posts: ProfilePostItem[] = postsRaw.map((item) => ({
     id: item.id,
     title: item.title,
@@ -152,10 +120,17 @@ export default async function MyProfilePage({
     updatedAt: toIsoString(item.updated_at),
   }));
 
-  const prefetchedTabs: Partial<Record<TabKey, boolean>> = {
+  const prefetchedData: Partial<Record<ProfileDataKey, boolean>> = {
     posts: true,
-    resume: !isOwner,
   };
+  const lastPost = postsRaw[postsRaw.length - 1];
+  const postsHasMore = postCount > posts.length;
+  const postsNextCursor = postsHasMore
+    ? encodeProfileCursor({
+        createdAt: lastPost?.created_at,
+        id: lastPost?.id,
+      })
+    : null;
 
   if (shouldLogPerf()) {
     const totalMs = Date.now() - requestStart;
@@ -180,15 +155,19 @@ export default async function MyProfilePage({
           tier: profileRaw.tier || "씨앗",
         },
         stats: { postCount, commentCount, workspaceCount, bookmarkCount },
-        resumeSummary,
         workspaceSummary: asRecord(row.workspace_summary_json),
         isOwner,
         posts,
         comments: [],
         bookmarks: [],
         workspaces: [],
-        resumePayload: asResumePayload(row.resume_payload_json),
-        prefetchedTabs,
+        prefetchedData,
+        pagination: {
+          posts: {
+            hasMore: postsHasMore,
+            nextCursor: postsNextCursor,
+          },
+        },
       }}
     />
   );

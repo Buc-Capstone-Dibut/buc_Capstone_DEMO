@@ -7,6 +7,7 @@ import {
   getWorkspaceLifecycle,
   isWorkspaceCompleted,
 } from "@/lib/server/workspace-lifecycle";
+import { normalizeTeamType } from "@/lib/team-types";
 
 const getErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : "Unknown error";
@@ -53,6 +54,8 @@ export async function GET(
         description: true,
         icon_url: true,
         category: true,
+        space_status: true,
+        activated_at: true,
         from_squad_id: true,
         created_at: true,
         updated_at: true,
@@ -77,6 +80,10 @@ export async function GET(
 
     if (!workspace) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (workspace.space_status === "DRAFT" && memberCheck.role !== "owner") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const lifecycle = await getWorkspaceLifecycle(workspaceId);
@@ -144,6 +151,18 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const existingWorkspace = await prisma.workspaces.findUnique({
+      where: { id: workspaceId },
+      select: {
+        id: true,
+        from_squad_id: true,
+      },
+    });
+
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     const writableCheck = await ensureWorkspaceWritable(workspaceId);
     if (!writableCheck.ok) {
       return NextResponse.json(
@@ -157,7 +176,11 @@ export async function PATCH(
       data: {
         name,
         description,
-        category,
+        ...(existingWorkspace.from_squad_id
+          ? {}
+          : {
+              category: normalizeTeamType(category),
+            }),
       },
     });
 

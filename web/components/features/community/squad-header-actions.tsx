@@ -21,7 +21,7 @@ export function SquadHeaderActions({
   if (!isLeader) return null;
 
   const handleDelete = async () => {
-    if (!confirm("정말 모집을 취소하고 스쿼드를 삭제하시겠습니까? (복구 불가)"))
+    if (!confirm("정말 팀을 삭제하시겠습니까? 연결된 팀 공간도 함께 삭제됩니다."))
       return;
 
     setLoading(true);
@@ -31,14 +31,14 @@ export function SquadHeaderActions({
       });
 
       if (response.ok) {
-        toast.success("스쿼드가 삭제되었습니다.");
-        router.push("/community"); // Redirect to list
+        toast.success("팀이 삭제되었습니다.");
+        router.push("/community/squad");
         router.refresh();
       } else {
         const result = await response.json();
         toast.error(result.error || "삭제 실패");
       }
-    } catch (e) {
+    } catch {
       toast.error("오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -65,7 +65,7 @@ export function SquadHeaderActions({
         className="h-8 w-8 p-0 lg:w-auto lg:h-9 lg:px-4 lg:py-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
       >
         <Trash2 className="w-4 h-4 lg:mr-2" />
-        <span className="hidden lg:inline">스쿼드 삭제</span>
+        <span className="hidden lg:inline">팀 삭제</span>
       </Button>
     </div>
   );

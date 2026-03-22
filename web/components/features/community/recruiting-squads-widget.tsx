@@ -8,6 +8,7 @@ import { Users, ChevronRight, ChevronLeft } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 interface Squad {
   id: string;
@@ -39,7 +40,7 @@ export function RecruitingSquadsWidget({
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-lg flex items-center gap-2">
           <Users className="h-5 w-5 text-primary" />
-          팀원 모집
+          모집 중인 팀
         </CardTitle>
         <Link
           href="/community/squad"
@@ -62,7 +63,7 @@ export function RecruitingSquadsWidget({
                     variant="outline"
                     className="text-[10px] px-1.5 h-5 shrink-0"
                   >
-                    {squad.type === "study" ? "스터디" : "프로젝트"}
+                    {getTeamTypeLabel(squad.type)}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {squad.created_at &&

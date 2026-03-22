@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Flame, Megaphone, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 interface PopularTopicItem {
   tag: string;
@@ -39,18 +40,6 @@ const fetcher = async (url: string): Promise<CommunitySidebarPayload> => {
   }
   return res.json();
 };
-
-function getSquadTypeLabel(type: string) {
-  const labels: Record<string, string> = {
-    project: "프로젝트",
-    study: "스터디",
-    contest: "공모전",
-    mogakco: "모각코",
-    "side-project": "사이드 프로젝트",
-  };
-
-  return labels[type] || type;
-}
 
 function getPlaceText(placeType: string | null, location: string | null) {
   if (placeType === "online") return "온라인";
@@ -112,7 +101,7 @@ export function CommunitySidebar() {
           <CardTitle className="text-sm font-bold flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-500" />
-              모집 중인 모임
+              모집 중인 팀
             </div>
             <Link
               href="/community/squad"
@@ -136,7 +125,7 @@ export function CommunitySidebar() {
                       {squad.title}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {getSquadTypeLabel(squad.type)} ·{" "}
+                      {getTeamTypeLabel(squad.type)} ·{" "}
                       {getPlaceText(squad.place_type, squad.location)}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
@@ -151,7 +140,7 @@ export function CommunitySidebar() {
             ))
           ) : (
             <div className="text-xs text-muted-foreground">
-              현재 모집 중인 모임이 없습니다.
+              현재 모집 중인 팀이 없습니다.
             </div>
           )}
 

@@ -257,7 +257,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleCreateColumn = async (title: string, category: string) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     try {
@@ -273,7 +273,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleUpdateColumn = async (columnId: string, updates: any) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     try {
@@ -290,7 +290,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleDeleteColumn = async (columnId: string) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     if (
@@ -314,7 +314,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleCreateTask = async (taskProps: any) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     try {
@@ -355,7 +355,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleDeleteTask = async (taskId: string) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     if (!confirm("이 태스크를 삭제하시겠습니까?")) return;
@@ -374,7 +374,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     try {
@@ -395,7 +395,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     toIndex: number,
   ) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     const reordered = [...displayColumns];
@@ -420,7 +420,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     newIndex: number,
   ) => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     const targetColumn = displayColumns.find(
@@ -597,7 +597,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
         {isReadOnly && (
           <div className="px-6 py-2 border-b bg-muted/20 text-xs text-muted-foreground">
-            이 워크스페이스는 종료되어 보드가 읽기 전용입니다.
+            이 팀 공간은 종료되어 보드가 읽기 전용입니다.
           </div>
         )}
 

@@ -39,6 +39,26 @@ interface DocsViewProps {
   projectId: string;
 }
 
+type WorkspaceDocSummary = {
+  id: string;
+  title: string;
+  emoji?: string | null;
+  parent_id: string | null;
+  updated_at?: string;
+};
+
+type ActiveWorkspaceDoc = {
+  id: string;
+  title: string;
+  emoji?: string | null;
+  updatedAt?: string;
+  content?: unknown;
+};
+
+type EmojiSelection = {
+  native?: string;
+};
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function DocsView({ projectId }: DocsViewProps) {
@@ -62,7 +82,11 @@ export function DocsView({ projectId }: DocsViewProps) {
     data: docs,
     mutate: mutateDocs,
     isLoading,
-  } = useSWR<any[]>(`/api/workspaces/${projectId}/docs`, fetcher, swrOptions);
+  } = useSWR<WorkspaceDocSummary[]>(
+    `/api/workspaces/${projectId}/docs`,
+    fetcher,
+    swrOptions,
+  );
 
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
@@ -70,9 +94,8 @@ export function DocsView({ projectId }: DocsViewProps) {
   // Active Doc Data (If Selected)
   const {
     data: activeDoc,
-    mutate: mutateActiveDoc,
     isLoading: isLoadingActiveDoc,
-  } = useSWR(
+  } = useSWR<ActiveWorkspaceDoc | null>(
     activeDocId ? `/api/workspaces/${projectId}/docs/${activeDocId}` : null,
     fetcher,
   );
@@ -102,7 +125,7 @@ export function DocsView({ projectId }: DocsViewProps) {
 
   const handleCreateRootDoc = async () => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     try {
@@ -116,13 +139,14 @@ export function DocsView({ projectId }: DocsViewProps) {
       mutateDocs();
       setActiveDocId(newDoc.id);
       toast.success("새 문서가 생성되었습니다.");
-    } catch (e) {
+    } catch {
       toast.error("문서 생성 실패");
     }
   };
 
   // --- Header Update Logic (Shared with Page) ---
-  const debouncedUpdate = useDebouncedCallback(async (updates: any) => {
+  const debouncedUpdate = useDebouncedCallback(
+    async (updates: Record<string, unknown>) => {
     if (isReadOnly) return;
     if (!activeDocId) return;
     try {
@@ -137,10 +161,11 @@ export function DocsView({ projectId }: DocsViewProps) {
       console.error("Auto-save failed", e);
       toast.error("저장에 실패했습니다.");
     }
-  }, 1000); // 1s debounce
+  }, 1000,
+  ); // 1s debounce
 
   const handleContentSave = useCallback(
-    (content: any) => {
+    (content: unknown) => {
       debouncedUpdate({ content });
     },
     [debouncedUpdate],
@@ -152,9 +177,10 @@ export function DocsView({ projectId }: DocsViewProps) {
     debouncedUpdate({ title: newTitle });
   };
 
-  const handleEmojiSelect = (emojiData: any) => {
-    setEmoji(emojiData.native);
-    debouncedUpdate({ emoji: emojiData.native });
+  const handleEmojiSelect = (emojiData: EmojiSelection) => {
+    const nextEmoji = emojiData.native ?? null;
+    setEmoji(nextEmoji);
+    debouncedUpdate({ emoji: nextEmoji });
   };
 
   const handleRemoveEmoji = () => {

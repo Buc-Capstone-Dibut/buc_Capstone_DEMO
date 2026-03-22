@@ -37,11 +37,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeTeamType, TEAM_TYPE_OPTIONS } from "@/lib/team-types";
 
 const formSchema = z.object({
   name: z
     .string()
-    .min(2, "워크스페이스 이름은 2글자 이상이어야 합니다.")
+    .min(2, "팀 공간 이름은 2글자 이상이어야 합니다.")
     .max(50),
   category: z.string().min(1, "유형을 선택해주세요."),
   description: z
@@ -72,7 +73,7 @@ export function EditWorkspaceDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: workspace.name,
-      category: workspace.category || "Side Project",
+      category: normalizeTeamType(workspace.category),
       description: workspace.description || "",
     },
   });
@@ -82,7 +83,7 @@ export function EditWorkspaceDialog({
     if (open) {
       form.reset({
         name: workspace.name,
-        category: workspace.category || "Side Project",
+        category: normalizeTeamType(workspace.category),
         description: workspace.description || "",
       });
     }
@@ -101,10 +102,10 @@ export function EditWorkspaceDialog({
       });
 
       if (!response.ok) {
-        throw new Error("워크스페이스 수정에 실패했습니다.");
+        throw new Error("팀 공간 수정에 실패했습니다.");
       }
 
-      toast.success("워크스페이스 정보가 수정되었습니다.");
+      toast.success("팀 공간 정보가 수정되었습니다.");
       setOpen(false);
 
       // Refresh data
@@ -131,9 +132,9 @@ export function EditWorkspaceDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>워크스페이스 설정</DialogTitle>
+          <DialogTitle>팀 공간 설정</DialogTitle>
           <DialogDescription>
-            워크스페이스의 이름과 설명을 수정합니다.
+            팀 공간의 이름과 설명을 수정합니다.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -145,7 +146,7 @@ export function EditWorkspaceDialog({
                 <FormItem>
                   <FormLabel>이름</FormLabel>
                   <FormControl>
-                    <Input placeholder="워크스페이스 이름" {...field} />
+                    <Input placeholder="팀 공간 이름" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -160,22 +161,19 @@ export function EditWorkspaceDialog({
                   <FormLabel>유형</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="워크스페이스 유형 선택" />
+                        <SelectValue placeholder="팀 공간 유형 선택" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Side Project">
-                        사이드 프로젝트
-                      </SelectItem>
-                      <SelectItem value="Startup">스타트업</SelectItem>
-                      <SelectItem value="Competition">공모전/대회</SelectItem>
-                      <SelectItem value="School">학교/동아리</SelectItem>
-                      <SelectItem value="Personal">개인용</SelectItem>
-                      <SelectItem value="Enterprise">기업</SelectItem>
+                      {TEAM_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -191,7 +189,7 @@ export function EditWorkspaceDialog({
                   <FormLabel>설명 (선택)</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="프로젝트 설명"
+                      placeholder="팀 공간 설명"
                       className="resize-none"
                       {...field}
                     />

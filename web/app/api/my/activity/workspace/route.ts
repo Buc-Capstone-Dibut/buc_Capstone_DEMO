@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import {
+  buildCreatedAtCursorWhere,
+  decodeProfileCursor,
+  encodeProfileCursor,
+  parsePageLimit,
+} from "@/lib/server/my-profile-pagination";
 
 type CountRow = {
   workspace_id: string;
@@ -8,6 +14,7 @@ type CountRow = {
 };
 
 type WorkspaceActivityMember = {
+  id: string;
   role: string;
   joined_at: Date;
   workspace: {
@@ -41,31 +48,48 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const profileIdParam = (searchParams.get("profileId") || "").trim();
     const handle = (searchParams.get("handle") || "").trim().toLowerCase();
+    const limit = parsePageLimit(searchParams.get("limit"));
+    const cursor = decodeProfileCursor(searchParams.get("cursor"));
 
-    if (!handle) {
+    if (!handle && !profileIdParam) {
       return NextResponse.json(
-        { success: false, error: "handle is required" },
+        { success: false, error: "handle or profileId is required" },
         { status: 400 },
       );
     }
 
-    const profile = await prisma.profiles.findUnique({
-      where: { handle },
-      select: { id: true },
-    });
+    const resolvedProfileId =
+      profileIdParam ||
+      (
+        await prisma.profiles.findUnique({
+          where: { handle },
+          select: { id: true },
+        })
+      )?.id;
 
-    if (!profile) {
+    if (!resolvedProfileId) {
       return NextResponse.json(
         { success: false, error: "Profile not found" },
         { status: 404 },
       );
     }
 
+    const memberCursorWhere = buildCreatedAtCursorWhere(cursor, "joined_at");
+
     let members: WorkspaceActivityMember[] = [];
     try {
       members = await prisma.workspace_members.findMany({
-        where: { user_id: profile.id },
+        where: {
+          user_id: resolvedProfileId,
+          workspace: {
+            is: {
+              space_status: "ACTIVE",
+            },
+          },
+          ...(memberCursorWhere as Prisma.workspace_membersWhereInput),
+        },
         include: {
           workspace: {
             select: {
@@ -82,11 +106,15 @@ export async function GET(req: Request) {
             },
           },
         },
-        orderBy: { joined_at: "desc" },
+        orderBy: [{ joined_at: "desc" }, { id: "desc" }],
+        take: limit + 1,
       });
     } catch {
       const legacyMembers = await prisma.workspace_members.findMany({
-        where: { user_id: profile.id },
+        where: {
+          user_id: resolvedProfileId,
+          ...(memberCursorWhere as Prisma.workspace_membersWhereInput),
+        },
         include: {
           workspace: {
             select: {
@@ -98,7 +126,8 @@ export async function GET(req: Request) {
             },
           },
         },
-        orderBy: { joined_at: "desc" },
+        orderBy: [{ joined_at: "desc" }, { id: "desc" }],
+        take: limit + 1,
       });
       members = legacyMembers.map((member) => ({
         ...member,
@@ -112,18 +141,22 @@ export async function GET(req: Request) {
         },
       }));
     }
+    const pageMembers = members.slice(0, limit);
+    const hasMore = members.length > limit;
 
-    if (members.length === 0) {
+    if (pageMembers.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
-          workspaces: [],
+          items: [],
+          hasMore: false,
+          nextCursor: null,
         },
       });
     }
 
     const workspaceIds = Array.from(
-      new Set(members.map((member) => member.workspace.id)),
+      new Set(pageMembers.map((member) => member.workspace.id)),
     );
     const workspaceIdParams = Prisma.join(
       workspaceIds.map((workspaceId) => Prisma.sql`${workspaceId}::uuid`),
@@ -133,7 +166,7 @@ export async function GET(req: Request) {
       .groupBy({
         by: ["workspace_id"],
         where: {
-          author_id: profile.id,
+          author_id: resolvedProfileId,
           workspace_id: { in: workspaceIds },
           is_archived: false,
         },
@@ -153,7 +186,7 @@ export async function GET(req: Request) {
       FROM "public"."kanban_tasks" kt
       JOIN "public"."kanban_columns" kc
         ON kc.id = kt.column_id
-      WHERE kt.assignee_id = ${profile.id}::uuid
+      WHERE kt.assignee_id = ${resolvedProfileId}::uuid
         AND kc.workspace_id IN (${workspaceIdParams})
       GROUP BY kc.workspace_id
     `;
@@ -165,7 +198,7 @@ export async function GET(req: Request) {
       FROM "public"."workspace_messages" wm
       JOIN "public"."workspace_channels" wc
         ON wc.id = wm.channel_id
-      WHERE wm.sender_id = ${profile.id}::uuid
+      WHERE wm.sender_id = ${resolvedProfileId}::uuid
         AND wc.workspace_id IN (${workspaceIdParams})
       GROUP BY wc.workspace_id
     `;
@@ -180,8 +213,7 @@ export async function GET(req: Request) {
     const assignedByWorkspace = toCountMap(assignedRows);
     const messagesByWorkspace = toCountMap(messageRows);
 
-    const workspaces = members
-      .map((member) => {
+    const items = pageMembers.map((member) => {
         const workspaceId = member.workspace.id;
         const docsCreated = docsByWorkspace.get(workspaceId) || 0;
         const tasksAssigned = assignedByWorkspace.get(workspaceId) || 0;
@@ -208,33 +240,20 @@ export async function GET(req: Request) {
             totalActivities,
           },
         };
-      })
-      .sort((a, b) => {
-        const aCompleted = a.lifecycleStatus === "COMPLETED";
-        const bCompleted = b.lifecycleStatus === "COMPLETED";
-        if (aCompleted !== bCompleted) {
-          return aCompleted ? 1 : -1;
-        }
-
-        if (aCompleted && bCompleted) {
-          const aCompletedAt = a.completedAt
-            ? new Date(a.completedAt).getTime()
-            : 0;
-          const bCompletedAt = b.completedAt
-            ? new Date(b.completedAt).getTime()
-            : 0;
-          if (aCompletedAt !== bCompletedAt) {
-            return bCompletedAt - aCompletedAt;
-          }
-        }
-
-        return b.stats.totalActivities - a.stats.totalActivities;
       });
+    const lastMember = pageMembers[pageMembers.length - 1];
 
     return NextResponse.json({
       success: true,
       data: {
-        workspaces,
+        items,
+        hasMore,
+        nextCursor: hasMore
+          ? encodeProfileCursor({
+              createdAt: lastMember?.joined_at,
+              id: lastMember?.id,
+            })
+          : null,
       },
     });
   } catch (error: unknown) {

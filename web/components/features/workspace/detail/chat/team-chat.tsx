@@ -87,7 +87,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
 
   const handleSend = () => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     if (!inputValue.trim() || !activeChannelId || !user) return;
@@ -301,7 +301,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
       <div className="p-4 border-t bg-background mt-auto">
         {isReadOnly && (
           <div className="mb-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            이 워크스페이스는 종료되어 채팅을 보낼 수 없습니다.
+            이 팀 공간은 종료되어 채팅을 보낼 수 없습니다.
           </div>
         )}
         <div className="border rounded-xl shadow-sm bg-muted/30 focus-within:ring-1 ring-primary/30 transition-shadow px-2 py-2">

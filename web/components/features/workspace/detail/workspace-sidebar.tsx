@@ -220,7 +220,7 @@ export function WorkspaceSidebar({
         throw new Error(data.error || "Failed to leave workspace");
       }
 
-      toast.success("워크스페이스에서 나갔습니다.");
+      toast.success("팀 공간에서 나갔습니다.");
       router.push("/workspace"); // Redirect to workspace hub
     } catch (error) {
       toast.error((error as Error).message);
@@ -229,7 +229,7 @@ export function WorkspaceSidebar({
 
   const handleCreateChannel = () => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     if (!newChannelName.trim() || !user) return;
@@ -241,11 +241,11 @@ export function WorkspaceSidebar({
 
   const handleOpenLeave = () => {
     if (isReadOnly) {
-      toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
     if (isOwner) {
-      toast.error("소유자는 워크스페이스에서 나갈 수 없습니다.");
+      toast.error("소유자는 팀 공간에서 나갈 수 없습니다.");
       return;
     }
     setIsLeaveAlertOpen(true);
@@ -370,7 +370,7 @@ export function WorkspaceSidebar({
               )}
               onClick={() => {
                 if (isReadOnly) {
-                  toast.error("종료된 워크스페이스는 읽기 전용입니다.");
+                  toast.error("종료된 팀 공간은 읽기 전용입니다.");
                   return;
                 }
                 setIsChannelDialogOpen(true);
@@ -540,8 +540,8 @@ export function WorkspaceSidebar({
             type="button"
             onClick={handleOpenLeave}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-red-600 hover:bg-muted"
-            aria-label="워크스페이스 나가기"
-            title="워크스페이스 나가기"
+            aria-label="팀 공간 나가기"
+            title="팀 공간 나가기"
           >
             <LogOut className="h-3.5 w-3.5" />
           </button>
@@ -610,7 +610,7 @@ export function WorkspaceSidebar({
           <AlertDialogHeader>
             <AlertDialogTitle>정말 떠나시겠습니까?</AlertDialogTitle>
             <AlertDialogDescription>
-              워크스페이스를 떠나면 다시 초대받을 때까지 접근할 수 없습니다.
+              팀 공간을 떠나면 다시 초대받을 때까지 접근할 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

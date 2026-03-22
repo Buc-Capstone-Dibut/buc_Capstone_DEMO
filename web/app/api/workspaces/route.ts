@@ -4,6 +4,11 @@ import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
+import { normalizeTeamType } from "@/lib/team-types";
+import {
+  normalizeWorkspaceCategory,
+  seedWorkspaceDefaults,
+} from "@/lib/server/workspace-bootstrap";
 
 type WorkspaceMembership = {
   role: string;
@@ -14,6 +19,8 @@ type WorkspaceMembership = {
     description: string | null;
     icon_url: string | null;
     category: string;
+    space_status: "ACTIVE" | "DRAFT";
+    activated_at: Date | null;
     lifecycle_status: "IN_PROGRESS" | "COMPLETED";
     completed_at: Date | null;
     result_type: string | null;
@@ -25,6 +32,9 @@ type WorkspaceMembership = {
     _count: { members: number };
   };
 };
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
 
 // GET: List My Workspaces
 export async function GET() {
@@ -44,7 +54,14 @@ export async function GET() {
     let memberships: WorkspaceMembership[] = [];
     try {
       memberships = await prisma.workspace_members.findMany({
-        where: { user_id: userId },
+        where: {
+          user_id: userId,
+          workspace: {
+            is: {
+              space_status: "ACTIVE",
+            },
+          },
+        },
         select: {
           role: true,
           joined_at: true,
@@ -55,6 +72,8 @@ export async function GET() {
               description: true,
               icon_url: true,
               category: true,
+              space_status: true,
+              activated_at: true,
               lifecycle_status: true,
               completed_at: true,
               result_type: true,
@@ -96,6 +115,8 @@ export async function GET() {
         ...row,
         workspace: {
           ...row.workspace,
+          space_status: "ACTIVE" as const,
+          activated_at: row.workspace.created_at,
           lifecycle_status: "IN_PROGRESS" as const,
           completed_at: null,
           result_type: null,
@@ -164,9 +185,12 @@ export async function GET() {
     }));
 
     return NextResponse.json(workspaces);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: List Workspaces Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -190,15 +214,127 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
+    const linkedSquad = fromSquadId
+      ? await prisma.squads.findUnique({
+          where: { id: fromSquadId },
+          select: { id: true, type: true },
+        })
+      : null;
+
+    if (fromSquadId && !linkedSquad) {
+      return NextResponse.json({ error: "Squad not found" }, { status: 404 });
+    }
+
+    if (fromSquadId) {
+      const existingLinkedWorkspace = await prisma.workspaces.findUnique({
+        where: { from_squad_id: fromSquadId },
+        select: {
+          id: true,
+          space_status: true,
+        },
+      });
+
+      if (existingLinkedWorkspace) {
+        if (existingLinkedWorkspace.space_status === "ACTIVE") {
+          return NextResponse.json(
+            {
+              error: "이미 팀 공간이 생성되어 있습니다.",
+              workspaceId: existingLinkedWorkspace.id,
+            },
+            { status: 409 },
+          );
+        }
+      }
+    }
+
+    const normalizedCategory = linkedSquad
+      ? normalizeWorkspaceCategory(linkedSquad.type)
+      : normalizeTeamType(category);
+
     // Transaction to ensure atomicity
     const workspace = await prisma.$transaction(async (tx) => {
+      if (fromSquadId) {
+        const existingDraftWorkspace = await tx.workspaces.findUnique({
+          where: { from_squad_id: fromSquadId },
+          select: {
+            id: true,
+            space_status: true,
+          },
+        });
+
+        if (existingDraftWorkspace?.space_status === "DRAFT") {
+          const activatedWorkspace = await tx.workspaces.update({
+            where: { id: existingDraftWorkspace.id },
+            data: {
+              name,
+              description,
+              category: normalizedCategory,
+              space_status: "ACTIVE",
+              activated_at: new Date(),
+            },
+          });
+
+          const ownerMembership = await tx.workspace_members.findUnique({
+            where: {
+              workspace_id_user_id: {
+                workspace_id: activatedWorkspace.id,
+                user_id: userId,
+              },
+            },
+          });
+
+          if (!ownerMembership) {
+            await tx.workspace_members.create({
+              data: {
+                workspace_id: activatedWorkspace.id,
+                user_id: userId,
+                role: "owner",
+              },
+            });
+          }
+
+          const squadMembers = await tx.squad_members.findMany({
+            where: { squad_id: fromSquadId },
+          });
+
+          const membersToAdd = squadMembers
+            .filter((member) => member.user_id && member.user_id !== userId)
+            .map((member) => ({
+              workspace_id: activatedWorkspace.id,
+              user_id: member.user_id!,
+              role: "member",
+            }));
+
+          if (membersToAdd.length > 0) {
+            await tx.workspace_members.createMany({
+              data: membersToAdd,
+              skipDuplicates: true,
+            });
+
+            await tx.notifications.createMany({
+              data: membersToAdd.map((member) => ({
+                user_id: member.user_id,
+                type: "SQUAD",
+                title: "팀 공간 생성 알림",
+                message: `'${name}' 팀 공간이 생성되었습니다. 지금 바로 확인해보세요!`,
+                link: `/workspace/${activatedWorkspace.id}`,
+              })),
+            });
+          }
+
+          return activatedWorkspace;
+        }
+      }
+
       // 1. Create Workspace
       const newWorkspace = await tx.workspaces.create({
         data: {
           name,
           description,
-          category: category || "Side Project",
+          category: normalizedCategory,
           from_squad_id: fromSquadId || null,
+          space_status: "ACTIVE",
+          activated_at: new Date(),
         },
       });
 
@@ -211,38 +347,9 @@ export async function POST(request: Request) {
         },
       });
 
-      // 3. Create Default Columns
-      const columns = [
-        { title: "To Do", category: "todo", order: 0 },
-        { title: "In Progress", category: "in-progress", order: 1 },
-        { title: "Done", category: "done", order: 2 },
-      ];
+      await seedWorkspaceDefaults(tx, newWorkspace.id);
 
-      await tx.kanban_columns.createMany({
-        data: columns.map((col) => ({
-          workspace_id: newWorkspace.id,
-          title: col.title,
-          category: col.category,
-          order: col.order,
-        })),
-      });
-
-      // 4. Create Default Tags
-      const defaultTags = [
-        { name: "Bug", color: "red" },
-        { name: "Feature", color: "blue" },
-        { name: "Enhancement", color: "purple" },
-      ];
-
-      await tx.kanban_tags.createMany({
-        data: defaultTags.map((tag) => ({
-          workspace_id: newWorkspace.id,
-          name: tag.name,
-          color: tag.color,
-        })),
-      });
-
-      // 5. If from Squad, copy members
+      // 3. If from Squad, copy members
       if (fromSquadId) {
         const squadMembers = await tx.squad_members.findMany({
           where: { squad_id: fromSquadId },
@@ -260,14 +367,15 @@ export async function POST(request: Request) {
         if (membersToAdd.length > 0) {
           await tx.workspace_members.createMany({
             data: membersToAdd,
+            skipDuplicates: true,
           });
 
-          // 6. Send Notification to Squad Members
+          // 4. Send Notification to Squad Members
           const notifications = membersToAdd.map((m) => ({
             user_id: m.user_id,
             type: "SQUAD",
-            title: "워크스페이스 생성 알림",
-            message: `'${name}' 워크스페이스가 생성되었습니다. 지금 바로 확인해보세요!`,
+            title: "팀 공간 생성 알림",
+            message: `'${name}' 팀 공간이 생성되었습니다. 지금 바로 확인해보세요!`,
             link: `/workspace/${newWorkspace.id}`,
           }));
 
@@ -287,8 +395,11 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json(workspace);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Create Workspace Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }

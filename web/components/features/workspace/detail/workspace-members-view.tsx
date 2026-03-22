@@ -83,7 +83,7 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
         <div>
           <h2 className="text-2xl font-bold tracking-tight mb-1">멤버 관리</h2>
           <p className="text-sm text-muted-foreground mt-2">
-            워크스페이스에 참여 중인 팀원들의 권한과 정보를 확인하고 관리합니다.
+            팀 공간에 참여 중인 팀원들의 권한과 정보를 확인하고 관리합니다.
           </p>
         </div>
         {isOwner && !isReadOnly && (
@@ -99,7 +99,7 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
 
       {isReadOnly && (
         <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          이 워크스페이스는 종료되어 멤버 초대를 할 수 없습니다.
+          이 팀 공간은 종료되어 멤버 초대를 할 수 없습니다.
         </div>
       )}
 
