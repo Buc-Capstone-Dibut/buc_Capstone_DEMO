@@ -22,6 +22,11 @@ export default function ResumePage() {
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
     const [isWizardMode, setIsWizardMode] = useState(false);
 
+    // Prefill STADRI from career timeline redirect
+    const situationFromUrl = searchParams.get("situation") || undefined;
+    const sourceFromUrl = searchParams.get("source");
+    const initialStadri = situationFromUrl ? { s: situationFromUrl } : undefined;
+
     useEffect(() => {
         setIsWizardMode(isWizardModeFromUrl);
     }, [isWizardModeFromUrl]);
@@ -110,16 +115,13 @@ export default function ResumePage() {
             {/* Wizard Mode Overlay */}
             {isWizardMode && (
                 <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-xl animate-in fade-in duration-500 flex flex-col">
-                    <header className="w-full border-b bg-white/80 backdrop-blur-md px-6 h-16 flex items-center justify-between shrink-0">
+                    <header className="w-full border-b bg-white/80 backdrop-blur-md px-6 h-16 flex items-center shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-primary/10 rounded-lg">
                                 <Wand2 className="w-5 h-5 text-primary" />
                             </div>
-                            <h2 className="font-bold text-lg">AI 이력서 작성 가이드</h2>
+                            <h2 className="font-bold text-lg">AI 자소서 작성 가이드</h2>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => setIsWizardMode(false)} className="text-muted-foreground">
-                            나중에 작성하기 (건너뛰기)
-                        </Button>
                     </header>
                     <div className="flex-1 overflow-y-auto px-6">
                         <div className="max-w-4xl mx-auto h-full flex flex-col justify-center">
@@ -127,13 +129,33 @@ export default function ResumePage() {
                                 isWizard={true}
                                 currentPayload={resumePayload}
                                 onUpdatePayload={setResumePayload}
-                                onWizardComplete={() => {
-                                    setIsWizardMode(false);
-                                    toast({
-                                        title: "마법사 단계 완료!",
-                                        description: "작성하신 내용이 이력서 본문에 반영되었습니다. 전체 저장을 위해 상단의 '저장' 버튼을 눌러주세요.",
-                                        variant: "default"
-                                    });
+                                initialStadri={initialStadri}
+                                onWizardComplete={async () => {
+                                    if (sourceFromUrl === "career") {
+                                        // When coming from the career timeline → save as cover letter and go directly back
+                                        const experienceIds = searchParams.get("experienceIds")?.split(",").filter(Boolean) || [];
+                                        try {
+                                            const { saveCoverLetterAction } = await import("@/app/career/cover-letters/actions");
+                                            await saveCoverLetterAction({
+                                                id: "",
+                                                title: `AI 생성 자소서 (${new Date().toLocaleDateString('ko-KR')})`,
+                                                content: resumePayload.selfIntroduction || "",
+                                                createdAt: new Date().toISOString(),
+                                                sourceExperienceIds: experienceIds,
+                                            });
+                                            toast({ title: "자소서 저장 완료!", description: "'내 자소서 관리' 탭에서 확인하세요." });
+                                            router.push("/career/cover-letters");
+                                        } catch (err: any) {
+                                            toast({ title: "저장 실패", description: err.message, variant: "destructive" });
+                                        }
+                                    } else {
+                                        setIsWizardMode(false);
+                                        toast({
+                                            title: "마법사 단계 완료!",
+                                            description: "작성하신 내용이 이력서 본문에 반영되었습니다. 전체 저장을 위해 상단의 '저장' 버튼을 눌러주세요.",
+                                            variant: "default"
+                                        });
+                                    }
                                 }}
                             />
                         </div>

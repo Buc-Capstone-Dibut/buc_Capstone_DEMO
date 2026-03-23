@@ -1,0 +1,4 @@
+# Database Reset Prohibition
+- 앞으로 데이터베이스 리셋(Database Reset)은 절대 금지합니다.
+- 어떠한 경우에도 `DROP SCHEMA`, `prisma migrate reset`, `supabase db reset` 등 DB 초기화나 데이터 삭제를 유발하는 명령을 실행하지 마세요.
+- 기존의 데이터를 안전하게 보호하는 것이 최우선입니다.

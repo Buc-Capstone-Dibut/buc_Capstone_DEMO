@@ -22,7 +22,9 @@ import {
   Video,
   PieChart,
   DoorOpen,
-  Calendar
+  Calendar,
+  FileText,
+  Briefcase
 } from "lucide-react";
 // 메뉴 구조 정의
 // 메뉴 구조 정의
@@ -48,6 +50,11 @@ const MENUS: Record<string, { label: string; href: string; activePath?: string; 
   workspace: {
     label: "워크스페이스",
     href: "/workspace",
+    submenus: [],
+  },
+  career: {
+    label: "커리어 관리",
+    href: "/career",
     submenus: [],
   },
   interview: {
