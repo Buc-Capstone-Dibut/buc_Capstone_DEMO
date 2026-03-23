@@ -257,24 +257,23 @@ export function TeamChat({ projectId }: TeamChatProps) {
     const hasChannels = channels.length > 0;
     return (
       <div className="h-full flex items-center justify-center px-6">
-        <div className="w-full max-w-md rounded-2xl border border-dashed bg-muted/20 p-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm">
-            <Hash className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="text-base font-semibold">
-            {hasChannels ? "채널을 선택해 대화를 시작하세요" : "아직 채널이 없습니다"}
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {hasChannels
-              ? "왼쪽 사이드바에서 채팅 채널을 선택하면 대화와 멘션, 태스크 링크를 바로 이어갈 수 있습니다."
-              : isReadOnly
-                ? "종료된 팀 공간이라 새 채널을 만들 수 없습니다."
-                : "첫 채널을 만들어 팀 공지, 회의 메모, 작업 논의를 바로 시작하세요."}
-          </p>
+          <div className="w-full max-w-md rounded-2xl border border-dashed bg-muted/20 p-6 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm">
+              <Hash className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="text-base font-semibold">
+            {hasChannels ? "채널을 선택해 대화를 시작하세요" : "첫 채널을 열어보세요"}
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {hasChannels
+                ? "왼쪽 사이드바에서 채팅 채널을 선택하면 대화와 멘션, 태스크 링크를 바로 이어갈 수 있습니다."
+                : isReadOnly
+                  ? "종료된 팀 공간이라 새 채널을 만들 수 없습니다."
+                : "왼쪽에서 채널을 열거나 추가하세요."}
+            </p>
           {!hasChannels && !isReadOnly && (
             <Button
               type="button"
-              variant="outline"
               className="mt-4 rounded-xl"
               onClick={handleCreateDefaultChannel}
             >
@@ -296,7 +295,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
       <div className="h-14 border-b flex items-center px-6 justify-between flex-shrink-0">
         <div className="flex items-center gap-2 font-bold text-lg">
           <Hash className="h-5 w-5 text-muted-foreground" />
-          {activeChannel?.name || "Channel"}
+          {activeChannel?.name || "채널"}
         </div>
         {isReadOnly && (
           <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
@@ -387,7 +386,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
                 multiline
                 disabled={isReadOnly}
                 className="px-3 py-[8px] text-sm"
-                placeholder={`Message #${activeChannel?.name || "chat"}`}
+                placeholder={`#${activeChannel?.name || "채널"}에 메시지 입력`}
                 projectId={projectId}
                 members={members}
                 tasks={tasks}
@@ -400,7 +399,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
               className={`h-9 shrink-0 ${!inputValue.trim() ? "opacity-50" : ""}`}
             >
               <Send className="h-4 w-4 mr-2" />
-              Send
+              전송
             </Button>
           </div>
         </div>

@@ -8,6 +8,10 @@ import {
   MoreHorizontal,
   Trash2,
   File,
+  Folder,
+  FolderOpen,
+  PencilLine,
+  FolderPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -15,15 +19,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 interface Doc {
   id: string;
+  kind: "page" | "folder";
   title: string;
-  emoji?: string;
+  emoji?: string | null;
   parent_id: string | null;
-  updated_at: string;
+  updated_at?: string;
+  sort_order?: number;
 }
 
 interface DocumentListProps {
@@ -36,6 +43,8 @@ interface DocumentListProps {
   expanded?: Record<string, boolean>;
   onSelect?: (id: string) => void;
   activeDocId?: string | null;
+  onMutate?: () => void;
+  onDocArchived?: (id: string) => void;
 }
 
 export function DocumentList({
@@ -48,6 +57,8 @@ export function DocumentList({
   expanded = {},
   onSelect,
   activeDocId,
+  onMutate,
+  onDocArchived,
 }: DocumentListProps) {
   const router = useRouter();
 
@@ -56,31 +67,42 @@ export function DocumentList({
 
   if (currentDocs.length === 0) return null;
 
-  const handleCreateChild = async (e: React.MouseEvent, parentId: string) => {
+  const handleCreateChild = async (
+    e: React.MouseEvent,
+    parentId: string,
+    kind: "page" | "folder" = "page",
+  ) => {
     e.stopPropagation();
     if (readOnly) return;
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/docs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "제목 없음", parentId }),
+        body: JSON.stringify({
+          title: kind === "folder" ? "새 폴더" : "제목 없음",
+          parentId,
+          kind,
+        }),
       });
 
       if (!res.ok) throw new Error("Failed to create");
 
       const newDoc = await res.json();
 
-      if (onSelect) {
+      if (kind === "page" && onSelect) {
         onSelect(newDoc.id);
-      } else {
+      } else if (kind === "page") {
         router.push(`/workspace/${workspaceId}/docs/${newDoc.id}`);
       }
 
       // Expand parent to show new child
       if (onExpand) onExpand(parentId);
-      toast.success("문서가 생성되었습니다.");
+      onMutate?.();
+      toast.success(
+        kind === "folder" ? "하위 폴더가 생성되었습니다." : "문서가 생성되었습니다.",
+      );
     } catch {
-      toast.error("문서 생성 실패");
+      toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
     }
   };
 
@@ -97,11 +119,35 @@ export function DocumentList({
       if (!res.ok) throw new Error("Failed to delete");
 
       toast.success("문서가 삭제되었습니다.");
-      // We rely on SWR revalidation or global state update here.
-      // Ideally mutate parent.
-      location.reload(); // Temporary reload for simplicity
+      onDocArchived?.(docId);
+      onMutate?.();
     } catch {
       toast.error("삭제 실패");
+    }
+  };
+
+  const handleRename = async (
+    e: React.MouseEvent,
+    docId: string,
+    currentTitle: string,
+  ) => {
+    e.stopPropagation();
+    if (readOnly) return;
+    const nextTitle = window.prompt("새 이름을 입력하세요.", currentTitle)?.trim();
+    if (!nextTitle || nextTitle === currentTitle) return;
+
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/docs/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+
+      if (!res.ok) throw new Error("Failed to rename");
+      onMutate?.();
+      toast.success("이름을 변경했습니다.");
+    } catch {
+      toast.error("이름 변경 실패");
     }
   };
 
@@ -111,12 +157,18 @@ export function DocumentList({
         const isExpanded = expanded[doc.id];
         const hasChildren = docs.some((d) => d.parent_id === doc.id);
         const isActive = activeDocId === doc.id;
+        const isFolder = doc.kind === "folder";
 
         return (
           <div key={doc.id}>
             <div
               role="button"
               onClick={() => {
+                if (isFolder) {
+                  onExpand?.(doc.id);
+                  return;
+                }
+
                 if (onSelect) {
                   onSelect(doc.id);
                 } else {
@@ -152,6 +204,12 @@ export function DocumentList({
               <div className="flex items-center gap-2 truncate flex-1">
                 {doc.emoji ? (
                   <span>{doc.emoji}</span>
+                ) : isFolder ? (
+                  isExpanded ? (
+                    <FolderOpen className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <Folder className="h-4 w-4 shrink-0" />
+                  )
                 ) : (
                   <File className="h-4 w-4 shrink-0" />
                 )}
@@ -173,6 +231,29 @@ export function DocumentList({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-48">
                         <DropdownMenuItem
+                          onClick={(e) => handleRename(e, doc.id, doc.title)}
+                        >
+                          <PencilLine className="h-4 w-4 mr-2" />
+                          이름 변경
+                        </DropdownMenuItem>
+                        {isFolder && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(e) => handleCreateChild(e, doc.id, "page")}
+                            >
+                              <File className="h-4 w-4 mr-2" />
+                              하위 문서 추가
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => handleCreateChild(e, doc.id, "folder")}
+                            >
+                              <FolderPlus className="h-4 w-4 mr-2" />
+                              하위 폴더 추가
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem
                           onClick={(e) => handleDelete(e, doc.id)}
                           className="text-red-500 focus:text-red-500"
                         >
@@ -182,13 +263,15 @@ export function DocumentList({
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <div
-                      role="button"
-                      onClick={(e) => handleCreateChild(e, doc.id)}
-                      className="ml-1 h-full rounded-sm hover:bg-muted/70 p-0.5"
-                    >
-                      <Plus className="h-3 w-3 text-muted-foreground" />
-                    </div>
+                    {isFolder && (
+                      <div
+                        role="button"
+                        onClick={(e) => handleCreateChild(e, doc.id, "page")}
+                        className="ml-1 h-full rounded-sm hover:bg-muted/70 p-0.5"
+                      >
+                        <Plus className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -205,6 +288,8 @@ export function DocumentList({
                 expanded={expanded}
                 onSelect={onSelect}
                 activeDocId={activeDocId}
+                onMutate={onMutate}
+                onDocArchived={onDocArchived}
               />
             )}
           </div>

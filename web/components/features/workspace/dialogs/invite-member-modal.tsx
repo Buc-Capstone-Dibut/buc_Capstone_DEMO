@@ -22,6 +22,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, Loader2, X, Users } from "lucide-react";
 import { toast } from "sonner";
 import useSWRMutation from "swr/mutation";
+import { Badge } from "@/components/ui/badge";
+import { normalizeWorkspaceTeamRole } from "@/lib/workspace-team-roles";
+import { TeamRolePickerDialog } from "@/components/features/workspace/dialogs/team-role-picker-dialog";
 
 interface User {
   id: string;
@@ -38,7 +41,7 @@ interface InviteMemberModalProps {
 
 async function sendInvite(
   url: string,
-  { arg }: { arg: { targetUserId: string } },
+  { arg }: { arg: { targetUserId: string; teamRole?: string | null } },
 ) {
   const res = await fetch(url, {
     method: "POST",
@@ -62,6 +65,22 @@ export function InviteMemberModal({
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [teamRole, setTeamRole] = useState("");
+  const [teamRoleDialogOpen, setTeamRoleDialogOpen] = useState(false);
+
+  const resetState = () => {
+    setQuery("");
+    setDebouncedQuery("");
+    setSelectedUsers([]);
+    setUsers([]);
+    setTeamRole("");
+    setTeamRoleDialogOpen(false);
+  };
+
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
 
   // Debounce query
   useEffect(() => {
@@ -104,22 +123,20 @@ export function InviteMemberModal({
 
   const handleInvite = async () => {
     if (selectedUsers.length === 0) return;
+    const normalizedTeamRole = normalizeWorkspaceTeamRole(teamRole);
 
     try {
       await Promise.all(
-        selectedUsers.map((user) => trigger({ targetUserId: user.id })),
+        selectedUsers.map((user) =>
+          trigger({ targetUserId: user.id, teamRole: normalizedTeamRole }),
+        ),
       );
       toast.success(
         selectedUsers.length > 1
           ? `${selectedUsers[0].nickname}님 외 ${selectedUsers.length - 1}명을 초대했습니다.`
           : `${selectedUsers[0].nickname}님을 초대했습니다.`,
       );
-      onClose();
-      // Reset state for next open
-      setTimeout(() => {
-        setSelectedUsers([]);
-        setQuery("");
-      }, 300);
+      handleClose();
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -145,53 +162,90 @@ export function InviteMemberModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] w-full max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="pt-2">
-          <DialogTitle className="text-xl">새로운 팀원 초대</DialogTitle>
-          <DialogDescription>
-            사용자의 닉네이나 이메일을 검색하여 선택하세요. 여러 명을 한 번에
-            초대할 수 있습니다.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleClose();
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px] w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="pt-2">
+            <DialogTitle className="text-xl">새로운 팀원 초대</DialogTitle>
+            <DialogDescription>
+              사용자의 닉네이나 이메일을 검색하여 선택하세요. 여러 명을 한
+              번에 초대할 수 있습니다. 팀 역할은 권한과 무관한 구분용
+              텍스트입니다.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="py-2 space-y-4">
-          {/* Selected Users Area (Chips) */}
-          {selectedUsers.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/30 border rounded-md">
-              <span className="text-xs font-semibold text-muted-foreground mr-1">
-                초대 대상:
-              </span>
-              {selectedUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center gap-1.5 bg-background border shadow-sm hover:bg-secondary text-foreground px-2 py-1 rounded-full text-sm font-medium transition-colors"
-                >
-                  <Avatar className="h-4 w-4">
-                    <AvatarImage src={user.avatar_url || ""} />
-                    <AvatarFallback className="text-[10px] bg-primary/10">
-                      {user.nickname[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="max-w-[100px] truncate">
-                    {user.nickname}
-                  </span>
-                  <button
-                    onClick={() => removeUser(user.id)}
-                    className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                    <span className="sr-only">Remove</span>
-                  </button>
+          <div className="py-2 space-y-4">
+            <div className="rounded-xl border bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">팀 역할</p>
+                  <p className="text-xs text-muted-foreground">
+                    권한과 무관하게, 팀원들이 서로를 구분하기 위한 텍스트입니다.
+                  </p>
                 </div>
-              ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTeamRoleDialogOpen(true)}
+                >
+                  {normalizeWorkspaceTeamRole(teamRole) ? "변경" : "설정"}
+                </Button>
+              </div>
+              <div className="mt-3">
+                {normalizeWorkspaceTeamRole(teamRole) ? (
+                  <Badge variant="secondary" className="rounded-full px-3 py-1">
+                    {normalizeWorkspaceTeamRole(teamRole)}
+                  </Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">
+                    아직 지정된 팀 역할이 없습니다.
+                  </span>
+                )}
+              </div>
             </div>
-          )}
 
-          <Command
-            className="rounded-lg border shadow-sm bg-background w-full min-h-[150px] max-h-[350px] transition-all duration-300 ease-in-out flex flex-col overflow-hidden"
-            shouldFilter={false}
-          >
+            {/* Selected Users Area (Chips) */}
+            {selectedUsers.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/30 border rounded-md">
+                <span className="text-xs font-semibold text-muted-foreground mr-1">
+                  초대 대상:
+                </span>
+                {selectedUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-1.5 bg-background border shadow-sm hover:bg-secondary text-foreground px-2 py-1 rounded-full text-sm font-medium transition-colors"
+                  >
+                    <Avatar className="h-4 w-4">
+                      <AvatarImage src={user.avatar_url || ""} />
+                      <AvatarFallback className="text-[10px] bg-primary/10">
+                        {user.nickname[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="max-w-[100px] truncate">
+                      {user.nickname}
+                    </span>
+                    <button
+                      onClick={() => removeUser(user.id)}
+                      className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="sr-only">Remove</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Command
+              className="rounded-lg border shadow-sm bg-background w-full min-h-[150px] max-h-[350px] transition-all duration-300 ease-in-out flex flex-col overflow-hidden"
+              shouldFilter={false}
+            >
             {/* Search Input Area */}
             <CommandInput
               placeholder="이름 또는 이메일로 팀원 검색..."
@@ -283,29 +337,41 @@ export function InviteMemberModal({
                 </CommandGroup>
               )}
             </CommandList>
-          </Command>
-        </div>
+            </Command>
+          </div>
 
-        <DialogFooter className="mt-2 pt-2 shrink-0">
-          <Button variant="outline" onClick={onClose} disabled={isMutating}>
-            취소
-          </Button>
-          <Button
-            onClick={handleInvite}
-            disabled={selectedUsers.length === 0 || isMutating}
-            className="gap-2 min-w-[120px]"
-          >
-            {isMutating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                처리 중...
-              </>
-            ) : (
-              `팀원 초대하기 ${selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""}`
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="mt-2 pt-2 shrink-0">
+            <Button variant="outline" onClick={handleClose} disabled={isMutating}>
+              취소
+            </Button>
+            <Button
+              onClick={handleInvite}
+              disabled={selectedUsers.length === 0 || isMutating}
+              className="gap-2 min-w-[120px]"
+            >
+              {isMutating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  처리 중...
+                </>
+              ) : (
+                `팀원 초대하기 ${selectedUsers.length > 0 ? `(${selectedUsers.length})` : ""}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <TeamRolePickerDialog
+        open={teamRoleDialogOpen}
+        onOpenChange={setTeamRoleDialogOpen}
+        value={teamRole}
+        submitLabel="초대 역할 적용"
+        description="초대받는 팀원에게 표시될 역할입니다. 권한과는 관계없는 구분용 텍스트입니다."
+        onSave={(nextRole) => {
+          setTeamRole(nextRole ?? "");
+        }}
+      />
+    </>
   );
 }

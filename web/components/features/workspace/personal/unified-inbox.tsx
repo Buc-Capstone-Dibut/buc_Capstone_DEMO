@@ -6,17 +6,54 @@ import { Button } from "@/components/ui/button";
 import {
   Bell,
   CheckCircle2,
+  Check,
   MessageSquare,
   AtSign,
   Inbox as InboxIcon,
   Trash2,
+  X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 export function UnifiedInbox() {
   const { notifications, unreadCount, markAsRead, deleteNotification } =
     useNotifications();
+
+  const handleInviteAction = async (
+    inviteId: string,
+    notificationId: string,
+    action: "accept" | "decline",
+  ) => {
+    try {
+      const response = await fetch("/api/workspaces/invite/respond", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inviteId, action }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "초대 응답 처리에 실패했습니다.");
+      }
+
+      await markAsRead(notificationId);
+      toast.success(`초대를 ${action === "accept" ? "수락" : "거절"}했습니다.`);
+
+      if (action === "accept") {
+        window.location.reload();
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "초대 응답 처리에 실패했습니다.",
+      );
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-background/50">
@@ -102,15 +139,49 @@ export function UnifiedInbox() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      asChild
-                    >
-                      <a href={noti.link || "#"}>View context</a>
-                    </Button>
-                    {!noti.is_read && (
+                    {noti.type === "INVITE" && noti.link?.startsWith("invite:") ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            handleInviteAction(
+                              noti.link!.split(":")[1],
+                              noti.id,
+                              "accept",
+                            )
+                          }
+                        >
+                          <Check className="mr-1 h-3 w-3" />
+                          수락
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            handleInviteAction(
+                              noti.link!.split(":")[1],
+                              noti.id,
+                              "decline",
+                            )
+                          }
+                        >
+                          <X className="mr-1 h-3 w-3" />
+                          거절
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        asChild
+                      >
+                        <a href={noti.link || "#"}>View context</a>
+                      </Button>
+                    )}
+                    {!noti.is_read && noti.type !== "INVITE" && (
                       <Button
                         variant="ghost"
                         size="sm"

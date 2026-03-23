@@ -88,6 +88,23 @@ export async function GET(
             },
           },
         },
+        ...(memberCheck.role === "owner"
+          ? {
+              invites: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  team_role: true,
+                  created_at: true,
+                  expires_at: true,
+                },
+                orderBy: {
+                  created_at: "desc" as const,
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -103,8 +120,10 @@ export async function GET(
     const detailPayload = await buildWorkspaceDetailPayload(workspace);
 
     // Transform response to match frontend expectation
+    const { members, invites = [], ...workspaceBase } = workspace;
+
     const formattedWorkspace = {
-      ...workspace,
+      ...workspaceBase,
       lifecycle_status: lifecycle?.lifecycle_status ?? "IN_PROGRESS",
       completed_at: lifecycle?.completed_at ?? null,
       result_type: lifecycle?.result_type ?? null,
@@ -112,16 +131,28 @@ export async function GET(
       result_note: lifecycle?.result_note ?? null,
       read_only: isWorkspaceCompleted(lifecycle),
       my_role: memberCheck.role,
-      members: workspace.members.map((wm) => ({
+      members: members.map((wm) => ({
         id: wm.user_id,
         name: wm.user?.nickname || "Unknown",
         nickname: wm.user?.nickname || "Unknown",
         email: wm.user?.users?.email || null,
         avatar: wm.user?.avatar_url,
         role: wm.role,
+        team_role: wm.team_role,
         joined_at: wm.joined_at,
         online: false, // TODO: integrate with presence later
       })),
+      pending_invites:
+        memberCheck.role === "owner"
+          ? invites.map((invite) => ({
+              id: invite.id,
+              email: invite.email,
+              role: invite.role,
+              team_role: invite.team_role,
+              created_at: invite.created_at,
+              expires_at: invite.expires_at,
+            }))
+          : [],
       ...detailPayload,
     };
 

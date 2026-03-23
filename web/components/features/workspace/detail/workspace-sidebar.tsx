@@ -88,6 +88,12 @@ type SidebarProject = {
   members?: SidebarMember[];
 };
 
+const getChannelDisplayName = (name: string) => {
+  if (name === "general") return "일반";
+  if (name === "dev-log") return "개발 로그";
+  return name;
+};
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
@@ -266,12 +272,12 @@ export function WorkspaceSidebar({
   };
 
   const navItems = [
-    { id: "overview", label: "Overview", icon: LayoutDashboard },
-    { id: "board", label: "Board", icon: Kanban },
-    { id: "docs", label: "Documents", icon: FileText },
-    { id: "ideas", label: "Ideas", icon: Lightbulb },
-    { id: "members", label: "Members", icon: Users },
-    ...(isOwner ? [{ id: "settings", label: "Settings", icon: Settings }] : []),
+    { id: "overview", label: "개요", icon: LayoutDashboard },
+    { id: "board", label: "보드", icon: Kanban },
+    { id: "docs", label: "문서", icon: FileText },
+    { id: "ideas", label: "아이디어", icon: Lightbulb },
+    { id: "members", label: "팀원", icon: Users },
+    ...(isOwner ? [{ id: "settings", label: "설정", icon: Settings }] : []),
   ];
 
   return (
@@ -288,7 +294,7 @@ export function WorkspaceSidebar({
         {/* Unified Project Switcher */}
         {(() => {
           const currentWorkspace = workspaces?.find((ws) => ws.id === projectId) || project;
-          const displayProjectName = currentWorkspace?.name || (isLoading ? "Loading..." : "Dibut 사이드 프로젝트");
+          const displayProjectName = currentWorkspace?.name || (isLoading ? "불러오는 중..." : "Dibut 사이드 프로젝트");
           const displayChar = displayProjectName.charAt(0) || "?";
 
           return (
@@ -383,17 +389,22 @@ export function WorkspaceSidebar({
       <div className="flex-1 pt-0 px-2 space-y-4 overflow-y-auto">
         {/* Channels */}
         <div>
-          <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            채팅 채널
-            <Plus
+          <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between">
+            채팅
+            <button
+              type="button"
               className={cn(
-                "h-3 w-3 transition-opacity",
+                "inline-flex h-5 w-5 items-center justify-center rounded-md transition-colors",
                 isReadOnly
-                  ? "opacity-30 cursor-not-allowed"
-                  : "opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary",
+                  ? "cursor-not-allowed opacity-30"
+                  : "hover:bg-muted hover:text-primary",
               )}
               onClick={() => openChannelDialog()}
-            />
+              aria-label="채널 만들기"
+              title="채널 만들기"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
           </div>
           <div className="space-y-0.5">
             {channels.map((channel) => {
@@ -430,10 +441,12 @@ export function WorkspaceSidebar({
                     joinChannel(channel.id);
                     onTabChange(`chat-${channel.id}`);
                   }}
-                >
+                  >
                   <div className="flex items-center min-w-0">
                     <Hash className="mr-2 h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="truncate">{channel.name}</span>
+                    <span className="truncate">
+                      {getChannelDisplayName(channel.name)}
+                    </span>
                   </div>
                   {showBadge && (
                     <span
@@ -451,33 +464,42 @@ export function WorkspaceSidebar({
               );
             })}
             {channels.length === 0 && (
-              <div className="rounded-xl border border-dashed bg-muted/20 px-3 py-3">
-                <div className="text-sm font-medium text-foreground">
-                  아직 채널이 없습니다
-                </div>
-                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {isReadOnly
-                    ? "종료된 팀 공간이라 새 채널을 만들 수 없습니다."
-                    : "첫 채널을 만들어 공지, 회의, 작업 논의를 바로 시작하세요."}
-                </div>
-                {!isReadOnly && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="mt-3 h-8 rounded-lg"
-                    onClick={() =>
-                      openChannelDialog(
-                        "general",
-                        "팀 전체 공지와 대화를 위한 기본 채널",
-                      )
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-between h-8 px-2 text-muted-foreground font-normal overflow-hidden",
+                    !isReadOnly && "hover:bg-accent hover:text-accent-foreground",
+                  )}
+                  disabled={isReadOnly}
+                  onClick={() => {
+                    if (!user) {
+                      toast.error("채널 생성에는 로그인이 필요합니다.");
+                      return;
                     }
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    첫 채널 만들기
-                  </Button>
-                )}
-              </div>
+                    createChannel(
+                      projectId,
+                      "general",
+                      "팀 전체 공지와 대화를 위한 기본 채널",
+                      user.id,
+                    );
+                  }}
+                >
+                  <div className="flex items-center min-w-0">
+                    <Hash className="mr-2 h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">일반</span>
+                  </div>
+                  <span className="rounded-full border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    기본
+                  </span>
+                </Button>
+                <div className="px-2 pt-1 text-[11px] text-muted-foreground">
+                  {isReadOnly
+                    ? "채널이 없습니다."
+                    : "채널을 열거나 추가하세요."}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -485,7 +507,7 @@ export function WorkspaceSidebar({
         {/* Voice Rooms */}
         <div>
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            음성 채널
+            음성
             <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer" />
           </div>
           <div className="space-y-0.5">
@@ -500,7 +522,7 @@ export function WorkspaceSidebar({
               disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
-              Dev Room
+              개발실
             </Button>
             {devParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
@@ -519,10 +541,10 @@ export function WorkspaceSidebar({
                       <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
                     </div>
                     <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
-                      {p.name || "Unknown"}
+                      {p.name || "알 수 없음"}
                       {p.identity === user?.id && (
                         <span className="ml-1 text-xs text-muted-foreground font-normal">
-                          (Me)
+                          (나)
                         </span>
                       )}
                     </span>
@@ -541,7 +563,7 @@ export function WorkspaceSidebar({
               disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
-              Lounge
+              라운지
             </Button>
             {loungeParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
@@ -560,10 +582,10 @@ export function WorkspaceSidebar({
                       <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
                     </div>
                     <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
-                      {p.name || "Unknown"}
+                      {p.name || "알 수 없음"}
                       {p.identity === user?.id && (
                         <span className="ml-1 text-xs text-muted-foreground font-normal">
-                          (Me)
+                          (나)
                         </span>
                       )}
                     </span>
@@ -577,7 +599,7 @@ export function WorkspaceSidebar({
 
       <div className="p-4 border-t">
         <div className="mb-2 px-2 text-xs font-semibold text-muted-foreground flex items-center justify-between group">
-          Team
+          팀원
           <button
             type="button"
             onClick={handleOpenLeave}

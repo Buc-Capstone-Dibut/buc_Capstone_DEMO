@@ -12,6 +12,9 @@ import {
   Smile,
   Slash,
   CheckCircle2,
+  FolderPlus,
+  RotateCcw,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -20,6 +23,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { useDebouncedCallback } from "use-debounce";
@@ -41,17 +50,21 @@ interface DocsViewProps {
 
 type WorkspaceDocSummary = {
   id: string;
+  kind: "page" | "folder";
   title: string;
   emoji?: string | null;
   parent_id: string | null;
+  sort_order?: number;
   updated_at?: string;
 };
 
 type ActiveWorkspaceDoc = {
   id: string;
+  kind: "page" | "folder";
   title: string;
   emoji?: string | null;
   updatedAt?: string;
+  updated_at?: string;
   content?: unknown;
 };
 
@@ -87,9 +100,13 @@ export function DocsView({ projectId }: DocsViewProps) {
     fetcher,
     swrOptions,
   );
+  const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
+    WorkspaceDocSummary[]
+  >(`/api/workspaces/${projectId}/docs?archived=true`, fetcher, swrOptions);
 
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
+  const [sidebarMode, setSidebarMode] = useState<"active" | "archived">("active");
 
   // Active Doc Data (If Selected)
   const {
@@ -109,8 +126,10 @@ export function DocsView({ projectId }: DocsViewProps) {
   useEffect(() => {
     if (activeDoc) {
       setTitle(activeDoc.title);
-      setEmoji(activeDoc.emoji);
-      setLastSaved(new Date(activeDoc.updatedAt || Date.now()));
+      setEmoji(activeDoc.emoji ?? null);
+      setLastSaved(
+        new Date(activeDoc.updatedAt || activeDoc.updated_at || Date.now()),
+      );
     } else {
       // Reset when no doc active
       setTitle("");
@@ -123,7 +142,7 @@ export function DocsView({ projectId }: DocsViewProps) {
     setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
   };
 
-  const handleCreateRootDoc = async () => {
+  const handleCreateRootDoc = async (kind: "page" | "folder" = "page") => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
@@ -132,17 +151,64 @@ export function DocsView({ projectId }: DocsViewProps) {
       const res = await fetch(`/api/workspaces/${projectId}/docs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "제목 없음", parentId: null }),
+        body: JSON.stringify({
+          title: kind === "folder" ? "새 폴더" : "제목 없음",
+          parentId: null,
+          kind,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       const newDoc = await res.json();
       mutateDocs();
-      setActiveDocId(newDoc.id);
-      toast.success("새 문서가 생성되었습니다.");
+      if (kind === "page") {
+        setActiveDocId(newDoc.id);
+      }
+      toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
     } catch {
-      toast.error("문서 생성 실패");
+      toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
     }
   };
+
+  const refreshDocs = useCallback(() => {
+    void mutateDocs();
+    void mutateArchivedDocs();
+  }, [mutateArchivedDocs, mutateDocs]);
+
+  const handleRestoreDoc = useCallback(
+    async (docId: string) => {
+      try {
+        const res = await fetch(`/api/workspaces/${projectId}/docs/${docId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isArchived: false }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        refreshDocs();
+        toast.success("문서를 복원했습니다.");
+      } catch {
+        toast.error("문서 복원 실패");
+      }
+    },
+    [projectId, refreshDocs],
+  );
+
+  const handleDocArchived = useCallback(
+    (docId: string) => {
+      if (activeDocId) {
+        let currentId: string | null = activeDocId;
+        while (currentId) {
+          if (currentId === docId) {
+            setActiveDocId(null);
+            break;
+          }
+          currentId =
+            docs?.find((doc) => doc.id === currentId)?.parent_id ?? null;
+        }
+      }
+      refreshDocs();
+    },
+    [activeDocId, docs, refreshDocs],
+  );
 
   // --- Header Update Logic (Shared with Page) ---
   const debouncedUpdate = useDebouncedCallback(
@@ -194,27 +260,66 @@ export function DocsView({ projectId }: DocsViewProps) {
       <div className="w-64 border-r bg-muted/10 flex flex-col h-full">
         {/* ... Sidebar Content ... */}
         <div className="p-4 border-b flex items-center justify-between h-14">
-          <span className="font-semibold text-sm">Documents</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleCreateRootDoc}
-            disabled={isReadOnly}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <span className="font-semibold text-sm">문서</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={isReadOnly}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => handleCreateRootDoc("page")}>
+                <FileText className="h-4 w-4" />
+                새 문서
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleCreateRootDoc("folder")}>
+                <FolderPlus className="h-4 w-4" />
+                새 폴더
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="px-3 pt-3">
+          <div className="grid grid-cols-2 rounded-lg bg-muted/40 p-1">
+            <button
+              type="button"
+              onClick={() => setSidebarMode("active")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sidebarMode === "active"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              문서
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarMode("archived")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sidebarMode === "archived"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              휴지통
+            </button>
+          </div>
         </div>
         <ScrollArea className="flex-1 py-2">
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            All Pages
+            {sidebarMode === "active" ? "전체 문서" : "휴지통"}
           </div>
           <div className="px-2 space-y-0.5">
-            {isLoading ? (
+            {sidebarMode === "active" && isLoading ? (
               <div className="text-xs text-muted-foreground p-2">
-                Loading docs...
+                문서를 불러오는 중...
               </div>
-            ) : docs && docs.length > 0 ? (
+            ) : sidebarMode === "active" && docs && docs.length > 0 ? (
               <DocumentList
                 workspaceId={projectId}
                 docs={docs}
@@ -223,19 +328,54 @@ export function DocsView({ projectId }: DocsViewProps) {
                 expanded={expandedDocs}
                 onSelect={setActiveDocId}
                 activeDocId={activeDocId}
+                onMutate={refreshDocs}
+                onDocArchived={handleDocArchived}
               />
+            ) : sidebarMode === "archived" && archivedDocs && archivedDocs.length > 0 ? (
+              <div className="space-y-1">
+                {archivedDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted/40"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      {doc.kind === "folder" ? (
+                        <Archive className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <FileText className="h-4 w-4 shrink-0" />
+                      )}
+                      <span className="truncate">{doc.title}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => handleRestoreDoc(doc.id)}
+                    >
+                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                      복원
+                    </Button>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-muted-foreground gap-2">
                 <FileText className="h-8 w-8 opacity-20" />
-                <span className="text-xs">No documents yet.</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCreateRootDoc}
-                  disabled={isReadOnly}
-                >
-                  Create First
-                </Button>
+                <span className="text-xs">
+                  {sidebarMode === "active"
+                    ? "아직 문서가 없습니다."
+                    : "휴지통이 비어 있습니다."}
+                </span>
+                {sidebarMode === "active" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCreateRootDoc("page")}
+                    disabled={isReadOnly}
+                  >
+                    첫 문서 만들기
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -271,10 +411,10 @@ export function DocsView({ projectId }: DocsViewProps) {
                   {lastSaved ? (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                      <span className="hidden sm:inline">Saved</span>
+                      <span className="hidden sm:inline">저장됨</span>
                     </>
                   ) : (
-                    <span>Saving...</span>
+                    <span>저장 중...</span>
                   )}
                 </div>
               </div>
@@ -292,19 +432,35 @@ export function DocsView({ projectId }: DocsViewProps) {
               )}
 
               <div className="max-w-4xl mx-auto w-full pt-12 px-12 pb-4">
-                {/* Helper Group: Icon */}
-                <div className="group flex items-center gap-2 mb-4 opacity-0 hover:opacity-100 transition-opacity -ml-12 pl-12 h-6">
-                  {!emoji && (
+                <div className="flex items-start gap-4">
+                  <div className="group relative shrink-0">
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground h-6 px-1.5 text-xs"
-                          disabled={isReadOnly}
-                        >
-                          <Smile className="w-3.5 h-3.5 mr-1" /> Add Icon
-                        </Button>
+                        {emoji ? (
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            className={`flex h-16 w-16 items-center justify-center rounded-2xl transition-colors ${
+                              isReadOnly
+                                ? "cursor-not-allowed opacity-60"
+                                : "cursor-pointer hover:bg-muted/70"
+                            }`}
+                          >
+                            <span className="text-[52px] leading-none">
+                              {emoji}
+                            </span>
+                          </button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-16 min-w-16 rounded-2xl border border-dashed border-border/70 bg-background/70 px-3 text-muted-foreground hover:bg-muted/60"
+                            disabled={isReadOnly}
+                          >
+                            <Smile className="mr-2 h-4 w-4" />
+                            아이콘
+                          </Button>
+                        )}
                       </PopoverTrigger>
                       <PopoverContent
                         className="w-auto p-0 border-none"
@@ -317,52 +473,31 @@ export function DocsView({ projectId }: DocsViewProps) {
                         />
                       </PopoverContent>
                     </Popover>
-                  )}
-                </div>
 
-                {/* Emoji - Large */}
-                {emoji && (
-                  <div className="group relative w-fit mb-4">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <div
-                          className={`text-[72px] leading-none rounded-md px-1 transition-colors ${isReadOnly ? "cursor-not-allowed opacity-60 pointer-events-none" : "cursor-pointer hover:bg-muted"}`}
-                        >
-                          {emoji}
-                        </div>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0 border-none"
-                        align="start"
+                    {emoji && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                        onClick={handleRemoveEmoji}
+                        disabled={isReadOnly}
                       >
-                        <Picker
-                          data={data}
-                          onEmojiSelect={handleEmojiSelect}
-                          theme="light"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute -top-2 -right-6 opacity-0 group-hover:opacity-100 h-6 w-6 rounded-full"
-                      onClick={handleRemoveEmoji}
-                      disabled={isReadOnly}
-                    >
-                      <span className="sr-only">Remove</span>×
-                    </Button>
+                        <span className="sr-only">Remove</span>×
+                      </Button>
+                    )}
                   </div>
-                )}
 
-                {/* Title Input */}
-                <Input
-                  value={title}
-                  onChange={handleTitleChange}
-                  placeholder="Untitled"
-                  disabled={isReadOnly}
-                  className="text-4xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto placeholder:text-muted-foreground/50"
-                  autoFocus
-                />
+                  <div className="min-w-0 flex-1 pt-1">
+                    <Input
+                      value={title}
+                      onChange={handleTitleChange}
+                      placeholder="Untitled"
+                      disabled={isReadOnly}
+                      className="h-auto border-none p-0 text-[2.2rem] font-extrabold tracking-tight shadow-none placeholder:text-muted-foreground/45 focus-visible:ring-0 md:text-[2.7rem]"
+                      autoFocus
+                    />
+                  </div>
+                </div>
 
                 <div className="h-px bg-border my-6" />
               </div>

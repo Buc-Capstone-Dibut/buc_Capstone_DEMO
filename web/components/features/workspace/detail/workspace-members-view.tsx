@@ -6,6 +6,7 @@ import { UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
 
 import {
   Table,
@@ -16,6 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InviteMemberModal } from "@/components/features/workspace/dialogs/invite-member-modal";
+import { normalizeWorkspaceTeamRole } from "@/lib/workspace-team-roles";
+import { TeamRolePickerDialog } from "@/components/features/workspace/dialogs/team-role-picker-dialog";
 
 type WorkspaceMember = {
   id: string;
@@ -24,7 +27,17 @@ type WorkspaceMember = {
   email?: string | null;
   avatar?: string | null;
   role: string;
+  team_role?: string | null;
   joined_at?: string | null;
+};
+
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: string;
+  team_role?: string | null;
+  created_at?: string | null;
+  expires_at?: string | null;
 };
 
 type WorkspaceResponse = {
@@ -32,6 +45,7 @@ type WorkspaceResponse = {
   read_only?: boolean;
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
   members?: WorkspaceMember[];
+  pending_invites?: PendingInvite[];
 };
 
 const fetcher = async (url: string) => {
@@ -44,10 +58,10 @@ const fetcher = async (url: string) => {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  viewer: "Viewer",
+  owner: "오너",
+  admin: "관리자",
+  member: "멤버",
+  viewer: "보기 전용",
 };
 
 const formatJoinedAt = (value?: string | null) => {
@@ -63,6 +77,10 @@ const formatJoinedAt = (value?: string | null) => {
 
 export function WorkspaceMembersView({ projectId }: { projectId: string }) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<WorkspaceMember | null>(
+    null,
+  );
+  const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
   const { data, isLoading, mutate } = useSWR(
     `/api/workspaces/${projectId}`,
     fetcher,
@@ -73,9 +91,59 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
   );
 
   const members = useMemo(() => data?.members ?? [], [data?.members]);
+  const pendingInvites = useMemo(
+    () => data?.pending_invites ?? [],
+    [data?.pending_invites],
+  );
   const isOwner = data?.my_role === "owner";
   const isReadOnly =
     data?.read_only || data?.lifecycle_status === "COMPLETED";
+
+  const handleSaveTeamRole = async (
+    member: WorkspaceMember,
+    nextValue: string | null,
+  ) => {
+    const nextTeamRole = normalizeWorkspaceTeamRole(nextValue);
+    const currentTeamRole = normalizeWorkspaceTeamRole(member.team_role);
+
+    if (nextTeamRole === currentTeamRole) {
+      return true;
+    }
+
+    setSavingMemberId(member.id);
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${projectId}/members/${member.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ teamRole: nextTeamRole }),
+        },
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "팀 역할 저장에 실패했습니다.");
+      }
+
+      toast.success("팀 역할을 저장했습니다.");
+      await mutate();
+      setEditingMember(null);
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "팀 역할 저장에 실패했습니다.",
+      );
+      return false;
+    } finally {
+      setSavingMemberId(null);
+    }
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-4xl min-w-0 mx-auto space-y-8 animate-in fade-in duration-300">
@@ -83,7 +151,8 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
         <div>
           <h2 className="text-2xl font-bold tracking-tight mb-1">멤버 관리</h2>
           <p className="text-sm text-muted-foreground mt-2">
-            팀 공간에 참여 중인 팀원들의 권한과 정보를 확인하고 관리합니다.
+            팀원 정보와 팀 역할을 확인합니다. 팀 역할은 권한과 무관한
+            식별용 텍스트입니다.
           </p>
         </div>
         {isOwner && !isReadOnly && (
@@ -138,16 +207,19 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold w-[15%] py-4 px-6 text-foreground">
-                    역할
+                  <TableHead className="font-semibold w-[14%] py-4 px-6 text-foreground">
+                    권한
+                  </TableHead>
+                  <TableHead className="font-semibold w-[20%] text-foreground">
+                    팀 역할
                   </TableHead>
                   <TableHead className="font-semibold w-[10%] text-foreground text-center">
                     프로필
                   </TableHead>
-                  <TableHead className="font-semibold w-[25%] text-foreground pl-10">
+                  <TableHead className="font-semibold w-[18%] text-foreground pl-10">
                     이름
                   </TableHead>
-                  <TableHead className="font-semibold w-[35%] text-foreground">
+                  <TableHead className="font-semibold w-[23%] text-foreground">
                     이메일
                   </TableHead>
                   <TableHead className="font-semibold w-[15%] text-foreground">
@@ -168,6 +240,28 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
                       >
                         {ROLE_LABELS[member.role] || member.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="py-4 pr-4">
+                      {member.team_role ? (
+                        <Badge variant="outline" className="font-normal">
+                          {member.team_role}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                      {isOwner && !isReadOnly && (
+                        <div className="mt-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setEditingMember(member)}
+                          >
+                            {member.team_role ? "팀 역할 변경" : "팀 역할 설정"}
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
@@ -204,6 +298,56 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      {isOwner && pendingInvites.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-medium text-foreground">
+              대기 중 초대
+              <span className="text-muted-foreground font-normal ml-1 border pl-2 pr-2 py-0.5 rounded-full text-xs">
+                {pendingInvites.length}건
+              </span>
+            </h3>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="px-6">이메일</TableHead>
+                  <TableHead>기본 권한</TableHead>
+                  <TableHead>팀 역할</TableHead>
+                  <TableHead>초대일</TableHead>
+                  <TableHead>만료일</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingInvites.map((invite) => (
+                  <TableRow key={invite.id}>
+                    <TableCell className="px-6 text-sm text-foreground">
+                      {invite.email}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-medium">
+                        {ROLE_LABELS[invite.role] || invite.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {invite.team_role || "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatJoinedAt(invite.created_at)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatJoinedAt(invite.expires_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {isOwner && !isReadOnly && (
         <InviteMemberModal
           workspaceId={projectId}
@@ -214,6 +358,28 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
           }}
         />
       )}
+
+      <TeamRolePickerDialog
+        open={Boolean(editingMember)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingMember(null);
+          }
+        }}
+        title={
+          editingMember
+            ? `${editingMember.nickname || editingMember.name}님의 팀 역할 설정`
+            : "팀 역할 설정"
+        }
+        value={editingMember?.team_role}
+        pending={Boolean(
+          editingMember && savingMemberId === editingMember.id,
+        )}
+        onSave={async (nextValue) => {
+          if (!editingMember) return;
+          await handleSaveTeamRole(editingMember, nextValue);
+        }}
+      />
     </div>
   );
 }

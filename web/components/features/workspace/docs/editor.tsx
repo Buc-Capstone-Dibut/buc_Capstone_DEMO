@@ -1,12 +1,11 @@
 "use client";
 
-import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
-import { useEffect, useState, useMemo, useRef, memo } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import { useTheme } from "next-themes";
 
 // ... (imports)
@@ -18,15 +17,27 @@ interface UserInfo {
 
 interface DocumentEditorProps {
   docId: string;
-  initialContent?: any;
+  initialContent?: unknown;
   readOnly?: boolean;
-  onSave?: (content: any) => void;
+  onSave?: (content: unknown) => void;
   user?: UserInfo;
 }
 
 // ... (component definition)
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
+
+const PAPER_SURFACE_STYLE = {
+  "--bn-colors-editor-background": "hsl(42 45% 98%)",
+  "--bn-colors-menu-background": "#ffffff",
+  "--bn-colors-tooltip-background": "#fffaf0",
+  "--bn-colors-hovered-background": "rgba(148, 163, 184, 0.12)",
+  "--bn-colors-border": "rgba(148, 163, 184, 0.28)",
+  "--bn-colors-shadow": "rgba(15, 23, 42, 0.14)",
+  "--bn-font-family":
+    '"Noto Sans KR", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
+  "--bn-border-radius": "0px",
+} as CSSProperties;
 
 export function DocumentEditor({
   docId,
@@ -105,10 +116,6 @@ export function DocumentEditor({
     }
   }, [editor, onSave]);
 
-  if (!editor) {
-    return <div>Loading editor...</div>;
-  }
-
   // Load initial content if provided and editor is ready (and empty? this is tricky with Yjs)
   // For now, valid blocknote collaboration handles initial load via provider.
   // If we want to seed from DB when Yjs is empty, we'd need to do it explicitly.
@@ -145,11 +152,13 @@ export function DocumentEditor({
   }
 
   return (
-    <div className="flex-1 w-full max-w-4xl mx-auto pl-12 pr-12 pb-24">
+    <div className="flex-1 w-full max-w-4xl mx-auto px-12 pb-24">
       <BlockNoteView
         editor={editor}
         theme={theme === "dark" ? "dark" : "light"}
         editable={!readOnly}
+        className="min-h-[calc(100vh-20rem)] rounded-none border border-slate-200/70 bg-[linear-gradient(180deg,#fffdf7_0%,#fffaf0_100%)] px-6 py-8 shadow-[0_28px_60px_-34px_rgba(15,23,42,0.32)] ring-1 ring-white/70 [&_.bn-editor]:rounded-none [&_.bn-editor]:bg-transparent [&_.bn-editor]:shadow-none"
+        style={PAPER_SURFACE_STYLE}
       />
     </div>
   );
