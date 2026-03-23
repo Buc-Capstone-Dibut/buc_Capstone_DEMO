@@ -146,6 +146,26 @@ class GeminiLiveInterviewSessionTextSelectionTests(unittest.TestCase):
         self.assertEqual(result.user_text, "실시간 AI 면접 서비스를 개발한 경험이 있습니다.")
         self.assertEqual(result.ai_text, "웹소켓 기반 통신 구조에서 어떤 안정성 전략을 사용하셨나요?")
 
+    def test_build_stream_turn_result_prefers_longer_streamed_ai_text_over_shorter_final(self) -> None:
+        session = GeminiLiveInterviewSession(api_key=None)
+
+        responses = [
+            _response(
+                output_text="웹 소켓 기반 통신과 API 설계를 통해 다수 사용자의 동시 요청을 안정적으로 처리했다고 하셨습니다. 당시 프로젝트에서 어느 정도의 트래픽을 감당했으며",
+                turn_complete=True,
+            )
+        ]
+
+        result = session._build_stream_turn_result(
+            responses,
+            best_stream_ai_text="웹 소켓 기반 통신과 API 설계를 통해 다수 사용자의 동시 요청을 안정적으로 처리했다고 하셨습니다. 당시 프로젝트에서 어느 정도의 트래픽을 감당했으며, 이를 위해 어떤 기술적 트레이드오프를 고려하셨나요?",
+        )
+
+        self.assertEqual(
+            result.ai_text,
+            "웹 소켓 기반 통신과 API 설계를 통해 다수 사용자의 동시 요청을 안정적으로 처리했다고 하셨습니다. 당시 프로젝트에서 어느 정도의 트래픽을 감당했으며, 이를 위해 어떤 기술적 트레이드오프를 고려하셨나요?",
+        )
+
 
 class GeminiLiveInterviewSessionReceiveTests(unittest.IsolatedAsyncioTestCase):
     async def test_receive_until_turn_complete_collects_trailing_messages(self) -> None:

@@ -24,7 +24,11 @@ export interface WsInterviewInitPayload {
 
 interface UseOpenLLMProps {
   serverUrl?: string;
-  onTranscript?: (text: string, role: "user" | "ai") => void;
+  onTranscript?: (
+    text: string,
+    role: "user" | "ai",
+    meta?: { turnId?: string },
+  ) => void;
   onEvent?: (event: Record<string, unknown>) => void;
 }
 
@@ -590,7 +594,9 @@ export function useOpenLLM({
             latestAiTurnSeqRef.current = Math.max(latestAiTurnSeqRef.current, turnSeq);
           }
         }
-        onTranscriptRef.current?.(event.text, event.role);
+        onTranscriptRef.current?.(event.text, event.role, {
+          turnId: typeof event.turnId === "string" ? event.turnId : "",
+        });
       }
       return;
     }

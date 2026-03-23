@@ -189,10 +189,10 @@ def _segment_drain_delay_sec(
     drain_delay_sec = state.turn_end_grace_sec
     if architecture == "live-only":
         if reason == "max_segment":
-            return max(min(drain_delay_sec, 0.18), 0.12)
+            return max(min(drain_delay_sec, 0.24), 0.16)
         if reason in {"silence", "short_utterance_silence"}:
-            return max(min(drain_delay_sec, 0.22), 0.16)
-        return max(drain_delay_sec, 0.10)
+            return max(min(drain_delay_sec, 0.24), 0.18)
+        return max(drain_delay_sec, 0.16)
 
     if reason == "max_segment":
         return max(min(drain_delay_sec, 0.08), 0.05)

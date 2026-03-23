@@ -691,7 +691,10 @@ async def _stream_live_audio_turn(
         nonlocal ai_delta_seq, streamed_ai_text
         if not state.session_id:
             return
-        normalized = domain_sanitize_ai_turn_text(accumulated_text)
+        normalized = _prefer_non_regressing_stream_text(
+            streamed_ai_text,
+            domain_sanitize_ai_turn_text(accumulated_text),
+        )
         if not normalized or normalized == streamed_ai_text:
             return
         previous = streamed_ai_text
@@ -715,7 +718,10 @@ async def _stream_live_audio_turn(
         nonlocal streamed_user_text
         if not state.session_id:
             return
-        normalized = domain_sanitize_user_turn_text(accumulated_text)
+        normalized = _prefer_non_regressing_stream_text(
+            streamed_user_text,
+            domain_sanitize_user_turn_text(accumulated_text),
+        )
         if not normalized or normalized == streamed_user_text:
             return
         previous = streamed_user_text
@@ -877,7 +883,10 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
         nonlocal ai_delta_seq, streamed_ai_text
         if not state.session_id:
             return
-        normalized = domain_sanitize_ai_turn_text(accumulated_text)
+        normalized = _prefer_non_regressing_stream_text(
+            streamed_ai_text,
+            domain_sanitize_ai_turn_text(accumulated_text),
+        )
         if not normalized or normalized == streamed_ai_text:
             return
         previous = streamed_ai_text
@@ -899,7 +908,10 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
         nonlocal streamed_user_text
         if not state.session_id:
             return
-        normalized = domain_sanitize_user_turn_text(accumulated_text)
+        normalized = _prefer_non_regressing_stream_text(
+            streamed_user_text,
+            domain_sanitize_user_turn_text(accumulated_text),
+        )
         if not normalized or normalized == streamed_user_text:
             return
         previous = streamed_user_text

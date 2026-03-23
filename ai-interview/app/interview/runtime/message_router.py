@@ -97,8 +97,8 @@ async def handle_client_message(
                 state.pending_segment_resume_ms += chunk_duration_ms
                 architecture = (deps.runtime_architecture or "").strip().lower()
                 resume_threshold_ms = max(
-                    120.0 if architecture == "live-only" else 160.0,
-                    float(state.vad.speech_start_ms) * (0.8 if architecture == "live-only" else 1.0),
+                    80.0 if architecture == "live-only" else 160.0,
+                    float(state.vad.speech_start_ms) * (0.55 if architecture == "live-only" else 1.0),
                 )
                 if state.pending_segment_resume_ms >= resume_threshold_ms:
                     state.pending_user_segment_task.cancel()

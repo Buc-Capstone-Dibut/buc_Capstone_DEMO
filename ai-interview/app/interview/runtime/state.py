@@ -18,35 +18,35 @@ def _is_live_only_architecture() -> bool:
 def _effective_voice_vad_threshold() -> float:
     threshold = float(settings.voice_vad_threshold)
     if _is_live_only_architecture():
-        threshold = min(threshold, 0.017)
+        threshold = max(threshold, 0.03)
     return threshold
 
 
 def _effective_voice_vad_silence_ms() -> int:
     silence_ms = int(settings.voice_vad_silence_ms)
     if _is_live_only_architecture():
-        silence_ms = max(silence_ms, 560)
+        silence_ms = max(silence_ms, 980)
     return silence_ms
 
 
 def _effective_voice_vad_min_utterance_ms() -> int:
     min_utterance_ms = int(settings.voice_vad_min_utterance_ms)
     if _is_live_only_architecture():
-        min_utterance_ms = max(min_utterance_ms, 850)
+        min_utterance_ms = max(min_utterance_ms, 900)
     return min_utterance_ms
 
 
 def _effective_voice_vad_short_utterance_silence_ms() -> int:
     short_silence_ms = int(settings.voice_vad_short_utterance_silence_ms)
     if _is_live_only_architecture():
-        short_silence_ms = max(short_silence_ms, 1000)
+        short_silence_ms = max(short_silence_ms, 1650)
     return short_silence_ms
 
 
 def _effective_turn_end_grace_sec() -> float:
     grace_sec = settings.voice_turn_end_grace_ms / 1000.0
     if _is_live_only_architecture():
-        grace_sec = max(grace_sec, 0.09)
+        grace_sec = max(grace_sec, 0.14)
     return max(0.08, grace_sec)
 
 

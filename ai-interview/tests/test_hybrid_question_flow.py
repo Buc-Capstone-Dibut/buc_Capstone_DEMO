@@ -190,7 +190,7 @@ class HybridQuestionPlannerTests(unittest.TestCase):
         )
 
         self.assertGreater(live_only_delay, hybrid_delay)
-        self.assertGreaterEqual(live_only_delay, 0.16)
+        self.assertGreaterEqual(live_only_delay, 0.18)
 
     def test_user_transcript_cleanup_keeps_normal_korean_spacing(self) -> None:
         cleaned = sanitize_user_turn_text("실시간 AI 면접 서비스를 개발하며 웹 소켓 기반 실시간 통신 구조를 설계했습니다.")

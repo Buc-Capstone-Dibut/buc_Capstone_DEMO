@@ -29,11 +29,11 @@ except Exception:  # pragma: no cover - optional dependency fallback
 logger = logging.getLogger("dibut.gemini_live_voice")
 
 PCM_RATE_PATTERN = re.compile(r"rate=(\d+)")
-TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC = 0.45
-TURN_COMPLETE_AUDIO_IDLE_GRACE_SEC = 1.10
-TURN_COMPLETE_TEXT_TAIL_GRACE_SEC = 0.42
+TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC = 0.74
+TURN_COMPLETE_AUDIO_IDLE_GRACE_SEC = 1.85
+TURN_COMPLETE_TEXT_TAIL_GRACE_SEC = 0.5
 TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.14
-TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC = 0.65
+TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC = 1.05
 TURN_COMPLETE_TIMEOUT_RETRY_LIMIT = 2
 
 
@@ -579,7 +579,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             "response_modalities": ["AUDIO"],
             "temperature": 0.2,
             "top_p": 0.9,
-            "max_output_tokens": 420,
+            "max_output_tokens": 840,
             "input_audio_transcription": {},
             "output_audio_transcription": {},
             "thinking_config": {
@@ -718,6 +718,29 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             return candidate
         return current
 
+    def _pick_authoritative_stream_ai_text(self, committed: str, streamed: str) -> str:
+        normalized_committed = self._normalize_ai_text_candidate(committed)
+        normalized_streamed = self._normalize_ai_text_candidate(streamed)
+        if not normalized_streamed:
+            return normalized_committed
+        if not normalized_committed:
+            return normalized_streamed
+
+        monotonic = self._pick_monotonic_text(normalized_committed, normalized_streamed)
+        if monotonic:
+            return monotonic
+
+        compact_committed = len(re.sub(r"\s+", "", normalized_committed))
+        compact_streamed = len(re.sub(r"\s+", "", normalized_streamed))
+        if compact_streamed >= compact_committed:
+            return normalized_streamed
+
+        score_gap = self._score_ai_text_candidate(normalized_committed) - self._score_ai_text_candidate(normalized_streamed)
+        if score_gap >= 260 and compact_committed + 6 >= compact_streamed:
+            return normalized_committed
+
+        return normalized_streamed
+
     def _score_user_text_candidate(self, candidate: str) -> int:
         return score_user_transcript_text(candidate)
 
@@ -753,7 +776,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             self.provider,
         )
         authoritative_user_text = self._pick_better_user_text(result.user_text, best_stream_user_text)
-        authoritative_ai_text = self._pick_better_ai_text(result.ai_text, best_stream_ai_text)
+        authoritative_ai_text = self._pick_authoritative_stream_ai_text(result.ai_text, best_stream_ai_text)
         if authoritative_user_text == result.user_text and authoritative_ai_text == result.ai_text:
             return result
         return LiveInterviewTurnResult(
