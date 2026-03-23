@@ -7,7 +7,6 @@ import {
 } from "../../store/mock-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   MoreHorizontal,
@@ -26,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface TaskCardProps {
   task: Task;
@@ -74,7 +74,7 @@ export function TaskCard({
   const propertyOrder =
     cardProperties && cardProperties.length > 0
       ? cardProperties
-      : ["priority", "tags", "title", "assignee", "dueDate"];
+      : ["title", "priority", "tags", "assignee", "dueDate"];
 
   const renderProperty = (prop: string, index: number) => {
     const key = `${prop}-${index}`;
@@ -148,11 +148,12 @@ export function TaskCard({
             key={key}
             className="flex items-center gap-1.5 bg-muted/40 px-1.5 py-0.5 rounded text-[11px] mb-1.5 inline-flex w-fit"
           >
-            <Avatar className="h-3.5 w-3.5">
-              <AvatarFallback className="text-[8px]">
-                {task.assignee.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
+            <WorkspaceUserAvatar
+              name={task.assignee}
+              avatarUrl={task.assigneeProfile?.avatar}
+              className="h-3.5 w-3.5"
+              fallbackClassName="text-[8px]"
+            />
             <span>{task.assignee}</span>
           </div>
         );

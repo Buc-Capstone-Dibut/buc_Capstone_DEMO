@@ -1,13 +1,13 @@
 "use client";
 
 import { usePresence } from "@/components/providers/presence-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, Calendar, ExternalLink } from "lucide-react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -53,13 +53,15 @@ export function GlobalPulseSidebar() {
                     <div className="flex -space-x-2 overflow-hidden py-1">
                         {allMembers.map((member) => (
                             <div key={member.id} className="relative group">
-                                <Avatar className={cn(
+                                <WorkspaceUserAvatar
+                                    name={member.nickname}
+                                    avatarUrl={member.avatar_url}
+                                    className={cn(
                                     "h-8 w-8 ring-2 ring-background border-2 transition-transform hover:-translate-y-1",
                                     onlineUsers.has(member.id) ? "border-green-500/50" : "border-transparent"
-                                )}>
-                                    <AvatarImage src={member.avatar_url || ""} />
-                                    <AvatarFallback className="text-[10px]">{member.nickname?.[0]}</AvatarFallback>
-                                </Avatar>
+                                )}
+                                    fallbackClassName="text-[10px]"
+                                />
                                 {onlineUsers.has(member.id) && (
                                     <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-1 ring-background" />
                                 )}

@@ -261,7 +261,6 @@ export default function WorkspaceDetailPage() {
             initialDocId={searchParams.get("doc")}
             onNavigateToTask={(taskId) => {
               setActiveTaskId(taskId);
-              handleTabChange("board");
             }}
           />
         );

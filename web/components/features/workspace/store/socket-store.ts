@@ -2,6 +2,15 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
+const WORKSPACE_SERVER_UNSTABLE_MESSAGE =
+  "워크스페이스 서버가 불안정합니다. 잠시 후 다시 시도해주세요.";
+
+function notifyWorkspaceServerUnstable() {
+  toast.error(WORKSPACE_SERVER_UNSTABLE_MESSAGE, {
+    id: "workspace-server-unstable",
+  });
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -105,7 +114,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
     socket.on("connect_error", (err) => {
       console.error("[Socket] Connection Error:", err);
-      toast.error(`Socket connection error: ${err.message}`);
+      notifyWorkspaceServerUnstable();
     });
 
     socket.on("disconnect", () => {
@@ -171,7 +180,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
   fetchChannels: (workspaceId, socketInstance?: Socket) => {
     // Allow passing socket instance
     const socket = socketInstance || get().socket;
-    if (socket) {
+    if (socket?.connected) {
       socket.emit("chat:get_channels", { workspaceId }, (res: ChannelsAck) => {
         if (res.success) {
           set({ channels: res.data });
@@ -181,10 +190,13 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
           }
         } else {
           console.error("[Socket] Failed to fetch channels:", res.error);
-          toast.error(`Failed to load channels: ${res.error}`);
+          notifyWorkspaceServerUnstable();
         }
       });
+      return;
     }
+
+    notifyWorkspaceServerUnstable();
   },
 
   joinChannel: (channelId) => {
@@ -222,18 +234,31 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
   createChannel: (workspaceId, name, description, userId) => {
     const socket = get().socket;
-    if (socket) {
-      socket.emit(
-        "chat:create_channel",
-        { workspaceId, name, description, userId },
-        (res: CreateChannelAck) => {
-          if (res.success) {
-            set((state) => ({ channels: [...state.channels, res.data] }));
-            get().joinChannel(res.data.id);
-          }
-        },
-      );
+    const normalizedName = name.trim();
+
+    if (!normalizedName) return;
+
+    if (!socket?.connected) {
+      notifyWorkspaceServerUnstable();
+      return;
     }
+
+    socket.emit(
+      "chat:create_channel",
+      { workspaceId, name: normalizedName, description, userId },
+      (res: CreateChannelAck) => {
+        if (res.success) {
+          set((state) => ({
+            channels: [...state.channels, res.data],
+          }));
+          get().joinChannel(res.data.id);
+          return;
+        }
+
+        console.error("[Socket] Failed to create channel:", res.error);
+        notifyWorkspaceServerUnstable();
+      },
+    );
   },
 
   sendMessage: (channelId, content, senderId) => {

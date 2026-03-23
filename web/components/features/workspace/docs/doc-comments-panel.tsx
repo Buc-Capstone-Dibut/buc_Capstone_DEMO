@@ -397,32 +397,33 @@ export function DocCommentsPanel({
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="border-b bg-background/80 px-4 py-3">
-        <div className="mb-3 flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">문서 댓글</h3>
-          <Badge variant="secondary" className="ml-auto text-[10px]">
-            {comments?.length ?? 0}
-          </Badge>
+      <div className="flex items-center justify-between border-b bg-muted/10 px-4 py-2">
+        <div className="flex items-center gap-1.5 opacity-70">
+          <MessageSquare className="h-3.5 w-3.5" />
+          <h3 className="text-xs font-medium">댓글</h3>
+          <span className="text-[10px] text-muted-foreground ml-1">
+            {openCount} {resolvedCount > 0 && `/ ${comments?.length}`}
+          </span>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex items-center gap-0.5 rounded-md bg-muted/30 p-0.5">
           {([
-            ["open", "미해결", openCount],
-            ["all", "전체", comments?.length ?? 0],
-            ["resolved", "해결됨", resolvedCount],
-          ] as const).map(([value, label, count]) => (
-            <Button
+            ["open", "활성"],
+            ["resolved", "해결"],
+          ] as const).map(([value, label]) => (
+            <button
               key={value}
               type="button"
-              variant={filter === value ? "secondary" : "ghost"}
-              size="sm"
-              className="h-8 px-2.5 text-xs"
+              className={cn(
+                "rounded-sm px-2 py-0.5 text-[10px] font-medium transition-all",
+                filter === value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
               onClick={() => setFilter(value)}
             >
               {label}
-              <span className="text-[10px] text-muted-foreground">{count}</span>
-            </Button>
+            </button>
           ))}
         </div>
       </div>
@@ -444,31 +445,35 @@ export function DocCommentsPanel({
         )}
       </ScrollArea>
 
-      <div className="border-t bg-background/80 p-4">
+      <div className="border-t bg-muted/10 p-3">
         <Textarea
           value={newComment}
           onChange={(event) => setNewComment(event.target.value)}
           placeholder={
-            readOnly ? "읽기 전용 문서입니다." : "문서에 댓글을 남겨보세요."
+            readOnly ? "읽기 전용 문서입니다." : "댓글 남기기..."
           }
           disabled={readOnly}
-          className={cn("min-h-[96px]", readOnly && "opacity-70")}
+          className={cn("min-h-[64px] resize-none text-xs bg-background focus-visible:ring-1", readOnly && "opacity-70")}
         />
-        <div className="mt-3 flex justify-end gap-2">
-          {!readOnly && (replyToId || editingId) ? (
-            <Button type="button" variant="ghost" onClick={resetComposerState}>
-              입력 상태 초기화
-            </Button>
-          ) : null}
+        <div className="mt-2 flex items-center justify-between">
+          <div className="text-[10px] text-muted-foreground">
+            {!readOnly && (replyToId || editingId) && (
+              <button type="button" className="hover:underline" onClick={resetComposerState}>
+                취소
+              </button>
+            )}
+          </div>
           <Button
             type="button"
+            size="sm"
+            className="h-7 text-xs px-3"
             onClick={() => handleCreateComment()}
             disabled={readOnly || !newComment.trim() || pendingActionId === "new"}
           >
             {pendingActionId === "new" ? (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
             ) : null}
-            댓글 등록
+            등록
           </Button>
         </div>
       </div>

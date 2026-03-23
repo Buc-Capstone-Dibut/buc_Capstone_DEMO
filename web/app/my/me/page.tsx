@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureProfileForUser } from "@/lib/my-profile";
+import { ensureProfileForUser, extractAuthProfileSeed } from "@/lib/my-profile";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +19,12 @@ export default async function MyMePage({
   }
 
   const user = session.user;
+  const seed = extractAuthProfileSeed(user);
   const profile = await ensureProfileForUser({
     userId: user.id,
-    nickname:
-      user.user_metadata?.nickname || user.user_metadata?.full_name || null,
-    email: user.email ?? null,
+    nickname: seed.nickname,
+    email: seed.email,
+    avatarUrl: seed.avatarUrl,
   });
 
   const queryString = new URLSearchParams(searchParams as any).toString();

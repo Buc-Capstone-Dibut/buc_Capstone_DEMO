@@ -18,7 +18,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -38,6 +37,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 // --- Types ---
 interface Task {
@@ -110,15 +110,6 @@ interface AdvancedTaskModalProps {
   onNavigateToDoc?: (docId: string) => void;
 }
 
-const RELATION_TYPE_LABEL: Record<string, string> = {
-  reference: "참고",
-  spec: "요구사항",
-  meeting_note: "회의록",
-  qa: "QA",
-  result: "결과",
-  design: "디자인",
-};
-
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const PRIORITY_LABEL: Record<string, string> = {
@@ -177,6 +168,15 @@ const getTagColorClass = (color?: string) => {
 const getTagDotClass = (color?: string) => {
   const normalized = normalizeTagColor(color);
   return TAG_DOT_CLASS[normalized] || TAG_DOT_CLASS.gray;
+};
+
+const getDocPath = (docId: string, docsList: WorkspaceDocSummary[]): string => {
+  const doc = docsList.find(d => d.id === docId);
+  if (!doc || !doc.parent_id) return "";
+  const parent = docsList.find(d => d.id === doc.parent_id);
+  if (!parent) return "";
+  const parentPath = getDocPath(parent.id, docsList);
+  return parentPath ? `${parentPath} / ${parent.title}` : parent.title;
 };
 
 export function AdvancedTaskModal({
@@ -459,6 +459,43 @@ export function AdvancedTaskModal({
     }
   };
 
+  const handleCreateAndLinkDoc = async () => {
+    if (!projectId || !relationEndpoint) return;
+    try {
+      const res = await fetch(`/api/workspaces/${projectId}/docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "제목 없음",
+          parentId: null,
+          kind: "page"
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create doc");
+      const newDoc = await res.json();
+
+      const relRes = await fetch(relationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId: newDoc.id,
+          relationType: "reference",
+          isPrimary: linkedDocs.length === 0,
+        }),
+      });
+      if (!relRes.ok) throw new Error("Failed to link new doc");
+
+      setDocSearch("");
+      await refreshLinkedDocs();
+      await mutate(`/api/workspaces/${projectId}/docs`);
+      toast.success("새 문서를 만들고 연결했습니다.");
+
+      onNavigateToDoc?.(newDoc.id);
+    } catch {
+      toast.error("새 문서 생성 및 연결에 실패했습니다.");
+    }
+  };
+
   // --- Helpers ---
   const currentMember = members.find((m) => m.id === localTask.assigneeId);
   const selectedDate = localTask.dueDate
@@ -512,7 +549,7 @@ export function AdvancedTaskModal({
               </Select>
             </div>
 
-            {/* 
+            {/*
               Removed manual Close button as DialogContent provides one automatically.
               If you want spacing, we can keep an empty div or nothing.
               Justify-between will push the left content to the left.
@@ -582,12 +619,12 @@ export function AdvancedTaskModal({
                       {localTask.assigneeId &&
                       localTask.assigneeId !== "unassigned" ? (
                         <>
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={currentMember?.avatar ?? undefined} />
-                            <AvatarFallback className="text-[10px]">
-                              {currentMember?.name?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
+                          <WorkspaceUserAvatar
+                            name={currentMember?.name}
+                            avatarUrl={currentMember?.avatar}
+                            className="h-5 w-5"
+                            fallbackClassName="text-[10px]"
+                          />
                           <span>{currentMember?.name}</span>
                         </>
                       ) : (
@@ -603,15 +640,16 @@ export function AdvancedTaskModal({
                   <SelectContent className="z-[100]">
                     <SelectItem value="unassigned">담당자 없음</SelectItem>
                     {members.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={m.avatar ?? undefined} />
-                            <AvatarFallback>{m.name?.[0]}</AvatarFallback>
-                          </Avatar>
+                    <SelectItem key={m.id} value={m.id}>
+                      <div className="flex items-center gap-2">
+                          <WorkspaceUserAvatar
+                            name={m.name}
+                            avatarUrl={m.avatar}
+                            className="h-5 w-5"
+                          />
                           <span>{m.name}</span>
-                        </div>
-                      </SelectItem>
+                      </div>
+                    </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -650,6 +688,150 @@ export function AdvancedTaskModal({
                     <SelectItem value="urgent">긴급</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Connected Docs */}
+              <div className="space-y-3">
+                <span className="text-xs font-semibold text-muted-foreground uppercase">
+                  연결 문서
+                </span>
+
+                {linkedDocs.length > 0 ? (
+                  <div className="space-y-2">
+                    {linkedDocs.map((relation) => {
+                      const path = getDocPath(relation.doc.id, docs);
+                      return (
+                      <div
+                        key={relation.id}
+                        className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
+                      >
+                        {/* Primary Badge */}
+                        {relation.isPrimary && (
+                          <div className="absolute -left-1 -top-1">
+                            <Badge variant="default" className="h-4 px-1 text-[9px] shadow-sm">
+                              대표
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Left: Doc Info */}
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          onClick={() => onNavigateToDoc?.(relation.doc.id)}
+                        >
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
+                            {relation.doc.emoji ? relation.doc.emoji : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium text-foreground">
+                              {relation.doc.title}
+                            </div>
+                            {path && (
+                              <div className="truncate text-[10px] text-muted-foreground">
+                                {path}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Right: Actions */}
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+                          {!relation.isPrimary && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                              onClick={() => handleUpdateRelation(relation.id, { isPrimary: true })}
+                              title="대표 문서로 설정"
+                            >
+                              <Star className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleUnlinkDoc(relation.id)}
+                            title="연결 해제"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )})}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
+                    아직 연결된 문서가 없습니다.
+                  </div>
+                )}
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start border-dashed text-xs"
+                    >
+                      <Link2 className="mr-2 h-3.5 w-3.5" />
+                      문서 연결하기
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-2">
+                    <Input
+                      value={docSearch}
+                      onChange={(e) => setDocSearch(e.target.value)}
+                      placeholder="문서 검색"
+                      className="h-8 text-xs"
+                    />
+                    <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                      {availableDocs.length > 0 ? (
+                        availableDocs.map((doc) => {
+                          const path = getDocPath(doc.id, docs);
+                          return (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
+                            onClick={() => handleLinkDoc(doc.id)}
+                          >
+                            <div className="min-w-0 flex-1 pr-2">
+                              <div className="truncate text-foreground font-medium">
+                                {doc.emoji ? `${doc.emoji} ` : ""}
+                                {doc.title}
+                              </div>
+                              {path && (
+                                <div className="truncate text-[10px] text-muted-foreground mt-0.5">
+                                  {path}
+                                </div>
+                              )}
+                            </div>
+                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          </button>
+                        )})
+                      ) : (
+                        <div className="px-2 py-2 text-xs text-muted-foreground">
+                          연결 가능한 페이지가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                    {/* Fast Action */}
+                    <div className="mt-2 border-t pt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full text-xs justify-start"
+                        onClick={handleCreateAndLinkDoc}
+                      >
+                        <FileText className="mr-2 h-3.5 w-3.5" />
+                        새 문서 만들고 바로 연결
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Tags */}
@@ -738,151 +920,6 @@ export function AdvancedTaskModal({
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
-
-              {/* Due Date */}
-              <div className="space-y-3">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  연결 문서
-                </span>
-
-                {linkedDocs.length > 0 ? (
-                  <div className="space-y-2">
-                    {linkedDocs.map((relation) => (
-                      <div
-                        key={relation.id}
-                        className="rounded-lg border bg-background/80 p-3 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <button
-                            type="button"
-                            className="min-w-0 text-left"
-                            onClick={() =>
-                              onNavigateToDoc?.(relation.doc.id)
-                            }
-                          >
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="truncate text-sm font-medium">
-                                {relation.doc.emoji ? `${relation.doc.emoji} ` : ""}
-                                {relation.doc.title}
-                              </span>
-                            </div>
-                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                                {RELATION_TYPE_LABEL[relation.relationType] ||
-                                  relation.relationType}
-                              </Badge>
-                              {relation.isPrimary && (
-                                <span className="inline-flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-500" />
-                                  대표 문서
-                                </span>
-                              )}
-                            </div>
-                          </button>
-
-                          <div className="flex items-center gap-1">
-                            {!relation.isPrimary && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() =>
-                                  handleUpdateRelation(relation.id, {
-                                    isPrimary: true,
-                                  })
-                                }
-                              >
-                                <Star className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleUnlinkDoc(relation.id)}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <Select
-                            value={relation.relationType}
-                            onValueChange={(value) =>
-                              handleUpdateRelation(relation.id, {
-                                relationType: value,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(RELATION_TYPE_LABEL).map(
-                                ([value, label]) => (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                ),
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
-                    아직 연결된 문서가 없습니다.
-                  </div>
-                )}
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start border-dashed text-xs"
-                    >
-                      <Link2 className="mr-2 h-3.5 w-3.5" />
-                      문서 연결하기
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-72 p-2">
-                    <Input
-                      value={docSearch}
-                      onChange={(e) => setDocSearch(e.target.value)}
-                      placeholder="문서 검색"
-                      className="h-8 text-xs"
-                    />
-                    <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
-                      {availableDocs.length > 0 ? (
-                        availableDocs.map((doc) => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
-                            onClick={() => handleLinkDoc(doc.id)}
-                          >
-                            <span className="truncate">
-                              {doc.emoji ? `${doc.emoji} ` : ""}
-                              {doc.title}
-                            </span>
-                            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-2 py-2 text-xs text-muted-foreground">
-                          연결 가능한 문서가 없습니다.
-                        </div>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
               </div>
 
               {/* Due Date */}

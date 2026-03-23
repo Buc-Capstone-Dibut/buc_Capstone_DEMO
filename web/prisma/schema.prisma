@@ -520,6 +520,7 @@ model profiles {
   workspace_members  workspace_members[]
   workspace_invites  workspace_invites[]
   workspace_docs     workspace_docs[]
+  workspace_doc_assets_created workspace_doc_assets[] @relation("WorkspaceDocAssetCreator")
   workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
   workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
   created_task_document_links kanban_task_documents[] @relation("WorkspaceTaskDocumentCreator")
@@ -682,6 +683,7 @@ model workspaces {
   tags       kanban_tags[]
   views      workspace_views[]
   docs       workspace_docs[]
+  doc_assets workspace_doc_assets[]
   task_document_links kanban_task_documents[]
   doc_comments workspace_doc_comments[]
   channels   workspace_channels[]
@@ -857,12 +859,44 @@ model workspace_docs {
   author    profiles         @relation(fields: [author_id], references: [id])
   parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
   children  workspace_docs[] @relation("DocHierarchy")
+  state     workspace_doc_states?
+  assets    workspace_doc_assets[]
   task_links kanban_task_documents[]
   comments  workspace_doc_comments[]
 
   @@index([workspace_id, updated_at(sort: Desc)])
   @@index([workspace_id, parent_id, is_archived, sort_order])
   @@index([parent_id])
+  @@schema("public")
+}
+
+model workspace_doc_states {
+  doc_id      String   @id @db.Uuid
+  yjs_state   String?
+  updated_at  DateTime @default(now()) @updatedAt
+  updated_by  String?  @db.Uuid
+
+  doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model workspace_doc_assets {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String   @db.Uuid
+  doc_id       String   @db.Uuid
+  storage_path String
+  mime_type    String
+  size_bytes   Int
+  created_by   String   @db.Uuid
+  created_at   DateTime @default(now())
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  creator   profiles       @relation("WorkspaceDocAssetCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([workspace_id, doc_id, created_at(sort: Desc)])
+  @@index([doc_id, created_at(sort: Desc)])
   @@schema("public")
 }
 

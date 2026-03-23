@@ -71,12 +71,30 @@ type BoardMemberResponse = {
 };
 
 const DEFAULT_CARD_PROPERTIES = [
+  "title",
   "priority",
   "tags",
-  "title",
   "assignee",
   "dueDate",
 ] as const;
+
+const DEFAULT_CARD_PROPERTY_SET = new Set(DEFAULT_CARD_PROPERTIES);
+
+function slugifyBoardValue(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function normalizeCardProperties(properties?: string[] | null) {
+  const source = Array.isArray(properties) ? properties : DEFAULT_CARD_PROPERTIES;
+  const visible = source.filter(
+    (property): property is (typeof DEFAULT_CARD_PROPERTIES)[number] =>
+      typeof property === "string" &&
+      property !== "title" &&
+      DEFAULT_CARD_PROPERTY_SET.has(property as (typeof DEFAULT_CARD_PROPERTIES)[number]),
+  );
+
+  return ["title", ...Array.from(new Set(visible))];
+}
 
 function normalizeColumnCategory(value?: string) {
   if (value === "done" || value === "in-progress") return value;
@@ -105,7 +123,7 @@ function buildFallbackViews(
       ),
       isSystem: true,
       color: "green",
-      cardProperties: ["priority", "tags", "title", "assignee", "dueDate"],
+      cardProperties: [...DEFAULT_CARD_PROPERTIES],
       showEmptyGroups: true,
       columnOrder: columns.map((column) => column.id),
     },
@@ -118,7 +136,7 @@ function buildFallbackViews(
       columns: [],
       isSystem: true,
       color: "blue",
-      cardProperties: ["priority", "tags", "title", "assignee", "dueDate"],
+      cardProperties: [...DEFAULT_CARD_PROPERTIES],
       showEmptyGroups: true,
       columnOrder: [],
     },
@@ -131,7 +149,7 @@ function buildFallbackViews(
       columns: [],
       isSystem: true,
       color: "orange",
-      cardProperties: ["priority", "tags", "title", "assignee", "dueDate"],
+      cardProperties: [...DEFAULT_CARD_PROPERTIES],
       showEmptyGroups: true,
       columnOrder: [],
     },
@@ -144,7 +162,7 @@ function buildFallbackViews(
       columns: [],
       isSystem: true,
       color: "gray",
-      cardProperties: ["priority", "tags", "title", "assignee", "dueDate"],
+      cardProperties: [...DEFAULT_CARD_PROPERTIES],
       showEmptyGroups: true,
       columnOrder: [],
     },
@@ -372,7 +390,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   }, [resolvedViews, activeViewId]);
 
   const activeCardProperties = useMemo(
-    () => activeView?.cardProperties || [...DEFAULT_CARD_PROPERTIES],
+    () => normalizeCardProperties(activeView?.cardProperties),
     [activeView],
   );
   const isMainBoardView = Boolean(
@@ -415,7 +433,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       const memberColumns = resolvedProject.members.map((m) => ({
         id: m.id,
         title: m.name,
-        statusId: m.name,
+        statusId: m.id,
         icon: m.avatar || "U",
         color: m.role === "leader" ? "violet" : "blue",
       }));
@@ -428,7 +446,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       };
       return [unassignedColumn, ...memberColumns];
     } else if (groupBy === "priority") {
-      const priorityColumns = priorities
+      const priorityColumns = [...priorities]
         .sort((a, b) => a.order - b.order)
         .map((p) => ({
           id: p.id,
@@ -603,31 +621,56 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       return;
     }
     try {
-      let targetColumnId =
-        taskProps.columnId || taskProps.status || taskProps.statusId;
-      const isUUID = (str: string) => /^[0-9a-f]{8}-/.test(str);
-      if (!targetColumnId || !isUUID(targetColumnId)) {
-        const fallbackCol = boardData?.columns?.find(
-          (c: any) =>
-            (c.category && c.category === targetColumnId) ||
-            c.title.toLowerCase().replace(/\s+/g, "-") === targetColumnId ||
-            c.category === "todo",
-        );
-        if (fallbackCol) targetColumnId = fallbackCol.id;
+      const boardColumns = boardData?.columns || [];
+      const requestedTargets = [
+        taskProps.columnId,
+        taskProps.status,
+        taskProps.statusId,
+        taskProps.columnCategory,
+      ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+      let targetColumnId = requestedTargets
+        .map((value) =>
+          boardColumns.find(
+            (column) =>
+              column.id === value ||
+              column.statusId === value ||
+              slugifyBoardValue(column.title) === slugifyBoardValue(value) ||
+              column.category === value,
+          )?.id,
+        )
+        .find(Boolean);
+
+      if (!targetColumnId) {
+        targetColumnId =
+          boardColumns.find((column) => column.category === "todo")?.id ||
+          boardColumns[0]?.id;
       }
-      const payload = {
+
+      const payload: Record<string, unknown> = {
         title: taskProps.title || "새 태스크",
         columnId: targetColumnId,
-        assigneeId: taskProps.assigneeId,
-        priority: taskProps.priorityId,
-        tags: taskProps.tags,
       };
+
+      if ("assigneeId" in taskProps) {
+        payload.assigneeId = taskProps.assigneeId ?? null;
+      }
+
+      if ("priorityId" in taskProps) {
+        payload.priority = taskProps.priorityId ?? null;
+      }
+
+      if (Array.isArray(taskProps.tags)) {
+        payload.tags = taskProps.tags;
+      }
+
       if (!payload.columnId) {
         toast.error("태스크를 생성할 섹션(컬럼)을 찾을 수 없습니다.");
         return;
       }
       const res = await fetch(`/api/workspaces/${projectId}/board/tasks`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -865,17 +908,25 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                       }}
                       onToggle={(prop) => {
                         if (!activeView) return;
+                        if (prop === "title") return;
                         const nextProperties = activeCardProperties.includes(prop)
                           ? activeCardProperties.filter((item) => item !== prop)
                           : [...activeCardProperties, prop];
                         void handleUpdateView(activeView.id, {
-                          cardProperties: nextProperties,
+                          cardProperties: normalizeCardProperties(nextProperties),
                         });
                       }}
                       onReorder={(newOrder) => {
                         if (activeView) {
+                          const visiblePropertySet = new Set(activeCardProperties);
                           void handleUpdateView(activeView.id, {
-                            cardProperties: newOrder,
+                            cardProperties: normalizeCardProperties(
+                              newOrder.filter(
+                                (property) =>
+                                  property === "title" ||
+                                  visiblePropertySet.has(property),
+                              ),
+                            ),
                           });
                         }
                       }}

@@ -5,17 +5,9 @@ import useSWR from "swr";
 import { UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { InviteMemberModal } from "@/components/features/workspace/dialogs/invite-member-modal";
 import { normalizeWorkspaceTeamRole } from "@/lib/workspace-team-roles";
 import { TeamRolePickerDialog } from "@/components/features/workspace/dialogs/team-role-picker-dialog";
@@ -191,11 +183,11 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
             </div>
           ) : members.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-              <div className="bg-muted/50 p-4 rounded-full">
+              <div className="bg-muted/50 p-4 rounded-full border border-border/30 shadow-sm">
                 <Users className="h-8 w-8 text-muted-foreground/70" />
               </div>
-              <div>
-                <p className="text-base font-medium text-foreground">
+              <div className="mt-2">
+                <p className="text-base font-semibold text-foreground">
                   등록된 팀원이 없습니다
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -204,96 +196,86 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
               </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold w-[14%] py-4 px-6 text-foreground">
-                    권한
-                  </TableHead>
-                  <TableHead className="font-semibold w-[20%] text-foreground">
-                    팀 역할
-                  </TableHead>
-                  <TableHead className="font-semibold w-[10%] text-foreground text-center">
-                    프로필
-                  </TableHead>
-                  <TableHead className="font-semibold w-[18%] text-foreground pl-10">
-                    이름
-                  </TableHead>
-                  <TableHead className="font-semibold w-[23%] text-foreground">
-                    이메일
-                  </TableHead>
-                  <TableHead className="font-semibold w-[15%] text-foreground">
-                    참여 일자
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="flex flex-col w-full">
+              {/* List Header */}
+              <div className="hidden sm:flex items-center justify-between px-6 py-3 text-xs font-semibold text-muted-foreground bg-muted/10 border-b border-border/40">
+                <div className="min-w-[30%]">프로필</div>
+                <div className="flex items-center gap-6 flex-1 max-w-[50%]">
+                  <div className="w-[100px]">기본 권한</div>
+                  <div className="w-[180px]">팀 역할 (구분용)</div>
+                </div>
+                <div className="w-[100px] text-right">참여 일자</div>
+              </div>
+
+              {/* List Body */}
+              <div className="flex flex-col">
                 {members.map((member) => (
-                  <TableRow
+                  <div
                     key={member.id}
-                    className="group hover:bg-muted/30 transition-colors"
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between py-4 px-6 hover:bg-muted/20 transition-colors border-b last:border-0 border-border/40 gap-4 sm:gap-0"
                   >
-                    <TableCell className="py-4 px-6">
-                      <Badge
-                        variant="secondary"
-                        className={`font-medium shadow-sm ${member.role === "owner" ? "bg-primary/10 text-primary hover:bg-primary/20" : "bg-muted text-muted-foreground"}`}
-                      >
-                        {ROLE_LABELS[member.role] || member.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-4 pr-4">
-                      {member.team_role ? (
-                        <Badge variant="outline" className="font-normal">
-                          {member.team_role}
+                    <div className="flex items-center gap-3.5 min-w-[30%]">
+                      <WorkspaceUserAvatar
+                        name={member.nickname || member.name}
+                        avatarUrl={member.avatar}
+                        className="h-9 w-9 ring-1 ring-border/50 shadow-sm"
+                        fallbackClassName="bg-primary/5 text-primary text-xs font-medium"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium text-sm text-foreground truncate">
+                          {member.nickname || member.name || "Unknown"}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {member.email || (
+                            <span className="italic opacity-70">이메일 없음</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 flex-1 max-w-[50%]">
+                      <div className="w-[100px] shrink-0">
+                        <Badge
+                          variant="secondary"
+                          className={`font-medium shadow-sm transition-colors text-xs ${
+                            member.role === "owner"
+                              ? "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
+                              : "bg-muted text-muted-foreground border-transparent"
+                          }`}
+                        >
+                          {ROLE_LABELS[member.role] || member.role}
                         </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                      {isOwner && !isReadOnly && (
-                        <div className="mt-2">
+                      </div>
+
+                      <div className="w-[180px] shrink-0 flex items-center gap-2">
+                        {member.team_role ? (
+                          <Badge variant="outline" className="font-normal text-xs text-muted-foreground/90 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/30 transition-colors">
+                            {member.team_role}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">역할 미지정</span>
+                        )}
+                        {isOwner && !isReadOnly && (
                           <Button
                             type="button"
                             size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            variant="secondary"
+                            className="h-6 px-2 text-[10px] opacity-0 group-hover:opacity-100 transition-all focus:opacity-100 shrink-0 shadow-sm"
                             onClick={() => setEditingMember(member)}
                           >
-                            {member.team_role ? "팀 역할 변경" : "팀 역할 설정"}
+                            {member.team_role ? "변경" : "설정"}
                           </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center">
-                        <Avatar className="h-9 w-9 ring-1 ring-border shadow-sm">
-                          <AvatarImage src={member.avatar || ""} />
-                          <AvatarFallback className="bg-primary/5 text-primary text-xs font-medium">
-                            {(member.nickname || member.name || "?")
-                              .charAt(0)
-                              .toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell className="pl-10">
-                      <span className="truncate font-medium text-foreground">
-                        {member.nickname || member.name || "Unknown"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {member.email || (
-                        <span className="text-muted-foreground/50 italic">
-                          이메일 정보 없음
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    </div>
+
+                    <div className="text-xs text-muted-foreground sm:w-[100px] sm:text-right hidden sm:block">
                       {formatJoinedAt(member.joined_at)}
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -310,40 +292,57 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
           </div>
 
           <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="px-6">이메일</TableHead>
-                  <TableHead>기본 권한</TableHead>
-                  <TableHead>팀 역할</TableHead>
-                  <TableHead>초대일</TableHead>
-                  <TableHead>만료일</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="flex flex-col w-full">
+              {/* Header */}
+              <div className="hidden sm:flex items-center justify-between px-6 py-2.5 text-xs font-semibold text-muted-foreground bg-muted/10 border-b border-border/40">
+                <div className="min-w-[40%] flex-1">이메일</div>
+                <div className="flex items-center gap-6 flex-1 max-w-[40%]">
+                  <div className="w-[100px]">예정 권한</div>
+                  <div className="w-[140px]">팀 역할 (구분용)</div>
+                </div>
+                <div className="w-[100px] text-right">상태</div>
+              </div>
+
+              {/* Body */}
+              <div className="flex flex-col">
                 {pendingInvites.map((invite) => (
-                  <TableRow key={invite.id}>
-                    <TableCell className="px-6 text-sm text-foreground">
-                      {invite.email}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-medium">
-                        {ROLE_LABELS[invite.role] || invite.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {invite.team_role || "-"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatJoinedAt(invite.created_at)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatJoinedAt(invite.expires_at)}
-                    </TableCell>
-                  </TableRow>
+                  <div key={invite.id} className="group flex flex-col sm:flex-row sm:items-center justify-between py-3.5 px-6 hover:bg-muted/20 transition-colors border-b last:border-0 border-border/40 gap-3 sm:gap-0">
+                    <div className="flex items-center gap-3 min-w-[40%] flex-1">
+                      <div className="h-8 w-8 rounded-full bg-muted/50 border border-border/50 flex items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {invite.email.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-foreground truncate">{invite.email}</span>
+                    </div>
+
+                    <div className="flex items-center gap-6 flex-1 max-w-[40%]">
+                      <div className="w-[100px] shrink-0">
+                        <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground/80 border-transparent shadow-sm">
+                          {ROLE_LABELS[invite.role] || invite.role}
+                        </Badge>
+                      </div>
+                      <div className="w-[140px] shrink-0">
+                        {invite.team_role ? (
+                          <Badge variant="outline" className="font-normal text-xs text-muted-foreground/90 border-muted-foreground/20 bg-background shadow-sm border-dashed">
+                            {invite.team_role}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40 italic">미지정</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground sm:w-[100px] flex flex-col sm:items-end justify-center hidden sm:flex">
+                      <span className="text-primary/80 font-medium">대기 중</span>
+                      {invite.expires_at && (
+                        <span className="text-[10px] opacity-60 mt-0.5">{formatJoinedAt(invite.expires_at)} 만료</span>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </div>
           </div>
         </div>
       )}

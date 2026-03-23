@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   usePathname,
   useRouter,
@@ -10,6 +10,7 @@ import useSWR from "swr";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
 import { DocumentEditor } from "@/components/features/workspace/docs/editor";
+import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -21,9 +22,21 @@ import {
   FolderPlus,
   RotateCcw,
   Archive,
+  CalendarDays,
+  Clock3,
+  Link2,
+  Trash2,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -75,9 +88,55 @@ type ActiveWorkspaceDoc = {
   kind: "page" | "folder";
   title: string;
   emoji?: string | null;
+  author_id?: string;
+  createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
   updated_at?: string;
   content?: unknown;
+  author?: {
+    id: string;
+    nickname: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
+type WorkspaceMeta = {
+  read_only?: boolean;
+  lifecycle_status?: string;
+  members?: Array<{
+    id: string;
+    name: string;
+    nickname?: string;
+    avatar?: string | null;
+    role?: string;
+  }>;
+};
+
+type LinkedTaskRelation = {
+  id: string;
+  relation_type: string;
+  is_primary: boolean;
+  task: {
+    id: string;
+    title: string;
+    priority: string | null;
+    due_date: string | null;
+    column: {
+      id: string;
+      title: string;
+      category: string | null;
+    };
+  };
+};
+
+type BoardTaskSummary = {
+  id: string;
+  title: string;
+};
+
+type BoardTaskCollection = {
+  tasks?: BoardTaskSummary[];
 };
 
 type DocTemplate = {
@@ -94,6 +153,17 @@ type EmojiSelection = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+const formatMetaDate = (value?: string | Date | null) => {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
+
 export function DocsView({
   projectId,
   initialDocId,
@@ -108,7 +178,7 @@ export function DocsView({
     dedupingInterval: 30_000,
   } as const;
 
-  const { data: workspaceMeta } = useSWR(
+  const { data: workspaceMeta } = useSWR<WorkspaceMeta>(
     `/api/workspaces/${projectId}`,
     fetcher,
     swrOptions,
@@ -143,30 +213,50 @@ export function DocsView({
   // Active Doc Data (If Selected)
   const {
     data: activeDoc,
+    mutate: mutateActiveDoc,
     isLoading: isLoadingActiveDoc,
   } = useSWR<ActiveWorkspaceDoc | null>(
     activeDocId ? `/api/workspaces/${projectId}/docs/${activeDocId}` : null,
     fetcher,
   );
 
+  const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
+    activeDocId ? `/api/workspaces/${projectId}/docs/${activeDocId}/tasks` : null,
+    fetcher,
+    swrOptions
+  );
+
+  const { data: boardData } = useSWR<BoardTaskCollection>(
+    projectId ? `/api/workspaces/${projectId}/board` : null,
+    fetcher,
+    swrOptions
+  );
+
+  const [taskSearch, setTaskSearch] = useState("");
+
   // Local state for header inputs (to be synced)
   const [title, setTitle] = useState("");
   const [emoji, setEmoji] = useState<string | null>(null);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const handleOpenTaskLocally = useCallback((taskId: string) => {
+    onNavigateToTask?.(taskId);
+    setSelectedTaskId(taskId);
+  }, [onNavigateToTask]);
+  const [docWorkerId, setDocWorkerId] = useState("");
 
   // Sync state with fetching data
   useEffect(() => {
     if (activeDoc) {
       setTitle(activeDoc.title);
       setEmoji(activeDoc.emoji ?? null);
-      setLastSaved(
-        new Date(activeDoc.updatedAt || activeDoc.updated_at || Date.now()),
-      );
+      setDocWorkerId(activeDoc.author?.id ?? activeDoc.author_id ?? "");
     } else {
       // Reset when no doc active
       setTitle("");
       setEmoji(null);
-      setLastSaved(null);
+      setDocWorkerId("");
     }
   }, [activeDoc]);
 
@@ -240,6 +330,41 @@ export function DocsView({
     }
   };
 
+  const availableTasks = useMemo(() => {
+    if (!boardData?.tasks) return [];
+    const linkedTaskIds = new Set(
+      (linkedTasks || []).map((relation) => relation.task.id),
+    );
+    const keyword = taskSearch.trim().toLowerCase();
+    return boardData.tasks.filter((task) => {
+      if (linkedTaskIds.has(task.id)) return false;
+      if (!keyword) return true;
+      return task.title.toLowerCase().includes(keyword);
+    });
+  }, [boardData?.tasks, linkedTasks, taskSearch]);
+
+  const handleLinkTask = async (taskId: string) => {
+    if (!activeDocId) return;
+    try {
+      const res = await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId: activeDocId,
+          relationType: "reference",
+          isPrimary: false,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+
+      setTaskSearch("");
+      mutateLinkedTasks();
+      toast.success("태스크를 연결했습니다.");
+    } catch {
+      toast.error("태스크 연결에 실패했습니다.");
+    }
+  };
+
   const refreshDocs = useCallback(() => {
     void mutateDocs();
     void mutateArchivedDocs();
@@ -258,6 +383,31 @@ export function DocsView({
         toast.success("문서를 복원했습니다.");
       } catch {
         toast.error("문서 복원 실패");
+      }
+    },
+    [projectId, refreshDocs],
+  );
+
+  const handlePermanentDeleteDoc = useCallback(
+    async (docId: string, title: string) => {
+      const confirmed = window.confirm(
+        `"${title}" 문서를 영구 삭제할까요?\n휴지통에서도 사라지며 복구할 수 없습니다.`,
+      );
+
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(
+          `/api/workspaces/${projectId}/docs/${docId}?permanent=true`,
+          {
+            method: "DELETE",
+          },
+        );
+        if (!res.ok) throw new Error("Failed");
+        refreshDocs();
+        toast.success("문서를 영구 삭제했습니다.");
+      } catch {
+        toast.error("문서 영구 삭제 실패");
       }
     },
     [projectId, refreshDocs],
@@ -294,20 +444,13 @@ export function DocsView({
         body: JSON.stringify(updates),
       });
       mutateDocs(); // Refresh sidebar title
-      setLastSaved(new Date());
+      void mutateActiveDoc();
     } catch (e) {
       console.error("Auto-save failed", e);
       toast.error("저장에 실패했습니다.");
     }
   }, 1000,
   ); // 1s debounce
-
-  const handleContentSave = useCallback(
-    (content: unknown) => {
-      debouncedUpdate({ content });
-    },
-    [debouncedUpdate],
-  );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -319,6 +462,7 @@ export function DocsView({
     const nextEmoji = emojiData.native ?? null;
     setEmoji(nextEmoji);
     debouncedUpdate({ emoji: nextEmoji });
+    setIsEmojiPickerOpen(false);
   };
 
   const handleRemoveEmoji = () => {
@@ -326,90 +470,96 @@ export function DocsView({
     debouncedUpdate({ emoji: null });
   };
 
+  const handleDocWorkerChange = (value: string) => {
+    setDocWorkerId(value);
+    debouncedUpdate({ authorId: value });
+  };
+
+  const docWorkerName =
+    workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
+    activeDoc?.author?.nickname ||
+    "미지정";
+
   return (
     <div className="flex h-full">
       {/* Docs Sidebar (Inner) */}
       <div className="w-64 border-r bg-muted/10 flex flex-col h-full">
         {/* ... Sidebar Content ... */}
         <div className="p-4 border-b flex items-center justify-between h-14">
-          <span className="font-semibold text-sm">문서</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                disabled={isReadOnly}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => handleCreateRootDoc("page")}>
-                <FileText className="h-4 w-4" />
-                새 문서
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateRootDoc("folder")}>
-                <FolderPlus className="h-4 w-4" />
-                새 폴더
-              </DropdownMenuItem>
-              {templates && templates.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FileText className="h-4 w-4" />
-                      템플릿에서 시작
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-64">
-                      {templates.map((template) => (
-                        <DropdownMenuItem
-                          key={template.id}
-                          onClick={() =>
-                            handleCreateRootDoc("page", template.id)
-                          }
-                          className="items-start"
-                        >
-                          <span className="text-base">{template.emoji}</span>
-                          <div className="min-w-0">
-                            <p className="font-medium">{template.name}</p>
-                            <p className="line-clamp-2 text-xs text-muted-foreground">
-                              {template.description}
-                            </p>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="px-3 pt-3">
-          <div className="grid grid-cols-2 rounded-lg bg-muted/40 p-1">
-            <button
+          <span className="font-semibold text-sm">
+            {sidebarMode === "archived" ? "휴지통" : "문서"}
+          </span>
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={isReadOnly}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => handleCreateRootDoc("page")}>
+                  <FileText className="h-4 w-4" />
+                  새 문서
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleCreateRootDoc("folder")}>
+                  <FolderPlus className="h-4 w-4" />
+                  새 폴더
+                </DropdownMenuItem>
+                {templates && templates.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <FileText className="h-4 w-4" />
+                        템플릿에서 시작
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-64">
+                        {templates.map((template) => (
+                          <DropdownMenuItem
+                            key={template.id}
+                            onClick={() =>
+                              handleCreateRootDoc("page", template.id)
+                            }
+                            className="items-start"
+                          >
+                            <span className="text-base">{template.emoji}</span>
+                            <div className="min-w-0">
+                              <p className="font-medium">{template.name}</p>
+                              <p className="line-clamp-2 text-xs text-muted-foreground">
+                                {template.description}
+                              </p>
+                            </div>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
               type="button"
-              onClick={() => setSidebarMode("active")}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                sidebarMode === "active"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground"
-              }`}
-            >
-              문서
-            </button>
-            <button
-              type="button"
-              onClick={() => setSidebarMode("archived")}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+              variant="ghost"
+              size="icon"
+              className={`h-7 w-7 ${
                 sidebarMode === "archived"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-muted text-foreground"
                   : "text-muted-foreground"
               }`}
+              onClick={() =>
+                setSidebarMode((prev) =>
+                  prev === "archived" ? "active" : "archived",
+                )
+              }
             >
-              휴지통
-            </button>
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         <ScrollArea className="flex-1 py-2">
@@ -456,6 +606,15 @@ export function DocsView({
                     >
                       <RotateCcw className="mr-1 h-3.5 w-3.5" />
                       복원
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => handlePermanentDeleteDoc(doc.id, doc.title)}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      삭제
                     </Button>
                   </div>
                 ))}
@@ -510,14 +669,8 @@ export function DocsView({
                   </span>
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-                  {lastSaved ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                      <span className="hidden sm:inline">저장됨</span>
-                    </>
-                  ) : (
-                    <span>저장 중...</span>
-                  )}
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                  <span className="hidden sm:inline">실시간 동기화</span>
                 </div>
               </div>
             </header>
@@ -537,7 +690,7 @@ export function DocsView({
               <div className="max-w-4xl mx-auto w-full pt-12 px-12 pb-4">
                 <div className="flex items-start gap-4">
                   <div className="group relative shrink-0">
-                    <Popover>
+                    <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
                       <PopoverTrigger asChild>
                         {emoji ? (
                           <button
@@ -602,6 +755,117 @@ export function DocsView({
                   </div>
                 </div>
 
+                <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    <span>
+                      {formatMetaDate(activeDoc?.createdAt || activeDoc?.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    <span>
+                      {formatMetaDate(activeDoc?.updatedAt || activeDoc?.updated_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <UserRound className="h-3.5 w-3.5" />
+                    {isReadOnly ? (
+                      <span className="font-medium">{docWorkerName}</span>
+                    ) : (
+                      <Select
+                        value={docWorkerId || undefined}
+                        onValueChange={handleDocWorkerChange}
+                      >
+                        <SelectTrigger className="h-7 min-w-[120px] border-0 bg-transparent px-0 text-sm font-medium shadow-none focus:ring-0 focus:ring-offset-0">
+                          <SelectValue placeholder="작업자 선택" />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          {(workspaceMeta?.members || []).map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {activeDocId && linkedTasks !== undefined && (
+                    <div className="flex items-center gap-1.5 text-sm max-w-full min-w-0">
+                      <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {linkedTasks.length > 0 ? (
+                          <>
+                            {linkedTasks.slice(0, 4).map((relation) => (
+                              <button
+                                key={relation.id}
+                                type="button"
+                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70 max-w-[150px]"
+                                onClick={() => handleOpenTaskLocally(relation.task.id)}
+                              >
+                                <span className="truncate">{relation.task.title}</span>
+                              </button>
+                            ))}
+                            {linkedTasks.length > 4 && (
+                              <span className="text-xs font-medium text-muted-foreground px-1">
+                                +{linkedTasks.length - 4}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground/70">연결 없음</span>
+                        )}
+                        
+                        {!isReadOnly && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground shrink-0"
+                                title="태스크 연결하기"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </PopoverTrigger>
+                          <PopoverContent align="start" className="z-[60] w-72 p-2">
+                            <Input
+                              value={taskSearch}
+                              onChange={(e) => setTaskSearch(e.target.value)}
+                              placeholder="태스크 검색..."
+                              className="h-8 text-xs"
+                            />
+                            <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                              {availableTasks.length > 0 ? (
+                                availableTasks.map((task) => (
+                                  <button
+                                    key={task.id}
+                                    type="button"
+                                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
+                                    onClick={() => handleLinkTask(task.id)}
+                                  >
+                                    <div className="min-w-0 pr-2">
+                                      <div className="truncate font-medium text-foreground">
+                                        {task.title}
+                                      </div>
+                                    </div>
+                                    <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-2 py-2 text-xs text-muted-foreground">
+                                  연결 가능한 태스크가 없습니다.
+                                </div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
+                  </div>
+                )}
+                </div>
+
                 <div className="h-px bg-border my-6" />
               </div>
 
@@ -609,9 +873,13 @@ export function DocsView({
               <DocumentEditor
                 key={activeDocId}
                 docId={activeDocId}
+                workspaceId={projectId}
                 initialContent={activeDoc?.content}
-                onSave={handleContentSave}
                 readOnly={isReadOnly}
+                onTaskLinked={() => {
+                  void mutateLinkedTasks();
+                }}
+                onOpenTask={handleOpenTaskLocally}
                 user={
                   user
                     ? {
@@ -631,7 +899,7 @@ export function DocsView({
                 docId={activeDocId}
                 readOnly={isReadOnly}
                 currentUserId={user?.id}
-                onOpenTask={onNavigateToTask}
+                onOpenTask={handleOpenTaskLocally}
               />
             </div>
           </div>
@@ -644,6 +912,13 @@ export function DocsView({
           </div>
         )}
       </div>
+
+      <AdvancedTaskModal
+        taskId={selectedTaskId || ""}
+        projectId={projectId}
+        open={!!selectedTaskId}
+        onOpenChange={(open) => !open && setSelectedTaskId(null)}
+      />
     </div>
   );
 }

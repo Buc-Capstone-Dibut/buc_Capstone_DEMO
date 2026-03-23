@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { buildResumePublicSummary, ensureProfileForUser } from "@/lib/my-profile";
+import {
+  buildResumePublicSummary,
+  ensureProfileForUser,
+  extractAuthProfileSeed,
+} from "@/lib/my-profile";
 
 export const dynamic = "force-dynamic";
 
@@ -82,10 +86,12 @@ export async function PUT(req: Request) {
       );
     }
 
+    const seed = extractAuthProfileSeed(user);
     await ensureProfileForUser({
       userId: user.id,
-      nickname: user.user_metadata?.nickname || user.user_metadata?.full_name || null,
-      email: user.email ?? null,
+      nickname: seed.nickname,
+      email: seed.email,
+      avatarUrl: seed.avatarUrl,
     });
 
     const body = await req.json();

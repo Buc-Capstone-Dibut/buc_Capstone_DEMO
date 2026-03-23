@@ -106,28 +106,44 @@ export function UnifiedInbox() {
               <p>All caught up! No new notifications.</p>
             </div>
           ) : (
-            notifications.map((noti) => (
+            notifications.map((noti) => {
+              const isInvite = noti.type === "INVITE";
+
+              return (
               <Card
                 key={noti.id}
-                className={`p-4 flex gap-4 transition-colors group relative ${noti.is_read ? "opacity-60 bg-muted/20" : "bg-card border-l-4 border-l-orange-500"}`}
+                className={`p-4 flex gap-4 transition-colors group relative ${
+                  noti.is_read
+                    ? "opacity-60 bg-muted/20"
+                    : isInvite
+                      ? "bg-primary/5 border border-primary/20 shadow-sm"
+                      : "bg-card border-l-4 border-l-orange-500"
+                }`}
               >
                 <div className="mt-1">
-                  {(noti.type === "mention" || noti.type === "MENTION") && (
-                    <AtSign className="h-5 w-5 text-blue-500" />
-                  )}
-                  {(noti.type === "assignment" || noti.type === "SQUAD") && (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  )}
-                  {(noti.type === "update" ||
-                    noti.type === "COMMENT" ||
-                    noti.type === "SYSTEM" ||
-                    noti.type === "INVITE") && (
-                    <MessageSquare className="h-5 w-5 text-yellow-500" />
+                  {isInvite ? (
+                    <div className="bg-primary/10 text-primary rounded-full p-1.5">
+                      <MessageSquare className="h-4 w-4" />
+                    </div>
+                  ) : (
+                    <>
+                      {(noti.type === "mention" || noti.type === "MENTION") && (
+                        <AtSign className="h-5 w-5 text-blue-500" />
+                      )}
+                      {(noti.type === "assignment" || noti.type === "SQUAD") && (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      )}
+                      {(noti.type === "update" ||
+                        noti.type === "COMMENT" ||
+                        noti.type === "SYSTEM") && (
+                        <MessageSquare className="h-5 w-5 text-yellow-500" />
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
-                    <p className="text-sm font-medium">
+                    <p className={`text-sm pr-6 ${isInvite && !noti.is_read ? "font-semibold text-foreground/90" : "font-medium"}`}>
                       {noti.message || noti.title}
                     </p>
                     <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
@@ -138,40 +154,49 @@ export function UnifiedInbox() {
                       })}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    {noti.type === "INVITE" && noti.link?.startsWith("invite:") ? (
-                      <>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() =>
-                            handleInviteAction(
-                              noti.link!.split(":")[1],
-                              noti.id,
-                              "accept",
-                            )
-                          }
-                        >
-                          <Check className="mr-1 h-3 w-3" />
-                          수락
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() =>
-                            handleInviteAction(
-                              noti.link!.split(":")[1],
-                              noti.id,
-                              "decline",
-                            )
-                          }
-                        >
-                          <X className="mr-1 h-3 w-3" />
-                          거절
-                        </Button>
-                      </>
-                    ) : (
+
+                  {isInvite && noti.link?.startsWith("invite:") && !noti.is_read && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="h-8 px-4 text-xs font-medium shadow-sm transition-transform active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90"
+                        onClick={() =>
+                          handleInviteAction(
+                            noti.link!.split(":")[1],
+                            noti.id,
+                            "accept",
+                          )
+                        }
+                      >
+                        <Check className="mr-1.5 h-3.5 w-3.5" />
+                        수락
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-4 text-xs font-medium transition-transform active:scale-95"
+                        onClick={() =>
+                          handleInviteAction(
+                            noti.link!.split(":")[1],
+                            noti.id,
+                            "decline",
+                          )
+                        }
+                      >
+                        <X className="mr-1.5 h-3.5 w-3.5" />
+                        거절
+                      </Button>
+                    </div>
+                  )}
+
+                  {isInvite && noti.is_read && (
+                    <div className="mt-2 text-xs text-muted-foreground/70 font-medium">
+                      응답이 완료된 초대입니다.
+                    </div>
+                  )}
+
+                  {!isInvite && (
+                    <div className="flex items-center gap-2 mt-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -180,29 +205,29 @@ export function UnifiedInbox() {
                       >
                         <a href={noti.link || "#"}>View context</a>
                       </Button>
-                    )}
-                    {!noti.is_read && noti.type !== "INVITE" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => markAsRead(noti.id)}
-                      >
-                        Mark read
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
-                      onClick={() => deleteNotification(noti.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                      {!noti.is_read && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => markAsRead(noti.id)}
+                        >
+                          Mark read
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
+                    onClick={() => deleteNotification(noti.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
               </Card>
-            ))
+            )})
           )}
         </div>
       </ScrollArea>

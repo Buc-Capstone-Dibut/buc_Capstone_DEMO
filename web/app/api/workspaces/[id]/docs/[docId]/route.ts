@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 type DocKind = "page" | "folder";
 
@@ -84,6 +86,7 @@ export async function GET(
       include: {
         author: {
           select: {
+            id: true,
             nickname: true,
             avatar_url: true,
           },
@@ -150,9 +153,9 @@ export async function PATCH(
     // Spread fields to update
     const {
       title,
-      content,
       emoji,
       coverUrl,
+      authorId,
       parentId,
       isArchived,
       kind,
@@ -234,6 +237,29 @@ export async function PATCH(
         }
       }
 
+      let nextAuthorId: string | undefined;
+      if (authorId !== undefined) {
+        if (typeof authorId !== "string" || !authorId) {
+          throw new Error("유효한 작업자를 선택해 주세요.");
+        }
+
+        const assigneeMembership = await tx.workspace_members.findUnique({
+          where: {
+            workspace_id_user_id: {
+              workspace_id: workspaceId,
+              user_id: authorId,
+            },
+          },
+          select: { user_id: true },
+        });
+
+        if (!assigneeMembership) {
+          throw new Error("작업자는 워크스페이스 멤버여야 합니다.");
+        }
+
+        nextAuthorId = authorId;
+      }
+
       if (isArchived === true) {
         const descendantIds = collectDescendantIds(allDocs, docId);
         await tx.workspace_docs.updateMany({
@@ -284,27 +310,30 @@ export async function PATCH(
         nextSortOrder = (sibling?.sort_order ?? -1) + 1;
       }
 
+      const updateData: Prisma.workspace_docsUncheckedUpdateInput = {};
+      if (trimmedTitle !== undefined) updateData.title = trimmedTitle;
+      if (emoji !== undefined) updateData.emoji = emoji;
+      if (coverUrl !== undefined) updateData.cover_url = coverUrl;
+      if (parentId !== undefined) {
+        updateData.parent_id =
+          typeof parentId === "string" && parentId ? parentId : null;
+      }
+      if (nextKind !== undefined) {
+        updateData.kind = nextKind;
+        if (nextKind === "folder") {
+          updateData.content = Prisma.JsonNull;
+        }
+      }
+      if (nextAuthorId !== undefined) updateData.author_id = nextAuthorId;
+      if (nextSortOrder !== undefined) updateData.sort_order = nextSortOrder;
+      if (isArchived !== undefined) updateData.is_archived = isArchived;
+
       return tx.workspace_docs.update({
         where: {
           id: docId,
           workspace_id: workspaceId,
         },
-        data: {
-          ...(trimmedTitle !== undefined ? { title: trimmedTitle } : {}),
-          ...(content !== undefined && { content }),
-          ...(emoji !== undefined && { emoji }),
-          ...(coverUrl !== undefined && { cover_url: coverUrl }),
-          ...(parentId !== undefined && {
-            parent_id:
-              typeof parentId === "string" && parentId ? parentId : null,
-          }),
-          ...(nextKind !== undefined && {
-            kind: nextKind,
-            ...(nextKind === "folder" ? { content: null } : {}),
-          }),
-          ...(nextSortOrder !== undefined ? { sort_order: nextSortOrder } : {}),
-          ...(isArchived !== undefined ? { is_archived: isArchived } : {}),
-        },
+        data: updateData,
       });
     });
 
@@ -333,6 +362,8 @@ export async function DELETE(
     }
 
     const { id: workspaceId, docId } = params;
+    const { searchParams } = new URL(request.url);
+    const permanentDelete = searchParams.get("permanent") === "true";
 
     const membership = await prisma.workspace_members.findUnique({
       where: {
@@ -367,21 +398,87 @@ export async function DELETE(
       },
     });
 
+    const currentDoc = allDocs.find((doc) => doc.id === docId);
+    if (!currentDoc) {
+      return NextResponse.json(
+        { error: "Document not found" },
+        { status: 404 },
+      );
+    }
+
     const descendantIds = collectDescendantIds(allDocs, docId);
 
-    // Per plan: DELETE method performs Soft Delete (is_archived = true)
-    await prisma.workspace_docs.updateMany({
-      where: {
-        id: {
-          in: [docId, ...descendantIds],
-        },
-      },
-      data: {
-        is_archived: true,
-      },
-    });
+    if (permanentDelete) {
+      if (!currentDoc.is_archived) {
+        return NextResponse.json(
+          { error: "휴지통에 있는 문서만 영구 삭제할 수 있습니다." },
+          { status: 400 },
+        );
+      }
 
-    return NextResponse.json({ success: true });
+      const deletedDocIds = [docId, ...descendantIds];
+      const assets = await prisma.workspace_doc_assets.findMany({
+        where: {
+          workspace_id: workspaceId,
+          doc_id: {
+            in: deletedDocIds,
+          },
+        },
+        select: {
+          id: true,
+          storage_path: true,
+        },
+      });
+
+      if (assets.length > 0) {
+        const admin = createAdminSupabaseClient();
+        const { error: removeError } = await admin.storage
+          .from("workspace-doc-assets")
+          .remove(assets.map((asset) => asset.storage_path));
+
+        if (removeError) {
+          console.error("Failed to delete workspace doc assets", removeError);
+          return NextResponse.json(
+            { error: "문서 자산 삭제에 실패했습니다." },
+            { status: 500 },
+          );
+        }
+      }
+
+      await prisma.workspace_doc_assets.deleteMany({
+        where: {
+          id: {
+            in: assets.map((asset) => asset.id),
+          },
+        },
+      });
+
+      await prisma.workspace_docs.deleteMany({
+        where: {
+          id: {
+            in: deletedDocIds,
+          },
+          workspace_id: workspaceId,
+        },
+      });
+    } else {
+      // Per plan: DELETE method performs Soft Delete (is_archived = true)
+      await prisma.workspace_docs.updateMany({
+        where: {
+          id: {
+            in: [docId, ...descendantIds],
+          },
+        },
+        data: {
+          is_archived: true,
+        },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      mode: permanentDelete ? "permanent" : "archive",
+    });
   } catch (error) {
     console.error("API: Delete Doc Error", error);
     const message =

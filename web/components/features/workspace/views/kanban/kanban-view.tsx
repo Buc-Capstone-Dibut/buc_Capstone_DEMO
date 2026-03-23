@@ -103,6 +103,9 @@ export function KanbanView({
     cardProperties: [],
   },
 }: KanbanViewProps) {
+  const disableTaskDrag = groupBy === "tag";
+  const allowColumnActions = groupBy === "status";
+
   const {
     activeId,
     activeColumn,
@@ -146,7 +149,7 @@ export function KanbanView({
         );
       }
       if (groupBy === "assignee") {
-        return col.id === "unassigned" ? !t.assignee : t.assignee === col.id;
+        return col.id === "unassigned" ? !t.assigneeId : t.assigneeId === col.id;
       }
       if (groupBy === "priority") {
         return col.id === "no-priority" ? !t.priorityId : t.priorityId === col.id;
@@ -158,6 +161,35 @@ export function KanbanView({
       }
       return false;
     });
+
+  const getCreateTaskInput = (column: any) => {
+    if (groupBy === "status") {
+      return { columnId: column.id };
+    }
+
+    if (groupBy === "assignee") {
+      return {
+        status: "todo",
+        assigneeId: column.id === "unassigned" ? null : column.id,
+      };
+    }
+
+    if (groupBy === "priority") {
+      return {
+        status: "todo",
+        priorityId: column.id === "no-priority" ? null : column.id,
+      };
+    }
+
+    if (groupBy === "tag") {
+      return {
+        status: "todo",
+        tags: column.id === "no-tag" ? [] : [column.id],
+      };
+    }
+
+    return { columnId: column.id };
+  };
 
   return (
     <div className="flex-1 h-full overflow-x-auto overflow-y-hidden">
@@ -217,16 +249,26 @@ export function KanbanView({
                           column={col}
                           title={col.title}
                           tasks={getTasksForColumn(col)}
-                          onCreateTask={() => onCreateTask({ columnId: col.id })}
+                          groupBy={groupBy}
+                          onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
                           color={col.color}
                           viewSettings={viewSettings}
                           onTaskClick={onTaskClick}
                           onDeleteTask={onDeleteTask}
-                          onRename={(newTitle) =>
-                            onUpdateColumn(col.id, { title: newTitle })
+                          onRename={
+                            allowColumnActions
+                              ? (newTitle) =>
+                                  onUpdateColumn(col.id, { title: newTitle })
+                              : undefined
                           }
-                          onDelete={() => onDeleteColumn(col.id)}
+                          onDelete={
+                            allowColumnActions
+                              ? () => onDeleteColumn(col.id)
+                              : undefined
+                          }
                           category={section.category}
+                          disableTaskDrag={disableTaskDrag}
+                          allowColumnActions={allowColumnActions}
                         />
                       ))}
                     </div>
@@ -248,15 +290,22 @@ export function KanbanView({
                   column={col}
                   title={col.title}
                   tasks={getTasksForColumn(col)}
-                  onCreateTask={() => onCreateTask({ columnId: col.id })}
+                  groupBy={groupBy}
+                  onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
                   color={col.color}
                   viewSettings={viewSettings}
                   onTaskClick={onTaskClick}
                   onDeleteTask={onDeleteTask}
-                  onRename={(newTitle) =>
-                    onUpdateColumn(col.id, { title: newTitle })
+                  onRename={
+                    allowColumnActions
+                      ? (newTitle) => onUpdateColumn(col.id, { title: newTitle })
+                      : undefined
                   }
-                  onDelete={() => onDeleteColumn(col.id)}
+                  onDelete={
+                    allowColumnActions ? () => onDeleteColumn(col.id) : undefined
+                  }
+                  disableTaskDrag={disableTaskDrag}
+                  allowColumnActions={allowColumnActions}
                 />
               ))}
             </SortableContext>
@@ -269,6 +318,7 @@ export function KanbanView({
               id={activeColumn.id}
               column={activeColumn}
               tasks={tasks.filter((t) => t.columnId === activeColumn.id)}
+              groupBy={groupBy}
               onTaskClick={() => {}}
               onCreateTask={() => {}}
               viewSettings={{

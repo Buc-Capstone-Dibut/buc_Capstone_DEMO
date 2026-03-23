@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Link2, MessageSquare } from "lucide-react";
+import { Link2, MessageSquare, CalendarIcon, Flag } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,22 +42,7 @@ const fetcher = async (url: string) => {
   return response.json();
 };
 
-function relationLabel(value: string) {
-  switch (value) {
-    case "spec":
-      return "명세";
-    case "meeting_note":
-      return "회의록";
-    case "result":
-      return "결과";
-    case "qa":
-      return "QA";
-    case "design":
-      return "디자인";
-    default:
-      return "참고";
-  }
-}
+
 
 function priorityLabel(value?: string | null) {
   switch (value) {
@@ -117,36 +102,43 @@ export function DocCollaborationPanel({
                     type="button"
                     key={relation.id}
                     onClick={() => handleOpenTask(relation.task.id)}
-                    className="w-full rounded-xl border bg-background px-3 py-3 text-left transition-colors hover:bg-muted/30"
+                    className="w-full rounded-lg border bg-background p-3 text-left transition-all hover:border-foreground/20 hover:shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {relation.task.column.title}
+                          </span>
+                          {relation.is_primary && (
+                            <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20">
+                              대표
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium text-foreground leading-snug">
                           {relation.task.title}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {relation.task.column.title}
-                        </p>
                       </div>
-                      {relation.is_primary && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          대표
-                        </Badge>
-                      )}
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <Badge variant="outline">
-                        {relationLabel(relation.relation_type)}
-                      </Badge>
-                      <Badge variant="outline">
-                        우선순위 {priorityLabel(relation.task.priority)}
-                      </Badge>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {relation.task.priority && relation.task.priority !== "none" && (
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground border rounded-sm px-1.5 py-0.5 bg-muted/30">
+                          <Flag className="h-3 w-3" />
+                          <span>{priorityLabel(relation.task.priority)}</span>
+                        </div>
+                      )}
+
                       {relation.task.due_date && (
-                        <Badge variant="outline">
-                          {format(new Date(relation.task.due_date), "M/d", {
-                            locale: ko,
-                          })}
-                        </Badge>
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground border rounded-sm px-1.5 py-0.5 bg-muted/30">
+                          <CalendarIcon className="h-3 w-3" />
+                          <span>
+                            {format(new Date(relation.task.due_date), "M/d", {
+                              locale: ko,
+                            })}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </button>

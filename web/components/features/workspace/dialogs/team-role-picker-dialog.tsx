@@ -80,105 +80,105 @@ export function TeamRolePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[480px] bg-background border-none shadow-2xl rounded-2xl p-0 overflow-hidden">
+        <div className="px-6 pt-6 pb-4 border-b border-muted-foreground/10">
+          <DialogTitle className="text-lg font-semibold tracking-tight">{title}</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+            {description}
+          </DialogDescription>
+        </div>
 
-        <div className="space-y-5">
-          <div className="rounded-xl border bg-muted/30 p-4">
+        <div className="p-6 space-y-6">
+          {/* Current Selection */}
+          <div className="rounded-xl border border-muted-foreground/15 bg-muted/20 p-4 transition-colors">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Sparkles className="h-4 w-4 text-primary" />
-              현재 선택
+              평상시 표시될 역할
             </div>
-            <div className="mt-3">
+            <div className="mt-2.5">
               {normalizeWorkspaceTeamRole(selectedRole) ? (
-                <Badge className="rounded-full px-3 py-1 text-sm">
+                <Badge variant="secondary" className="font-normal text-sm px-3 py-0.5 rounded-md hover:bg-secondary text-muted-foreground bg-background border shadow-sm">
                   {normalizeWorkspaceTeamRole(selectedRole)}
                 </Badge>
               ) : (
-                <span className="text-sm text-muted-foreground">
-                  아직 지정된 팀 역할이 없습니다.
+                <span className="text-sm text-muted-foreground opacity-80">
+                  선택된 역할이 없습니다.
                 </span>
               )}
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">추천 역할</p>
-              <p className="text-xs text-muted-foreground">
-                자주 쓰는 역할을 바로 선택할 수 있습니다.
-              </p>
+          <div className="space-y-4">
+            {/* Suggested Roles */}
+            <div className="space-y-2.5">
+              <p className="text-sm font-medium text-foreground">추천 역할</p>
+              <div className="flex flex-wrap gap-2">
+                {allRoles.map((role) => (
+                  <Button
+                    key={role}
+                    type="button"
+                    size="sm"
+                    variant={selectedRole === role ? "secondary" : "outline"}
+                    className={`h-7 rounded-md px-3 text-xs font-medium transition-all ${
+                      selectedRole === role
+                        ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/15"
+                        : "text-muted-foreground border-muted-foreground/20 hover:bg-muted/30"
+                    }`}
+                    onClick={() => setSelectedRole(role)}
+                  >
+                    {role}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {allRoles.map((role) => (
+
+            {/* Custom Role Input */}
+            <div className="space-y-2.5 pt-2">
+              <p className="text-sm font-medium text-foreground">직접 추가</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={customRoleInput}
+                  onChange={(event) => setCustomRoleInput(event.target.value)}
+                  placeholder="예: 발표 담당, 리서치, QA"
+                  className="flex-1 h-9 bg-muted/10 border-muted-foreground/20 text-sm focus-visible:ring-1 focus-visible:ring-primary/30"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomRole();
+                    }
+                  }}
+                />
                 <Button
-                  key={role}
                   type="button"
-                  size="sm"
-                  variant={selectedRole === role ? "default" : "outline"}
-                  className="h-8 rounded-full px-3 text-xs"
-                  onClick={() => setSelectedRole(role)}
+                  variant="secondary"
+                  className="h-9 px-3 text-xs font-medium shadow-sm transition-transform active:scale-95"
+                  onClick={handleAddCustomRole}
+                  disabled={!normalizeWorkspaceTeamRole(customRoleInput)}
                 >
-                  {role}
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  추가
                 </Button>
-              ))}
+              </div>
             </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">직접 추가</p>
-              <p className="text-xs text-muted-foreground">
-                우리 팀만 쓰는 역할명을 자유롭게 추가할 수 있습니다.
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Input
-                value={customRoleInput}
-                onChange={(event) => setCustomRoleInput(event.target.value)}
-                placeholder="예: 발표 담당, 리서치, QA"
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAddCustomRole}
-                disabled={!normalizeWorkspaceTeamRole(customRoleInput)}
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                추가
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium">직접 입력</p>
-            <Textarea
-              value={selectedRole}
-              onChange={(event) => setSelectedRole(event.target.value)}
-              placeholder="팀원들이 서로를 구분할 수 있는 역할명을 입력하세요."
-              className="min-h-[72px] resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              하나의 짧은 역할명만 저장됩니다. 권한과는 별개로 표시에만
-              사용됩니다.
-            </p>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t border-muted-foreground/10 bg-muted/5 sm:justify-between items-center flex-row">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-8 px-2"
             onClick={() => setSelectedRole("")}
             disabled={pending}
           >
             역할 비우기
           </Button>
-          <Button type="button" onClick={handleSave} disabled={pending}>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={pending}
+            className="rounded-lg font-medium shadow-sm transition-transform active:scale-95 px-6"
+          >
             {submitLabel}
           </Button>
         </DialogFooter>

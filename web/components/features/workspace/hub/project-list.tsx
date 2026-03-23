@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -48,6 +47,7 @@ import {
 import { CreateWorkspaceDialog } from "../dialogs/create-workspace-dialog";
 import { EditWorkspaceDialog } from "../dialogs/edit-workspace-dialog";
 import { getTeamTypeLabel } from "@/lib/team-types";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface Workspace {
   id: string;
@@ -229,12 +229,16 @@ export function ProjectList() {
 
               <CardContent className="pb-4">
                 <div className="flex items-center -space-x-2 overflow-hidden pl-1">
-                  <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarFallback className="bg-muted text-xs">J</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarFallback className="bg-muted text-xs">F</AvatarFallback>
-                  </Avatar>
+                  <WorkspaceUserAvatar
+                    name="Junghwan"
+                    className="h-8 w-8 ring-2 ring-background"
+                    fallbackClassName="bg-muted text-xs"
+                  />
+                  <WorkspaceUserAvatar
+                    name="Frontend"
+                    className="h-8 w-8 ring-2 ring-background"
+                    fallbackClassName="bg-muted text-xs"
+                  />
                   <div className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-background bg-muted text-[10px] font-medium text-muted-foreground">
                     +1
                   </div>
@@ -283,15 +287,13 @@ export function ProjectList() {
                   <CardContent className="pb-4">
                     <div className="flex items-center -space-x-2 overflow-hidden pl-1">
                       {workspace?.recent_members?.map((member) => (
-                        <Avatar
+                        <WorkspaceUserAvatar
                           key={member.id}
+                          name={member.nickname}
+                          avatarUrl={member.avatar_url}
                           className="inline-block h-8 w-8 ring-2 ring-background transition-transform hover:-translate-y-1"
-                        >
-                          <AvatarImage src={member.avatar_url || ""} />
-                          <AvatarFallback className="bg-muted text-xs">
-                            {member.nickname?.slice(0, 1) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
+                          fallbackClassName="bg-muted text-xs"
+                        />
                       ))}
                       {workspace.member_count > 4 && (
                         <div className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-background bg-muted text-[10px] font-medium text-muted-foreground">

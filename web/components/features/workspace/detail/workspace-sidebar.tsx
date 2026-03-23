@@ -3,7 +3,6 @@ import { usePresence } from "@/components/providers/presence-provider";
 import { useVoice } from "@/components/features/workspace/voice/voice-manager";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   LayoutDashboard,
   Kanban,
@@ -53,6 +52,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface WorkspaceSidebarProps {
   projectId: string;
@@ -532,12 +532,13 @@ export function WorkspaceSidebar({
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
                   >
                     <div className="relative">
-                      <Avatar className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm">
-                        <AvatarImage src={p.avatarUrl || undefined} className="object-cover" />
-                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-medium">
-                          {p.name?.[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <WorkspaceUserAvatar
+                        name={p.name}
+                        avatarUrl={p.avatarUrl}
+                        className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
+                        imageClassName="object-cover"
+                        fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
+                      />
                       <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
                     </div>
                     <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
@@ -573,12 +574,13 @@ export function WorkspaceSidebar({
                     className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
                   >
                     <div className="relative">
-                      <Avatar className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm">
-                        <AvatarImage src={p.avatarUrl || undefined} className="object-cover" />
-                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-medium">
-                          {p.name?.[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <WorkspaceUserAvatar
+                        name={p.name}
+                        avatarUrl={p.avatarUrl}
+                        className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
+                        imageClassName="object-cover"
+                        fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
+                      />
                       <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
                     </div>
                     <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">

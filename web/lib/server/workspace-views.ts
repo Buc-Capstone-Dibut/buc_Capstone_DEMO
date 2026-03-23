@@ -10,12 +10,13 @@ type BoardColumnShape = {
 };
 
 const DEFAULT_CARD_PROPERTIES = [
+  "title",
   "priority",
   "tags",
-  "title",
   "assignee",
   "dueDate",
 ] as const;
+const CARD_PROPERTY_SET = new Set(DEFAULT_CARD_PROPERTIES);
 
 const VIEW_TYPES = new Set(["kanban", "list", "calendar"]);
 const GROUP_BY_VALUES = new Set([
@@ -44,6 +45,21 @@ function toStringArray(
 ) {
   if (!Array.isArray(value)) return fallback;
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function normalizeCardProperties(
+  value: Prisma.JsonValue | string[] | null | undefined,
+  fallback: string[] = [...DEFAULT_CARD_PROPERTIES],
+) {
+  const source = Array.isArray(value) ? value : fallback;
+  const ordered = source.filter(
+    (item): item is string =>
+      typeof item === "string" &&
+      item !== "title" &&
+      CARD_PROPERTY_SET.has(item as (typeof DEFAULT_CARD_PROPERTIES)[number]),
+  );
+
+  return ["title", ...Array.from(new Set(ordered))];
 }
 
 function toColumnArray(
@@ -193,7 +209,10 @@ export function serializeWorkspaceView(
       ? fallbackColumns
       : toColumnArray(view.columns, fallbackColumns),
     cardProperties: toStringArray(
-      view.card_properties,
+      normalizeCardProperties(
+        view.card_properties,
+        [...DEFAULT_CARD_PROPERTIES],
+      ),
       [...DEFAULT_CARD_PROPERTIES],
     ),
     filter:
@@ -234,9 +253,9 @@ export function buildWorkspaceViewCreateInput(
     color: typeof input.color === "string" ? input.color : null,
     columns: Array.isArray(input.columns) ? input.columns : [],
     card_properties: Array.isArray(input.cardProperties)
-      ? input.cardProperties
+      ? normalizeCardProperties(input.cardProperties)
       : Array.isArray(input.card_properties)
-        ? input.card_properties
+        ? normalizeCardProperties(input.card_properties)
         : [...DEFAULT_CARD_PROPERTIES],
     filters,
     show_empty_groups:
@@ -285,7 +304,7 @@ export function buildWorkspaceViewUpdateInput(input: Record<string, unknown>) {
   if (input.cardProperties !== undefined || input.card_properties !== undefined) {
     const properties = input.cardProperties ?? input.card_properties;
     if (Array.isArray(properties)) {
-      data.card_properties = properties;
+      data.card_properties = normalizeCardProperties(properties);
     }
   }
 

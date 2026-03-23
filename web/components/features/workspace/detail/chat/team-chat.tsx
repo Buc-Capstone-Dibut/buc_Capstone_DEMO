@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, Hash, Lock, Plus } from "lucide-react";
 import { useSocketStore } from "../../store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,6 +10,7 @@ import { SmartInput } from "../../common/smart-input";
 import { useWorkspaceStore } from "../../store/mock-data";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface TeamChatProps {
   projectId: string;
@@ -342,12 +342,11 @@ export function TeamChat({ projectId }: TeamChatProps) {
 
               return (
                 <div key={msg.id} className="flex gap-4 group">
-                  <Avatar className="h-10 w-10 mt-0.5">
-                    <AvatarImage src={msg.sender.avatar_url || ""} />
-                    <AvatarFallback>
-                      {msg.sender.nickname?.[0] || "?"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <WorkspaceUserAvatar
+                    name={msg.sender.nickname}
+                    avatarUrl={msg.sender.avatar_url}
+                    className="mt-0.5 h-10 w-10"
+                  />
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm">
