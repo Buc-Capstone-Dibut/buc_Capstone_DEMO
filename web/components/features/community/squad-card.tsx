@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
 import { Database } from "@/lib/database.types";
-import { Users, MapPin, Calendar, MessageCircle, Star } from "lucide-react";
+import { Users, MapPin, Calendar, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 type Squad = Database["public"]["Tables"]["squads"]["Row"] & {
   leader: Database["public"]["Tables"]["profiles"]["Row"] | null;
@@ -33,17 +32,22 @@ export function SquadCard({ squad, className }: SquadCardProps) {
       <div className="p-5 flex flex-col h-full">
         {/* Header: Status & Type */}
         <div className="flex items-center justify-between mb-3">
-          <Badge
-            variant={isRecruiting ? "default" : "secondary"}
-            className={cn(
-              "font-semibold",
-              isRecruiting
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "bg-muted text-muted-foreground"
-            )}
-          >
-            {isRecruiting ? "모집중" : "모집완료"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={isRecruiting ? "default" : "secondary"}
+              className={cn(
+                "font-semibold",
+                isRecruiting
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {isRecruiting ? "모집중" : "모집완료"}
+            </Badge>
+            <Badge variant="outline" className="font-medium">
+              {getTeamTypeLabel(squad.type)}
+            </Badge>
+          </div>
         </div>
 
         {/* Title */}

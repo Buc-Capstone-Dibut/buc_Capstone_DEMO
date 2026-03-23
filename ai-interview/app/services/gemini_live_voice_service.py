@@ -12,6 +12,7 @@ from app.interview.domain.turn_text import (
     looks_like_complete_ai_question,
     sanitize_ai_turn_text,
     sanitize_user_turn_text,
+    score_user_transcript_text,
 )
 from app.services.voice_pipeline import (
     float_samples_to_pcm16le_bytes,
@@ -28,9 +29,12 @@ except Exception:  # pragma: no cover - optional dependency fallback
 logger = logging.getLogger("dibut.gemini_live_voice")
 
 PCM_RATE_PATTERN = re.compile(r"rate=(\d+)")
-TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC = 0.34
-TURN_COMPLETE_TEXT_TAIL_GRACE_SEC = 0.38
-TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.2
+TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC = 0.74
+TURN_COMPLETE_AUDIO_IDLE_GRACE_SEC = 1.85
+TURN_COMPLETE_TEXT_TAIL_GRACE_SEC = 0.5
+TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC = 0.14
+TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC = 1.05
+TURN_COMPLETE_TIMEOUT_RETRY_LIMIT = 2
 
 
 def _is_quota_exhausted_error(exc: Exception) -> bool:
@@ -81,6 +85,8 @@ class _GeminiLiveBaseService:
         responses: list[Any] = []
         turn_complete_seen = False
         turn_complete_deadline: float | None = None
+        last_audio_chunk_at: float | None = None
+        turn_complete_timeout_retries = 0
         while True:
             try:
                 timeout = timeout_sec
@@ -90,22 +96,33 @@ class _GeminiLiveBaseService:
             except StopAsyncIteration:
                 break
             except asyncio.TimeoutError:
+                if (
+                    turn_complete_seen
+                    and self._responses_have_payload(responses)
+                    and turn_complete_timeout_retries < TURN_COMPLETE_TIMEOUT_RETRY_LIMIT
+                ):
+                    turn_complete_timeout_retries += 1
+                    turn_complete_deadline = time.monotonic() + TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC
+                    continue
                 break
 
             responses.append(response)
+            if turn_complete_seen:
+                turn_complete_timeout_retries = 0
+            response_audio_chunks, _sample_rate = self._extract_audio_chunks([response])
+            if response_audio_chunks:
+                last_audio_chunk_at = time.monotonic()
             server_content = getattr(response, "server_content", None)
             if bool(getattr(server_content, "turn_complete", False)):
                 turn_complete_seen = True
             if turn_complete_seen:
                 now = time.monotonic()
-                if self._responses_have_audio(responses):
-                    turn_complete_deadline = now + TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC
-                elif self._responses_have_text(responses):
-                    existing = turn_complete_deadline if turn_complete_deadline is not None else 0.0
-                    turn_complete_deadline = max(existing, now + TURN_COMPLETE_TEXT_TAIL_GRACE_SEC)
-                else:
-                    existing = turn_complete_deadline if turn_complete_deadline is not None else 0.0
-                    turn_complete_deadline = max(existing, now + TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC)
+                turn_complete_deadline = self._next_turn_complete_deadline(
+                    responses,
+                    now=now,
+                    existing_deadline=turn_complete_deadline,
+                    last_audio_chunk_at=last_audio_chunk_at,
+                )
 
         return responses
 
@@ -122,6 +139,26 @@ class _GeminiLiveBaseService:
     def _responses_have_audio(self, responses: list[Any]) -> bool:
         audio_chunks, _sample_rate = self._extract_audio_chunks(responses)
         return bool(audio_chunks)
+
+    def _next_turn_complete_deadline(
+        self,
+        responses: list[Any],
+        *,
+        now: float,
+        existing_deadline: float | None,
+        last_audio_chunk_at: float | None = None,
+    ) -> float:
+        existing = existing_deadline if existing_deadline is not None else 0.0
+        if self._responses_have_audio(responses):
+            quiet_anchor = last_audio_chunk_at if last_audio_chunk_at is not None else now
+            return max(
+                existing,
+                now + TURN_COMPLETE_AUDIO_TAIL_GRACE_SEC,
+                quiet_anchor + TURN_COMPLETE_AUDIO_IDLE_GRACE_SEC,
+            )
+        if self._responses_have_text(responses):
+            return max(existing, now + TURN_COMPLETE_TEXT_TAIL_GRACE_SEC)
+        return max(existing, now + TURN_COMPLETE_EMPTY_TAIL_GRACE_SEC)
 
     def _extract_model_text_chunks(self, responses: list[Any]) -> list[str]:
         chunks: list[str] = []
@@ -522,6 +559,12 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         self._turn_lock = asyncio.Lock()
         self._session_instruction: str = ""
         self._connect_block_until = 0.0
+        self._input_stream_future: asyncio.Future[LiveInterviewTurnResult] | None = None
+        self._input_stream_task: asyncio.Task[None] | None = None
+
+    @property
+    def input_stream_active(self) -> bool:
+        return self._input_stream_future is not None and not self._input_stream_future.done()
 
     @property
     def connected(self) -> bool:
@@ -536,7 +579,7 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             "response_modalities": ["AUDIO"],
             "temperature": 0.2,
             "top_p": 0.9,
-            "max_output_tokens": 420,
+            "max_output_tokens": 840,
             "input_audio_transcription": {},
             "output_audio_transcription": {},
             "thinking_config": {
@@ -622,33 +665,146 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                 return normalized_model
             if output_question and not model_question:
                 return normalized_output
+            if normalized_model.startswith(normalized_output):
+                return normalized_model
+            if normalized_output.startswith(normalized_model):
+                return normalized_output
             if output_complete and (
                 not model_complete
-                or len(normalized_output) >= len(normalized_model) - 8
+                or len(normalized_output) >= len(normalized_model)
                 or (model_has_latin and not output_has_latin)
             ):
                 return normalized_output
             if model_complete and not output_complete:
                 return normalized_model
-            if normalized_model.startswith(normalized_output) and len(normalized_model) >= len(normalized_output) + 10:
-                return normalized_model
-            if normalized_output.startswith(normalized_model) and len(normalized_output) >= len(normalized_model) + 10:
-                return normalized_output
 
         candidates = [text for text in (normalized_output, normalized_model) if text]
         if not candidates:
             return ""
 
-        def _score(candidate: str) -> int:
-            bonus = 140 if self._is_likely_complete_ai_text(candidate) else 0
-            question_bonus = 220 if looks_like_complete_ai_question(candidate) else 0
-            hangul_bonus = 80 if re.search(r"[가-힣]", candidate) else 0
-            return len(candidate) + bonus + question_bonus + hangul_bonus
-
-        best = max(candidates, key=_score)
+        best = max(candidates, key=self._score_ai_text_candidate)
         return best
 
+    def _score_ai_text_candidate(self, candidate: str) -> int:
+        if not candidate:
+            return 0
+        bonus = 140 if self._is_likely_complete_ai_text(candidate) else 0
+        question_bonus = 220 if looks_like_complete_ai_question(candidate) else 0
+        hangul_bonus = 80 if re.search(r"[가-힣]", candidate) else 0
+        return len(candidate) + bonus + question_bonus + hangul_bonus
+
+    def _pick_monotonic_text(self, current: str, candidate: str) -> str:
+        normalized_current = " ".join((current or "").split()).strip()
+        normalized_candidate = " ".join((candidate or "").split()).strip()
+        if not normalized_current:
+            return normalized_candidate
+        if not normalized_candidate:
+            return normalized_current
+        if normalized_candidate.startswith(normalized_current):
+            return normalized_candidate
+        if normalized_current.startswith(normalized_candidate):
+            return normalized_current
+        if normalized_candidate in normalized_current:
+            return normalized_current
+        if normalized_current in normalized_candidate:
+            return normalized_candidate
+        return ""
+
+    def _pick_better_ai_text(self, current: str, candidate: str) -> str:
+        monotonic = self._pick_monotonic_text(current, candidate)
+        if monotonic:
+            return monotonic
+        if self._score_ai_text_candidate(candidate) > self._score_ai_text_candidate(current):
+            return candidate
+        return current
+
+    def _pick_authoritative_stream_ai_text(self, committed: str, streamed: str) -> str:
+        normalized_committed = self._normalize_ai_text_candidate(committed)
+        normalized_streamed = self._normalize_ai_text_candidate(streamed)
+        if not normalized_streamed:
+            return normalized_committed
+        if not normalized_committed:
+            return normalized_streamed
+
+        monotonic = self._pick_monotonic_text(normalized_committed, normalized_streamed)
+        if monotonic:
+            return monotonic
+
+        compact_committed = len(re.sub(r"\s+", "", normalized_committed))
+        compact_streamed = len(re.sub(r"\s+", "", normalized_streamed))
+        if compact_streamed >= compact_committed:
+            return normalized_streamed
+
+        score_gap = self._score_ai_text_candidate(normalized_committed) - self._score_ai_text_candidate(normalized_streamed)
+        if score_gap >= 260 and compact_committed + 6 >= compact_streamed:
+            return normalized_committed
+
+        return normalized_streamed
+
+    def _score_user_text_candidate(self, candidate: str) -> int:
+        return score_user_transcript_text(candidate)
+
+    def _pick_better_user_text(self, current: str, candidate: str) -> str:
+        normalized_current = sanitize_user_turn_text(current)
+        normalized_candidate = sanitize_user_turn_text(candidate)
+        if not normalized_current:
+            return normalized_candidate
+        if not normalized_candidate:
+            return normalized_current
+
+        current_score = self._score_user_text_candidate(normalized_current)
+        candidate_score = self._score_user_text_candidate(normalized_candidate)
+        current_compact = re.sub(r"\s+", "", normalized_current)
+        candidate_compact = re.sub(r"\s+", "", normalized_candidate)
+
+        if candidate_compact.startswith(current_compact):
+            return normalized_candidate
+        if current_compact.startswith(candidate_compact):
+            return normalized_candidate if candidate_score > current_score + 4 else normalized_current
+        if candidate_score > current_score + 4:
+            return normalized_candidate
+        if len(candidate_compact) >= len(current_compact) and candidate_score >= current_score - 2:
+            return normalized_candidate
+        return normalized_current
+
+    def _build_ai_text_candidate_from_responses(self, responses: list[Any]) -> str:
+        output_text = self._merge_transcription_chunks(self._extract_output_transcription_chunks(responses))
+        model_text = self._merge_transcription_chunks(self._extract_model_text_chunks(responses))
+        return self._select_best_ai_text(output_text, model_text)
+
+    def _build_user_text_candidate_from_responses(self, responses: list[Any]) -> str:
+        input_text = self._merge_transcription_chunks(self._collect_input_transcriptions(responses))
+        return sanitize_user_turn_text(input_text)
+
+    def _build_stream_turn_result(
+        self,
+        responses: list[Any],
+        *,
+        best_stream_user_text: str = "",
+        best_stream_ai_text: str = "",
+    ) -> LiveInterviewTurnResult:
+        result = self._build_turn_result(responses) if responses else LiveInterviewTurnResult(
+            "",
+            "",
+            b"",
+            self.output_sample_rate,
+            self.provider,
+        )
+        authoritative_user_text = self._pick_better_user_text(result.user_text, best_stream_user_text)
+        authoritative_ai_text = self._pick_authoritative_stream_ai_text(result.ai_text, best_stream_ai_text)
+        if authoritative_user_text == result.user_text and authoritative_ai_text == result.ai_text:
+            return result
+        return LiveInterviewTurnResult(
+            user_text=authoritative_user_text,
+            ai_text=authoritative_ai_text,
+            audio_pcm_bytes=result.audio_pcm_bytes,
+            sample_rate=result.sample_rate,
+            provider=result.provider,
+        )
+
     async def close(self) -> None:
+        if self._input_stream_task is not None or self._input_stream_future is not None:
+            await self.cancel_audio_input_stream()
         async with self._session_lock:
             session_cm = self._session_cm
             session = self._session
@@ -753,6 +909,226 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             sample_rate=detected_rate,
             provider=self.provider,
         )
+
+    async def _run_input_stream_receive_loop(
+        self,
+        future: asyncio.Future[LiveInterviewTurnResult],
+        *,
+        on_audio_chunk: Any | None,
+        on_ai_text_update: Any | None,
+        on_user_text_update: Any | None,
+    ) -> None:
+        responses: list[Any] = []
+        turn_complete_seen = False
+        turn_complete_deadline: float | None = None
+        last_audio_chunk_at: float | None = None
+        turn_complete_timeout_retries = 0
+        pending_chunk: bytes | None = None
+        pending_chunk_rate = self.output_sample_rate
+        last_emitted_ai_text = ""
+        best_stream_ai_text = ""
+        last_emitted_user_text = ""
+        best_stream_user_text = ""
+
+        async def flush_pending(*, is_final: bool) -> None:
+            nonlocal pending_chunk, pending_chunk_rate
+            if pending_chunk is None or on_audio_chunk is None:
+                pending_chunk = None
+                return
+            await on_audio_chunk(pending_chunk, pending_chunk_rate, is_final)
+            pending_chunk = None
+
+        try:
+            response_stream = self._session.receive()
+            while True:
+                try:
+                    timeout = self.timeout_sec
+                    if turn_complete_seen and turn_complete_deadline is not None:
+                        timeout = max(0.05, turn_complete_deadline - time.monotonic())
+                    response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout)
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    if (
+                        turn_complete_seen
+                        and self._responses_have_payload(responses)
+                        and turn_complete_timeout_retries < TURN_COMPLETE_TIMEOUT_RETRY_LIMIT
+                    ):
+                        turn_complete_timeout_retries += 1
+                        turn_complete_deadline = time.monotonic() + TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC
+                        continue
+                    break
+
+                responses.append(response)
+                if turn_complete_seen:
+                    turn_complete_timeout_retries = 0
+                audio_chunks, detected_rate = self._extract_audio_chunks([response])
+                for audio_chunk in audio_chunks:
+                    last_audio_chunk_at = time.monotonic()
+                    if pending_chunk is not None:
+                        await flush_pending(is_final=False)
+                    pending_chunk = audio_chunk
+                    pending_chunk_rate = detected_rate or pending_chunk_rate or self.output_sample_rate
+
+                candidate_user_text = self._build_user_text_candidate_from_responses(responses)
+                best_stream_user_text = self._pick_better_user_text(best_stream_user_text, candidate_user_text)
+                if (
+                    on_user_text_update is not None
+                    and best_stream_user_text
+                    and best_stream_user_text != last_emitted_user_text
+                ):
+                    await on_user_text_update(best_stream_user_text)
+                    last_emitted_user_text = best_stream_user_text
+
+                candidate_ai_text = self._build_ai_text_candidate_from_responses(responses)
+                best_stream_ai_text = self._pick_better_ai_text(best_stream_ai_text, candidate_ai_text)
+                if (
+                    on_ai_text_update is not None
+                    and best_stream_ai_text
+                    and best_stream_ai_text != last_emitted_ai_text
+                ):
+                    await on_ai_text_update(best_stream_ai_text)
+                    last_emitted_ai_text = best_stream_ai_text
+
+                server_content = getattr(response, "server_content", None)
+                if bool(getattr(server_content, "turn_complete", False)):
+                    turn_complete_seen = True
+                if turn_complete_seen:
+                    turn_complete_deadline = self._next_turn_complete_deadline(
+                        responses,
+                        now=time.monotonic(),
+                        existing_deadline=turn_complete_deadline,
+                        last_audio_chunk_at=last_audio_chunk_at,
+                    )
+        except asyncio.CancelledError:
+            if not future.done():
+                future.cancel()
+            raise
+        except Exception:
+            logger.exception("gemini live input stream receive loop failed")
+            try:
+                await flush_pending(is_final=True)
+            except Exception:
+                logger.warning("failed to flush pending streamed audio chunk after receive loop error", exc_info=True)
+            if not future.done():
+                future.set_result(
+                    self._build_stream_turn_result(
+                        responses,
+                        best_stream_user_text=best_stream_user_text,
+                        best_stream_ai_text=best_stream_ai_text,
+                    )
+                )
+            return
+
+        await flush_pending(is_final=True)
+        result = self._build_stream_turn_result(
+            responses,
+            best_stream_user_text=best_stream_user_text,
+            best_stream_ai_text=best_stream_ai_text,
+        )
+        if not future.done():
+            future.set_result(result)
+
+    async def begin_audio_input_stream(
+        self,
+        *,
+        session_instruction: str,
+        turn_prompt: str = "",
+        on_audio_chunk: Any | None = None,
+        on_ai_text_update: Any | None = None,
+        on_user_text_update: Any | None = None,
+    ) -> bool:
+        if not self.enabled:
+            return False
+        if self.input_stream_active:
+            return True
+
+        connected = await self._ensure_connected(session_instruction)
+        if not connected or self._session is None:
+            await self.close()
+            return False
+
+        await self._turn_lock.acquire()
+        try:
+            prompt = (turn_prompt or "").strip()
+            if types is not None and hasattr(types, "ActivityStart"):
+                await self._session.send_realtime_input(activity_start=types.ActivityStart())
+            if prompt:
+                await self._session.send_realtime_input(text=prompt)
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[LiveInterviewTurnResult] = loop.create_future()
+            task = asyncio.create_task(
+                self._run_input_stream_receive_loop(
+                    future,
+                    on_audio_chunk=on_audio_chunk,
+                    on_ai_text_update=on_ai_text_update,
+                    on_user_text_update=on_user_text_update,
+                )
+            )
+            self._input_stream_future = future
+            self._input_stream_task = task
+            return True
+        except Exception:
+            if self._turn_lock.locked():
+                self._turn_lock.release()
+            self._input_stream_future = None
+            self._input_stream_task = None
+            logger.exception("gemini live input stream start failed")
+            await self.close()
+            return False
+
+    async def push_audio_input_chunk(
+        self,
+        *,
+        pcm_bytes: bytes,
+        sample_rate: int,
+    ) -> bool:
+        if not self.input_stream_active or self._session is None or not pcm_bytes:
+            return False
+        normalized_rate = max(8000, int(sample_rate or 16000))
+        await self._session.send_realtime_input(
+            audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
+        )
+        return True
+
+    async def commit_audio_input_stream(self) -> LiveInterviewTurnResult:
+        future = self._input_stream_future
+        if future is None or self._session is None:
+            return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
+
+        try:
+            if types is not None and hasattr(types, "ActivityEnd"):
+                await self._session.send_realtime_input(activity_end=types.ActivityEnd())
+            else:
+                await self._session.send_realtime_input(audio_stream_end=True)
+            return await future
+        finally:
+            task = self._input_stream_task
+            self._input_stream_future = None
+            self._input_stream_task = None
+            if task is not None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            if self._turn_lock.locked():
+                self._turn_lock.release()
+
+    async def cancel_audio_input_stream(self) -> None:
+        task = self._input_stream_task
+        future = self._input_stream_future
+        self._input_stream_task = None
+        self._input_stream_future = None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        if future is not None and not future.done():
+            future.cancel()
+        if self._turn_lock.locked():
+            self._turn_lock.release()
 
     async def request_text_turn(
         self,
@@ -897,3 +1273,153 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
             await self.close()
 
         return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
+
+    async def stream_audio_turn(
+        self,
+        *,
+        session_instruction: str,
+        pcm_bytes: bytes,
+        sample_rate: int,
+        turn_prompt: str = "",
+        on_audio_chunk: Any | None = None,
+        on_ai_text_update: Any | None = None,
+        on_user_text_update: Any | None = None,
+    ) -> LiveInterviewTurnResult:
+        if not self.enabled or not pcm_bytes:
+            return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
+
+        normalized_rate = max(8000, int(sample_rate or 16000))
+
+        connected = await self._ensure_connected(session_instruction)
+        if not connected or self._session is None:
+            logger.warning(
+                "gemini live streaming audio turn connect unavailable (sample_rate=%s, bytes=%s)",
+                normalized_rate,
+                len(pcm_bytes),
+            )
+            await self.close()
+            return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
+
+        responses: list[Any] = []
+        turn_complete_seen = False
+        turn_complete_deadline: float | None = None
+        last_audio_chunk_at: float | None = None
+        turn_complete_timeout_retries = 0
+        pending_chunk: bytes | None = None
+        pending_chunk_rate = self.output_sample_rate
+        last_emitted_ai_text = ""
+        best_stream_ai_text = ""
+        last_emitted_user_text = ""
+        best_stream_user_text = ""
+
+        async def flush_pending(*, is_final: bool) -> None:
+            nonlocal pending_chunk, pending_chunk_rate
+            if pending_chunk is None or on_audio_chunk is None:
+                pending_chunk = None
+                return
+            await on_audio_chunk(pending_chunk, pending_chunk_rate, is_final)
+            pending_chunk = None
+
+        try:
+            async with self._turn_lock:
+                prompt = (turn_prompt or "").strip()
+                if types is not None and hasattr(types, "ActivityStart"):
+                    await self._session.send_realtime_input(activity_start=types.ActivityStart())
+                if prompt:
+                    await self._session.send_realtime_input(text=prompt)
+                await self._session.send_realtime_input(
+                    audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
+                )
+                if types is not None and hasattr(types, "ActivityEnd"):
+                    await self._session.send_realtime_input(activity_end=types.ActivityEnd())
+                else:
+                    await self._session.send_realtime_input(audio_stream_end=True)
+
+                response_stream = self._session.receive()
+                while True:
+                    try:
+                        timeout = self.timeout_sec
+                        if turn_complete_seen and turn_complete_deadline is not None:
+                            timeout = max(0.05, turn_complete_deadline - time.monotonic())
+                        response = await asyncio.wait_for(response_stream.__anext__(), timeout=timeout)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        if (
+                            turn_complete_seen
+                            and self._responses_have_payload(responses)
+                            and turn_complete_timeout_retries < TURN_COMPLETE_TIMEOUT_RETRY_LIMIT
+                        ):
+                            turn_complete_timeout_retries += 1
+                            turn_complete_deadline = time.monotonic() + TURN_COMPLETE_TIMEOUT_RETRY_GRACE_SEC
+                            continue
+                        break
+
+                    responses.append(response)
+                    if turn_complete_seen:
+                        turn_complete_timeout_retries = 0
+                    audio_chunks, detected_rate = self._extract_audio_chunks([response])
+                    for audio_chunk in audio_chunks:
+                        last_audio_chunk_at = time.monotonic()
+                        if pending_chunk is not None:
+                            await flush_pending(is_final=False)
+                        pending_chunk = audio_chunk
+                        pending_chunk_rate = detected_rate or pending_chunk_rate or self.output_sample_rate
+
+                    candidate_user_text = self._build_user_text_candidate_from_responses(responses)
+                    best_stream_user_text = self._pick_better_user_text(best_stream_user_text, candidate_user_text)
+                    if (
+                        on_user_text_update is not None
+                        and best_stream_user_text
+                        and best_stream_user_text != last_emitted_user_text
+                    ):
+                        await on_user_text_update(best_stream_user_text)
+                        last_emitted_user_text = best_stream_user_text
+
+                    candidate_ai_text = self._build_ai_text_candidate_from_responses(responses)
+                    best_stream_ai_text = self._pick_better_ai_text(best_stream_ai_text, candidate_ai_text)
+                    if (
+                        on_ai_text_update is not None
+                        and best_stream_ai_text
+                        and best_stream_ai_text != last_emitted_ai_text
+                    ):
+                        await on_ai_text_update(best_stream_ai_text)
+                        last_emitted_ai_text = best_stream_ai_text
+
+                    server_content = getattr(response, "server_content", None)
+                    if bool(getattr(server_content, "turn_complete", False)):
+                        turn_complete_seen = True
+                    if turn_complete_seen:
+                        now = time.monotonic()
+                        turn_complete_deadline = self._next_turn_complete_deadline(
+                            responses,
+                            now=now,
+                            existing_deadline=turn_complete_deadline,
+                            last_audio_chunk_at=last_audio_chunk_at,
+                        )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "gemini live streaming audio turn failed (sample_rate=%s, bytes=%s)",
+                normalized_rate,
+                len(pcm_bytes),
+            )
+            try:
+                await flush_pending(is_final=True)
+            except Exception:
+                logger.warning("failed to flush pending streamed audio chunk after streaming turn error", exc_info=True)
+            await self.close()
+            return self._build_stream_turn_result(
+                responses,
+                best_stream_user_text=best_stream_user_text,
+                best_stream_ai_text=best_stream_ai_text,
+            )
+
+        await flush_pending(is_final=True)
+        result = self._build_stream_turn_result(
+            responses,
+            best_stream_user_text=best_stream_user_text,
+            best_stream_ai_text=best_stream_ai_text,
+        )
+        return result

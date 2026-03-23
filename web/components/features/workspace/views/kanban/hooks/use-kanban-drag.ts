@@ -84,13 +84,13 @@ export function useKanbanDrag({
     if (groupBy === "tag")
       return "statusId" in col ? (col as any).statusId : col.id; // tagId stored in statusId
     if (groupBy === "assignee")
-      return col.title === "No Assignee" ? "unassigned" : col.title; // Adjust based on your assignee column logic
+      return col.id === "unassigned" ? "unassigned" : col.id;
     return colId;
   };
 
   const getTaskGroupValue = (task: Task) => {
     if (groupBy === "status") return task.status;
-    if (groupBy === "assignee") return task.assignee || "unassigned"; // Normalize
+    if (groupBy === "assignee") return task.assigneeId || "unassigned";
     if (groupBy === "priority") return task.priorityId; // Can be undefined
     if (groupBy === "tag") return task.tags?.[0]; // Can be undefined
     return undefined;
@@ -106,6 +106,7 @@ export function useKanbanDrag({
 
     // Only handle Task dragging in DragOver for live preview
     if (active.data.current?.type !== "Task") return;
+    if (groupBy === "tag") return;
 
     const activeTask = tasks.find((t) => t.id === activeId);
     if (!activeTask) return;
@@ -135,15 +136,12 @@ export function useKanbanDrag({
             // Check if newGroupValue is 'no-priority' (undefined or special ID?)
             // Usually overTask.priorityId is the value.
             updateTask(activeId, { priorityId: newGroupValue as string });
-          } else if (groupBy === "tag") {
-            const newTags = newGroupValue ? [newGroupValue as string] : [];
-            updateTask(activeId, { tags: newTags });
           } else if (groupBy === "assignee") {
-            const newAssignee =
+            const newAssigneeId =
               newGroupValue === "unassigned"
                 ? undefined
                 : (newGroupValue as string);
-            updateTask(activeId, { assignee: newAssignee });
+            updateTask(activeId, { assigneeId: newAssigneeId });
           }
         }
       }
@@ -172,21 +170,12 @@ export function useKanbanDrag({
               ? undefined
               : (targetGroupVal as string);
           updateTask(activeId, { priorityId: newPriorityId });
-        } else if (groupBy === "tag") {
-          const newTagId =
-            targetGroupVal === "no-tag" || !targetGroupVal
-              ? undefined
-              : (targetGroupVal as string);
-          updateTask(activeId, { tags: newTagId ? [newTagId] : [] });
         } else if (groupBy === "assignee") {
-          // Usually 'unassigned' column has specific ID?
-          // Logic in getGroupValueFromColumnId handles this?
-          // If targetGroupVal is name or ID.
-          const newAssignee =
+          const newAssigneeId =
             targetGroupVal === "unassigned" || !targetGroupVal
               ? undefined
               : (targetGroupVal as string);
-          updateTask(activeId, { assignee: newAssignee });
+          updateTask(activeId, { assigneeId: newAssigneeId });
         }
       }
     }

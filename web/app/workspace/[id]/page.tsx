@@ -140,6 +140,8 @@ const normalizeTab = (tab: string | null) => {
 type WorkspaceMeta = {
   read_only?: boolean;
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
+  result_type?: string | null;
+  result_link?: string | null;
 };
 
 const fetcher = async (url: string) => {
@@ -175,7 +177,10 @@ export default function WorkspaceDetailPage() {
     workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
   );
 
-  const handleTabChange = (tab: string) => {
+  const handleTabChange = (
+    tab: string,
+    options?: { docId?: string | null },
+  ) => {
     const normalized = normalizeTab(tab);
     setActiveTab(normalized);
 
@@ -186,6 +191,12 @@ export default function WorkspaceDetailPage() {
       nextParams.set("tab", normalized);
     }
 
+    if (normalized === "docs" && options?.docId) {
+      nextParams.set("doc", options.docId);
+    } else if (normalized !== "docs") {
+      nextParams.delete("doc");
+    }
+
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -194,6 +205,14 @@ export default function WorkspaceDetailPage() {
     const nextTab = normalizeTab(searchParams.get("tab"));
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [searchParams]);
+
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    const nextTab = normalizeTab(searchParams.get("tab"));
+    if (nextTab === "board" && taskId) {
+      setActiveTaskId(taskId);
+    }
+  }, [searchParams, setActiveTaskId]);
 
   useEffect(() => {
     if (projectId && user) {
@@ -227,14 +246,24 @@ export default function WorkspaceDetailPage() {
           <div className="h-full p-6">
             <KanbanBoard
               projectId={projectId}
-              onNavigateToDoc={() => handleTabChange("docs")}
+              onNavigateToDoc={(docId) =>
+                handleTabChange("docs", { docId })
+              }
             />
           </div>
         );
       case "schedule":
         return <ScheduleView projectId={projectId} />;
       case "docs":
-        return <DocsView projectId={projectId} />;
+        return (
+          <DocsView
+            projectId={projectId}
+            initialDocId={searchParams.get("doc")}
+            onNavigateToTask={(taskId) => {
+              setActiveTaskId(taskId);
+            }}
+          />
+        );
       case "ideas":
         return (
           <div className="h-full">
@@ -285,8 +314,27 @@ export default function WorkspaceDetailPage() {
         {isReadOnly && (
           <div className="px-6 pt-4">
             <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
-              이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대, 전송은
-              비활성화됩니다.
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>
+                  이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대,
+                  전송은 비활성화됩니다.
+                </span>
+                {workspaceMeta?.result_type && (
+                  <span className="font-medium text-foreground">
+                    결과: {workspaceMeta.result_type}
+                  </span>
+                )}
+                {workspaceMeta?.result_link && (
+                  <a
+                    href={workspaceMeta.result_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline underline-offset-4"
+                  >
+                    결과 링크
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}

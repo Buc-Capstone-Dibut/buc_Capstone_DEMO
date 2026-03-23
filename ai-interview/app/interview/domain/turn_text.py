@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import re
+from typing import Any
 
 COMPLETE_ANSWER_ENDINGS = (
     "습니다",
@@ -67,6 +69,74 @@ QUESTION_ENDINGS = (
     "공유해 주세요",
     "어떻게 했나요",
 )
+QUESTION_TEXT_TEMPLATES = {
+    "motivation_validation": "{focus_phrase} 경험이 이번 직무와 가장 맞닿아 있다고 판단하신 이유는 무엇인가요?",
+    "metric_validation": "{focus_phrase}에서 어떤 수치나 지표를 기준으로 성과를 검증하셨나요?",
+    "tradeoff": "{focus_phrase}를 진행할 때 어떤 선택지를 비교했고 무엇을 기준으로 결정하셨나요?",
+    "failure_recovery": "{focus_phrase}에서 가장 큰 문제나 장애가 생겼을 때 어떻게 복구하셨나요?",
+    "design_decision": "{focus_phrase}와 관련해, 핵심 설계 결정을 어떻게 내리셨나요?",
+    "collaboration_conflict": "{focus_phrase}를 진행하면서 협업상 조율이 필요했던 순간을 어떻게 해결하셨나요?",
+    "priority_judgment": "{focus_phrase}에서 무엇을 우선순위로 두고 판단하셨나요?",
+}
+FOCUS_KEYWORD_STOPWORDS = {
+    "그냥",
+    "정도",
+    "부분",
+    "경우",
+    "관련",
+    "이번",
+    "저희",
+    "회사",
+    "업무",
+    "프로젝트",
+    "문제",
+    "해결",
+    "결과",
+    "경험",
+    "이유",
+    "생각",
+    "부분이",
+    "부분은",
+    "있는",
+    "있습니다",
+    "합니다",
+    "했던",
+    "있었고",
+    "그리고",
+    "그래서",
+    "그때",
+    "이어서",
+    "말씀",
+    "주세요",
+}
+ALLOWED_SHORT_ASCII_TRANSCRIPT_TOKENS = {
+    "ai",
+    "api",
+    "aws",
+    "sql",
+    "ttl",
+    "sse",
+    "rpc",
+    "db",
+    "ui",
+    "ux",
+    "cpu",
+    "gpu",
+    "cdn",
+    "http",
+    "https",
+    "tcp",
+    "udp",
+    "jvm",
+    "kpi",
+    "rps",
+    "tps",
+    "ws",
+    "ci",
+    "cd",
+    "ms",
+}
+OPENING_VARIANT_SEED_SALT = "opening-v2"
 QUESTION_INTENT_PATTERNS = (
     re.compile(r"(말씀|설명|공유|정리|답변)해\s*주(?:세요|실\s*수\s*있을까요|시겠습니까)", re.IGNORECASE),
     re.compile(r"(어떤|어떻게|왜|무엇|얼마나|어느 정도|구체적으로)\b"),
@@ -165,6 +235,30 @@ KOREAN_BOUNDARY_PATTERNS = (
         r"\1 ",
     ),
 )
+USER_TECHNICAL_RECOVERY_PATTERNS = (
+    (re.compile(r"웹\s*소켓", re.IGNORECASE), "웹소켓"),
+    (re.compile(r"실\s*시간"), "실시간"),
+    (re.compile(r"백\s*엔드"), "백엔드"),
+    (re.compile(r"AI\s*면접서\s*비스", re.IGNORECASE), "AI 면접 서비스"),
+    (re.compile(r"면접서\s*비스"), "면접 서비스"),
+    (re.compile(r"회사서\s*비스"), "회사 서비스"),
+    (re.compile(r"서비스\s*를개발"), "서비스를 개발"),
+    (re.compile(r"서비스\s*를\s*개발"), "서비스를 개발"),
+    (re.compile(r"개발하며웹소켓"), "개발하며 웹소켓"),
+    (re.compile(r"웹소켓기반"), "웹소켓 기반"),
+    (re.compile(r"기반통신"), "기반 통신"),
+    (re.compile(r"\bP\s*I(?=\s*(구조|설계|명세|엔드포인트|게이트웨이|통신|를|가|는|도|와|과))", re.IGNORECASE), "API"),
+    (re.compile(r"API구조설계", re.IGNORECASE), "API 구조 설계"),
+    (re.compile(r"구조설계"), "구조 설계"),
+    (re.compile(r"통신과백엔드"), "통신과 백엔드"),
+    (re.compile(r"동요청"), "동시 요청"),
+    (re.compile(r"요청을안정적으로"), "요청을 안정적으로"),
+    (re.compile(r"안정\s*적으로"), "안정적으로"),
+    (re.compile(r"처리\s*하는"), "처리하는"),
+    (re.compile(r"스템(?=\s*(구현|구축|운영|현한|현)\b)"), "시스템"),
+    (re.compile(r"시스템\s*현한"), "시스템 구현한"),
+    (re.compile(r"경험\s+이\s+있습니다"), "경험이 있습니다"),
+)
 
 
 def _contains_hangul(text: str) -> bool:
@@ -244,8 +338,6 @@ def _apply_korean_spacing_heuristic(text: str) -> str:
     formatted = _collapse_fragmented_transcript_tokens(text)
     if not formatted:
         return ""
-    if _should_recompact_fragmented_tokens(formatted) and _contains_hangul(formatted):
-        formatted = formatted.replace(" ", "")
 
     formatted = re.sub(r"([,.:!?])(?=\S)", r"\1 ", formatted)
     formatted = re.sub(r"([A-Za-z0-9]+)([가-힣])", r"\1 \2", formatted)
@@ -328,6 +420,49 @@ def _apply_korean_spacing_heuristic(text: str) -> str:
     return _normalize_whitespace(formatted)
 
 
+def _apply_user_transcript_cleanup(text: str) -> str:
+    formatted = _collapse_fragmented_transcript_tokens(text)
+    if not formatted:
+        return ""
+
+    formatted = re.sub(r"([,.:!?])(?=\S)", r"\1 ", formatted)
+    formatted = re.sub(r"([A-Za-z0-9]+)([가-힣])", r"\1 \2", formatted)
+    formatted = re.sub(r"([가-힣])([A-Za-z0-9]+)", r"\1 \2", formatted)
+    formatted = re.sub(r"\b([A-Za-z])\s+([A-Za-z])\b", r"\1\2", formatted)
+    formatted = re.sub(
+        r"([A-Za-z0-9]+)\s+(과|와|을|를|은|는|이|가|도|만|에|의|로|에서|으로)(?=[가-힣A-Za-z0-9])",
+        r"\1\2",
+        formatted,
+    )
+    formatted = re.sub(
+        r"([A-Za-z0-9]+)\s+(과|와|을|를|은|는|이|가|도|만|에|의|로|에서|으로)\s+([A-Za-z0-9가-힣])",
+        r"\1\2 \3",
+        formatted,
+    )
+    for pattern, replacement in USER_TECHNICAL_RECOVERY_PATTERNS:
+        formatted = pattern.sub(replacement, formatted)
+    for pattern, replacement in KOREAN_BOUNDARY_PATTERNS:
+        formatted = pattern.sub(replacement, formatted)
+        formatted = pattern.sub(replacement, formatted)
+    formatted = re.sub(
+        r"(습니다|입니다|해요|했어요|했습니다|예요|이에요|네요|거든요|아요|어요|죠)"
+        r"(그리고|그래서|근데|그런데|그러면|다음|혹시|제가|저는|저희는|음|어|아|네|예)",
+        r"\1 \2",
+        formatted,
+    )
+    formatted = re.sub(
+        r"(하는|되는|했던|하면서|했고|하고|하며)(?=[가-힣A-Za-z0-9]{2,})",
+        r"\1 ",
+        formatted,
+    )
+    formatted = re.sub(r"\s+", " ", formatted).strip()
+    if _should_recompact_fragmented_tokens(formatted):
+        recompacted = _apply_korean_spacing_heuristic(formatted)
+        if recompacted:
+            formatted = recompacted
+    return formatted
+
+
 def build_answer_quality_hint(answer: str) -> str:
     text = (answer or "").strip()
     if not text:
@@ -351,6 +486,183 @@ def build_answer_quality_hint(answer: str) -> str:
         hints.append("다음 질문은 문제-행동-결과 구조가 드러나도록 구체 상황을 확인하는 방향으로 이어가세요.")
 
     return " ".join(hints)
+
+
+def _extract_focus_keywords(text: str, *, max_items: int = 8) -> list[str]:
+    tokens = re.findall(r"[0-9A-Za-z가-힣]{2,}", (text or "").lower())
+    keywords: list[str] = []
+    for token in tokens:
+        if token in FOCUS_KEYWORD_STOPWORDS:
+            continue
+        if token.isdigit():
+            continue
+        if token not in keywords:
+            keywords.append(token)
+        if len(keywords) >= max_items:
+            break
+    return keywords
+
+
+def _normalize_focus_keyword(token: str) -> str:
+    normalized = re.sub(r"(과|와|을|를|이|가|은|는|에|에서|로|으로|도|만)$", "", (token or "").strip())
+    return normalized or (token or "").strip()
+
+
+def _build_focus_phrase(user_text: str, *, session_type: str) -> str:
+    raw_keywords = [
+        _normalize_focus_keyword(keyword)
+        for keyword in _extract_focus_keywords(user_text, max_items=8)
+    ]
+    keywords: list[str] = []
+    metric_keywords = [keyword for keyword in raw_keywords if re.search(r"[0-9]", keyword)]
+    for keyword in metric_keywords + raw_keywords:
+        if keyword and keyword not in keywords:
+            keywords.append(keyword)
+        if len(keywords) >= 2:
+            break
+    if keywords:
+        if len(keywords) == 1:
+            return f"방금 말씀하신 {keywords[0]}"
+        return f"방금 말씀하신 {keywords[0]}와 {keywords[1]}"
+    if session_type == "portfolio_defense":
+        return "방금 설명하신 프로젝트"
+    return "방금 말씀하신 경험"
+
+
+def _to_string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        normalized = value.strip()
+        return [normalized] if normalized else []
+    if isinstance(value, (list, tuple, set)):
+        result: list[str] = []
+        for item in value:
+            normalized = str(item or "").strip()
+            if normalized:
+                result.append(normalized)
+        return result
+    return []
+
+
+def _normalize_opening_focus_term(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", (value or "").strip())
+    normalized = re.sub(r"[\"'()\\[\\]{}]+", "", normalized)
+    normalized = normalized.strip(" ,.:;/-")
+    if not normalized or len(normalized) > 24:
+        return ""
+    if normalized.lower() in {"backend", "frontend", "fullstack", "developer", "engineer"}:
+        return ""
+    return normalized
+
+
+def _extract_opening_focus_term(
+    *,
+    job_data: dict[str, Any] | None = None,
+    resume_data: Any = None,
+) -> str:
+    normalized_job_data = job_data if isinstance(job_data, dict) else {}
+    candidates: list[str] = []
+    for key in ("techStack", "tech_stack", "requirements", "skills"):
+        candidates.extend(_to_string_list(normalized_job_data.get(key)))
+
+    if isinstance(resume_data, dict):
+        for key in ("skills", "techStack", "tech_stack"):
+            candidates.extend(_to_string_list(resume_data.get(key)))
+
+    for raw in candidates:
+        normalized = _normalize_opening_focus_term(raw)
+        if normalized:
+            return normalized
+    return ""
+
+
+def _opening_variant_index(seed_text: str, variant_count: int) -> int:
+    if variant_count <= 1:
+        return 0
+    digest = hashlib.sha1(f"{OPENING_VARIANT_SEED_SALT}:{seed_text}".encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % variant_count
+
+
+def build_opening_turn_text(
+    *,
+    session_type: str,
+    company: str = "",
+    role: str = "",
+    job_data: dict[str, Any] | None = None,
+    resume_data: Any = None,
+    seed_text: str = "",
+) -> str:
+    normalized_company = (company or "").strip()
+    normalized_role = (role or "").strip()
+    context_target = " ".join(part for part in (normalized_company, normalized_role) if part).strip()
+    role_target = normalized_role or "이번 직무"
+    focus_term = _extract_opening_focus_term(job_data=job_data, resume_data=resume_data)
+    variant_seed = seed_text or "|".join(
+        (
+            session_type,
+            normalized_company,
+            normalized_role,
+            focus_term,
+        )
+    )
+    if session_type == "portfolio_defense":
+        variants = (
+            "안녕하세요. 포트폴리오에서 본인이 가장 주도적으로 설계하거나 구현한 부분을 먼저 설명해 주실 수 있을까요?",
+            "안녕하세요. 포트폴리오 중에서 이번 면접과 가장 직접적으로 연결된 프로젝트 한 가지를 골라 설명해 주실 수 있을까요?",
+            "안녕하세요. 포트폴리오에서 본인 기여가 가장 선명하게 드러나는 대표 프로젝트를 먼저 말씀해 주실 수 있을까요?",
+        )
+        return variants[_opening_variant_index(variant_seed, len(variants))]
+
+    variants = [
+        f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+        f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 본인 기여 중심으로 설명해 주실 수 있을까요?",
+        f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+    ]
+    if focus_term:
+        variants.append(
+            f"안녕하세요. {role_target}와 관련해 특히 {focus_term} 활용 경험이 있다면, 가장 대표적인 프로젝트 한 가지를 말씀해 주실 수 있을까요?"
+        )
+    return variants[_opening_variant_index(variant_seed, len(variants))]
+
+
+def build_retry_question_text(user_text: str = "") -> str:
+    focus_phrase = _build_focus_phrase(user_text, session_type="live_interview") if user_text.strip() else "방금 말씀하신 내용"
+    return f"답변이 잘 들리지 않았습니다. {focus_phrase}과 관련된 내용을 한 번만 다시 말씀해 주실 수 있을까요?"
+
+
+def compose_ai_question_text(
+    *,
+    user_text: str,
+    question_type: str | None,
+    strategy: str,
+    session_type: str,
+) -> str:
+    normalized_strategy = (strategy or "").strip() or "transition"
+    normalized_type = (question_type or "").strip() or "metric_validation"
+
+    if normalized_strategy == "retry":
+        return build_retry_question_text(user_text)
+
+    if session_type == "portfolio_defense":
+        focus_phrase = _build_focus_phrase(user_text, session_type=session_type)
+        if normalized_type == "metric_validation":
+            return f"{focus_phrase}에서 어떤 지표나 사용자 반응으로 성과를 검증하셨나요?"
+        if normalized_type == "tradeoff":
+            return f"{focus_phrase}를 진행할 때 어떤 선택지를 비교했고 무엇을 기준으로 결정하셨나요?"
+        if normalized_type == "failure_recovery":
+            return f"{focus_phrase}에서 가장 큰 문제나 장애가 생겼을 때 어떻게 복구하셨나요?"
+        return f"{focus_phrase}에서 본인이 가장 크게 기여한 설계 판단은 무엇이었나요?"
+
+    focus_phrase = _build_focus_phrase(user_text, session_type=session_type)
+    template = QUESTION_TEXT_TEMPLATES.get(
+        normalized_type,
+        "{focus_phrase}에서 가장 중요했던 판단 기준을 구체적으로 말씀해 주실 수 있을까요?",
+    )
+    question = template.format(focus_phrase=focus_phrase).strip()
+    if question.endswith("?"):
+        return question
+    if question.endswith(("주세요", "주실 수 있을까요", "주실 수 있나요", "말씀해 주실 수 있을까요")):
+        return f"{question}?"
+    return question
 
 
 def sanitize_ai_turn_text(text: str) -> str:
@@ -396,7 +708,76 @@ def sanitize_ai_turn_text(text: str) -> str:
 
 
 def sanitize_user_turn_text(text: str) -> str:
-    return _apply_korean_spacing_heuristic(text)
+    return _apply_user_transcript_cleanup(text)
+
+
+def _compact_transcript_length(text: str) -> int:
+    return len(re.findall(r"[0-9A-Za-z가-힣]", text or ""))
+
+
+def score_user_transcript_text(text: str) -> int:
+    normalized = sanitize_user_turn_text(text)
+    if not normalized:
+        return 0
+
+    compact_len = _compact_transcript_length(normalized)
+    hangul_bonus = 40 if _contains_hangul(normalized) else 0
+    complete_bonus = 30 if looks_like_complete_answer(normalized) else 0
+    space_bonus = min(48, normalized.count(" ") * 4)
+
+    suspicious_short_ascii_tokens = [
+        token
+        for token in re.findall(r"\b[A-Za-z]{1,3}\b", normalized)
+        if token.lower() not in ALLOWED_SHORT_ASCII_TRANSCRIPT_TOKENS
+    ]
+    suspicious_penalty = min(48, len(suspicious_short_ascii_tokens) * 12)
+
+    dense_penalty = 0
+    if _contains_hangul(normalized) and compact_len >= 18:
+        space_density = normalized.count(" ") / max(1, compact_len)
+        token_count = len(normalized.split())
+        if space_density < 0.025:
+            dense_penalty += 30
+        if token_count <= max(3, compact_len // 20):
+            dense_penalty += 18
+        dense_penalty += min(24, len(re.findall(r"[가-힣]{10,}", normalized)) * 6)
+
+    return compact_len + hangul_bonus + complete_bonus + space_bonus - suspicious_penalty - dense_penalty
+
+
+def looks_like_degraded_user_transcript(
+    text: str,
+    *,
+    utterance_duration_ms: float = 0.0,
+) -> bool:
+    normalized = sanitize_user_turn_text(text)
+    if not normalized:
+        return True
+
+    compact_len = _compact_transcript_length(normalized)
+    if utterance_duration_ms >= 2200 and compact_len < 18:
+        return True
+    if utterance_duration_ms >= 3200 and compact_len < 26:
+        return True
+
+    if not _contains_hangul(normalized):
+        return False
+
+    token_count = len(normalized.split())
+    space_density = normalized.count(" ") / max(1, compact_len)
+    suspicious_short_ascii_tokens = [
+        token
+        for token in re.findall(r"\b[A-Za-z]{1,3}\b", normalized)
+        if token.lower() not in ALLOWED_SHORT_ASCII_TRANSCRIPT_TOKENS
+    ]
+
+    if compact_len >= 24 and space_density < 0.025:
+        return True
+    if compact_len >= 28 and token_count <= 4:
+        return True
+    if suspicious_short_ascii_tokens:
+        return True
+    return False
 
 
 def looks_like_complete_answer(text: str) -> bool:
@@ -423,9 +804,14 @@ def looks_like_complete_ai_question(text: str) -> bool:
 
 
 __all__ = [
+    "build_opening_turn_text",
     "build_answer_quality_hint",
+    "build_retry_question_text",
+    "compose_ai_question_text",
     "looks_like_complete_ai_question",
     "looks_like_complete_answer",
+    "looks_like_degraded_user_transcript",
     "sanitize_ai_turn_text",
     "sanitize_user_turn_text",
+    "score_user_transcript_text",
 ]

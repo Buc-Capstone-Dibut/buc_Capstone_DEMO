@@ -1,33 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import {
-  DndContext,
-  DragOverlay,
-  useSensors,
-  useSensor,
-  PointerSensor,
-  KeyboardSensor,
-  closestCenter,
-  closestCorners,
-} from "@dnd-kit/core";
+import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
 import {
   SortableContext,
   horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { CheckCircle2, Circle, LoaderCircle } from "lucide-react";
 import { KanbanColumn } from "./column";
 import { TaskCard } from "../../modules/task/card";
 import { useKanbanDrag } from "./hooks/use-kanban-drag";
-import { Plus, GripVertical, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { Task } from "../../store/mock-data";
 
 interface KanbanViewProps {
@@ -38,7 +21,6 @@ interface KanbanViewProps {
   tags: any[];
   groupBy: string;
   displayColumns: any[];
-  // Actions
   onUpdateTask: (taskId: string, updates: any) => Promise<void>;
   onMoveColumn: (
     viewId: string,
@@ -53,7 +35,6 @@ interface KanbanViewProps {
   onUpdateView: (projectId: string, viewId: string, updates: any) => void;
   reorderPriorities: (items: any[]) => void;
   reorderTags: (items: any[]) => void;
-  onCreateColumn: (title: string, category: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
   onTaskClick: (taskId: string) => void;
   onCreateTask: (taskProps: any) => Promise<void>;
@@ -67,6 +48,33 @@ interface KanbanViewProps {
     cardProperties?: string[];
   };
 }
+
+const STATUS_SECTIONS = [
+  {
+    category: "todo" as const,
+    label: "할 일",
+    icon: <Circle className="h-4 w-4" />,
+    accentClass: "text-slate-700",
+    lineClass: "bg-slate-300",
+    badgeClass: "border-slate-200 bg-slate-100 text-slate-700",
+  },
+  {
+    category: "in-progress" as const,
+    label: "진행 중",
+    icon: <LoaderCircle className="h-4 w-4" />,
+    accentClass: "text-blue-700",
+    lineClass: "bg-blue-300",
+    badgeClass: "border-blue-200 bg-blue-100 text-blue-700",
+  },
+  {
+    category: "done" as const,
+    label: "완료",
+    icon: <CheckCircle2 className="h-4 w-4" />,
+    accentClass: "text-green-700",
+    lineClass: "bg-green-300",
+    badgeClass: "border-green-200 bg-green-100 text-green-700",
+  },
+] as const;
 
 export function KanbanView({
   projectId,
@@ -82,7 +90,6 @@ export function KanbanView({
   onUpdateView,
   reorderPriorities,
   reorderTags,
-  onCreateColumn,
   onDeleteColumn,
   onTaskClick,
   onCreateTask,
@@ -96,11 +103,8 @@ export function KanbanView({
     cardProperties: [],
   },
 }: KanbanViewProps) {
-  const [newColumnTitle, setNewColumnTitle] = useState("");
-  const [newColumnCategory, setNewColumnCategory] = useState<
-    "todo" | "in-progress" | "done"
-  >("todo");
-  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const disableTaskDrag = groupBy === "tag";
+  const allowColumnActions = groupBy === "status";
 
   const {
     activeId,
@@ -126,18 +130,66 @@ export function KanbanView({
     updateView: onUpdateView,
   });
 
-  const handleCreateColumnTrigger = async () => {
-    if (!newColumnTitle.trim()) {
-      setIsAddingColumn(false);
-      return;
-    }
-    await onCreateColumn(newColumnTitle, newColumnCategory);
-    setNewColumnTitle("");
-    setIsAddingColumn(false);
-    setNewColumnCategory("todo");
-  };
-
   const activeTask = tasks.find((t) => t.id === activeId);
+
+  const statusColumnsByCategory = STATUS_SECTIONS.map((section) => ({
+    ...section,
+    columns: displayColumns.filter(
+      (column) => (column.category || "todo") === section.category,
+    ),
+  }));
+
+  const getTasksForColumn = (col: any) =>
+    tasks.filter((t) => {
+      if (groupBy === "status") {
+        return (
+          t.status === col.statusId ||
+          t.columnId === col.id ||
+          (t.status === "todo" && col.category === "todo")
+        );
+      }
+      if (groupBy === "assignee") {
+        return col.id === "unassigned" ? !t.assigneeId : t.assigneeId === col.id;
+      }
+      if (groupBy === "priority") {
+        return col.id === "no-priority" ? !t.priorityId : t.priorityId === col.id;
+      }
+      if (groupBy === "tag") {
+        return col.id === "no-tag"
+          ? !t.tags || t.tags.length === 0
+          : t.tags?.includes(col.id);
+      }
+      return false;
+    });
+
+  const getCreateTaskInput = (column: any) => {
+    if (groupBy === "status") {
+      return { columnId: column.id };
+    }
+
+    if (groupBy === "assignee") {
+      return {
+        status: "todo",
+        assigneeId: column.id === "unassigned" ? null : column.id,
+      };
+    }
+
+    if (groupBy === "priority") {
+      return {
+        status: "todo",
+        priorityId: column.id === "no-priority" ? null : column.id,
+      };
+    }
+
+    if (groupBy === "tag") {
+      return {
+        status: "todo",
+        tags: column.id === "no-tag" ? [] : [column.id],
+      };
+    }
+
+    return { columnId: column.id };
+  };
 
   return (
     <div className="flex-1 h-full overflow-x-auto overflow-y-hidden">
@@ -148,54 +200,117 @@ export function KanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="h-full flex gap-4 p-4 min-w-full">
-          <SortableContext
-            items={displayColumns.map((c) => c.id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            {displayColumns.map((col) => (
-              <KanbanColumn
-                key={col.id}
-                id={col.id}
-                column={col}
-                title={col.title}
-                tasks={tasks.filter((t) => {
-                  if (groupBy === "status") {
-                    return (
-                      t.status === col.statusId ||
-                      t.columnId === col.id ||
-                      (t.status === "todo" && col.category === "todo")
-                    );
-                  } else if (groupBy === "assignee") {
-                    return col.id === "unassigned"
-                      ? !t.assignee
-                      : t.assignee === col.id;
-                  } else if (groupBy === "priority") {
-                    return col.id === "no-priority"
-                      ? !t.priorityId
-                      : t.priorityId === col.id;
-                  } else if (groupBy === "tag") {
-                    return col.id === "no-tag"
-                      ? !t.tags || t.tags.length === 0
-                      : t.tags?.includes(col.id);
-                  }
-                  return false;
-                })}
-                onCreateTask={() => onCreateTask({ columnId: col.id })}
-                color={col.color}
-                viewSettings={viewSettings}
-                onTaskClick={onTaskClick}
-                onDeleteTask={onDeleteTask}
-                onRename={(newTitle) =>
-                  onUpdateColumn(col.id, { title: newTitle })
-                }
-                onDelete={() => onDeleteColumn(col.id)}
-              />
-            ))}
-          </SortableContext>
+        {groupBy === "status" ? (
+          <div className="h-full min-w-full overflow-x-auto overflow-y-hidden p-4">
+            <div className="flex h-full min-w-fit items-stretch gap-8">
+              {statusColumnsByCategory.map((section) => (
+                <section
+                  key={section.category}
+                  className="flex h-full min-w-fit shrink-0 flex-col"
+                >
+                  <div className="px-1 pb-4">
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 text-sm font-semibold",
+                        section.accentClass,
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+                          section.badgeClass,
+                        )}
+                      >
+                        {section.icon}
+                        {section.label}
+                      </span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {section.columns.length}개 단계
+                      </span>
+                    </div>
+                    <div className="mt-3 h-px w-full bg-border" />
+                    <div
+                      className={cn(
+                        "mt-[-1px] h-0.5 w-16 rounded-full",
+                        section.lineClass,
+                      )}
+                    />
+                  </div>
 
-          {/* Add Column Button Removed as per user request */}
-        </div>
+                  <SortableContext
+                    items={section.columns.map((column) => column.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="flex h-full min-w-fit gap-4 pb-2">
+                      {section.columns.map((col) => (
+                        <KanbanColumn
+                          key={col.id}
+                          id={col.id}
+                          column={col}
+                          title={col.title}
+                          tasks={getTasksForColumn(col)}
+                          groupBy={groupBy}
+                          onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
+                          color={col.color}
+                          viewSettings={viewSettings}
+                          onTaskClick={onTaskClick}
+                          onDeleteTask={onDeleteTask}
+                          onRename={
+                            allowColumnActions
+                              ? (newTitle) =>
+                                  onUpdateColumn(col.id, { title: newTitle })
+                              : undefined
+                          }
+                          onDelete={
+                            allowColumnActions
+                              ? () => onDeleteColumn(col.id)
+                              : undefined
+                          }
+                          category={section.category}
+                          disableTaskDrag={disableTaskDrag}
+                          allowColumnActions={allowColumnActions}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </section>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="h-full flex gap-4 p-4 min-w-full">
+            <SortableContext
+              items={displayColumns.map((c) => c.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {displayColumns.map((col) => (
+                <KanbanColumn
+                  key={col.id}
+                  id={col.id}
+                  column={col}
+                  title={col.title}
+                  tasks={getTasksForColumn(col)}
+                  groupBy={groupBy}
+                  onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
+                  color={col.color}
+                  viewSettings={viewSettings}
+                  onTaskClick={onTaskClick}
+                  onDeleteTask={onDeleteTask}
+                  onRename={
+                    allowColumnActions
+                      ? (newTitle) => onUpdateColumn(col.id, { title: newTitle })
+                      : undefined
+                  }
+                  onDelete={
+                    allowColumnActions ? () => onDeleteColumn(col.id) : undefined
+                  }
+                  disableTaskDrag={disableTaskDrag}
+                  allowColumnActions={allowColumnActions}
+                />
+              ))}
+            </SortableContext>
+          </div>
+        )}
 
         <DragOverlay>
           {activeColumn ? (
@@ -203,9 +318,15 @@ export function KanbanView({
               id={activeColumn.id}
               column={activeColumn}
               tasks={tasks.filter((t) => t.columnId === activeColumn.id)}
+              groupBy={groupBy}
               onTaskClick={() => {}}
               onCreateTask={() => {}}
-              viewSettings={{ showTags: true, showAssignee: true, showDueDate: true, showPriority: true }}
+              viewSettings={{
+                showTags: true,
+                showAssignee: true,
+                showDueDate: true,
+                showPriority: true,
+              }}
               isOverlay
             />
           ) : activeTask ? (

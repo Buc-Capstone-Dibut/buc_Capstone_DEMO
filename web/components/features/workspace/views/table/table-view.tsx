@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Task } from "../../store/mock-data";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -20,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Filter, X, PlusCircle } from "lucide-react";
+import { Check, Filter, X } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -28,10 +27,10 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface TableViewProps {
   tasks: Task[];
@@ -183,8 +182,9 @@ export function TableView({
     const current = activeFilters[type] || [];
     const updated = current.filter((v) => v !== value);
     if (updated.length === 0) {
-      const { [type]: _, ...rest } = activeFilters;
-      setActiveFilters(rest);
+      const nextFilters = { ...activeFilters };
+      delete nextFilters[type];
+      setActiveFilters(nextFilters);
     } else {
       setActiveFilters({
         ...activeFilters,
@@ -399,8 +399,9 @@ export function TableView({
                   size="icon"
                   className="h-4 w-4 ml-1 hover:bg-transparent"
                   onClick={() => {
-                    const { [type]: _, ...rest } = activeFilters;
-                    setActiveFilters(rest);
+                    const nextFilters = { ...activeFilters };
+                    delete nextFilters[type];
+                    setActiveFilters(nextFilters);
                   }}
                 >
                   <X className="h-3 w-3" />
@@ -574,11 +575,12 @@ export function TableView({
                     <TableCell>
                       {task.assignee ? (
                         <div className="flex items-center gap-2">
-                          <Avatar className="h-5 w-5">
-                            <AvatarFallback className="text-[10px]">
-                              {task.assignee.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
+                          <WorkspaceUserAvatar
+                            name={task.assignee}
+                            avatarUrl={task.assigneeProfile?.avatar}
+                            className="h-5 w-5"
+                            fallbackClassName="text-[10px]"
+                          />
                           <span className="text-sm text-foreground/80">
                             {task.assignee}
                           </span>

@@ -112,22 +112,29 @@ async def resume_listening(
     normalized_turn_id = (turn_id or state.active_question_turn_id or "").strip()
     state.waiting_playback_turn_id = ""
     deps.cancel_playback_resume_task(state)
+    persist_task: asyncio.Task[None] | None = None
     if state.session_id and state.session_status != "completed":
         state.runtime_status = "awaiting_user"
-        try:
-            await deps.set_runtime_status(state.session_id, "awaiting_user", state.current_phase)
-        except Exception:
-            deps.logger.warning(
-                "failed to persist awaiting_user runtime state",
-                extra={"session_id": state.session_id, "turn_id": normalized_turn_id},
-                exc_info=True,
-            )
+
+        async def _persist_runtime_status() -> None:
+            try:
+                await deps.set_runtime_status(state.session_id, "awaiting_user", state.current_phase)
+            except Exception:
+                deps.logger.warning(
+                    "failed to persist awaiting_user runtime state",
+                    extra={"session_id": state.session_id, "turn_id": normalized_turn_id},
+                    exc_info=True,
+                )
+
+        persist_task = asyncio.create_task(_persist_runtime_status())
     payload: dict[str, Any] = {"type": "control", "text": "start-mic"}
     if normalized_turn_id:
         payload["turnId"] = normalized_turn_id
     if state.session_id and await deps.send_json(ws, payload):
         await deps.send_avatar_state(ws, "listening", state.session_id)
         await deps.send_runtime_meta_snapshot(ws, state, turn_id=normalized_turn_id or None)
+    if persist_task is not None:
+        persist_task.add_done_callback(lambda _task: None)
 
 
 def arm_playback_resume(
@@ -144,7 +151,7 @@ def arm_playback_resume(
 
     async def _resume_on_timeout() -> None:
         try:
-            await asyncio.sleep(max(0.8, timeout_sec))
+            await asyncio.sleep(max(0.55, timeout_sec))
         except asyncio.CancelledError:
             return
         if state.waiting_playback_turn_id != turn_id:

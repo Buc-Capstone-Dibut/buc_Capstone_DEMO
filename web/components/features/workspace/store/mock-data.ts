@@ -46,6 +46,12 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   assignee?: string;
+  assigneeId?: string | null;
+  assigneeProfile?: {
+    id?: string;
+    name?: string | null;
+    avatar?: string | null;
+  } | null;
   priorityId?: string;
   dueDate?: string;
   docRef?: string;
@@ -978,6 +984,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
     set((state) => {
       // Simple reorder implementation mock
       // In a real app, this would recalculate orders
+      void newIndex;
       return {
         tasks: state.tasks.map((t) =>
           t.id === taskId ? { ...t, status: newStatus } : t,

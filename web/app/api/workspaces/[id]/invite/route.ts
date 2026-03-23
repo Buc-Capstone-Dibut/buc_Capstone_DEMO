@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { addDays } from "date-fns";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
+import { normalizeWorkspaceTeamRole } from "@/lib/workspace-team-roles";
 
 export async function POST(
   request: Request,
@@ -24,7 +25,8 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { targetUserId } = body;
+  const { targetUserId, teamRole } = body;
+  const normalizedTeamRole = normalizeWorkspaceTeamRole(teamRole);
 
   if (!targetUserId) {
     return NextResponse.json(
@@ -100,10 +102,22 @@ export async function POST(
 
     const targetEmail = targetProfile.users.email;
 
-    // Check existing invites
-    // Ideally we should check if there's an invite for this workspace and email
-    // but schema doesn't have unique constraint on (workspace_id, email).
-    // We can proceed to create a new one or reuse. Let's create new for simplicity/audit.
+    const existingInvite = await prisma.workspace_invites.findFirst({
+      where: {
+        workspace_id: workspaceId,
+        email: targetEmail,
+        expires_at: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (existingInvite) {
+      return NextResponse.json(
+        { error: "이미 초대가 전송된 사용자입니다." },
+        { status: 409 },
+      );
+    }
 
     // 4. Create Invite
     const token = uuidv4();
@@ -116,6 +130,7 @@ export async function POST(
         email: targetEmail,
         token: token,
         role: "member",
+        team_role: normalizedTeamRole,
         expires_at: expiresAt,
       },
     });
@@ -131,7 +146,9 @@ export async function POST(
         user_id: targetUserId,
         type: "INVITE",
         title: "워크스페이스 초대",
-        message: `'${workspace?.name}' 워크스페이스에 초대되었습니다.`,
+        message: normalizedTeamRole
+          ? `'${workspace?.name}' 워크스페이스에 ${normalizedTeamRole} 역할로 초대되었습니다.`
+          : `'${workspace?.name}' 워크스페이스에 초대되었습니다.`,
         link: `invite:${invite.id}`, // Custom protocol for client parsing
         is_read: false,
       },

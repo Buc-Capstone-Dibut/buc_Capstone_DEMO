@@ -68,15 +68,19 @@ class Settings(BaseSettings):
         alias="GEMINI_TTS_MODEL",
     )
     gemini_live_tts_voice: str = Field(default="Kore", alias="GEMINI_LIVE_TTS_VOICE")
+    voice_runtime_architecture: str = Field(
+        default="hybrid",
+        alias="VOICE_RUNTIME_ARCHITECTURE",
+    )
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
-    voice_vad_threshold: float = Field(default=0.015, alias="VOICE_VAD_THRESHOLD")
+    voice_vad_threshold: float = Field(default=0.017, alias="VOICE_VAD_THRESHOLD")
     voice_vad_speech_start_ms: int = Field(default=150, alias="VOICE_VAD_SPEECH_START_MS")
-    voice_vad_silence_ms: int = Field(default=540, alias="VOICE_VAD_SILENCE_MS")
+    voice_vad_silence_ms: int = Field(default=560, alias="VOICE_VAD_SILENCE_MS")
     voice_min_speech_ms: int = Field(default=280, alias="VOICE_MIN_SPEECH_MS")
-    voice_vad_min_utterance_ms: int = Field(default=700, alias="VOICE_VAD_MIN_UTTERANCE_MS")
+    voice_vad_min_utterance_ms: int = Field(default=850, alias="VOICE_VAD_MIN_UTTERANCE_MS")
     voice_vad_short_utterance_silence_ms: int = Field(
-        default=980,
+        default=1000,
         alias="VOICE_VAD_SHORT_UTTERANCE_SILENCE_MS",
     )
     voice_max_segment_ms: int = Field(default=24000, alias="VOICE_MAX_SEGMENT_MS")
@@ -87,6 +91,14 @@ class Settings(BaseSettings):
     )
     voice_min_answer_chars: int = Field(default=10, alias="VOICE_MIN_ANSWER_CHARS")
     voice_ai_echo_guard_ms: int = Field(default=1600, alias="VOICE_AI_ECHO_GUARD_MS")
+    voice_enable_ai_question_repair: bool = Field(
+        default=True,
+        alias="VOICE_ENABLE_AI_QUESTION_REPAIR",
+    )
+    voice_enable_ai_audio_recovery: bool = Field(
+        default=True,
+        alias="VOICE_ENABLE_AI_AUDIO_RECOVERY",
+    )
 
     @field_validator(
         "database_url",
@@ -100,6 +112,14 @@ class Settings(BaseSettings):
     @classmethod
     def sanitize_secret_placeholders(cls, value: str | None) -> str | None:
         return _normalize_optional_secret(value)
+
+    @field_validator("voice_runtime_architecture", mode="before")
+    @classmethod
+    def normalize_runtime_architecture(cls, value: str | None) -> str:
+        normalized = (value or "hybrid").strip().lower()
+        if normalized in {"live", "live_only", "live-only", "liveonly"}:
+            return "live-only"
+        return "hybrid"
 
     @cached_property
     def cors_origin_list(self) -> list[str]:

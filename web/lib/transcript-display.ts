@@ -77,6 +77,30 @@ const BOUNDARY_REPLACEMENTS: Array<[RegExp, string]> = [
   [/(합니다|했습니다|있습니다|있었고|중요합니다|필요합니다|가능합니다|어렵습니다|좋습니다|맞습니다|보입니다|보였습니다|느꼈습니다|줄였습니다|늘렸습니다)(?=[가-힣A-Za-z0-9]{2,})/gu, "$1 "],
   [/(하는|되는|했던|하면서|했고|하고|하며)(?=[가-힣A-Za-z0-9]{2,})/gu, "$1 "],
 ];
+const USER_TECHNICAL_RECOVERIES: Array<[RegExp, string]> = [
+  [/웹\s*소켓/giu, "웹소켓"],
+  [/실\s*시간/gu, "실시간"],
+  [/백\s*엔드/gu, "백엔드"],
+  [/AI\s*면접서\s*비스/giu, "AI 면접 서비스"],
+  [/면접서\s*비스/gu, "면접 서비스"],
+  [/회사서\s*비스/gu, "회사 서비스"],
+  [/서비스\s*를개발/gu, "서비스를 개발"],
+  [/서비스\s*를\s*개발/gu, "서비스를 개발"],
+  [/개발하며웹소켓/gu, "개발하며 웹소켓"],
+  [/웹소켓기반/gu, "웹소켓 기반"],
+  [/기반통신/gu, "기반 통신"],
+  [/\bP\s*I(?=\s*(구조|설계|명세|엔드포인트|게이트웨이|통신|를|가|는|도|와|과))/giu, "API"],
+  [/API구조설계/giu, "API 구조 설계"],
+  [/구조설계/gu, "구조 설계"],
+  [/통신과백엔드/gu, "통신과 백엔드"],
+  [/동요청/gu, "동시 요청"],
+  [/요청을안정적으로/gu, "요청을 안정적으로"],
+  [/안정\s*적으로/gu, "안정적으로"],
+  [/처리\s*하는/gu, "처리하는"],
+  [/스템(?=\s*(구현|구축|운영|현한|현)\b)/gu, "시스템"],
+  [/시스템\s*현한/gu, "시스템 구현한"],
+  [/경험\s+이\s+있습니다/gu, "경험이 있습니다"],
+];
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -127,9 +151,6 @@ function shouldRecompactFragmentedTokens(text: string): boolean {
 
 function applyCommonReplacements(text: string): string {
   let formatted = collapseFragmentedTranscriptTokens(text);
-  if (shouldRecompactFragmentedTokens(formatted) && /[가-힣]/u.test(formatted)) {
-    formatted = formatted.replace(/\s+/gu, "");
-  }
   formatted = formatted.replace(/([,.:!?])(?=\S)/gu, "$1 ");
   formatted = formatted.replace(/([A-Za-z0-9]+)([가-힣])/gu, "$1 $2");
   formatted = formatted.replace(/([가-힣])([A-Za-z0-9]+)/gu, "$1 $2");
@@ -152,6 +173,39 @@ function applyCommonReplacements(text: string): string {
     formatted = formatted.replace(pattern, replacement);
     formatted = formatted.replace(pattern, replacement);
   }
+  return normalizeWhitespace(formatted);
+}
+
+function formatUserTranscriptConservatively(text: string): string {
+  let formatted = collapseFragmentedTranscriptTokens(text);
+  if (!formatted) return formatted;
+  formatted = formatted.replace(/([,.:!?])(?=\S)/gu, "$1 ");
+  formatted = formatted.replace(/([A-Za-z0-9]+)([가-힣])/gu, "$1 $2");
+  formatted = formatted.replace(/([가-힣])([A-Za-z0-9]+)/gu, "$1 $2");
+  formatted = formatted.replace(/\b([A-Za-z])\s+([A-Za-z])\b/gu, "$1$2");
+  formatted = formatted.replace(
+    /([A-Za-z0-9]+)\s+(과|와|을|를|은|는|이|가|도|만|에|의|로|에서|으로)(?=[가-힣A-Za-z0-9])/gu,
+    "$1$2",
+  );
+  formatted = formatted.replace(
+    /([A-Za-z0-9]+)\s+(과|와|을|를|은|는|이|가|도|만|에|의|로|에서|으로)\s+([A-Za-z0-9가-힣])/gu,
+    "$1$2 $3",
+  );
+  for (const [pattern, replacement] of USER_TECHNICAL_RECOVERIES) {
+    formatted = formatted.replace(pattern, replacement);
+  }
+  for (const [pattern, replacement] of BOUNDARY_REPLACEMENTS) {
+    formatted = formatted.replace(pattern, replacement);
+    formatted = formatted.replace(pattern, replacement);
+  }
+  formatted = formatted.replace(
+    /(습니다|입니다|해요|했어요|했습니다|예요|이에요|네요|거든요|아요|어요|죠)(그리고|그래서|근데|그런데|그러면|다음|혹시|제가|저는|저희는|음|어|아|네|예)/g,
+    "$1 $2",
+  );
+  formatted = formatted.replace(
+    /(하는|되는|했던|하면서|했고|하고|하며)(?=[가-힣A-Za-z0-9]{2,})/g,
+    "$1 ",
+  );
   return normalizeWhitespace(formatted);
 }
 
@@ -217,9 +271,28 @@ function formatDenseKoreanTranscript(text: string): string {
 }
 
 export function formatTranscriptForDisplay(text: string, role: "user" | "ai"): string {
-  const normalized = applyCommonReplacements(text);
+  const normalized = role === "user" ? formatUserTranscriptConservatively(text) : applyCommonReplacements(text);
   if (!normalized) return normalized;
   if (role !== "user" && role !== "ai") return normalized;
+  if (role === "user") {
+    if (shouldRecompactFragmentedTokens(normalized)) {
+      return formatDenseKoreanTranscript(normalized);
+    }
+    return normalized;
+  }
+  if (!shouldApplyKoreanSpacingHeuristic(normalized)) return normalized;
+  return formatDenseKoreanTranscript(normalized);
+}
+
+export function formatStreamingTranscriptForDisplay(text: string, role: "user" | "ai"): string {
+  const normalized = role === "user" ? formatUserTranscriptConservatively(text) : applyCommonReplacements(text);
+  if (!normalized) return normalized;
+  if (role === "user") {
+    if (shouldRecompactFragmentedTokens(normalized)) {
+      return formatDenseKoreanTranscript(normalized);
+    }
+    return normalized;
+  }
   if (!shouldApplyKoreanSpacingHeuristic(normalized)) return normalized;
   return formatDenseKoreanTranscript(normalized);
 }

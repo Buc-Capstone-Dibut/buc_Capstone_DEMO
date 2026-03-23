@@ -7,7 +7,7 @@ export interface TagCount {
   count: number;
 }
 
-export function useTagCounts(category: string) {
+export function useTagCounts(category: string, selectedBlog = "all") {
   const [tagCounts, setTagCounts] = useState<TagCount[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,6 +16,10 @@ export function useTagCounts(category: string) {
       setLoading(true);
       try {
         let query = supabase.from("blogs").select("tags");
+
+        if (selectedBlog && selectedBlog !== "all") {
+          query = query.eq("author", selectedBlog);
+        }
 
         if (category && category !== "all") {
           const categoryTags = getTagsForCategory(category as TagCategory);
@@ -69,7 +73,7 @@ export function useTagCounts(category: string) {
     }
 
     fetchTags();
-  }, [category]);
+  }, [category, selectedBlog]);
 
   return { tagCounts, loading };
 }

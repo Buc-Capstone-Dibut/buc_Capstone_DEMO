@@ -11,10 +11,10 @@ interface DraggableTaskCardProps {
   onClick: () => void;
   showTags: boolean;
   showAssignee: boolean;
-
   showDueDate: boolean;
   cardProperties?: string[];
   onDelete?: () => void;
+  disableDrag?: boolean;
 }
 
 export function DraggableTaskCard({
@@ -27,6 +27,7 @@ export function DraggableTaskCard({
   showPriority,
   cardProperties,
   onDelete,
+  disableDrag = false,
 }: DraggableTaskCardProps & { showPriority?: boolean }) {
   const {
     attributes,
@@ -41,6 +42,7 @@ export function DraggableTaskCard({
       type: "Task",
       task,
     },
+    disabled: disableDrag,
   });
 
   const style = {
@@ -80,7 +82,9 @@ export function DraggableTaskCard({
           showDueDate={showDueDate}
           showPriority={showPriority}
           cardProperties={cardProperties}
-          dragHandleProps={{ ...listeners, ...attributes }}
+          dragHandleProps={
+            disableDrag ? undefined : { ...listeners, ...attributes }
+          }
           onEdit={onClick}
           onDelete={onDelete}
         />

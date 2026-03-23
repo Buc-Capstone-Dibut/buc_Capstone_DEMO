@@ -2,11 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { BookmarkButton } from "@/components/shared/bookmark-button";
+import { BlogCover } from "@/components/features/tech-blog/blog-cover";
 import { Building2, Calendar, Eye } from "lucide-react";
 import Image from "next/image";
 import { incrementViews, type Blog } from "@/lib/supabase";
 import { getLogoUrl } from "@/lib/logos";
-import { useState } from "react";
 
 interface BlogListItemProps {
   blog: Blog;
@@ -14,14 +14,18 @@ interface BlogListItemProps {
   onBookmarkRemoved?: () => void;
 }
 
+const SUMMARY_PREVIEW_STYLE = {
+  display: "-webkit-box",
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: "vertical" as const,
+  overflow: "hidden",
+};
+
 export function BlogListItem({
   blog,
   onLoginClick,
   onBookmarkRemoved,
 }: BlogListItemProps) {
-  const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-
   const handleLinkClick = async () => {
     // 조회수 증가 (백그라운드에서 실행)
     try {
@@ -48,8 +52,6 @@ export function BlogListItem({
     return views.toString();
   };
 
-  // 썸네일 표시 여부 결정
-  const shouldShowThumbnail = blog.thumbnail_url && !imageError;
   const logoUrl = getLogoUrl(blog.author);
 
   return (
@@ -65,26 +67,15 @@ export function BlogListItem({
           <CardContent className="p-6">
             <div className="flex gap-6 overflow-hidden">
               {/* 썸네일 영역: 모바일에서는 숨김 */}
-              {shouldShowThumbnail && (
-                <div className="hidden sm:block relative w-48 h-32 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                  {!imageLoaded && (
-                    <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
-                  )}
-                  <Image
-                    src={blog.thumbnail_url!}
-                    alt={blog.title}
-                    fill
-                    className={`object-cover group-hover:scale-105 transition-all duration-300 ${
-                      imageLoaded ? "opacity-100" : "opacity-0"
-                    }`}
-                    onLoad={() => setImageLoaded(true)}
-                    onError={() => {
-                      console.log(`썸네일 로드 실패: ${blog.thumbnail_url}`);
-                      setImageError(true);
-                    }}
-                  />
-                </div>
-              )}
+              <BlogCover
+                title={blog.title}
+                author={blog.author}
+                category={blog.category}
+                thumbnailUrl={blog.thumbnail_url}
+                variant="list"
+                className="hidden h-32 w-48 flex-shrink-0 rounded-lg sm:block"
+                imageClassName="group-hover:scale-105"
+              />
 
               {/* 콘텐츠 영역 */}
               <div className="flex-1 min-w-0 overflow-hidden">
@@ -92,7 +83,10 @@ export function BlogListItem({
                   {blog.title}
                 </h3>
 
-                <p className="text-muted-foreground text-base mb-4 line-clamp-2 leading-relaxed break-all overflow-wrap-anywhere hyphens-auto">
+                <p
+                  className="mb-4 h-[4.75rem] break-all text-base leading-relaxed text-muted-foreground overflow-wrap-anywhere hyphens-auto"
+                  style={SUMMARY_PREVIEW_STYLE}
+                >
                   {blog.summary || "요약이 없습니다."}
                 </p>
 

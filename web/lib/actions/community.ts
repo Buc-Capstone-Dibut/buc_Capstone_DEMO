@@ -6,6 +6,15 @@ import { Database } from "../database.types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import prisma from "../../lib/prisma"; // Import Prisma Singleton
+import { isTeamType, normalizeTeamType } from "@/lib/team-types";
+import {
+  normalizeWorkspaceCategory,
+  seedWorkspaceDefaults,
+} from "@/lib/server/workspace-bootstrap";
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 // Helper to get authenticated user or mock in dev
 async function getUserId() {
@@ -47,7 +56,7 @@ export async function createPost(formData: FormData) {
   let tags: string[] = [];
   try {
     tags = JSON.parse(tagsString || "[]");
-  } catch (e) {
+  } catch {
     tags = [];
   }
 
@@ -66,9 +75,11 @@ export async function createPost(formData: FormData) {
 
     revalidatePath("/community/board");
     return redirect(`/community/board/${post.id}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Post creation error:", error);
-    return { error: "게시글 작성 중 오류가 발생했습니다: " + error.message };
+    return {
+      error: `게시글 작성 중 오류가 발생했습니다: ${getErrorMessage(error, "Unknown error")}`,
+    };
   }
 }
 
@@ -88,7 +99,7 @@ export async function createComment(postId: string, content: string) {
     });
 
     revalidatePath(`/community/board/${postId}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Comment creation error:", error);
     return { error: "댓글 작성 중 오류가 발생했습니다." };
   }
@@ -119,10 +130,14 @@ export async function createSquad(formData: FormData) {
     return { error: "필수 입력 항목이 누락되었거나 로그인이 필요합니다." };
   }
 
+  if (!isTeamType(type)) {
+    return { error: "유효하지 않은 팀 유형입니다." };
+  }
+
   let techStack: string[] = [];
   try {
     techStack = JSON.parse(techStackString || "[]");
-  } catch (e) {
+  } catch {
     techStack = [];
   }
 
@@ -133,7 +148,7 @@ export async function createSquad(formData: FormData) {
         data: {
           title,
           content,
-          type: "general", // Always general as per new design
+          type: normalizeTeamType(type),
           capacity,
           tech_stack: techStack,
           place_type: placeType,
@@ -153,14 +168,36 @@ export async function createSquad(formData: FormData) {
         },
       });
 
+      const draftWorkspace = await tx.workspaces.create({
+        data: {
+          name: title,
+          description: content,
+          category: normalizeWorkspaceCategory(type),
+          from_squad_id: newSquad.id,
+          space_status: "DRAFT",
+        },
+      });
+
+      await tx.workspace_members.create({
+        data: {
+          workspace_id: draftWorkspace.id,
+          user_id: leaderId!,
+          role: "owner",
+        },
+      });
+
+      await seedWorkspaceDefaults(tx, draftWorkspace.id);
+
       return newSquad;
     });
 
     revalidatePath("/community/squad");
     return redirect(`/community/squad/${squad.id}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Squad creation error:", error);
-    return { error: "팀 모집글 작성 중 오류가 발생했습니다: " + error.message };
+    return {
+      error: `팀 모집글 작성 중 오류가 발생했습니다: ${getErrorMessage(error, "Unknown error")}`,
+    };
   }
 }
 
@@ -179,8 +216,13 @@ export async function applyToSquad(squadId: string, message: string) {
     });
 
     revalidatePath(`/community/squad/${squadId}`);
-  } catch (error: any) {
-    if (error.code === "P2002") {
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
       // Unique constraint violation
       return { error: "이미 지원하셨습니다." };
     }
@@ -217,27 +259,74 @@ export async function cancelApplication(squadId: string) {
 export async function acceptApplicant(squadId: string, applicantId: string) {
   // Logic: Update App Status -> Add Member -> Update Squad Count
   try {
-    await prisma.$transaction([
-      prisma.squad_applications.updateMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.squad_applications.updateMany({
         where: { squad_id: squadId, user_id: applicantId },
         data: { status: "accepted" },
-      }),
-      prisma.squad_members.create({
-        data: {
-          squad_id: squadId,
-          user_id: applicantId,
-          role: "member",
+      });
+
+      const existingSquadMember = await tx.squad_members.findFirst({
+        where: { squad_id: squadId, user_id: applicantId },
+        select: { id: true },
+      });
+
+      if (!existingSquadMember) {
+        await tx.squad_members.create({
+          data: {
+            squad_id: squadId,
+            user_id: applicantId,
+            role: "member",
+          },
+        });
+
+        await tx.squads.update({
+          where: { id: squadId },
+          data: { recruited_count: { increment: 1 } },
+        });
+      }
+
+      const linkedWorkspace = await tx.workspaces.findUnique({
+        where: { from_squad_id: squadId },
+        select: { id: true, space_status: true },
+      });
+
+      if (!linkedWorkspace) return;
+
+      if (linkedWorkspace.space_status === "DRAFT") {
+        await tx.workspaces.update({
+          where: { id: linkedWorkspace.id },
+          data: {
+            space_status: "ACTIVE",
+            activated_at: new Date(),
+          },
+        });
+      }
+
+      const existingWorkspaceMember = await tx.workspace_members.findUnique({
+        where: {
+          workspace_id_user_id: {
+            workspace_id: linkedWorkspace.id,
+            user_id: applicantId,
+          },
         },
-      }),
-      prisma.squads.update({
-        where: { id: squadId },
-        data: { recruited_count: { increment: 1 } },
-      }),
-    ]);
+      });
+
+      if (!existingWorkspaceMember) {
+        await tx.workspace_members.create({
+          data: {
+            workspace_id: linkedWorkspace.id,
+            user_id: applicantId,
+            role: "member",
+          },
+        });
+      }
+    });
     revalidatePath(`/community/squad/${squadId}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Accept error:", error);
-    return { error: "수락 처리 중 오류: " + error.message };
+    return {
+      error: `수락 처리 중 오류: ${getErrorMessage(error, "Unknown error")}`,
+    };
   }
 }
 
@@ -248,7 +337,7 @@ export async function rejectApplicant(squadId: string, applicantId: string) {
       data: { status: "rejected" },
     });
     revalidatePath(`/community/squad/${squadId}`);
-  } catch (error) {
+  } catch {
     return { error: "거절 처리 중 오류가 발생했습니다." };
   }
 }
@@ -260,7 +349,7 @@ export async function closeRecruitment(squadId: string) {
       data: { status: "closed" },
     });
     revalidatePath(`/community/squad/${squadId}`);
-  } catch (error) {
+  } catch {
     return { error: "마감 처리 중 오류가 발생했습니다." };
   }
 }

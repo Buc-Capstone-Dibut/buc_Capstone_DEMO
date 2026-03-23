@@ -11,15 +11,54 @@ from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.voice_pipeline import VadSegmenter
 
 
+def _is_live_only_architecture() -> bool:
+    return (settings.voice_runtime_architecture or "").strip().lower() == "live-only"
+
+
+def _effective_voice_vad_threshold() -> float:
+    threshold = float(settings.voice_vad_threshold)
+    if _is_live_only_architecture():
+        threshold = max(threshold, 0.03)
+    return threshold
+
+
+def _effective_voice_vad_silence_ms() -> int:
+    silence_ms = int(settings.voice_vad_silence_ms)
+    if _is_live_only_architecture():
+        silence_ms = max(silence_ms, 980)
+    return silence_ms
+
+
+def _effective_voice_vad_min_utterance_ms() -> int:
+    min_utterance_ms = int(settings.voice_vad_min_utterance_ms)
+    if _is_live_only_architecture():
+        min_utterance_ms = max(min_utterance_ms, 900)
+    return min_utterance_ms
+
+
+def _effective_voice_vad_short_utterance_silence_ms() -> int:
+    short_silence_ms = int(settings.voice_vad_short_utterance_silence_ms)
+    if _is_live_only_architecture():
+        short_silence_ms = max(short_silence_ms, 1650)
+    return short_silence_ms
+
+
+def _effective_turn_end_grace_sec() -> float:
+    grace_sec = settings.voice_turn_end_grace_ms / 1000.0
+    if _is_live_only_architecture():
+        grace_sec = max(grace_sec, 0.14)
+    return max(0.08, grace_sec)
+
+
 def build_vad_segmenter() -> VadSegmenter:
     return VadSegmenter(
         sample_rate=16000,
-        threshold=settings.voice_vad_threshold,
+        threshold=_effective_voice_vad_threshold(),
         speech_start_ms=settings.voice_vad_speech_start_ms,
-        silence_ms=settings.voice_vad_silence_ms,
+        silence_ms=_effective_voice_vad_silence_ms(),
         min_speech_ms=settings.voice_min_speech_ms,
-        min_utterance_ms=settings.voice_vad_min_utterance_ms,
-        short_utterance_silence_ms=settings.voice_vad_short_utterance_silence_ms,
+        min_utterance_ms=_effective_voice_vad_min_utterance_ms(),
+        short_utterance_silence_ms=_effective_voice_vad_short_utterance_silence_ms(),
         max_segment_ms=settings.voice_max_segment_ms,
     )
 
@@ -97,7 +136,7 @@ class VoiceWsState:
     last_model_memory: str = ""
     last_answer_quality_hint: str = ""
     turn_history: list[dict[str, Any]] = field(default_factory=list)
-    turn_end_grace_sec: float = max(0.08, settings.voice_turn_end_grace_ms / 1000.0)
+    turn_end_grace_sec: float = _effective_turn_end_grace_sec()
     processing_audio: bool = False
     pending_user_segments: list[PendingUserSegment] = field(default_factory=list)
     pending_user_segment_task: asyncio.Task[None] | None = None
@@ -105,6 +144,13 @@ class VoiceWsState:
     realtime_user_transcript: str = ""
     realtime_user_delta_seq: int = 0
     live_interview: GeminiLiveInterviewSession | None = None
+    live_input_turn_active: bool = False
+    live_input_turn_id: str = ""
+    live_input_streamed_user_text: str = ""
+    live_input_streamed_ai_text: str = ""
+    live_input_streamed_provider: str = ""
+    live_input_streamed_audio_duration_sec: float = 0.0
+    live_input_streamed_audio_chunk_count: int = 0
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
     waiting_playback_turn_id: str = ""

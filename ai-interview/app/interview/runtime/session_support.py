@@ -36,7 +36,7 @@ def get_fallback_tts_service() -> GeminiLiveTtsService:
 
 
 @lru_cache(maxsize=1)
-def get_fallback_stt_service() -> GeminiLiveSttService:
+def get_live_stt_service() -> GeminiLiveSttService:
     from app.services.gemini_live_voice_service import GeminiLiveSttService
 
     model_name = (settings.gemini_live_stt_model or "").strip() or "gemini-2.5-flash-native-audio-latest"
@@ -45,6 +45,10 @@ def get_fallback_stt_service() -> GeminiLiveSttService:
         model=model_name,
         timeout_sec=6.0,
     )
+
+
+def get_fallback_stt_service() -> GeminiLiveSttService:
+    return get_live_stt_service()
 
 
 def elapsed_seconds(started_at: datetime | None) -> int:
@@ -65,6 +69,7 @@ def latest_user_answer(messages: list[dict[str, Any]]) -> str:
 __all__ = [
     "create_live_interview_session",
     "elapsed_seconds",
+    "get_live_stt_service",
     "get_fallback_stt_service",
     "get_fallback_tts_service",
     "latest_user_answer",

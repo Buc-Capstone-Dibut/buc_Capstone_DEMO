@@ -53,9 +53,12 @@ def build_live_client_deps(
 
 def build_runtime_executor_deps(
     *,
+    request_live_spoken_text_turn: Callable[..., Awaitable[tuple[str, Any, str]]],
     request_live_text_turn: Callable[..., Awaitable[tuple[str, Any]]],
     repair_ai_turn_if_truncated: Callable[..., Awaitable[tuple[str, Any]]],
     looks_like_complete_ai_question: Callable[[str], bool],
+    enable_ai_question_repair: bool,
+    enable_ai_audio_recovery: bool,
     build_ai_delivery_plan: Callable[..., Awaitable[Any]],
     persist_turn: Callable[..., Awaitable[Any]],
     set_runtime_status: Callable[[str, str, str | None], Awaitable[Any]],
@@ -74,8 +77,10 @@ def build_runtime_executor_deps(
     build_memory_snapshot: Callable[[VoiceWsState], str],
     remember_model_turn: Callable[..., None],
     record_question_type: Callable[[VoiceWsState, str | None], None],
+    remember_streamed_ai_audio: Callable[[VoiceWsState, str, float, str], None] = lambda *_args, **_kwargs: None,
 ) -> RuntimeExecutorDeps:
     return RuntimeExecutorDeps(
+        request_live_spoken_text_turn=request_live_spoken_text_turn,
         request_live_text_turn=request_live_text_turn,
         repair_ai_turn_if_truncated=repair_ai_turn_if_truncated,
         looks_like_complete_ai_question=looks_like_complete_ai_question,
@@ -97,6 +102,9 @@ def build_runtime_executor_deps(
         build_memory_snapshot=build_memory_snapshot,
         remember_model_turn=remember_model_turn,
         record_question_type=record_question_type,
+        remember_streamed_ai_audio=remember_streamed_ai_audio,
+        enable_ai_question_repair=enable_ai_question_repair,
+        enable_ai_audio_recovery=enable_ai_audio_recovery,
     )
 
 
@@ -124,7 +132,10 @@ def build_session_engine_deps(
     derive_question_type_preference: Callable[..., str | None],
     select_next_question_type: Callable[..., str],
     request_live_audio_turn: Callable[..., Awaitable[tuple[str, str, PreparedTtsAudio | None, str]]],
-    fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]],
+    stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None,
+    fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None,
+    transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None,
+    runtime_architecture: str,
     emit_realtime_user_delta: Callable[..., Awaitable[None]],
     is_probable_ai_echo: Callable[[VoiceWsState, str, bytes], bool],
     reset_realtime_user_transcript: Callable[[VoiceWsState], None],
@@ -143,6 +154,7 @@ def build_session_engine_deps(
     merge_vad_events: Callable[[list[dict[str, Any]]], dict[str, Any]],
     resume_listening: Callable[..., Awaitable[Any]],
     next_ai_turn_id: Callable[[str], str],
+    commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=create_live_interview_session,
@@ -167,7 +179,9 @@ def build_session_engine_deps(
         derive_question_type_preference=derive_question_type_preference,
         select_next_question_type=select_next_question_type,
         request_live_audio_turn=request_live_audio_turn,
+        stream_live_audio_turn=stream_live_audio_turn,
         fallback_transcribe_user_audio=fallback_transcribe_user_audio,
+        transcribe_user_audio=transcribe_user_audio,
         emit_realtime_user_delta=emit_realtime_user_delta,
         is_probable_ai_echo=is_probable_ai_echo,
         reset_realtime_user_transcript=reset_realtime_user_transcript,
@@ -186,26 +200,34 @@ def build_session_engine_deps(
         merge_vad_events=merge_vad_events,
         resume_listening=resume_listening,
         next_ai_turn_id=next_ai_turn_id,
+        commit_live_input_stream=commit_live_input_stream,
+        runtime_architecture=runtime_architecture,
     )
 
 
 def build_client_message_router_deps(
     *,
+    runtime_architecture: str,
     send_json: Callable[..., Awaitable[bool]],
     send_avatar_state: Callable[..., Awaitable[bool]],
     handle_session_init: Callable[..., Awaitable[None]],
     coerce_audio_chunk: Callable[[Any], list[float]],
     enqueue_user_segment: Callable[..., Awaitable[None]],
+    begin_live_input_stream: Callable[..., Awaitable[bool]] | None,
+    push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None,
     reset_realtime_user_transcript: Callable[[VoiceWsState], None],
     resume_listening: Callable[..., Awaitable[Any]],
     cancel_playback_resume_task: Callable[[VoiceWsState], None],
 ) -> ClientMessageRouterDeps:
     return ClientMessageRouterDeps(
+        runtime_architecture=runtime_architecture,
         send_json=send_json,
         send_avatar_state=send_avatar_state,
         handle_session_init=handle_session_init,
         coerce_audio_chunk=coerce_audio_chunk,
         enqueue_user_segment=enqueue_user_segment,
+        begin_live_input_stream=begin_live_input_stream,
+        push_live_input_audio_chunk=push_live_input_audio_chunk,
         reset_realtime_user_transcript=reset_realtime_user_transcript,
         resume_listening=resume_listening,
         cancel_playback_resume_task=cancel_playback_resume_task,

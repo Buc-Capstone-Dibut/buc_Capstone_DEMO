@@ -2,42 +2,89 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { KanbanSquare, List, Calendar, User, Tag, Flag, Clock, Layout, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { Tag, Flag, Layout, CheckCircle2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "../../store/mock-data";
+
+type ViewCreatePayload = {
+  name: string;
+  type: "kanban" | "list" | "calendar";
+  groupBy: "status" | "assignee" | "priority" | "dueDate" | "tag";
+  color: string;
+  icon: string;
+  columns: [];
+};
+
+type GroupingOptionProps = {
+  label: string;
+  icon: ReactNode;
+  selected: boolean;
+  onClick: () => void;
+};
 
 interface ViewCreationWizardProps {
   projectId: string;
   isOpen: boolean;
   onClose: () => void;
   onCreated: (viewId: string) => void;
+  availableColors?: string[];
+  onCreateView?: (
+    payload: ViewCreatePayload,
+  ) => Promise<string | { id: string } | void> | string | { id: string } | void;
 }
 
-export function ViewCreationWizard({ projectId, isOpen, onClose, onCreated }: ViewCreationWizardProps) {
+export function ViewCreationWizard({
+  projectId,
+  isOpen,
+  onClose,
+  onCreated,
+  availableColors: availableColorsProp,
+  onCreateView,
+}: ViewCreationWizardProps) {
   const { addView, tags } = useWorkspaceStore();
   const [viewName, setViewName] = useState("");
-  const [viewType, setViewType] = useState<'kanban' | 'list' | 'calendar'>('kanban');
+  const viewType: "kanban" | "list" | "calendar" = "kanban";
   const [grouping, setGrouping] = useState<'status' | 'assignee' | 'priority' | 'dueDate' | 'tag'>('status');
   // Default to the first tag color if available, else fallback to 'blue'
-  const availableColors = Array.from(new Set(tags.map(t => t.color)));
+  const availableColors = availableColorsProp || Array.from(new Set(tags.map(t => t.color)));
   const [selectedColor, setSelectedColor] = useState(availableColors[0] || 'blue');
   const [selectedIcon, setSelectedIcon] = useState('📋');
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!viewName.trim()) return;
 
-    const viewId = `v-${Date.now()}`;
-    addView(projectId, {
+    let viewId = `v-${Date.now()}`;
+    const payload: ViewCreatePayload = {
+      name: viewName,
+      type: viewType,
+      groupBy: grouping,
+      color: selectedColor,
+      icon: selectedIcon,
+      columns: [],
+    };
+
+    if (onCreateView) {
+      const created = await onCreateView(payload);
+      if (typeof created === "string") {
+        viewId = created;
+      } else if (created && typeof created === "object" && "id" in created) {
+        viewId = created.id;
+      } else {
+        return;
+      }
+    } else {
+      addView(projectId, {
         id: viewId,
         projectId,
         name: viewName,
         type: viewType,
-        groupBy: grouping as any,
+        groupBy: grouping,
         color: selectedColor,
         icon: selectedIcon,
-        columns: []
-    });
+        columns: [],
+      });
+    }
 
     onCreated(viewId);
     onClose();
@@ -80,9 +127,9 @@ export function ViewCreationWizard({ projectId, isOpen, onClose, onCreated }: Vi
                 <div className="space-y-3">
                     <Label>그룹 기준</Label>
                     <div className="grid grid-cols-2 gap-2">
-                        <GroupingOption id="status" label="진행 상태" icon={<CheckCircle2 className="h-4 w-4" />} selected={grouping === 'status'} onClick={() => setGrouping('status')} />
-                        <GroupingOption id="tag" label="태그" icon={<Tag className="h-4 w-4" />} selected={grouping === 'tag'} onClick={() => setGrouping('tag')} />
-                        <GroupingOption id="priority" label="중요도" icon={<Flag className="h-4 w-4" />} selected={grouping === 'priority'} onClick={() => setGrouping('priority')} />
+                        <GroupingOption label="진행 상태" icon={<CheckCircle2 className="h-4 w-4" />} selected={grouping === 'status'} onClick={() => setGrouping('status')} />
+                        <GroupingOption label="태그" icon={<Tag className="h-4 w-4" />} selected={grouping === 'tag'} onClick={() => setGrouping('tag')} />
+                        <GroupingOption label="중요도" icon={<Flag className="h-4 w-4" />} selected={grouping === 'priority'} onClick={() => setGrouping('priority')} />
                     </div>
                 </div>
 
@@ -138,10 +185,10 @@ export function ViewCreationWizard({ projectId, isOpen, onClose, onCreated }: Vi
                 <div className="flex-1">
                     <Label className="text-muted-foreground mb-2 block">가이드</Label>
                     <p className="text-sm text-foreground/80 leading-relaxed font-medium">
-                        "{grouping === 'status' ? '진행 상태' :
+                        &quot;{grouping === 'status' ? '진행 상태' :
                           grouping === 'assignee' ? '담당자' :
                           grouping === 'tag' ? '태그' :
-                          '중요도'}" 기준
+                          '중요도'}&quot; 기준
                     </p>
                     <p className="text-xs text-muted-foreground mt-2 leading-normal">
                         {getHelperText()}
@@ -149,7 +196,7 @@ export function ViewCreationWizard({ projectId, isOpen, onClose, onCreated }: Vi
 
                     <div className="mt-8 p-3 bg-background rounded-lg border text-xs text-muted-foreground">
                         <span className="font-semibold block mb-1">💡 Tip</span>
-                        생성 후에도 색상과 이름은<br/>'뷰 관리'에서 변경 가능합니다.
+                        생성 후에도 색상과 이름은<br/>&apos;뷰 관리&apos;에서 변경 가능합니다.
                     </div>
                 </div>
             </div>
@@ -164,7 +211,7 @@ export function ViewCreationWizard({ projectId, isOpen, onClose, onCreated }: Vi
   );
 }
 
-function GroupingOption({ id, label, icon, selected, onClick }: any) {
+function GroupingOption({ label, icon, selected, onClick }: GroupingOptionProps) {
     return (
         <Button
             variant="outline"

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Y from "yjs";
@@ -28,7 +29,6 @@ const userColors = [
 ];
 const randomColor = userColors[Math.floor(Math.random() * userColors.length)];
 const randomColorLight = `${randomColor}33`;
-type ExcalidrawApi = object;
 
 export default function IdeaBoardSDK({
   projectId,
@@ -37,7 +37,8 @@ export default function IdeaBoardSDK({
   const { theme } = useTheme();
 
   // Yjs State
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawApi | null>(null);
+  const [excalidrawAPI, setExcalidrawAPI] =
+    useState<ExcalidrawImperativeAPI | null>(null);
   const [isSynced, setIsSynced] = useState(false);
   const [awarenessUsers, setAwarenessUsers] = useState<number>(0);
 
@@ -49,8 +50,12 @@ export default function IdeaBoardSDK({
 
   useEffect(() => {
     // 1. Initialize Provider
-    // Connect to ws://localhost:4000/projectId
-    provider.current = new WebsocketProvider(SOCKET_URL, projectId, ydoc.current);
+    // Connect to ws://localhost:4000/whiteboard:workspaceId
+    provider.current = new WebsocketProvider(
+      SOCKET_URL,
+      `whiteboard:${projectId}`,
+      ydoc.current,
+    );
 
     // 2. Awareness (Cursor)
     const awareness = provider.current.awareness;

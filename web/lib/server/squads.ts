@@ -1,5 +1,17 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getTeamTypeQueryValues } from "@/lib/team-types";
+
+type EventRecord = {
+  id: string;
+  title: string;
+};
+
+type SquadWithActivity = {
+  activity_id: string | null;
+  leader: unknown;
+  [key: string]: unknown;
+};
 
 export async function fetchRecentSquads(limit = 9) {
   const supabase = await createClient();
@@ -47,7 +59,7 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all", activityI
     { count: "planned" },
   );
   if (type !== "all") {
-    query = query.eq("type", type);
+    query = query.in("type", getTeamTypeQueryValues(type));
   }
   if (activityId) {
     query = query.eq("activity_id", activityId);
@@ -66,22 +78,22 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all", activityI
   const getEventMap = cache(async () => {
     const { fetchDevEvents } = await import("./dev-events");
     const { events } = await fetchDevEvents();
-    return new Map(events.map((e: { id: string; title: string }) => [e.id, e.title]));
+    return new Map(events.map((event: EventRecord) => [event.id, event.title]));
   });
   const eventMap = await getEventMap();
+  const safeSquads = (squads ?? []) as SquadWithActivity[];
 
   const enhancedSquads =
-    (squads as any[])?.map((s) => ({
-      ...s,
-      // @ts-ignore
-      leader: s.leader,
-      activity: s.activity_id
+    safeSquads.map((squad) => ({
+      ...squad,
+      leader: squad.leader,
+      activity: squad.activity_id
         ? {
-          id: s.activity_id,
-          title: eventMap.get(s.activity_id) || "알 수 없는 활동",
+          id: squad.activity_id,
+          title: eventMap.get(squad.activity_id) || "알 수 없는 활동",
         }
         : null,
-    })) || [];
+    }));
 
   return {
     squads: enhancedSquads,
@@ -122,20 +134,19 @@ export async function fetchSquadsByActivityId(activityId: string, limit?: number
   const getEventMap = cache(async () => {
     const { fetchDevEvents } = await import("./dev-events");
     const { events } = await fetchDevEvents();
-    return new Map(events.map((e: { id: string; title: string }) => [e.id, e.title]));
+    return new Map(events.map((event: EventRecord) => [event.id, event.title]));
   });
   const eventMap = await getEventMap();
+  const safeSquads = (squads ?? []) as SquadWithActivity[];
 
-  return (
-    (squads as any[])?.map((s) => ({
-      ...s,
-      leader: s.leader,
-      activity: s.activity_id
-        ? {
-          id: s.activity_id,
-          title: eventMap.get(s.activity_id) || "알 수 없는 활동",
-        }
-        : null,
-    })) || []
-  );
+  return safeSquads.map((squad) => ({
+    ...squad,
+    leader: squad.leader,
+    activity: squad.activity_id
+      ? {
+        id: squad.activity_id,
+        title: eventMap.get(squad.activity_id) || "알 수 없는 활동",
+      }
+      : null,
+  }));
 }

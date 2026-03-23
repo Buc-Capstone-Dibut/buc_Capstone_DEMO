@@ -13,12 +13,10 @@ import { Viewer } from "@/components/features/community/squad-viewer";
 import {
   MapPin,
   Calendar,
-  Users,
   Star,
   Monitor,
   Share2,
   AlertTriangle,
-  UserPlus,
 } from "lucide-react";
 import { fetchDevEventById } from "@/lib/server/dev-events";
 import prisma from "@/lib/prisma";
@@ -29,11 +27,99 @@ import ApplicantManager from "@/components/features/community/squad/applicant-ma
 import SquadActions from "@/components/features/community/squad-actions";
 import { CreateWorkspaceDialog } from "@/components/features/workspace/dialogs/create-workspace-dialog";
 import { SquadHeaderActions } from "@/components/features/community/squad-header-actions";
-import { SquadCommentSection } from "@/components/features/community/squad-comment-section";
+import {
+  SquadCommentSection,
+  type SquadComment,
+} from "@/components/features/community/squad-comment-section";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
+
+interface SquadLeader {
+  id: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+}
+
+interface SquadMemberProfile {
+  id: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+}
+
+interface SquadMember {
+  user_id: string;
+  role: string;
+  profile: SquadMemberProfile | null;
+}
+
+interface SquadApplication {
+  id: string;
+  user_id: string;
+  message: string;
+  created_at: string;
+  user: {
+    id: string;
+    nickname: string;
+    avatar_url: string;
+    tier: string;
+    handle?: string | null;
+  };
+}
+
+interface RawSquadComment {
+  id: string;
+  squad_id: string;
+  author_id: string | null;
+  content: string;
+  parent_id: string | null;
+  created_at: Date | null;
+  updated_at: Date | null;
+  profiles: {
+    nickname: string | null;
+    avatar_url: string | null;
+    handle: string | null;
+  } | null;
+}
+
+interface SquadDetail {
+  id: string;
+  title: string;
+  content: string;
+  type: string | null;
+  status: string | null;
+  leader_id: string;
+  created_at: string;
+  recruited_count: number;
+  capacity: number;
+  activity_id: string | null;
+  place_type: "online" | "offline" | "hybrid" | null;
+  location: string | null;
+  recruitment_period: string | null;
+  tech_stack: string[] | null;
+  leader: SquadLeader | null;
+  members: SquadMember[];
+}
+
+type SquadCommentsModel = {
+  findMany(args: {
+    where: { squad_id: string };
+    include: {
+      profiles: {
+        select: {
+          nickname: true;
+          avatar_url: true;
+          handle: true;
+        };
+      };
+    };
+    orderBy: { created_at: "asc" };
+  }): Promise<RawSquadComment[]>;
+};
 
 export default async function SquadDetailPage({ params }: PageProps) {
   const resolvedParams = await params;
@@ -58,7 +144,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
     .eq("id", id)
     .single();
 
-  const squad = squadData as any;
+  const squad = squadData as SquadDetail | null;
   if (error || !squad) {
     notFound();
   }
@@ -68,13 +154,12 @@ export default async function SquadDetailPage({ params }: PageProps) {
   } = await supabase.auth.getUser();
   const currentUserId = user?.id ?? null;
 
-  // @ts-ignore
   const isLeader = currentUserId === squad.leader_id;
-  // @ts-ignore
-  const isMember = squad.members?.some((m) => m.user_id === currentUserId);
+  const isMember =
+    squad.members?.some((member) => member.user_id === currentUserId) ?? false;
 
-  let applications: any[] = [];
-  let applicationStatus = null;
+  let applications: SquadApplication[] = [];
+  let applicationStatus: "pending" | "accepted" | "rejected" | null = null;
   let activity = null;
   let memberWorkspaceId: string | null = null;
 
@@ -87,19 +172,18 @@ export default async function SquadDetailPage({ params }: PageProps) {
       .maybeSingle();
 
     if (application) {
-      applicationStatus = (application as any).status;
+      applicationStatus = application.status;
     }
   }
 
   if (isLeader) {
     const { data: apps } = await supabase
       .from("squad_applications")
-      // @ts-ignore
       .select(`*, user:user_id(id, nickname, avatar_url, tier, handle)`)
       .eq("squad_id", id)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
-    applications = apps || [];
+    applications = (apps as SquadApplication[] | null) || [];
   }
 
   if (squad.activity_id) {
@@ -110,7 +194,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
     const linkedMembership = await prisma.workspace_members.findFirst({
       where: {
         user_id: currentUserId,
-        workspace: { from_squad_id: id },
+        workspace: {
+          is: {
+            from_squad_id: id,
+          },
+        },
       },
       select: { workspace_id: true },
     });
@@ -118,7 +206,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
     memberWorkspaceId = linkedMembership?.workspace_id ?? null;
   }
 
-  const squadCommentsModel = (prisma as any).squad_comments;
+  const squadCommentsModel = (
+    prisma as typeof prisma & {
+      squad_comments?: SquadCommentsModel;
+    }
+  ).squad_comments;
   const rawSquadComments = squadCommentsModel
     ? await squadCommentsModel.findMany({
       where: { squad_id: id },
@@ -135,7 +227,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
     })
     : [];
 
-  const squadComments = rawSquadComments.map((comment) => ({
+  const squadComments: SquadComment[] = rawSquadComments.map((comment) => ({
     id: comment.id,
     squad_id: comment.squad_id,
     author_id: comment.author_id,
@@ -161,13 +253,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Badge
-                variant={
-                  // @ts-ignore
-                  squad.status === "recruiting" ? "default" : "secondary"
-                }
+                variant={squad.status === "recruiting" ? "default" : "secondary"}
               >
                 {squad.status === "recruiting" ? "모집중" : "모집마감"}
               </Badge>
+              <Badge variant="outline">{getTeamTypeLabel(squad.type)}</Badge>
             </div>
 
             <h1 className="text-3xl font-bold mb-4 leading-tight">
@@ -182,13 +272,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
                     className="flex items-center gap-2 hover:underline"
                   >
                     <Avatar className="w-6 h-6">
-                      {/* @ts-ignore */}
-                      <AvatarImage src={squad.leader?.avatar_url} />
+                      <AvatarImage src={squad.leader?.avatar_url ?? undefined} />
                       <AvatarFallback>
                         {squad.leader?.nickname?.[0]}
                       </AvatarFallback>
                     </Avatar>
-                    {/* @ts-ignore */}
                     <span className="font-medium text-foreground">
                       {squad.leader?.nickname}
                     </span>
@@ -196,13 +284,11 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 ) : (
                   <>
                     <Avatar className="w-6 h-6">
-                      {/* @ts-ignore */}
-                      <AvatarImage src={squad.leader?.avatar_url} />
+                      <AvatarImage src={squad.leader?.avatar_url ?? undefined} />
                       <AvatarFallback>
                         {squad.leader?.nickname?.[0]}
                       </AvatarFallback>
                     </Avatar>
-                    {/* @ts-ignore */}
                     <span className="font-medium text-foreground">
                       {squad.leader?.nickname}
                     </span>
@@ -277,7 +363,7 @@ export default async function SquadDetailPage({ params }: PageProps) {
             <CardHeader className="pb-3">
               <div className="flex justify-between items-end mb-2">
                 <CardTitle className="text-base font-semibold">
-                  모집 현황
+                  팀 현황
                 </CardTitle>
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-bold text-primary">
@@ -302,7 +388,6 @@ export default async function SquadDetailPage({ params }: PageProps) {
               {isLeader ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
-                    {/* @ts-ignore */}
                     <ApplicantManager
                       squadId={squad.id}
                       initialApplications={applications}
@@ -317,16 +402,33 @@ export default async function SquadDetailPage({ params }: PageProps) {
                   </div>
 
                   <div className="pt-2 border-t">
-                    <CreateWorkspaceDialog fromSquadId={squad.id}>
-                      <Button className="w-full" variant="default">
-                        <Monitor className="w-4 h-4 mr-2" />
-                        워크스페이스 생성
-                      </Button>
-                    </CreateWorkspaceDialog>
-                    <p className="text-xs text-center text-muted-foreground mt-2">
-                      팀원이 모두 모였다면 워크스페이스로 이동하여 협업을
-                      시작하세요.
-                    </p>
+                    {memberWorkspaceId ? (
+                      <>
+                        <Button className="w-full" variant="default" asChild>
+                          <Link href={`/workspace/${memberWorkspaceId}`}>
+                            <Monitor className="w-4 h-4 mr-2" />
+                            팀 공간 미리보기
+                          </Link>
+                        </Button>
+                        <p className="text-xs text-center text-muted-foreground mt-2">
+                          리더만 먼저 팀 공간을 확인할 수 있습니다. 첫 팀원 승인 시
+                          팀 공간이 자동 활성화됩니다.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <CreateWorkspaceDialog fromSquadId={squad.id}>
+                          <Button className="w-full" variant="default">
+                            <Monitor className="w-4 h-4 mr-2" />
+                            팀 공간 만들기
+                          </Button>
+                        </CreateWorkspaceDialog>
+                        <p className="text-xs text-center text-muted-foreground mt-2">
+                          기존 팀은 필요할 때 팀 공간을 직접 열어 협업을 시작할 수
+                          있습니다.
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : isMember ? (
@@ -343,17 +445,17 @@ export default async function SquadDetailPage({ params }: PageProps) {
                       <Button className="w-full gap-2 shadow-md" asChild>
                         <Link href={`/workspace/${memberWorkspaceId}`}>
                           <Monitor className="w-4 h-4" />
-                          워크스페이스로 이동
+                          팀 공간으로 이동
                         </Link>
                       </Button>
                     ) : (
                       <>
                         <Button className="w-full gap-2 shadow-md" disabled>
                           <Monitor className="w-4 h-4" />
-                          워크스페이스 준비 중
+                          팀 공간 준비 중
                         </Button>
                         <p className="text-[11px] text-muted-foreground mt-2">
-                          아직 연결된 워크스페이스가 없습니다.
+                          아직 연결된 팀 공간이 없습니다.
                         </p>
                       </>
                     )}
@@ -361,7 +463,6 @@ export default async function SquadDetailPage({ params }: PageProps) {
                 </div>
               ) : (
                 <div className="pt-2">
-                  {/* @ts-ignore */}
                   <ApplicationButton
                     squadId={squad.id}
                     currentUserId={user?.id}
@@ -446,7 +547,6 @@ export default async function SquadDetailPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                {/* @ts-ignore */}
                 {squad.members?.map((member) => (
                   <div key={member.user_id} className="flex items-center gap-3">
                     {member.profile?.handle ? (

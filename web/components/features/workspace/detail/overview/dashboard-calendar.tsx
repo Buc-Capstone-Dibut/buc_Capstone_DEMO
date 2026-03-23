@@ -1,19 +1,42 @@
 "use client";
 
-import { Task } from "../../store/mock-data";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import type {
+  EventClickArg,
+  EventContentArg,
+  EventDropArg,
+  EventInput,
+} from "@fullcalendar/core";
 import { AdvancedTaskModal } from "../board/advanced-task-modal";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { useSWRConfig } from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
+
+type CalendarTask = {
+  id: string;
+  title: string;
+  dueDate?: string | null;
+  status?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  assignee?: unknown;
+};
 
 interface DashboardCalendarProps {
   projectId: string;
-  tasks?: any[];
+  tasks?: CalendarTask[];
 }
+
+type BoardMetaResponse = {
+  workspace?: {
+    readOnly?: boolean;
+  };
+};
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function DashboardCalendar({
   projectId,
@@ -21,6 +44,15 @@ export function DashboardCalendar({
 }: DashboardCalendarProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const { mutate } = useSWRConfig();
+  const { data: boardMeta } = useSWR<BoardMetaResponse>(
+    `/api/workspaces/${projectId}/board`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30_000,
+    },
+  );
+  const isReadOnly = Boolean(boardMeta?.workspace?.readOnly);
 
   // Helper for status color (based on stable API category)
   const getStatusColor = (category: string) => {
@@ -34,18 +66,12 @@ export function DashboardCalendar({
     }
   };
 
-  const getPriorityIcon = (priority: string) => {
-    // Simple text or color indicator for priority if valid icon not imported
-    // Or we can just use color border
-    return priority === "urgent" ? "🔴" : priority === "high" ? "🟠" : "";
-  };
-
-  const events = tasks
+  const events: EventInput[] = tasks
     .filter((t) => t.dueDate)
     .map((t) => ({
       id: t.id,
       title: t.title,
-      start: t.dueDate, // FullCalendar prefers 'start'
+      start: String(t.dueDate), // FullCalendar prefers 'start'
       backgroundColor: "transparent",
       borderColor: "transparent",
       extendedProps: {
@@ -56,19 +82,24 @@ export function DashboardCalendar({
       },
     }));
 
-  const handleEventClick = (info: any) => {
+  const handleEventClick = (info: EventClickArg) => {
     setEditingTaskId(info.event.id);
   };
 
-  const handleEventDrop = async (info: any) => {
+  const handleEventDrop = async (info: EventDropArg) => {
     const { event } = info;
     const newDate = event.start;
 
+    if (isReadOnly) {
+      info.revert();
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/kanban/tasks/${event.id}`, {
+      const res = await fetch(`/api/workspaces/${projectId}/board/tasks/${event.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ due_date: newDate }),
+        body: JSON.stringify({ dueDate: newDate }),
       });
 
       if (!res.ok) throw new Error("Failed to update");
@@ -82,7 +113,7 @@ export function DashboardCalendar({
     }
   };
 
-  const renderEventContent = (eventInfo: any) => {
+  const renderEventContent = (eventInfo: EventContentArg) => {
     const props = eventInfo.event.extendedProps;
     const color = getStatusColor(props.category);
     const isUrgent = props.priority === "urgent" || props.priority === "high";
@@ -106,6 +137,11 @@ export function DashboardCalendar({
 
   return (
     <div className="flex flex-col">
+      {isReadOnly && (
+        <div className="mb-3 rounded-xl border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          종료된 팀 공간이라 일정 이동은 잠겨 있습니다.
+        </div>
+      )}
       <Card className="flex-1 p-4 shadow-none border-none bg-transparent overflow-visible">
         <div className="w-full calendar-wrapper-dashboard">
           <FullCalendar
@@ -123,11 +159,16 @@ export function DashboardCalendar({
             height="auto"
             dayMaxEvents={3}
             fixedWeekCount={false}
-            editable={true}
+            editable={!isReadOnly}
             eventDrop={handleEventDrop}
-            droppable={true}
+            droppable={!isReadOnly}
           />
         </div>
+        {events.length === 0 && (
+          <div className="mt-4 rounded-xl border border-dashed bg-muted/20 px-4 py-5 text-center text-sm text-muted-foreground">
+            아직 마감일이 잡힌 작업이 없습니다. 보드에서 작업에 마감일을 지정하면 여기에 일정이 표시됩니다.
+          </div>
+        )}
       </Card>
 
       <AdvancedTaskModal

@@ -39,11 +39,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeTeamType, TEAM_TYPE_OPTIONS } from "@/lib/team-types";
 
 const formSchema = z.object({
   name: z
     .string()
-    .min(2, "워크스페이스 이름은 2글자 이상이어야 합니다.")
+    .min(2, "팀 공간 이름은 2글자 이상이어야 합니다.")
     .max(50),
   category: z.string().min(1, "유형을 선택해주세요."),
   description: z
@@ -71,7 +72,7 @@ export function CreateWorkspaceDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      category: "Side Project",
+      category: normalizeTeamType(undefined),
       description: "",
     },
   });
@@ -79,15 +80,17 @@ export function CreateWorkspaceDialog({
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       if (!authLoading && !isAuthenticated) {
-        toast.error("워크스페이스 생성은 로그인 후 가능합니다.");
+        toast.error("팀 공간 생성은 로그인 후 가능합니다.");
         setIsAuthModalOpen(true);
         return;
       }
 
       setLoading(true);
       const payload = {
-        ...values,
-        fromSquadId, // Add squad ID if present
+        name: values.name,
+        description: values.description,
+        ...(fromSquadId ? {} : { category: values.category }),
+        fromSquadId,
       };
 
       const response = await fetch("/api/workspaces", {
@@ -104,19 +107,19 @@ export function CreateWorkspaceDialog({
           errorBody?.error ||
           (response.status === 401
             ? "로그인이 필요합니다."
-            : "워크스페이스 생성에 실패했습니다.");
+            : "팀 공간 생성에 실패했습니다.");
         throw new Error(message);
       }
 
       const data = await response.json();
 
-      toast.success(
-        fromSquadId
-          ? "스쿼드가 워크스페이스로 전환되었습니다."
-          : "워크스페이스가 생성되었습니다.",
-      );
+      toast.success("팀 공간이 생성되었습니다.");
       setOpen(false);
-      form.reset();
+      form.reset({
+        name: "",
+        category: normalizeTeamType(undefined),
+        description: "",
+      });
 
       // Refresh list
       mutate("/api/workspaces");
@@ -142,7 +145,7 @@ export function CreateWorkspaceDialog({
         open={open}
         onOpenChange={(nextOpen) => {
           if (nextOpen && !authLoading && !isAuthenticated) {
-            toast.error("워크스페이스 생성은 로그인 후 가능합니다.");
+            toast.error("팀 공간 생성은 로그인 후 가능합니다.");
             setIsAuthModalOpen(true);
             return;
           }
@@ -152,23 +155,23 @@ export function CreateWorkspaceDialog({
         <DialogTrigger asChild>
           {children || (
             <Button>
-              <Plus className="mr-2 h-4 w-4" /> 새 워크스페이스
+              <Plus className="mr-2 h-4 w-4" /> 새 팀 공간
             </Button>
           )}
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>
-            {fromSquadId ? "워크스페이스로 전환" : "새 워크스페이스 만들기"}
-          </DialogTitle>
-          <DialogDescription>
-            {fromSquadId
-              ? "스쿼드 멤버들이 자동으로 워크스페이스 멤버로 초대됩니다."
-              : "팀원들과 함께할 새로운 협업 공간을 만듭니다."}
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>
+              {fromSquadId ? "팀 공간 만들기" : "새 팀 공간 만들기"}
+            </DialogTitle>
+            <DialogDescription>
+              {fromSquadId
+                ? "팀 유형은 자동으로 이어지며 팀원들은 그대로 팀 공간에 연결됩니다."
+                : "함께 협업할 새로운 팀 공간을 만듭니다."}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -179,7 +182,7 @@ export function CreateWorkspaceDialog({
                     <Input
                       placeholder={
                         fromSquadId
-                          ? "스쿼드 이름 그대로 사용 가능"
+                          ? "팀 이름 그대로 사용 가능"
                           : "예: 졸업작품 A팀"
                       }
                       {...field}
@@ -190,36 +193,35 @@ export function CreateWorkspaceDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>유형</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="워크스페이스 유형 선택" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Side Project">
-                        사이드 프로젝트
-                      </SelectItem>
-                      <SelectItem value="Startup">스타트업</SelectItem>
-                      <SelectItem value="Competition">공모전/대회</SelectItem>
-                      <SelectItem value="School">학교/동아리</SelectItem>
-                      <SelectItem value="Personal">개인용</SelectItem>
-                      <SelectItem value="Enterprise">기업</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {!fromSquadId && (
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>유형</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="팀 공간 유형 선택" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TEAM_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -241,17 +243,17 @@ export function CreateWorkspaceDialog({
 
             {fromSquadId && (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md text-sm text-blue-600 dark:text-blue-400">
-                💡 <strong>전환 시 혜택</strong>
+                💡 <strong>팀 공간 안내</strong>
                 <br />
-                모든 스쿼드 팀원에게 <i>워크스페이스 생성 알림</i>이 발송되며,
-                별도의 초대 없이 바로 협업을 시작할 수 있습니다.
+                팀 유형은 자동으로 이어지고, 승인된 팀원은 별도 설정 없이 바로
+                팀 공간에서 협업할 수 있습니다.
               </div>
             )}
 
             <DialogFooter>
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {fromSquadId ? "전환하기" : "생성하기"}
+                {fromSquadId ? "팀 공간 만들기" : "팀 공간 만들기"}
               </Button>
             </DialogFooter>
           </form>

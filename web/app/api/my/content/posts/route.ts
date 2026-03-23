@@ -1,34 +1,53 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import {
+  buildCreatedAtCursorWhere,
+  decodeProfileCursor,
+  encodeProfileCursor,
+  parsePageLimit,
+} from "@/lib/server/my-profile-pagination";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const profileIdParam = (searchParams.get("profileId") || "").trim();
     const handle = (searchParams.get("handle") || "").trim().toLowerCase();
+    const limit = parsePageLimit(searchParams.get("limit"));
+    const cursor = decodeProfileCursor(searchParams.get("cursor"));
 
-    if (!handle) {
+    if (!handle && !profileIdParam) {
       return NextResponse.json(
-        { success: false, error: "handle is required" },
+        { success: false, error: "handle or profileId is required" },
         { status: 400 },
       );
     }
 
-    const profile = await prisma.profiles.findUnique({
-      where: { handle },
-      select: { id: true },
-    });
+    const resolvedProfileId =
+      profileIdParam ||
+      (
+        await prisma.profiles.findUnique({
+          where: { handle },
+          select: { id: true },
+        })
+      )?.id;
 
-    if (!profile) {
+    if (!resolvedProfileId) {
       return NextResponse.json(
         { success: false, error: "Profile not found" },
         { status: 404 },
       );
     }
 
+    const where: Prisma.postsWhereInput = {
+      author_id: resolvedProfileId,
+      ...(buildCreatedAtCursorWhere(cursor, "created_at") as Prisma.postsWhereInput),
+    };
+
     const posts = await prisma.posts.findMany({
-      where: { author_id: profile.id },
-      orderBy: { created_at: "desc" },
-      take: 50,
+      where,
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+      take: limit + 1,
       select: {
         id: true,
         title: true,
@@ -40,11 +59,14 @@ export async function GET(req: Request) {
         updated_at: true,
       },
     });
+    const pageItems = posts.slice(0, limit);
+    const hasMore = posts.length > limit;
+    const lastItem = pageItems[pageItems.length - 1];
 
     return NextResponse.json({
       success: true,
       data: {
-        items: posts.map((item) => ({
+        items: pageItems.map((item) => ({
           id: item.id,
           title: item.title,
           category: item.category,
@@ -54,11 +76,20 @@ export async function GET(req: Request) {
           createdAt: item.created_at,
           updatedAt: item.updated_at,
         })),
+        hasMore,
+        nextCursor: hasMore
+          ? encodeProfileCursor({
+              createdAt: lastItem?.created_at,
+              id: lastItem?.id,
+            })
+          : null,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch posts";
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch posts" },
+      { success: false, error: message },
       { status: 500 },
     );
   }

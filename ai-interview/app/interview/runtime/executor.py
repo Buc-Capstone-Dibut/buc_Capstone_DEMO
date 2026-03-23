@@ -185,6 +185,27 @@ def _activate_question_turn(
         state.current_question_retry_count = 0
 
 
+async def _send_audio_turn_end(
+    ws: WebSocket,
+    *,
+    session_id: str,
+    turn_id: str,
+    deps: "RuntimeExecutorDeps",
+) -> None:
+    normalized_turn_id = (turn_id or "").strip()
+    if not session_id or not normalized_turn_id:
+        return
+    await deps.send_json(
+        ws,
+        {
+            "type": "control",
+            "text": "audio-turn-end",
+            "sessionId": session_id,
+            "turnId": normalized_turn_id,
+        },
+    )
+
+
 def _normalize_completion_turn_text(
     state: VoiceWsState,
     *,
@@ -235,6 +256,35 @@ def _complete_incomplete_ai_question_text(
     return fallback_question
 
 
+def _persist_turn_background(
+    deps: RuntimeExecutorDeps,
+    state: VoiceWsState,
+    *,
+    role: str,
+    content: str,
+    channel: str,
+    payload: dict[str, Any],
+) -> None:
+    async def runner() -> None:
+        try:
+            await deps.persist_turn(
+                state,
+                role=role,
+                content=content,
+                channel=channel,
+                payload=payload,
+            )
+        except Exception:
+            logger.warning(
+                "background persist_turn failed (session=%s, role=%s)",
+                state.session_id,
+                role,
+                exc_info=True,
+            )
+
+    asyncio.create_task(runner())
+
+
 async def _recover_live_audio_for_ai_text(
     state: VoiceWsState,
     *,
@@ -247,6 +297,13 @@ async def _recover_live_audio_for_ai_text(
     normalized = " ".join((ai_text or "").split()).strip()
     if not normalized:
         return "", None
+    if not deps.enable_ai_audio_recovery:
+        logger.info(
+            "ai audio recovery disabled; skipping audio recovery (session=%s, text=%s)",
+            state.session_id,
+            normalized,
+        )
+        return normalized, None
 
     logger.warning(
         "recovering live audio for ai text (session=%s, text=%s)",
@@ -279,10 +336,11 @@ async def _recover_live_audio_for_ai_text(
     if not recovered_text:
         return normalized, None
 
-    recovered_text, recovered_audio = await deps.repair_ai_turn_if_truncated(
+    recovered_text, recovered_audio = await _maybe_repair_ai_turn_if_truncated(
         state,
         ai_text=recovered_text,
         prepared_tts=recovered_audio,
+        deps=deps,
     )
     if not recovered_text or not deps.looks_like_complete_ai_question(recovered_text):
         return normalized, None
@@ -291,6 +349,7 @@ async def _recover_live_audio_for_ai_text(
 
 @dataclass(frozen=True)
 class RuntimeExecutorDeps:
+    request_live_spoken_text_turn: Callable[..., Awaitable[tuple[str, Any, str]]]
     request_live_text_turn: Callable[..., Awaitable[tuple[str, Any]]]
     repair_ai_turn_if_truncated: Callable[..., Awaitable[tuple[str, Any]]]
     looks_like_complete_ai_question: Callable[[str], bool]
@@ -312,6 +371,25 @@ class RuntimeExecutorDeps:
     build_memory_snapshot: Callable[[VoiceWsState], str]
     remember_model_turn: Callable[..., None]
     record_question_type: Callable[[VoiceWsState, str | None], None]
+    remember_streamed_ai_audio: Callable[[VoiceWsState, str, float, str], None] = lambda *_args, **_kwargs: None
+    enable_ai_question_repair: bool = True
+    enable_ai_audio_recovery: bool = True
+
+
+async def _maybe_repair_ai_turn_if_truncated(
+    state: VoiceWsState,
+    *,
+    ai_text: str,
+    prepared_tts: Any,
+    deps: RuntimeExecutorDeps,
+) -> tuple[str, Any]:
+    if not deps.enable_ai_question_repair:
+        return (ai_text or "").strip(), prepared_tts
+    return await deps.repair_ai_turn_if_truncated(
+        state,
+        ai_text=ai_text,
+        prepared_tts=prepared_tts,
+    )
 
 
 async def _repair_incomplete_ai_question(
@@ -326,6 +404,13 @@ async def _repair_incomplete_ai_question(
 ) -> tuple[str, Any, bool]:
     normalized = (ai_text or "").strip()
     if not normalized or deps.looks_like_complete_ai_question(normalized):
+        return normalized, prepared_audio, False
+    if not deps.enable_ai_question_repair:
+        logger.info(
+            "ai question repair disabled; skipping incomplete question repair (session=%s, text=%s)",
+            state.session_id,
+            normalized,
+        )
         return normalized, prepared_audio, False
 
     current_text = normalized
@@ -352,10 +437,11 @@ async def _repair_incomplete_ai_question(
         if not repaired_text:
             continue
 
-        repaired_text, repaired_audio = await deps.repair_ai_turn_if_truncated(
+        repaired_text, repaired_audio = await _maybe_repair_ai_turn_if_truncated(
             state,
             ai_text=repaired_text,
             prepared_tts=repaired_audio,
+            deps=deps,
         )
         if not repaired_text:
             continue
@@ -411,10 +497,11 @@ async def _regenerate_ungrounded_followup(
         user_text=grounded_user_text,
     )
     if regenerated_text:
-        regenerated_text, regenerated_audio = await deps.repair_ai_turn_if_truncated(
+        regenerated_text, regenerated_audio = await _maybe_repair_ai_turn_if_truncated(
             state,
             ai_text=regenerated_text,
             prepared_tts=regenerated_audio,
+            deps=deps,
         )
         if regenerated_text and _is_followup_grounded_in_user_answer(grounded_user_text, regenerated_text):
             return regenerated_text, regenerated_audio, regenerated_text != normalized
@@ -443,71 +530,28 @@ async def execute_opening_live_turn(
         return False
 
     started_at = monotonic()
-    fallback_used = False
-    base_opening_text = _build_fallback_opening_text(state)
-    ai_text, prepared_live_audio = await deps.request_live_text_turn(
+    ai_text = " ".join((spec.prompt or _build_fallback_opening_text(state)).split()).strip()
+    _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
         state,
-        text=base_opening_text,
-        question_type=spec.question_type,
-        extra_instruction=(
-            "첫 면접 질문은 반드시 완전한 문장으로 마무리하세요. "
-            "지원자에게 바로 답변을 요청하는 마지막 질문 1개를 유지하세요."
-        ),
+        text=ai_text,
     )
-    original_ai_text = ai_text or base_opening_text
-    if ai_text:
-        ai_text, prepared_live_audio = await deps.repair_ai_turn_if_truncated(
-            state,
-            ai_text=ai_text,
-            prepared_tts=prepared_live_audio,
-        )
-        ai_text, prepared_live_audio, repaired_incomplete = await _repair_incomplete_ai_question(
-            state,
-            ai_text=ai_text,
-            prepared_audio=prepared_live_audio,
-            question_type=spec.question_type,
-            extra_instruction="면접 시작 멘트와 첫 질문을 완성하세요.",
-            user_text="",
-            deps=deps,
-        )
-    else:
-        repaired_incomplete = False
-
-    if not ai_text:
-        fallback_used = True
-        ai_text = base_opening_text
-        prepared_live_audio = None
+    if prepared_live_audio is None:
         logger.warning(
-            "opening turn falling back to deterministic text (session=%s, turn=%s, original_ai_text=%s)",
+            "opening turn produced no audio (session=%s, turn=%s, ai_text=%s)",
             state.session_id,
             spec.turn_id,
-            original_ai_text,
+            ai_text,
         )
         await deps.send_json(
             ws,
             {
-                "type": "warning",
-                "message": "Gemini opening 응답이 불안정해 기본 질문으로 면접을 시작합니다.",
+                "type": "error",
+                "message": "첫 질문 음성을 생성하지 못했습니다. 새로고침 후 다시 시작해 주세요.",
                 "turnId": spec.turn_id,
             },
         )
-    elif prepared_live_audio is None:
-        ai_text, prepared_live_audio = await _recover_live_audio_for_ai_text(
-            state,
-            ai_text=ai_text,
-            question_type=spec.question_type,
-            extra_instruction="면접 시작 인사와 첫 질문을 같은 의미로 다시 말하세요.",
-            user_text="",
-            deps=deps,
-        )
-        if prepared_live_audio is None:
-            logger.warning(
-                "opening turn proceeding without audio (session=%s, turn=%s, ai_text=%s)",
-                state.session_id,
-                spec.turn_id,
-                ai_text,
-            )
-    repair_applied = ai_text != original_ai_text or repaired_incomplete
+        return False
+
     delivery_plan = await deps.build_ai_delivery_plan(
         ws,
         text=ai_text,
@@ -530,17 +574,18 @@ async def execute_opening_live_turn(
         turn_id=spec.turn_id,
         runtime_mode=state.runtime_mode,
         runtime_reason=state.runtime_mode_reason,
-        provider=delivery_plan.provider or ("text-fallback" if fallback_used else "text-only"),
+        provider=delivery_plan.provider or spoken_provider or "gemini-live-single",
         latency_ms=int((monotonic() - started_at) * 1000),
         audio_duration_ms=int(round(delivery_plan.total_duration_sec * 1000)),
         live_model=deps.live_active_model(state),
         vad_config=deps.snapshot_vad_config(state),
         memory_snapshot=deps.build_memory_snapshot(state),
         question_type=spec.question_type,
-        repair_applied=repair_applied,
-        extra={"opening_fallback": fallback_used},
+        repair_applied=False,
+        extra={"opening_fallback": False},
     )
-    await deps.persist_turn(
+    _persist_turn_background(
+        deps,
         state,
         role="model",
         content=ai_text,
@@ -610,14 +655,7 @@ async def execute_opening_live_turn(
         turn_id=spec.turn_id,
         emit_delta=delivery_plan.mode != "text-only",
     )
-    if has_audio:
-        deps.arm_playback_resume(
-            ws,
-            state,
-            turn_id=spec.turn_id,
-            timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
-        )
-    else:
+    if not has_audio:
         await deps.send_json(
             ws,
             {
@@ -627,6 +665,13 @@ async def execute_opening_live_turn(
             },
         )
         return False
+    deps.arm_playback_resume(
+        ws,
+        state,
+        turn_id=spec.turn_id,
+        timeout_sec=max(0.9, delivery_plan.total_duration_sec + 0.35),
+    )
+    await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=spec.turn_id, deps=deps)
     return True
 
 
@@ -642,58 +687,29 @@ async def execute_resume_live_turn(
 
     started_at = monotonic()
     state.current_phase = spec.phase
-    ai_text, prepared_live_audio = await deps.request_live_text_turn(
-        state,
-        text=spec.prompt,
-        question_type=spec.question_type,
-        extra_instruction="연결 복구 직후이므로 이전 면접관의 말투와 질문 깊이를 그대로 유지할 것",
-        user_text=spec.latest_user_text,
-    )
+    ai_text = " ".join((spec.prompt or "").split()).strip()
     if not ai_text:
         return False
-
-    original_ai_text = ai_text
-    ai_text, prepared_live_audio = await deps.repair_ai_turn_if_truncated(
+    _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
         state,
-        ai_text=ai_text,
-        prepared_tts=prepared_live_audio,
+        text=ai_text,
     )
-    ai_text, prepared_live_audio, repaired_incomplete = await _repair_incomplete_ai_question(
-        state,
-        ai_text=ai_text,
-        prepared_audio=prepared_live_audio,
-        question_type=spec.question_type,
-        extra_instruction="이전 면접 흐름과 말투를 유지하면서 다음 질문을 완성하세요.",
-        user_text=spec.latest_user_text,
-        deps=deps,
-    )
-    if not ai_text:
+    if prepared_live_audio is None:
+        logger.warning(
+            "resume turn produced no audio (session=%s, turn=%s, ai_text=%s)",
+            state.session_id,
+            spec.turn_id,
+            ai_text,
+        )
         await deps.send_json(
             ws,
             {
                 "type": "warning",
-                "message": "재연결 후 다음 질문 텍스트를 복구하지 못했습니다.",
+                "message": "재연결 후 다음 질문 음성을 생성하지 못했습니다.",
                 "turnId": spec.turn_id,
             },
         )
         return False
-    if prepared_live_audio is None:
-        ai_text, prepared_live_audio = await _recover_live_audio_for_ai_text(
-            state,
-            ai_text=ai_text,
-            question_type=spec.question_type,
-            extra_instruction="연결 복구 직후의 질문을 같은 의미로 다시 말하세요.",
-            user_text=spec.latest_user_text,
-            deps=deps,
-        )
-        if prepared_live_audio is None:
-            logger.warning(
-                "resume turn proceeding with text-only delivery (session=%s, turn=%s, ai_text=%s)",
-                state.session_id,
-                spec.turn_id,
-                ai_text,
-            )
-    repair_applied = ai_text != original_ai_text or repaired_incomplete
 
     if spec.should_announce_closing:
         await deps.set_closing_announced(state.session_id)
@@ -719,7 +735,7 @@ async def execute_resume_live_turn(
         turn_id=spec.turn_id,
         runtime_mode=state.runtime_mode,
         runtime_reason=state.runtime_mode_reason,
-        provider=delivery_plan.provider,
+        provider=delivery_plan.provider or spoken_provider or "gemini-live-single",
         latency_ms=int((monotonic() - started_at) * 1000),
         audio_duration_ms=int(round(delivery_plan.total_duration_sec * 1000)),
         live_model=deps.live_active_model(state),
@@ -727,10 +743,11 @@ async def execute_resume_live_turn(
         memory_snapshot=deps.build_memory_snapshot(state),
         question_type=spec.question_type,
         answer_quality_hint=spec.answer_quality_hint,
-        repair_applied=repair_applied,
+        repair_applied=False,
         extra={"resume_generated": True},
     )
-    await deps.persist_turn(
+    _persist_turn_background(
+        deps,
         state,
         role="model",
         content=ai_text,
@@ -799,14 +816,7 @@ async def execute_resume_live_turn(
         turn_id=spec.turn_id,
         emit_delta=delivery_plan.mode != "text-only",
     )
-    if has_audio:
-        deps.arm_playback_resume(
-            ws,
-            state,
-            turn_id=spec.turn_id,
-            timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
-        )
-    else:
+    if not has_audio:
         await deps.send_json(
             ws,
             {
@@ -816,6 +826,13 @@ async def execute_resume_live_turn(
             },
         )
         return False
+    deps.arm_playback_resume(
+        ws,
+        state,
+        turn_id=spec.turn_id,
+        timeout_sec=max(0.9, delivery_plan.total_duration_sec + 0.35),
+    )
+    await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=spec.turn_id, deps=deps)
     return True
 
 
@@ -834,16 +851,25 @@ async def execute_live_user_followup_turn(
     vad_meta: dict[str, Any],
     started_at: float,
     deps: RuntimeExecutorDeps,
+    audio_already_streamed: bool = False,
+    streamed_audio_duration_sec: float = 0.0,
+    streamed_audio_chunk_count: int = 0,
+    streamed_audio_provider: str = "",
 ) -> bool:
     turn_id = next_turn_id
     prepared_audio = prepared_live_audio
     repair_applied = False
-    fallback_followup_used = False
+    streamed_turn_visible = bool(
+        (live_ai_text or "").strip()
+        or max(0, int(streamed_audio_chunk_count or 0)) > 0
+        or max(0.0, float(streamed_audio_duration_sec or 0.0)) > 0
+    )
+    audio_already_streamed = audio_already_streamed or max(0, int(streamed_audio_chunk_count or 0)) > 0
 
     if spec.completion_reason:
         ai_text = _normalize_completion_turn_text(
             state,
-            text=live_ai_text or "",
+            text="",
             user_text=user_request.prompt_user_text,
             extra_instruction=user_request.extra_instruction,
         )
@@ -860,7 +886,7 @@ async def execute_live_user_followup_turn(
         )
     else:
         state.current_phase = spec.phase
-        ai_text = (live_ai_text or "").strip()
+        ai_text = " ".join((user_request.planned_question_text or live_ai_text or "").split()).strip()
         if spec.should_announce_closing:
             await deps.set_closing_announced(state.session_id)
             state.closing_announced = True
@@ -876,83 +902,8 @@ async def execute_live_user_followup_turn(
                 else _fallback_question_for_type(state, user_request.planned_question_type)
             )
             prepared_audio = None
-            fallback_followup_used = True
             logger.warning(
-                "live followup turn falling back after empty ai response (session=%s, turn=%s, user_text=%s)",
-                state.session_id,
-                turn_id,
-                user_request.prompt_user_text,
-            )
-            await deps.send_json(
-                ws,
-                {
-                    "type": "warning",
-                    "message": "AI 후속 질문 생성이 비어 기본 꼬리질문으로 이어갑니다.",
-                    "turnId": turn_id,
-                },
-            )
-
-    ai_text_before_repair = ai_text
-    ai_text, prepared_audio = await deps.repair_ai_turn_if_truncated(
-        state,
-        ai_text=ai_text,
-        prepared_tts=prepared_audio,
-    )
-    if spec.completion_reason:
-        ai_text = _normalize_completion_turn_text(
-            state,
-            text=ai_text,
-            user_text=user_request.prompt_user_text,
-            extra_instruction=user_request.extra_instruction,
-        )
-    if spec.completion_reason:
-        repaired_incomplete = False
-    else:
-        ai_text, prepared_audio, repaired_incomplete = await _repair_incomplete_ai_question(
-            state,
-            ai_text=ai_text,
-            prepared_audio=prepared_audio,
-            question_type=user_request.planned_question_type,
-            extra_instruction="지원자의 직전 답변을 바탕으로 자연스러운 후속 질문을 완성하세요.",
-            user_text=user_request.prompt_user_text,
-            deps=deps,
-        )
-        regrounded_followup = False
-        repaired_after_regrounding = False
-    repair_applied = bool(ai_text) and (
-        ai_text != ai_text_before_repair
-        or repaired_incomplete
-        or (False if spec.completion_reason else regrounded_followup)
-        or (False if spec.completion_reason else repaired_after_regrounding)
-        or fallback_followup_used
-    ) and not spec.completion_reason
-    if not ai_text:
-        if spec.completion_reason:
-            ai_text = _build_fallback_closing_text(
-                state,
-                user_text=user_request.prompt_user_text,
-                closing_sentence=_extract_required_closing_sentence(user_request.extra_instruction),
-            )
-            prepared_audio = None
-            logger.warning(
-                "closing turn fell back to deterministic text after empty repair (session=%s, turn=%s)",
-                state.session_id,
-                turn_id,
-            )
-        else:
-            ai_text = (
-                _build_grounded_followup_fallback_text(
-                    state,
-                    user_text=user_request.prompt_user_text,
-                    question_type=user_request.planned_question_type,
-                )
-                if user_request.prompt_user_text
-                else _fallback_question_for_type(state, user_request.planned_question_type)
-            )
-            prepared_audio = None
-            repair_applied = True
-            logger.warning(
-                "live followup turn fell back after failed repair (session=%s, turn=%s, user_text=%s)",
+                "live followup turn missing planned question text (session=%s, turn=%s, user_text=%s)",
                 state.session_id,
                 turn_id,
                 user_request.prompt_user_text,
@@ -965,29 +916,58 @@ async def execute_live_user_followup_turn(
                     "turnId": turn_id,
                 },
             )
-    if prepared_audio is None:
-        ai_text, prepared_audio = await _recover_live_audio_for_ai_text(
+    if prepared_audio is None and ai_text and not audio_already_streamed:
+        _, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
-            ai_text=ai_text,
-            question_type=user_request.planned_question_type,
-            extra_instruction="지원자의 직전 답변을 반영한 같은 질문을 다시 말하세요.",
-            user_text=user_request.prompt_user_text,
-            deps=deps,
+            text=ai_text,
         )
-        if prepared_audio is None:
+        provider_name = spoken_provider or provider_name
+    if prepared_audio is None and not spec.completion_reason and not audio_already_streamed:
+        if streamed_turn_visible:
             logger.warning(
-                "live followup turn proceeding with text-only delivery (session=%s, turn=%s, ai_text=%s)",
+                "live followup turn already streamed visible output without buffered audio; committing streamed turn (session=%s, turn=%s, ai_text=%s)",
                 state.session_id,
                 turn_id,
                 ai_text,
             )
+        else:
+            logger.warning(
+                "live followup turn produced no audio (session=%s, turn=%s, ai_text=%s)",
+                state.session_id,
+                turn_id,
+                ai_text,
+            )
+            await deps.send_json(
+                ws,
+                {
+                    "type": "warning",
+                    "message": "이번 질문 음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    "turnId": turn_id,
+                },
+            )
+            return False
 
-    delivery_plan = await deps.build_ai_delivery_plan(
-        ws,
-        text=ai_text,
-        turn_id=turn_id,
-        preferred_full_audio=prepared_audio,
-    )
+    delivery_plan = None
+    delivery_mode = "text-only"
+    delivery_segments = 0
+    delivery_provider = provider_name or active_live_provider
+    audio_duration_sec = max(0.0, float(streamed_audio_duration_sec or 0.0)) if audio_already_streamed else 0.0
+
+    if audio_already_streamed:
+        delivery_mode = "live-audio-stream"
+        delivery_segments = max(1, int(streamed_audio_chunk_count or 0))
+        delivery_provider = streamed_audio_provider or provider_name or active_live_provider
+    else:
+        delivery_plan = await deps.build_ai_delivery_plan(
+            ws,
+            text=ai_text,
+            turn_id=turn_id,
+            preferred_full_audio=prepared_audio,
+        )
+        delivery_mode = delivery_plan.mode
+        delivery_segments = delivery_plan.segment_count
+        delivery_provider = delivery_plan.provider or provider_name or active_live_provider
+        audio_duration_sec = delivery_plan.total_duration_sec
     if not spec.completion_reason:
         state.runtime_status = "model_speaking"
         await deps.set_runtime_status(state.session_id, "model_speaking", state.current_phase)
@@ -998,14 +978,14 @@ async def execute_live_user_followup_turn(
         target_duration_sec=spec.target_duration_sec,
         closing_threshold_sec=spec.closing_threshold_sec,
         estimated_total_questions=spec.estimated_total_questions,
-        delivery_mode=delivery_plan.mode,
-        delivery_segments=delivery_plan.segment_count,
+        delivery_mode=delivery_mode,
+        delivery_segments=delivery_segments,
         turn_id=turn_id,
         runtime_mode=state.runtime_mode,
         runtime_reason=state.runtime_mode_reason,
-        provider=delivery_plan.provider or provider_name,
+        provider=delivery_provider,
         latency_ms=int((monotonic() - started_at) * 1000),
-        audio_duration_ms=int(round(delivery_plan.total_duration_sec * 1000)),
+        audio_duration_ms=int(round(audio_duration_sec * 1000)),
         live_model=deps.live_active_model(state),
         vad_config=deps.snapshot_vad_config(state),
         memory_snapshot=deps.build_memory_snapshot(state),
@@ -1016,7 +996,8 @@ async def execute_live_user_followup_turn(
         user_speech_duration_ms=round(utterance_duration_ms, 1),
         vad=vad_meta,
     )
-    await deps.persist_turn(
+    _persist_turn_background(
+        deps,
         state,
         role="model",
         content=ai_text,
@@ -1035,8 +1016,8 @@ async def execute_live_user_followup_turn(
             phase=state.current_phase,
             question_index=spec.question_index,
             question_type=user_request.planned_question_type,
-            delivery_mode=delivery_plan.mode,
-            delivery_segments=delivery_plan.segment_count,
+            delivery_mode=delivery_mode,
+            delivery_segments=delivery_segments,
             latency_ms=payload["latency_ms"],
             audio_duration_ms=payload["audio_duration_ms"],
             vad_reason=vad_meta.get("reason"),
@@ -1082,7 +1063,7 @@ async def execute_live_user_followup_turn(
     if not await deps.send_json(ws, {"type": "full-text", "text": ai_text, "turnId": turn_id}):
         return False
 
-    if delivery_plan.total_duration_sec <= 0 and prepared_audio is None:
+    if audio_duration_sec <= 0 and prepared_audio is None and not audio_already_streamed:
         if spec.completion_reason:
             logger.warning(
                 "closing turn proceeding without audio (session=%s, turn=%s)",
@@ -1090,36 +1071,41 @@ async def execute_live_user_followup_turn(
                 turn_id,
             )
             return True
-        logger.warning(
-            "live followup turn proceeding text-only without audio (session=%s, turn=%s)",
-            state.session_id,
-            turn_id,
-        )
-        await deps.send_json(
-            ws,
-            {
-                "type": "warning",
-                "message": "이번 질문 음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-                "turnId": turn_id,
-            },
-        )
         return False
 
-    has_audio = await deps.stream_prepared_ai_delivery(
-        ws,
-        state,
-        delivery_plan=delivery_plan,
-        turn_id=turn_id,
-        emit_delta=delivery_plan.mode != "text-only",
+    has_audio = audio_already_streamed and (
+        audio_duration_sec > 0 or max(0, int(streamed_audio_chunk_count or 0)) > 0
     )
+    if audio_already_streamed:
+        deps.remember_streamed_ai_audio(
+            state,
+            ai_text,
+            audio_duration_sec,
+            delivery_provider,
+        )
+    else:
+        assert delivery_plan is not None
+        has_audio = await deps.stream_prepared_ai_delivery(
+            ws,
+            state,
+            delivery_plan=delivery_plan,
+            turn_id=turn_id,
+            emit_delta=delivery_plan.mode != "text-only",
+        )
+
     if has_audio:
         if not spec.completion_reason:
             deps.arm_playback_resume(
                 ws,
                 state,
                 turn_id=turn_id,
-                timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+                timeout_sec=max(
+                    0.9,
+                    audio_duration_sec + 0.35,
+                    0.08 * max(1, int(streamed_audio_chunk_count or 0)),
+                ),
             )
+        await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=turn_id, deps=deps)
     elif not spec.completion_reason:
         await deps.send_json(
             ws,

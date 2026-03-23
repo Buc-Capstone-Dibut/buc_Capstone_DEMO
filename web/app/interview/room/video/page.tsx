@@ -16,7 +16,7 @@ import {
   LOCAL_INTERVIEW_FALLBACK_USER_ID,
   resolveInterviewBaseUrlFromWsUrl,
 } from "@/lib/interview/dev-auth";
-import { formatTranscriptForDisplay } from "@/lib/transcript-display";
+import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
@@ -27,6 +27,7 @@ interface TranscriptItem {
   role: "user" | "ai";
   text: string;
   timestamp: number;
+  turnId?: string;
 }
 
 interface RuntimeMeta {
@@ -43,6 +44,12 @@ interface RuntimeMeta {
   sessionPaused: boolean;
   reconnectRemainingSec: number;
   runtimeStatus: string;
+}
+
+interface StickyCaption {
+  role: "user" | "ai";
+  text: string;
+  turnId?: string;
 }
 
 const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
@@ -86,6 +93,20 @@ const toStringList = (value: string | null) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const preferLongerCaption = (current: string, candidate: string) => {
+  const normalizedCurrent = (current || "").trim();
+  const normalizedCandidate = (candidate || "").trim();
+
+  if (!normalizedCurrent) return normalizedCandidate;
+  if (!normalizedCandidate) return normalizedCurrent;
+  if (normalizedCandidate.startsWith(normalizedCurrent)) return normalizedCandidate;
+  if (normalizedCurrent.startsWith(normalizedCandidate)) return normalizedCurrent;
+
+  const compactCurrent = normalizedCurrent.replace(/\s+/g, "");
+  const compactCandidate = normalizedCandidate.replace(/\s+/g, "");
+  return compactCandidate.length >= compactCurrent.length ? normalizedCandidate : normalizedCurrent;
+};
+
 export default function InterviewVideoRoomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -122,6 +143,10 @@ export default function InterviewVideoRoomPage() {
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [streamingAiCaption, setStreamingAiCaption] = useState("");
   const [streamingUserCaption, setStreamingUserCaption] = useState("");
+  const [streamingAiTurnId, setStreamingAiTurnId] = useState("");
+  const [streamingUserTurnId, setStreamingUserTurnId] = useState("");
+  const [stickyCaption, setStickyCaption] = useState<StickyCaption | null>(null);
+  const [lastUserFinalCaption, setLastUserFinalCaption] = useState<StickyCaption | null>(null);
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -138,6 +163,7 @@ export default function InterviewVideoRoomPage() {
   const initRetryTimerRef = useRef<number | null>(null);
   const initRetryAttemptedRef = useRef(false);
   const isSessionReadyRef = useRef(false);
+  const captionScrollRef = useRef<HTMLDivElement | null>(null);
 
   const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client";
   const interviewJobData = useMemo(
@@ -377,20 +403,41 @@ export default function InterviewVideoRoomPage() {
     volume,
   } = useOpenLLM({
     serverUrl: wsUrl,
-    onTranscript: (text, role) => {
+    onTranscript: (text, role, meta) => {
       const clean = text.trim();
       if (!clean) return;
+      const turnId = (meta?.turnId || "").trim();
       if (role === "ai") {
-        setStreamingAiCaption("");
+        setStreamingAiCaption((prev) => {
+          if (turnId && streamingAiTurnId && turnId === streamingAiTurnId) {
+            return preferLongerCaption(prev, clean);
+          }
+          return prev;
+        });
       } else {
-        setStreamingUserCaption("");
+        setLastUserFinalCaption({ role: "user", text: clean, turnId });
+        if (!isAISpeaking && !isAIProcessing) {
+          setStreamingAiCaption("");
+          setStreamingAiTurnId("");
+          if (turnId) {
+            setStreamingUserTurnId(turnId);
+          }
+          setStreamingUserCaption((prev) => preferLongerCaption(prev, clean));
+        } else {
+          setStreamingUserCaption((prev) => {
+            if (turnId && streamingUserTurnId && turnId === streamingUserTurnId) {
+              return preferLongerCaption(prev, clean);
+            }
+            return prev;
+          });
+        }
       }
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
-        if (last && last.role === role && last.text === clean) {
+        if (last && last.role === role && last.text === clean && (last.turnId || "") === turnId) {
           return prev;
         }
-        return [...prev, { role, text: clean, timestamp: Date.now() }];
+        return [...prev, { role, text: clean, timestamp: Date.now(), turnId }];
       });
     },
     onEvent: (event) => {
@@ -408,6 +455,10 @@ export default function InterviewVideoRoomPage() {
         }
         setStreamingAiCaption("");
         setStreamingUserCaption("");
+        setStreamingAiTurnId("");
+        setStreamingUserTurnId("");
+        setStickyCaption(null);
+        setLastUserFinalCaption(null);
         setRuntimeMeta((prev) => ({
           ...prev,
           targetDurationSec: toNumber(event.targetDurationSec, prev.targetDurationSec),
@@ -489,12 +540,40 @@ export default function InterviewVideoRoomPage() {
       if (eventType === "transcript.delta" && (event.role === "ai" || event.role === "user")) {
         const accumulated = typeof event.accumulatedText === "string" ? event.accumulatedText : "";
         const delta = typeof event.delta === "string" ? event.delta : "";
+        const turnId = typeof event.turnId === "string" ? event.turnId : "";
         if (event.role === "ai") {
-          setStreamingAiCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
+          const userPreview = streamingUserCaption.trim();
+          const userPreviewTurnId = streamingUserTurnId.trim();
+          if (userPreview) {
+            setLastUserFinalCaption((prev) => {
+              const previousText =
+                prev && prev.turnId === userPreviewTurnId
+                  ? prev.text
+                  : "";
+              return {
+                role: "user",
+                text: preferLongerCaption(previousText, userPreview),
+                turnId: userPreviewTurnId || prev?.turnId || "",
+              };
+            });
+          }
           setStreamingUserCaption("");
+          setStreamingUserTurnId("");
+          setStreamingAiTurnId(turnId);
+          setStreamingAiCaption((prev) => {
+            if (accumulated) return accumulated;
+            if (turnId && turnId !== streamingAiTurnId) return delta;
+            return `${prev}${delta}`;
+          });
         } else {
-          setStreamingUserCaption((prev) => (accumulated ? accumulated : `${prev}${delta}`));
           setStreamingAiCaption("");
+          setStreamingAiTurnId("");
+          setStreamingUserTurnId(turnId);
+          setStreamingUserCaption((prev) => {
+            if (accumulated) return accumulated;
+            if (turnId && turnId !== streamingUserTurnId) return delta;
+            return `${prev}${delta}`;
+          });
         }
       }
     },
@@ -674,11 +753,11 @@ export default function InterviewVideoRoomPage() {
   const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
-  const activeAiCaption = formatTranscriptForDisplay(streamingAiCaption.trim(), "ai");
-  const activeUserCaption = formatTranscriptForDisplay(streamingUserCaption.trim(), "user");
-  const activeCaptionRole: "ai" | "user" | null = activeAiCaption
-    ? "ai"
-    : (activeUserCaption ? "user" : null);
+  const activeAiCaption = formatStreamingTranscriptForDisplay(streamingAiCaption.trim(), "ai");
+  const activeUserCaption = formatStreamingTranscriptForDisplay(streamingUserCaption.trim(), "user");
+  const activeCaptionRole: "ai" | "user" | null = activeUserCaption
+    ? "user"
+    : (activeAiCaption ? "ai" : null);
   const activeCaptionText = activeCaptionRole === "ai" ? activeAiCaption : activeUserCaption;
   const latestCaptionText = latestCaption
     ? formatTranscriptForDisplay(latestCaption.text, latestCaption.role)
@@ -686,6 +765,118 @@ export default function InterviewVideoRoomPage() {
   const previousCaptionText = previousCaption
     ? formatTranscriptForDisplay(previousCaption.text, previousCaption.role)
     : "";
+  const fallbackCaptionRole = stickyCaption?.role ?? null;
+  const fallbackCaptionText = stickyCaption ? formatTranscriptForDisplay(stickyCaption.text, stickyCaption.role) : "";
+  const fallbackCaptionTurnId = stickyCaption?.turnId ?? "";
+  const latestCaptionTurnId = latestCaption?.turnId ?? "";
+  const sameTurnAiCaption =
+    latestCaption?.role === "ai"
+    && latestCaptionTurnId
+    && latestCaptionTurnId === streamingAiTurnId
+      ? preferLongerCaption(activeAiCaption, latestCaptionText)
+      : activeAiCaption;
+  const latestOrFallbackRole =
+    latestCaption && latestCaptionText
+      ? latestCaption.role
+      : fallbackCaptionRole;
+  const stableLatestCaptionText =
+    latestCaption
+      && latestCaptionText
+      && fallbackCaptionRole === latestCaption.role
+      ? preferLongerCaption(latestCaptionText, fallbackCaptionText)
+      : (latestCaptionText || fallbackCaptionText);
+  const aiStickyCaption =
+    fallbackCaptionRole === "ai"
+      ? fallbackCaptionText
+      : "";
+  const resolvedCaptionRole =
+    activeCaptionRole
+    ?? (((isAISpeaking || isAIProcessing) && aiStickyCaption) ? "ai" : latestOrFallbackRole);
+  const resolvedCaptionText =
+    activeUserCaption
+    || sameTurnAiCaption
+    || (((isAISpeaking || isAIProcessing) && aiStickyCaption) ? aiStickyCaption : "")
+    || stableLatestCaptionText;
+  const secondaryCaption = (() => {
+    if ((resolvedCaptionRole === "ai" || isAISpeaking || isAIProcessing) && lastUserFinalCaption?.text) {
+      const userText = formatTranscriptForDisplay(lastUserFinalCaption.text, "user");
+      if (userText && userText !== resolvedCaptionText) {
+        return {
+          role: "user" as const,
+          text: userText,
+          turnId: lastUserFinalCaption.turnId ?? "",
+        };
+      }
+    }
+    const candidates = [
+      latestCaption && latestCaptionText
+        ? { role: latestCaption.role, text: latestCaptionText, turnId: latestCaptionTurnId }
+        : null,
+      previousCaption && previousCaptionText
+        ? { role: previousCaption.role, text: previousCaptionText, turnId: previousCaption.turnId ?? "" }
+        : null,
+      stickyCaption && fallbackCaptionText
+        ? { role: stickyCaption.role, text: fallbackCaptionText, turnId: fallbackCaptionTurnId }
+        : null,
+    ].filter(Boolean) as Array<{ role: "ai" | "user"; text: string; turnId: string }>;
+
+    for (const candidate of candidates) {
+      if (!candidate.text) continue;
+      if (candidate.role === resolvedCaptionRole && candidate.text === resolvedCaptionText) continue;
+      if (resolvedCaptionRole && candidate.role === resolvedCaptionRole) continue;
+      return candidate;
+    }
+    return null;
+  })();
+
+  useEffect(() => {
+    const userText = streamingUserCaption.trim();
+    if (!userText) return;
+    setLastUserFinalCaption((prev) => {
+      const previousText =
+        prev && prev.turnId === streamingUserTurnId
+          ? prev.text
+          : "";
+      return {
+        role: "user",
+        text: preferLongerCaption(previousText, userText),
+        turnId: streamingUserTurnId || prev?.turnId || "",
+      };
+    });
+  }, [streamingUserCaption, streamingUserTurnId]);
+
+  useEffect(() => {
+    if (activeCaptionRole && activeCaptionText) {
+      const nextTurnId =
+        activeCaptionRole === "ai" ? streamingAiTurnId : streamingUserTurnId;
+      setStickyCaption({ role: activeCaptionRole, text: activeCaptionText, turnId: nextTurnId });
+      return;
+    }
+    if (latestCaption && latestCaptionText) {
+      const nextText =
+        latestCaption.role === "ai" && fallbackCaptionRole === "ai" && fallbackCaptionTurnId === latestCaptionTurnId
+          ? preferLongerCaption(latestCaptionText, fallbackCaptionText)
+          : latestCaptionText;
+      setStickyCaption({ role: latestCaption.role, text: nextText, turnId: latestCaptionTurnId });
+    }
+  }, [
+    activeCaptionRole,
+    activeCaptionText,
+    fallbackCaptionRole,
+    fallbackCaptionText,
+    fallbackCaptionTurnId,
+    latestCaption,
+    latestCaptionText,
+    latestCaptionTurnId,
+    streamingAiTurnId,
+    streamingUserTurnId,
+  ]);
+
+  useEffect(() => {
+    const node = captionScrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [activeAiCaption, activeUserCaption, resolvedCaptionText, secondaryCaption?.text, transcript.length]);
 
   const handleMicToggle = async () => {
     if (isReconnecting) return;
@@ -856,26 +1047,19 @@ export default function InterviewVideoRoomPage() {
                 <Captions className="h-3.5 w-3.5" />
                 실시간 자막
               </div>
-              {latestCaption || activeCaptionText ? (
-                <div className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
-                  {previousCaption && !activeCaptionText ? (
-                    <p className="break-words text-[12px] leading-relaxed text-white/60">
-                      {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaptionText}
+              {resolvedCaptionText || activeAiCaption || activeUserCaption ? (
+                <div ref={captionScrollRef} className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
+                  {secondaryCaption ? (
+                    <p className="break-all [overflow-wrap:anywhere] text-[12px] leading-relaxed text-white/60">
+                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
                     </p>
                   ) : null}
-                  {activeCaptionText ? (
-                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
-                      <span className={`mr-1 ${activeCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
-                        {activeCaptionRole === "ai" ? "Dibut" : "나"}:
+                  {resolvedCaptionText ? (
+                    <p className="break-all whitespace-pre-wrap [overflow-wrap:anywhere] text-sm font-medium leading-relaxed">
+                      <span className={`mr-1 ${resolvedCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
+                        {resolvedCaptionRole === "ai" ? "Dibut" : "나"}:
                       </span>
-                      {activeCaptionText}
-                    </p>
-                  ) : latestCaption ? (
-                    <p className="break-words whitespace-pre-wrap text-sm font-medium leading-relaxed">
-                      <span className="mr-1 text-emerald-300">
-                        {latestCaption.role === "ai" ? "Dibut" : "나"}:
-                      </span>
-                      {latestCaptionText}
+                      {resolvedCaptionText}
                     </p>
                   ) : null}
                 </div>

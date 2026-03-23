@@ -87,6 +87,8 @@ node_modules/
 # Output of 'npm pack'
 *.tgz
 
+/src/generated/client/
+
 # Yarn Integrity file
 .yarn-integrity
 

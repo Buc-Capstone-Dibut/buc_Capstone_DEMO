@@ -45,11 +45,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { normalizeTeamType, TEAM_TYPE_OPTIONS } from "@/lib/team-types";
 
 const formSchema = z.object({
   name: z
     .string()
-    .min(2, "워크스페이스 이름은 2글자 이상이어야 합니다.")
+    .min(2, "팀 공간 이름은 2글자 이상이어야 합니다.")
     .max(50),
   category: z.string().min(1, "유형을 선택해주세요."),
   description: z
@@ -70,6 +71,7 @@ type WorkspaceResponse = {
   result_note?: string | null;
   category?: string | null;
   description?: string | null;
+  from_squad_id?: string | null;
 };
 
 const fetcher = async (url: string) => {
@@ -103,12 +105,13 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     data?.lifecycle_status === "COMPLETED" || Boolean(data?.read_only);
   const canDelete =
     workspaceName.length > 0 && deleteConfirmName.trim() === workspaceName;
+  const isSquadOrigin = Boolean(data?.from_squad_id);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      category: "Side Project",
+      category: normalizeTeamType(undefined),
       description: "",
     },
   });
@@ -117,7 +120,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     if (!data) return;
     form.reset({
       name: data.name || "",
-      category: data.category || "Side Project",
+      category: normalizeTeamType(data.category),
       description: data.description || "",
     });
   }, [data, form]);
@@ -146,17 +149,17 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "워크스페이스 저장에 실패했습니다.");
+        throw new Error(data.error || "팀 공간 저장에 실패했습니다.");
       }
 
-      toast.success("워크스페이스 설정이 저장되었습니다.");
+      toast.success("팀 공간 설정이 저장되었습니다.");
       void globalMutate(`/api/workspaces/${projectId}`);
       void globalMutate("/api/workspaces");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "워크스페이스 저장 중 오류가 발생했습니다.",
+          : "팀 공간 저장 중 오류가 발생했습니다.",
       );
     } finally {
       setSaving(false);
@@ -179,10 +182,10 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
 
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result.error || "워크스페이스 종료에 실패했습니다.");
+        throw new Error(result.error || "팀 공간 종료에 실패했습니다.");
       }
 
-      toast.success("워크스페이스가 종료되어 읽기 전용으로 전환되었습니다.");
+      toast.success("팀 공간이 종료되어 읽기 전용으로 전환되었습니다.");
       setCompleteDialogOpen(false);
       void globalMutate(`/api/workspaces/${projectId}`);
       void globalMutate("/api/workspaces");
@@ -191,7 +194,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "워크스페이스 종료 중 오류가 발생했습니다.",
+          : "팀 공간 종료 중 오류가 발생했습니다.",
       );
     } finally {
       setCompleting(false);
@@ -210,11 +213,11 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
         throw new Error(
-          result.error || "워크스페이스 삭제에 실패했습니다. 다시 시도해주세요.",
+          result.error || "팀 공간 삭제에 실패했습니다. 다시 시도해주세요.",
         );
       }
 
-      toast.success("워크스페이스가 삭제되었습니다.");
+      toast.success("팀 공간이 삭제되었습니다.");
       setDeleteDialogOpen(false);
       setDeleteConfirmName("");
       void globalMutate("/api/workspaces");
@@ -224,7 +227,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "워크스페이스 삭제 중 오류가 발생했습니다.",
+          : "팀 공간 삭제 중 오류가 발생했습니다.",
       );
     } finally {
       setDeleting(false);
@@ -235,23 +238,59 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     <div className="mx-auto w-full max-w-3xl space-y-6 pb-12">
       <div>
         <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">워크스페이스 설정</h2>
+          <h2 className="text-xl font-semibold">팀 공간 설정</h2>
           <Badge variant={isCompleted ? "secondary" : "outline"}>
             {isCompleted ? "종료" : "진행중"}
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          이름, 유형, 설명을 이 탭에서 바로 관리할 수 있습니다.
+          이름, 설명{isSquadOrigin ? "" : ", 유형"}을 이 탭에서 바로 관리할 수
+          있습니다.
         </p>
         {isCompleted && (
           <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5">
-            <Lock className="h-3.5 w-3.5" />이 워크스페이스는 종료되어 읽기
+            <Lock className="h-3.5 w-3.5" />이 팀 공간은 종료되어 읽기
             전용 상태입니다.
           </p>
         )}
       </div>
 
       <Separator />
+
+      {isCompleted && (data?.result_type || data?.result_link || data?.result_note) && (
+        <Card className="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              종료 결과
+            </CardTitle>
+            <CardDescription>
+              이 팀 공간은 종료되었고 아래 내용으로 기록이 남아 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {data?.result_type && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground">결과 타입</span>
+                <Badge variant="secondary">{data.result_type}</Badge>
+              </div>
+            )}
+            {data?.result_note && (
+              <p className="text-foreground leading-relaxed">{data.result_note}</p>
+            )}
+            {data?.result_link && (
+              <a
+                href={data.result_link}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-primary underline underline-offset-4"
+              >
+                결과 링크 열기
+              </a>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
@@ -279,7 +318,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                       <FormLabel>이름</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="워크스페이스 이름"
+                          placeholder="팀 공간 이름"
                           disabled={isCompleted}
                           {...field}
                         />
@@ -289,39 +328,39 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>유형</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isCompleted}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="워크스페이스 유형 선택" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Side Project">
-                            사이드 프로젝트
-                          </SelectItem>
-                          <SelectItem value="Startup">스타트업</SelectItem>
-                          <SelectItem value="Competition">
-                            공모전/대회
-                          </SelectItem>
-                          <SelectItem value="School">학교/동아리</SelectItem>
-                          <SelectItem value="Personal">개인용</SelectItem>
-                          <SelectItem value="Enterprise">기업</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!isSquadOrigin && (
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>유형</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={isCompleted}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="팀 공간 유형 선택" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TEAM_TYPE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
@@ -331,7 +370,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                       <FormLabel>설명 (선택)</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="프로젝트 설명"
+                          placeholder="팀 공간 설명"
                           className="resize-none"
                           disabled={isCompleted}
                           {...field}
@@ -362,17 +401,17 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         <CardHeader className="pb-3 border-b border-border/40">
           <CardTitle className="flex items-center gap-2 text-base">
             <Settings className="h-4 w-4" />
-            워크스페이스 관리
+            팀 공간 관리
           </CardTitle>
           <CardDescription>
-            워크스페이스의 상태를 변경하거나 데이터를 영구적으로 삭제할 수
+            팀 공간의 상태를 변경하거나 데이터를 영구적으로 삭제할 수
             있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <h4 className="text-sm font-medium">워크스페이스 종료</h4>
+              <h4 className="text-sm font-medium">팀 공간 종료</h4>
               <p className="text-sm text-muted-foreground leading-snug">
                 새로운 멤버를 초대할 수 없게 되며 읽기 전용으로 종료됩니다.
               </p>
@@ -392,10 +431,10 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <h4 className="text-sm font-medium text-destructive">
-                워크스페이스 삭제
+                팀 공간 삭제
               </h4>
               <p className="text-sm text-muted-foreground leading-snug">
-                워크스페이스와 관련된 모든 데이터가 삭제되며 되돌릴 수 없습니다.
+                팀 공간과 관련된 모든 데이터가 삭제되며 되돌릴 수 없습니다.
               </p>
             </div>
             <Button
@@ -425,7 +464,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>워크스페이스 종료</DialogTitle>
+            <DialogTitle>팀 공간 종료</DialogTitle>
             <DialogDescription>
               종료하면 모든 쓰기 기능이 차단되고 읽기 전용으로 전환됩니다.
             </DialogDescription>
@@ -498,29 +537,29 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>워크스페이스 삭제</DialogTitle>
+            <DialogTitle>팀 공간 삭제</DialogTitle>
             <DialogDescription>
               이 작업은 되돌릴 수 없습니다. 아래 안내를 확인하고 정확한
-              워크스페이스 이름을 입력해야 삭제가 가능합니다.
+              팀 공간 이름을 입력해야 삭제가 가능합니다.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-foreground">
-              삭제하려면 워크스페이스 이름{" "}
+              삭제하려면 팀 공간 이름{" "}
               <span className="font-bold">{workspaceName}</span>을(를) 정확히
               입력하세요.
             </p>
             <div className="space-y-2">
-              <Input
-                value={deleteConfirmName}
+                <Input
+                  value={deleteConfirmName}
                 onChange={(e) => setDeleteConfirmName(e.target.value)}
                 placeholder="프로젝트 이름을 입력해 주세요"
                 autoComplete="off"
               />
               {!canDelete && deleteConfirmName.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  입력한 이름이 워크스페이스 이름과 일치하지 않습니다.
+                  입력한 이름이 팀 공간 이름과 일치하지 않습니다.
                 </p>
               )}
             </div>

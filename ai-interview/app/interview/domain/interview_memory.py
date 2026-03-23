@@ -189,6 +189,35 @@ def derive_question_type_preference(
     return candidates[0] if candidates else None
 
 
+def select_question_strategy(
+    state: VoiceWsState,
+    answer_text: str,
+    *,
+    is_closing: bool = False,
+) -> tuple[str, str]:
+    normalized_answer = re.sub(r"\s+", " ", (answer_text or "")).strip()
+    if is_closing:
+        return "transition", select_next_question_type(state, preferred="priority_judgment")
+
+    if not normalized_answer:
+        retry_type = (state.recent_question_types[-1] if state.recent_question_types else "").strip()
+        return "retry", retry_type or "motivation_validation"
+
+    preferred = derive_question_type_preference(state, normalized_answer, False)
+    last_type = (state.recent_question_types[-1] if state.recent_question_types else "").strip()
+
+    if preferred and preferred != last_type:
+        return "followup", preferred
+
+    if preferred and preferred == last_type:
+        return "transition", select_next_question_type(state)
+
+    if not last_type:
+        return "followup", select_next_question_type(state, preferred="motivation_validation")
+
+    return "transition", select_next_question_type(state, preferred=preferred)
+
+
 def select_next_question_type(state: VoiceWsState, *, preferred: str | None = None) -> str:
     normalized_preferred = (preferred or "").strip()
     if normalized_preferred:
@@ -235,5 +264,6 @@ __all__ = [
     "record_question_type",
     "remember_model_turn",
     "remember_user_turn",
+    "select_question_strategy",
     "select_next_question_type",
 ]

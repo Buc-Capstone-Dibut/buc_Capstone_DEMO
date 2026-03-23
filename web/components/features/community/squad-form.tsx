@@ -2,8 +2,6 @@
 
 import { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createSquad } from "@/lib/actions/community";
-import { testServerAction } from "@/lib/actions/test";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import dynamic from "next/dynamic";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,6 +27,11 @@ import {
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
+import {
+  normalizeTeamType,
+  TEAM_TYPE_OPTIONS,
+  type TeamType,
+} from "@/lib/team-types";
 
 // Dynamic import for Editor
 const MarkdownEditor = dynamic(
@@ -59,6 +62,8 @@ interface SquadFormProps {
   };
 }
 
+type PlaceType = NonNullable<SquadFormProps["initialData"]>["place_type"];
+
 export default function SquadForm({ initialData }: SquadFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,6 +75,9 @@ export default function SquadForm({ initialData }: SquadFormProps) {
   const [content, setContent] = useState(initialData?.content || "");
   const [placeType, setPlaceType] = useState(
     initialData?.place_type || "online",
+  );
+  const [teamType, setTeamType] = useState<TeamType>(
+    normalizeTeamType(initialData?.type),
   );
   const [date, setDate] = useState<Date | undefined>(
     initialData?.recruitment_period ? new Date(initialData.recruitment_period) : undefined,
@@ -136,7 +144,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       const payload = {
         title: titleVal,
         content,
-        type: "general",
+        type: teamType,
         capacity: capacityVal,
         tech_stack: noTechStack ? [] : tags,
         place_type: placeType,
@@ -163,13 +171,13 @@ export default function SquadForm({ initialData }: SquadFormProps) {
         setLoading(false);
       } else {
         toast.success(
-          isEdit ? "모집글이 수정되었습니다." : "모집글이 등록되었습니다.",
+          isEdit ? "팀 정보가 수정되었습니다." : "팀이 등록되었습니다.",
         );
         router.push(`/community/squad/${isEdit ? initialData.id : result.id}`);
         router.refresh();
       }
-    } catch (e: any) {
-      console.error(e);
+    } catch (error: unknown) {
+      console.error(error);
       toast.error("전송 중 오류가 발생했습니다.");
       setLoading(false);
     }
@@ -189,10 +197,10 @@ export default function SquadForm({ initialData }: SquadFormProps) {
           </div>
           <div>
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              {activityTitle || "대외활동"} 팀원 모집
+              {activityTitle || "대외활동"} 연계 팀 만들기
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              이 모집글은 해당 활동 페이지에도 노출됩니다.
+              이 팀은 해당 활동 페이지에도 함께 노출됩니다.
             </p>
           </div>
         </div>
@@ -200,6 +208,26 @@ export default function SquadForm({ initialData }: SquadFormProps) {
 
       {/* Basic Info Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="space-y-2">
+          <Label htmlFor="team_type">팀 유형</Label>
+          <Select
+            value={teamType}
+            onValueChange={(value: TeamType) => setTeamType(value)}
+            name="team_type"
+          >
+            <SelectTrigger id="team_type">
+              <SelectValue placeholder="팀 유형 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              {TEAM_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="recruitment_period">모집 기간</Label>
           <div className="flex flex-col gap-1.5">
@@ -227,7 +255,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
               </PopoverContent>
             </Popover>
             <p className="text-[0.75rem] text-muted-foreground leading-none px-1">
-              * 미선택 시 '상시 모집'으로 표시됩니다.
+              * 미선택 시 상시 모집으로 표시됩니다.
             </p>
           </div>
         </div>
@@ -250,7 +278,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
           <Label htmlFor="place_type">진행 방식</Label>
           <Select
             value={placeType}
-            onValueChange={(val: any) => setPlaceType(val)}
+            onValueChange={(value) => setPlaceType(value as PlaceType)}
             name="place_type"
           >
             <SelectTrigger>
@@ -347,7 +375,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
           id="title"
           name="title"
           defaultValue={initialData?.title || ""}
-          placeholder="모집글 제목을 입력하세요"
+          placeholder="팀 제목을 입력하세요"
           required
           className="text-lg font-medium"
         />
@@ -388,7 +416,7 @@ export default function SquadForm({ initialData }: SquadFormProps) {
         {/* Manual submit handler */}
         <Button type="button" onClick={handleManualSubmit} disabled={loading}>
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {initialData ? "수정 완료" : "작성 완료"}
+          {initialData ? "팀 수정하기" : "팀 만들기"}
         </Button>
       </div>
     </form>

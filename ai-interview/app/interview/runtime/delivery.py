@@ -260,7 +260,7 @@ async def replay_last_model_turn(
                 ws,
                 state,
                 turn_id=turn_id,
-                timeout_sec=max(1.2, delivery_plan.total_duration_sec + 0.8),
+                timeout_sec=max(0.9, delivery_plan.total_duration_sec + 0.35),
             )
         else:
             await deps.resume_listening(ws, state, turn_id=turn_id)

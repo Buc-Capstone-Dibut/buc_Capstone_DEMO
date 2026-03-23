@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
-const MIC_RESTART_COOLDOWN_MS = 280;
+const AUDIO_DRAIN_SETTLE_MS = 80;
+const MIC_RESTART_COOLDOWN_MS = 120;
 const RECONNECT_BASE_DELAY_MS = 900;
 const RECONNECT_MAX_DELAY_MS = 4000;
 
@@ -24,7 +25,11 @@ export interface WsInterviewInitPayload {
 
 interface UseOpenLLMProps {
   serverUrl?: string;
-  onTranscript?: (text: string, role: "user" | "ai") => void;
+  onTranscript?: (
+    text: string,
+    role: "user" | "ai",
+    meta?: { turnId?: string },
+  ) => void;
   onEvent?: (event: Record<string, unknown>) => void;
 }
 
@@ -36,12 +41,6 @@ interface PendingAudioChunk {
   audio: number[];
   sampleRate: number;
   turnSeq: number;
-}
-
-interface PendingTurnAudioBuffer {
-  chunkCount: number;
-  chunks: Array<number[] | null>;
-  sampleRate: number;
 }
 
 function decodePcm16Base64(base64Data: unknown): number[] {
@@ -74,26 +73,6 @@ function extractTurnSeq(turnId: unknown): number {
   return Number.isFinite(seq) && seq > 0 ? seq : 0;
 }
 
-function mergeAudioChunks(chunks: Array<number[] | null>): number[] {
-  const orderedChunks = chunks.filter((chunk): chunk is number[] => Array.isArray(chunk) && chunk.length > 0);
-  if (!orderedChunks.length) return [];
-
-  let totalLength = 0;
-  for (const chunk of orderedChunks) {
-    totalLength += chunk.length;
-  }
-
-  const merged = new Array<number>(totalLength);
-  let offset = 0;
-  for (const chunk of orderedChunks) {
-    for (let i = 0; i < chunk.length; i += 1) {
-      merged[offset + i] = chunk[i];
-    }
-    offset += chunk.length;
-  }
-  return merged;
-}
-
 export function useOpenLLM({
   serverUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client",
   onTranscript,
@@ -114,7 +93,6 @@ export function useOpenLLM({
   const pendingStartMicRef = useRef(false);
   const queuedAudioSourcesRef = useRef(0);
   const pendingAudioQueueRef = useRef<PendingAudioChunk[]>([]);
-  const pendingTurnAudioBuffersRef = useRef<Record<string, PendingTurnAudioBuffer>>({});
   const lastAudioSignatureRef = useRef("");
   const latestAiTurnSeqRef = useRef(0);
   const pendingPlaybackCompleteTurnIdRef = useRef("");
@@ -123,6 +101,7 @@ export function useOpenLLM({
   const audioUnlockedRef = useRef(false);
   const lastAudioUnlockNoticeAtRef = useRef(0);
   const pendingMicRestartTimerRef = useRef<number | null>(null);
+  const pendingPlaybackDrainTimerRef = useRef<number | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const manualDisconnectRef = useRef(false);
@@ -198,6 +177,12 @@ export function useOpenLLM({
     reconnectTimerRef.current = null;
   }, []);
 
+  const clearPendingPlaybackDrainCheck = useCallback(() => {
+    if (pendingPlaybackDrainTimerRef.current === null) return;
+    window.clearTimeout(pendingPlaybackDrainTimerRef.current);
+    pendingPlaybackDrainTimerRef.current = null;
+  }, []);
+
   const schedulePendingMicRestart = useCallback(() => {
     clearPendingMicRestart();
     pendingMicRestartTimerRef.current = window.setTimeout(() => {
@@ -228,6 +213,65 @@ export function useOpenLLM({
     return true;
   }, [sendJson]);
 
+  const hasPendingAiAudio = useCallback((ctx?: AudioContext | null) => {
+    const currentCtx = ctx ?? audioContextRef.current;
+    return (
+      queuedAudioSourcesRef.current > 0
+      || pendingAudioQueueRef.current.length > 0
+      || (Boolean(currentCtx) && nextStartTimeRef.current > (currentCtx?.currentTime || 0) + 0.02)
+    );
+  }, []);
+
+  const finalizeAiPlaybackIfDrained = useCallback((ctx?: AudioContext | null) => {
+    const currentCtx = ctx ?? audioContextRef.current;
+    if (hasPendingAiAudio(currentCtx)) {
+      return false;
+    }
+
+    clearPendingPlaybackDrainCheck();
+    if (currentCtx) {
+      nextStartTimeRef.current = currentCtx.currentTime;
+    } else {
+      nextStartTimeRef.current = 0;
+    }
+    setIsAISpeaking(false);
+
+    const completedTurnId = pendingPlaybackCompleteTurnIdRef.current;
+    if (completedTurnId) {
+      sendPlaybackComplete(completedTurnId);
+    }
+
+    if (pendingStartMicRef.current && !isMicStreamingRef.current && !isMicStartingRef.current) {
+      schedulePendingMicRestart();
+    }
+    return true;
+  }, [clearPendingPlaybackDrainCheck, hasPendingAiAudio, schedulePendingMicRestart, sendPlaybackComplete]);
+
+  const schedulePlaybackDrainCheck = useCallback((ctx?: AudioContext | null) => {
+    const currentCtx = ctx ?? audioContextRef.current;
+    if (!currentCtx) return;
+    clearPendingPlaybackDrainCheck();
+
+    const remainingSec = Math.max(0, nextStartTimeRef.current - currentCtx.currentTime);
+    const delayMs = Math.max(
+      AUDIO_DRAIN_SETTLE_MS,
+      Math.ceil(remainingSec * 1000) + AUDIO_DRAIN_SETTLE_MS,
+    );
+
+    pendingPlaybackDrainTimerRef.current = window.setTimeout(() => {
+      pendingPlaybackDrainTimerRef.current = null;
+      if (finalizeAiPlaybackIfDrained(currentCtx)) return;
+
+      if (
+        queuedAudioSourcesRef.current === 0 &&
+        pendingAudioQueueRef.current.length === 0 &&
+        nextStartTimeRef.current > currentCtx.currentTime + 0.02
+      ) {
+        schedulePlaybackDrainCheck(currentCtx);
+      }
+    }, delayMs);
+  }, [clearPendingPlaybackDrainCheck, finalizeAiPlaybackIfDrained]);
+
   const scheduleAudioChunk = useCallback((audioData: number[], sampleRate: number): boolean => {
     const ctx = getOrCreateAudioContext();
     if (!ctx || !audioData.length || ctx.state !== "running") return false;
@@ -255,25 +299,16 @@ export function useOpenLLM({
 
     source.onended = () => {
       queuedAudioSourcesRef.current = Math.max(0, queuedAudioSourcesRef.current - 1);
-      const hasQueuedAudio =
-        queuedAudioSourcesRef.current > 0 ||
-        nextStartTimeRef.current > ctx.currentTime + 0.03 ||
-        pendingAudioQueueRef.current.length > 0;
-      if (!hasQueuedAudio) {
-        nextStartTimeRef.current = ctx.currentTime;
-        setIsAISpeaking(false);
-        const completedTurnId = pendingPlaybackCompleteTurnIdRef.current;
-        if (completedTurnId) {
-          sendPlaybackComplete(completedTurnId);
-        }
-        if (pendingStartMicRef.current) {
-          schedulePendingMicRestart();
-        }
+      if (finalizeAiPlaybackIfDrained(ctx)) {
+        return;
+      }
+      if (queuedAudioSourcesRef.current === 0 && pendingAudioQueueRef.current.length === 0) {
+        schedulePlaybackDrainCheck(ctx);
       }
     };
 
     return true;
-  }, [getOrCreateAudioContext, schedulePendingMicRestart, sendPlaybackComplete]);
+  }, [finalizeAiPlaybackIfDrained, getOrCreateAudioContext, schedulePlaybackDrainCheck]);
 
   const flushPendingAudioQueue = useCallback(() => {
     if (!audioUnlockedRef.current) return;
@@ -344,9 +379,10 @@ export function useOpenLLM({
       }
       clearPendingMicRestart();
       clearReconnectTimer();
+      clearPendingPlaybackDrainCheck();
       audioContextRef.current?.close();
     };
-  }, [clearPendingMicRestart, clearReconnectTimer, unlockAudioContext]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, unlockAudioContext]);
 
   const initInterviewSession = useCallback((payload: WsInterviewInitPayload = {}) => {
     lastInitPayloadRef.current = {
@@ -390,7 +426,7 @@ export function useOpenLLM({
         return;
       }
 
-      audioProcessorRef.current = new AudioProcessor((data) => {
+      audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
         if (!isMicStreamingRef.current) return;
 
         let sum = 0;
@@ -404,6 +440,7 @@ export function useOpenLLM({
           socketRef.current.send(JSON.stringify({
             type: "raw-audio-data",
             audio: Array.from(data),
+            sampleRate,
           }));
         }
       });
@@ -458,10 +495,10 @@ export function useOpenLLM({
     manualDisconnectRef.current = true;
     clearReconnectTimer();
     clearPendingMicRestart();
+    clearPendingPlaybackDrainCheck();
     pendingStartMicRef.current = false;
     queuedAudioSourcesRef.current = 0;
     pendingAudioQueueRef.current = [];
-    pendingTurnAudioBuffersRef.current = {};
     nextStartTimeRef.current = 0;
     lastAudioSignatureRef.current = "";
     latestAiTurnSeqRef.current = 0;
@@ -474,7 +511,7 @@ export function useOpenLLM({
     stopMic(false);
     setIsAIProcessing(false);
     setIsAISpeaking(false);
-  }, [clearPendingMicRestart, clearReconnectTimer, stopMic]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, stopMic]);
 
   const handleServerMessage = useCallback((data: unknown) => {
     if (!data || typeof data !== "object") return;
@@ -532,53 +569,17 @@ export function useOpenLLM({
         return;
       }
 
-      const chunkIndex =
-        typeof event.chunkIndex === "number" && event.chunkIndex >= 0 ? event.chunkIndex : 0;
-      const chunkCount =
-        typeof event.chunkCount === "number" && event.chunkCount > 0
-          ? event.chunkCount
-          : Math.max(chunkIndex + 1, 1);
-
-      const existingBuffer = pendingTurnAudioBuffersRef.current[turnId];
-      const audioBuffer: PendingTurnAudioBuffer = existingBuffer
-        ? {
-            ...existingBuffer,
-            sampleRate,
-            chunkCount: Math.max(existingBuffer.chunkCount, chunkCount),
-            chunks:
-              existingBuffer.chunks.length >= chunkCount
-                ? [...existingBuffer.chunks]
-                : [
-                    ...existingBuffer.chunks,
-                    ...Array.from({ length: chunkCount - existingBuffer.chunks.length }, () => null),
-                  ],
-          }
-        : {
-            chunkCount,
-            chunks: Array.from({ length: chunkCount }, () => null),
-            sampleRate,
-          };
-
-      audioBuffer.chunks[chunkIndex] = audio;
-      pendingTurnAudioBuffersRef.current[turnId] = audioBuffer;
-
-      if (event.isFinalChunk !== true) {
-        return;
-      }
-
-      const mergedAudio = mergeAudioChunks(audioBuffer.chunks);
-      delete pendingTurnAudioBuffersRef.current[turnId];
-      if (!mergedAudio.length) return;
-
-      pendingPlaybackCompleteTurnIdRef.current = turnId;
       clearPendingMicRestart();
-      const scheduled = playAudioChunk(mergedAudio, audioBuffer.sampleRate, turnSeq);
+      const scheduled = playAudioChunk(audio, sampleRate, turnSeq);
       if (!scheduled) return;
       if (isMicStreamingRef.current) {
         pauseMic(false);
       }
       setIsAIProcessing(false);
       setIsAISpeaking(true);
+      if (event.isFinalChunk === true) {
+        pendingPlaybackCompleteTurnIdRef.current = turnId;
+      }
       return;
     }
 
@@ -590,7 +591,9 @@ export function useOpenLLM({
             latestAiTurnSeqRef.current = Math.max(latestAiTurnSeqRef.current, turnSeq);
           }
         }
-        onTranscriptRef.current?.(event.text, event.role);
+        onTranscriptRef.current?.(event.text, event.role, {
+          turnId: typeof event.turnId === "string" ? event.turnId : "",
+        });
       }
       return;
     }
@@ -622,9 +625,10 @@ export function useOpenLLM({
         setIsAISpeaking(true);
       } else if (avatarState === "listening" || avatarState === "idle") {
         setIsAIProcessing(false);
-        const hasQueuedAudio = queuedAudioSourcesRef.current > 0;
-        if (!hasQueuedAudio) {
-          setIsAISpeaking(false);
+        if (!finalizeAiPlaybackIfDrained(audioContextRef.current)) {
+          if (queuedAudioSourcesRef.current === 0 && pendingAudioQueueRef.current.length === 0) {
+            schedulePlaybackDrainCheck(audioContextRef.current);
+          }
         }
       }
       return;
@@ -635,11 +639,11 @@ export function useOpenLLM({
 
       if (controlText === "interrupt") {
         clearPendingMicRestart();
+        clearPendingPlaybackDrainCheck();
         pendingStartMicRef.current = false;
         nextStartTimeRef.current = 0;
         queuedAudioSourcesRef.current = 0;
         pendingAudioQueueRef.current = [];
-        pendingTurnAudioBuffersRef.current = {};
         pendingPlaybackCompleteTurnIdRef.current = "";
         lastStartMicTurnIdRef.current = "";
         setIsAIProcessing(false);
@@ -672,20 +676,36 @@ export function useOpenLLM({
         }
 
         const ctx = audioContextRef.current;
-        const hasQueuedAudio =
-          queuedAudioSourcesRef.current > 0 ||
-          (Boolean(ctx) && nextStartTimeRef.current > (ctx?.currentTime || 0) + 0.02);
+        const hasQueuedAudio = hasPendingAiAudio(ctx);
 
         if (hasQueuedAudio) {
           pendingStartMicRef.current = true;
+          if (queuedAudioSourcesRef.current === 0 && pendingAudioQueueRef.current.length === 0) {
+            schedulePlaybackDrainCheck(ctx);
+          }
         } else {
+          const pendingTurnId = pendingPlaybackCompleteTurnIdRef.current.trim();
+          if (pendingTurnId) {
+            sendPlaybackComplete(pendingTurnId);
+          }
           pendingStartMicRef.current = false;
           clearPendingMicRestart();
           void startMic();
         }
       }
+
+      if (controlText === "audio-turn-end") {
+        const completedTurnId = typeof event.turnId === "string" ? event.turnId.trim() : "";
+        if (completedTurnId) {
+          pendingPlaybackCompleteTurnIdRef.current = completedTurnId;
+        }
+        const ctx = audioContextRef.current;
+        if (!finalizeAiPlaybackIfDrained(ctx) && queuedAudioSourcesRef.current === 0 && pendingAudioQueueRef.current.length === 0) {
+          schedulePlaybackDrainCheck(ctx);
+        }
+      }
     }
-  }, [clearPendingMicRestart, pauseMic, playAudioChunk, startMic]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, finalizeAiPlaybackIfDrained, hasPendingAiAudio, pauseMic, playAudioChunk, schedulePlaybackDrainCheck, sendPlaybackComplete, startMic]);
 
   const connect = useCallback(() => {
     if (
@@ -732,9 +752,9 @@ export function useOpenLLM({
     ws.onclose = () => {
       setIsConnected(false);
       clearPendingMicRestart();
+      clearPendingPlaybackDrainCheck();
       stopMic(false);
       pendingAudioQueueRef.current = [];
-      pendingTurnAudioBuffersRef.current = {};
       pendingPlaybackCompleteTurnIdRef.current = "";
       lastCompletedPlaybackTurnIdRef.current = "";
       lastStartMicTurnIdRef.current = "";
@@ -772,7 +792,7 @@ export function useOpenLLM({
         console.error("Failed to parse message:", error);
       }
     };
-  }, [clearPendingMicRestart, clearReconnectTimer, handleServerMessage, serverUrl, stopMic]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, handleServerMessage, serverUrl, stopMic]);
 
   return {
     connect,

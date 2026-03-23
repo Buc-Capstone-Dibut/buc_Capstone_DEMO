@@ -14,11 +14,14 @@ AUDIO_END_MESSAGE_TYPES = {"mic-audio-end", "flush-audio", "end-utterance"}
 
 @dataclass(frozen=True)
 class ClientMessageRouterDeps:
+    runtime_architecture: str
     send_json: Callable[..., Awaitable[bool]]
     send_avatar_state: Callable[..., Awaitable[bool]]
     handle_session_init: Callable[..., Awaitable[None]]
     coerce_audio_chunk: Callable[[Any], list[float]]
     enqueue_user_segment: Callable[..., Awaitable[None]]
+    begin_live_input_stream: Callable[..., Awaitable[bool]] | None
+    push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None
     reset_realtime_user_transcript: Callable[[VoiceWsState], None]
     resume_listening: Callable[..., Awaitable[Any]]
     cancel_playback_resume_task: Callable[[VoiceWsState], None]
@@ -64,6 +67,24 @@ async def handle_client_message(
         audio_chunk = deps.coerce_audio_chunk(data.get("audio"))
         if not audio_chunk:
             return
+        sample_rate = data.get("sampleRate")
+        try:
+            normalized_sample_rate = int(float(sample_rate)) if sample_rate is not None else int(state.vad.sample_rate)
+        except (TypeError, ValueError):
+            normalized_sample_rate = int(state.vad.sample_rate)
+        if normalized_sample_rate < 8000:
+            normalized_sample_rate = int(state.vad.sample_rate or 16000)
+        state.vad.sample_rate = normalized_sample_rate
+
+        if (
+            (deps.runtime_architecture or "").strip().lower() == "live-only"
+            and not state.processing_audio
+        ):
+            live_input_ready = state.live_input_turn_active
+            if deps.begin_live_input_stream is not None and not live_input_ready:
+                live_input_ready = await deps.begin_live_input_stream(ws, state)
+            if deps.push_live_input_audio_chunk is not None and live_input_ready:
+                await deps.push_live_input_audio_chunk(state, audio_chunk, normalized_sample_rate)
 
         if (
             state.pending_user_segments
@@ -74,7 +95,11 @@ async def handle_client_message(
             chunk_duration_ms = len(audio_chunk) / max(state.vad.sample_rate, 1) * 1000.0
             if state.vad.is_speech_chunk(audio_chunk):
                 state.pending_segment_resume_ms += chunk_duration_ms
-                resume_threshold_ms = max(160.0, float(state.vad.speech_start_ms))
+                architecture = (deps.runtime_architecture or "").strip().lower()
+                resume_threshold_ms = max(
+                    80.0 if architecture == "live-only" else 160.0,
+                    float(state.vad.speech_start_ms) * (0.55 if architecture == "live-only" else 1.0),
+                )
                 if state.pending_segment_resume_ms >= resume_threshold_ms:
                     state.pending_user_segment_task.cancel()
                     state.pending_user_segment_task = None
@@ -112,8 +137,18 @@ async def handle_client_message(
             await deps.enqueue_user_segment(ws, state, b"", flush_now=True)
         else:
             state.pending_segment_resume_ms = 0.0
-            deps.reset_realtime_user_transcript(state)
-            await deps.resume_listening(ws, state)
+            if (
+                (deps.runtime_architecture or "").strip().lower() == "live-only"
+                and (
+                    state.live_input_turn_active
+                    or state.live_input_streamed_user_text
+                    or state.live_input_streamed_ai_text
+                )
+            ):
+                await deps.enqueue_user_segment(ws, state, b"", flush_now=True)
+            else:
+                deps.reset_realtime_user_transcript(state)
+                await deps.resume_listening(ws, state)
         return
 
     if msg_type == "audio-playback-complete":

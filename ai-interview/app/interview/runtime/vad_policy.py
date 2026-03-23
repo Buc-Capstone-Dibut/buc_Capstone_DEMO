@@ -10,6 +10,8 @@ def retune_vad_for_next_turn(
     utterance_duration_ms: float,
     short_answer: bool,
 ) -> None:
+    architecture = (settings.voice_runtime_architecture or "").strip().lower()
+    live_only = architecture == "live-only"
     if utterance_duration_ms > 0:
         state.recent_user_durations_ms.append(float(utterance_duration_ms))
         if len(state.recent_user_durations_ms) > 5:
@@ -27,30 +29,45 @@ def retune_vad_for_next_turn(
     turn_end_grace_ms = settings.voice_turn_end_grace_ms
 
     if short_answer:
-        silence_ms -= 70
-        short_silence_ms -= 180
-        turn_end_grace_ms -= 30
+        if live_only:
+            silence_ms += 20
+            short_silence_ms += 60
+            turn_end_grace_ms += 5
+        else:
+            silence_ms -= 70
+            short_silence_ms -= 180
+            turn_end_grace_ms -= 30
     elif avg_ms >= 5200:
-        silence_ms += 70
-        short_silence_ms += 110
-        turn_end_grace_ms += 20
-    elif avg_ms >= 3200:
-        silence_ms += 35
-        short_silence_ms += 55
+        silence_ms += 30
+        short_silence_ms += 40
         turn_end_grace_ms += 10
+    elif avg_ms >= 3200:
+        silence_ms += 15
+        short_silence_ms += 20
+        turn_end_grace_ms += 5
     elif avg_ms and avg_ms <= 1800:
         silence_ms -= 35
         short_silence_ms -= 80
         turn_end_grace_ms -= 20
 
     if state.short_reprompt_streak >= 2:
-        silence_ms -= 20
-        short_silence_ms -= 40
-        turn_end_grace_ms -= 10
+        if live_only:
+            silence_ms += 10
+            short_silence_ms += 25
+        else:
+            silence_ms -= 20
+            short_silence_ms -= 40
+            turn_end_grace_ms -= 10
 
-    silence_ms = max(420, min(short_silence_ms - 120, silence_ms))
-    short_silence_ms = max(silence_ms + 140, min(1600, short_silence_ms))
-    turn_end_grace_ms = max(60, min(180, turn_end_grace_ms))
+    silence_floor = 900 if live_only else 420
+    short_silence_floor = 1500 if live_only else 560
+    short_gap_floor = 240 if live_only else 140
+    grace_floor = 120 if live_only else 60
+    grace_cap = 260 if live_only else 180
+
+    silence_ms = max(silence_floor, min(short_silence_ms - 120, silence_ms))
+    short_silence_ms = max(max(silence_ms + short_gap_floor, short_silence_floor), min(1800, short_silence_ms))
+    turn_end_grace_ms = max(grace_floor, min(grace_cap, turn_end_grace_ms))
 
     state.turn_end_grace_sec = turn_end_grace_ms / 1000.0
     state.vad.reconfigure(

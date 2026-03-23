@@ -4,13 +4,13 @@ import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
-from app.interview.domain.turn_text import sanitize_user_turn_text
+from app.interview.domain.turn_text import sanitize_user_turn_text, score_user_transcript_text
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
 from app.interview.runtime.live_turns import prepare_live_user_followup, prepare_live_user_request
 from app.interview.runtime.orchestration import (
@@ -126,7 +126,7 @@ def _score_user_text(candidate: str, *, utterance_duration_ms: float) -> int:
     if not normalized:
         return 0
 
-    score = len(re.findall(r"[0-9A-Za-z가-힣]", normalized))
+    score = score_user_transcript_text(normalized)
     if _looks_like_complete_user_text(normalized):
         score += 40
     if utterance_duration_ms >= 2800 and len(normalized) >= 18:
@@ -156,6 +156,141 @@ def _select_best_user_text(
         candidates,
         key=lambda candidate: _score_user_text(candidate, utterance_duration_ms=utterance_duration_ms),
     )
+
+
+def _should_request_fallback_stt(
+    *,
+    realtime_user_text: str,
+    utterance_duration_ms: float,
+) -> bool:
+    normalized = sanitize_user_turn_text(realtime_user_text)
+    if not normalized:
+        return True
+
+    compact_len = len(re.findall(r"[0-9A-Za-z가-힣]", normalized))
+    if utterance_duration_ms >= 2200 and compact_len < 18:
+        return True
+    if utterance_duration_ms >= 1600 and not _looks_like_complete_user_text(normalized):
+        return True
+    return False
+
+
+def _runtime_architecture(deps: SessionEngineDeps) -> str:
+    normalized = (getattr(deps, "runtime_architecture", "hybrid") or "hybrid").strip().lower()
+    return "live-only" if normalized == "live-only" else "hybrid"
+
+
+def _segment_drain_delay_sec(
+    state: VoiceWsState,
+    *,
+    reason: str,
+    architecture: str,
+) -> float:
+    drain_delay_sec = state.turn_end_grace_sec
+    if architecture == "live-only":
+        if reason == "max_segment":
+            return max(min(drain_delay_sec, 0.24), 0.16)
+        if reason in {"silence", "short_utterance_silence"}:
+            return max(min(drain_delay_sec, 0.24), 0.18)
+        return max(drain_delay_sec, 0.16)
+
+    if reason == "max_segment":
+        return max(min(drain_delay_sec, 0.08), 0.05)
+    if reason in {"silence", "short_utterance_silence"}:
+        return max(min(drain_delay_sec, 0.03), 0.01)
+    return drain_delay_sec
+
+
+def _has_live_input_stream_result(state: VoiceWsState) -> bool:
+    return bool(
+        state.live_input_turn_active
+        or state.live_input_turn_id
+        or state.live_input_streamed_user_text
+        or state.live_input_streamed_ai_text
+        or state.live_input_streamed_audio_chunk_count > 0
+        or state.live_input_streamed_audio_duration_sec > 0
+    )
+
+
+def _has_captured_live_input_stream_result(
+    *,
+    turn_id: str,
+    user_text: str,
+    ai_text: str,
+    audio_duration_sec: float,
+    audio_chunk_count: int,
+) -> bool:
+    return bool(
+        turn_id
+        or user_text
+        or ai_text
+        or audio_duration_sec > 0
+        or audio_chunk_count > 0
+    )
+
+
+def _capture_live_input_stream_state(
+    state: VoiceWsState,
+) -> tuple[str, str, str, str, float, int]:
+    return (
+        (state.live_input_turn_id or "").strip(),
+        sanitize_user_turn_text(state.live_input_streamed_user_text),
+        (state.live_input_streamed_ai_text or "").strip(),
+        (state.live_input_streamed_provider or "").strip(),
+        max(0.0, float(state.live_input_streamed_audio_duration_sec or 0.0)),
+        max(0, int(state.live_input_streamed_audio_chunk_count or 0)),
+    )
+
+
+def _clear_live_input_stream_state(
+    state: VoiceWsState,
+) -> None:
+    state.live_input_turn_active = False
+    state.live_input_turn_id = ""
+    state.live_input_streamed_user_text = ""
+    state.live_input_streamed_ai_text = ""
+    state.live_input_streamed_provider = ""
+    state.live_input_streamed_audio_duration_sec = 0.0
+    state.live_input_streamed_audio_chunk_count = 0
+
+
+async def _transcribe_user_audio(
+    deps: SessionEngineDeps,
+    wav_bytes: bytes,
+) -> tuple[str, str]:
+    transcribe_fn = getattr(deps, "transcribe_user_audio", None) or deps.fallback_transcribe_user_audio
+    if transcribe_fn is None:
+        return "", ""
+    return await transcribe_fn(wav_bytes)
+
+
+def _persist_turn_background(
+    deps: SessionEngineDeps,
+    state: VoiceWsState,
+    *,
+    role: str,
+    content: str,
+    channel: str,
+    payload: dict[str, Any],
+) -> None:
+    async def runner() -> None:
+        try:
+            await deps.persist_turn(
+                state,
+                role=role,
+                content=content,
+                channel=channel,
+                payload=payload,
+            )
+        except Exception:
+            logger.warning(
+                "background persist_turn failed (session=%s, role=%s)",
+                state.session_id,
+                role,
+                exc_info=True,
+            )
+
+    asyncio.create_task(runner())
 
 
 @dataclass(frozen=True)
@@ -190,7 +325,7 @@ class SessionEngineDeps:
     derive_question_type_preference: Callable[..., str | None]
     select_next_question_type: Callable[..., str]
     request_live_audio_turn: Callable[..., Awaitable[tuple[str, str, PreparedTtsAudio | None, str]]]
-    fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]]
+    fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None
     emit_realtime_user_delta: Callable[..., Awaitable[None]]
     is_probable_ai_echo: Callable[[VoiceWsState, str, bytes], bool]
     reset_realtime_user_transcript: Callable[[VoiceWsState], None]
@@ -209,6 +344,10 @@ class SessionEngineDeps:
     merge_vad_events: Callable[[list[dict[str, Any]]], dict[str, Any]]
     resume_listening: Callable[..., Awaitable[Any]]
     next_ai_turn_id: Callable[[str], str]
+    transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None
+    commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None
+    runtime_architecture: str = "hybrid"
+    stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None
 
 
 def build_session_init_request(
@@ -412,18 +551,23 @@ async def process_user_utterance(
         await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
         await deps.send_runtime_meta_snapshot(ws, state)
 
+        architecture = _runtime_architecture(deps)
+        if architecture == "live-only" and deps.commit_live_input_stream is not None and state.live_input_turn_active:
+            await deps.commit_live_input_stream(state)
+
+        (
+            streamed_turn_id,
+            streamed_user_text,
+            streamed_ai_text,
+            streamed_provider_name,
+            streamed_audio_duration_sec,
+            streamed_audio_chunk_count,
+        ) = _capture_live_input_stream_state(state)
+
         live = deps.get_or_create_live_interview(state)
         user_followup_spec = prepare_live_user_followup(
             state,
             runtime_timing=deps.runtime_timing,
-        )
-        initial_user_request_spec = prepare_live_user_request(
-            state,
-            followup_spec=user_followup_spec,
-            closing_sentence=closing_sentence,
-            build_answer_quality_hint=deps.build_answer_quality_hint,
-            derive_question_type_preference=deps.derive_question_type_preference,
-            select_next_question_type=deps.select_next_question_type,
         )
         if not live.enabled:
             await deps.set_runtime_mode(ws, state, runtime_mode_disabled, "live-disabled")
@@ -437,41 +581,98 @@ async def process_user_utterance(
             await deps.resume_listening(ws, state)
             return
 
-        live_user_text, live_ai_text, live_prepared_tts, live_provider = await deps.request_live_audio_turn(
-            state,
-            wav_bytes=wav_bytes,
-            question_type=initial_user_request_spec.planned_question_type or None,
-            answer_quality_hint=initial_user_request_spec.answer_quality_hint,
-            prompt_user_text=initial_user_request_spec.prompt_user_text,
-            extra_instruction=initial_user_request_spec.extra_instruction,
-        )
-        ai_provider_name = live_provider or live.provider
-        user_text = _select_best_user_text(
-            live_user_text=live_user_text,
-            realtime_user_text=state.realtime_user_transcript.strip(),
-            fallback_user_text="",
-            utterance_duration_ms=utterance_duration_ms,
-        )
-        user_provider_name = ai_provider_name
+        next_turn_id = streamed_turn_id or deps.next_ai_turn_id(state.session_id)
+        live_ai_text = ""
+        prepared_live_audio = None
+        followup_provider_name = live.provider
+        audio_already_streamed = False
+        if architecture == "live-only":
+            if _has_captured_live_input_stream_result(
+                turn_id=streamed_turn_id,
+                user_text=streamed_user_text,
+                ai_text=streamed_ai_text,
+                audio_duration_sec=streamed_audio_duration_sec,
+                audio_chunk_count=streamed_audio_chunk_count,
+            ):
+                live_user_text = streamed_user_text
+                live_ai_text = streamed_ai_text
+                followup_provider_name = streamed_provider_name or live.provider
+                audio_already_streamed = streamed_audio_duration_sec > 0 or streamed_audio_chunk_count > 0
+            else:
+                hint_text = sanitize_user_turn_text(state.realtime_user_transcript)
+                live_request = prepare_live_user_request(
+                    state,
+                    followup_spec=user_followup_spec,
+                    closing_sentence=closing_sentence,
+                    build_answer_quality_hint=deps.build_answer_quality_hint,
+                    derive_question_type_preference=deps.derive_question_type_preference,
+                    select_next_question_type=deps.select_next_question_type,
+                    prompt_user_text=hint_text,
+                )
+                if deps.stream_live_audio_turn is not None:
+                    (
+                        live_user_text,
+                        live_ai_text,
+                        followup_provider_name,
+                        streamed_audio_duration_sec,
+                        streamed_audio_chunk_count,
+                    ) = await deps.stream_live_audio_turn(
+                        ws,
+                        state,
+                        turn_id=next_turn_id,
+                        wav_bytes=wav_bytes,
+                        question_type=live_request.planned_question_type or None,
+                        answer_quality_hint=live_request.answer_quality_hint,
+                        prompt_user_text=live_request.prompt_user_text,
+                        extra_instruction=live_request.extra_instruction,
+                    )
+                    audio_already_streamed = streamed_audio_duration_sec > 0 and streamed_audio_chunk_count > 0
+                else:
+                    live_user_text, live_ai_text, prepared_live_audio, followup_provider_name = await deps.request_live_audio_turn(
+                        state,
+                        wav_bytes=wav_bytes,
+                        question_type=live_request.planned_question_type or None,
+                        answer_quality_hint=live_request.answer_quality_hint,
+                        prompt_user_text=live_request.prompt_user_text,
+                        extra_instruction=live_request.extra_instruction,
+                    )
+            user_text = _select_best_user_text(
+                live_user_text=live_user_text,
+                realtime_user_text=state.realtime_user_transcript,
+                fallback_user_text=streamed_user_text,
+                utterance_duration_ms=utterance_duration_ms,
+            )
+            user_provider_name = (followup_provider_name or live.provider or "").strip()
+        else:
+            user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)
+            user_text = sanitize_user_turn_text(user_text)
+            user_provider_name = (user_provider_name or "").strip()
+
         transcription_missing = False
         if not user_text:
-            if _should_accept_missing_user_transcript(
+            if architecture == "live-only" and _should_accept_missing_user_transcript(
                 live_ai_text=live_ai_text,
-                live_prepared_tts=live_prepared_tts,
+                live_prepared_tts=prepared_live_audio,
                 utterance_duration_ms=utterance_duration_ms,
             ):
                 transcription_missing = True
                 user_text = "음성 답변(전사 누락)"
                 logger.warning(
-                    "accepting user turn without transcript because live followup exists (session=%s, duration_ms=%s, ai_len=%s, has_audio=%s)",
+                    "accepting live-only user turn without transcript after STT miss (session=%s, duration_ms=%s)",
                     state.session_id,
                     round(utterance_duration_ms, 1),
-                    len((live_ai_text or "").strip()),
-                    live_prepared_tts is not None,
+                )
+            elif utterance_duration_ms >= 1200:
+                transcription_missing = True
+                user_text = "음성 답변(전사 누락)"
+                logger.warning(
+                    "accepting user turn without transcript after live STT miss (session=%s, duration_ms=%s)",
+                    state.session_id,
+                    round(utterance_duration_ms, 1),
                 )
             else:
                 deps.reset_realtime_user_transcript(state)
-                if utterance_duration_ms <= 900 and not (live_ai_text or "").strip():
+                if utterance_duration_ms <= 900:
                     if await _request_retry_for_silent_turn(ws, state, deps=deps):
                         return
                 await deps.resume_listening(ws, state)
@@ -500,8 +701,10 @@ async def process_user_utterance(
             build_answer_quality_hint=deps.build_answer_quality_hint,
             derive_question_type_preference=deps.derive_question_type_preference,
             select_next_question_type=deps.select_next_question_type,
-            prompt_user_text="" if transcription_missing else user_text,
+            prompt_user_text=("방금 말씀하신 경험" if transcription_missing else user_text),
         )
+        if architecture == "live-only":
+            user_request_spec = replace(user_request_spec, planned_question_text="")
 
         user_turn_payload = build_voice_user_turn_payload(
             provider=user_provider_name,
@@ -514,10 +717,12 @@ async def process_user_utterance(
             vad_config=deps.snapshot_vad_config(state),
             answer_quality_hint=state.last_answer_quality_hint,
             memory_snapshot=deps.build_memory_snapshot(state),
+            architecture=architecture,
         )
         if transcription_missing:
             user_turn_payload["transcription_missing"] = True
-        await deps.persist_turn(
+        _persist_turn_background(
+            deps,
             state,
             role="user",
             content=user_text,
@@ -538,6 +743,7 @@ async def process_user_utterance(
             stt_text_len=len(user_text),
             vad_reason=effective_vad_meta.get("reason"),
             transcription_missing=transcription_missing,
+            architecture=architecture,
         )
 
         is_short_answer = deps.is_short_stt_result(user_text, wav_bytes)
@@ -552,16 +758,21 @@ async def process_user_utterance(
             state,
             spec=user_followup_spec,
             user_request=user_request_spec,
-            next_turn_id=deps.next_ai_turn_id(state.session_id),
-            live_ai_text=live_ai_text,
-            prepared_live_audio=live_prepared_tts,
-            provider_name=ai_provider_name,
+            next_turn_id=next_turn_id,
+            live_ai_text=live_ai_text or user_request_spec.planned_question_text,
+            prepared_live_audio=prepared_live_audio,
+            provider_name=followup_provider_name or live.provider,
             active_live_provider=live.provider,
             utterance_duration_ms=utterance_duration_ms,
             vad_meta=effective_vad_meta,
             started_at=user_turn_started_at,
             deps=deps.runtime_executor_deps(),
+            audio_already_streamed=audio_already_streamed,
+            streamed_audio_duration_sec=streamed_audio_duration_sec,
+            streamed_audio_chunk_count=streamed_audio_chunk_count,
+            streamed_audio_provider=followup_provider_name or live.provider,
         )
+        _clear_live_input_stream_state(state)
         if not followup_generated:
             logger.warning(
                 "followup generation finished without deliverable turn; keeping current listening state (session=%s)",
@@ -579,6 +790,8 @@ async def process_user_utterance(
         if sent:
             await deps.resume_listening(ws, state)
     finally:
+        if _runtime_architecture(deps) == "live-only":
+            _clear_live_input_stream_state(state)
         state.processing_audio = False
 
 
@@ -592,6 +805,16 @@ async def drain_pending_user_segments(
 ) -> None:
     if not state.pending_user_segments:
         state.pending_segment_resume_ms = 0.0
+        if _runtime_architecture(deps) == "live-only" and _has_live_input_stream_result(state):
+            await process_user_utterance(
+                ws,
+                state,
+                b"",
+                deps=deps,
+                vad_meta=state.last_vad_event,
+                runtime_mode_disabled=runtime_mode_disabled,
+                closing_sentence=closing_sentence,
+            )
         return
     if state.processing_audio:
         async def retry() -> None:
@@ -660,11 +883,11 @@ async def enqueue_user_segment(
         )
         return
 
-    drain_delay_sec = state.turn_end_grace_sec
-    if reason == "max_segment":
-        drain_delay_sec = max(drain_delay_sec, 0.14)
-    elif reason in {"silence", "short_utterance_silence"}:
-        drain_delay_sec = max(drain_delay_sec, 0.08)
+    drain_delay_sec = _segment_drain_delay_sec(
+        state,
+        reason=reason,
+        architecture=_runtime_architecture(deps),
+    )
 
     async def delayed_drain() -> None:
         current_task = asyncio.current_task()

@@ -16,6 +16,46 @@ const docs = new Map<string, WSSharedDoc>();
 const messageSync = 0;
 const messageAwareness = 1;
 
+type RoomTarget =
+  | { kind: "doc"; id: string }
+  | { kind: "whiteboard"; id: string }
+  | { kind: "unknown"; raw: string };
+
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function parseRoomTarget(roomName: string): RoomTarget {
+  if (roomName.startsWith("doc:")) {
+    const id = roomName.slice(4);
+    return isUuidLike(id)
+      ? { kind: "doc", id }
+      : { kind: "unknown", raw: roomName };
+  }
+
+  if (roomName.startsWith("whiteboard:")) {
+    const id = roomName.slice("whiteboard:".length);
+    return isUuidLike(id)
+      ? { kind: "whiteboard", id }
+      : { kind: "unknown", raw: roomName };
+  }
+
+  return { kind: "unknown", raw: roomName };
+}
+
+function getPersistenceUrl(target: RoomTarget) {
+  switch (target.kind) {
+    case "doc":
+      return `${BFF_URL}/api/collab/docs/${target.id}/state`;
+    case "whiteboard":
+      return `${BFF_URL}/api/workspaces/${target.id}/whiteboard`;
+    default:
+      return null;
+  }
+}
+
 // ─────────────────────────────────────────────
 // Persistence (workspace-server ↔ Next.js BFF)
 // ─────────────────────────────────────────────
@@ -31,10 +71,16 @@ const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
     return;
   }
   try {
-    const res = await fetch(
-      `${BFF_URL}/api/workspaces/${doc.name}/whiteboard`,
-      { headers: { "x-internal-secret": INTERNAL_API_SECRET } },
-    );
+    const target = parseRoomTarget(doc.name);
+    const url = getPersistenceUrl(target);
+    if (!url) {
+      console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 로드 생략`);
+      return;
+    }
+
+    const res = await fetch(url, {
+      headers: { "x-internal-secret": INTERNAL_API_SECRET },
+    });
     if (!res.ok) return;
 
     const { yjs_state } = (await res.json()) as { yjs_state: string | null };
@@ -58,20 +104,24 @@ const saveDocState = async (doc: WSSharedDoc): Promise<void> => {
     return;
   }
   try {
+    const target = parseRoomTarget(doc.name);
+    const url = getPersistenceUrl(target);
+    if (!url) {
+      console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 저장 생략`);
+      return;
+    }
+
     const state = Y.encodeStateAsUpdate(doc);
     const yjs_state = Buffer.from(state).toString("base64");
 
-    const res = await fetch(
-      `${BFF_URL}/api/workspaces/${doc.name}/whiteboard`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-secret": INTERNAL_API_SECRET,
-        },
-        body: JSON.stringify({ yjs_state }),
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": INTERNAL_API_SECRET,
       },
-    );
+      body: JSON.stringify({ yjs_state }),
+    });
 
     if (res.ok) {
       console.log(`[YJS] '${doc.name}' 저장 완료 (${state.length} bytes)`);

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable
+from typing import Awaitable, Callable
 
 from app.interview.domain.interview_memory import extract_memory_keywords
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
@@ -85,12 +85,18 @@ def build_live_turn_prompt(
         parts.append("- 방금 입력된 사용자 음성 답변의 고유명사/기술명/수치 중 최소 1개를 질문 문장에 직접 포함할 것")
     if extra_instruction:
         parts.append(f"- 추가 요청: {extra_instruction}")
-    parts.append("- 필요하면 직전 답변을 들었다는 짧은 반응 1문장을 먼저 말해도 된다. 다만 한 문장 이내로 짧게 끝내고, 곧바로 질문 1개로 이어갈 것")
     parts.append("- 방금 답변에서 아직 검증되지 않은 핵심 축이 남아 있으면 새 주제로 바꾸지 말고 같은 축을 더 깊게 파고들 것")
     parts.append("- 답변을 요약만 하지 말고, 방금 답변의 구체 디테일을 파고드는 꼬리질문으로 이어갈 것")
     parts.append("- 사용자가 이미 답변했다면 '다시 말씀해 주세요', '이어서 말씀해 주세요' 같은 재청취 문구를 만들지 말 것")
     parts.append("- 위 조건은 내부 참고용이며, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
     return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
+
+
+def build_exact_speech_prompt() -> str:
+    return (
+        "아래에 주어지는 한국어 문장을 의미를 바꾸지 말고 자연스러운 면접관 톤으로 그대로 말하세요. "
+        "문장을 추가하거나 줄이거나 바꾸지 말고, 질문은 정확히 주어진 한 문장만 말하세요."
+    )
 
 
 def get_or_create_live_interview(
@@ -144,6 +150,33 @@ async def request_live_text_turn(
     return (result.ai_text or "").strip(), prepared
 
 
+async def request_live_spoken_text_turn(
+    state: VoiceWsState,
+    *,
+    text: str,
+    deps: LiveClientDeps,
+) -> tuple[str, PreparedTtsAudio | None, str]:
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    payload_text = (text or "").strip()
+    if not live.enabled or not payload_text:
+        return "", None, ""
+
+    result = await live.request_text_turn(
+        session_instruction=deps.build_session_instruction(state),
+        turn_prompt=build_exact_speech_prompt(),
+        text=payload_text,
+    )
+    prepared = deps.to_prepared_tts_audio_from_pcm(
+        result.audio_pcm_bytes,
+        sample_rate=result.sample_rate,
+        provider=result.provider,
+    )
+    authoritative_text = deps.sanitize_ai_turn_text(payload_text)
+    if authoritative_text:
+        return authoritative_text, prepared, result.provider
+    return (result.ai_text or "").strip(), prepared, result.provider
+
+
 async def request_live_audio_turn(
     state: VoiceWsState,
     *,
@@ -185,6 +218,129 @@ async def request_live_audio_turn(
         (result.ai_text or "").strip(),
         prepared,
         result.provider,
+    )
+
+
+async def begin_live_audio_input_stream(
+    state: VoiceWsState,
+    *,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
+    extra_instruction: str = "",
+    on_audio_chunk: Callable[[bytes, int, bool], Awaitable[None]],
+    on_ai_text_update: Callable[[str], Awaitable[None]] | None = None,
+    on_user_text_update: Callable[[str], Awaitable[None]] | None = None,
+    deps: LiveClientDeps,
+) -> bool:
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled:
+        return False
+    return await live.begin_audio_input_stream(
+        session_instruction=deps.build_session_instruction(state),
+        turn_prompt=deps.build_turn_prompt(
+            state,
+            question_type=question_type,
+            answer_quality_hint=answer_quality_hint,
+            user_text=prompt_user_text,
+            extra_instruction=extra_instruction,
+        ),
+        on_audio_chunk=on_audio_chunk,
+        on_ai_text_update=on_ai_text_update,
+        on_user_text_update=on_user_text_update,
+    )
+
+
+async def push_live_audio_input_chunk(
+    state: VoiceWsState,
+    *,
+    audio_chunk: list[float],
+    sample_rate: int = 16000,
+    deps: LiveClientDeps,
+) -> bool:
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled or not audio_chunk:
+        return False
+    pcm_bytes = float_samples_to_pcm16le_bytes(audio_chunk)
+    if not pcm_bytes:
+        return False
+    return await live.push_audio_input_chunk(pcm_bytes=pcm_bytes, sample_rate=sample_rate)
+
+
+async def commit_live_audio_input_stream(
+    state: VoiceWsState,
+    *,
+    deps: LiveClientDeps,
+) -> tuple[str, str, str, float, int]:
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled:
+        return "", "", "", 0.0, 0
+    result = await live.commit_audio_input_stream()
+    normalized_rate = max(8000, int(result.sample_rate or 24000))
+    duration_sec = len(result.audio_pcm_bytes) / 2.0 / normalized_rate if result.audio_pcm_bytes else 0.0
+    return (
+        (result.user_text or "").strip(),
+        (result.ai_text or "").strip(),
+        result.provider,
+        duration_sec,
+        0,
+    )
+
+
+async def stream_live_audio_turn(
+    state: VoiceWsState,
+    *,
+    wav_bytes: bytes,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
+    extra_instruction: str = "",
+    on_audio_chunk: Callable[[bytes, int, bool], Awaitable[None]],
+    on_ai_text_update: Callable[[str], Awaitable[None]] | None = None,
+    on_user_text_update: Callable[[str], Awaitable[None]] | None = None,
+    deps: LiveClientDeps,
+) -> tuple[str, str, str, float, int]:
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled:
+        return "", "", "", 0.0, 0
+
+    samples, sample_rate = wav_bytes_to_float_samples(wav_bytes)
+    if not samples:
+        return "", "", "", 0.0, 0
+
+    pcm_bytes = float_samples_to_pcm16le_bytes(samples)
+    streamed_chunk_count = 0
+
+    async def handle_chunk(chunk_bytes: bytes, chunk_sample_rate: int, is_final: bool) -> None:
+        nonlocal streamed_chunk_count
+        if not chunk_bytes:
+            return
+        streamed_chunk_count += 1
+        await on_audio_chunk(chunk_bytes, chunk_sample_rate, is_final)
+
+    result = await live.stream_audio_turn(
+        session_instruction=deps.build_session_instruction(state),
+        turn_prompt=deps.build_turn_prompt(
+            state,
+            question_type=question_type,
+            answer_quality_hint=answer_quality_hint,
+            user_text=prompt_user_text,
+            extra_instruction=extra_instruction,
+        ),
+        pcm_bytes=pcm_bytes,
+        sample_rate=sample_rate,
+        on_audio_chunk=handle_chunk,
+        on_ai_text_update=on_ai_text_update,
+        on_user_text_update=on_user_text_update,
+    )
+    normalized_rate = max(8000, int(result.sample_rate or sample_rate or 24000))
+    duration_sec = len(result.audio_pcm_bytes) / 2.0 / normalized_rate if result.audio_pcm_bytes else 0.0
+    return (
+        (result.user_text or "").strip(),
+        (result.ai_text or "").strip(),
+        result.provider,
+        duration_sec,
+        streamed_chunk_count,
     )
 
 

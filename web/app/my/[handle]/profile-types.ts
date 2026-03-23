@@ -1,6 +1,15 @@
-export type TabKey = "posts" | "comments" | "bookmarks" | "resume" | "activity";
+export type TabKey = "overview" | "content" | "bookmarks" | "activity";
+
+export type ContentTabKey = "posts" | "comments";
+
+export type ProfileDataKey = ContentTabKey | "bookmarks" | "activity";
 
 export type BookmarkView = "card" | "list";
+
+export interface PaginationState {
+  hasMore: boolean;
+  nextCursor: string | null;
+}
 
 export interface ProfileWorkspaceItem {
   id: string;
@@ -126,13 +135,12 @@ export interface ProfileBookmarkItem {
 export interface InitialData {
   profile: ProfileSummary;
   stats: ProfileStats;
-  resumeSummary: PublicResumeSummary | null;
   workspaceSummary: Record<string, unknown> | null;
   isOwner: boolean;
   posts: ProfilePostItem[];
   comments: ProfileCommentItem[];
   bookmarks: ProfileBookmarkItem[];
   workspaces: ProfileWorkspaceItem[];
-  resumePayload: ResumePayload | null;
-  prefetchedTabs?: Partial<Record<TabKey, boolean>>;
+  prefetchedData?: Partial<Record<ProfileDataKey, boolean>>;
+  pagination?: Partial<Record<ProfileDataKey, PaginationState>>;
 }

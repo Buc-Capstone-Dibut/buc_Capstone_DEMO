@@ -30,20 +30,28 @@ export function BookmarkButton({
 
   // 북마크 상태 확인
   useEffect(() => {
-    // 웹뷰 환경이거나 로그인된 경우 북마크 상태 확인
-    if (isFlutterWebView() || isAuthenticated) {
-      checkBookmarkStatus();
-    }
-  }, [isAuthenticated, blogId]);
+    let cancelled = false;
 
-  const checkBookmarkStatus = async () => {
-    try {
-      const bookmarked = await checkIsBookmarked(blogId);
-      setIsBookmarked(bookmarked);
-    } catch (error) {
-      console.error("북마크 상태 확인 실패:", error);
+    // 웹뷰 환경이거나 로그인된 경우 북마크 상태 확인
+    const loadBookmarkStatus = async () => {
+      try {
+        const bookmarked = await checkIsBookmarked(blogId);
+        if (!cancelled) {
+          setIsBookmarked(bookmarked);
+        }
+      } catch (error) {
+        console.error("북마크 상태 확인 실패:", error);
+      }
+    };
+
+    if (isFlutterWebView() || isAuthenticated) {
+      void loadBookmarkStatus();
     }
-  };
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, blogId]);
 
   const handleBookmarkClick = async () => {
     // 웹뷰가 아닌 환경에서 로그인 체크
@@ -82,11 +90,14 @@ export function BookmarkButton({
           description: "북마크에 추가되었습니다.",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "북마크 처리에 실패했습니다.";
+
       console.error("북마크 처리 실패:", error);
       toast({
         title: "오류",
-        description: error.message || "북마크 처리에 실패했습니다.",
+        description: message,
         variant: "destructive",
       });
     } finally {

@@ -1,28 +1,38 @@
 "use client";
 
 import { usePresence } from "@/components/providers/presence-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Activity, Calendar, ExternalLink } from "lucide-react";
+import { Activity, Calendar, ExternalLink } from "lucide-react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+type PulseMember = {
+  id: string;
+  avatar_url: string | null;
+  nickname: string | null;
+};
+
+type PulseWorkspace = {
+  recent_members?: PulseMember[];
+};
+
 export function GlobalPulseSidebar() {
     const { onlineUsers } = usePresence();
-    const { data: workspaces } = useSWR("/api/workspaces", fetcher);
+    const { data: workspaces } = useSWR<PulseWorkspace[]>("/api/workspaces", fetcher);
 
     // Extract all unique members across all workspaces
     const allMembers = workspaces ? Array.from(
         new Map(
-            workspaces.flatMap((ws: any) => ws.recent_members || []).map((m: any) => [m.id, m])
+            workspaces.flatMap((workspace) => workspace.recent_members || []).map((member) => [member.id, member])
         ).values()
     ) : [];
 
-    const onlineCount = allMembers.filter((m: any) => onlineUsers.has(m.id)).length;
+    const onlineCount = allMembers.filter((member) => onlineUsers.has(member.id)).length;
 
     return (
         <div className="space-y-6">
@@ -41,15 +51,17 @@ export function GlobalPulseSidebar() {
                 </CardHeader>
                 <CardContent className="space-y-4 pt-2">
                     <div className="flex -space-x-2 overflow-hidden py-1">
-                        {allMembers.map((member: any) => (
+                        {allMembers.map((member) => (
                             <div key={member.id} className="relative group">
-                                <Avatar className={cn(
+                                <WorkspaceUserAvatar
+                                    name={member.nickname}
+                                    avatarUrl={member.avatar_url}
+                                    className={cn(
                                     "h-8 w-8 ring-2 ring-background border-2 transition-transform hover:-translate-y-1",
                                     onlineUsers.has(member.id) ? "border-green-500/50" : "border-transparent"
-                                )}>
-                                    <AvatarImage src={member.avatar_url || ""} />
-                                    <AvatarFallback className="text-[10px]">{member.nickname?.[0]}</AvatarFallback>
-                                </Avatar>
+                                )}
+                                    fallbackClassName="text-[10px]"
+                                />
                                 {onlineUsers.has(member.id) && (
                                     <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-1 ring-background" />
                                 )}
@@ -84,7 +96,7 @@ export function GlobalPulseSidebar() {
                     기술 블로그 탐색 <ExternalLink className="h-3 w-3 opacity-50" />
                 </Link>
                 <Link href="/community/squad" className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors text-xs font-medium">
-                    새 팀원 모집하기 <ExternalLink className="h-3 w-3 opacity-50" />
+                    팀 찾기 / 만들기 <ExternalLink className="h-3 w-3 opacity-50" />
                 </Link>
             </div>
         </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { ensureProfileForUser } from "@/lib/my-profile";
+import { ensureProfileForUser, extractAuthProfileSeed } from "@/lib/my-profile";
 
 export async function PATCH(req: Request) {
   try {
@@ -20,10 +20,12 @@ export async function PATCH(req: Request) {
 
     const user = session.user;
     const body = await req.json();
+    const seed = extractAuthProfileSeed(user);
     const profile = await ensureProfileForUser({
       userId: user.id,
-      nickname: user.user_metadata?.nickname || user.user_metadata?.full_name || null,
-      email: user.email ?? null,
+      nickname: seed.nickname,
+      email: seed.email,
+      avatarUrl: seed.avatarUrl,
     });
 
     const updates: any = {};

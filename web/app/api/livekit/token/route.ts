@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { getWorkspaceLifecycle, isWorkspaceCompleted } from "@/lib/server/workspace-lifecycle";
+import { extractAuthProfileSeed } from "@/lib/my-profile";
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { user } = session;
+    const seed = extractAuthProfileSeed(user);
 
     if (workspaceId) {
       const membership = await prisma.workspace_members.findUnique({
@@ -58,12 +60,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const name =
-      user.user_metadata?.nickname ||
-      user.user_metadata?.name ||
-      user.email ||
-      "Unknown";
-    const avatarUrl = user.user_metadata?.avatar_url || "";
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: {
+        nickname: true,
+        avatar_url: true,
+      },
+    });
+
+    const name = profile?.nickname || seed.nickname || seed.email || "Unknown";
+    const avatarUrl = profile?.avatar_url || seed.avatarUrl || "";
     const identity = user.id;
 
     if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
