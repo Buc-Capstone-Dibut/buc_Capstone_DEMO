@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { isTeamType, normalizeTeamType } from "@/lib/team-types";
+import { normalizeWorkspaceCategory } from "@/lib/server/workspace-bootstrap";
 
 export const dynamic = "force-dynamic";
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
 
 export async function DELETE(
   request: Request,
@@ -39,14 +44,30 @@ export async function DELETE(
       );
     }
 
-    await prisma.squads.delete({
-      where: { id },
+    await prisma.$transaction(async (tx) => {
+      const linkedWorkspace = await tx.workspaces.findUnique({
+        where: { from_squad_id: id },
+        select: { id: true },
+      });
+
+      if (linkedWorkspace) {
+        await tx.workspaces.delete({
+          where: { id: linkedWorkspace.id },
+        });
+      }
+
+      await tx.squads.delete({
+        where: { id },
+      });
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Delete Squad Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -102,10 +123,18 @@ export async function PATCH(
     } = body;
 
     // Construct update data dynamically
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (title) updateData.title = title;
     if (content) updateData.content = content;
-    if (type) updateData.type = type;
+    if (type) {
+      if (!isTeamType(type)) {
+        return NextResponse.json(
+          { error: "Invalid team type" },
+          { status: 400 },
+        );
+      }
+      updateData.type = normalizeTeamType(type);
+    }
     if (capacity) updateData.capacity = Number(capacity); // Ensure number
     if (tech_stack) updateData.tech_stack = tech_stack;
     if (place_type) updateData.place_type = place_type;
@@ -116,14 +145,43 @@ export async function PATCH(
 
     updateData.updated_at = new Date();
 
-    const updatedSquad = await prisma.squads.update({
-      where: { id },
-      data: updateData,
+    const updatedSquad = await prisma.$transaction(async (tx) => {
+      const nextSquad = await tx.squads.update({
+        where: { id },
+        data: updateData,
+      });
+
+      const linkedWorkspace = await tx.workspaces.findUnique({
+        where: { from_squad_id: id },
+        select: { id: true },
+      });
+
+      if (linkedWorkspace) {
+        const workspaceUpdateData: Record<string, unknown> = {};
+
+        if (title) workspaceUpdateData.name = title;
+        if (content) workspaceUpdateData.description = content;
+        if (type) {
+          workspaceUpdateData.category = normalizeWorkspaceCategory(type);
+        }
+
+        if (Object.keys(workspaceUpdateData).length > 0) {
+          await tx.workspaces.update({
+            where: { id: linkedWorkspace.id },
+            data: workspaceUpdateData,
+          });
+        }
+      }
+
+      return nextSquad;
     });
 
     return NextResponse.json(updatedSquad);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Update Squad Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }

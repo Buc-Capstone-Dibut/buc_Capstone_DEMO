@@ -1,21 +1,32 @@
 "use client";
 
 import { usePresence } from "@/components/providers/presence-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Volume2, Mic } from "lucide-react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+
+type TeamPulseMember = {
+  id: string;
+  name?: string | null;
+  avatar?: string | null;
+  role?: string | null;
+};
+
+type RoomParticipant = {
+  identity: string;
+};
 
 interface TeamPulseProps {
-  members: any[];
+  members: TeamPulseMember[];
   projectId: string;
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
+export function TeamPulse({ members = [] }: TeamPulseProps) {
   const { onlineUsers } = usePresence();
 
   // Fetch Voice Participants
@@ -71,7 +82,7 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
                   roomParticipants,
                 )) {
                   if (
-                    (participants as any[]).some(
+                    (participants as RoomParticipant[]).some(
                       (p) => p.identity === member.id,
                     )
                   ) {
@@ -88,17 +99,16 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <Avatar
+                      <WorkspaceUserAvatar
+                        name={member.name}
+                        avatarUrl={member.avatar}
                         className={cn(
                           "h-9 w-9 border-2",
                           isOnline
                             ? "border-green-500/20"
                             : "border-transparent",
                         )}
-                      >
-                        <AvatarImage src={member.avatar || ""} />
-                        <AvatarFallback>{member.name?.[0]}</AvatarFallback>
-                      </Avatar>
+                      />
                       {isOnline && (
                         <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
                       )}

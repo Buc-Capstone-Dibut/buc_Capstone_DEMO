@@ -1,7 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema", "driverAdapters"]
-  output          = "../src/generated/client"
 }
 
 datasource db {
@@ -521,6 +520,10 @@ model profiles {
   workspace_members  workspace_members[]
   workspace_invites  workspace_invites[]
   workspace_docs     workspace_docs[]
+  workspace_doc_assets_created workspace_doc_assets[] @relation("WorkspaceDocAssetCreator")
+  workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
+  workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
+  created_task_document_links kanban_task_documents[] @relation("WorkspaceTaskDocumentCreator")
   kanban_tasks       kanban_tasks[]
   notifications      notifications[]
   messages           workspace_messages[]
@@ -658,7 +661,9 @@ model workspaces {
   name        String
   description String?
   icon_url    String?
-  category    String  @default("Side Project")
+  category    String  @default("project")
+  space_status workspace_space_status @default(ACTIVE)
+  activated_at DateTime?
   lifecycle_status workspace_lifecycle_status @default(IN_PROGRESS)
   completed_at     DateTime?
   result_type      String?
@@ -676,11 +681,22 @@ model workspaces {
 
   columns    kanban_columns[]
   tags       kanban_tags[]
+  views      workspace_views[]
   docs       workspace_docs[]
+  doc_assets workspace_doc_assets[]
+  task_document_links kanban_task_documents[]
+  doc_comments workspace_doc_comments[]
   channels   workspace_channels[]
   whiteboard workspace_whiteboards?
 
   squad squads? @relation(fields: [from_squad_id], references: [id])
+
+  @@schema("public")
+}
+
+enum workspace_space_status {
+  DRAFT
+  ACTIVE
 
   @@schema("public")
 }
@@ -698,6 +714,7 @@ model workspace_members {
   user_id      String @db.Uuid
 
   role      String   @default("member") // owner, admin, member, viewer
+  team_role String?
   joined_at DateTime @default(now())
 
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
@@ -714,6 +731,7 @@ model workspace_invites {
   email        String
   token        String @unique
   role         String @default("member")
+  team_role    String?
   inviter_id   String @db.Uuid
 
   expires_at DateTime
@@ -738,6 +756,30 @@ model kanban_columns {
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
   @@index([workspace_id, order])
+  @@schema("public")
+}
+
+model workspace_views {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id    String   @db.Uuid
+  name            String
+  type            String   @default("kanban")
+  group_by        String
+  icon            String?
+  color           String?
+  columns         Json?
+  card_properties Json?
+  filters         Json?
+  show_empty_groups Boolean @default(true)
+  column_order    Json?
+  is_system       Boolean  @default(false)
+  view_order      Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@index([workspace_id, view_order])
   @@schema("public")
 }
 
@@ -769,20 +811,45 @@ model kanban_tasks {
 
   column   kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
   assignee profiles?      @relation(fields: [assignee_id], references: [id])
+  documents kanban_task_documents[]
 
   @@index([column_id, order])
   @@index([assignee_id])
   @@schema("public")
 }
 
+model kanban_task_documents {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id  String   @db.Uuid
+  task_id       String   @db.Uuid
+  doc_id        String   @db.Uuid
+  relation_type String   @default("reference")
+  is_primary    Boolean  @default(false)
+  created_by    String   @db.Uuid
+  created_at    DateTime @default(now())
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  task      kanban_tasks   @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  creator   profiles       @relation("WorkspaceTaskDocumentCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@unique([task_id, doc_id])
+  @@index([workspace_id, task_id])
+  @@index([workspace_id, doc_id])
+  @@index([task_id, is_primary])
+  @@schema("public")
+}
+
 model workspace_docs {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   workspace_id String   @db.Uuid
+  kind         String   @default("page")
   title        String
   content      Json?    @db.Json
   emoji        String?
   cover_url    String?
   parent_id    String?  @db.Uuid
+  sort_order   Int      @default(0)
   is_archived  Boolean  @default(false)
   author_id    String   @db.Uuid
   created_at   DateTime @default(now())
@@ -792,9 +859,69 @@ model workspace_docs {
   author    profiles         @relation(fields: [author_id], references: [id])
   parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
   children  workspace_docs[] @relation("DocHierarchy")
+  state     workspace_doc_states?
+  assets    workspace_doc_assets[]
+  task_links kanban_task_documents[]
+  comments  workspace_doc_comments[]
 
   @@index([workspace_id, updated_at(sort: Desc)])
+  @@index([workspace_id, parent_id, is_archived, sort_order])
   @@index([parent_id])
+  @@schema("public")
+}
+
+model workspace_doc_states {
+  doc_id      String   @id @db.Uuid
+  yjs_state   String?
+  updated_at  DateTime @default(now()) @updatedAt
+  updated_by  String?  @db.Uuid
+
+  doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model workspace_doc_assets {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String   @db.Uuid
+  doc_id       String   @db.Uuid
+  storage_path String
+  mime_type    String
+  size_bytes   Int
+  created_by   String   @db.Uuid
+  created_at   DateTime @default(now())
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  creator   profiles       @relation("WorkspaceDocAssetCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([workspace_id, doc_id, created_at(sort: Desc)])
+  @@index([doc_id, created_at(sort: Desc)])
+  @@schema("public")
+}
+
+model workspace_doc_comments {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id    String   @db.Uuid
+  doc_id          String   @db.Uuid
+  author_id       String   @db.Uuid
+  parent_id       String?  @db.Uuid
+  content         String
+  anchor_block_id String?
+  resolved_at     DateTime?
+  resolved_by     String?  @db.Uuid
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  workspace workspaces               @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs           @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  author    profiles                 @relation("WorkspaceDocCommentAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+  resolver  profiles?                @relation("WorkspaceDocCommentResolver", fields: [resolved_by], references: [id], onDelete: SetNull)
+  parent    workspace_doc_comments?  @relation("WorkspaceDocCommentThread", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies   workspace_doc_comments[] @relation("WorkspaceDocCommentThread")
+
+  @@index([workspace_id, doc_id, parent_id, created_at])
+  @@index([doc_id, created_at])
   @@schema("public")
 }
 

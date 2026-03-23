@@ -7,6 +7,8 @@ import {
   getWorkspaceLifecycle,
   isWorkspaceCompleted,
 } from "@/lib/server/workspace-lifecycle";
+import { buildWorkspaceDetailPayload } from "@/lib/server/workspace-detail";
+import { normalizeTeamType } from "@/lib/team-types";
 
 const getErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : "Unknown error";
@@ -53,9 +55,23 @@ export async function GET(
         description: true,
         icon_url: true,
         category: true,
+        space_status: true,
+        activated_at: true,
         from_squad_id: true,
         created_at: true,
         updated_at: true,
+        squad: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            type: true,
+            status: true,
+            activity_id: true,
+            recruitment_period: true,
+            tech_stack: true,
+          },
+        },
         members: {
           include: {
             user: {
@@ -72,6 +88,23 @@ export async function GET(
             },
           },
         },
+        ...(memberCheck.role === "owner"
+          ? {
+              invites: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  team_role: true,
+                  created_at: true,
+                  expires_at: true,
+                },
+                orderBy: {
+                  created_at: "desc" as const,
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -79,11 +112,18 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    if (workspace.space_status === "DRAFT" && memberCheck.role !== "owner") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     const lifecycle = await getWorkspaceLifecycle(workspaceId);
+    const detailPayload = await buildWorkspaceDetailPayload(workspace);
 
     // Transform response to match frontend expectation
+    const { members, invites = [], ...workspaceBase } = workspace;
+
     const formattedWorkspace = {
-      ...workspace,
+      ...workspaceBase,
       lifecycle_status: lifecycle?.lifecycle_status ?? "IN_PROGRESS",
       completed_at: lifecycle?.completed_at ?? null,
       result_type: lifecycle?.result_type ?? null,
@@ -91,16 +131,29 @@ export async function GET(
       result_note: lifecycle?.result_note ?? null,
       read_only: isWorkspaceCompleted(lifecycle),
       my_role: memberCheck.role,
-      members: workspace.members.map((wm) => ({
+      members: members.map((wm) => ({
         id: wm.user_id,
         name: wm.user?.nickname || "Unknown",
         nickname: wm.user?.nickname || "Unknown",
         email: wm.user?.users?.email || null,
         avatar: wm.user?.avatar_url,
         role: wm.role,
+        team_role: wm.team_role,
         joined_at: wm.joined_at,
         online: false, // TODO: integrate with presence later
       })),
+      pending_invites:
+        memberCheck.role === "owner"
+          ? invites.map((invite) => ({
+              id: invite.id,
+              email: invite.email,
+              role: invite.role,
+              team_role: invite.team_role,
+              created_at: invite.created_at,
+              expires_at: invite.expires_at,
+            }))
+          : [],
+      ...detailPayload,
     };
 
     return NextResponse.json(formattedWorkspace);
@@ -119,7 +172,11 @@ export async function PATCH(
     const resolvedParams = await params;
     const { id: workspaceId } = resolvedParams;
     const body = await request.json();
-    const { name, description, category } = body;
+    const {
+      name,
+      description,
+      category,
+    } = body;
 
     const supabase = createRouteHandlerClient({ cookies });
     const {
@@ -144,6 +201,18 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const existingWorkspace = await prisma.workspaces.findUnique({
+      where: { id: workspaceId },
+      select: {
+        id: true,
+        from_squad_id: true,
+      },
+    });
+
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     const writableCheck = await ensureWorkspaceWritable(workspaceId);
     if (!writableCheck.ok) {
       return NextResponse.json(
@@ -157,7 +226,11 @@ export async function PATCH(
       data: {
         name,
         description,
-        category,
+        ...(existingWorkspace.from_squad_id
+          ? {}
+          : {
+              category: normalizeTeamType(category),
+            }),
       },
     });
 

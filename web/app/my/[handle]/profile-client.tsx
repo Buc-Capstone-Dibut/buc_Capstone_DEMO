@@ -1,11 +1,25 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, type ElementType } from "react";
+import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ElementType,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -20,33 +34,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
+  ArrowRight,
   Bookmark,
-  BookOpen,
   FileText,
   Github,
+  LayoutDashboard,
   Link2,
   Loader2,
   MessageSquare,
   Pencil,
-  Sparkles,
 } from "lucide-react";
 import type {
   BookmarkView,
+  ContentTabKey,
   InitialData,
+  PaginationState,
   ProfileBookmarkItem,
-  ResumePayload,
+  ProfileDataKey,
   TabKey,
 } from "./profile-types";
-import { EMPTY_RESUME, normalizeResumePayload } from "./profile-utils";
+import { formatDate } from "./profile-utils";
 
 const PostsTab = dynamic(() =>
   import("./tabs/posts-tab").then((module) => module.PostsTab),
@@ -56,9 +66,6 @@ const CommentsTab = dynamic(() =>
 );
 const BookmarksTab = dynamic(() =>
   import("./tabs/bookmarks-tab").then((module) => module.BookmarksTab),
-);
-const ResumeTab = dynamic(() =>
-  import("./tabs/resume-tab").then((module) => module.ResumeTab),
 );
 const WorkspaceActivityTab = dynamic(() =>
   import("./tabs/workspace-activity-tab").then(
@@ -93,15 +100,15 @@ function toBookmarkItem(item: unknown): ProfileBookmarkItem {
   const hasBlog = Object.keys(blogRow).length > 0;
   const blog = hasBlog
     ? {
-      id: String(blogRow.id ?? ""),
-      title: readNullableString(blogRow.title),
-      summary: readNullableString(blogRow.summary),
-      author: readNullableString(blogRow.author),
-      tags: readStringArray(blogRow.tags),
-      externalUrl: readNullableString(blogRow.externalUrl),
-      thumbnailUrl: readNullableString(blogRow.thumbnailUrl),
-      publishedAt: readNullableString(blogRow.publishedAt),
-    }
+        id: String(blogRow.id ?? ""),
+        title: readNullableString(blogRow.title),
+        summary: readNullableString(blogRow.summary),
+        author: readNullableString(blogRow.author),
+        tags: readStringArray(blogRow.tags),
+        externalUrl: readNullableString(blogRow.externalUrl),
+        thumbnailUrl: readNullableString(blogRow.thumbnailUrl),
+        publishedAt: readNullableString(blogRow.publishedAt),
+      }
     : null;
 
   return {
@@ -145,6 +152,65 @@ function parsePortfolioSummary(
   };
 }
 
+function CompactEmptyState({
+  icon: Icon,
+  message,
+}: {
+  icon: ElementType;
+  message: string;
+}) {
+  return (
+    <div className="flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+      <Icon className="h-5 w-5 opacity-50" />
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function OverviewShortcutRow({
+  icon: Icon,
+  title,
+  description,
+  count,
+  actionLabel,
+  onAction,
+}: {
+  icon: ElementType;
+  title: string;
+  description: string;
+  count: number;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onAction}
+      className="flex w-full items-center justify-between gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="truncate text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          {count.toLocaleString()}개
+        </span>
+        <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+          {actionLabel}
+        </span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </button>
+  );
+}
+
 const TIER_BADGE: Record<string, string> = {
   씨앗:
     "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
@@ -158,7 +224,6 @@ const TIER_BADGE: Record<string, string> = {
   거목:
     "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
 
-  // Backward compatibility for rows not migrated yet
   Unranked:
     "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
   Bronze:
@@ -171,36 +236,76 @@ const TIER_BADGE: Record<string, string> = {
     "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
 };
 
-const TABS: { key: TabKey; label: string; icon: ElementType }[] = [
+const NAV_ITEMS: {
+  key: TabKey;
+  label: string;
+  description: string;
+  icon: ElementType;
+}[] = [
+  {
+    key: "overview",
+    label: "개요",
+    description: "내 활동을 한눈에 보는 대시보드",
+    icon: LayoutDashboard,
+  },
+  {
+    key: "content",
+    label: "콘텐츠",
+    description: "글과 댓글을 함께 관리",
+    icon: FileText,
+  },
+  {
+    key: "bookmarks",
+    label: "북마크",
+    description: "저장한 아티클 모아보기",
+    icon: Bookmark,
+  },
+  {
+    key: "activity",
+    label: "스페이스",
+    description: "팀 공간 활동 기록",
+    icon: Activity,
+  },
+];
+
+const CONTENT_VIEWS: {
+  key: ContentTabKey;
+  label: string;
+  icon: ElementType;
+}[] = [
   { key: "posts", label: "글", icon: FileText },
   { key: "comments", label: "댓글", icon: MessageSquare },
-  { key: "bookmarks", label: "북마크", icon: Bookmark },
-  { key: "activity", label: "스페이스 활동", icon: Activity },
 ];
-// ─── Main Client Component ────────────────────────────────────────────────────
+
+const PAGE_SIZE = 10;
+
+const EMPTY_PAGINATION_STATE: PaginationState = {
+  hasMore: false,
+  nextCursor: null,
+};
+
+function getInitialPaginationState(initialData: InitialData) {
+  return {
+    posts: initialData.pagination?.posts ?? EMPTY_PAGINATION_STATE,
+    comments: initialData.pagination?.comments ?? EMPTY_PAGINATION_STATE,
+    bookmarks: initialData.pagination?.bookmarks ?? EMPTY_PAGINATION_STATE,
+    activity: initialData.pagination?.activity ?? EMPTY_PAGINATION_STATE,
+  };
+}
 
 export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const router = useRouter();
   const { toast } = useToast();
+  const pendingLoads = useRef<Set<ProfileDataKey>>(new Set());
 
   const [saving, setSaving] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
-  const [resumeViewerOpen, setResumeViewerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>("posts");
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const tab = searchParams.get("tab") as TabKey;
-    if (tab && TABS.some((t) => t.key === tab)) {
-      setActiveTab(tab);
-    }
-  }, []);
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [contentView, setContentView] = useState<ContentTabKey>("posts");
   const [bookmarkView, setBookmarkView] = useState<BookmarkView>("card");
 
-  // Main payload is loaded lazily per tab to keep first paint fast.
   const [profile, setProfile] = useState(initialData.profile);
-  const [stats] = useState(initialData.stats);
-  const [resumeSummary, setResumeSummary] = useState(initialData.resumeSummary);
+  const [stats, setStats] = useState(initialData.stats);
   const [posts, setPosts] = useState(initialData.posts || []);
   const [comments, setComments] = useState(initialData.comments || []);
   const [bookmarks, setBookmarks] = useState(initialData.bookmarks || []);
@@ -209,29 +314,23 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary>(
     parsePortfolioSummary(initialData.workspaceSummary),
   );
-  const prefetchedTabs = initialData.prefetchedTabs || {};
-  const [resumePayload, setResumePayload] = useState<ResumePayload | null>(initialData.resumePayload || null);
-  const [tabLoading, setTabLoading] = useState<
-    Partial<Record<TabKey, boolean>>
+  const prefetchedData = initialData.prefetchedData || {};
+  const [pagination, setPagination] = useState(getInitialPaginationState(initialData));
+  const [dataLoading, setDataLoading] = useState<
+    Partial<Record<ProfileDataKey, boolean>>
+  >({});
+  const [dataLoaded, setDataLoaded] = useState<
+    Partial<Record<ProfileDataKey, boolean>>
   >({
-    posts: !Boolean(prefetchedTabs.posts),
-    comments: !Boolean(prefetchedTabs.comments),
-    bookmarks: !Boolean(prefetchedTabs.bookmarks),
-    activity: !Boolean(prefetchedTabs.activity),
-    resume: !Boolean(prefetchedTabs.resume),
+    posts: Boolean(prefetchedData.posts),
+    comments: Boolean(prefetchedData.comments),
+    bookmarks: Boolean(prefetchedData.bookmarks),
+    activity: Boolean(prefetchedData.activity),
   });
-  const [tabLoaded, setTabLoaded] = useState<Partial<Record<TabKey, boolean>>>({
-    posts: Boolean(prefetchedTabs.posts),
-    comments: Boolean(prefetchedTabs.comments),
-    bookmarks: Boolean(prefetchedTabs.bookmarks),
-    activity: Boolean(prefetchedTabs.activity),
-    resume: Boolean(prefetchedTabs.resume),
-  });
-  const [tabError, setTabError] = useState<Partial<Record<TabKey, string>>>({});
+  const [dataError, setDataError] = useState<
+    Partial<Record<ProfileDataKey, string>>
+  >({});
 
-  const visibleTabs = TABS;
-
-  // Profile edit form — handle is NOT editable
   const [profileForm, setProfileForm] = useState({
     nickname: initialData.profile.nickname || "",
     bio: initialData.profile.bio || "",
@@ -240,83 +339,130 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     blog: portfolioSummary.links.blog,
   });
 
-  const tierStyle =
-    TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
-  const tabCounts: Partial<Record<TabKey, number>> = {
-    posts: stats.postCount,
-    comments: stats.commentCount,
-    bookmarks: stats.bookmarkCount,
-  };
-  const bookmarkTotalCount = tabLoaded.bookmarks
-    ? bookmarks.length
-    : stats.bookmarkCount;
-  const activeTabLoaded = Boolean(tabLoaded[activeTab]);
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get("tab") as TabKey | null;
+    const content = searchParams.get("content") as ContentTabKey | null;
+
+    if (tab && NAV_ITEMS.some((item) => item.key === tab)) {
+      setActiveTab(tab);
+    }
+    if (content && CONTENT_VIEWS.some((item) => item.key === content)) {
+      setContentView(content);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", activeTab);
 
-    const loadTabData = async () => {
-      const tab = activeTab;
-      if (activeTabLoaded) return;
+    if (activeTab === "content") {
+      url.searchParams.set("content", contentView);
+    } else {
+      url.searchParams.delete("content");
+    }
 
-      setTabLoading((prev) => ({ ...prev, [tab]: true }));
-      setTabError((prev) => ({ ...prev, [tab]: "" }));
+    window.history.replaceState({}, "", url);
+  }, [activeTab, contentView]);
+
+  const loadData = useCallback(
+    async (key: ProfileDataKey, options?: { append?: boolean }) => {
+      const append = options?.append === true;
+      if ((!append && dataLoaded[key]) || pendingLoads.current.has(key)) return;
+      if (append && (!pagination[key].hasMore || !pagination[key].nextCursor)) {
+        return;
+      }
+
+      pendingLoads.current.add(key);
+      setDataLoading((prev) => ({ ...prev, [key]: true }));
+      setDataError((prev) => ({ ...prev, [key]: "" }));
 
       try {
-        if (tab === "posts") {
+        const searchParams = new URLSearchParams({
+          handle: profile.handle,
+          limit: String(PAGE_SIZE),
+        });
+
+        if (append && pagination[key].nextCursor) {
+          searchParams.set("cursor", pagination[key].nextCursor);
+        }
+
+        if (key === "posts") {
           const res = await fetch(
-            `/api/my/content/posts?handle=${encodeURIComponent(profile.handle)}`,
-            {
-              cache: "no-store",
-            },
+            `/api/my/content/posts?${searchParams.toString()}`,
+            { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "글을 불러오지 못했습니다.");
           }
-          if (!cancelled) setPosts(json?.data?.items || []);
+          const nextItems = Array.isArray(json?.data?.items) ? json.data.items : [];
+          setPosts((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            posts: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
-        if (tab === "comments") {
+        if (key === "comments") {
           const res = await fetch(
-            `/api/my/content/comments?handle=${encodeURIComponent(profile.handle)}`,
-            {
-              cache: "no-store",
-            },
+            `/api/my/content/comments?${searchParams.toString()}`,
+            { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "댓글을 불러오지 못했습니다.");
           }
-          if (!cancelled) setComments(json?.data?.items || []);
+          const nextItems = Array.isArray(json?.data?.items) ? json.data.items : [];
+          setComments((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            comments: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
-        if (tab === "bookmarks") {
+        if (key === "bookmarks") {
           const res = await fetch(
-            `/api/my/bookmarks?handle=${encodeURIComponent(profile.handle)}`,
-            {
-              cache: "no-store",
-            },
+            `/api/my/bookmarks?${searchParams.toString()}`,
+            { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(json?.error || "북마크를 불러오지 못했습니다.");
           }
-          if (!cancelled) {
-            const rawItems = Array.isArray(json?.data?.items)
-              ? json.data.items
-              : [];
-            const items = rawItems.map(toBookmarkItem);
-            setBookmarks(items);
-          }
+          const rawItems = Array.isArray(json?.data?.items)
+            ? json.data.items
+            : [];
+          const nextItems = rawItems.map(toBookmarkItem);
+          setBookmarks((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            bookmarks: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
-        if (tab === "activity") {
+        if (key === "activity") {
           const res = await fetch(
-            `/api/my/activity/workspace?handle=${encodeURIComponent(profile.handle)}`,
-            {
-              cache: "no-store",
-            },
+            `/api/my/activity/workspace?${searchParams.toString()}`,
+            { cache: "no-store" },
           );
           const json = await res.json();
           if (!res.ok || !json?.success) {
@@ -324,44 +470,59 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               json?.error || "스페이스 활동 기록을 불러오지 못했습니다.",
             );
           }
-          if (!cancelled) {
-            setWorkspaces(json?.data?.workspaces || []);
-          }
+          const nextItems = Array.isArray(json?.data?.items)
+            ? json.data.items
+            : [];
+          setWorkspaces((prev) => (append ? [...prev, ...nextItems] : nextItems));
+          setPagination((prev) => ({
+            ...prev,
+            activity: {
+              hasMore: Boolean(json?.data?.hasMore),
+              nextCursor:
+                typeof json?.data?.nextCursor === "string"
+                  ? json.data.nextCursor
+                  : null,
+            },
+          }));
         }
 
-        // Resume fetching moved to ResumeTab component
-
-        if (!cancelled) {
-          setTabLoaded((prev) => ({ ...prev, [tab]: true }));
-        }
+        setDataLoaded((prev) => ({ ...prev, [key]: true }));
       } catch (error: unknown) {
-        if (!cancelled) {
-          const message = getErrorMessage(
-            error,
-            "데이터를 불러오지 못했습니다.",
-          );
-          setTabError((prev) => ({ ...prev, [tab]: message }));
-          toast({
-            title: "불러오기 실패",
-            description: message,
-            variant: "destructive",
-          });
-        }
+        const message = getErrorMessage(error, "데이터를 불러오지 못했습니다.");
+        setDataError((prev) => ({ ...prev, [key]: message }));
+        toast({
+          title: "불러오기 실패",
+          description: message,
+          variant: "destructive",
+        });
       } finally {
-        if (!cancelled) {
-          setTabLoading((prev) => ({ ...prev, [tab]: false }));
-        }
+        pendingLoads.current.delete(key);
+        setDataLoading((prev) => ({ ...prev, [key]: false }));
       }
-    };
+    },
+    [dataLoaded, pagination, profile.handle, toast],
+  );
 
-    loadTabData();
+  const requiredKeys = useMemo(() => {
+    if (activeTab === "content") {
+      return [contentView] as ProfileDataKey[];
+    }
+    if (activeTab === "bookmarks") {
+      return ["bookmarks"] as ProfileDataKey[];
+    }
+    if (activeTab === "activity") {
+      return ["activity"] as ProfileDataKey[];
+    }
+    return [] as ProfileDataKey[];
+  }, [activeTab, contentView]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, activeTabLoaded, isOwner, profile.handle, toast]);
-
-  // ── Actions ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    requiredKeys.forEach((key) => {
+      if (!dataLoaded[key] && !dataLoading[key]) {
+        void loadData(key);
+      }
+    });
+  }, [requiredKeys, dataLoaded, dataLoading, loadData]);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -383,7 +544,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             bio: profileForm.bio,
             techStack: profileForm.techStack
               .split(",")
-              .map((v) => v.trim())
+              .map((value) => value.trim())
               .filter(Boolean),
           }),
         }),
@@ -413,7 +574,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       );
       setPortfolioSummary(nextPortfolio);
 
-      // Update local state directly — no page reload needed
       setProfile((prev) => ({
         ...prev,
         nickname: profileJson.data.nickname ?? prev.nickname,
@@ -435,38 +595,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     }
   };
 
-  const saveResume = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/my/resume/active", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: resumeSummary?.resumeTitle,
-          resumePayload,
-          sourceType: "manual",
-          sourceFileName: "마이페이지 입력",
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json?.success)
-        throw new Error(json?.error || "이력서 저장 실패");
-      setResumeSummary(json?.data?.publicSummary || resumeSummary);
-      toast({ title: "이력서가 저장되었습니다." });
-    } catch (err: unknown) {
-      toast({
-        title: "저장 실패",
-        description: getErrorMessage(
-          err,
-          "이력서 저장 중 오류가 발생했습니다.",
-        ),
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const removePost = async (postId: string) => {
     if (!confirm("해당 글을 삭제하시겠습니까?")) return;
     const res = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
@@ -475,6 +603,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       return;
     }
     setPosts((prev) => prev.filter((item) => item.id !== postId));
+    setStats((prev) => ({
+      ...prev,
+      postCount: Math.max(prev.postCount - 1, 0),
+    }));
   };
 
   const removeComment = async (commentId: string) => {
@@ -485,582 +617,602 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
       return;
     }
     setComments((prev) => prev.filter((item) => item.id !== commentId));
+    setStats((prev) => ({
+      ...prev,
+      commentCount: Math.max(prev.commentCount - 1, 0),
+    }));
   };
 
-  // ── Main render ───────────────────────────────────────────────────────────
+  const handleTabChange = (
+    nextTab: TabKey,
+    nextContentView?: ContentTabKey,
+  ) => {
+    setActiveTab(nextTab);
+    if (nextContentView) {
+      setContentView(nextContentView);
+    }
+  };
+
+  const tierStyle =
+    TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
+
+  const displayStats = stats;
+  const contentCount = stats.postCount + stats.commentCount;
+  const renderLoadMoreButton = (key: ProfileDataKey, itemCount: number) => {
+    if (!pagination[key].hasMore) {
+      return null;
+    }
+
+    const isLoadingMore = Boolean(dataLoading[key] && itemCount > 0);
+
+    return (
+      <div className="mt-5 flex justify-center">
+        <Button
+          variant="outline"
+          onClick={() => void loadData(key, { append: true })}
+          disabled={Boolean(dataLoading[key])}
+          className="gap-2"
+        >
+          {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isLoadingMore ? "불러오는 중..." : "더보기"}
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Cover Banner */}
-      <div className="relative h-36 sm:h-44 overflow-hidden shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/40 via-primary/15 to-background" />
-        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-        <div className="absolute top-6 left-[38%] w-36 h-36 rounded-full bg-primary/8 blur-2xl pointer-events-none" />
+      <div className="relative h-40 overflow-hidden shrink-0 sm:h-48">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/45 via-primary/15 to-background" />
+        <div className="absolute -right-10 -top-12 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute left-[28%] top-8 h-36 w-36 rounded-full bg-emerald-200/40 blur-3xl" />
       </div>
 
-      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 flex-1 pb-20">
-        {/* Profile Header Row */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 sm:-mt-16 mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-            <Avatar className="h-24 w-24 ring-4 ring-background shadow-xl shrink-0">
+      <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="-mt-14 mb-8 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
+            <Avatar className="h-24 w-24 ring-4 ring-background shadow-xl sm:h-28 sm:w-28">
               <AvatarImage src={profile.avatarUrl ?? undefined} />
-              <AvatarFallback className="text-3xl font-bold bg-primary/10 text-primary">
+              <AvatarFallback className="bg-primary/10 text-3xl font-bold text-primary">
                 {(profile.nickname || "U").charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="pb-1 space-y-1.5">
+            <div className="space-y-2 pb-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight">
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   {profile.nickname || "사용자"}
                 </h1>
                 {isOwner && (
-                  <Badge className="text-[10px] px-1.5 h-5 bg-primary/10 text-primary border-primary/20 font-normal">
+                  <Badge className="h-5 border-primary/20 bg-primary/10 px-1.5 text-[10px] font-normal text-primary">
                     내 프로필
                   </Badge>
                 )}
                 {profile.tier && (
                   <Badge
                     variant="outline"
-                    className={`text-[10px] px-1.5 h-5 font-normal ${tierStyle}`}
+                    className={`h-5 px-1.5 text-[10px] font-normal ${tierStyle}`}
                   >
                     ★ {profile.tier}
                   </Badge>
                 )}
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 h-5 font-normal border-primary/30 text-primary"
+                  className="h-5 border-primary/30 px-1.5 text-[10px] font-normal text-primary"
                 >
                   점수 {Math.max(0, profile.reputation || 0).toLocaleString()}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">@{profile.handle}</p>
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                {profile.bio || "내 활동과 아카이브를 대시보드로 정리할 수 있는 공간입니다."}
+              </p>
             </div>
           </div>
           {isOwner && (
             <Button
               variant="outline"
               size="sm"
-              className="self-start sm:self-auto shrink-0 gap-1.5"
+              className="self-start gap-1.5 sm:self-auto"
               onClick={() => setEditSheetOpen(true)}
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="h-3.5 w-3.5" />
               프로필 편집
             </Button>
           )}
         </div>
 
-        {/* Two-column grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[288px_1fr] gap-6 items-start">
-          {/* Sidebar */}
-          <aside className="space-y-4 lg:sticky lg:top-20">
-            <Card className="overflow-hidden">
-              <CardContent className="p-5 space-y-4">
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {profile.bio ? (
-                    profile.bio
-                  ) : (
-                    <span className="italic">소개가 없습니다.</span>
-                  )}
-                </p>
-                {profile.techStack.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile.techStack.map((tech) => (
-                        <Badge
-                          key={tech}
-                          variant="secondary"
-                          className="text-xs font-normal"
-                        >
-                          {tech}
-                        </Badge>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+        <div className="space-y-6">
+          <div className="border-b border-border/70">
+            <div className="flex min-w-max items-center gap-6 overflow-x-auto px-1">
+              {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
+                const isActive = activeTab === key;
+                const count =
+                  key === "overview"
+                    ? undefined
+                    : key === "content"
+                      ? contentCount
+                      : key === "bookmarks"
+                        ? displayStats.bookmarkCount
+                        : displayStats.workspaceCount;
 
-            <Card>
-              <CardContent className="p-0">
-                <div className="grid grid-cols-3 divide-x">
-                  {[
-                    { value: stats.postCount, label: "글" },
-                    { value: stats.commentCount, label: "댓글" },
-                    { value: stats.workspaceCount, label: "스페이스" },
-                  ].map(({ value, label }) => (
-                    <div
-                      key={label}
-                      className="flex flex-col items-center py-5 gap-0.5"
-                    >
-                      <span className="text-2xl font-bold tabular-nums">
-                        {value}
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleTabChange(key)}
+                    className={[
+                      "relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-4 text-sm font-semibold transition-colors",
+                      isActive
+                        ? "border-primary text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
+                    {typeof count === "number" && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                        {count}
                       </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    링크
-                  </span>
-                </div>
-                <Separator />
-                {(portfolioSummary.links.github || portfolioSummary.links.blog) ? (
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      {portfolioSummary.links.github && (
-                        <a
-                          href={portfolioSummary.links.github}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          <Github className="w-3 h-3" />
-                          GitHub
-                        </a>
-                      )}
-                      {portfolioSummary.links.blog && (
-                        <a
-                          href={portfolioSummary.links.blog}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          <Link2 className="w-3 h-3" />
-                          Blog
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">
-                    외부 링크를 추가해 주세요.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      공개 이력서
-                    </span>
-                  </div>
-                  {isOwner && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-[10px] gap-1 px-2"
-                      onClick={() => router.push("/my/resumes")}
-                    >
-                      관리
-                    </Button>
-                  )}
-                </div>
-                <Separator />
-                {resumeSummary ? (
-                  <div className="space-y-4">
-                    <div
-                      className="space-y-2 cursor-pointer hover:bg-muted/30 p-2 -mx-2 rounded-md transition-colors"
-                      onClick={() => setResumeViewerOpen(true)}
-                    >
-                      {resumeSummary.resumeTitle ? (
-                        <p className="text-sm font-bold leading-snug">
-                          {resumeSummary.resumeTitle}
-                        </p>
-                      ) : resumeSummary.headline ? (
-                        <p className="text-sm font-medium leading-snug">
-                          {resumeSummary.headline}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic leading-snug">
-                          아직 제목이나 한 줄 소개가 작성되지 않았습니다.
-                        </p>
-                      )}
-                      {(resumeSummary.topSkills || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {(resumeSummary.topSkills as string[])
-                            .slice(0, 5)
-                            .map((s: string) => (
-                              <Badge
-                                key={s}
-                                variant="outline"
-                                className="text-[10px] h-4 px-1.5"
-                              >
-                                {s}
-                              </Badge>
-                            ))}
-                        </div>
-                      )}
-                      <p className="text-[10px] text-muted-foreground mt-1">자세히 보기 &rarr;</p>
-                    </div>
-
-                    {isOwner && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs gap-2 py-4 border-dashed mt-2"
-                        onClick={() => router.push("/resume?mode=setup")}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        AI와 함께 만들기
-                      </Button>
                     )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid items-start gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
+            <aside className="space-y-4 xl:sticky xl:top-20">
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base">티어</CardTitle>
+                      <CardDescription className="mt-1">
+                        현재 프로필 등급입니다.
+                      </CardDescription>
+                    </div>
+                    <Link
+                      href="/tier-system"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/70 bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
+                    >
+                      자세히 보기
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground italic">
-                      공개된 이력서가 없습니다.
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-2xl border bg-muted/20 px-4 py-6 text-center">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Rank
                     </p>
-                    {isOwner && (
-                      <Button
+                    <div className="mt-3 flex justify-center">
+                      <Badge
                         variant="outline"
-                        size="sm"
-                        className="w-full text-xs gap-2 py-5 border-dashed"
-                        onClick={() => router.push("/resume?mode=setup")}
+                        className={`h-8 px-3 text-sm font-medium ${tierStyle}`}
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        AI와 함께 만들기
-                      </Button>
-                    )}
+                        ★ {profile.tier}
+                      </Badge>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Resume Viewer Dialog */}
-            <Dialog open={resumeViewerOpen} onOpenChange={setResumeViewerOpen}>
-              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-lg flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-primary" />
-                    {resumeSummary?.resumeTitle || "이력서 상세 정보"}
-                  </DialogTitle>
-                </DialogHeader>
-                {resumePayload ? (
-                  <div className="space-y-6 pt-4">
-                    {/* Header - Personal Info */}
-                    <div className="space-y-2 pb-4 border-b">
-                      <h3 className="text-xl font-bold">{resumePayload.personalInfo?.name || "이름 미입력"}</h3>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {resumePayload.personalInfo?.intro || "한 줄 소개가 작성되지 않았습니다."}
-                      </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-                        {resumePayload.personalInfo?.email && <span>📧 {resumePayload.personalInfo.email}</span>}
-                        {resumePayload.personalInfo?.phone && <span>📞 {resumePayload.personalInfo.phone}</span>}
-                        {resumePayload.personalInfo?.links?.github && (
-                          <span>💻 <a href={resumePayload.personalInfo.links.github} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
-                        )}
-                        {resumePayload.personalInfo?.links?.blog && (
-                          <span>📝 <a href={resumePayload.personalInfo.links.blog} target="_blank" rel="noreferrer" className="hover:underline">Blog</a></span>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">링크</CardTitle>
+                  <CardDescription>
+                    외부 포트폴리오와 주요 링크를 정리합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {portfolioSummary.links.github && (
+                    <a
+                      href={portfolioSummary.links.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Github className="h-4 w-4" />
+                        GitHub
+                      </span>
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  )}
+                  {portfolioSummary.links.blog && (
+                    <a
+                      href={portfolioSummary.links.blog}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Link2 className="h-4 w-4" />
+                        Blog
+                      </span>
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  )}
+                  {!portfolioSummary.links.github && !portfolioSummary.links.blog && (
+                    <p className="text-sm text-muted-foreground">
+                      아직 등록된 외부 링크가 없습니다.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </aside>
+
+            <section className="min-w-0 space-y-6">
+              {activeTab === "overview" && (
+                <>
+                  <Card className="overflow-hidden">
+                    <CardHeader className="border-b bg-muted/10 pb-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <CardTitle className="text-xl">소개</CardTitle>
+                          <CardDescription>
+                            프로필 소개와 핵심 상태를 한 화면에 배치했습니다.
+                          </CardDescription>
+                        </div>
+                        {isOwner && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setEditSheetOpen(true)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            프로필 편집
+                          </Button>
                         )}
                       </div>
-                    </div>
-
-                    {/* Self Introduction */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">자기소개서</h4>
-                      {resumePayload.selfIntroduction ? (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap bg-muted/30 p-3 rounded-md border">
-                          {resumePayload.selfIntroduction}
+                    </CardHeader>
+                    <CardContent className="px-6 py-6">
+                      <div className="space-y-4">
+                        <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/90">
+                          {profile.bio ||
+                            "아직 소개가 없습니다. 이 영역은 내 성향, 관심사, 현재 집중하고 있는 기술과 프로젝트를 한눈에 보여주는 공간입니다."}
                         </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">작성된 자기소개서가 없습니다.</p>
-                      )}
-                    </div>
+                        {profile.techStack.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {profile.techStack.map((tech) => (
+                              <Badge key={tech} variant="secondary">
+                                {tech}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                    {/* Skills */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">보유 기술</h4>
-                      {resumePayload.skills && resumePayload.skills.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {resumePayload.skills.map((skill: any, i: number) => (
-                            <Badge key={i} variant="secondary" className="font-medium px-2 py-0.5">
-                              {skill.name} {skill.level ? `(${skill.level})` : ""}
-                            </Badge>
-                          ))}
+                  <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+                    <Card className="min-h-[320px]">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <CardTitle className="text-lg">최근 글</CardTitle>
+                            <CardDescription>
+                              최근에 작성한 게시글을 바로 확인합니다.
+                            </CardDescription>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1 px-2"
+                            onClick={() => handleTabChange("content", "posts")}
+                          >
+                            전체
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">등록된 기술이 없습니다.</p>
-                      )}
-                    </div>
-
-                    {/* Experience */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">경력 사항</h4>
-                      {resumePayload.experience && resumePayload.experience.length > 0 ? (
-                        <div className="space-y-3">
-                          {resumePayload.experience.map((exp: any, i: number) => (
-                            <div key={i} className="bg-card border rounded-md p-3 text-sm space-y-1.5">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="font-semibold text-primary">{exp.company}</p>
-                                  <p className="text-muted-foreground mt-0.5">{exp.position}</p>
-                                </div>
-                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full whitespace-nowrap">{exp.period}</span>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {posts.length === 0 ? (
+                          <CompactEmptyState
+                            icon={FileText}
+                            message="작성한 글이 없습니다."
+                          />
+                        ) : (
+                          posts.slice(0, 5).map((post) => (
+                            <button
+                              key={post.id}
+                              type="button"
+                              onClick={() =>
+                                router.push(`/community/board/${post.id}`)
+                              }
+                              className="w-full rounded-xl border px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-muted/20"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="truncate text-sm font-semibold">
+                                  {post.title}
+                                </p>
+                                {post.createdAt && (
+                                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                                    {formatDate(post.createdAt)}
+                                  </span>
+                                )}
                               </div>
-                              {exp.description && (
-                                <p className="text-xs text-muted-foreground whitespace-pre-wrap pt-1">{exp.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">등록된 경력이 없습니다.</p>
-                      )}
-                    </div>
-
-                    {/* Projects */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">프로젝트</h4>
-                      {resumePayload.projects && resumePayload.projects.length > 0 ? (
-                        <div className="space-y-3">
-                          {resumePayload.projects.map((proj: any, i: number) => (
-                            <div key={i} className="bg-card border rounded-md p-3 text-sm space-y-2">
-                              <div className="flex justify-between items-start">
-                                <p className="font-semibold leading-tight">{proj.name}</p>
-                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full whitespace-nowrap ml-2">{proj.period}</span>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                {post.category && (
+                                  <span className="rounded-full bg-muted px-2 py-0.5">
+                                    {post.category}
+                                  </span>
+                                )}
+                                <span>좋아요 {post.likes ?? 0}</span>
+                                <span>조회 {post.views ?? 0}</span>
                               </div>
-                              {proj.description && (
-                                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{proj.description}</p>
-                              )}
-                              {proj.techStack && proj.techStack.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {proj.techStack.map((tech: string, j: number) => (
-                                    <span key={j} className="text-[10px] text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                      {tech}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">등록된 프로젝트가 없습니다.</p>
-                      )}
+                            </button>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg">빠른 이동</CardTitle>
+                        <CardDescription>
+                          필요한 목록만 눌렀을 때 불러옵니다.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <OverviewShortcutRow
+                          icon={MessageSquare}
+                          title="댓글"
+                          description="내가 남긴 댓글"
+                          count={displayStats.commentCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("content", "comments")}
+                        />
+
+                        <OverviewShortcutRow
+                          icon={Bookmark}
+                          title="북마크"
+                          description="저장한 글 목록"
+                          count={displayStats.bookmarkCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("bookmarks")}
+                        />
+
+                        <OverviewShortcutRow
+                          icon={Activity}
+                          title="스페이스 활동"
+                          description="참여한 워크스페이스"
+                          count={displayStats.workspaceCount}
+                          actionLabel="열기"
+                          onAction={() => handleTabChange("activity")}
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+
+            {activeTab === "content" && (
+              <Card>
+                <CardHeader className="gap-4 pb-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <CardTitle className="text-xl">콘텐츠 활동</CardTitle>
+                      <CardDescription>
+                        글과 댓글을 한 곳에서 오가며 확인할 수 있도록 묶었습니다.
+                      </CardDescription>
+                    </div>
+                    <div className="inline-flex rounded-xl border bg-muted/30 p-1">
+                      {CONTENT_VIEWS.map(({ key, label, icon: Icon }) => {
+                        const isActive = contentView === key;
+                        const count =
+                          key === "posts"
+                            ? displayStats.postCount
+                            : displayStats.commentCount;
+
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setContentView(key)}
+                            className={[
+                              "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+                              isActive
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {label}
+                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums">
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                ) : (
-                  <div className="py-10 text-center">
-                    <p className="text-sm text-muted-foreground mb-4">상세 이력서 데이터를 불러올 수 없습니다.</p>
-                    <p className="text-xs text-muted-foreground italic">이력서가 아직 작성되지 않았거나 공개 설정이 불완전할 수 있습니다.</p>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
-
-          </aside>
-
-          {/* Content */}
-          <div className="min-w-0 space-y-4">
-            {/* Tab Nav */}
-            <div className="border-b">
-              <nav className="flex" role="tablist">
-                {visibleTabs.map(({ key, label, icon: Icon }) => {
-                  const count = tabCounts[key];
-                  const active = activeTab === key;
-                  return (
-                    <button
-                      key={key}
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setActiveTab(key)}
-                      className={[
-                        "flex items-center gap-1.5 px-4 py-3 text-sm font-medium",
-                        "border-b-2 -mb-px transition-colors whitespace-nowrap",
-                        "focus-visible:outline-none",
-                        active
-                          ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
-                      ].join(" ")}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {label}
-                      {count !== undefined && count > 0 && (
-                        <span
-                          className={[
-                            "ml-0.5 text-[10px] px-1.5 rounded-full tabular-nums font-normal",
-                            active
-                              ? "bg-primary/15 text-primary"
-                              : "bg-muted text-muted-foreground",
-                          ].join(" ")}
-                        >
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-
-            {/* Tab: 글 */}
-            {activeTab === "posts" && (
-              <PostsTab
-                loading={tabLoading.posts}
-                error={tabError.posts}
-                posts={posts}
-                isOwner={isOwner}
-                onOpenPost={(postId) =>
-                  router.push(`/community/board/${postId}`)
-                }
-                onRemovePost={removePost}
-              />
+                </CardHeader>
+                <CardContent>
+                  {contentView === "posts" ? (
+                    <>
+                      <PostsTab
+                        loading={dataLoading.posts}
+                        error={dataError.posts}
+                        posts={posts}
+                        isOwner={isOwner}
+                        onOpenPost={(postId) =>
+                          router.push(`/community/board/${postId}`)
+                        }
+                        onRemovePost={removePost}
+                      />
+                      {renderLoadMoreButton("posts", posts.length)}
+                    </>
+                  ) : (
+                    <>
+                      <CommentsTab
+                        loading={dataLoading.comments}
+                        error={dataError.comments}
+                        comments={comments}
+                        isOwner={isOwner}
+                        onOpenCommentPost={(postId) => {
+                          if (!postId) return;
+                          router.push(`/community/board/${postId}`);
+                        }}
+                        onRemoveComment={removeComment}
+                      />
+                      {renderLoadMoreButton("comments", comments.length)}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            {/* Tab: 댓글 */}
-            {activeTab === "comments" && (
-              <CommentsTab
-                loading={tabLoading.comments}
-                error={tabError.comments}
-                comments={comments}
-                isOwner={isOwner}
-                onOpenCommentPost={(postId) => {
-                  if (!postId) return;
-                  router.push(`/community/board/${postId}`);
-                }}
-                onRemoveComment={removeComment}
-              />
-            )}
-
-            {/* Tab: 북마크 */}
             {activeTab === "bookmarks" && (
-              <BookmarksTab
-                loading={tabLoading.bookmarks}
-                error={tabError.bookmarks}
-                bookmarks={bookmarks}
-                bookmarkView={bookmarkView}
-                onChangeBookmarkView={setBookmarkView}
-                totalCount={bookmarkTotalCount}
-              />
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl">북마크 아카이브</CardTitle>
+                  <CardDescription>
+                    저장한 콘텐츠를 카드형과 리스트형으로 오가며 볼 수 있습니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <>
+                    <BookmarksTab
+                      loading={dataLoading.bookmarks}
+                      error={dataError.bookmarks}
+                      bookmarks={bookmarks}
+                      bookmarkView={bookmarkView}
+                      onChangeBookmarkView={setBookmarkView}
+                      totalCount={displayStats.bookmarkCount}
+                    />
+                    {renderLoadMoreButton("bookmarks", bookmarks.length)}
+                  </>
+                </CardContent>
+              </Card>
             )}
 
-            {/* Tab: 활동 (스페이스) */}
             {activeTab === "activity" && (
-              <WorkspaceActivityTab
-                loading={tabLoading.activity}
-                error={tabError.activity}
-                workspaces={workspaces}
-              />
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl">스페이스 활동</CardTitle>
+                  <CardDescription>
+                    참여한 팀 공간을 한 페이지에서 바로 확인합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <>
+                    <WorkspaceActivityTab
+                      loading={dataLoading.activity}
+                      error={dataError.activity}
+                      workspaces={workspaces}
+                    />
+                    {renderLoadMoreButton("activity", workspaces.length)}
+                  </>
+                </CardContent>
+              </Card>
             )}
-          </div>
+          </section>
         </div>
       </div>
+    </div>
 
-      {/* Profile Edit Sheet — handle field removed */}
       {isOwner && (
         <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
-          <SheetContent className="w-full sm:max-w-md flex flex-col gap-0 p-0">
-            <SheetHeader className="px-6 pt-6 pb-4 border-b">
+          <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+            <SheetHeader className="border-b px-6 pb-4 pt-6">
               <SheetTitle>프로필 편집</SheetTitle>
               <SheetDescription>
                 변경 사항은 저장 즉시 반영됩니다.
               </SheetDescription>
             </SheetHeader>
             <ScrollArea className="flex-1">
-              <div className="px-6 py-5 space-y-5">
-                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/40 border border-dashed">
+              <div className="space-y-5 px-6 py-5">
+                <div className="flex items-center gap-4 rounded-xl border border-dashed bg-muted/40 p-4">
                   <Avatar className="h-14 w-14 shrink-0">
                     <AvatarImage src={profile.avatarUrl ?? undefined} />
-                    <AvatarFallback className="text-xl font-bold bg-primary/10 text-primary">
+                    <AvatarFallback className="bg-primary/10 text-xl font-bold text-primary">
                       {(profileForm.nickname || "U").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">
-                      {profileForm.nickname || "닉네임 없음"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      @{profile.handle}
+                    <p className="text-sm font-medium">{profile.nickname}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      프로필 기본 정보
                     </p>
                   </div>
                 </div>
-                <Separator />
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    닉네임
-                  </Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nickname">닉네임</Label>
                   <Input
+                    id="nickname"
                     value={profileForm.nickname}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({
-                        ...p,
-                        nickname: e.target.value,
+                    onChange={(event) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        nickname: event.target.value,
                       }))
                     }
-                    placeholder="표시될 이름"
+                    maxLength={30}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    한 줄 소개
-                  </Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bio">소개</Label>
                   <Textarea
+                    id="bio"
                     value={profileForm.bio}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({ ...p, bio: e.target.value }))
-                    }
-                    placeholder="나를 한 줄로 소개하세요"
-                    className="resize-none min-h-[80px]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    기술 스택 (쉼표 구분)
-                  </Label>
-                  <Input
-                    value={profileForm.techStack}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({
-                        ...p,
-                        techStack: e.target.value,
+                    onChange={(event) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        bio: event.target.value,
                       }))
                     }
-                    placeholder="React, Node.js, Python..."
+                    rows={5}
+                    placeholder="자신을 소개해 주세요."
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tech-stack">기술 스택</Label>
+                  <Input
+                    id="tech-stack"
+                    value={profileForm.techStack}
+                    onChange={(event) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        techStack: event.target.value,
+                      }))
+                    }
+                    placeholder="React, TypeScript, Python"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    쉼표로 구분해 입력합니다.
+                  </p>
                 </div>
 
                 <Separator />
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    GitHub 링크
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="github">GitHub 링크</Label>
                   <Input
+                    id="github"
                     value={profileForm.github}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({
-                        ...p,
-                        github: e.target.value,
+                    onChange={(event) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        github: event.target.value,
                       }))
                     }
                     placeholder="https://github.com/..."
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    Blog 링크
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="blog">블로그 링크</Label>
                   <Input
+                    id="blog"
                     value={profileForm.blog}
-                    onChange={(e) =>
-                      setProfileForm((p) => ({
-                        ...p,
-                        blog: e.target.value,
+                    onChange={(event) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        blog: event.target.value,
                       }))
                     }
                     placeholder="https://..."
@@ -1068,22 +1220,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 </div>
               </div>
             </ScrollArea>
-            <SheetFooter className="px-6 py-4 border-t flex-row gap-2">
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => setEditSheetOpen(false)}
-                disabled={saving}
-              >
-                취소
-              </Button>
-              <Button
-                onClick={saveProfile}
-                disabled={saving}
-                className="flex-1"
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                저장
+            <SheetFooter className="border-t px-6 py-4">
+              <Button onClick={saveProfile} disabled={saving} className="gap-2">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                저장하기
               </Button>
             </SheetFooter>
           </SheetContent>

@@ -29,14 +29,29 @@ export function DraggablePropertySettings({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (over && active.id !== over.id) {
-        const oldIndex = properties.indexOf(active.id as string);
-        const newIndex = properties.indexOf(over.id as string);
-        if (onReorder) {
-            onReorder(arrayMove(properties, oldIndex, newIndex));
-        }
+    if (
+      !over ||
+      active.id === over.id ||
+      active.id === "title" ||
+      over.id === "title"
+    ) {
+      return;
+    }
+
+    const oldIndex = properties.indexOf(active.id as string);
+    const newIndex = properties.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    if (onReorder) {
+      const nextOrder = arrayMove(properties, oldIndex, newIndex);
+      onReorder(["title", ...nextOrder.filter((prop) => prop !== "title")]);
     }
   };
+
+  const normalizedProperties = [
+    "title",
+    ...properties.filter((prop) => prop !== "title"),
+  ];
 
   return (
     <DndContext
@@ -45,11 +60,11 @@ export function DraggablePropertySettings({
       onDragEnd={handleDragEnd}
     >
       <SortableContext
-        items={properties}
+        items={normalizedProperties}
         strategy={verticalListSortingStrategy}
       >
         <div className="space-y-1">
-           {properties.map(prop => (
+           {normalizedProperties.map(prop => (
               <SortablePropertyItem
                  key={prop}
                  id={prop}
@@ -72,7 +87,10 @@ function SortablePropertyItem({ id, visible, onToggle, isLocked }: { id: string,
       transform,
       transition,
       isDragging
-   } = useSortable({ id });
+   } = useSortable({
+      id,
+      disabled: isLocked,
+   });
 
    const style = {
       transform: CSS.Transform.toString(transform),
@@ -107,7 +125,18 @@ function SortablePropertyItem({ id, visible, onToggle, isLocked }: { id: string,
          )}
       >
          <div className="flex items-center gap-2">
-            <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded text-muted-foreground/50 hover:text-foreground">
+            <button
+              {...(!isLocked ? attributes : {})}
+              {...(!isLocked ? listeners : {})}
+              className={cn(
+                "p-0.5 rounded text-muted-foreground/50",
+                isLocked
+                  ? "cursor-not-allowed opacity-40"
+                  : "cursor-grab active:cursor-grabbing hover:bg-muted hover:text-foreground",
+              )}
+              aria-label={isLocked ? "제목은 고정되어 있습니다" : "속성 순서 변경"}
+              type="button"
+            >
                <GripVertical className="h-3.5 w-3.5" />
             </button>
             <div className="flex items-center gap-2 text-sm">

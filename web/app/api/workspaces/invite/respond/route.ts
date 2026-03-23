@@ -3,6 +3,14 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 
+const getPrismaErrorCode = (error: unknown) => {
+  if (typeof error === "object" && error && "code" in error) {
+    const value = error.code;
+    return typeof value === "string" ? value : null;
+  }
+  return null;
+};
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -21,6 +29,10 @@ export async function POST(request: Request) {
       { error: "Invite ID and Action are required" },
       { status: 400 },
     );
+  }
+
+  if (action !== "accept" && action !== "decline") {
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
   try {
@@ -74,6 +86,7 @@ export async function POST(request: Request) {
           workspace_id: invite.workspace_id,
           user_id: user.id,
           role: invite.role,
+          team_role: invite.team_role,
         },
       });
 
@@ -95,13 +108,13 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Respond Invite Error:", error);
     // Unique constraint violation (already member) might happen
-    if ((error as any).code === "P2002") {
+    if (getPrismaErrorCode(error) === "P2002") {
       // Prisma unique constraint
       // If failing on workspace_members create, it means already member.
       // Just delete invite and return success.
       try {
         await prisma.workspace_invites.delete({ where: { id: inviteId } });
-      } catch (e) {}
+      } catch {}
       return NextResponse.json({ success: true, message: "Already a member" });
     }
 

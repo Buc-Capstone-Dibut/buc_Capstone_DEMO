@@ -6,16 +6,11 @@ import Link from "next/link";
 import {
   Plus,
   Clock,
-  Users,
   MoreVertical,
   Trash2,
   Loader2,
-  Trophy,
-  CheckCircle2,
-  ArrowRight,
-  Search,
-  Settings,
   Pencil,
+  ArrowRight,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -31,7 +26,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -52,6 +46,8 @@ import {
 
 import { CreateWorkspaceDialog } from "../dialogs/create-workspace-dialog";
 import { EditWorkspaceDialog } from "../dialogs/edit-workspace-dialog";
+import { getTeamTypeLabel } from "@/lib/team-types";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 interface Workspace {
   id: string;
@@ -111,10 +107,10 @@ export function ProjectList() {
       });
 
       if (!response.ok) {
-        throw new Error("워크스페이스 삭제 실패");
+        throw new Error("팀 공간 삭제 실패");
       }
 
-      toast.success("워크스페이스가 삭제되었습니다.");
+      toast.success("팀 공간이 삭제되었습니다.");
       mutate(workspaces?.filter((w) => w.id !== workspaceToDelete.id)); // Optimistic update
     } catch (error) {
       toast.error("삭제 중 오류가 발생했습니다.");
@@ -143,7 +139,7 @@ export function ProjectList() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
         <h3 className="text-lg font-semibold">로그인이 필요합니다</h3>
         <p className="mt-2 text-sm">
-          워크스페이스 조회/생성은 로그인 후 사용할 수 있습니다. 우측 상단의
+          팀 공간 조회/생성은 로그인 후 사용할 수 있습니다. 우측 상단의
           로그인 버튼으로 먼저 로그인해 주세요.
         </p>
       </div>
@@ -154,16 +150,20 @@ export function ProjectList() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">워크스페이스</h2>
+          <h2 className="text-2xl font-bold tracking-tight">팀 공간</h2>
           <p className="text-muted-foreground">
-            참여 중인 프로젝트 목록입니다.
+            참여 중인 팀 공간 목록입니다.
           </p>
         </div>
-        <CreateWorkspaceDialog>
-          <Button className="h-11 px-6 rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all gap-2">
-            <Plus className="w-5 h-5" /> 프로젝트 추가
-          </Button>
-        </CreateWorkspaceDialog>
+        <Button
+          asChild
+          className="h-11 px-6 rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all gap-2"
+        >
+          <Link href="/community/squad">
+            팀원 모집 보러가기
+            <ArrowRight className="w-5 h-5" />
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -213,7 +213,7 @@ export function ProjectList() {
                     variant="secondary"
                     className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                   >
-                    Demo Project
+                    {getTeamTypeLabel("Demo Project")}
                   </Badge>
                 </div>
 
@@ -229,12 +229,16 @@ export function ProjectList() {
 
               <CardContent className="pb-4">
                 <div className="flex items-center -space-x-2 overflow-hidden pl-1">
-                  <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarFallback className="bg-muted text-xs">J</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarFallback className="bg-muted text-xs">F</AvatarFallback>
-                  </Avatar>
+                  <WorkspaceUserAvatar
+                    name="Junghwan"
+                    className="h-8 w-8 ring-2 ring-background"
+                    fallbackClassName="bg-muted text-xs"
+                  />
+                  <WorkspaceUserAvatar
+                    name="Frontend"
+                    className="h-8 w-8 ring-2 ring-background"
+                    fallbackClassName="bg-muted text-xs"
+                  />
                   <div className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-background bg-muted text-[10px] font-medium text-muted-foreground">
                     +1
                   </div>
@@ -265,7 +269,7 @@ export function ProjectList() {
                         variant="secondary"
                         className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider"
                       >
-                        {workspace.category || "Side Project"}
+                        {getTeamTypeLabel(workspace.category)}
                       </Badge>
                     </div>
 
@@ -275,7 +279,7 @@ export function ProjectList() {
                       </CardTitle>
                       <CardDescription className="line-clamp-2 text-sm text-muted-foreground h-10">
                         {workspace.description ||
-                          "프로젝트에 대한 설명이 없습니다."}
+                          "팀 공간에 대한 설명이 없습니다."}
                       </CardDescription>
                     </div>
                   </CardHeader>
@@ -283,15 +287,13 @@ export function ProjectList() {
                   <CardContent className="pb-4">
                     <div className="flex items-center -space-x-2 overflow-hidden pl-1">
                       {workspace?.recent_members?.map((member) => (
-                        <Avatar
+                        <WorkspaceUserAvatar
                           key={member.id}
+                          name={member.nickname}
+                          avatarUrl={member.avatar_url}
                           className="inline-block h-8 w-8 ring-2 ring-background transition-transform hover:-translate-y-1"
-                        >
-                          <AvatarImage src={member.avatar_url || ""} />
-                          <AvatarFallback className="bg-muted text-xs">
-                            {member.nickname?.slice(0, 1) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
+                          fallbackClassName="bg-muted text-xs"
+                        />
                       ))}
                       {workspace.member_count > 4 && (
                         <div className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-background bg-muted text-[10px] font-medium text-muted-foreground">
@@ -352,7 +354,7 @@ export function ProjectList() {
             </div>
           ))}
 
-        {/* New Project Placeholder */}
+        {/* New Team Space Placeholder */}
         <CreateWorkspaceDialog>
           <button className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-4 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-muted/30 transition-all h-full min-h-[250px]">
             <div className="h-14 w-14 rounded-full bg-muted group-hover:bg-background flex items-center justify-center shadow-sm">
@@ -360,7 +362,7 @@ export function ProjectList() {
             </div>
             <div className="text-center">
               <span className="font-semibold block text-lg">
-                새 프로젝트 만들기
+                새 팀 공간 만들기
               </span>
               <span className="text-sm opacity-70 mt-1 block">
                 팀원을 초대하고 협업을 시작하세요
@@ -378,10 +380,10 @@ export function ProjectList() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              워크스페이스를 삭제하시겠습니까?
+              팀 공간을 삭제하시겠습니까?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              '{workspaceToDelete?.name}' 워크스페이스와 관련된 모든
+              &apos;{workspaceToDelete?.name}&apos; 팀 공간과 관련된 모든
               데이터(문서, 칸반 보드, 알림 등)가 영구적으로 삭제됩니다. 이
               작업은 되돌릴 수 없습니다.
             </AlertDialogDescription>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
@@ -6,7 +7,6 @@ import {
   MoreHorizontal,
   Plus,
   Trash2,
-  Settings,
   Pencil,
   Palette,
 } from "lucide-react";
@@ -69,11 +69,12 @@ interface KanbanColumnProps {
   category?: "todo" | "in-progress" | "done";
   onDeleteTask?: (taskId: string) => void;
   className?: string;
+  disableTaskDrag?: boolean;
+  allowColumnActions?: boolean;
 }
 
 export function KanbanColumn({
   id,
-  column,
   title,
   tasks,
   customFields,
@@ -88,6 +89,9 @@ export function KanbanColumn({
   groupBy = "status",
   category,
   onDeleteTask,
+  className,
+  disableTaskDrag = false,
+  allowColumnActions = true,
 }: KanbanColumnProps) {
   const {
     attributes,
@@ -130,11 +134,8 @@ export function KanbanColumn({
     }
   };
 
-  const categoryColors = {
-    todo: "bg-slate-100 text-slate-600",
-    "in-progress": "bg-blue-100 text-blue-600",
-    done: "bg-green-100 text-green-600",
-  };
+  const showColumnActions =
+    allowColumnActions && (!!onRename || !!onUpdate || !!onDelete);
 
   if (isDragging) {
     return (
@@ -142,7 +143,7 @@ export function KanbanColumn({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "w-80 h-full flex-shrink-0 rounded-xl bg-slate-100/50 border-2 border-dashed border-primary/20 opacity-50",
+          "h-full w-80 flex-shrink-0 rounded-xl bg-slate-100/50 border-2 border-dashed border-primary/20 opacity-50",
         )}
       />
     );
@@ -153,16 +154,20 @@ export function KanbanColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "w-80 h-full flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
+        "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
         colorConfig.value,
         colorConfig.border,
+        className,
       )}
-      {...attributes}
+      {...(groupBy === "status" ? attributes : {})}
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between p-3 cursor-grab active:cursor-grabbing hover:bg-black/5 transition-colors"
-        {...listeners}
+        className={cn(
+          "flex items-center justify-between p-3 hover:bg-black/5 transition-colors",
+          groupBy === "status" && "cursor-grab active:cursor-grabbing",
+        )}
+        {...(groupBy === "status" ? listeners : {})}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div
@@ -210,80 +215,90 @@ export function KanbanColumn({
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:bg-slate-200"
             onClick={onCreateTask}
+            onPointerDown={(event) => event.stopPropagation()}
           >
             <Plus className="h-4 w-4" />
           </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:bg-slate-200"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                이름 변경
-              </DropdownMenuItem>
-
-              {onUpdate && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Palette className="h-4 w-4 mr-2" />
-                    섹션 색상
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-40">
-                    {COLUMN_COLORS.map((c) => (
-                      <DropdownMenuItem
-                        key={c.name}
-                        onClick={() => onUpdate({ color: c.name })}
-                        className="flex items-center gap-2"
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full ${c.value} border ${c.border}`}
-                        />
-                        {c.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-
-              {groupBy === "status" && onUpdate && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => onUpdate({ category: "todo" })}
-                  >
-                    할 일 (Todo)로 설정
+          {showColumnActions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:bg-slate-200"
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {onRename && (
+                  <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    이름 변경
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onUpdate({ category: "in-progress" })}
-                  >
-                    진행 중 (In Progress)으로 설정
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onUpdate({ category: "done" })}
-                  >
-                    완료 (Done)로 설정
-                  </DropdownMenuItem>
-                </>
-              )}
+                )}
 
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                섹션 삭제
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {onUpdate && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Palette className="h-4 w-4 mr-2" />
+                      섹션 색상
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-40">
+                      {COLUMN_COLORS.map((c) => (
+                        <DropdownMenuItem
+                          key={c.name}
+                          onClick={() => onUpdate({ color: c.name })}
+                          className="flex items-center gap-2"
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full ${c.value} border ${c.border}`}
+                          />
+                          {c.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+
+                {groupBy === "status" && onUpdate && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onUpdate({ category: "todo" })}
+                    >
+                      할 일 (Todo)로 설정
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onUpdate({ category: "in-progress" })}
+                    >
+                      진행 중 (In Progress)으로 설정
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onUpdate({ category: "done" })}
+                    >
+                      완료 (Done)로 설정
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {onDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                      onClick={onDelete}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      섹션 삭제
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -305,6 +320,7 @@ export function KanbanColumn({
               cardProperties={viewSettings?.cardProperties || []}
               onClick={() => onTaskClick(task.id)}
               onDelete={onDeleteTask ? () => onDeleteTask(task.id) : undefined}
+              disableDrag={disableTaskDrag}
             />
           ))}
         </SortableContext>
@@ -315,6 +331,7 @@ export function KanbanColumn({
             e.stopPropagation(); // Prevent drag interaction or other bubbling
             onCreateTask();
           }}
+          onPointerDown={(event) => event.stopPropagation()}
         >
           <Plus className="h-3.5 w-3.5 mr-2" /> 새 태스크
         </Button>

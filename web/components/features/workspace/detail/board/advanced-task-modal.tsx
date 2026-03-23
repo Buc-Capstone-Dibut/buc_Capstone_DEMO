@@ -18,7 +18,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -30,11 +29,15 @@ import {
   Plus,
   CheckCircle2,
   Trash2,
+  FileText,
+  Link2,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
+import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 
 // --- Types ---
 interface Task {
@@ -77,14 +80,44 @@ interface BoardData {
   tags: TagOption[];
 }
 
+interface WorkspaceDocSummary {
+  id: string;
+  kind: "page" | "folder";
+  title: string;
+  emoji?: string | null;
+  parent_id: string | null;
+  is_archived?: boolean;
+}
+
+interface TaskDocumentRelation {
+  id: string;
+  relationType: string;
+  isPrimary: boolean;
+  doc: {
+    id: string;
+    title: string;
+    emoji?: string | null;
+    kind: "page" | "folder";
+    isArchived?: boolean;
+  };
+}
+
 interface AdvancedTaskModalProps {
   taskId: string | null;
   projectId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNavigateToDoc?: (docId: string) => void;
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+const PRIORITY_LABEL: Record<string, string> = {
+  low: "낮음",
+  medium: "보통",
+  high: "높음",
+  urgent: "긴급",
+};
 
 const TAG_BADGE_CLASS: Record<string, string> = {
   gray: "bg-slate-100 text-slate-700",
@@ -137,11 +170,21 @@ const getTagDotClass = (color?: string) => {
   return TAG_DOT_CLASS[normalized] || TAG_DOT_CLASS.gray;
 };
 
+const getDocPath = (docId: string, docsList: WorkspaceDocSummary[]): string => {
+  const doc = docsList.find(d => d.id === docId);
+  if (!doc || !doc.parent_id) return "";
+  const parent = docsList.find(d => d.id === doc.parent_id);
+  if (!parent) return "";
+  const parentPath = getDocPath(parent.id, docsList);
+  return parentPath ? `${parentPath} / ${parent.title}` : parent.title;
+};
+
 export function AdvancedTaskModal({
   taskId,
   projectId,
   open,
   onOpenChange,
+  onNavigateToDoc,
 }: AdvancedTaskModalProps) {
   const { mutate } = useSWRConfig();
   const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
@@ -153,6 +196,20 @@ export function AdvancedTaskModal({
   } as const;
   const { data: boardData } = useSWR<BoardData>(
     projectId && open ? `/api/workspaces/${projectId}/board` : null,
+    fetcher,
+    swrOptions,
+  );
+  const { data: docs = [] } = useSWR<WorkspaceDocSummary[]>(
+    projectId && open ? `/api/workspaces/${projectId}/docs` : null,
+    fetcher,
+    swrOptions,
+  );
+  const relationEndpoint =
+    projectId && taskId
+      ? `/api/workspaces/${projectId}/board/tasks/${taskId}/documents`
+      : null;
+  const { data: linkedDocs = [] } = useSWR<TaskDocumentRelation[]>(
+    relationEndpoint,
     fetcher,
     swrOptions,
   );
@@ -168,6 +225,7 @@ export function AdvancedTaskModal({
   // We use a local state to drive the UI immediately (Optimistic UI)
   const [localTask, setLocalTask] = useState<Partial<Task>>({});
   const [newTag, setNewTag] = useState("");
+  const [docSearch, setDocSearch] = useState("");
 
   useEffect(() => {
     if (task) {
@@ -181,6 +239,7 @@ export function AdvancedTaskModal({
         tags: normalizeTagIds(task.tags),
       });
       setNewTag("");
+      setDocSearch("");
     }
   }, [task]);
 
@@ -197,6 +256,18 @@ export function AdvancedTaskModal({
       return tag.name.toLowerCase().includes(keyword);
     });
   }, [newTag, selectedTagIds, tagOptions]);
+
+  const availableDocs = useMemo(() => {
+    const linkedDocIds = new Set(linkedDocs.map((relation) => relation.doc.id));
+    const keyword = docSearch.trim().toLowerCase();
+
+    return docs.filter((doc) => {
+      if (doc.kind === "folder" || doc.is_archived) return false;
+      if (linkedDocIds.has(doc.id)) return false;
+      if (!keyword) return true;
+      return doc.title.toLowerCase().includes(keyword);
+    });
+  }, [docSearch, docs, linkedDocs]);
 
   // --- Handlers ---
 
@@ -236,7 +307,7 @@ export function AdvancedTaskModal({
       mutate(boardEndpoint);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to save changes");
+      toast.error("변경 사항 저장에 실패했습니다.");
       mutate(boardEndpoint); // Revert on error by re-fetching
     }
   };
@@ -255,16 +326,16 @@ export function AdvancedTaskModal({
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    if (!confirm("이 태스크를 삭제할까요?")) return;
     try {
       await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}`, {
         method: "DELETE",
       });
-      toast.success("Task deleted");
+      toast.success("태스크를 삭제했습니다.");
       onOpenChange(false);
       if (boardEndpoint) mutate(boardEndpoint);
     } catch {
-      toast.error("Failed to delete task");
+      toast.error("태스크 삭제에 실패했습니다.");
     }
   };
 
@@ -313,7 +384,115 @@ export function AdvancedTaskModal({
       if (boardEndpoint) mutate(boardEndpoint);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to create tag");
+      toast.error("태그 생성에 실패했습니다.");
+    }
+  };
+
+  const refreshLinkedDocs = async () => {
+    if (!relationEndpoint || !boardEndpoint) return;
+    await Promise.all([mutate(relationEndpoint), mutate(boardEndpoint)]);
+  };
+
+  const handleLinkDoc = async (
+    docId: string,
+    relationType = "reference",
+    isPrimary = linkedDocs.length === 0,
+  ) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(relationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId,
+          relationType,
+          isPrimary,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to link document");
+      setDocSearch("");
+      await refreshLinkedDocs();
+      toast.success("문서를 연결했습니다.");
+    } catch (error) {
+      console.error(error);
+      toast.error("문서 연결에 실패했습니다.");
+    }
+  };
+
+  const handleUpdateRelation = async (
+    relationId: string,
+    updates: { relationType?: string; isPrimary?: boolean },
+  ) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(`${relationEndpoint}/${relationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) throw new Error("Failed to update document relation");
+      await refreshLinkedDocs();
+    } catch (error) {
+      console.error(error);
+      toast.error("연결 문서 업데이트에 실패했습니다.");
+    }
+  };
+
+  const handleUnlinkDoc = async (relationId: string) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(`${relationEndpoint}/${relationId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to unlink document");
+      await refreshLinkedDocs();
+      toast.success("문서 연결을 해제했습니다.");
+    } catch (error) {
+      console.error(error);
+      toast.error("문서 연결 해제에 실패했습니다.");
+    }
+  };
+
+  const handleCreateAndLinkDoc = async () => {
+    if (!projectId || !relationEndpoint) return;
+    try {
+      const res = await fetch(`/api/workspaces/${projectId}/docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "제목 없음",
+          parentId: null,
+          kind: "page"
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create doc");
+      const newDoc = await res.json();
+
+      const relRes = await fetch(relationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId: newDoc.id,
+          relationType: "reference",
+          isPrimary: linkedDocs.length === 0,
+        }),
+      });
+      if (!relRes.ok) throw new Error("Failed to link new doc");
+
+      setDocSearch("");
+      await refreshLinkedDocs();
+      await mutate(`/api/workspaces/${projectId}/docs`);
+      toast.success("새 문서를 만들고 연결했습니다.");
+
+      onNavigateToDoc?.(newDoc.id);
+    } catch {
+      toast.error("새 문서 생성 및 연결에 실패했습니다.");
     }
   };
 
@@ -328,7 +507,7 @@ export function AdvancedTaskModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col gap-0 bg-background overflow-hidden outline-none sm:rounded-lg">
-        <DialogTitle className="sr-only">Task Details</DialogTitle>
+        <DialogTitle className="sr-only">태스크 상세</DialogTitle>
 
         {/* Header Section */}
         <div className="flex-shrink-0 border-b p-6 pb-4">
@@ -370,7 +549,7 @@ export function AdvancedTaskModal({
               </Select>
             </div>
 
-            {/* 
+            {/*
               Removed manual Close button as DialogContent provides one automatically.
               If you want spacing, we can keep an empty div or nothing.
               Justify-between will push the left content to the left.
@@ -387,7 +566,7 @@ export function AdvancedTaskModal({
                 handleUpdate({ title: e.target.value });
             }}
             className="text-2xl font-bold border-none shadow-none px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/40"
-            placeholder="Task Title"
+            placeholder="태스크 제목"
           />
         </div>
 
@@ -400,7 +579,7 @@ export function AdvancedTaskModal({
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4" />
-                  Description
+                  설명
                 </div>
                 <Textarea
                   value={localTask.description || ""}
@@ -414,7 +593,7 @@ export function AdvancedTaskModal({
                     if (e.target.value !== task.description)
                       handleUpdate({ description: e.target.value });
                   }}
-                  placeholder="Add a more detailed description..."
+                  placeholder="작업 설명을 더 자세히 적어보세요."
                   className="min-h-[200px] resize-none border-none bg-muted/30 focus-visible:ring-0 p-4"
                 />
               </div>
@@ -425,7 +604,7 @@ export function AdvancedTaskModal({
               {/* Assignee */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Assignee
+                  담당자
                 </span>
                 <Select
                   value={localTask.assigneeId || "unassigned"}
@@ -440,36 +619,37 @@ export function AdvancedTaskModal({
                       {localTask.assigneeId &&
                       localTask.assigneeId !== "unassigned" ? (
                         <>
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={currentMember?.avatar} />
-                            <AvatarFallback className="text-[10px]">
-                              {currentMember?.name?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
+                          <WorkspaceUserAvatar
+                            name={currentMember?.name}
+                            avatarUrl={currentMember?.avatar}
+                            className="h-5 w-5"
+                            fallbackClassName="text-[10px]"
+                          />
                           <span>{currentMember?.name}</span>
                         </>
                       ) : (
                         <>
                           <User className="h-4 w-4 text-muted-foreground" />
                           <span className="text-muted-foreground">
-                            Unassigned
+                            담당자 없음
                           </span>
                         </>
                       )}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">담당자 없음</SelectItem>
                     {members.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={m.avatar} />
-                            <AvatarFallback>{m.name?.[0]}</AvatarFallback>
-                          </Avatar>
+                    <SelectItem key={m.id} value={m.id}>
+                      <div className="flex items-center gap-2">
+                          <WorkspaceUserAvatar
+                            name={m.name}
+                            avatarUrl={m.avatar}
+                            className="h-5 w-5"
+                          />
                           <span>{m.name}</span>
-                        </div>
-                      </SelectItem>
+                      </div>
+                    </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -478,7 +658,7 @@ export function AdvancedTaskModal({
               {/* Priority */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Priority
+                  우선순위
                 </span>
                 <Select
                   value={localTask.priority || "medium"}
@@ -498,22 +678,166 @@ export function AdvancedTaskModal({
                                 : "text-blue-500",
                         )}
                       />
-                      {localTask.priority || "Medium"}
+                      {PRIORITY_LABEL[localTask.priority || "medium"] || "보통"}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="low">낮음</SelectItem>
+                    <SelectItem value="medium">보통</SelectItem>
+                    <SelectItem value="high">높음</SelectItem>
+                    <SelectItem value="urgent">긴급</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Connected Docs */}
+              <div className="space-y-3">
+                <span className="text-xs font-semibold text-muted-foreground uppercase">
+                  연결 문서
+                </span>
+
+                {linkedDocs.length > 0 ? (
+                  <div className="space-y-2">
+                    {linkedDocs.map((relation) => {
+                      const path = getDocPath(relation.doc.id, docs);
+                      return (
+                      <div
+                        key={relation.id}
+                        className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
+                      >
+                        {/* Primary Badge */}
+                        {relation.isPrimary && (
+                          <div className="absolute -left-1 -top-1">
+                            <Badge variant="default" className="h-4 px-1 text-[9px] shadow-sm">
+                              대표
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Left: Doc Info */}
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          onClick={() => onNavigateToDoc?.(relation.doc.id)}
+                        >
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
+                            {relation.doc.emoji ? relation.doc.emoji : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium text-foreground">
+                              {relation.doc.title}
+                            </div>
+                            {path && (
+                              <div className="truncate text-[10px] text-muted-foreground">
+                                {path}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Right: Actions */}
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+                          {!relation.isPrimary && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                              onClick={() => handleUpdateRelation(relation.id, { isPrimary: true })}
+                              title="대표 문서로 설정"
+                            >
+                              <Star className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleUnlinkDoc(relation.id)}
+                            title="연결 해제"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )})}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
+                    아직 연결된 문서가 없습니다.
+                  </div>
+                )}
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start border-dashed text-xs"
+                    >
+                      <Link2 className="mr-2 h-3.5 w-3.5" />
+                      문서 연결하기
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-2">
+                    <Input
+                      value={docSearch}
+                      onChange={(e) => setDocSearch(e.target.value)}
+                      placeholder="문서 검색"
+                      className="h-8 text-xs"
+                    />
+                    <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                      {availableDocs.length > 0 ? (
+                        availableDocs.map((doc) => {
+                          const path = getDocPath(doc.id, docs);
+                          return (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
+                            onClick={() => handleLinkDoc(doc.id)}
+                          >
+                            <div className="min-w-0 flex-1 pr-2">
+                              <div className="truncate text-foreground font-medium">
+                                {doc.emoji ? `${doc.emoji} ` : ""}
+                                {doc.title}
+                              </div>
+                              {path && (
+                                <div className="truncate text-[10px] text-muted-foreground mt-0.5">
+                                  {path}
+                                </div>
+                              )}
+                            </div>
+                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          </button>
+                        )})
+                      ) : (
+                        <div className="px-2 py-2 text-xs text-muted-foreground">
+                          연결 가능한 페이지가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                    {/* Fast Action */}
+                    <div className="mt-2 border-t pt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full text-xs justify-start"
+                        onClick={handleCreateAndLinkDoc}
+                      >
+                        <FileText className="mr-2 h-3.5 w-3.5" />
+                        새 문서 만들고 바로 연결
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Tags */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Tags
+                  태그
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {selectedTagIds.map((tagId) => {
@@ -532,7 +856,7 @@ export function AdvancedTaskModal({
                           type="button"
                           onClick={() => handleRemoveTag(tagId)}
                           className="ml-1 inline-flex items-center rounded-sm opacity-60 hover:opacity-100"
-                          aria-label="Remove tag"
+                          aria-label="태그 제거"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -547,7 +871,7 @@ export function AdvancedTaskModal({
                         size="sm"
                         className="h-6 px-2 border-dashed text-xs"
                       >
-                        <Tag className="h-3 w-3 mr-1" />+ Add
+                        <Tag className="h-3 w-3 mr-1" />+ 추가
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-2" align="start">
@@ -561,7 +885,7 @@ export function AdvancedTaskModal({
                         <Input
                           value={newTag}
                           onChange={(e) => setNewTag(e.target.value)}
-                          placeholder="Search or create tag"
+                          placeholder="태그 검색 또는 새 태그 만들기"
                           className="h-8 text-xs"
                         />
                         <Button type="submit" size="icon" className="h-8 w-8">
@@ -601,7 +925,7 @@ export function AdvancedTaskModal({
               {/* Due Date */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  Due Date
+                  마감일
                 </span>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -615,7 +939,7 @@ export function AdvancedTaskModal({
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {selectedDate
                         ? format(selectedDate, "PPP")
-                        : "Pick a date"}
+                        : "날짜 선택"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 z-[100]" align="end">
@@ -639,7 +963,7 @@ export function AdvancedTaskModal({
                   className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Task
+                  태스크 삭제
                 </Button>
               </div>
             </div>

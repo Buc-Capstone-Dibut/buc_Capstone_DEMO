@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { isTeamType, normalizeTeamType } from "@/lib/team-types";
+import {
+  normalizeWorkspaceCategory,
+  seedWorkspaceDefaults,
+} from "@/lib/server/workspace-bootstrap";
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +38,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!isTeamType(type)) {
+      return NextResponse.json(
+        { error: "Invalid team type" },
+        { status: 400 },
+      );
+    }
+
     const leaderId = user_id;
 
     // Ensure Basic Profile Exists (Fix for foreign key constraint)
@@ -55,7 +70,7 @@ export async function POST(request: Request) {
         data: {
           title,
           content,
-          type,
+          type: normalizeTeamType(type),
           capacity: parseInt(capacity),
           tech_stack: tech_stack || [],
           place_type,
@@ -74,12 +89,35 @@ export async function POST(request: Request) {
         },
       });
 
+      const draftWorkspace = await tx.workspaces.create({
+        data: {
+          name: title,
+          description: content,
+          category: normalizeWorkspaceCategory(type),
+          from_squad_id: newSquad.id,
+          space_status: "DRAFT",
+        },
+      });
+
+      await tx.workspace_members.create({
+        data: {
+          workspace_id: draftWorkspace.id,
+          user_id: leaderId,
+          role: "owner",
+        },
+      });
+
+      await seedWorkspaceDefaults(tx, draftWorkspace.id);
+
       return newSquad;
     });
 
     return NextResponse.json({ success: true, id: squad.id });
-  } catch (e: any) {
-    console.error("API: Squad Create Exception", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("API: Squad Create Exception", error);
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }

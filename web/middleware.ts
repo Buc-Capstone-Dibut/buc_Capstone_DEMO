@@ -14,6 +14,5 @@ export const config = {
   matcher: [
     "/my/:path*",
     "/workspace/:path*",
-    "/bookmarks/:path*",
   ],
 };

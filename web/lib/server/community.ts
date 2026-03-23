@@ -140,8 +140,14 @@ export async function getPost(id: string) {
 
 export async function getSquads(type?: string) {
   try {
+    const { getTeamTypeQueryValues } = await import("@/lib/team-types");
+    const squadTypeFilter =
+      type && type !== "all"
+        ? { type: { in: getTeamTypeQueryValues(type) } }
+        : {};
+
     const rawSquads = await prisma.squads.findMany({
-      where: type && type !== "all" ? { type } : {},
+      where: squadTypeFilter,
       include: {
         profiles: true, // leader
       },

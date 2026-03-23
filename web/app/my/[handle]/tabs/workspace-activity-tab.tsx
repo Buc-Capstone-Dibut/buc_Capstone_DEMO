@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ProfileWorkspaceItem } from "../profile-types";
 import { ProfileEmptyState } from "./empty-state";
+import { getTeamTypeLabel } from "@/lib/team-types";
 
 interface WorkspaceActivityTabProps {
   loading?: boolean;
@@ -132,7 +133,7 @@ export function WorkspaceActivityTab({
       {filtered.length === 0 ? (
         <ProfileEmptyState
           icon={Users}
-          message="선택한 상태에 해당하는 워크스페이스가 없습니다."
+          message="선택한 상태에 해당하는 팀 공간이 없습니다."
         />
       ) : (
         filtered.map((workspace) => {
@@ -153,7 +154,8 @@ export function WorkspaceActivityTab({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold truncate">{workspace.name}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {workspace.category || "스페이스"} · {participationLabel(workspace)}
+                    {getTeamTypeLabel(workspace.category)} ·{" "}
+                    {participationLabel(workspace)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">

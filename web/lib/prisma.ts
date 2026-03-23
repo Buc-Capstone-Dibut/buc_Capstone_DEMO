@@ -1,10 +1,12 @@
-import { PrismaClient } from "../src/generated/client";
+import { PrismaClient } from "@prisma/client";
 
 const prismaClientSingleton = () => {
   return new PrismaClient();
 };
 
 declare global {
+  // Prisma recommends a global singleton in dev to avoid exhausting connections.
+  // eslint-disable-next-line no-var
   var prismaGlobal_v2: undefined | ReturnType<typeof prismaClientSingleton>;
 }
 

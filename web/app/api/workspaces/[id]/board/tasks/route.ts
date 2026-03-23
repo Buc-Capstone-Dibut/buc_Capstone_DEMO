@@ -78,6 +78,12 @@ export async function POST(
     });
 
     const newOrder = (lastTask?.order ?? 0) + 1;
+    const normalizedPriority =
+      priority === undefined
+        ? "medium"
+        : typeof priority === "string" && priority.trim().length > 0
+          ? priority.trim()
+          : null;
 
     // 3. Create Task
     const task = await prisma.kanban_tasks.create({
@@ -89,7 +95,7 @@ export async function POST(
         assignee_id: assigneeId || null,
         tags: tags || [],
         due_date: dueDate ? new Date(dueDate) : null,
-        priority: priority || "medium",
+        priority: normalizedPriority,
       },
       include: {
         assignee: true,

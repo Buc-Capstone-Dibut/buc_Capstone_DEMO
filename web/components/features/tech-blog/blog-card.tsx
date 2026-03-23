@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { BookmarkButton } from "@/components/shared/bookmark-button";
 import { Badge } from "@/components/ui/badge";
+import { BlogCover } from "@/components/features/tech-blog/blog-cover";
 
 import { Building2, Calendar, Eye, Plus, Check } from "lucide-react";
 import Image from "next/image";
@@ -18,6 +19,13 @@ interface BlogCardProps {
   onTagClick?: (tag: string) => void;
 }
 
+const SUMMARY_PREVIEW_STYLE = {
+  display: "-webkit-box",
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: "vertical" as const,
+  overflow: "hidden",
+};
+
 export function BlogCard({
   blog,
   onLoginClick,
@@ -25,8 +33,6 @@ export function BlogCard({
   selectedSubTags = [],
   onTagClick,
 }: BlogCardProps) {
-  const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
 
   const handleLinkClick = async () => {
@@ -55,8 +61,6 @@ export function BlogCard({
     return views.toString();
   };
 
-  // 썸네일 표시 여부 결정
-  const shouldShowThumbnail = blog.thumbnail_url && !imageError;
   const logoUrl = getLogoUrl(blog.author);
 
   return (
@@ -69,31 +73,17 @@ export function BlogCard({
         className="block h-full"
       >
         <Card className="h-full flex flex-col cursor-pointer card-hover border border-border/20 shadow-lg hover:shadow-xl bg-card dark:bg-card/80 backdrop-blur-sm dark:backdrop-blur-none rounded-xl overflow-hidden">
-          {shouldShowThumbnail && (
-            <CardHeader className="p-0">
-              <div className="relative aspect-video overflow-hidden rounded-t-xl bg-muted">
-                {!imageLoaded && (
-                  <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted/50 animate-pulse" />
-                )}
-                <Image
-                  src={blog.thumbnail_url!}
-                  alt={blog.title}
-                  fill
-                  className={`object-cover group-hover:scale-105 transition-all duration-300 ${
-                    imageLoaded ? "opacity-100" : "opacity-0"
-                  }`}
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => {
-                    console.log(`썸네일 로드 실패: ${blog.thumbnail_url}`);
-                    setImageError(true);
-                  }}
-                />
-                {imageLoaded && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                )}
-              </div>
-            </CardHeader>
-          )}
+          <CardHeader className="p-0">
+            <BlogCover
+              title={blog.title}
+              author={blog.author}
+              category={blog.category}
+              thumbnailUrl={blog.thumbnail_url}
+              variant="card"
+              className="aspect-video rounded-t-xl"
+              imageClassName="group-hover:scale-105"
+            />
+          </CardHeader>
 
           <CardContent className="p-6 flex-1 flex flex-col">
             <h3 className="font-semibold text-lg mb-3 line-clamp-2 group-hover:text-primary transition-colors duration-200">
@@ -118,7 +108,10 @@ export function BlogCard({
               </div>
             )}
 
-            <p className="text-muted-foreground text-sm mb-4 line-clamp-3 flex-1 leading-relaxed">
+            <p
+              className="mb-4 h-[4rem] text-sm leading-relaxed text-muted-foreground"
+              style={SUMMARY_PREVIEW_STYLE}
+            >
               {blog.summary || "요약이 없습니다."}
             </p>
 
