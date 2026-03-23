@@ -78,6 +78,9 @@ const BOUNDARY_REPLACEMENTS: Array<[RegExp, string]> = [
   [/(하는|되는|했던|하면서|했고|하고|하며)(?=[가-힣A-Za-z0-9]{2,})/gu, "$1 "],
 ];
 const USER_TECHNICAL_RECOVERIES: Array<[RegExp, string]> = [
+  [/웹\s*소켓/giu, "웹소켓"],
+  [/실\s*시간/gu, "실시간"],
+  [/백\s*엔드/gu, "백엔드"],
   [/AI\s*면접서\s*비스/giu, "AI 면접 서비스"],
   [/면접서\s*비스/gu, "면접 서비스"],
   [/회사서\s*비스/gu, "회사 서비스"],
@@ -131,6 +134,19 @@ function collapseFragmentedTranscriptTokens(text: string): string {
   }
 
   return collapsed.join(" ").trim();
+}
+
+function shouldRecompactFragmentedTokens(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return false;
+
+  const tokens = normalized.split(" ");
+  if (tokens.length < 5) return false;
+
+  const compactLengths = tokens.map((token) => token.replace(/[^0-9A-Za-z가-힣]/gu, "").length);
+  const shortTokenCount = compactLengths.filter((length) => length > 0 && length <= 2).length;
+  const singleTokenCount = compactLengths.filter((length) => length === 1).length;
+  return shortTokenCount >= Math.max(4, Math.floor(tokens.length * 0.45)) || singleTokenCount >= 3;
 }
 
 function applyCommonReplacements(text: string): string {
@@ -258,7 +274,12 @@ export function formatTranscriptForDisplay(text: string, role: "user" | "ai"): s
   const normalized = role === "user" ? formatUserTranscriptConservatively(text) : applyCommonReplacements(text);
   if (!normalized) return normalized;
   if (role !== "user" && role !== "ai") return normalized;
-  if (role === "user") return normalized;
+  if (role === "user") {
+    if (shouldRecompactFragmentedTokens(normalized)) {
+      return formatDenseKoreanTranscript(normalized);
+    }
+    return normalized;
+  }
   if (!shouldApplyKoreanSpacingHeuristic(normalized)) return normalized;
   return formatDenseKoreanTranscript(normalized);
 }
@@ -266,7 +287,12 @@ export function formatTranscriptForDisplay(text: string, role: "user" | "ai"): s
 export function formatStreamingTranscriptForDisplay(text: string, role: "user" | "ai"): string {
   const normalized = role === "user" ? formatUserTranscriptConservatively(text) : applyCommonReplacements(text);
   if (!normalized) return normalized;
-  if (role === "user") return normalized;
+  if (role === "user") {
+    if (shouldRecompactFragmentedTokens(normalized)) {
+      return formatDenseKoreanTranscript(normalized);
+    }
+    return normalized;
+  }
   if (!shouldApplyKoreanSpacingHeuristic(normalized)) return normalized;
   return formatDenseKoreanTranscript(normalized);
 }

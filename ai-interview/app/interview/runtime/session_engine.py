@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
-from app.interview.domain.turn_text import sanitize_user_turn_text
+from app.interview.domain.turn_text import sanitize_user_turn_text, score_user_transcript_text
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
 from app.interview.runtime.live_turns import prepare_live_user_followup, prepare_live_user_request
 from app.interview.runtime.orchestration import (
@@ -126,7 +126,7 @@ def _score_user_text(candidate: str, *, utterance_duration_ms: float) -> int:
     if not normalized:
         return 0
 
-    score = len(re.findall(r"[0-9A-Za-z가-힣]", normalized))
+    score = score_user_transcript_text(normalized)
     if _looks_like_complete_user_text(normalized):
         score += 40
     if utterance_duration_ms >= 2800 and len(normalized) >= 18:
@@ -636,7 +636,12 @@ async def process_user_utterance(
                         prompt_user_text=live_request.prompt_user_text,
                         extra_instruction=live_request.extra_instruction,
                     )
-            user_text = sanitize_user_turn_text(live_user_text)
+            user_text = _select_best_user_text(
+                live_user_text=live_user_text,
+                realtime_user_text=state.realtime_user_transcript,
+                fallback_user_text=streamed_user_text,
+                utterance_duration_ms=utterance_duration_ms,
+            )
             user_provider_name = (followup_provider_name or live.provider or "").strip()
         else:
             user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)

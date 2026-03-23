@@ -236,6 +236,9 @@ KOREAN_BOUNDARY_PATTERNS = (
     ),
 )
 USER_TECHNICAL_RECOVERY_PATTERNS = (
+    (re.compile(r"웹\s*소켓", re.IGNORECASE), "웹소켓"),
+    (re.compile(r"실\s*시간"), "실시간"),
+    (re.compile(r"백\s*엔드"), "백엔드"),
     (re.compile(r"AI\s*면접서\s*비스", re.IGNORECASE), "AI 면접 서비스"),
     (re.compile(r"면접서\s*비스"), "면접 서비스"),
     (re.compile(r"회사서\s*비스"), "회사 서비스"),
@@ -453,6 +456,10 @@ def _apply_user_transcript_cleanup(text: str) -> str:
         formatted,
     )
     formatted = re.sub(r"\s+", " ", formatted).strip()
+    if _should_recompact_fragmented_tokens(formatted):
+        recompacted = _apply_korean_spacing_heuristic(formatted)
+        if recompacted:
+            formatted = recompacted
     return formatted
 
 

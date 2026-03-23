@@ -16,7 +16,7 @@ import {
   LOCAL_INTERVIEW_FALLBACK_USER_ID,
   resolveInterviewBaseUrlFromWsUrl,
 } from "@/lib/interview/dev-auth";
-import { formatTranscriptForDisplay } from "@/lib/transcript-display";
+import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
@@ -93,6 +93,20 @@ const toStringList = (value: string | null) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const preferLongerCaption = (current: string, candidate: string) => {
+  const normalizedCurrent = (current || "").trim();
+  const normalizedCandidate = (candidate || "").trim();
+
+  if (!normalizedCurrent) return normalizedCandidate;
+  if (!normalizedCandidate) return normalizedCurrent;
+  if (normalizedCandidate.startsWith(normalizedCurrent)) return normalizedCandidate;
+  if (normalizedCurrent.startsWith(normalizedCandidate)) return normalizedCurrent;
+
+  const compactCurrent = normalizedCurrent.replace(/\s+/g, "");
+  const compactCandidate = normalizedCandidate.replace(/\s+/g, "");
+  return compactCandidate.length >= compactCurrent.length ? normalizedCandidate : normalizedCurrent;
+};
+
 export default function InterviewVideoRoomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,6 +146,7 @@ export default function InterviewVideoRoomPage() {
   const [streamingAiTurnId, setStreamingAiTurnId] = useState("");
   const [streamingUserTurnId, setStreamingUserTurnId] = useState("");
   const [stickyCaption, setStickyCaption] = useState<StickyCaption | null>(null);
+  const [lastUserFinalCaption, setLastUserFinalCaption] = useState<StickyCaption | null>(null);
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showCaption, setShowCaption] = useState(true);
@@ -400,12 +415,22 @@ export default function InterviewVideoRoomPage() {
           return prev;
         });
       } else {
-        setStreamingUserCaption((prev) => {
-          if (turnId && streamingUserTurnId && turnId === streamingUserTurnId) {
-            return preferLongerCaption(prev, clean);
+        setLastUserFinalCaption({ role: "user", text: clean, turnId });
+        if (!isAISpeaking && !isAIProcessing) {
+          setStreamingAiCaption("");
+          setStreamingAiTurnId("");
+          if (turnId) {
+            setStreamingUserTurnId(turnId);
           }
-          return prev;
-        });
+          setStreamingUserCaption((prev) => preferLongerCaption(prev, clean));
+        } else {
+          setStreamingUserCaption((prev) => {
+            if (turnId && streamingUserTurnId && turnId === streamingUserTurnId) {
+              return preferLongerCaption(prev, clean);
+            }
+            return prev;
+          });
+        }
       }
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
@@ -433,6 +458,7 @@ export default function InterviewVideoRoomPage() {
         setStreamingAiTurnId("");
         setStreamingUserTurnId("");
         setStickyCaption(null);
+        setLastUserFinalCaption(null);
         setRuntimeMeta((prev) => ({
           ...prev,
           targetDurationSec: toNumber(event.targetDurationSec, prev.targetDurationSec),
@@ -516,6 +542,23 @@ export default function InterviewVideoRoomPage() {
         const delta = typeof event.delta === "string" ? event.delta : "";
         const turnId = typeof event.turnId === "string" ? event.turnId : "";
         if (event.role === "ai") {
+          const userPreview = streamingUserCaption.trim();
+          const userPreviewTurnId = streamingUserTurnId.trim();
+          if (userPreview) {
+            setLastUserFinalCaption((prev) => {
+              const previousText =
+                prev && prev.turnId === userPreviewTurnId
+                  ? prev.text
+                  : "";
+              return {
+                role: "user",
+                text: preferLongerCaption(previousText, userPreview),
+                turnId: userPreviewTurnId || prev?.turnId || "",
+              };
+            });
+          }
+          setStreamingUserCaption("");
+          setStreamingUserTurnId("");
           setStreamingAiTurnId(turnId);
           setStreamingAiCaption((prev) => {
             if (accumulated) return accumulated;
@@ -523,6 +566,8 @@ export default function InterviewVideoRoomPage() {
             return `${prev}${delta}`;
           });
         } else {
+          setStreamingAiCaption("");
+          setStreamingAiTurnId("");
           setStreamingUserTurnId(turnId);
           setStreamingUserCaption((prev) => {
             if (accumulated) return accumulated;
@@ -708,11 +753,11 @@ export default function InterviewVideoRoomPage() {
   const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
-  const activeAiCaption = formatTranscriptForDisplay(streamingAiCaption.trim(), "ai");
-  const activeUserCaption = formatTranscriptForDisplay(streamingUserCaption.trim(), "user");
-  const activeCaptionRole: "ai" | "user" | null = activeAiCaption
-    ? "ai"
-    : (activeUserCaption ? "user" : null);
+  const activeAiCaption = formatStreamingTranscriptForDisplay(streamingAiCaption.trim(), "ai");
+  const activeUserCaption = formatStreamingTranscriptForDisplay(streamingUserCaption.trim(), "user");
+  const activeCaptionRole: "ai" | "user" | null = activeUserCaption
+    ? "user"
+    : (activeAiCaption ? "ai" : null);
   const activeCaptionText = activeCaptionRole === "ai" ? activeAiCaption : activeUserCaption;
   const latestCaptionText = latestCaption
     ? formatTranscriptForDisplay(latestCaption.text, latestCaption.role)
@@ -748,10 +793,57 @@ export default function InterviewVideoRoomPage() {
     activeCaptionRole
     ?? (((isAISpeaking || isAIProcessing) && aiStickyCaption) ? "ai" : latestOrFallbackRole);
   const resolvedCaptionText =
-    sameTurnAiCaption
-    || activeUserCaption
+    activeUserCaption
+    || sameTurnAiCaption
     || (((isAISpeaking || isAIProcessing) && aiStickyCaption) ? aiStickyCaption : "")
     || stableLatestCaptionText;
+  const secondaryCaption = (() => {
+    if ((resolvedCaptionRole === "ai" || isAISpeaking || isAIProcessing) && lastUserFinalCaption?.text) {
+      const userText = formatTranscriptForDisplay(lastUserFinalCaption.text, "user");
+      if (userText && userText !== resolvedCaptionText) {
+        return {
+          role: "user" as const,
+          text: userText,
+          turnId: lastUserFinalCaption.turnId ?? "",
+        };
+      }
+    }
+    const candidates = [
+      latestCaption && latestCaptionText
+        ? { role: latestCaption.role, text: latestCaptionText, turnId: latestCaptionTurnId }
+        : null,
+      previousCaption && previousCaptionText
+        ? { role: previousCaption.role, text: previousCaptionText, turnId: previousCaption.turnId ?? "" }
+        : null,
+      stickyCaption && fallbackCaptionText
+        ? { role: stickyCaption.role, text: fallbackCaptionText, turnId: fallbackCaptionTurnId }
+        : null,
+    ].filter(Boolean) as Array<{ role: "ai" | "user"; text: string; turnId: string }>;
+
+    for (const candidate of candidates) {
+      if (!candidate.text) continue;
+      if (candidate.role === resolvedCaptionRole && candidate.text === resolvedCaptionText) continue;
+      if (resolvedCaptionRole && candidate.role === resolvedCaptionRole) continue;
+      return candidate;
+    }
+    return null;
+  })();
+
+  useEffect(() => {
+    const userText = streamingUserCaption.trim();
+    if (!userText) return;
+    setLastUserFinalCaption((prev) => {
+      const previousText =
+        prev && prev.turnId === streamingUserTurnId
+          ? prev.text
+          : "";
+      return {
+        role: "user",
+        text: preferLongerCaption(previousText, userText),
+        turnId: streamingUserTurnId || prev?.turnId || "",
+      };
+    });
+  }, [streamingUserCaption, streamingUserTurnId]);
 
   useEffect(() => {
     if (activeCaptionRole && activeCaptionText) {
@@ -784,7 +876,7 @@ export default function InterviewVideoRoomPage() {
     const node = captionScrollRef.current;
     if (!node) return;
     node.scrollTop = node.scrollHeight;
-  }, [activeAiCaption, activeUserCaption, resolvedCaptionText, transcript.length]);
+  }, [activeAiCaption, activeUserCaption, resolvedCaptionText, secondaryCaption?.text, transcript.length]);
 
   const handleMicToggle = async () => {
     if (isReconnecting) return;
@@ -957,9 +1049,9 @@ export default function InterviewVideoRoomPage() {
               </div>
               {resolvedCaptionText || activeAiCaption || activeUserCaption ? (
                 <div ref={captionScrollRef} className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
-                  {previousCaption && !activeCaptionText ? (
+                  {secondaryCaption ? (
                     <p className="break-all [overflow-wrap:anywhere] text-[12px] leading-relaxed text-white/60">
-                      {previousCaption.role === "ai" ? "Dibut" : "나"}: {previousCaptionText}
+                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
                     </p>
                   ) : null}
                   {resolvedCaptionText ? (

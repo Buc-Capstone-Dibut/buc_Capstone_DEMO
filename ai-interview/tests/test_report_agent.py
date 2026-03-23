@@ -54,28 +54,23 @@ class _FailingGemini:
 
 
 class ReportAgentFallbackTests(unittest.TestCase):
-    def test_process_job_saves_fallback_report_when_gemini_missing(self) -> None:
+    def test_process_job_raises_when_gemini_missing(self) -> None:
         service = _FakeInterviewService()
         agent = ReportAgent(interview_service=service, gemini_factory=lambda: None)
 
-        agent._process_job({"session_id": "session-1", "session_type": "live_interview"})
+        with self.assertRaises(RuntimeError):
+            agent._process_job({"session_id": "session-1", "session_type": "live_interview"})
 
-        assert service.saved_report is not None
-        payload = service.saved_report["payload"]
-        self.assertIn("evaluation", payload)
-        self.assertIn("bestPractices", payload)
-        self.assertIn("summary", payload)
+        self.assertIsNone(service.saved_report)
 
-    def test_process_job_saves_fallback_report_when_gemini_raises(self) -> None:
+    def test_process_job_raises_when_gemini_raises(self) -> None:
         service = _FakeInterviewService()
         agent = ReportAgent(interview_service=service, gemini_factory=lambda: _FailingGemini())
 
-        agent._process_job({"session_id": "session-2", "session_type": "live_interview"})
+        with self.assertRaises(RuntimeError):
+            agent._process_job({"session_id": "session-2", "session_type": "live_interview"})
 
-        assert service.saved_report is not None
-        payload = service.saved_report["payload"]
-        self.assertIn("evaluation", payload)
-        self.assertGreaterEqual(len(payload.get("bestPractices") or []), 1)
+        self.assertIsNone(service.saved_report)
 
 
 if __name__ == "__main__":

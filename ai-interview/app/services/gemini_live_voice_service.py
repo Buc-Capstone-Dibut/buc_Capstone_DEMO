@@ -745,12 +745,27 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         return score_user_transcript_text(candidate)
 
     def _pick_better_user_text(self, current: str, candidate: str) -> str:
-        monotonic = self._pick_monotonic_text(current, candidate)
-        if monotonic:
-            return monotonic
-        if self._score_user_text_candidate(candidate) > self._score_user_text_candidate(current):
-            return candidate
-        return current
+        normalized_current = sanitize_user_turn_text(current)
+        normalized_candidate = sanitize_user_turn_text(candidate)
+        if not normalized_current:
+            return normalized_candidate
+        if not normalized_candidate:
+            return normalized_current
+
+        current_score = self._score_user_text_candidate(normalized_current)
+        candidate_score = self._score_user_text_candidate(normalized_candidate)
+        current_compact = re.sub(r"\s+", "", normalized_current)
+        candidate_compact = re.sub(r"\s+", "", normalized_candidate)
+
+        if candidate_compact.startswith(current_compact):
+            return normalized_candidate
+        if current_compact.startswith(candidate_compact):
+            return normalized_candidate if candidate_score > current_score + 4 else normalized_current
+        if candidate_score > current_score + 4:
+            return normalized_candidate
+        if len(candidate_compact) >= len(current_compact) and candidate_score >= current_score - 2:
+            return normalized_candidate
+        return normalized_current
 
     def _build_ai_text_candidate_from_responses(self, responses: list[Any]) -> str:
         output_text = self._merge_transcription_chunks(self._extract_output_transcription_chunks(responses))

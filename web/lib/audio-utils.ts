@@ -1,6 +1,6 @@
 const MIC_CAPTURE_WORKLET_URL = "/worklets/mic-capture-processor.js";
-const MIC_CAPTURE_BUFFER_SIZE = 1024;
-const DEFAULT_CAPTURE_SAMPLE_RATE = 24000;
+const MIC_CAPTURE_BUFFER_SIZE = 512;
+const DEFAULT_CAPTURE_SAMPLE_RATE = 16000;
 
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
@@ -20,8 +20,10 @@ export class AudioProcessor {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
+          autoGainControl: false,
           channelCount: 1,
+          sampleRate: DEFAULT_CAPTURE_SAMPLE_RATE,
+          sampleSize: 16,
         },
       });
 

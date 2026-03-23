@@ -23,6 +23,7 @@ from app.interview.domain.turn_text import (
     build_answer_quality_hint as domain_build_answer_quality_hint,
     looks_like_complete_ai_question as domain_looks_like_complete_ai_question,
     looks_like_complete_answer as domain_looks_like_complete_answer,
+    score_user_transcript_text as domain_score_user_transcript_text,
     sanitize_ai_turn_text as domain_sanitize_ai_turn_text,
     sanitize_user_turn_text as domain_sanitize_user_turn_text,
 )
@@ -718,7 +719,7 @@ async def _stream_live_audio_turn(
         nonlocal streamed_user_text
         if not state.session_id:
             return
-        normalized = _prefer_non_regressing_stream_text(
+        normalized = _prefer_user_stream_text(
             streamed_user_text,
             domain_sanitize_user_turn_text(accumulated_text),
         )
@@ -830,6 +831,30 @@ def _prefer_non_regressing_stream_text(previous: str, candidate: str) -> str:
     return previous_normalized
 
 
+def _prefer_user_stream_text(previous: str, candidate: str) -> str:
+    previous_normalized = domain_sanitize_user_turn_text(previous)
+    candidate_normalized = domain_sanitize_user_turn_text(candidate)
+    if not previous_normalized:
+        return candidate_normalized
+    if not candidate_normalized:
+        return previous_normalized
+
+    previous_score = domain_score_user_transcript_text(previous_normalized)
+    candidate_score = domain_score_user_transcript_text(candidate_normalized)
+    previous_compact = re.sub(r"\s+", "", previous_normalized)
+    candidate_compact = re.sub(r"\s+", "", candidate_normalized)
+
+    if candidate_compact.startswith(previous_compact):
+        return candidate_normalized
+    if previous_compact.startswith(candidate_compact):
+        return candidate_normalized if candidate_score > previous_score + 4 else previous_normalized
+    if candidate_score > previous_score + 4:
+        return candidate_normalized
+    if len(candidate_compact) >= len(previous_compact) and candidate_score >= previous_score - 2:
+        return candidate_normalized
+    return previous_normalized
+
+
 async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
     if not state.session_id:
         return False
@@ -908,7 +933,7 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
         nonlocal streamed_user_text
         if not state.session_id:
             return
-        normalized = _prefer_non_regressing_stream_text(
+        normalized = _prefer_user_stream_text(
             streamed_user_text,
             domain_sanitize_user_turn_text(accumulated_text),
         )
@@ -973,7 +998,7 @@ async def _commit_live_input_stream(state: VoiceWsState) -> bool:
         state,
         deps=_live_client_deps(),
     )
-    state.live_input_streamed_user_text = _prefer_non_regressing_stream_text(previous_user_text, user_text)
+    state.live_input_streamed_user_text = _prefer_user_stream_text(previous_user_text, user_text)
     state.live_input_streamed_ai_text = _prefer_non_regressing_stream_text(previous_ai_text, ai_text)
     state.live_input_streamed_provider = (provider_name or "gemini-live-single").strip()
     state.live_input_streamed_audio_duration_sec = max(previous_duration_sec, float(duration_sec or 0.0))

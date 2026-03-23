@@ -212,11 +212,10 @@ class ReportAgent:
 
         if not gemini:
             logger.warning(
-                "gemini service missing; saving fallback interview report",
+                "gemini service missing; deferring interview report until analysis service is available",
                 extra={"session_id": session_id, "session_type": session_type},
             )
-            self._service.save_report(session_id, _build_fallback_live_interview_report(session, turns))
-            return
+            raise RuntimeError("Gemini interview analysis service unavailable")
 
         try:
             report = gemini.analyze_interview(
@@ -225,10 +224,10 @@ class ReportAgent:
                 validator=AnalysisReport,
                 retries=1,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception(
-                "gemini interview report generation failed; saving fallback report",
+                "gemini interview report generation failed; keeping report job pending for retry",
                 extra={"session_id": session_id, "session_type": session_type},
             )
-            report = _build_fallback_live_interview_report(session, turns)
+            raise RuntimeError("Gemini interview analysis failed") from exc
         self._service.save_report(session_id, report)

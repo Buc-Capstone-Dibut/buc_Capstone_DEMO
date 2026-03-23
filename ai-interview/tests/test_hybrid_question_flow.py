@@ -196,7 +196,7 @@ class HybridQuestionPlannerTests(unittest.TestCase):
         cleaned = sanitize_user_turn_text("실시간 AI 면접 서비스를 개발하며 웹 소켓 기반 실시간 통신 구조를 설계했습니다.")
         self.assertEqual(
             cleaned,
-            "실시간 AI 면접 서비스를 개발하며 웹 소켓 기반 실시간 통신 구조를 설계했습니다.",
+            "실시간 AI 면접 서비스를 개발하며 웹소켓 기반 실시간 통신 구조를 설계했습니다.",
         )
 
 
