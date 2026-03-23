@@ -15,6 +15,7 @@ import {
   Pen,
   User,
   Trash,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -35,14 +36,13 @@ interface TaskCardProps {
   showDueDate?: boolean;
   showPriority?: boolean;
   cardProperties?: string[];
-  dragHandleProps?: any;
+  dragHandleProps?: Record<string, unknown>;
   onEdit?: () => void;
   onDelete?: () => void;
 }
 
 export function TaskCard({
   task,
-  customFields,
   isOverlay,
   showTags = true,
   showAssignee = true,
@@ -54,6 +54,21 @@ export function TaskCard({
   onDelete,
 }: TaskCardProps) {
   const { tags, priorities } = useWorkspaceStore();
+  const taskWithDocuments = task as Task & {
+    primaryDocument?: {
+      id: string;
+      title: string;
+      emoji?: string | null;
+    } | null;
+    documentCount?: number;
+  };
+  const primaryDocument = taskWithDocuments.primaryDocument || null;
+  const documentCount =
+    typeof taskWithDocuments.documentCount === "number"
+      ? taskWithDocuments.documentCount
+      : primaryDocument
+        ? 1
+        : 0;
 
   // Default order if not provided or empty
   const propertyOrder =
@@ -222,6 +237,21 @@ export function TaskCard({
       )}
 
       <CardContent className="p-3">
+        {documentCount > 0 && (
+          <div className="mb-1.5 flex items-center gap-1.5 pr-8 text-[11px] text-muted-foreground">
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {primaryDocument?.emoji ? `${primaryDocument.emoji} ` : ""}
+              {primaryDocument?.title || "연결 문서"}
+            </span>
+            {documentCount > 1 && (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                +{documentCount - 1}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Task Settings Button - DropdownMenu */}
         <div className="absolute top-2 right-2 z-30">
           <DropdownMenu>

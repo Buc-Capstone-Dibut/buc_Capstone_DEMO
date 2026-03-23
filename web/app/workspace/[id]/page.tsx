@@ -177,7 +177,10 @@ export default function WorkspaceDetailPage() {
     workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
   );
 
-  const handleTabChange = (tab: string) => {
+  const handleTabChange = (
+    tab: string,
+    options?: { docId?: string | null },
+  ) => {
     const normalized = normalizeTab(tab);
     setActiveTab(normalized);
 
@@ -188,6 +191,12 @@ export default function WorkspaceDetailPage() {
       nextParams.set("tab", normalized);
     }
 
+    if (normalized === "docs" && options?.docId) {
+      nextParams.set("doc", options.docId);
+    } else if (normalized !== "docs") {
+      nextParams.delete("doc");
+    }
+
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -196,6 +205,14 @@ export default function WorkspaceDetailPage() {
     const nextTab = normalizeTab(searchParams.get("tab"));
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [searchParams]);
+
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    const nextTab = normalizeTab(searchParams.get("tab"));
+    if (nextTab === "board" && taskId) {
+      setActiveTaskId(taskId);
+    }
+  }, [searchParams, setActiveTaskId]);
 
   useEffect(() => {
     if (projectId && user) {
@@ -229,14 +246,25 @@ export default function WorkspaceDetailPage() {
           <div className="h-full p-6">
             <KanbanBoard
               projectId={projectId}
-              onNavigateToDoc={() => handleTabChange("docs")}
+              onNavigateToDoc={(docId) =>
+                handleTabChange("docs", { docId })
+              }
             />
           </div>
         );
       case "schedule":
         return <ScheduleView projectId={projectId} />;
       case "docs":
-        return <DocsView projectId={projectId} />;
+        return (
+          <DocsView
+            projectId={projectId}
+            initialDocId={searchParams.get("doc")}
+            onNavigateToTask={(taskId) => {
+              setActiveTaskId(taskId);
+              handleTabChange("board");
+            }}
+          />
+        );
       case "ideas":
         return (
           <div className="h-full">

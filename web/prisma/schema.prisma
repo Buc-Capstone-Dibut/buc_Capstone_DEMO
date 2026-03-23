@@ -520,6 +520,9 @@ model profiles {
   workspace_members  workspace_members[]
   workspace_invites  workspace_invites[]
   workspace_docs     workspace_docs[]
+  workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
+  workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
+  created_task_document_links kanban_task_documents[] @relation("WorkspaceTaskDocumentCreator")
   kanban_tasks       kanban_tasks[]
   notifications      notifications[]
   messages           workspace_messages[]
@@ -679,6 +682,8 @@ model workspaces {
   tags       kanban_tags[]
   views      workspace_views[]
   docs       workspace_docs[]
+  task_document_links kanban_task_documents[]
+  doc_comments workspace_doc_comments[]
   channels   workspace_channels[]
   whiteboard workspace_whiteboards?
 
@@ -804,9 +809,32 @@ model kanban_tasks {
 
   column   kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
   assignee profiles?      @relation(fields: [assignee_id], references: [id])
+  documents kanban_task_documents[]
 
   @@index([column_id, order])
   @@index([assignee_id])
+  @@schema("public")
+}
+
+model kanban_task_documents {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id  String   @db.Uuid
+  task_id       String   @db.Uuid
+  doc_id        String   @db.Uuid
+  relation_type String   @default("reference")
+  is_primary    Boolean  @default(false)
+  created_by    String   @db.Uuid
+  created_at    DateTime @default(now())
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  task      kanban_tasks   @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  creator   profiles       @relation("WorkspaceTaskDocumentCreator", fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@unique([task_id, doc_id])
+  @@index([workspace_id, task_id])
+  @@index([workspace_id, doc_id])
+  @@index([task_id, is_primary])
   @@schema("public")
 }
 
@@ -829,10 +857,37 @@ model workspace_docs {
   author    profiles         @relation(fields: [author_id], references: [id])
   parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
   children  workspace_docs[] @relation("DocHierarchy")
+  task_links kanban_task_documents[]
+  comments  workspace_doc_comments[]
 
   @@index([workspace_id, updated_at(sort: Desc)])
   @@index([workspace_id, parent_id, is_archived, sort_order])
   @@index([parent_id])
+  @@schema("public")
+}
+
+model workspace_doc_comments {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id    String   @db.Uuid
+  doc_id          String   @db.Uuid
+  author_id       String   @db.Uuid
+  parent_id       String?  @db.Uuid
+  content         String
+  anchor_block_id String?
+  resolved_at     DateTime?
+  resolved_by     String?  @db.Uuid
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  workspace workspaces               @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs           @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  author    profiles                 @relation("WorkspaceDocCommentAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+  resolver  profiles?                @relation("WorkspaceDocCommentResolver", fields: [resolved_by], references: [id], onDelete: SetNull)
+  parent    workspace_doc_comments?  @relation("WorkspaceDocCommentThread", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies   workspace_doc_comments[] @relation("WorkspaceDocCommentThread")
+
+  @@index([workspace_id, doc_id, parent_id, created_at])
+  @@index([doc_id, created_at])
   @@schema("public")
 }
 

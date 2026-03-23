@@ -203,7 +203,7 @@ type PendingBoardAction = {
   onConfirm: () => Promise<void> | void;
 };
 
-export function KanbanBoard({ projectId }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   const {
     tags,
     priorities,
@@ -1051,6 +1051,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         <AdvancedTaskModal
           taskId={activeTaskId}
           projectId={projectId}
+          onNavigateToDoc={onNavigateToDoc}
           open={!!activeTaskId}
           onOpenChange={(open) => {
             if (!open) setActiveTaskId(null);

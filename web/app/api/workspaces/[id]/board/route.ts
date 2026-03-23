@@ -78,6 +78,28 @@ export async function GET(
             assignee_id: true,
             tags: true,
             priority: true,
+            documents: {
+              orderBy: [{ is_primary: "desc" }, { created_at: "asc" }],
+              take: 1,
+              select: {
+                is_primary: true,
+                relation_type: true,
+                doc: {
+                  select: {
+                    id: true,
+                    title: true,
+                    emoji: true,
+                    kind: true,
+                    is_archived: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: {
+                documents: true,
+              },
+            },
             assignee: {
               select: { nickname: true, avatar_url: true },
             },
@@ -95,6 +117,20 @@ export async function GET(
             assignee_id: string | null;
             tags: string[];
             priority: string | null;
+            documents: Array<{
+              is_primary: boolean;
+              relation_type: string;
+              doc: {
+                id: string;
+                title: string;
+                emoji: string | null;
+                kind: string;
+                is_archived: boolean;
+              };
+            }>;
+            _count: {
+              documents: number;
+            };
             assignee: {
               nickname: string | null;
               avatar_url: string | null;
@@ -149,6 +185,7 @@ export async function GET(
     columns: formattedColumns,
     tasks: tasks.map((task) => {
       const columnMeta = columnMetaById.get(task.column_id);
+      const primaryDocument = task.documents[0];
       return {
         id: task.id,
         columnId: task.column_id,
@@ -172,6 +209,18 @@ export async function GET(
         columnTitle: columnMeta?.title || null,
         category: columnMeta?.category || "todo",
         status: columnMeta?.status || "todo",
+        primaryDocument: primaryDocument
+          ? {
+              id: primaryDocument.doc.id,
+              title: primaryDocument.doc.title,
+              emoji: primaryDocument.doc.emoji,
+              kind: primaryDocument.doc.kind,
+              relationType: primaryDocument.relation_type,
+              isPrimary: primaryDocument.is_primary,
+              isArchived: primaryDocument.doc.is_archived,
+            }
+          : null,
+        documentCount: task._count.documents,
       };
     }),
     members: formattedMembers,

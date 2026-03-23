@@ -30,6 +30,9 @@ import {
   Plus,
   CheckCircle2,
   Trash2,
+  FileText,
+  Link2,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -77,12 +80,44 @@ interface BoardData {
   tags: TagOption[];
 }
 
+interface WorkspaceDocSummary {
+  id: string;
+  kind: "page" | "folder";
+  title: string;
+  emoji?: string | null;
+  parent_id: string | null;
+  is_archived?: boolean;
+}
+
+interface TaskDocumentRelation {
+  id: string;
+  relationType: string;
+  isPrimary: boolean;
+  doc: {
+    id: string;
+    title: string;
+    emoji?: string | null;
+    kind: "page" | "folder";
+    isArchived?: boolean;
+  };
+}
+
 interface AdvancedTaskModalProps {
   taskId: string | null;
   projectId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNavigateToDoc?: (docId: string) => void;
 }
+
+const RELATION_TYPE_LABEL: Record<string, string> = {
+  reference: "참고",
+  spec: "요구사항",
+  meeting_note: "회의록",
+  qa: "QA",
+  result: "결과",
+  design: "디자인",
+};
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -149,6 +184,7 @@ export function AdvancedTaskModal({
   projectId,
   open,
   onOpenChange,
+  onNavigateToDoc,
 }: AdvancedTaskModalProps) {
   const { mutate } = useSWRConfig();
   const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
@@ -160,6 +196,20 @@ export function AdvancedTaskModal({
   } as const;
   const { data: boardData } = useSWR<BoardData>(
     projectId && open ? `/api/workspaces/${projectId}/board` : null,
+    fetcher,
+    swrOptions,
+  );
+  const { data: docs = [] } = useSWR<WorkspaceDocSummary[]>(
+    projectId && open ? `/api/workspaces/${projectId}/docs` : null,
+    fetcher,
+    swrOptions,
+  );
+  const relationEndpoint =
+    projectId && taskId
+      ? `/api/workspaces/${projectId}/board/tasks/${taskId}/documents`
+      : null;
+  const { data: linkedDocs = [] } = useSWR<TaskDocumentRelation[]>(
+    relationEndpoint,
     fetcher,
     swrOptions,
   );
@@ -175,6 +225,7 @@ export function AdvancedTaskModal({
   // We use a local state to drive the UI immediately (Optimistic UI)
   const [localTask, setLocalTask] = useState<Partial<Task>>({});
   const [newTag, setNewTag] = useState("");
+  const [docSearch, setDocSearch] = useState("");
 
   useEffect(() => {
     if (task) {
@@ -188,6 +239,7 @@ export function AdvancedTaskModal({
         tags: normalizeTagIds(task.tags),
       });
       setNewTag("");
+      setDocSearch("");
     }
   }, [task]);
 
@@ -204,6 +256,18 @@ export function AdvancedTaskModal({
       return tag.name.toLowerCase().includes(keyword);
     });
   }, [newTag, selectedTagIds, tagOptions]);
+
+  const availableDocs = useMemo(() => {
+    const linkedDocIds = new Set(linkedDocs.map((relation) => relation.doc.id));
+    const keyword = docSearch.trim().toLowerCase();
+
+    return docs.filter((doc) => {
+      if (doc.kind === "folder" || doc.is_archived) return false;
+      if (linkedDocIds.has(doc.id)) return false;
+      if (!keyword) return true;
+      return doc.title.toLowerCase().includes(keyword);
+    });
+  }, [docSearch, docs, linkedDocs]);
 
   // --- Handlers ---
 
@@ -321,6 +385,77 @@ export function AdvancedTaskModal({
     } catch (error) {
       console.error(error);
       toast.error("태그 생성에 실패했습니다.");
+    }
+  };
+
+  const refreshLinkedDocs = async () => {
+    if (!relationEndpoint || !boardEndpoint) return;
+    await Promise.all([mutate(relationEndpoint), mutate(boardEndpoint)]);
+  };
+
+  const handleLinkDoc = async (
+    docId: string,
+    relationType = "reference",
+    isPrimary = linkedDocs.length === 0,
+  ) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(relationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId,
+          relationType,
+          isPrimary,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to link document");
+      setDocSearch("");
+      await refreshLinkedDocs();
+      toast.success("문서를 연결했습니다.");
+    } catch (error) {
+      console.error(error);
+      toast.error("문서 연결에 실패했습니다.");
+    }
+  };
+
+  const handleUpdateRelation = async (
+    relationId: string,
+    updates: { relationType?: string; isPrimary?: boolean },
+  ) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(`${relationEndpoint}/${relationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) throw new Error("Failed to update document relation");
+      await refreshLinkedDocs();
+    } catch (error) {
+      console.error(error);
+      toast.error("연결 문서 업데이트에 실패했습니다.");
+    }
+  };
+
+  const handleUnlinkDoc = async (relationId: string) => {
+    if (!relationEndpoint) return;
+
+    try {
+      const res = await fetch(`${relationEndpoint}/${relationId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to unlink document");
+      await refreshLinkedDocs();
+      toast.success("문서 연결을 해제했습니다.");
+    } catch (error) {
+      console.error(error);
+      toast.error("문서 연결 해제에 실패했습니다.");
     }
   };
 
@@ -603,6 +738,151 @@ export function AdvancedTaskModal({
                     </PopoverContent>
                   </Popover>
                 </div>
+              </div>
+
+              {/* Due Date */}
+              <div className="space-y-3">
+                <span className="text-xs font-semibold text-muted-foreground uppercase">
+                  연결 문서
+                </span>
+
+                {linkedDocs.length > 0 ? (
+                  <div className="space-y-2">
+                    {linkedDocs.map((relation) => (
+                      <div
+                        key={relation.id}
+                        className="rounded-lg border bg-background/80 p-3 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <button
+                            type="button"
+                            className="min-w-0 text-left"
+                            onClick={() =>
+                              onNavigateToDoc?.(relation.doc.id)
+                            }
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate text-sm font-medium">
+                                {relation.doc.emoji ? `${relation.doc.emoji} ` : ""}
+                                {relation.doc.title}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                {RELATION_TYPE_LABEL[relation.relationType] ||
+                                  relation.relationType}
+                              </Badge>
+                              {relation.isPrimary && (
+                                <span className="inline-flex items-center gap-1">
+                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-500" />
+                                  대표 문서
+                                </span>
+                              )}
+                            </div>
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {!relation.isPrimary && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  handleUpdateRelation(relation.id, {
+                                    isPrimary: true,
+                                  })
+                                }
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleUnlinkDoc(relation.id)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <Select
+                            value={relation.relationType}
+                            onValueChange={(value) =>
+                              handleUpdateRelation(relation.id, {
+                                relationType: value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(RELATION_TYPE_LABEL).map(
+                                ([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                ),
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
+                    아직 연결된 문서가 없습니다.
+                  </div>
+                )}
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start border-dashed text-xs"
+                    >
+                      <Link2 className="mr-2 h-3.5 w-3.5" />
+                      문서 연결하기
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-2">
+                    <Input
+                      value={docSearch}
+                      onChange={(e) => setDocSearch(e.target.value)}
+                      placeholder="문서 검색"
+                      className="h-8 text-xs"
+                    />
+                    <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                      {availableDocs.length > 0 ? (
+                        availableDocs.map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
+                            onClick={() => handleLinkDoc(doc.id)}
+                          >
+                            <span className="truncate">
+                              {doc.emoji ? `${doc.emoji} ` : ""}
+                              {doc.title}
+                            </span>
+                            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-2 py-2 text-xs text-muted-foreground">
+                          연결 가능한 문서가 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Due Date */}

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import useSWR from "swr";
+import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
 import { DocumentEditor } from "@/components/features/workspace/docs/editor";
 import { Button } from "@/components/ui/button";
@@ -27,6 +33,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import data from "@emoji-mart/data";
@@ -46,6 +56,8 @@ const stringToColor = (str: string) => {
 
 interface DocsViewProps {
   projectId: string;
+  initialDocId?: string | null;
+  onNavigateToTask?: (taskId: string) => void;
 }
 
 type WorkspaceDocSummary = {
@@ -68,13 +80,28 @@ type ActiveWorkspaceDoc = {
   content?: unknown;
 };
 
+type DocTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  title: string;
+};
+
 type EmojiSelection = {
   native?: string;
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function DocsView({ projectId }: DocsViewProps) {
+export function DocsView({
+  projectId,
+  initialDocId,
+  onNavigateToTask,
+}: DocsViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, profile } = useAuth();
   const swrOptions = {
     revalidateOnFocus: false,
@@ -103,6 +130,11 @@ export function DocsView({ projectId }: DocsViewProps) {
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
   >(`/api/workspaces/${projectId}/docs?archived=true`, fetcher, swrOptions);
+  const { data: templates } = useSWR<DocTemplate[]>(
+    `/api/workspaces/${projectId}/doc-templates`,
+    fetcher,
+    swrOptions,
+  );
 
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
@@ -138,11 +170,46 @@ export function DocsView({ projectId }: DocsViewProps) {
     }
   }, [activeDoc]);
 
+  useEffect(() => {
+    if (initialDocId) {
+      setActiveDocId(initialDocId);
+    }
+  }, [initialDocId]);
+
+  const syncDocQuery = useCallback(
+    (docId: string | null) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("tab", "docs");
+      if (docId) {
+        nextParams.set("doc", docId);
+      } else {
+        nextParams.delete("doc");
+      }
+
+      const query = nextParams.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleSelectDoc = useCallback(
+    (docId: string) => {
+      setActiveDocId(docId);
+      syncDocQuery(docId);
+    },
+    [syncDocQuery],
+  );
+
   const toggleDoc = (docId: string) => {
     setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
   };
 
-  const handleCreateRootDoc = async (kind: "page" | "folder" = "page") => {
+  const handleCreateRootDoc = async (
+    kind: "page" | "folder" = "page",
+    templateId?: string,
+  ) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
@@ -152,9 +219,12 @@ export function DocsView({ projectId }: DocsViewProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: kind === "folder" ? "새 폴더" : "제목 없음",
+          ...(templateId
+            ? {}
+            : { title: kind === "folder" ? "새 폴더" : "제목 없음" }),
           parentId: null,
           kind,
+          ...(templateId ? { templateId } : {}),
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -162,6 +232,7 @@ export function DocsView({ projectId }: DocsViewProps) {
       mutateDocs();
       if (kind === "page") {
         setActiveDocId(newDoc.id);
+        syncDocQuery(newDoc.id);
       }
       toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
     } catch {
@@ -199,6 +270,7 @@ export function DocsView({ projectId }: DocsViewProps) {
         while (currentId) {
           if (currentId === docId) {
             setActiveDocId(null);
+            syncDocQuery(null);
             break;
           }
           currentId =
@@ -207,7 +279,7 @@ export function DocsView({ projectId }: DocsViewProps) {
       }
       refreshDocs();
     },
-    [activeDocId, docs, refreshDocs],
+    [activeDocId, docs, refreshDocs, syncDocQuery],
   );
 
   // --- Header Update Logic (Shared with Page) ---
@@ -281,6 +353,36 @@ export function DocsView({ projectId }: DocsViewProps) {
                 <FolderPlus className="h-4 w-4" />
                 새 폴더
               </DropdownMenuItem>
+              {templates && templates.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FileText className="h-4 w-4" />
+                      템플릿에서 시작
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-64">
+                      {templates.map((template) => (
+                        <DropdownMenuItem
+                          key={template.id}
+                          onClick={() =>
+                            handleCreateRootDoc("page", template.id)
+                          }
+                          className="items-start"
+                        >
+                          <span className="text-base">{template.emoji}</span>
+                          <div className="min-w-0">
+                            <p className="font-medium">{template.name}</p>
+                            <p className="line-clamp-2 text-xs text-muted-foreground">
+                              {template.description}
+                            </p>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -326,7 +428,7 @@ export function DocsView({ projectId }: DocsViewProps) {
                 readOnly={isReadOnly}
                 onExpand={toggleDoc}
                 expanded={expandedDocs}
-                onSelect={setActiveDocId}
+                onSelect={handleSelectDoc}
                 activeDocId={activeDocId}
                 onMutate={refreshDocs}
                 onDocArchived={handleDocArchived}
@@ -420,8 +522,9 @@ export function DocsView({ projectId }: DocsViewProps) {
               </div>
             </header>
 
-            {/* Scrollable Document Content */}
-            <div className="flex-1 overflow-y-auto relative w-full">
+            <div className="flex flex-1 min-h-0">
+              {/* Scrollable Document Content */}
+              <div className="flex-1 overflow-y-auto relative w-full">
               {/* Loading Overlay - only if initial load and no data yet */}
               {isLoadingActiveDoc && !activeDoc && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50 pointer-events-none">
@@ -520,6 +623,15 @@ export function DocsView({ projectId }: DocsViewProps) {
                       }
                     : undefined
                 }
+              />
+              </div>
+
+              <DocCollaborationPanel
+                workspaceId={projectId}
+                docId={activeDocId}
+                readOnly={isReadOnly}
+                currentUserId={user?.id}
+                onOpenTask={onNavigateToTask}
               />
             </div>
           </div>

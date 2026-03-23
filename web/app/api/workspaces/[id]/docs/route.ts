@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
+import { getWorkspaceDocTemplate } from "@/lib/server/workspace-doc-templates";
 
 type DocKind = "page" | "folder";
 
@@ -102,7 +103,8 @@ export async function POST(
     const coverUrl =
       typeof body.coverUrl === "string" && body.coverUrl ? body.coverUrl : null;
     const kind = normalizeDocKind(body.kind);
-    const content = body.content ?? null;
+    const template = getWorkspaceDocTemplate(body.templateId);
+    const content = body.content ?? template?.content ?? null;
 
     const membership = await prisma.workspace_members.findUnique({
       where: {
@@ -167,9 +169,13 @@ export async function POST(
           workspace_id: workspaceId,
           author_id: session.user.id,
           kind,
-          title: title || (kind === "folder" ? "새 폴더" : "제목 없음"),
+          title:
+            title ||
+            (kind === "folder"
+              ? "새 폴더"
+              : template?.title || "제목 없음"),
           parent_id: parentId,
-          emoji,
+          emoji: emoji ?? template?.emoji ?? null,
           cover_url: coverUrl,
           content: kind === "folder" ? null : content,
           sort_order: (sibling?.sort_order ?? -1) + 1,
