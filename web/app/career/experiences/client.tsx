@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,66 @@ import {
 import { saveExperienceAction, deleteExperienceAction, type ExperienceInput } from "./actions";
 import { Plus, Trash2, Sparkles, Check, ChevronRight, X, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
+
+interface ExperienceFormProps {
+  formData: Partial<ExperienceInput>;
+  setFormData: (data: Partial<ExperienceInput>) => void;
+}
+
+const ExperienceFormUI = ({ formData, setFormData }: ExperienceFormProps) => {
+  const [tagsInput, setTagsInput] = React.useState(formData.tags?.join(", ") || "");
+
+  // Update local state when formData changes (e.g. when opening a new experience)
+  React.useEffect(() => {
+    setTagsInput(formData.tags?.join(", ") || "");
+  }, [formData.id]);
+
+  const handleTagsChange = (val: string) => {
+    setTagsInput(val);
+    const tags = val.split(",").map(t => t.trim()).filter(Boolean);
+    setFormData({ ...formData, tags });
+  };
+
+  return (
+    <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+      <div className="space-y-2">
+        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">활동명 (Title)</label>
+        <input 
+          value={formData.company || ""} 
+          onChange={e => setFormData({...formData, company: e.target.value})}
+          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: GDSC 3기 멤버" />
+      </div>
+
+      <div className="flex gap-4">
+        <div className="space-y-2 flex-1">
+          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">진행 기간 (Date)</label>
+          <MonthRangePicker 
+            value={formData.period || ""} 
+            onChange={v => setFormData({...formData, period: v})}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">1줄 요약 (Short Summary)</label>
+        <input 
+          value={formData.description || ""} 
+          onChange={e => setFormData({...formData, description: e.target.value})}
+          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 팀장으로서 5명의 팀원을 이끌고 메신저 앱 배포" />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">핵심 태그 (Tags: 쉼표로 구분)</label>
+        <input 
+          value={tagsInput} 
+          onChange={e => handleTagsChange(e.target.value)}
+          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 리더십, 소통, React, 배포" />
+        <p className="text-[11px] text-slate-500 font-medium ml-1">입력한 태그가 타임라인 카드에 표시됩니다.</p>
+      </div>
+    </div>
+  );
+};
 
 export default function CareerTimelineClient({ initialExperiences }: { initialExperiences: ExperienceInput[] }) {
   const router = useRouter();
@@ -89,52 +149,13 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
       .map(e => `[${e.company}] ${e.period || ""}\n${e.description || ""}\n태그: ${e.tags?.join(", ") || ""}`.trim())
       .join("\n\n");
     const params = new URLSearchParams({
-      mode: "setup",
       source: "career",
       situation: situation,
       experienceIds: selectedIds.join(","),
     });
-    router.push(`/resume?${params.toString()}`);
+    router.push(`/career/cover-letter-wizard?${params.toString()}`);
   };
 
-  const ExperienceFormUI = () => (
-    <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">활동명 (Title)</label>
-        <input 
-          value={formData.company || ""} 
-          onChange={e => setFormData({...formData, company: e.target.value})}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: GDSC 3기 멤버" />
-      </div>
-
-      <div className="flex gap-4">
-        <div className="space-y-2 flex-1">
-          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">진행 기간 (Date)</label>
-          <input 
-            value={formData.period || ""} 
-            onChange={e => setFormData({...formData, period: e.target.value})}
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 23.03 - 23.12" />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">1줄 요약 (Short Summary)</label>
-        <input 
-          value={formData.description || ""} 
-          onChange={e => setFormData({...formData, description: e.target.value})}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 팀장으로서 5명의 팀원을 이끌고 메신저 앱 배포" />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">핵심 태그 (Tags: 쉼표로 구분)</label>
-        <input 
-          value={formData.tags?.join(", ") || ""} 
-          onChange={e => setFormData({...formData, tags: e.target.value.split(",").map(t=>t.trim()).filter(Boolean)})}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 리더십, 소통, React, 배포" />
-        <p className="text-[11px] text-slate-500 font-medium ml-1">입력한 태그가 타임라인 카드에 표시됩니다.</p>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen pt-12 md:pt-20 pb-48 font-sans overflow-x-hidden relative">
@@ -143,7 +164,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-2">나의 커리어 타임라인</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-2">나의 경험 타임라인</h1>
             <p className="text-[14px] text-slate-500 max-w-2xl">활동을 기록하고 세부 사항을 작성하세요. 자소서 뼈대로 활용할 수 있습니다.</p>
           </div>
 
@@ -280,7 +301,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
                               </button>
                             </div>
 
-                            <ExperienceFormUI />
+                            <ExperienceFormUI formData={formData} setFormData={setFormData} />
 
                             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
                               <Button variant="ghost" onClick={() => setActiveId(null)} className="h-12 font-bold rounded-2xl text-slate-500 hover:text-slate-700 hover:bg-transparent dark:hover:text-slate-300 dark:hover:bg-transparent px-6" disabled={isSaving}>닫기</Button>
@@ -333,7 +354,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
             </DialogDescription>
           </DialogHeader>
           <div className="px-8 py-6 overflow-y-auto max-h-[60vh]">
-            <ExperienceFormUI />
+            <ExperienceFormUI formData={formData} setFormData={setFormData} />
           </div>
           <div className="px-8 pb-8 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button

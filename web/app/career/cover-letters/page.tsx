@@ -16,23 +16,30 @@ export default async function CareerCoverLettersPage() {
 
   const userId = session.user.id;
 
-  // Retrieve active resume to get cover letters
-  let activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: userId, is_active: true }
+  // Retrieve master profile to get consolidated cover letters
+  const profile = await prisma.user_resume_profiles.findUnique({
+    where: { user_id: userId }
   });
 
-  if (!activeResume) {
-    // If no active, try grabbing the first one
-    activeResume = await prisma.user_resumes.findFirst({
-      where: { user_id: userId },
-      orderBy: { created_at: 'desc' }
-    });
-  }
-
-  let coverLetters = [];
-  if (activeResume && activeResume.resume_payload) {
-    const payload = activeResume.resume_payload as unknown as ResumePayload;
+  let coverLetters: any[] = [];
+  if (profile && profile.resume_payload) {
+    const payload = profile.resume_payload as unknown as ResumePayload;
     coverLetters = payload.coverLetters || [];
+  } else {
+    // Fallback to active resume
+    let activeResume = await prisma.user_resumes.findFirst({
+      where: { user_id: userId, is_active: true }
+    });
+    if (!activeResume) {
+      activeResume = await prisma.user_resumes.findFirst({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' }
+      });
+    }
+    if (activeResume && activeResume.resume_payload) {
+      const payload = activeResume.resume_payload as unknown as ResumePayload;
+      coverLetters = payload.coverLetters || [];
+    }
   }
 
   // Ensure coverLetters are sorted by createdAt descending

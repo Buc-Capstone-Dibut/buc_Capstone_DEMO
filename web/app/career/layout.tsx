@@ -10,9 +10,9 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   const tabs = [
-    { name: "내 경험 타임라인", href: "/career/experiences", icon: FolderKanban },
+    { name: "나의 경험 타임라인", href: "/career/experiences", icon: FolderKanban },
     { name: "내 자소서 관리", href: "/career/cover-letters", icon: FileText },
-    { name: "내 이력서 모아보기", href: "/career/resumes", icon: FileBadge },
+    { name: "내 이력서 캐비닛", href: "/career/resumes", icon: FileBadge },
   ];
 
   return (

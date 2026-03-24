@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
+import { syncResumeToProfile } from "@/lib/my-profile";
 
 export type CoverLetterInput = NonNullable<ResumePayload["coverLetters"]>[number];
 
@@ -64,6 +65,9 @@ export async function saveCoverLetterAction(data: CoverLetterInput) {
     data: { resume_payload: payload as any }
   });
 
+  // --- 전역 프로필 동기화 ---
+  await syncResumeToProfile(userId, payload);
+
   revalidatePath("/career/cover-letters");
   return { success: true, coverLetter: data };
 }
@@ -73,21 +77,41 @@ export async function deleteCoverLetterAction(id: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
+  const userId = session.user.id;
+
+  // 1. Delete from active resume (user_resumes)
   const activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: session.user.id, is_active: true }
+    where: { user_id: userId, is_active: true }
   });
 
-  if (!activeResume) throw new Error("No active resume");
+  if (activeResume) {
+    const payload = (activeResume.resume_payload as any) || {};
+    let coverLetters: CoverLetterInput[] = payload.coverLetters || [];
+    coverLetters = coverLetters.filter((e: any) => e.id !== id);
+    payload.coverLetters = coverLetters;
 
-  const payload = (activeResume.resume_payload as any) || {};
-  let coverLetters: CoverLetterInput[] = payload.coverLetters || [];
-  coverLetters = coverLetters.filter((e: any) => e.id !== id);
-  payload.coverLetters = coverLetters;
+    await prisma.user_resumes.update({
+      where: { id: activeResume.id },
+      data: { resume_payload: payload as any }
+    });
+  }
 
-  await prisma.user_resumes.update({
-    where: { id: activeResume.id },
-    data: { resume_payload: payload as any }
+  // 2. Delete from master profile (user_resume_profiles) directly
+  const profile = await prisma.user_resume_profiles.findUnique({
+    where: { user_id: userId }
   });
+
+  if (profile && profile.resume_payload) {
+    const masterPayload = profile.resume_payload as any;
+    let masterCoverLetters: CoverLetterInput[] = masterPayload.coverLetters || [];
+    masterCoverLetters = masterCoverLetters.filter((e: any) => e.id !== id);
+    masterPayload.coverLetters = masterCoverLetters;
+
+    await prisma.user_resume_profiles.update({
+      where: { user_id: userId },
+      data: { resume_payload: masterPayload as any, updated_at: new Date() }
+    });
+  }
 
   revalidatePath("/career/cover-letters");
   return { success: true };

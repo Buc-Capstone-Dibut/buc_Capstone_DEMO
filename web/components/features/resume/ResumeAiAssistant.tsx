@@ -28,8 +28,9 @@ interface ResumeAiAssistantProps {
     onUpdatePayload: (payload: ResumePayload) => void;
     initialMode?: Mode;
     isWizard?: boolean;
-    onWizardComplete?: () => void;
+    onWizardComplete?: (content: string) => void;
     initialStadri?: Partial<{ s: string; t: string; a: string; d: string; r: string; i: string }>;
+    backgroundContext?: string;
 }
 
 type Mode = "main" | "stadri" | "chat";
@@ -46,6 +47,7 @@ export function ResumeAiAssistant({
     isWizard = false,
     onWizardComplete,
     initialStadri,
+    backgroundContext,
 }: ResumeAiAssistantProps) {
     const { toast } = useToast();
     const [mode, setMode] = useState<Mode>(isWizard ? "stadri" : initialMode);
@@ -93,6 +95,7 @@ export function ResumeAiAssistant({
                 body: JSON.stringify({
                     action: "stadri-structure",
                     payload: stadriData,
+                    backgroundContext,
                 }),
             });
 
@@ -237,7 +240,7 @@ export function ResumeAiAssistant({
         if (!isWizard) {
             setMode("main");
         } else if (onWizardComplete) {
-            onWizardComplete();
+            onWizardComplete(latestAssistantMessage.content);
         }
     };
 

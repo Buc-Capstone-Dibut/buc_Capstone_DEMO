@@ -84,5 +84,6 @@ export function normalizeResumePayload(input: unknown): ResumePayload {
           : [],
       };
     }),
+    coverLetters: Array.isArray(rp.coverLetters) ? rp.coverLetters : [],
   };
 }

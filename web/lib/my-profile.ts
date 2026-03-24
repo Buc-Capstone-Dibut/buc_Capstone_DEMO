@@ -193,3 +193,107 @@ export function buildResumePublicSummary(resumePayload: any, title?: string) {
 }
 
 export type PublicResumeSummary = ReturnType<typeof buildResumePublicSummary>;
+
+/**
+ * Syncs specific resume data (experiences, projects, cover letters) to the master user profile.
+ * This ensures that data written in any resume editor is reflected back into the global career hub.
+ */
+export async function syncResumeToProfile(userId: string, incomingPayload: any) {
+  if (!prisma) return;
+
+  // 1. Fetch current profile
+  const profile = await prisma.user_resume_profiles.findUnique({
+    where: { user_id: userId }
+  });
+
+  const masterPayload: any = profile?.resume_payload || {
+    personalInfo: { name: "", email: "", phone: "", intro: "", links: {} },
+    experience: [],
+    projects: [],
+    skills: [],
+    selfIntroduction: "",
+    coverLetters: []
+  };
+
+  const incomingExp = Array.isArray(incomingPayload.experience) ? incomingPayload.experience : [];
+  const incomingPrj = Array.isArray(incomingPayload.projects) ? incomingPayload.projects : [];
+  const incomingCl = Array.isArray(incomingPayload.coverLetters) ? incomingPayload.coverLetters : [];
+
+  // 2. Merge Experiences (Master Pool)
+  // We treat both projects and experiences from resumes as "Experiences" in the global hub if they have descriptions
+  const masterExperiences = Array.isArray(masterPayload.experience) ? masterPayload.experience : [];
+  const expMap = new Map(masterExperiences.map((e: any) => [e.id || e.company, e]));
+
+  // Merge incoming experiences
+  incomingExp.forEach((e: any) => {
+    const key = e.id || e.company;
+    if (key) {
+      const existing = expMap.get(key);
+      // Merge: priority to incoming, but preserve older fields if not in incoming
+      expMap.set(key, existing ? { ...existing, ...e } : e);
+    }
+  });
+
+  masterPayload.experience = Array.from(expMap.values());
+
+  // 3. Merge Cover Letters
+  const masterCoverLetters = Array.isArray(masterPayload.coverLetters) ? masterPayload.coverLetters : [];
+  const clMap = new Map();
+  // We use title + content excerpt as a fallback key for cover letters if ID is missing or inconsistent
+  masterCoverLetters.forEach((c: any) => {
+    const key = c.id || `${c.title}-${(c.content || "").slice(0, 20)}`;
+    clMap.set(key, c);
+  });
+
+  incomingCl.forEach((c: any) => {
+    const key = c.id || `${c.title}-${(c.content || "").slice(0, 20)}`;
+    if (key) {
+      const existing = clMap.get(key);
+      clMap.set(key, existing ? { ...existing, ...c } : c);
+    }
+  });
+
+  // Special handling: If selfIntroduction is in the resume, ensure we have a corresponding record in coverLetters pool if it's significant
+  if (incomingPayload.selfIntroduction && incomingPayload.selfIntroduction.length > 50) {
+    const si = incomingPayload.selfIntroduction.trim();
+    const title = incomingPayload.personalInfo?.name ? `${incomingPayload.personalInfo.name}의 자기소개서` : "작성된 자기소개서";
+    
+    // Check if any existing cover letter has the exact same content
+    const existingMatches = Array.from(clMap.values()).some((c: any) => (c.content || "").trim() === si);
+    
+    if (!existingMatches) {
+      // Create a unique key for this content to prevent repeated additions within the same session
+      const key = `si-${si.slice(0, 30).replace(/\s+/g, '')}`;
+      if (!clMap.has(key)) {
+        clMap.set(key, {
+            id: crypto.randomUUID(),
+            title,
+            content: si,
+            createdAt: new Date().toISOString(),
+            sourceExperienceIds: []
+        });
+      }
+    }
+  }
+
+  // If selfIntroduction is provided in the resume, sync it to the master too
+  if (incomingPayload.selfIntroduction !== undefined) {
+    masterPayload.selfIntroduction = incomingPayload.selfIntroduction;
+  }
+
+  masterPayload.coverLetters = Array.from(clMap.values());
+
+  // 4. Update the profile
+  await prisma.user_resume_profiles.upsert({
+    where: { user_id: userId },
+    update: {
+      resume_payload: masterPayload,
+      updated_at: new Date()
+    },
+    create: {
+      user_id: userId,
+      resume_payload: masterPayload,
+      public_summary: buildResumePublicSummary(masterPayload)
+    }
+  });
+}
