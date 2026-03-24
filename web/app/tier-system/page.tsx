@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Footer } from "@/components/layout/footer";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -145,8 +146,9 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
 
 export default function TierSystemPage() {
   return (
-    <main className="min-h-screen bg-white text-slate-950">
-      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
+    <>
+      <main className="min-h-screen bg-white text-slate-950">
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
         <section className="grid gap-14 border-b border-slate-200 pb-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="space-y-6">
             <SectionEyebrow>DIBUT TIER AND SCORES</SectionEyebrow>
@@ -342,7 +344,9 @@ export default function TierSystemPage() {
             </Link>
           </div>
         </section>
-      </div>
-    </main>
+        </div>
+      </main>
+      <Footer />
+    </>
   );
 }

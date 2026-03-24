@@ -10,10 +10,10 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex flex-col">
       <CommonHeader />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto flex-1 px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
             서비스 이용약관
@@ -186,6 +186,7 @@ export default function TermsPage() {
           </CardContent>
         </Card>
       </div>
+      <Footer />
     </div>
   );
 }

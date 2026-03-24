@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FolderKanban, FileText, FileBadge } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Footer } from "@/components/layout/footer";
 
 export default function CareerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,8 +16,8 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
   ];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 dark:bg-slate-950/50 w-full overflow-x-hidden">
-      <div className="w-full flex justify-center max-w-[1920px] mx-auto">
+    <div className="flex min-h-full flex-col bg-slate-50/50 dark:bg-slate-950/50 w-full overflow-x-hidden">
+      <div className="w-full flex flex-1 justify-center max-w-[1920px] mx-auto">
         
         {/* 1. Left Vertical Menu (Desktop Only) */}
         <div className="w-56 shrink-0 hidden lg:block pt-12 xl:pt-20 px-2 lg:px-4 z-40">
@@ -80,6 +81,7 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
         <div className="w-56 shrink-0 hidden lg:block px-2 lg:px-4 pointer-events-none"></div>
 
       </div>
+      <Footer />
     </div>
   );
 }

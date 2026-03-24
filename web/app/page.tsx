@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/hooks/use-auth";
 import { motion, Variants } from "framer-motion";
 
@@ -559,22 +560,7 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-neutral-100 px-5 py-12 bg-white">
-        <div className="mx-auto max-w-6xl flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="text-center md:text-left">
-            <span className="text-[20px] font-black tracking-tight text-neutral-900">Dibut</span>
-            <p className="mt-2 text-[13px] text-neutral-400">개발자 성장 통합 플랫폼</p>
-          </div>
-          <div className="flex gap-8 text-[14px] font-medium text-neutral-500">
-            <Link href="/insights/tech-blog" className="hover:text-primary transition-colors">인사이트</Link>
-            <Link href="/community" className="hover:text-primary transition-colors">커뮤니티</Link>
-            <Link href="/workspace" className="hover:text-primary transition-colors">워크스페이스</Link>
-            <Link href="/interview" className="hover:text-primary transition-colors">AI 면접</Link>
-          </div>
-          <p className="text-[12px] text-neutral-300">© 2026 Dibut. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

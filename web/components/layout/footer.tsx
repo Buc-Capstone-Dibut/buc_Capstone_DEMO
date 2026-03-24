@@ -1,44 +1,41 @@
 import Link from "next/link";
-import { Github } from "lucide-react";
+
+const PRIMARY_LINKS = [
+  { href: "/insights/tech-blog", label: "인사이트" },
+  { href: "/community", label: "커뮤니티" },
+  { href: "/workspace", label: "워크스페이스" },
+  { href: "/interview", label: "AI 면접" },
+] as const;
 
 export function Footer() {
   return (
-    <footer className="mt-auto border-t border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+    <footer className="mt-auto border-t border-neutral-100 bg-transparent">
+      <div className="mx-auto max-w-6xl px-5 py-12 pb-24 md:pb-12">
+        <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
           <div className="text-center md:text-left">
-            <h3 className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-2">
+            <span className="text-[20px] font-black tracking-tight text-neutral-900">
               Dibut
-            </h3>
+            </span>
+            <p className="mt-2 text-[13px] text-neutral-400">
+              개발자 성장 통합 플랫폼
+            </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 text-sm">
-            <Link
-              href="/terms"
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-            >
-              서비스 이용약관
-            </Link>
-            <Link
-              href="/privacy"
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-            >
-              개인정보 처리방침
-            </Link>
-            <a
-              href="https://github.com/jhkim0602/Graduation-work_DEMO"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-              title="GitHub"
-            >
-              <Github className="h-5 w-5" />
-            </a>
-          </div>
-        </div>
+          <nav className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[14px] font-medium text-neutral-500">
+            {PRIMARY_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="transition-colors hover:text-primary"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
-        <div className="mt-6 pt-6 border-t border-slate-200/50 dark:border-slate-700/50 text-center">
-            © 2025 Dibut. All rights reserved.
+          <p className="text-center text-[12px] text-neutral-300 md:text-right">
+            © 2026 Dibut. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
