@@ -11,6 +11,7 @@ import { AdvancedTaskModal } from "./board/advanced-task-modal";
 
 interface ScheduleViewProps {
   projectId: string;
+  onNavigateToDoc?: (docId: string) => void;
 }
 
 type BoardTask = {
@@ -29,7 +30,7 @@ type BoardData = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function ScheduleView({ projectId }: ScheduleViewProps) {
+export function ScheduleView({ projectId, onNavigateToDoc }: ScheduleViewProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const { data: boardData, isLoading } = useSWR<BoardData>(
     `/api/workspaces/${projectId}/board`,
@@ -117,6 +118,7 @@ export function ScheduleView({ projectId }: ScheduleViewProps) {
       <AdvancedTaskModal
         taskId={editingTaskId}
         projectId={projectId}
+        onNavigateToDoc={onNavigateToDoc}
         open={!!editingTaskId}
         onOpenChange={(open) => !open && setEditingTaskId(null)}
       />

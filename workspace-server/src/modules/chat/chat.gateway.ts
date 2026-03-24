@@ -99,6 +99,60 @@ export const setupChatGateway = (io: Server) => {
       },
     );
 
+    socket.on(
+      "chat:update_message",
+      async (
+        payload: {
+          channelId: string;
+          messageId: string;
+          content: string;
+          requesterId: string;
+        },
+        callback,
+      ) => {
+        try {
+          const message = await ChatService.updateMessage(
+            payload.messageId,
+            payload.content,
+            payload.requesterId,
+          );
+
+          io.to(payload.channelId).emit("chat:message_updated", message);
+
+          if (callback) callback({ success: true, data: message });
+        } catch (e: any) {
+          console.error("Chat Update Error", e);
+          if (callback) callback({ success: false, error: e.message });
+        }
+      },
+    );
+
+    socket.on(
+      "chat:delete_message",
+      async (
+        payload: {
+          channelId: string;
+          messageId: string;
+          requesterId: string;
+        },
+        callback,
+      ) => {
+        try {
+          const deletedMessage = await ChatService.deleteMessage(
+            payload.messageId,
+            payload.requesterId,
+          );
+
+          io.to(payload.channelId).emit("chat:message_deleted", deletedMessage);
+
+          if (callback) callback({ success: true, data: deletedMessage });
+        } catch (e: any) {
+          console.error("Chat Delete Error", e);
+          if (callback) callback({ success: false, error: e.message });
+        }
+      },
+    );
+
     // Typing Indicator
     socket.on(
       "chat:typing",

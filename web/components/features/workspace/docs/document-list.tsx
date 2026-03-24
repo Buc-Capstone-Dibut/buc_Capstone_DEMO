@@ -403,7 +403,7 @@ function DocumentTreeBranch({
                 <span className="truncate">{doc.title}</span>
               </div>
 
-              <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="ml-auto flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 {!readOnly && (
                   <>
                     <DropdownMenu>

@@ -4,6 +4,14 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const READ_ONLY_ERROR = "이 워크스페이스는 종료되어 읽기 전용입니다.";
 
+function toNotificationPreview(content: string) {
+  return content
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "[이미지]")
+    .replace(/\[@([^:]+):([^\]]+)\]/g, "@$2")
+    .replace(/\[#([^:]+):([^\]]+)\]/g, "#$2")
+    .replace(/\[!([^:]+):([^\]]+)\]/g, "!$2");
+}
+
 function toMessagePayload(msg: {
   id: string;
   channel_id: string;
@@ -15,9 +23,11 @@ function toMessagePayload(msg: {
     avatar_url: string | null;
   } | null;
   created_at: Date;
+  updated_at: Date;
   type: string;
 }) {
   const createdAtIso = msg.created_at.toISOString();
+  const updatedAtIso = msg.updated_at.toISOString();
 
   return {
     id: msg.id,
@@ -26,6 +36,8 @@ function toMessagePayload(msg: {
     senderId: msg.sender_id,
     sender: msg.sender,
     createdAt: createdAtIso,
+    updatedAt: updatedAtIso,
+    isEdited: createdAtIso !== updatedAtIso,
     // Keep legacy key for compatibility; client should prefer createdAt.
     timestamp: createdAtIso,
     type: msg.type.toLowerCase(), // 'TEXT' -> 'text'
@@ -192,11 +204,7 @@ export class ChatService {
 
           await Promise.all(
             Array.from(mentionedUserIds).map(async (targetUserId) => {
-              // Clean content for notification display (replace [@id:name] with @name)
-              const displayContent = content.replace(
-                /\[@([^:]+):([^\]]+)\]/g,
-                "@$2",
-              );
+              const displayContent = toNotificationPreview(content);
 
               await prisma.notifications.create({
                 data: {
@@ -219,5 +227,103 @@ export class ChatService {
     })();
 
     return toMessagePayload(msg);
+  }
+
+  static async updateMessage(
+    messageId: string,
+    content: string,
+    requesterId: string,
+  ) {
+    const nextContent = content.trim();
+    if (!nextContent) {
+      throw new Error("메시지 내용을 입력해주세요.");
+    }
+
+    const existingMessage = await prisma.workspace_messages.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        sender_id: true,
+        type: true,
+        channel_id: true,
+        channel: {
+          select: {
+            workspace_id: true,
+          },
+        },
+      },
+    });
+
+    if (!existingMessage) {
+      throw new Error("메시지를 찾을 수 없습니다.");
+    }
+
+    if (existingMessage.sender_id !== requesterId) {
+      throw new Error("본인이 작성한 메시지만 수정할 수 있습니다.");
+    }
+
+    if (existingMessage.type !== "TEXT") {
+      throw new Error("이 메시지는 수정할 수 없습니다.");
+    }
+
+    await this.assertWorkspaceWritable(existingMessage.channel.workspace_id);
+
+    const updatedMessage = await prisma.workspace_messages.update({
+      where: { id: messageId },
+      data: {
+        content: nextContent,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            nickname: true,
+            avatar_url: true,
+          },
+        },
+      },
+    });
+
+    return toMessagePayload(updatedMessage);
+  }
+
+  static async deleteMessage(messageId: string, requesterId: string) {
+    const existingMessage = await prisma.workspace_messages.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        sender_id: true,
+        type: true,
+        channel_id: true,
+        channel: {
+          select: {
+            workspace_id: true,
+          },
+        },
+      },
+    });
+
+    if (!existingMessage) {
+      throw new Error("메시지를 찾을 수 없습니다.");
+    }
+
+    if (existingMessage.sender_id !== requesterId) {
+      throw new Error("본인이 작성한 메시지만 삭제할 수 있습니다.");
+    }
+
+    if (existingMessage.type === "SYSTEM") {
+      throw new Error("시스템 메시지는 삭제할 수 없습니다.");
+    }
+
+    await this.assertWorkspaceWritable(existingMessage.channel.workspace_id);
+
+    await prisma.workspace_messages.delete({
+      where: { id: messageId },
+    });
+
+    return {
+      id: existingMessage.id,
+      channelId: existingMessage.channel_id,
+    };
   }
 }

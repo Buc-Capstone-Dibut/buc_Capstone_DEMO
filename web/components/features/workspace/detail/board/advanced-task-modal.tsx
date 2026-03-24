@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { DocumentPicker } from "@/components/features/workspace/docs/document-picker";
 
 // --- Types ---
 interface Task {
@@ -86,6 +87,7 @@ interface WorkspaceDocSummary {
   title: string;
   emoji?: string | null;
   parent_id: string | null;
+  sort_order?: number;
   is_archived?: boolean;
 }
 
@@ -256,18 +258,6 @@ export function AdvancedTaskModal({
       return tag.name.toLowerCase().includes(keyword);
     });
   }, [newTag, selectedTagIds, tagOptions]);
-
-  const availableDocs = useMemo(() => {
-    const linkedDocIds = new Set(linkedDocs.map((relation) => relation.doc.id));
-    const keyword = docSearch.trim().toLowerCase();
-
-    return docs.filter((doc) => {
-      if (doc.kind === "folder" || doc.is_archived) return false;
-      if (linkedDocIds.has(doc.id)) return false;
-      if (!keyword) return true;
-      return doc.title.toLowerCase().includes(keyword);
-    });
-  }, [docSearch, docs, linkedDocs]);
 
   // --- Handlers ---
 
@@ -783,40 +773,16 @@ export function AdvancedTaskModal({
                     <Input
                       value={docSearch}
                       onChange={(e) => setDocSearch(e.target.value)}
-                      placeholder="문서 검색"
+                      placeholder="문서 또는 폴더 검색"
                       className="h-8 text-xs"
                     />
-                    <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
-                      {availableDocs.length > 0 ? (
-                        availableDocs.map((doc) => {
-                          const path = getDocPath(doc.id, docs);
-                          return (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
-                            onClick={() => handleLinkDoc(doc.id)}
-                          >
-                            <div className="min-w-0 flex-1 pr-2">
-                              <div className="truncate text-foreground font-medium">
-                                {doc.emoji ? `${doc.emoji} ` : ""}
-                                {doc.title}
-                              </div>
-                              {path && (
-                                <div className="truncate text-[10px] text-muted-foreground mt-0.5">
-                                  {path}
-                                </div>
-                              )}
-                            </div>
-                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          </button>
-                        )})
-                      ) : (
-                        <div className="px-2 py-2 text-xs text-muted-foreground">
-                          연결 가능한 페이지가 없습니다.
-                        </div>
-                      )}
-                    </div>
+                    <DocumentPicker
+                      docs={docs}
+                      linkedDocIds={linkedDocs.map((relation) => relation.doc.id)}
+                      search={docSearch}
+                      onSelect={(docId) => handleLinkDoc(docId)}
+                      className="mt-2"
+                    />
                     {/* Fast Action */}
                     <div className="mt-2 border-t pt-2">
                       <Button

@@ -33,7 +33,9 @@ export interface Message {
   };
   timestamp: string;
   createdAt?: string;
+  updatedAt?: string;
   fullTimestamp?: string;
+  isEdited?: boolean;
   type: string;
   workspaceId?: string;
 }
@@ -53,6 +55,12 @@ interface MessagesAck {
 interface CreateChannelAck {
   success: boolean;
   data: Channel;
+  error?: string;
+}
+
+interface MessageMutationAck {
+  success: boolean;
+  data?: Message | { id: string; channelId: string };
   error?: string;
 }
 
@@ -82,6 +90,17 @@ interface SocketStore {
 
   // Message Actions
   sendMessage: (channelId: string, content: string, senderId: string) => void;
+  editMessage: (
+    channelId: string,
+    messageId: string,
+    content: string,
+    requesterId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteMessage: (
+    channelId: string,
+    messageId: string,
+    requesterId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const useSocketStore = create<SocketStore>((set, get) => ({
@@ -149,6 +168,31 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
         });
       }
     });
+
+    socket.on("chat:message_updated", (message: Message) => {
+      set((state) => ({
+        messages: state.messages.map((currentMessage) =>
+          currentMessage.id === message.id ? message : currentMessage,
+        ),
+      }));
+    });
+
+    socket.on(
+      "chat:message_deleted",
+      (payload: { id: string; channelId: string }) => {
+        set((state) => {
+          if (state.activeChannelId !== payload.channelId) {
+            return state;
+          }
+
+          return {
+            messages: state.messages.filter(
+              (message) => message.id !== payload.id,
+            ),
+          };
+        });
+      },
+    );
 
     set({ socket });
   },
@@ -266,5 +310,65 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     if (socket) {
       socket.emit("chat:message", { channelId, content, senderId });
     }
+  },
+
+  editMessage: (channelId, messageId, content, requesterId) => {
+    const socket = get().socket;
+
+    if (!socket?.connected) {
+      notifyWorkspaceServerUnstable();
+      return Promise.resolve({
+        success: false,
+        error: WORKSPACE_SERVER_UNSTABLE_MESSAGE,
+      });
+    }
+
+    return new Promise((resolve) => {
+      socket.emit(
+        "chat:update_message",
+        { channelId, messageId, content, requesterId },
+        (res: MessageMutationAck) => {
+          if (!res.success) {
+            resolve({
+              success: false,
+              error: res.error || "메시지 수정에 실패했습니다.",
+            });
+            return;
+          }
+
+          resolve({ success: true });
+        },
+      );
+    });
+  },
+
+  deleteMessage: (channelId, messageId, requesterId) => {
+    const socket = get().socket;
+
+    if (!socket?.connected) {
+      notifyWorkspaceServerUnstable();
+      return Promise.resolve({
+        success: false,
+        error: WORKSPACE_SERVER_UNSTABLE_MESSAGE,
+      });
+    }
+
+    return new Promise((resolve) => {
+      socket.emit(
+        "chat:delete_message",
+        { channelId, messageId, requesterId },
+        (res: MessageMutationAck) => {
+          if (!res.success) {
+            resolve({
+              success: false,
+              error: res.error || "메시지 삭제에 실패했습니다.",
+            });
+            return;
+          }
+
+          resolve({ success: true });
+        },
+      );
+    });
   },
 }));
