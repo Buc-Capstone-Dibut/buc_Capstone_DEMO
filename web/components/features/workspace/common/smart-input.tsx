@@ -1,21 +1,28 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import {
+  useCallback,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
 import {
   Popover,
-  PopoverContent,
   PopoverAnchor,
+  PopoverContent,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Hash } from "lucide-react";
+import { FileText, Hash } from "lucide-react";
 
 interface SmartInputMember {
   id: string;
@@ -28,8 +35,52 @@ interface SmartInputTask {
   title?: string | null;
 }
 
+interface SmartInputDoc {
+  id: string;
+  title?: string | null;
+  kind?: string | null;
+  emoji?: string | null;
+}
+
 const MIN_TEXTAREA_HEIGHT = 36;
 const MAX_TEXTAREA_HEIGHT = 140;
+
+type TriggerType = "user" | "task" | "doc";
+type TriggerChar = "@" | "#" | "!";
+
+type TriggerContext = {
+  type: TriggerType;
+  start: number;
+  end: number;
+  query: string;
+};
+
+const TRIGGER_PATTERN = /(^|\s)([@#!])([^\s\[\]]*)$/;
+
+function mapTriggerChar(trigger: TriggerChar): TriggerType {
+  if (trigger === "@") return "user";
+  if (trigger === "#") return "task";
+  return "doc";
+}
+
+function detectTriggerContext(
+  value: string,
+  cursorPosition: number,
+): TriggerContext | null {
+  const beforeCursor = value.slice(0, cursorPosition);
+  const match = beforeCursor.match(TRIGGER_PATTERN);
+  if (!match) return null;
+
+  const trigger = match[2] as TriggerChar;
+  const query = match[3] ?? "";
+
+  return {
+    type: mapTriggerChar(trigger),
+    start: beforeCursor.length - (query.length + 1),
+    end: cursorPosition,
+    query,
+  };
+}
 
 interface SmartInputProps {
   value: string;
@@ -42,113 +93,205 @@ interface SmartInputProps {
   projectId?: string;
   members?: SmartInputMember[];
   tasks?: SmartInputTask[];
+  docs?: SmartInputDoc[];
 }
 
-export function SmartInput({
-  value,
-  onChange,
-  onEnter,
-  placeholder,
-  className,
-  multiline,
-  disabled = false,
-  projectId,
-  members = [],
-  tasks = [],
-}: SmartInputProps) {
-  const [open, setOpen] = useState(false);
-  const [triggerType, setTriggerType] = useState<"user" | "task" | null>(null);
-  const [cursorPos, setCursorPos] = useState(0);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+export interface SmartInputHandle {
+  focus: () => void;
+  insertText: (text: string) => void;
+  insertTrigger: (trigger: TriggerChar) => void;
+}
 
-  const resizeTextarea = (el: HTMLTextAreaElement) => {
-    el.style.height = "0px";
-    const nextHeight = Math.max(
-      MIN_TEXTAREA_HEIGHT,
-      Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT),
+export const SmartInput = forwardRef<SmartInputHandle, SmartInputProps>(
+  function SmartInput(
+    {
+      value,
+      onChange,
+      onEnter,
+      placeholder,
+      className,
+      multiline,
+      disabled = false,
+      projectId,
+      members = [],
+      tasks = [],
+      docs = [],
+    }: SmartInputProps,
+    ref,
+  ) {
+    const [open, setOpen] = useState(false);
+    const [triggerContext, setTriggerContext] = useState<TriggerContext | null>(
+      null,
     );
-    el.style.height = `${nextHeight}px`;
-    el.style.overflowY =
-      el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
-  };
+    const [cursorPos, setCursorPos] = useState(0);
+    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (!multiline) return;
-    const el = inputRef.current;
-    if (!el || !(el instanceof HTMLTextAreaElement)) return;
-    resizeTextarea(el);
-  }, [value, multiline]);
+    const resizeTextarea = (el: HTMLTextAreaElement) => {
+      el.style.height = "0px";
+      const nextHeight = Math.max(
+        MIN_TEXTAREA_HEIGHT,
+        Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT),
+      );
+      el.style.height = `${nextHeight}px`;
+      el.style.overflowY =
+        el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+    };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === "Enter" && !open) {
-      if (multiline) {
-        // Chat UX: Enter sends, Shift+Enter inserts newline.
-        if (e.shiftKey) return;
-        e.preventDefault();
-        onEnter?.();
-        return;
+    useEffect(() => {
+      if (!multiline) return;
+      const el = inputRef.current;
+      if (!el || !(el instanceof HTMLTextAreaElement)) return;
+      resizeTextarea(el);
+    }, [value, multiline]);
+
+    const syncTriggerState = useCallback(
+      (nextValue: string, nextCursorPos: number) => {
+        const context = detectTriggerContext(nextValue, nextCursorPos);
+        const hasProjectId = Boolean(projectId);
+        const canOpen =
+          hasProjectId &&
+          Boolean(context) &&
+          ((context?.type === "user" && members.length > 0) ||
+            (context?.type === "task" && tasks.length > 0) ||
+            (context?.type === "doc" &&
+              docs.some((doc) => (doc.kind ?? "page") === "page")));
+
+        setCursorPos(nextCursorPos);
+        setTriggerContext(canOpen ? context : null);
+        setOpen(Boolean(canOpen));
+      },
+      [docs, members.length, projectId, tasks.length],
+    );
+
+    const restoreCursor = useCallback((nextCursorPos: number) => {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(nextCursorPos, nextCursorPos);
+        }
+      }, 0);
+    }, []);
+
+    const insertTextAtSelection = useCallback(
+      (text: string) => {
+        const element = inputRef.current;
+        const selectionStart = element?.selectionStart ?? cursorPos;
+        const selectionEnd = element?.selectionEnd ?? selectionStart;
+        const nextValue =
+          value.slice(0, selectionStart) + text + value.slice(selectionEnd);
+        const nextCursorPos = selectionStart + text.length;
+
+        onChange(nextValue);
+        syncTriggerState(nextValue, nextCursorPos);
+        restoreCursor(nextCursorPos);
+      },
+      [cursorPos, onChange, restoreCursor, syncTriggerState, value],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => inputRef.current?.focus(),
+        insertText: (text: string) => {
+          insertTextAtSelection(text);
+        },
+        insertTrigger: (trigger: TriggerChar) => {
+          const element = inputRef.current;
+          const selectionStart = element?.selectionStart ?? cursorPos;
+          const previousChar =
+            selectionStart > 0 ? value[selectionStart - 1] : "";
+          const needsSpace = Boolean(previousChar && !/\s/.test(previousChar));
+
+          insertTextAtSelection(`${needsSpace ? " " : ""}${trigger}`);
+        },
+      }),
+      [cursorPos, insertTextAtSelection, value],
+    );
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.nativeEvent.isComposing) return;
+      if (e.key === "Enter" && !open) {
+        if (multiline) {
+          if (e.shiftKey) return;
+          e.preventDefault();
+          onEnter?.();
+          return;
+        }
+
+        if (!multiline) {
+          e.preventDefault();
+          onEnter?.();
+        }
+      }
+    };
+
+    const handleChange = (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+      const newVal = e.target.value;
+      const newPos = e.target.selectionStart || 0;
+      onChange(newVal);
+
+      if (multiline && e.target instanceof HTMLTextAreaElement) {
+        resizeTextarea(e.target);
       }
 
-      if (!multiline) {
-        e.preventDefault();
-        onEnter?.();
-      }
-    }
-  };
+      syncTriggerState(newVal, newPos);
+    };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const newVal = e.target.value;
-    const newPos = e.target.selectionStart || 0;
-    setCursorPos(newPos);
-    onChange(newVal);
+    const handleSelect = (
+      e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+      const position = e.currentTarget.selectionStart || 0;
+      syncTriggerState(value, position);
+    };
 
-    if (multiline && e.target instanceof HTMLTextAreaElement) {
-      resizeTextarea(e.target);
-    }
+    const insertTag = (tag: string) => {
+      if (!triggerContext) return;
 
-    // Check for triggers
-    const lastChar = newVal.slice(newPos - 1, newPos);
-    if (lastChar === "@" && projectId) {
-      setTriggerType("user");
-      setOpen(true);
-    } else if (lastChar === "#" && projectId) {
-      setTriggerType("task");
-      setOpen(true);
-    } else {
-      // Close popover if user backspaces the trigger or types space
-      if (open && (lastChar === " " || lastChar === "")) {
-        setOpen(false);
-      }
-    }
-  };
+      const before = value.slice(0, triggerContext.start);
+      const after = value.slice(triggerContext.end);
+      const spacer = /^\s/.test(after) ? "" : " ";
+      const newValue = `${before}${tag}${spacer}${after}`;
+      const nextCursorPos = before.length + tag.length + spacer.length;
 
-  const insertTag = (tag: string) => {
-    const before = value.slice(0, cursorPos);
-    const after = value.slice(cursorPos);
+      onChange(newValue);
+      setTriggerContext(null);
+      setOpen(false);
+      setCursorPos(nextCursorPos);
+      restoreCursor(nextCursorPos);
+    };
 
-    // Remove the Trigger char (@ or #)
-    const newBefore = before.slice(0, -1);
-    const newValue = `${newBefore}${tag} ${after}`;
+    const normalizedQuery = triggerContext?.query.trim().toLowerCase() ?? "";
+    const filteredMembers = useMemo(() => {
+      if (triggerContext?.type !== "user") return [];
 
-    const nextCursorPos = newBefore.length + tag.length + 1; // +1 for the added space
+      return members.filter((member) => {
+        const label = (member.nickname || member.name || "").toLowerCase();
+        return !normalizedQuery || label.includes(normalizedQuery);
+      });
+    }, [members, normalizedQuery, triggerContext?.type]);
 
-    onChange(newValue);
-    setOpen(false);
+    const filteredTasks = useMemo(() => {
+      if (triggerContext?.type !== "task") return [];
 
-    // Attempt to restore focus and set cursor position
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(nextCursorPos, nextCursorPos);
-      }
-    }, 0);
-  };
+      return tasks.filter((task) => {
+        const label = (task.title || "").toLowerCase();
+        return !normalizedQuery || label.includes(normalizedQuery);
+      });
+    }, [normalizedQuery, tasks, triggerContext?.type]);
 
-  // Shared classes
-  const inputClasses = `block w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed ${className}`;
+    const filteredDocs = useMemo(() => {
+      if (triggerContext?.type !== "doc") return [];
+
+      return docs.filter((doc) => {
+        if ((doc.kind ?? "page") !== "page") return false;
+        const label = (doc.title || "").toLowerCase();
+        return !normalizedQuery || label.includes(normalizedQuery);
+      });
+    }, [docs, normalizedQuery, triggerContext?.type]);
+
+    const inputClasses = `block w-full bg-transparent border-none focus:ring-0 placeholder:text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed ${className}`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -160,6 +303,7 @@ export function SmartInput({
               rows={1}
               value={value}
               onChange={handleChange}
+              onSelect={handleSelect}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={disabled}
@@ -170,6 +314,7 @@ export function SmartInput({
               ref={inputRef as React.RefObject<HTMLInputElement>}
               value={value}
               onChange={handleChange}
+              onSelect={handleSelect}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={disabled}
@@ -179,30 +324,30 @@ export function SmartInput({
         </div>
       </PopoverAnchor>
       <PopoverContent
-        className="p-0 w-[200px]"
+        className="w-[280px] p-0"
         align="start"
         side="top"
-        onOpenAutoFocus={(e) => e.preventDefault()} // Prevent stealing focus from input
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <Command>
-          <CommandInput
-            placeholder={
-              triggerType === "user" ? "Select user..." : "Select task..."
-            }
-          />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
             <CommandGroup
-              heading={triggerType === "user" ? "Members" : "Tasks"}
+              heading={
+                triggerContext?.type === "user"
+                  ? "멤버"
+                  : triggerContext?.type === "task"
+                    ? "태스크"
+                    : "문서"
+              }
             >
-              {triggerType === "user" &&
-                members.map((member) => (
+              {triggerContext?.type === "user" &&
+                filteredMembers.map((member) => (
                   <CommandItem
                     key={member.id}
                     value={`${member.nickname || member.name}-${member.id}`}
                     onSelect={() =>
-                      // Clean insertion: [@Name]
-                      insertTag(`[@${member.nickname || member.name}]`)
+                      insertTag(`[@${member.nickname || member.name || "멤버"}]`)
                     }
                   >
                     <Avatar className="h-4 w-4 mr-2">
@@ -213,15 +358,32 @@ export function SmartInput({
                     {member.nickname || member.name}
                   </CommandItem>
                 ))}
-              {triggerType === "task" &&
-                tasks.map((task) => (
+              {triggerContext?.type === "task" &&
+                filteredTasks.map((task) => (
                   <CommandItem
                     key={task.id}
-                    value={`${task.title}-${task.id}`}
-                    onSelect={() => insertTag(`[#${task.title}]`)}
+                    value={`${task.title || "task"}-${task.id}`}
+                    onSelect={() => insertTag(`[#${task.title || "태스크"}]`)}
                   >
                     <Hash className="h-4 w-4 mr-2 shrink-0 opacity-70" />
-                    <span className="font-medium">{task.title}</span>
+                    <span className="font-medium">{task.title || "제목 없는 태스크"}</span>
+                  </CommandItem>
+                ))}
+              {triggerContext?.type === "doc" &&
+                filteredDocs.map((doc) => (
+                  <CommandItem
+                    key={doc.id}
+                    value={`${doc.title || "doc"}-${doc.id}`}
+                    onSelect={() => insertTag(`[!${doc.title || "제목 없음"}]`)}
+                  >
+                    <div className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded bg-amber-100 text-amber-700">
+                      {doc.emoji ? (
+                        <span className="text-xs leading-none">{doc.emoji}</span>
+                      ) : (
+                        <FileText className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <span className="font-medium">{doc.title || "제목 없는 문서"}</span>
                   </CommandItem>
                 ))}
             </CommandGroup>
@@ -230,4 +392,5 @@ export function SmartInput({
       </PopoverContent>
     </Popover>
   );
-}
+  },
+);

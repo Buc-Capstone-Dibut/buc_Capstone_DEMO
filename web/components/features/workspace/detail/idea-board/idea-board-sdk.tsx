@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { ExcalidrawBinding } from "y-excalidraw";
+import { useAuth } from "@/hooks/use-auth";
 
 export interface IdeaBoardSDKProps {
   projectId: string;
@@ -16,25 +17,40 @@ export interface IdeaBoardSDKProps {
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "ws://localhost:4000";
 
-// Random color for cursor
-const userColors = [
-    "#30bced",
-    "#6eeb83",
-    "#ffbc42",
-    "#ecd444",
-    "#ee6352",
-    "#9ac2c9",
-    "#8acb88",
-    "#1be7ff"
-];
-const randomColor = userColors[Math.floor(Math.random() * userColors.length)];
-const randomColorLight = `${randomColor}33`;
+function stringToHue(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % 360;
+}
+
+function getCursorColors(seed: string) {
+  const hue = stringToHue(seed);
+  return {
+    color: `hsl(${hue} 74% 48%)`,
+    colorLight: `hsl(${hue} 90% 78% / 0.42)`,
+  };
+}
+
+function getCursorDisplayName(
+  userId?: string,
+  nickname?: string | null,
+  email?: string | null,
+) {
+  return (
+    nickname?.trim() ||
+    email?.split("@")[0]?.trim() ||
+    (userId ? `User-${userId.slice(0, 8)}` : "Anonymous")
+  );
+}
 
 export default function IdeaBoardSDK({
   projectId,
   readOnly = false,
 }: IdeaBoardSDKProps) {
   const { theme } = useTheme();
+  const { user, profile } = useAuth();
 
   // Yjs State
   const [excalidrawAPI, setExcalidrawAPI] =
@@ -49,64 +65,76 @@ export default function IdeaBoardSDK({
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 1. Initialize Provider
-    // Connect to ws://localhost:4000/whiteboard:workspaceId
     provider.current = new WebsocketProvider(
       SOCKET_URL,
       `whiteboard:${projectId}`,
       ydoc.current,
     );
 
-    // 2. Awareness (Cursor)
     const awareness = provider.current.awareness;
-    awareness.setLocalStateField("user", {
-        name: "User-" + Math.floor(Math.random() * 100),
-        color: randomColor,
-        colorLight: randomColorLight,
-    });
+    const handleAwarenessChange = () => {
+      setAwarenessUsers(Array.from(awareness.getStates().values()).length);
+    };
+    const handleStatusChange = (event: { status: string }) => {
+      setIsSynced(event.status === "connected");
+    };
 
-    // Track active users
-    awareness.on('change', () => {
-        setAwarenessUsers(Array.from(awareness.getStates().values()).length);
-    });
-
-    // 3. Status Check
-    provider.current.on("status", (event: { status: string }) => {
-        setIsSynced(event.status === 'connected');
-    });
+    awareness.on("change", handleAwarenessChange);
+    provider.current.on("status", handleStatusChange);
 
     return () => {
-        // Cleanup
-        if(binding.current) {
-            binding.current.destroy();
-        }
-        if(provider.current) {
-            provider.current.disconnect();
-            provider.current.destroy();
-        }
-        // ydoc.current.destroy(); // Optional, but usually good to keep if re-mounting
+      awareness.off("change", handleAwarenessChange);
+      provider.current?.off("status", handleStatusChange);
+
+      if (binding.current) {
+        binding.current.destroy();
+        binding.current = null;
+      }
+      if (provider.current) {
+        provider.current.disconnect();
+        provider.current.destroy();
+        provider.current = null;
+      }
     };
   }, [projectId]);
 
-  // 4. Initialize Binding when Excalidraw API is ready
+  useEffect(() => {
+    if (!provider.current) return;
+
+    const awareness = provider.current.awareness;
+    const userId = user?.id || `guest:${projectId}`;
+    const displayName = getCursorDisplayName(
+      user?.id,
+      profile?.nickname,
+      user?.email,
+    );
+    const { color, colorLight } = getCursorColors(userId);
+
+    awareness.setLocalStateField("user", {
+      id: userId,
+      name: displayName,
+      color,
+      colorLight,
+    });
+  }, [projectId, profile?.nickname, user?.email, user?.id]);
+
   useEffect(() => {
     if (!excalidrawAPI || !provider.current || !wrapperRef.current) return;
 
-    if (binding.current) return; // Already bound
+    if (binding.current) return;
 
     const undoManager = new Y.UndoManager(ydoc.current.getArray("elements"));
 
     binding.current = new ExcalidrawBinding(
-        ydoc.current.getArray("elements"),
-        ydoc.current.getMap("assets"),
-        excalidrawAPI,
-        provider.current.awareness,
-        {
-            undoManager,
-            excalidrawDom: wrapperRef.current
-        }
+      ydoc.current.getArray("elements"),
+      ydoc.current.getMap("assets"),
+      excalidrawAPI,
+      provider.current.awareness,
+      {
+        undoManager,
+        excalidrawDom: wrapperRef.current,
+      },
     );
-
   }, [excalidrawAPI]);
 
   return (
@@ -128,7 +156,7 @@ export default function IdeaBoardSDK({
         {isSynced && (
           <div className="bg-white/60 dark:bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200/50 dark:border-zinc-800/50 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 transition-opacity duration-500">
             <Users className="h-3 w-3" />
-            <span>{awarenessUsers} interacting</span>
+            <span>{awarenessUsers}명 참여 중</span>
           </div>
         )}
       </div>

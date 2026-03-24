@@ -54,7 +54,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
         (toDate(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY) -
         (toDate(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY),
     )
-    .slice(0, 5);
+    .slice(0, 4);
 
   const safeFormat = (dateInput: unknown, formatStr: string) => {
     try {
@@ -93,7 +93,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
   };
 
   return (
-    <Card className="h-full flex flex-col border-none shadow-none bg-transparent">
+    <Card className="flex h-full min-h-[280px] max-h-[420px] flex-col border-none bg-transparent shadow-none">
       <CardHeader className="flex flex-row items-center justify-between pb-2 px-0 pt-0">
         <div className="space-y-1">
           <CardTitle className="text-base font-semibold">
@@ -107,49 +107,51 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
           </Link>
         </Button>
       </CardHeader>
-      <CardContent className="flex-1 px-0 overflow-y-auto">
+      <CardContent className="min-h-0 flex-1 overflow-hidden px-0">
         {upcomingTasks.length > 0 ? (
-          <div className="space-y-3">
-            {upcomingTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors border"
-              >
-                <div className="flex flex-col items-center justify-center min-w-[3.5rem] p-2 bg-background rounded-lg border shadow-sm">
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                    {safeFormat(task.dueDate, "MMM")}
-                  </span>
-                  <span className="text-xl font-bold leading-none mt-0.5">
-                    {safeFormat(task.dueDate, "d")}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1 py-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="font-medium text-sm truncate">
-                      {task.title}
-                    </div>
-                    {getDeadlineLabel(task.dueDate) && (
-                      <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground border">
-                        {getDeadlineLabel(task.dueDate)}
-                      </span>
-                    )}
+          <div className="h-full overflow-y-auto pr-1">
+            <div className="space-y-3">
+              {upcomingTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-start gap-3 rounded-xl border bg-muted/40 p-3 transition-colors hover:bg-muted/60"
+                >
+                  <div className="flex min-w-[3.5rem] flex-col items-center justify-center rounded-lg border bg-background p-2 shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {safeFormat(task.dueDate, "MMM")}
+                    </span>
+                    <span className="mt-0.5 text-xl font-bold leading-none">
+                      {safeFormat(task.dueDate, "d")}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
-                    {getAssigneeName(task.assignee) && (
-                      <div className="flex items-center gap-1.5 bg-background px-1.5 py-0.5 rounded-md border">
-                        <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                        <span>{getAssigneeName(task.assignee)}</span>
+                  <div className="min-w-0 flex-1 py-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="line-clamp-2 text-sm font-medium leading-5">
+                        {task.title}
                       </div>
-                    )}
-                    {!getAssigneeName(task.assignee) && <span>담당자 없음</span>}
+                      {getDeadlineLabel(task.dueDate) && (
+                        <span className="shrink-0 rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {getDeadlineLabel(task.dueDate)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                      {getAssigneeName(task.assignee) && (
+                        <div className="flex items-center gap-1.5 rounded-md border bg-background px-1.5 py-0.5">
+                          <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                          <span>{getAssigneeName(task.assignee)}</span>
+                        </div>
+                      )}
+                      {!getAssigneeName(task.assignee) && <span>담당자 없음</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-10 min-h-[200px] border-2 border-dashed rounded-xl bg-muted/20">
-            <CalendarDays className="h-8 w-8 mb-2 opacity-20" />
+          <div className="flex h-full min-h-[200px] flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 py-10 text-muted-foreground">
+            <CalendarDays className="mb-2 h-8 w-8 opacity-20" />
             <p className="text-sm">예정된 일정이 없습니다.</p>
           </div>
         )}

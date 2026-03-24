@@ -1,19 +1,48 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Send, Hash, Lock, Plus } from "lucide-react";
+import {
+  AtSign,
+  Check,
+  FileText,
+  Hash,
+  ImagePlus,
+  Loader2,
+  Lock,
+  MoreHorizontal,
+  PencilLine,
+  Plus,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useSocketStore } from "../../store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
-import { SmartInput } from "../../common/smart-input";
+import { SmartInput, type SmartInputHandle } from "../../common/smart-input";
 import { useWorkspaceStore } from "../../store/mock-data";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 interface TeamChatProps {
   projectId: string;
+  onNavigateToDoc?: (docId: string) => void;
 }
 
 interface BoardMember {
@@ -27,6 +56,13 @@ interface BoardTask {
   title?: string | null;
 }
 
+interface WorkspaceDoc {
+  id: string;
+  kind?: string | null;
+  title?: string | null;
+  emoji?: string | null;
+}
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch data");
@@ -35,6 +71,7 @@ const fetcher = async (url: string) => {
 
 function formatMessageTime(message: {
   createdAt?: string;
+  updatedAt?: string;
   fullTimestamp?: string;
   timestamp?: string;
 }) {
@@ -53,16 +90,122 @@ function formatMessageTime(message: {
   return message.timestamp || "";
 }
 
-export function TeamChat({ projectId }: TeamChatProps) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function serializeMessageContent(
+  rawContent: string,
+  members: BoardMember[],
+  tasks: BoardTask[],
+  docs: WorkspaceDoc[],
+) {
+  let contentToSend = rawContent;
+  const placeholders: Record<string, string> = {};
+
+  const registerPlaceholder = (
+    pattern: RegExp,
+    placeholderPrefix: string,
+    replacement: string,
+  ) => {
+    const placeholder = `__${placeholderPrefix}_${Math.random().toString(36).slice(2, 11)}__`;
+    const nextContent = contentToSend.replace(pattern, placeholder);
+
+    if (nextContent !== contentToSend) {
+      placeholders[placeholder] = replacement;
+      contentToSend = nextContent;
+    }
+  };
+
+  [...members]
+    .sort((a, b) => {
+      const nameA = a.nickname || a.name || "";
+      const nameB = b.nickname || b.name || "";
+      return nameB.length - nameA.length;
+    })
+    .forEach((member) => {
+      const name = member.nickname || member.name;
+      if (!name) return;
+
+      const escapedName = escapeRegExp(name);
+      registerPlaceholder(
+        new RegExp(`(\\[@${escapedName}\\]|@${escapedName})`, "g"),
+        `MENTION_${member.id}`,
+        `[@${member.id}:${name}]`,
+      );
+    });
+
+  [...tasks]
+    .sort((a, b) => (b.title?.length || 0) - (a.title?.length || 0))
+    .forEach((task) => {
+      const title = task.title;
+      if (!title) return;
+
+      const escapedTitle = escapeRegExp(title);
+      registerPlaceholder(
+        new RegExp(`(\\[#${escapedTitle}\\]|#${escapedTitle})`, "g"),
+        `TASK_${task.id}`,
+        `[#${task.id}:${title}]`,
+      );
+    });
+
+  [...docs]
+    .sort((a, b) => (b.title?.length || 0) - (a.title?.length || 0))
+    .forEach((doc) => {
+      const title = doc.title;
+      if (!title) return;
+
+      const escapedTitle = escapeRegExp(title);
+      registerPlaceholder(
+        new RegExp(`(\\[!${escapedTitle}\\]|!${escapedTitle})`, "g"),
+        `DOC_${doc.id}`,
+        `[!${doc.id}:${title}]`,
+      );
+    });
+
+  Object.entries(placeholders).forEach(([placeholder, replacement]) => {
+    contentToSend = contentToSend.replace(
+      new RegExp(escapeRegExp(placeholder), "g"),
+      replacement,
+    );
+  });
+
+  return contentToSend;
+}
+
+function toEditableMessageContent(content: string) {
+  return content
+    .replace(/\[@([^:]+):([^\]]+)\]/g, "@$2")
+    .replace(/\[#([^:]+):([^\]]+)\]/g, "#$2")
+    .replace(/\[!([^:]+):([^\]]+)\]/g, "!$2");
+}
+
+function isEditedMessage(message: {
+  isEdited?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}) {
+  if (message.isEdited) return true;
+  return Boolean(
+    message.updatedAt &&
+      message.createdAt &&
+      message.updatedAt !== message.createdAt,
+  );
+}
+
+export function TeamChat({ projectId, onNavigateToDoc }: TeamChatProps) {
   const {
     messages,
     activeChannelId,
     sendMessage,
+    editMessage,
+    deleteMessage,
     channels,
     createChannel,
   } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
   const { setActiveTaskId } = useWorkspaceStore();
+  const router = useRouter();
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 
@@ -77,12 +220,27 @@ export function TeamChat({ projectId }: TeamChatProps) {
     fetcher,
     swrOptions,
   );
+  const { data: docsData } = useSWR<WorkspaceDoc[]>(
+    `/api/workspaces/${projectId}/docs`,
+    fetcher,
+    swrOptions,
+  );
   const members: BoardMember[] = boardData?.members || [];
   const tasks: BoardTask[] = boardData?.tasks || [];
+  const docs: WorkspaceDoc[] = (docsData || []).filter(
+    (doc) => (doc.kind ?? "page") === "page",
+  );
   const isReadOnly = Boolean(boardData?.workspace?.readOnly);
 
   const [inputValue, setInputValue] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [isMutatingMessage, setIsMutatingMessage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<SmartInputHandle>(null);
+  const editInputRef = useRef<SmartInputHandle>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -90,6 +248,21 @@ export function TeamChat({ projectId }: TeamChatProps) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!editingMessageId) return;
+
+    const targetMessage = messages.find((message) => message.id === editingMessageId);
+    if (!targetMessage) {
+      setEditingMessageId(null);
+      setEditingValue("");
+    }
+  }, [editingMessageId, messages]);
+
+  useEffect(() => {
+    setEditingMessageId(null);
+    setEditingValue("");
+  }, [activeChannelId]);
 
   const handleCreateDefaultChannel = () => {
     if (isReadOnly) {
@@ -117,86 +290,14 @@ export function TeamChat({ projectId }: TeamChatProps) {
     }
     if (!inputValue.trim() || !activeChannelId || !user) return;
 
-    let contentToSend = inputValue;
-    const placeholders: Record<string, string> = {};
-
-    // Parse Mentions & Tasks: Replace @Name with [@ID:Name] and #Task with [#ID:Task]
-    // Strategy: Replace matches with unique placeholders first to prevent
-    // shorter matches inside longer ones or already replaced tags.
-
-    // 1. Process Members
-    if (members.length > 0) {
-      const sortedMembers = [...members].sort((a, b) => {
-        const nameA = a.nickname || a.name || "";
-        const nameB = b.nickname || b.name || "";
-        return nameB.length - nameA.length;
-      });
-
-      sortedMembers.forEach((member) => {
-        const name = member.nickname || member.name;
-        if (!name) return;
-
-        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        // Match both @Name (if typed manually) and [@Name] (from selection)
-        // Order matters: match bracketed first if possible or use generic approach
-        // Actually, let's look for `\[@${escapedName}\]` OR `@${escapedName}`
-        const regex = new RegExp(
-          `(\\[@${escapedName}\\]|@${escapedName})`,
-          "g",
-        );
-
-        const placeholder = `__MENTION_${member.id}_${Math.random().toString(36).substr(2, 9)}__`;
-
-        if (regex.test(contentToSend)) {
-          placeholders[placeholder] = `[@${member.id}:${name}]`;
-          contentToSend = contentToSend.replace(regex, placeholder);
-        }
-      });
-    }
-
-    // 2. Process Tasks
-    if (tasks.length > 0) {
-      const sortedTasks = [...tasks].sort((a, b) => {
-        return (b.title?.length || 0) - (a.title?.length || 0);
-      });
-
-      sortedTasks.forEach((task) => {
-        const title = task.title;
-        if (!title) return;
-
-        const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        // Match both #Title (if typed manually) and [#Title] (from selection)
-        const regex = new RegExp(
-          `(\\[#${escapedTitle}\\]|#${escapedTitle})`,
-          "g",
-        );
-
-        const placeholder = `__TASK_${task.id}_${Math.random().toString(36).substr(2, 9)}__`;
-
-        if (regex.test(contentToSend)) {
-          placeholders[placeholder] = `[#${task.id}:${title}]`;
-          contentToSend = contentToSend.replace(regex, placeholder);
-        }
-      });
-    }
-
-    // Restore placeholders
-    Object.keys(placeholders).forEach((ph) => {
-      contentToSend = contentToSend.replace(
-        new RegExp(ph, "g"),
-        placeholders[ph],
-      );
-    });
+    const contentToSend = serializeMessageContent(inputValue, members, tasks, docs);
 
     sendMessage(activeChannelId, contentToSend, user.id);
     setInputValue("");
   };
 
   const parseContent = (content: string) => {
-    // Regex for both tasks and mentions
-    // Mentions: [@userId:userName]
-    // Tasks: [#taskId:taskTitle]
-    const regex = /(\[([#@])(.*?):(.*?)(?:\]))/g;
+    const regex = /(!\[([^\]]*)\]\(([^)]+)\)|\[([#@!])(.*?):(.*?)(?:\]))/g;
 
     const parts = [];
     let lastIndex = 0;
@@ -207,9 +308,32 @@ export function TeamChat({ projectId }: TeamChatProps) {
         parts.push(content.slice(lastIndex, match.index));
       }
 
-      const type = match[2]; // # or @
-      const id = match[3];
-      const label = match[4];
+      if (match[2] !== undefined && match[3] !== undefined) {
+        const alt = match[2] || "채팅 이미지";
+        const src = match[3];
+
+        parts.push(
+          <span
+            key={`image-${match.index}`}
+            className="my-2 block overflow-hidden rounded-2xl border bg-muted/20"
+          >
+            <Image
+              src={src}
+              alt={alt}
+              width={1200}
+              height={900}
+              unoptimized
+              className="h-auto max-h-[360px] w-full object-contain bg-background"
+            />
+          </span>,
+        );
+        lastIndex = regex.lastIndex;
+        continue;
+      }
+
+      const type = match[4];
+      const id = match[5];
+      const label = match[6];
 
       if (type === "#") {
         parts.push(
@@ -239,6 +363,25 @@ export function TeamChat({ projectId }: TeamChatProps) {
             {label}
           </span>,
         );
+      } else if (type === "!") {
+        parts.push(
+          <span
+            key={match.index}
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateToDoc?.(id);
+              if (!onNavigateToDoc) {
+                router.push(`/workspace/${projectId}?tab=docs&doc=${id}`);
+              }
+            }}
+            className="text-amber-700 font-medium inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 ml-0.5 mr-0.5 cursor-pointer hover:bg-amber-200 transition-colors"
+            role="button"
+            tabIndex={0}
+          >
+            <FileText className="h-3 w-3" />
+            {label}
+          </span>,
+        );
       } else {
         parts.push(match[0]);
       }
@@ -251,6 +394,140 @@ export function TeamChat({ projectId }: TeamChatProps) {
     }
 
     return parts.length > 0 ? parts : content;
+  };
+
+  const handleInsertTrigger = (trigger: "@" | "#" | "!") => {
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      return;
+    }
+
+    inputRef.current?.insertTrigger(trigger);
+  };
+
+  const handleImageButtonClick = () => {
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      return;
+    }
+
+    imageInputRef.current?.click();
+  };
+
+  const handleImageInputChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`/api/workspaces/${projectId}/chat/assets`, {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "이미지 업로드에 실패했습니다.");
+      }
+
+      setInputValue((prev) => {
+        const prefix = prev.trim() ? `${prev.replace(/\s*$/, "")}\n` : "";
+        return `${prefix}${payload.markdown}`;
+      });
+      toast.success("이미지를 첨부했습니다.");
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.",
+      );
+    } finally {
+      setIsUploadingImage(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingValue(toEditableMessageContent(content));
+    setTimeout(() => {
+      editInputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    if (isMutatingMessage) return;
+    setEditingMessageId(null);
+    setEditingValue("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (
+      !editingMessageId ||
+      !activeChannelId ||
+      !user ||
+      !editingValue.trim()
+    ) {
+      return;
+    }
+
+    const serializedContent = serializeMessageContent(
+      editingValue,
+      members,
+      tasks,
+      docs,
+    );
+
+    setIsMutatingMessage(true);
+    const result = await editMessage(
+      activeChannelId,
+      editingMessageId,
+      serializedContent,
+      user.id,
+    );
+    setIsMutatingMessage(false);
+
+    if (!result.success) {
+      toast.error(result.error || "메시지 수정에 실패했습니다.");
+      return;
+    }
+
+    toast.success("메시지를 수정했습니다.");
+    setEditingMessageId(null);
+    setEditingValue("");
+  };
+
+  const handleDeleteOwnMessage = async (messageId: string) => {
+    if (!activeChannelId || !user) return;
+
+    const confirmed = window.confirm("이 메시지를 삭제할까요?");
+    if (!confirmed) return;
+
+    setIsMutatingMessage(true);
+    const result = await deleteMessage(activeChannelId, messageId, user.id);
+    setIsMutatingMessage(false);
+
+    if (!result.success) {
+      toast.error(result.error || "메시지 삭제에 실패했습니다.");
+      return;
+    }
+
+    if (editingMessageId === messageId) {
+      setEditingMessageId(null);
+      setEditingValue("");
+    }
+
+    toast.success("메시지를 삭제했습니다.");
   };
 
   if (!activeChannelId) {
@@ -315,10 +592,10 @@ export function TeamChat({ projectId }: TeamChatProps) {
                   아직 대화가 없습니다
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  이 채널은 작업 조율과 빠른 논의를 위한 공간입니다. <span className="font-medium text-foreground">@이름</span>으로 멤버를 호출하고, <span className="font-medium text-foreground">#태스크명</span>으로 작업을 연결해보세요.
+                  이 채널은 작업 조율과 빠른 논의를 위한 공간입니다. <span className="font-medium text-foreground">@이름</span>으로 멤버를 호출하고, <span className="font-medium text-foreground">#태스크명</span>으로 작업을 연결하고, <span className="font-medium text-foreground">!문서명</span>으로 문서를 바로 불러올 수 있습니다.
                 </p>
                 <div className="mt-4 rounded-xl border bg-background px-4 py-3 text-xs text-muted-foreground">
-                  예시: <span className="font-medium text-foreground">@Junghwan 오늘 #대시보드 개선 마감 확인 부탁해요</span>
+                  예시: <span className="font-medium text-foreground">@Junghwan 오늘 #대시보드 개선 확인하고 !회의록 초안도 같이 봐주세요</span>
                 </div>
               </div>
             </div>
@@ -326,6 +603,8 @@ export function TeamChat({ projectId }: TeamChatProps) {
             <div className="space-y-6">
             {messages.map((msg) => {
               const isSystem = msg.type === "system";
+              const isOwnMessage = msg.senderId === user?.id;
+              const isEditing = editingMessageId === msg.id;
 
               if (isSystem) {
                 return (
@@ -347,7 +626,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
                     avatarUrl={msg.sender.avatar_url}
                     className="mt-0.5 h-10 w-10"
                   />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm">
                         {msg.sender.nickname || "Unknown"}
@@ -355,10 +634,90 @@ export function TeamChat({ projectId }: TeamChatProps) {
                       <span className="text-xs text-muted-foreground">
                         {formatMessageTime(msg)}
                       </span>
+                      {isEditedMessage(msg) && (
+                        <span className="text-[11px] text-muted-foreground">
+                          (수정됨)
+                        </span>
+                      )}
+                      {isOwnMessage && !isReadOnly && !isEditing && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="ml-auto h-7 w-7 rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                            >
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleStartEdit(msg.id, msg.content)}
+                            >
+                              <PencilLine className="mr-2 h-4 w-4" />
+                              수정
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => void handleDeleteOwnMessage(msg.id)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              삭제
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
-                    <p className="text-sm mt-1 text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                      {parseContent(msg.content)}
-                    </p>
+                    {isEditing ? (
+                      <div className="mt-2 rounded-2xl border bg-muted/20 p-2">
+                        <SmartInput
+                          ref={editInputRef}
+                          value={editingValue}
+                          onChange={setEditingValue}
+                          onEnter={handleSaveEdit}
+                          multiline
+                          disabled={isReadOnly || isMutatingMessage}
+                          className="px-3 py-[8px] text-sm"
+                          placeholder="메시지 수정"
+                          projectId={projectId}
+                          members={members}
+                          tasks={tasks}
+                          docs={docs}
+                        />
+                        <div className="mt-2 flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8"
+                            onClick={handleCancelEdit}
+                            disabled={isMutatingMessage}
+                          >
+                            <X className="mr-1 h-3.5 w-3.5" />
+                            취소
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => void handleSaveEdit()}
+                            disabled={isMutatingMessage || !editingValue.trim()}
+                          >
+                            {isMutatingMessage ? (
+                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="mr-1 h-3.5 w-3.5" />
+                            )}
+                            저장
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm mt-1 text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                        {parseContent(msg.content)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -370,6 +729,13 @@ export function TeamChat({ projectId }: TeamChatProps) {
       </div>
 
       <div className="p-4 border-t bg-background mt-auto">
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={handleImageInputChange}
+        />
         {isReadOnly && (
           <div className="mb-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             이 팀 공간은 종료되어 채팅을 보낼 수 없습니다.
@@ -379,6 +745,7 @@ export function TeamChat({ projectId }: TeamChatProps) {
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <SmartInput
+                ref={inputRef}
                 value={inputValue}
                 onChange={setInputValue}
                 onEnter={handleSend}
@@ -389,17 +756,86 @@ export function TeamChat({ projectId }: TeamChatProps) {
                 projectId={projectId}
                 members={members}
                 tasks={tasks}
+                docs={docs}
               />
             </div>
-            <Button
-              size="sm"
-              onClick={handleSend}
-              disabled={isReadOnly || !inputValue.trim()}
-              className={`h-9 shrink-0 ${!inputValue.trim() ? "opacity-50" : ""}`}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              전송
-            </Button>
+            <TooltipProvider delayDuration={100}>
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-lg"
+                      onClick={() => handleInsertTrigger("@")}
+                      disabled={isReadOnly}
+                    >
+                      <AtSign className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>멤버 언급</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-lg"
+                      onClick={() => handleInsertTrigger("#")}
+                      disabled={isReadOnly}
+                    >
+                      <Hash className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>태스크 언급</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-lg"
+                      onClick={() => handleInsertTrigger("!")}
+                      disabled={isReadOnly}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>문서 언급</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-lg"
+                      onClick={handleImageButtonClick}
+                      disabled={isReadOnly || isUploadingImage}
+                    >
+                      {isUploadingImage ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ImagePlus className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>이미지 첨부</TooltipContent>
+                </Tooltip>
+                <Button
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={isReadOnly || !inputValue.trim() || isUploadingImage}
+                  className={`h-9 shrink-0 ${!inputValue.trim() ? "opacity-50" : ""}`}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  전송
+                </Button>
+              </div>
+            </TooltipProvider>
           </div>
         </div>
       </div>

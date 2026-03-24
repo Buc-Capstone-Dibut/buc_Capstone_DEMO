@@ -10,8 +10,10 @@ import { BlockNoteView } from "@blocknote/mantine";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   type CSSProperties,
   type MouseEvent,
@@ -47,6 +49,10 @@ interface DocumentEditorProps {
   onOpenTask?: (taskId: string) => void;
 }
 
+export interface DocumentEditorHandle {
+  saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
+}
+
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
 
 const PAPER_SURFACE_STYLE = {
@@ -61,15 +67,21 @@ const PAPER_SURFACE_STYLE = {
   "--bn-border-radius": "0px",
 } as CSSProperties;
 
-export function DocumentEditor({
-  docId,
-  workspaceId,
-  initialContent,
-  readOnly = false,
-  user,
-  onTaskLinked,
-  onOpenTask,
-}: DocumentEditorProps) {
+export const DocumentEditor = forwardRef<
+  DocumentEditorHandle,
+  DocumentEditorProps
+>(function DocumentEditor(
+  {
+    docId,
+    workspaceId,
+    initialContent,
+    readOnly = false,
+    user,
+    onTaskLinked,
+    onOpenTask,
+  }: DocumentEditorProps,
+  ref,
+) {
   const { theme } = useTheme();
   const pathname = usePathname();
 
@@ -165,6 +177,54 @@ export function DocumentEditor({
       resolveFileUrl: resolveAssetUrl,
     },
     [doc, provider, readOnly, userInfo, docId, resolvedWorkspaceId, resolveAssetUrl],
+  );
+
+  const saveCurrentState = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!resolvedWorkspaceId || readOnly) {
+        return true;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/workspaces/${resolvedWorkspaceId}/docs/${docId}/save`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              yjsState: encodeYjsState(doc),
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(
+            payload?.error || payload?.message || "문서 저장에 실패했습니다.",
+          );
+        }
+
+        return true;
+      } catch (error) {
+        if (!options?.silent) {
+          toast.error(
+            (error as Error).message || "문서 저장에 실패했습니다.",
+          );
+        }
+        return false;
+      }
+    },
+    [doc, docId, readOnly, resolvedWorkspaceId],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      saveNow: saveCurrentState,
+    }),
+    [saveCurrentState],
   );
 
   useEffect(() => {
@@ -364,7 +424,9 @@ export function DocumentEditor({
       `}</style>
     </div>
   );
-}
+});
+
+DocumentEditor.displayName = "DocumentEditor";
 
 function normalizeTaskSearchItem(
   item: unknown,
@@ -425,4 +487,16 @@ function getRandomName() {
     " " +
     Math.floor(Math.random() * 1000)
   );
+}
+
+function encodeYjsState(doc: Y.Doc) {
+  const update = Y.encodeStateAsUpdate(doc);
+  let binary = "";
+
+  for (let index = 0; index < update.length; index += 0x8000) {
+    const chunk = update.subarray(index, index + 0x8000);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   usePathname,
   useRouter,
@@ -9,7 +9,10 @@ import {
 import useSWR from "swr";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
-import { DocumentEditor } from "@/components/features/workspace/docs/editor";
+import {
+  DocumentEditor,
+  type DocumentEditorHandle,
+} from "@/components/features/workspace/docs/editor";
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +22,8 @@ import {
   Smile,
   Slash,
   CheckCircle2,
+  Save,
+  Loader2,
   FolderPlus,
   RotateCcw,
   Archive,
@@ -164,6 +169,16 @@ const formatMetaDate = (value?: string | Date | null) => {
   }).format(date);
 };
 
+const formatSavedTime = (value?: string | null) => {
+  if (!value) return "실시간 동기화";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "실시간 동기화";
+  return `${new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)} 저장됨`;
+};
+
 export function DocsView({
   projectId,
   initialDocId,
@@ -206,9 +221,12 @@ export function DocsView({
     swrOptions,
   );
 
+  const editorRef = useRef<DocumentEditorHandle | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
   const [sidebarMode, setSidebarMode] = useState<"active" | "archived">("active");
+  const [isSavingDocument, setIsSavingDocument] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   // Active Doc Data (If Selected)
   const {
@@ -218,6 +236,12 @@ export function DocsView({
   } = useSWR<ActiveWorkspaceDoc | null>(
     activeDocId ? `/api/workspaces/${projectId}/docs/${activeDocId}` : null,
     fetcher,
+  );
+
+  const resolvedActiveDoc = useMemo(
+    () =>
+      activeDoc && activeDocId && activeDoc.id === activeDocId ? activeDoc : null,
+    [activeDoc, activeDocId],
   );
 
   const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
@@ -246,25 +270,30 @@ export function DocsView({
   }, [onNavigateToTask]);
   const [docWorkerId, setDocWorkerId] = useState("");
 
+  const docMap = useMemo(() => {
+    const entries = (docs || []).map((doc) => [doc.id, doc] as const);
+    return new Map(entries);
+  }, [docs]);
+
   // Sync state with fetching data
   useEffect(() => {
-    if (activeDoc) {
-      setTitle(activeDoc.title);
-      setEmoji(activeDoc.emoji ?? null);
-      setDocWorkerId(activeDoc.author?.id ?? activeDoc.author_id ?? "");
+    if (resolvedActiveDoc) {
+      setTitle(resolvedActiveDoc.title);
+      setEmoji(resolvedActiveDoc.emoji ?? null);
+      setDocWorkerId(
+        resolvedActiveDoc.author?.id ?? resolvedActiveDoc.author_id ?? "",
+      );
+    } else if (activeDocId) {
+      const pendingDoc = docMap.get(activeDocId);
+      setTitle(pendingDoc?.title ?? "");
+      setEmoji(pendingDoc?.emoji ?? null);
+      setDocWorkerId("");
     } else {
-      // Reset when no doc active
       setTitle("");
       setEmoji(null);
       setDocWorkerId("");
     }
-  }, [activeDoc]);
-
-  useEffect(() => {
-    if (initialDocId) {
-      setActiveDocId(initialDocId);
-    }
-  }, [initialDocId]);
+  }, [activeDocId, docMap, resolvedActiveDoc]);
 
   const syncDocQuery = useCallback(
     (docId: string | null) => {
@@ -284,22 +313,9 @@ export function DocsView({
     [pathname, router, searchParams],
   );
 
-  const handleSelectDoc = useCallback(
-    (docId: string) => {
-      setActiveDocId(docId);
-      syncDocQuery(docId);
-    },
-    [syncDocQuery],
-  );
-
   const toggleDoc = (docId: string) => {
     setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
   };
-
-  const docMap = useMemo(() => {
-    const entries = (docs || []).map((doc) => [doc.id, doc] as const);
-    return new Map(entries);
-  }, [docs]);
 
   const activeDocBreadcrumbs = useMemo(() => {
     if (!activeDocId) return [] as WorkspaceDocSummary[];
@@ -344,8 +360,7 @@ export function DocsView({
       const newDoc = await res.json();
       mutateDocs();
       if (kind === "page") {
-        setActiveDocId(newDoc.id);
-        syncDocQuery(newDoc.id);
+        void switchActiveDoc(newDoc.id);
       }
       toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
     } catch {
@@ -455,25 +470,167 @@ export function DocsView({
     [activeDocId, docs, refreshDocs, syncDocQuery],
   );
 
-  // --- Header Update Logic (Shared with Page) ---
+  const persistDocHeader = useCallback(
+    async (
+      updates: Record<string, unknown>,
+      options?: { silent?: boolean },
+    ) => {
+      if (isReadOnly || !activeDocId) {
+        return true;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/docs/${activeDocId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          },
+        );
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(
+            payload?.error || payload?.message || "저장에 실패했습니다.",
+          );
+        }
+
+        void mutateDocs();
+        void mutateActiveDoc();
+        return true;
+      } catch (error) {
+        console.error("Doc metadata save failed", error);
+        if (!options?.silent) {
+          toast.error(
+            error instanceof Error ? error.message : "저장에 실패했습니다.",
+          );
+        }
+        return false;
+      }
+    },
+    [activeDocId, isReadOnly, mutateActiveDoc, mutateDocs, projectId],
+  );
+
   const debouncedUpdate = useDebouncedCallback(
     async (updates: Record<string, unknown>) => {
-    if (isReadOnly) return;
-    if (!activeDocId) return;
-    try {
-      await fetch(`/api/workspaces/${projectId}/docs/${activeDocId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      mutateDocs(); // Refresh sidebar title
-      void mutateActiveDoc();
-    } catch (e) {
-      console.error("Auto-save failed", e);
-      toast.error("저장에 실패했습니다.");
-    }
-  }, 1000,
-  ); // 1s debounce
+      await persistDocHeader(updates);
+    },
+    1000,
+  );
+
+  const handleSaveCurrentDoc = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (isReadOnly || !activeDocId || !resolvedActiveDoc) {
+        return true;
+      }
+
+      setIsSavingDocument(true);
+      debouncedUpdate.cancel();
+
+      try {
+        const headerSaved = await persistDocHeader(
+          {
+            title,
+            emoji,
+            ...(docWorkerId ? { authorId: docWorkerId } : {}),
+          },
+          { silent: true },
+        );
+
+        if (!headerSaved) {
+          throw new Error("문서 정보 저장에 실패했습니다.");
+        }
+
+        const contentSaved = editorRef.current
+          ? await editorRef.current.saveNow({ silent: true })
+          : true;
+
+        if (!contentSaved) {
+          throw new Error("문서 본문 저장에 실패했습니다.");
+        }
+
+        const savedAt = new Date().toISOString();
+        setLastSavedAt(savedAt);
+        void mutateDocs();
+        void mutateActiveDoc();
+
+        if (!options?.silent) {
+          toast.success("문서를 저장했습니다.");
+        }
+
+        return true;
+      } catch (error) {
+        if (!options?.silent) {
+          toast.error(
+            error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
+          );
+        }
+        return false;
+      } finally {
+        setIsSavingDocument(false);
+      }
+    },
+    [
+      activeDocId,
+      debouncedUpdate,
+      docWorkerId,
+      emoji,
+      isReadOnly,
+      mutateActiveDoc,
+      mutateDocs,
+      persistDocHeader,
+      resolvedActiveDoc,
+      title,
+    ],
+  );
+
+  const switchActiveDoc = useCallback(
+    async (docId: string | null, options?: { syncQuery?: boolean }) => {
+      if (docId === activeDocId) return;
+
+      if (activeDocId && !isReadOnly) {
+        await handleSaveCurrentDoc({ silent: true });
+      }
+
+      setLastSavedAt(null);
+      setActiveDocId(docId);
+
+      if (options?.syncQuery !== false) {
+        syncDocQuery(docId);
+      }
+    },
+    [activeDocId, handleSaveCurrentDoc, isReadOnly, syncDocQuery],
+  );
+
+  useEffect(() => {
+    if (typeof initialDocId === "undefined") return;
+    if ((initialDocId ?? null) === activeDocId) return;
+
+    void switchActiveDoc(initialDocId ?? null, { syncQuery: false });
+  }, [activeDocId, initialDocId, switchActiveDoc]);
+
+  const handleSelectDoc = useCallback(
+    (docId: string) => {
+      void switchActiveDoc(docId);
+    },
+    [switchActiveDoc],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() !== "s") return;
+
+      event.preventDefault();
+      void handleSaveCurrentDoc();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleSaveCurrentDoc]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -500,8 +657,10 @@ export function DocsView({
 
   const docWorkerName =
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
-    activeDoc?.author?.nickname ||
+    resolvedActiveDoc?.author?.nickname ||
     "미지정";
+  const isDocLoadingOverlayVisible =
+    isLoadingActiveDoc || Boolean(activeDoc && activeDoc.id !== activeDocId);
 
   return (
     <div className="flex h-full">
@@ -697,27 +856,49 @@ export function DocsView({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 {isReadOnly && (
                   <span className="text-[11px] text-muted-foreground rounded-md border bg-muted/30 px-2 py-1 mr-2">
                     읽기 전용
                   </span>
                 )}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                  <span className="hidden sm:inline">실시간 동기화</span>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {isSavingDocument ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isSavingDocument ? "저장 중..." : formatSavedTime(lastSavedAt)}
+                  </span>
                 </div>
+                {!isReadOnly && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => void handleSaveCurrentDoc()}
+                    disabled={isSavingDocument || !resolvedActiveDoc}
+                  >
+                    {isSavingDocument ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    저장
+                  </Button>
+                )}
               </div>
             </header>
 
             <div className="flex flex-1 min-h-0">
               {/* Scrollable Document Content */}
               <div className="flex-1 overflow-y-auto relative w-full">
-              {/* Loading Overlay - only if initial load and no data yet */}
-              {isLoadingActiveDoc && !activeDoc && (
+              {isDocLoadingOverlayVisible && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50 pointer-events-none">
                   <div className="text-muted-foreground text-sm">
-                    Loading document...
+                    문서를 불러오는 중...
                   </div>
                 </div>
               )}
@@ -794,13 +975,17 @@ export function DocsView({
                   <div className="flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5" />
                     <span>
-                      {formatMetaDate(activeDoc?.createdAt || activeDoc?.created_at)}
+                      {formatMetaDate(
+                        resolvedActiveDoc?.createdAt || resolvedActiveDoc?.created_at,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock3 className="h-3.5 w-3.5" />
                     <span>
-                      {formatMetaDate(activeDoc?.updatedAt || activeDoc?.updated_at)}
+                      {formatMetaDate(
+                        resolvedActiveDoc?.updatedAt || resolvedActiveDoc?.updated_at,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -906,10 +1091,11 @@ export function DocsView({
 
               {/* Real-time Editor with Auto-Save */}
               <DocumentEditor
+                ref={editorRef}
                 key={activeDocId}
                 docId={activeDocId}
                 workspaceId={projectId}
-                initialContent={activeDoc?.content}
+                initialContent={resolvedActiveDoc?.content}
                 readOnly={isReadOnly}
                 onTaskLinked={() => {
                   void mutateLinkedTasks();

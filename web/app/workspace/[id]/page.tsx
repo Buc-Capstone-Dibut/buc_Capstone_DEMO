@@ -228,7 +228,12 @@ export default function WorkspaceDetailPage() {
     // ... (existing switch case) ...
     // Copy existing renderContent logic here
     if (activeTab.startsWith("chat-")) {
-      return <TeamChat projectId={projectId} />;
+      return (
+        <TeamChat
+          projectId={projectId}
+          onNavigateToDoc={(docId) => handleTabChange("docs", { docId })}
+        />
+      );
     }
 
     if (activeTab === "huddle") {
@@ -253,7 +258,12 @@ export default function WorkspaceDetailPage() {
           </div>
         );
       case "schedule":
-        return <ScheduleView projectId={projectId} />;
+        return (
+          <ScheduleView
+            projectId={projectId}
+            onNavigateToDoc={(docId) => handleTabChange("docs", { docId })}
+          />
+        );
       case "docs":
         return (
           <DocsView
