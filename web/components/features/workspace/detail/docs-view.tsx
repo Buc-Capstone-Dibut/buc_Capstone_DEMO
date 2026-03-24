@@ -296,6 +296,29 @@ export function DocsView({
     setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
   };
 
+  const docMap = useMemo(() => {
+    const entries = (docs || []).map((doc) => [doc.id, doc] as const);
+    return new Map(entries);
+  }, [docs]);
+
+  const activeDocBreadcrumbs = useMemo(() => {
+    if (!activeDocId) return [] as WorkspaceDocSummary[];
+
+    const chain: WorkspaceDocSummary[] = [];
+    const visited = new Set<string>();
+    let currentParentId = docMap.get(activeDocId)?.parent_id ?? null;
+
+    while (currentParentId && !visited.has(currentParentId)) {
+      visited.add(currentParentId);
+      const parentDoc = docMap.get(currentParentId);
+      if (!parentDoc) break;
+      chain.unshift(parentDoc);
+      currentParentId = parentDoc.parent_id ?? null;
+    }
+
+    return chain;
+  }, [activeDocId, docMap]);
+
   const handleCreateRootDoc = async (
     kind: "page" | "folder" = "page",
     templateId?: string,
@@ -654,6 +677,18 @@ export function DocsView({
                   <span className="truncate hover:text-foreground cursor-pointer transition-colors">
                     Documents
                   </span>
+                  {activeDocBreadcrumbs.map((breadcrumb) => (
+                    <div
+                      key={breadcrumb.id}
+                      className="flex items-center gap-1 min-w-0"
+                    >
+                      <Slash className="w-4 h-4 opacity-30 flex-shrink-0" />
+                      <span className="truncate max-w-[180px]">
+                        {breadcrumb.emoji ? `${breadcrumb.emoji} ` : ""}
+                        {breadcrumb.title}
+                      </span>
+                    </div>
+                  ))}
                   <Slash className="w-4 h-4 opacity-30 flex-shrink-0" />
                   <span className="truncate font-medium text-foreground flex items-center gap-2">
                     {emoji && <span>{emoji}</span>}
