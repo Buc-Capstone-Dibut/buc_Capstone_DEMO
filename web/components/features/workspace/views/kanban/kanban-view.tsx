@@ -6,12 +6,19 @@ import {
   SortableContext,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CheckCircle2, Circle, LoaderCircle } from "lucide-react";
+import { CheckCircle2, Circle, LoaderCircle, MoreHorizontal, EyeOff } from "lucide-react";
 import { KanbanColumn } from "./column";
 import { TaskCard } from "../../modules/task/card";
 import { useKanbanDrag } from "./hooks/use-kanban-drag";
 import { cn } from "@/lib/utils";
 import { Task } from "../../store/mock-data";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 interface KanbanViewProps {
   projectId: string;
@@ -40,12 +47,15 @@ interface KanbanViewProps {
   onCreateTask: (taskProps: any) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onUpdateColumn: (columnId: string, updates: any) => Promise<void>;
+  onHideColumn?: (columnId: string) => void;
+  onHideStatusCategory?: (category: "todo" | "in-progress" | "done") => void;
   viewSettings: {
     showTags: boolean;
     showAssignee: boolean;
     showDueDate: boolean;
     showPriority: boolean;
     cardProperties?: string[];
+    hiddenStatusCategories?: Array<"todo" | "in-progress" | "done">;
   };
 }
 
@@ -95,6 +105,8 @@ export function KanbanView({
   onCreateTask,
   onDeleteTask,
   onUpdateColumn,
+  onHideColumn,
+  onHideStatusCategory,
   viewSettings = {
     showTags: true,
     showAssignee: true,
@@ -137,7 +149,10 @@ export function KanbanView({
     columns: displayColumns.filter(
       (column) => (column.category || "todo") === section.category,
     ),
-  }));
+  })).filter(
+    (section) =>
+      !viewSettings.hiddenStatusCategories?.includes(section.category),
+  );
 
   const getTasksForColumn = (col: any) =>
     tasks.filter((t) => {
@@ -202,8 +217,20 @@ export function KanbanView({
       >
         {groupBy === "status" ? (
           <div className="h-full min-w-full overflow-x-auto overflow-y-hidden p-4">
-            <div className="flex h-full min-w-fit items-stretch gap-8">
-              {statusColumnsByCategory.map((section) => (
+            {statusColumnsByCategory.length === 0 ? (
+              <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed bg-muted/20 px-8 text-center">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    숨겨진 상위 섹션만 남아 있습니다.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    보기 설정에서 다시 표시할 축을 켜주세요.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full min-w-fit items-stretch gap-8">
+                {statusColumnsByCategory.map((section) => (
                 <section
                   key={section.category}
                   className="flex h-full min-w-fit shrink-0 flex-col"
@@ -215,18 +242,41 @@ export function KanbanView({
                         section.accentClass,
                       )}
                     >
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-                          section.badgeClass,
-                        )}
-                      >
-                        {section.icon}
-                        {section.label}
-                      </span>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {section.columns.length}개 단계
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+                            section.badgeClass,
+                          )}
+                        >
+                          {section.icon}
+                          {section.label}
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {section.columns.length}개 단계
+                        </span>
+                      </div>
+                      {onHideStatusCategory && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="ml-auto h-7 w-7 text-muted-foreground hover:bg-muted"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem
+                              onClick={() => onHideStatusCategory(section.category)}
+                            >
+                              <EyeOff className="mr-2 h-4 w-4" />
+                              이 축 보기 끄기
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                     <div className="mt-3 h-px w-full bg-border" />
                     <div
@@ -241,41 +291,60 @@ export function KanbanView({
                     items={section.columns.map((column) => column.id)}
                     strategy={horizontalListSortingStrategy}
                   >
-                    <div className="flex h-full min-w-fit gap-4 pb-2">
-                      {section.columns.map((col) => (
-                        <KanbanColumn
-                          key={col.id}
-                          id={col.id}
-                          column={col}
-                          title={col.title}
-                          tasks={getTasksForColumn(col)}
-                          groupBy={groupBy}
-                          onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
-                          color={col.color}
-                          viewSettings={viewSettings}
-                          onTaskClick={onTaskClick}
-                          onDeleteTask={onDeleteTask}
-                          onRename={
-                            allowColumnActions
-                              ? (newTitle) =>
-                                  onUpdateColumn(col.id, { title: newTitle })
-                              : undefined
-                          }
-                          onDelete={
-                            allowColumnActions
-                              ? () => onDeleteColumn(col.id)
-                              : undefined
-                          }
-                          category={section.category}
-                          disableTaskDrag={disableTaskDrag}
-                          allowColumnActions={allowColumnActions}
-                        />
-                      ))}
-                    </div>
+                    {section.columns.length === 0 ? (
+                      <div className="flex min-h-[220px] w-[280px] items-center justify-center rounded-2xl border border-dashed bg-muted/10 px-6 text-center">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">
+                            표시 중인 세부 단계가 없습니다.
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            보기 설정에서 이 축의 단계를 다시 켤 수 있습니다.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-w-fit gap-4 pb-2">
+                        {section.columns.map((col) => (
+                          <KanbanColumn
+                            key={col.id}
+                            id={col.id}
+                            column={col}
+                            title={col.title}
+                            tasks={getTasksForColumn(col)}
+                            groupBy={groupBy}
+                            onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
+                            color={col.color}
+                            viewSettings={viewSettings}
+                            onTaskClick={onTaskClick}
+                            onDeleteTask={onDeleteTask}
+                            onRename={
+                              allowColumnActions
+                                ? (newTitle) =>
+                                    onUpdateColumn(col.id, { title: newTitle })
+                                : undefined
+                            }
+                            onDelete={
+                              allowColumnActions
+                                ? () => onDeleteColumn(col.id)
+                                : undefined
+                            }
+                            onHide={
+                              groupBy === "status" && onHideColumn
+                                ? () => onHideColumn(col.id)
+                                : undefined
+                            }
+                            category={section.category}
+                            disableTaskDrag={disableTaskDrag}
+                            allowColumnActions={allowColumnActions}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </SortableContext>
                 </section>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="h-full flex gap-4 p-4 min-w-full">
@@ -301,11 +370,16 @@ export function KanbanView({
                       ? (newTitle) => onUpdateColumn(col.id, { title: newTitle })
                       : undefined
                   }
-                  onDelete={
-                    allowColumnActions ? () => onDeleteColumn(col.id) : undefined
-                  }
-                  disableTaskDrag={disableTaskDrag}
-                  allowColumnActions={allowColumnActions}
+                    onDelete={
+                      allowColumnActions ? () => onDeleteColumn(col.id) : undefined
+                    }
+                    onHide={
+                      groupBy === "status" && onHideColumn
+                        ? () => onHideColumn(col.id)
+                        : undefined
+                    }
+                    disableTaskDrag={disableTaskDrag}
+                    allowColumnActions={allowColumnActions}
                 />
               ))}
             </SortableContext>

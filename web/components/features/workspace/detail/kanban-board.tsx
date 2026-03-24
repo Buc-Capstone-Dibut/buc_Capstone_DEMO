@@ -9,7 +9,7 @@ import {
   Project,
   ProjectMember,
 } from "../store/mock-data";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   KanbanSquare,
   Plus,
@@ -22,6 +22,7 @@ import {
   Tag as TagIcon,
   Loader2,
   Inbox,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,7 @@ import {
 } from "@/components/ui/popover";
 import { DraggablePropertySettings } from "../modules/view-settings/property-settings";
 import { Eye } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 type BoardColumnResponse = {
@@ -76,6 +78,12 @@ const DEFAULT_CARD_PROPERTIES = [
   "tags",
   "assignee",
   "dueDate",
+] as const;
+
+const STATUS_SECTION_OPTIONS = [
+  { id: "todo", label: "할 일" },
+  { id: "in-progress", label: "진행 중" },
+  { id: "done", label: "완료" },
 ] as const;
 
 const DEFAULT_CARD_PROPERTY_SET = new Set(DEFAULT_CARD_PROPERTIES);
@@ -344,7 +352,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     [tags],
   );
 
-  const handleUpdateView = async (
+  const handleUpdateView = useCallback(async (
     viewId: string,
     updates: Partial<BoardView>,
   ) => {
@@ -360,7 +368,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       console.error("Failed to update view", error);
       toast.error("뷰 저장에 실패했습니다.");
     }
-  };
+  }, [mutate, projectId]);
 
   const handleDeleteView = async (viewId: string) => {
     try {
@@ -412,6 +420,16 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       priority: activeCardProperties.includes("priority"),
     }),
     [activeCardProperties],
+  );
+
+  const hiddenColumnIds = useMemo(
+    () => new Set(activeView?.filter?.hiddenColumns || []),
+    [activeView?.filter],
+  );
+
+  const hiddenStatusCategories = useMemo(
+    () => new Set(activeView?.filter?.hiddenStatusCategories || []),
+    [activeView?.filter],
   );
 
   useEffect(() => {
@@ -532,8 +550,82 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         return indexA - indexB;
       });
     }
+
+    if (groupBy === "status" && hiddenColumnIds.size > 0) {
+      result = result.filter((column) => !hiddenColumnIds.has(column.id));
+    }
+
     return result;
-  }, [columns, activeView?.showEmptyGroups, activeView?.columnOrder]);
+  }, [
+    columns,
+    activeView?.showEmptyGroups,
+    activeView?.columnOrder,
+    groupBy,
+    hiddenColumnIds,
+  ]);
+
+  const statusColumns = useMemo(
+    () =>
+      groupBy === "status"
+        ? columns.filter((column) =>
+            STATUS_SECTION_OPTIONS.some(
+              (section) => section.id === (column.category || "todo"),
+            ),
+          )
+        : [],
+    [columns, groupBy],
+  );
+
+  const updateViewFilter = useCallback(
+    async (partialFilter: Record<string, unknown>) => {
+      if (!activeView) return;
+
+      const currentFilter =
+        activeView.filter && typeof activeView.filter === "object"
+          ? activeView.filter
+          : {};
+
+      await handleUpdateView(activeView.id, {
+        filter: {
+          ...currentFilter,
+          ...partialFilter,
+        },
+      });
+    },
+    [activeView, handleUpdateView],
+  );
+
+  const toggleStatusCategoryVisibility = useCallback(
+    async (category: (typeof STATUS_SECTION_OPTIONS)[number]["id"]) => {
+      const nextHidden = new Set(hiddenStatusCategories);
+      if (nextHidden.has(category)) {
+        nextHidden.delete(category);
+      } else {
+        nextHidden.add(category);
+      }
+
+      await updateViewFilter({
+        hiddenStatusCategories: Array.from(nextHidden),
+      });
+    },
+    [hiddenStatusCategories, updateViewFilter],
+  );
+
+  const toggleColumnVisibility = useCallback(
+    async (columnId: string) => {
+      const nextHidden = new Set(hiddenColumnIds);
+      if (nextHidden.has(columnId)) {
+        nextHidden.delete(columnId);
+      } else {
+        nextHidden.add(columnId);
+      }
+
+      await updateViewFilter({
+        hiddenColumns: Array.from(nextHidden),
+      });
+    },
+    [hiddenColumnIds, updateViewFilter],
+  );
 
   // --- Handlers ---
 
@@ -932,6 +1024,81 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                       }}
                     />
                   </div>
+                  {isMainBoardView && (
+                    <>
+                      <Separator />
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          <EyeOff className="h-3 w-3" />
+                          섹션 숨기기
+                        </div>
+                        <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                          <div className="text-[11px] font-medium text-muted-foreground">
+                            상위 3축 보기
+                          </div>
+                          <div className="space-y-2">
+                            {STATUS_SECTION_OPTIONS.map((section) => {
+                              const checked = !hiddenStatusCategories.has(section.id);
+                              return (
+                                <label
+                                  key={section.id}
+                                  className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => {
+                                      void toggleStatusCategoryVisibility(section.id);
+                                    }}
+                                  />
+                                  <span>{section.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                          <div className="text-[11px] font-medium text-muted-foreground">
+                            세부 단계 보기
+                          </div>
+                          <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                            {statusColumns.map((column) => {
+                              const checked = !hiddenColumnIds.has(column.id);
+                              const categoryLabel =
+                                STATUS_SECTION_OPTIONS.find(
+                                  (section) =>
+                                    section.id === (column.category || "todo"),
+                                )?.label || "할 일";
+
+                              return (
+                                <label
+                                  key={column.id}
+                                  className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => {
+                                      void toggleColumnVisibility(column.id);
+                                    }}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="truncate">{column.title}</div>
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {categoryLabel}
+                                    </div>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                            {statusColumns.length === 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                관리할 세부 단계가 없습니다.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <Separator />
                   <div className="space-y-1">
                     <Button
@@ -1033,12 +1200,19 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
               onCreateTask={handleCreateTask}
               onDeleteTask={handleDeleteTask}
               onUpdateColumn={handleUpdateColumn}
+              onHideColumn={(columnId) => {
+                void toggleColumnVisibility(columnId);
+              }}
+              onHideStatusCategory={(category) => {
+                void toggleStatusCategoryVisibility(category);
+              }}
               viewSettings={{
                 showTags: propertyVisibility.tags,
                 showAssignee: propertyVisibility.assignee,
                 showDueDate: propertyVisibility.dueDate,
                 showPriority: propertyVisibility.priority,
                 cardProperties: activeCardProperties,
+                hiddenStatusCategories: Array.from(hiddenStatusCategories),
               }}
             />
           )}

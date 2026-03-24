@@ -132,6 +132,8 @@ export interface BoardView {
   filter?: {
     tags?: string[];
     assignee?: string[];
+    hiddenColumns?: string[];
+    hiddenStatusCategories?: Array<"todo" | "in-progress" | "done">;
   };
   isSystem?: boolean;
   showEmptyGroups?: boolean;

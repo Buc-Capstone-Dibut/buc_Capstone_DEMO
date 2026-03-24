@@ -9,6 +9,7 @@ import {
   Trash2,
   Pencil,
   Palette,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,7 @@ interface KanbanColumnProps {
   onRename?: (newTitle: string) => void;
   onUpdate?: (updates: any) => void;
   onDelete?: () => void;
+  onHide?: () => void;
   viewSettings: {
     showTags: boolean;
     showAssignee: boolean;
@@ -85,6 +87,7 @@ export function KanbanColumn({
   onRename,
   onUpdate,
   onDelete,
+  onHide,
   viewSettings,
   groupBy = "status",
   category,
@@ -135,7 +138,7 @@ export function KanbanColumn({
   };
 
   const showColumnActions =
-    allowColumnActions && (!!onRename || !!onUpdate || !!onDelete);
+    allowColumnActions && (!!onRename || !!onUpdate || !!onDelete || !!onHide);
 
   if (isDragging) {
     return (
@@ -293,6 +296,16 @@ export function KanbanColumn({
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       섹션 삭제
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {onHide && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onHide}>
+                      <EyeOff className="h-4 w-4 mr-2" />
+                      이 섹션 보기 끄기
                     </DropdownMenuItem>
                   </>
                 )}
