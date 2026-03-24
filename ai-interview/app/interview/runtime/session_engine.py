@@ -232,9 +232,12 @@ def _has_captured_live_input_stream_result(
 def _capture_live_input_stream_state(
     state: VoiceWsState,
 ) -> tuple[str, str, str, str, float, int]:
+    streamed_user_text = sanitize_user_turn_text(
+        state.parallel_stt_best_text or state.live_input_streamed_user_text
+    )
     return (
         (state.live_input_turn_id or "").strip(),
-        sanitize_user_turn_text(state.live_input_streamed_user_text),
+        streamed_user_text,
         (state.live_input_streamed_ai_text or "").strip(),
         (state.live_input_streamed_provider or "").strip(),
         max(0.0, float(state.live_input_streamed_audio_duration_sec or 0.0)),
@@ -252,6 +255,14 @@ def _clear_live_input_stream_state(
     state.live_input_streamed_provider = ""
     state.live_input_streamed_audio_duration_sec = 0.0
     state.live_input_streamed_audio_chunk_count = 0
+    if state.parallel_stt_task and not state.parallel_stt_task.done():
+        state.parallel_stt_task.cancel()
+    state.parallel_stt_task = None
+    state.parallel_stt_turn_id = ""
+    state.parallel_stt_sample_rate = 16000
+    state.parallel_stt_samples = []
+    state.parallel_stt_best_text = ""
+    state.parallel_stt_last_requested_sample_count = 0
 
 
 async def _transcribe_user_audio(
@@ -272,10 +283,10 @@ def _persist_turn_background(
     content: str,
     channel: str,
     payload: dict[str, Any],
-) -> None:
-    async def runner() -> None:
+) -> asyncio.Task[Any | None]:
+    async def runner() -> Any | None:
         try:
-            await deps.persist_turn(
+            return await deps.persist_turn(
                 state,
                 role=role,
                 content=content,
@@ -287,6 +298,90 @@ def _persist_turn_background(
                 "background persist_turn failed (session=%s, role=%s)",
                 state.session_id,
                 role,
+                exc_info=True,
+            )
+            return None
+
+    return asyncio.create_task(runner())
+
+
+def _select_parallel_refined_user_text(
+    *,
+    current_text: str,
+    refined_text: str,
+    utterance_duration_ms: float,
+) -> str:
+    current_normalized = sanitize_user_turn_text(current_text)
+    refined_normalized = sanitize_user_turn_text(refined_text)
+    if not current_normalized or not refined_normalized or refined_normalized == current_normalized:
+        return ""
+
+    current_score = _score_user_text(current_normalized, utterance_duration_ms=utterance_duration_ms)
+    refined_score = _score_user_text(refined_normalized, utterance_duration_ms=utterance_duration_ms)
+    current_compact_len = len(re.findall(r"[0-9A-Za-z가-힣]", current_normalized))
+    refined_compact_len = len(re.findall(r"[0-9A-Za-z가-힣]", refined_normalized))
+
+    if refined_score > current_score + 4:
+        return refined_normalized
+    if refined_score >= current_score and refined_compact_len >= current_compact_len:
+        return refined_normalized
+    if refined_score >= current_score + 1 and refined_compact_len >= max(1, current_compact_len - 6):
+        return refined_normalized
+    return ""
+
+
+def _schedule_parallel_user_transcript_refinement(
+    deps: SessionEngineDeps,
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    persist_task: asyncio.Task[Any | None],
+    wav_bytes: bytes,
+    current_user_text: str,
+    utterance_duration_ms: float,
+    user_turn_id: str,
+) -> None:
+    refine_fn = getattr(deps, "parallel_refine_user_audio", None)
+    update_turn_content = getattr(deps, "update_turn_content", None)
+    if refine_fn is None or update_turn_content is None or not wav_bytes:
+        return
+
+    async def runner() -> None:
+        try:
+            persisted_turn = await persist_task
+            persisted_turn_id = str((persisted_turn or {}).get("id") or "").strip()
+            if not persisted_turn_id:
+                return
+
+            refined_text, refined_provider = await refine_fn(wav_bytes)
+            improved_text = _select_parallel_refined_user_text(
+                current_text=current_user_text,
+                refined_text=refined_text,
+                utterance_duration_ms=utterance_duration_ms,
+            )
+            if not improved_text:
+                return
+
+            await update_turn_content(
+                state,
+                turn_id=persisted_turn_id,
+                content=improved_text,
+                payload_patch={
+                    "parallel_stt_refined": True,
+                    "parallel_stt_provider": (refined_provider or "").strip(),
+                },
+            )
+            await deps.send_transcript(
+                ws,
+                state.session_id,
+                "user",
+                improved_text,
+                turn_id=user_turn_id,
+            )
+        except Exception:
+            logger.warning(
+                "background parallel user transcript refinement failed (session=%s)",
+                state.session_id,
                 exc_info=True,
             )
 
@@ -348,6 +443,8 @@ class SessionEngineDeps:
     commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None
     runtime_architecture: str = "hybrid"
     stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None
+    update_turn_content: Callable[..., Awaitable[Any]] | None = None
+    parallel_refine_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None
 
 
 def build_session_init_request(
@@ -582,6 +679,7 @@ async def process_user_utterance(
             return
 
         next_turn_id = streamed_turn_id or deps.next_ai_turn_id(state.session_id)
+        user_turn_id = next_turn_id
         live_ai_text = ""
         prepared_live_audio = None
         followup_provider_name = live.provider
@@ -707,6 +805,7 @@ async def process_user_utterance(
             user_request_spec = replace(user_request_spec, planned_question_text="")
 
         user_turn_payload = build_voice_user_turn_payload(
+            turn_id=user_turn_id,
             provider=user_provider_name,
             runtime_mode=state.runtime_mode,
             runtime_reason=state.runtime_mode_reason,
@@ -721,7 +820,7 @@ async def process_user_utterance(
         )
         if transcription_missing:
             user_turn_payload["transcription_missing"] = True
-        _persist_turn_background(
+        persist_task = _persist_turn_background(
             deps,
             state,
             role="user",
@@ -729,8 +828,24 @@ async def process_user_utterance(
             channel="voice",
             payload=user_turn_payload,
         )
-        if not transcription_missing and not await deps.send_transcript(ws, state.session_id, "user", user_text):
+        if not transcription_missing and not await deps.send_transcript(
+            ws,
+            state.session_id,
+            "user",
+            user_text,
+            turn_id=user_turn_id,
+        ):
             return
+        _schedule_parallel_user_transcript_refinement(
+            deps,
+            ws,
+            state,
+            persist_task=persist_task,
+            wav_bytes=wav_bytes,
+            current_user_text=user_text,
+            utterance_duration_ms=utterance_duration_ms,
+            user_turn_id=user_turn_id,
+        )
 
         deps.reset_realtime_user_transcript(state)
         deps.log_runtime_event(

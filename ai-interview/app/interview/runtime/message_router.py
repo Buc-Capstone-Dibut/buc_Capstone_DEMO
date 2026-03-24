@@ -22,6 +22,7 @@ class ClientMessageRouterDeps:
     enqueue_user_segment: Callable[..., Awaitable[None]]
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None
+    push_parallel_stt_audio_chunk: Callable[[WebSocket, VoiceWsState, list[float], int], Awaitable[bool]] | None
     reset_realtime_user_transcript: Callable[[VoiceWsState], None]
     resume_listening: Callable[..., Awaitable[Any]]
     cancel_playback_resume_task: Callable[[VoiceWsState], None]
@@ -85,6 +86,8 @@ async def handle_client_message(
                 live_input_ready = await deps.begin_live_input_stream(ws, state)
             if deps.push_live_input_audio_chunk is not None and live_input_ready:
                 await deps.push_live_input_audio_chunk(state, audio_chunk, normalized_sample_rate)
+            if deps.push_parallel_stt_audio_chunk is not None and live_input_ready:
+                await deps.push_parallel_stt_audio_chunk(ws, state, audio_chunk, normalized_sample_rate)
 
         if (
             state.pending_user_segments

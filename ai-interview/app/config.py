@@ -43,8 +43,22 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
 
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
+    google_cloud_project: str | None = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")
+    google_application_credentials: str | None = Field(
+        default=None,
+        alias="GOOGLE_APPLICATION_CREDENTIALS",
+    )
+    gemini_service_account_json_base64: str | None = Field(
+        default=None,
+        alias="GEMINI_SERVICE_ACCOUNT_JSON_BASE64",
+    )
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
+    google_cloud_stt_model: str = Field(default="latest_short", alias="GOOGLE_CLOUD_STT_MODEL")
+    google_cloud_stt_language_code: str = Field(default="ko-KR", alias="GOOGLE_CLOUD_STT_LANGUAGE_CODE")
+    google_cloud_stt_max_alternatives: int = Field(default=3, alias="GOOGLE_CLOUD_STT_MAX_ALTERNATIVES")
     github_token: str | None = Field(default=None, alias="GITHUB_TOKEN")
 
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
@@ -71,6 +85,10 @@ class Settings(BaseSettings):
     voice_runtime_architecture: str = Field(
         default="hybrid",
         alias="VOICE_RUNTIME_ARCHITECTURE",
+    )
+    voice_parallel_stt_enabled: bool = Field(
+        default=False,
+        alias="VOICE_PARALLEL_STT_ENABLED",
     )
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
@@ -102,7 +120,11 @@ class Settings(BaseSettings):
 
     @field_validator(
         "database_url",
+        "openai_api_key",
         "gemini_api_key",
+        "google_cloud_project",
+        "google_application_credentials",
+        "gemini_service_account_json_base64",
         "github_token",
         "livekit_url",
         "livekit_api_key",

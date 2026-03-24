@@ -5,6 +5,7 @@ from typing import Any
 
 from app.interview.runtime.state import VoiceWsState
 from app.interview.transcript.store import persist_turn as persist_transcript_turn
+from app.interview.transcript.store import update_turn as update_transcript_turn
 from app.services.interview_service import InterviewService
 
 
@@ -29,6 +30,22 @@ class RuntimeServiceAdapter:
             content=content,
             channel=channel,
             payload=payload,
+        )
+
+    async def update_turn_content(
+        self,
+        state: VoiceWsState,
+        *,
+        turn_id: str,
+        content: str,
+        payload_patch: dict[str, Any] | None = None,
+    ) -> Any:
+        return await update_transcript_turn(
+            state,
+            update_turn_content=self._service.update_turn_content,
+            turn_id=turn_id,
+            content=content,
+            payload_patch=payload_patch,
         )
 
     async def update_session_status(

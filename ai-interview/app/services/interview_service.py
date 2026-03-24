@@ -225,6 +225,52 @@ class InterviewService:
 
         return inserted
 
+    def update_turn_content(
+        self,
+        turn_id: str,
+        content: str,
+        payload_patch: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        normalized_turn_id = str(turn_id or "").strip()
+        if not normalized_turn_id:
+            return None
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                if payload_patch:
+                    cur.execute(
+                        """
+                        UPDATE public.interview_turns
+                        SET
+                            content = %s,
+                            payload = COALESCE(payload, '{}'::jsonb) || %s
+                        WHERE id = %s
+                        RETURNING *
+                        """,
+                        (
+                            content,
+                            Jsonb(payload_patch),
+                            normalized_turn_id,
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE public.interview_turns
+                        SET content = %s
+                        WHERE id = %s
+                        RETURNING *
+                        """,
+                        (
+                            content,
+                            normalized_turn_id,
+                        ),
+                    )
+                updated = cur.fetchone()
+            conn.commit()
+
+        return updated
+
     def append_missing_history(self, session_id: str, messages: list[dict[str, Any]]) -> None:
         existing_count = 0
         with get_connection() as conn:

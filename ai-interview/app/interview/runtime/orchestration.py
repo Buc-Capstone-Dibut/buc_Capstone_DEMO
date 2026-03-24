@@ -123,6 +123,7 @@ def build_voice_model_turn_payload(
 
 def build_voice_user_turn_payload(
     *,
+    turn_id: str | None = None,
     provider: str,
     runtime_mode: str,
     runtime_reason: str,
@@ -136,6 +137,7 @@ def build_voice_user_turn_payload(
     memory_snapshot: str,
 ) -> dict[str, Any]:
     return {
+        "turn_id": turn_id,
         "provider": provider,
         "input": "speech",
         "runtime_mode": runtime_mode,
