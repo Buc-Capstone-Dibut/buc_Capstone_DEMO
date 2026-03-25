@@ -15,11 +15,12 @@ import {
   ChevronDown,
   LogOut,
   Settings,
+  Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSocketStore } from "@/components/features/workspace/store/socket-store";
 import { useNotifications } from "@/hooks/use-notifications";
-
 import { useAuth } from "@/hooks/use-auth";
 import {
   Dialog,
@@ -53,6 +53,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { parseWorkspaceChatNotificationTarget } from "@/lib/workspace-notifications";
+import {
+  getWorkspaceVoiceRoomsApiPath,
+  getWorkspaceVoiceRoomLabel,
+} from "@/lib/workspace-voice";
 
 interface WorkspaceSidebarProps {
   projectId: string;
@@ -110,9 +115,11 @@ export function WorkspaceSidebar({
 }: WorkspaceSidebarProps) {
   const router = useRouter();
   const {
+    activeChannelId,
     channels,
-    joinChannel,
     createChannel,
+    deleteChannel,
+    joinChannel,
     setChannelMention,
   } = useSocketStore();
   const { notifications, markAsRead } = useNotifications();
@@ -138,7 +145,7 @@ export function WorkspaceSidebar({
 
   // Poll for Room Participants (Socket-driven + 15s fallback)
   const { data: roomParticipants, mutate: mutateRooms } = useSWR<RoomParticipants>(
-    "/api/livekit/rooms",
+    projectId ? getWorkspaceVoiceRoomsApiPath(projectId) : null,
     fetcher,
     {
       revalidateOnFocus: true,
@@ -171,11 +178,13 @@ export function WorkspaceSidebar({
 
     notifications.forEach((n) => {
       if (!n.is_read && n.type === "MENTION") {
-        // Find channel by name matching the notification title (case-insensitive).
-        const titleLower = n.title.toLowerCase();
-        const channel = channels.find((c) =>
-          titleLower.includes(`#${c.name}`.toLowerCase()),
-        );
+        const target = parseWorkspaceChatNotificationTarget(n.link);
+        const channel =
+          target?.workspaceId === projectId && target.channelId
+            ? channels.find((c) => c.id === target.channelId)
+            : channels.find((c) =>
+                n.title.toLowerCase().includes(`#${c.name}`.toLowerCase()),
+              );
 
         if (channel) {
           // Mark as read only when the user is actually viewing this chat tab.
@@ -195,15 +204,20 @@ export function WorkspaceSidebar({
         }
       }
     });
-  }, [notifications, channels, setChannelMention, activeTab, markAsRead]);
+  }, [notifications, channels, setChannelMention, activeTab, markAsRead, projectId]);
 
   const devParticipants = roomParticipants?.["dev-room"] ?? [];
   const loungeParticipants = roomParticipants?.lounge ?? [];
 
   const [isLeaveAlertOpen, setIsLeaveAlertOpen] = useState(false);
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
+  const [channelToDelete, setChannelToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDesc, setNewChannelDesc] = useState("");
+  const previousChannelIdsRef = useRef<string[]>([]);
 
   const { data: project, isLoading } = useSWR<SidebarProject>(
     `/api/workspaces/${projectId}`,
@@ -211,6 +225,8 @@ export function WorkspaceSidebar({
     swrOptions,
   );
   const isOwner = project?.my_role === "owner";
+  const canManageChannels =
+    project?.my_role === "owner" || project?.my_role === "admin";
   const isReadOnly =
     project?.read_only || project?.lifecycle_status === "COMPLETED";
 
@@ -245,6 +261,20 @@ export function WorkspaceSidebar({
     setIsChannelDialogOpen(false);
   };
 
+  const handleDeleteChannel = async () => {
+    if (!channelToDelete || !user) return;
+
+    const result = await deleteChannel(channelToDelete.id, user.id);
+
+    if (!result.success) {
+      toast.error(result.error || "채널 삭제에 실패했습니다.");
+      return;
+    }
+
+    toast.success(`"${getChannelDisplayName(channelToDelete.name)}" 채널을 삭제했습니다.`);
+    setChannelToDelete(null);
+  };
+
   const openChannelDialog = (
     defaultName = "",
     defaultDescription = "",
@@ -270,6 +300,38 @@ export function WorkspaceSidebar({
     }
     setIsLeaveAlertOpen(true);
   };
+
+  useEffect(() => {
+    if (!activeTab.startsWith("chat-")) return;
+
+    const currentChannelIds = channels.map((channel) => channel.id);
+    const activeTabChannelId = activeTab.replace("chat-", "");
+    const activeTabExists = currentChannelIds.includes(activeTabChannelId);
+    const activeTabPreviouslyExisted =
+      previousChannelIdsRef.current.includes(activeTabChannelId);
+
+    previousChannelIdsRef.current = currentChannelIds;
+
+    if (activeTabExists) return;
+    if (!activeTabPreviouslyExisted) return;
+
+    if (
+      activeChannelId &&
+      currentChannelIds.includes(activeChannelId)
+    ) {
+      onTabChange(`chat-${activeChannelId}`);
+      return;
+    }
+
+    const fallbackChannel = channels[0];
+    if (fallbackChannel) {
+      joinChannel(fallbackChannel.id);
+      onTabChange(`chat-${fallbackChannel.id}`);
+      return;
+    }
+
+    onTabChange("overview");
+  }, [activeTab, activeChannelId, channels, joinChannel, onTabChange]);
 
   const navItems = [
     { id: "overview", label: "개요", icon: LayoutDashboard },
@@ -411,56 +473,89 @@ export function WorkspaceSidebar({
               const showBadge =
                 (channel.unreadCount || 0) > 0 || channel.hasMention;
               const isMentioned = channel.hasMention;
+              const canDeleteChannel =
+                canManageChannels && !isReadOnly && channel.name !== "general";
 
               return (
-                <Button
-                  key={channel.id}
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-between h-8 px-2 text-muted-foreground font-normal overflow-hidden",
-                    activeTab === `chat-${channel.id}` &&
-                    "bg-accent text-accent-foreground font-medium",
-                    showBadge && "text-foreground font-semibold",
-                    isMentioned && "text-primary",
-                  )}
-                  onClick={() => {
-                    const relevantNotifications = notifications?.filter(
-                      (n) =>
-                        !n.is_read &&
-                        n.type === "MENTION" &&
-                        n.title
-                          .toLowerCase()
-                          .includes(`#${channel.name}`.toLowerCase()),
-                    );
-                    // Clear channel mention badge immediately on enter.
-                    setChannelMention(channel.id, false);
-                    relevantNotifications?.forEach((n) => {
-                      void markAsRead(n.id);
-                    });
+                <div key={channel.id} className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "flex-1 justify-between h-8 px-2 text-muted-foreground font-normal overflow-hidden",
+                      activeTab === `chat-${channel.id}` &&
+                        "bg-accent text-accent-foreground font-medium",
+                      showBadge && "text-foreground font-semibold",
+                      isMentioned && "text-primary",
+                    )}
+                    onClick={() => {
+                      const relevantNotifications = notifications?.filter(
+                        (n) =>
+                          !n.is_read &&
+                          n.type === "MENTION" &&
+                          (() => {
+                            const target =
+                              parseWorkspaceChatNotificationTarget(n.link);
+                            if (
+                              target?.workspaceId === projectId &&
+                              target.channelId
+                            ) {
+                              return target.channelId === channel.id;
+                            }
+                            return n.title
+                              .toLowerCase()
+                              .includes(`#${channel.name}`.toLowerCase());
+                          })(),
+                      );
+                      // Clear channel mention badge immediately on enter.
+                      setChannelMention(channel.id, false);
+                      relevantNotifications?.forEach((n) => {
+                        void markAsRead(n.id);
+                      });
 
-                    joinChannel(channel.id);
-                    onTabChange(`chat-${channel.id}`);
-                  }}
+                      joinChannel(channel.id);
+                      onTabChange(`chat-${channel.id}`);
+                    }}
                   >
-                  <div className="flex items-center min-w-0">
-                    <Hash className="mr-2 h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="truncate">
-                      {getChannelDisplayName(channel.name)}
-                    </span>
-                  </div>
-                  {showBadge && (
-                    <span
+                    <div className="flex items-center min-w-0">
+                      <Hash className="mr-2 h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate">
+                        {getChannelDisplayName(channel.name)}
+                      </span>
+                    </div>
+                    {showBadge && (
+                      <span
+                        className={cn(
+                          "ml-auto flex items-center justify-center rounded-full",
+                          isMentioned
+                            ? "w-2.5 h-2.5 bg-rose-400"
+                            : "text-[10px] px-1.5 py-0.5 min-w-[18px] bg-muted-foreground/30 text-foreground",
+                        )}
+                      >
+                        {!isMentioned && channel.unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                  {canDeleteChannel && (
+                    <button
+                      type="button"
                       className={cn(
-                        "ml-auto flex items-center justify-center rounded-full",
-                        isMentioned
-                          ? "w-2.5 h-2.5 bg-rose-400" // Soft Red Dot
-                          : "text-[10px] px-1.5 py-0.5 min-w-[18px] bg-muted-foreground/30 text-foreground",
+                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                        "hover:bg-muted hover:text-red-600",
                       )}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setChannelToDelete({
+                          id: channel.id,
+                          name: channel.name,
+                        });
+                      }}
+                      aria-label={`${getChannelDisplayName(channel.name)} 채널 삭제`}
+                      title={`${getChannelDisplayName(channel.name)} 채널 삭제`}
                     >
-                      {!isMentioned && channel.unreadCount}
-                    </span>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                </Button>
+                </div>
               );
             })}
             {channels.length === 0 && (
@@ -522,7 +617,7 @@ export function WorkspaceSidebar({
               disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
-              개발실
+              {getWorkspaceVoiceRoomLabel("dev-room")}
             </Button>
             {devParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
@@ -564,7 +659,7 @@ export function WorkspaceSidebar({
               disabled={isReadOnly}
             >
               <Volume2 className="mr-2 h-3.5 w-3.5" />
-              라운지
+              {getWorkspaceVoiceRoomLabel("lounge")}
             </Button>
             {loungeParticipants.length > 0 && (
               <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
@@ -695,6 +790,37 @@ export function WorkspaceSidebar({
               className="bg-red-600 hover:bg-red-700"
             >
               떠나기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(channelToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setChannelToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>채널을 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {channelToDelete
+                ? `"${getChannelDisplayName(channelToDelete.name)}" 채널과 해당 대화 내역이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
+                : "채널과 해당 대화 내역이 함께 삭제됩니다."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleDeleteChannel();
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              삭제하기
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

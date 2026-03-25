@@ -346,10 +346,12 @@ async def _recover_live_audio_for_ai_text(
         return normalized, None
     return recovered_text, recovered_audio
 
+async def _noop_request_live_spoken_text_turn(*_args, **_kwargs) -> tuple[str, Any, str]:
+    return ("", None, "")
+
 
 @dataclass(frozen=True)
 class RuntimeExecutorDeps:
-    request_live_spoken_text_turn: Callable[..., Awaitable[tuple[str, Any, str]]]
     request_live_text_turn: Callable[..., Awaitable[tuple[str, Any]]]
     repair_ai_turn_if_truncated: Callable[..., Awaitable[tuple[str, Any]]]
     looks_like_complete_ai_question: Callable[[str], bool]
@@ -371,6 +373,7 @@ class RuntimeExecutorDeps:
     build_memory_snapshot: Callable[[VoiceWsState], str]
     remember_model_turn: Callable[..., None]
     record_question_type: Callable[[VoiceWsState, str | None], None]
+    request_live_spoken_text_turn: Callable[..., Awaitable[tuple[str, Any, str]]] = _noop_request_live_spoken_text_turn
     remember_streamed_ai_audio: Callable[[VoiceWsState, str, float, str], None] = lambda *_args, **_kwargs: None
     enable_ai_question_repair: bool = True
     enable_ai_audio_recovery: bool = True

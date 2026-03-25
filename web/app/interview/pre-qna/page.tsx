@@ -3,11 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MOCK_CHAT_MESSAGES, type MockChatMessage } from "@/mocks/interview-data";
-import { ArrowLeft, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function PreQnAPage() {
@@ -62,6 +60,7 @@ export default function PreQnAPage() {
                   <h1 className="font-semibold text-lg flex items-center gap-2">
                      사전 탐색 질문 (Pre-QnA)
                      <span className="text-xs bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary px-2 py-0.5 rounded-full">AI Interviewer</span>
+                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">데모 대화</span>
                   </h1>
                   <p className="text-xs text-muted-foreground">지원자의 기본 역량을 파악하기 위한 채팅 인터뷰입니다.</p>
                </div>

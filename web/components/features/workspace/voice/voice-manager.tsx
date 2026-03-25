@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { mutate } from "swr";
 import { useSocketStore } from "../store/socket-store";
+import { getWorkspaceVoiceRoomsApiPath } from "@/lib/workspace-voice";
 
 interface VoiceContextType {
   joinRoom: (projectId: string, roomName: string) => Promise<void>;
@@ -304,14 +305,18 @@ export function VoiceManager({ children }: { children: ReactNode }) {
       toast.error("로그인이 필요합니다.");
       return;
     }
-    if (currentRoom === roomName && token) {
+    if (currentRoom === roomName && activeProjectId === projectId && token) {
       return;
     }
 
     try {
       suppressRemoteVoiceEventsRef.current = false;
       await unlockVoiceSoundPlayback();
-      playVoiceSound(VOICE_JOIN_SOUND, `voice-join:${roomName}`, "join");
+      playVoiceSound(
+        VOICE_JOIN_SOUND,
+        `voice-join:${projectId}:${roomName}`,
+        "join",
+      );
 
       const response = await fetch(
         `/api/livekit/token?room=${encodeURIComponent(roomName)}&workspaceId=${encodeURIComponent(projectId)}`,
@@ -340,13 +345,19 @@ export function VoiceManager({ children }: { children: ReactNode }) {
     setCurrentRoom(null);
     setActiveProjectId(null);
     if (prevRoom) {
-      playVoiceSound(VOICE_LEAVE_SOUND, `voice-leave:${prevRoom}`, "leave");
+      playVoiceSound(
+        VOICE_LEAVE_SOUND,
+        `voice-leave:${prevProjectId || "unknown"}:${prevRoom}`,
+        "leave",
+      );
     }
 
     // Trigger immediate update when leaving
     setTimeout(() => {
       try {
-        mutate("/api/livekit/rooms");
+        if (prevProjectId) {
+          void mutate(getWorkspaceVoiceRoomsApiPath(prevProjectId));
+        }
         // Broadcast to others (Socket)
         if (socket && prevProjectId) {
           socket.emit("voice:update", { projectId: prevProjectId });
@@ -378,7 +389,9 @@ export function VoiceManager({ children }: { children: ReactNode }) {
               connect={true}
               onConnected={() => {
                 try {
-                  mutate("/api/livekit/rooms");
+                  if (activeProjectId) {
+                    void mutate(getWorkspaceVoiceRoomsApiPath(activeProjectId));
+                  }
                   if (socket && activeProjectId) {
                     socket.emit("voice:update", { projectId: activeProjectId });
                   }
@@ -393,7 +406,11 @@ export function VoiceManager({ children }: { children: ReactNode }) {
               <RoomAudioRenderer />
               {currentRoom && (
                 <VoiceParticipantSoundEvents
-                  roomName={currentRoom}
+                  roomName={
+                    activeProjectId
+                      ? `${activeProjectId}:${currentRoom}`
+                      : currentRoom
+                  }
                   suppressRef={suppressRemoteVoiceEventsRef}
                 />
               )}

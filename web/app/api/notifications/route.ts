@@ -3,8 +3,11 @@ import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
+
 // GET: List Notifications
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const {
@@ -28,9 +31,9 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json(notifications);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: List Notifications Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -48,16 +51,26 @@ export async function PATCH(request: Request) {
 
     const body = await request.json();
     const { id } = body; // Notification ID
+    const userId = session.user.id;
 
     if (id) {
       // Mark single
-      await prisma.notifications.update({
-        where: { id },
+      const result = await prisma.notifications.updateMany({
+        where: {
+          id,
+          user_id: userId,
+        },
         data: { is_read: true },
       });
+
+      if (result.count === 0) {
+        return NextResponse.json(
+          { error: "Notification not found" },
+          { status: 404 },
+        );
+      }
     } else {
       // Mark all
-      const userId = session.user.id;
       await prisma.notifications.updateMany({
         where: { user_id: userId, is_read: false },
         data: { is_read: true },
@@ -65,9 +78,9 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Notification Update Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -98,8 +111,8 @@ export async function DELETE(request: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API: Delete Notification Error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -15,6 +15,7 @@ import {
 } from "@/components/features/workspace/docs/editor";
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
@@ -25,7 +26,6 @@ import {
   Save,
   Loader2,
   FolderPlus,
-  RotateCcw,
   Archive,
   CalendarDays,
   Clock3,
@@ -179,6 +179,26 @@ const formatSavedTime = (value?: string | null) => {
   }).format(date)} 저장됨`;
 };
 
+const DOCS_SIDEBAR_MIN_WIDTH = 256;
+const DOCS_SIDEBAR_MAX_WIDTH = 560;
+
+const getDocsSidebarMaxWidth = (containerWidth?: number) => {
+  if (!containerWidth || Number.isNaN(containerWidth)) {
+    return DOCS_SIDEBAR_MAX_WIDTH;
+  }
+
+  return Math.max(
+    DOCS_SIDEBAR_MIN_WIDTH,
+    Math.min(DOCS_SIDEBAR_MAX_WIDTH, containerWidth - 360),
+  );
+};
+
+const clampDocsSidebarWidth = (width: number, containerWidth?: number) =>
+  Math.min(
+    Math.max(width, DOCS_SIDEBAR_MIN_WIDTH),
+    getDocsSidebarMaxWidth(containerWidth),
+  );
+
 export function DocsView({
   projectId,
   initialDocId,
@@ -222,11 +242,15 @@ export function DocsView({
   );
 
   const editorRef = useRef<DocumentEditorHandle | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
   const [sidebarMode, setSidebarMode] = useState<"active" | "archived">("active");
+  const [sidebarWidth, setSidebarWidth] = useState(DOCS_SIDEBAR_MIN_WIDTH);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<string[]>([]);
 
   // Active Doc Data (If Selected)
   const {
@@ -275,6 +299,56 @@ export function DocsView({
     return new Map(entries);
   }, [docs]);
 
+  const archivedDocMap = useMemo(() => {
+    const entries = (archivedDocs || []).map((doc) => [doc.id, doc] as const);
+    return new Map(entries);
+  }, [archivedDocs]);
+
+  const selectedArchivedDocIdSet = useMemo(
+    () => new Set(selectedArchivedDocIds),
+    [selectedArchivedDocIds],
+  );
+
+  const allArchivedSelected = useMemo(
+    () =>
+      Boolean(archivedDocs?.length) &&
+      archivedDocs.every((doc) => selectedArchivedDocIdSet.has(doc.id)),
+    [archivedDocs, selectedArchivedDocIdSet],
+  );
+
+  const effectiveArchivedDeleteIds = useMemo(() => {
+    if (!archivedDocs?.length || selectedArchivedDocIds.length === 0) {
+      return [] as string[];
+    }
+
+    return archivedDocs
+      .filter((doc) => selectedArchivedDocIdSet.has(doc.id))
+      .filter((doc) => {
+        let currentParentId = doc.parent_id;
+
+        while (currentParentId) {
+          if (selectedArchivedDocIdSet.has(currentParentId)) {
+            return false;
+          }
+          currentParentId =
+            archivedDocMap.get(currentParentId)?.parent_id ?? null;
+        }
+
+        return true;
+      })
+      .map((doc) => doc.id);
+  }, [
+    archivedDocMap,
+    archivedDocs,
+    selectedArchivedDocIds.length,
+    selectedArchivedDocIdSet,
+  ]);
+
+  const clampSidebarWidthToContainer = useCallback((nextWidth: number) => {
+    const containerWidth = containerRef.current?.getBoundingClientRect().width;
+    return clampDocsSidebarWidth(nextWidth, containerWidth);
+  }, []);
+
   // Sync state with fetching data
   useEffect(() => {
     if (resolvedActiveDoc) {
@@ -294,6 +368,29 @@ export function DocsView({
       setDocWorkerId("");
     }
   }, [activeDocId, docMap, resolvedActiveDoc]);
+
+  useEffect(() => {
+    if (!archivedDocs) return;
+
+    const validDocIds = new Set(archivedDocs.map((doc) => doc.id));
+    setSelectedArchivedDocIds((prev) =>
+      prev.filter((docId) => validDocIds.has(docId)),
+    );
+  }, [archivedDocs]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarWidth((currentWidth) =>
+        clampSidebarWidthToContainer(currentWidth),
+      );
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [clampSidebarWidthToContainer]);
 
   const syncDocQuery = useCallback(
     (docId: string | null) => {
@@ -408,47 +505,180 @@ export function DocsView({
     void mutateArchivedDocs();
   }, [mutateArchivedDocs, mutateDocs]);
 
-  const handleRestoreDoc = useCallback(
+  const permanentlyDeleteDoc = useCallback(
     async (docId: string) => {
-      try {
-        const res = await fetch(`/api/workspaces/${projectId}/docs/${docId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isArchived: false }),
-        });
-        if (!res.ok) throw new Error("Failed");
-        refreshDocs();
-        toast.success("문서를 복원했습니다.");
-      } catch {
-        toast.error("문서 복원 실패");
-      }
-    },
-    [projectId, refreshDocs],
-  );
-
-  const handlePermanentDeleteDoc = useCallback(
-    async (docId: string, title: string) => {
-      const confirmed = window.confirm(
-        `"${title}" 문서를 영구 삭제할까요?\n휴지통에서도 사라지며 복구할 수 없습니다.`,
+      const res = await fetch(
+        `/api/workspaces/${projectId}/docs/${docId}?permanent=true`,
+        {
+          method: "DELETE",
+        },
       );
 
-      if (!confirmed) return;
-
-      try {
-        const res = await fetch(
-          `/api/workspaces/${projectId}/docs/${docId}?permanent=true`,
-          {
-            method: "DELETE",
-          },
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string; message?: string }
+          | null;
+        throw new Error(
+          payload?.error || payload?.message || "문서 영구 삭제에 실패했습니다.",
         );
-        if (!res.ok) throw new Error("Failed");
-        refreshDocs();
-        toast.success("문서를 영구 삭제했습니다.");
-      } catch {
-        toast.error("문서 영구 삭제 실패");
       }
     },
-    [projectId, refreshDocs],
+    [projectId],
+  );
+
+  const handleToggleArchivedDoc = useCallback((docId: string, checked: boolean) => {
+    setSelectedArchivedDocIds((prev) => {
+      if (checked) {
+        if (prev.includes(docId)) return prev;
+        return [...prev, docId];
+      }
+
+      return prev.filter((selectedId) => selectedId !== docId);
+    });
+  }, []);
+
+  const handleToggleAllArchivedDocs = useCallback(() => {
+    if (!archivedDocs?.length) return;
+
+    setSelectedArchivedDocIds(() =>
+      allArchivedSelected ? [] : archivedDocs.map((doc) => doc.id),
+    );
+  }, [allArchivedSelected, archivedDocs]);
+
+  const handleBulkPermanentDelete = useCallback(async () => {
+    if (effectiveArchivedDeleteIds.length === 0) return;
+
+    const confirmed = window.confirm(
+      `선택한 ${effectiveArchivedDeleteIds.length}개 항목을 영구 삭제할까요?\n하위 문서도 함께 삭제되며 복구할 수 없습니다.`,
+    );
+
+    if (!confirmed) return;
+
+    const results = await Promise.allSettled(
+      effectiveArchivedDeleteIds.map((docId) => permanentlyDeleteDoc(docId)),
+    );
+
+    const failedDocIds = effectiveArchivedDeleteIds.filter(
+      (_, index) => results[index]?.status === "rejected",
+    );
+    const deletedCount = effectiveArchivedDeleteIds.length - failedDocIds.length;
+
+    refreshDocs();
+    setSelectedArchivedDocIds(failedDocIds);
+
+    if (failedDocIds.length === 0) {
+      toast.success(`${deletedCount}개 문서를 영구 삭제했습니다.`);
+      return;
+    }
+
+    if (deletedCount > 0) {
+      toast.success(`${deletedCount}개 문서를 삭제했습니다.`);
+    }
+    toast.error(`${failedDocIds.length}개 문서는 삭제하지 못했습니다.`);
+  }, [effectiveArchivedDeleteIds, permanentlyDeleteDoc, refreshDocs]);
+
+  const restoreArchivedDoc = useCallback(
+    async (docId: string) => {
+      const res = await fetch(`/api/workspaces/${projectId}/docs/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: false }),
+      });
+
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string; message?: string }
+          | null;
+        throw new Error(
+          payload?.error || payload?.message || "문서 복원에 실패했습니다.",
+        );
+      }
+    },
+    [projectId],
+  );
+
+  const handleBulkRestore = useCallback(async () => {
+    if (effectiveArchivedDeleteIds.length === 0) return;
+
+    const results = await Promise.allSettled(
+      effectiveArchivedDeleteIds.map((docId) => restoreArchivedDoc(docId)),
+    );
+
+    const failedDocIds = effectiveArchivedDeleteIds.filter(
+      (_, index) => results[index]?.status === "rejected",
+    );
+    const restoredCount = effectiveArchivedDeleteIds.length - failedDocIds.length;
+
+    refreshDocs();
+    setSelectedArchivedDocIds(failedDocIds);
+
+    if (failedDocIds.length === 0) {
+      toast.success(`${restoredCount}개 문서를 복원했습니다.`);
+      return;
+    }
+
+    if (restoredCount > 0) {
+      toast.success(`${restoredCount}개 문서를 복원했습니다.`);
+    }
+    toast.error(`${failedDocIds.length}개 문서는 복원하지 못했습니다.`);
+  }, [effectiveArchivedDeleteIds, refreshDocs, restoreArchivedDoc]);
+
+  const handleSidebarResizeStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+
+      const startX = event.clientX;
+      const startWidth = sidebarWidth;
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
+
+      setIsResizingSidebar(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const nextWidth = clampSidebarWidthToContainer(
+          startWidth + moveEvent.clientX - startX,
+        );
+        setSidebarWidth(nextWidth);
+      };
+
+      const handlePointerUp = () => {
+        setIsResizingSidebar(false);
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp, { once: true });
+    },
+    [clampSidebarWidthToContainer, sidebarWidth],
+  );
+
+  const handleSidebarResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setSidebarWidth((currentWidth) =>
+          clampSidebarWidthToContainer(currentWidth - 16),
+        );
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setSidebarWidth((currentWidth) =>
+          clampSidebarWidthToContainer(currentWidth + 16),
+        );
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        setSidebarWidth(DOCS_SIDEBAR_MIN_WIDTH);
+      }
+    },
+    [clampSidebarWidthToContainer],
   );
 
   const handleDocArchived = useCallback(
@@ -663,9 +893,12 @@ export function DocsView({
     isLoadingActiveDoc || Boolean(activeDoc && activeDoc.id !== activeDocId);
 
   return (
-    <div className="flex h-full">
+    <div ref={containerRef} className="flex h-full min-w-0">
       {/* Docs Sidebar (Inner) */}
-      <div className="w-64 border-r bg-muted/10 flex flex-col h-full">
+      <div
+        className="flex h-full flex-none flex-col overflow-hidden border-r bg-muted/10"
+        style={{ width: sidebarWidth, minWidth: DOCS_SIDEBAR_MIN_WIDTH }}
+      >
         {/* ... Sidebar Content ... */}
         <div className="p-4 border-b flex items-center justify-between h-14">
           <span className="font-semibold text-sm">
@@ -744,7 +977,7 @@ export function DocsView({
             </Button>
           </div>
         </div>
-        <ScrollArea className="flex-1 py-2">
+        <ScrollArea className="min-w-0 flex-1 py-2">
           <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
             {sidebarMode === "active" ? "전체 문서" : "휴지통"}
           </div>
@@ -767,12 +1000,58 @@ export function DocsView({
               />
             ) : sidebarMode === "archived" && archivedDocs && archivedDocs.length > 0 ? (
               <div className="space-y-1">
+                <div className="mb-2 flex items-center gap-2 rounded-md border bg-background/70 px-2 py-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 px-2 text-xs"
+                    onClick={handleToggleAllArchivedDocs}
+                  >
+                    {allArchivedSelected ? "전체 해제" : "전체 선택"}
+                  </Button>
+                  <div className="ml-auto flex min-w-0 items-center gap-1">
+                    {selectedArchivedDocIds.length > 0 && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 shrink-0 px-2 text-[11px]"
+                          onClick={() => void handleBulkRestore()}
+                        >
+                          복원
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 shrink-0 px-2 text-[11px] text-red-600 hover:bg-red-50 hover:text-red-700 disabled:text-muted-foreground"
+                          onClick={() => void handleBulkPermanentDelete()}
+                          disabled={effectiveArchivedDeleteIds.length === 0}
+                        >
+                          삭제
+                        </Button>
+                      </>
+                    )}
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {selectedArchivedDocIds.length}개 선택
+                    </span>
+                  </div>
+                </div>
                 {archivedDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted/40"
+                    className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted/40"
                   >
-                    <div className="min-w-0 flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedArchivedDocIdSet.has(doc.id)}
+                      onCheckedChange={(checked) =>
+                        handleToggleArchivedDoc(doc.id, checked === true)
+                      }
+                      aria-label={`${doc.title} 선택`}
+                    />
+                    <div className="min-w-0 flex flex-1 items-center gap-2">
                       {doc.kind === "folder" ? (
                         <Archive className="h-4 w-4 shrink-0" />
                       ) : (
@@ -780,24 +1059,6 @@ export function DocsView({
                       )}
                       <span className="truncate">{doc.title}</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => handleRestoreDoc(doc.id)}
-                    >
-                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                      복원
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => handlePermanentDeleteDoc(doc.id, doc.title)}
-                    >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      삭제
-                    </Button>
                   </div>
                 ))}
               </div>
@@ -825,8 +1086,23 @@ export function DocsView({
         </ScrollArea>
       </div>
 
+      <div
+        role="separator"
+        aria-label="문서 사이드바 너비 조절"
+        aria-orientation="vertical"
+        tabIndex={0}
+        onPointerDown={handleSidebarResizeStart}
+        onKeyDown={handleSidebarResizeKeyDown}
+        onDoubleClick={() => setSidebarWidth(DOCS_SIDEBAR_MIN_WIDTH)}
+        className={`group relative hidden w-1 flex-none cursor-col-resize bg-transparent transition-colors lg:block ${
+          isResizingSidebar ? "bg-border/80" : "hover:bg-border/60"
+        }`}
+      >
+        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/70" />
+      </div>
+
       {/* Editor Area */}
-      <div className="flex-1 bg-background flex flex-col h-full overflow-hidden relative">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
         {activeDocId ? (
           <div className="flex flex-col h-full w-full">
             {/* Top Navigation Bar */}

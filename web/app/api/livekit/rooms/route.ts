@@ -2,8 +2,43 @@ import { RoomServiceClient } from "livekit-server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import prisma from "@/lib/prisma";
+import {
+  WORKSPACE_VOICE_ROOM_ALIASES,
+  buildWorkspaceVoiceRoomName,
+} from "@/lib/workspace-voice";
 
 export const dynamic = "force-dynamic";
+
+type LiveKitParticipantMetadata = {
+  avatarUrl?: string;
+};
+
+type LiveKitParticipantSummary = {
+  identity: string;
+  name?: string | null;
+  avatarUrl: string;
+  isSpeaking: boolean;
+};
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "";
+
+const getErrorCode = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  typeof error.code === "string"
+    ? error.code
+    : "";
+
+const getErrorStatus = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "status" in error &&
+  typeof error.status === "number"
+    ? error.status
+    : 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,6 +63,24 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const workspaceId = req.nextUrl.searchParams.get("workspaceId");
+
+    if (workspaceId) {
+      const membership = await prisma.workspace_members.findUnique({
+        where: {
+          workspace_id_user_id: {
+            workspace_id: workspaceId,
+            user_id: session.user.id,
+          },
+        },
+        select: { user_id: true },
+      });
+
+      if (!membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     // 2. Init Service Client
     // Note: RoomServiceClient typically expects the HTTP/HTTPS url, but LiveKit cloud often uses WSS.
     // The SDK handles protocol replacement usually, but let's pass the env var directly.
@@ -38,21 +91,29 @@ export async function GET(req: NextRequest) {
     );
 
     // 3. Fetch Participants for target rooms
-    const targetRooms = ["dev-room", "lounge"];
-    const roomsData: Record<string, any[]> = {};
+    const targetRooms = WORKSPACE_VOICE_ROOM_ALIASES.map((roomAlias) => ({
+      roomAlias,
+      roomName: workspaceId
+        ? buildWorkspaceVoiceRoomName(workspaceId, roomAlias)
+        : roomAlias,
+    }));
+    const roomsData: Record<string, LiveKitParticipantSummary[]> = {};
 
     await Promise.all(
-      targetRooms.map(async (roomName) => {
+      targetRooms.map(async ({ roomAlias, roomName }) => {
         try {
           const participants = await svc.listParticipants(roomName);
           // Map to simplified objects
-          roomsData[roomName] = participants.map((p) => {
+          roomsData[roomAlias] = participants.map((p) => {
             let avatarUrl = "";
             try {
               if (p.metadata) {
-                avatarUrl = JSON.parse(p.metadata).avatarUrl;
+                const metadata = JSON.parse(
+                  p.metadata,
+                ) as LiveKitParticipantMetadata;
+                avatarUrl = metadata.avatarUrl || "";
               }
-            } catch (e) {}
+            } catch {}
 
             return {
               identity: p.identity,
@@ -61,20 +122,20 @@ export async function GET(req: NextRequest) {
               isSpeaking: false, // server side doesn't know speaking status easily w/o webhooks, so ignore
             };
           });
-        } catch (e: any) {
+        } catch (error: unknown) {
           // If room doesn't exist, it means 0 participants. This is expected.
           if (
-            e.message?.includes("not exist") ||
-            e.code === "not_found" ||
-            e.status === 404
+            getErrorMessage(error).includes("not exist") ||
+            getErrorCode(error) === "not_found" ||
+            getErrorStatus(error) === 404
           ) {
-            roomsData[roomName] = [];
+            roomsData[roomAlias] = [];
           } else {
             console.error(
               `[API] Failed to list participants for ${roomName}:`,
-              e,
+              error,
             );
-            roomsData[roomName] = [];
+            roomsData[roomAlias] = [];
           }
         }
       }),

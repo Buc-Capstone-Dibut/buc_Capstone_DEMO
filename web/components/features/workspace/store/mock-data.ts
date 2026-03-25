@@ -1,4 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
+
+// Legacy transitional store:
+// keep existing screens working, but avoid adding new product behavior here.
 
 // --- Advanced Kanban Types ---
 
