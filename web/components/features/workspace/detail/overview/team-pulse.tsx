@@ -7,6 +7,10 @@ import { Users, Volume2, Mic } from "lucide-react";
 import useSWR from "swr";
 import { cn } from "@/lib/utils";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  getWorkspaceVoiceRoomLabel,
+  getWorkspaceVoiceRoomsApiPath,
+} from "@/lib/workspace-voice";
 
 type TeamPulseMember = {
   id: string;
@@ -26,13 +30,17 @@ interface TeamPulseProps {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function TeamPulse({ members = [] }: TeamPulseProps) {
+export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
   const { onlineUsers } = usePresence();
 
   // Fetch Voice Participants
-  const { data: roomParticipants } = useSWR("/api/livekit/rooms", fetcher, {
-    refreshInterval: 10000,
-  });
+  const { data: roomParticipants } = useSWR(
+    projectId ? getWorkspaceVoiceRoomsApiPath(projectId) : null,
+    fetcher,
+    {
+      refreshInterval: 10000,
+    },
+  );
 
   // Calculate stats
   const onlineCount = members.filter((m) => onlineUsers.has(m.id)).length;
@@ -121,7 +129,10 @@ export function TeamPulse({ members = [] }: TeamPulseProps) {
                         {currentRoomName ? (
                           <span className="text-purple-600 flex items-center gap-1">
                             <Volume2 className="h-3 w-3" />
-                            {currentRoomName} 접속 중
+                            {getWorkspaceVoiceRoomLabel(
+                              currentRoomName as "dev-room" | "lounge",
+                            )}{" "}
+                            접속 중
                           </span>
                         ) : (
                           <span>{member.role}</span>

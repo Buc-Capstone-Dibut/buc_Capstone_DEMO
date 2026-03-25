@@ -1,17 +1,39 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BrainCircuit, GitBranch, Plus, Video, Zap } from "lucide-react";
-import { MOCK_COMMUNITY_POSTS } from "@/mocks/interview-data";
+import { MOCK_COMMUNITY_POSTS, type MockPost } from "@/mocks/interview-data";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { PostCard } from "@/components/features/community/post-card";
+import type { Database } from "@/lib/database.types";
 
 interface InterviewDashboardProps {
    onStartNew: () => void;
    onOpenTraining?: () => void;
    onImportFromMyPage?: () => void;
 }
+
+type CommunityPostCardPost = Database["public"]["Tables"]["posts"]["Row"] & {
+   author: Database["public"]["Tables"]["profiles"]["Row"] | null;
+   comments_count?: number;
+};
+
+const toCommunityPostCardPost = (post: MockPost): CommunityPostCardPost => ({
+   id: post.id,
+   author_id: post.author?.id ?? null,
+   title: post.title,
+   content: post.content,
+   category: post.category as CommunityPostCardPost["category"],
+   tags: post.tags,
+   views: post.views,
+   likes: post.likes,
+   has_accepted_answer: false,
+   created_at: post.created_at,
+   updated_at: post.updated_at,
+   author: post.author,
+   comments_count: post.comments_count,
+});
 
 export function InterviewDashboard({ onStartNew, onOpenTraining, onImportFromMyPage }: InterviewDashboardProps) {
    return (
@@ -154,14 +176,20 @@ export function InterviewDashboard({ onStartNew, onOpenTraining, onImportFromMyP
                      <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500" /> 오늘의 면접 꿀팁
                   </h2>
                   <p className="text-muted-foreground">먼저 취업한 선배들의 노하우와 합격 후기를 확인해 보세요.</p>
+                  <Badge variant="secondary" className="w-fit text-[10px]">
+                     예시 콘텐츠
+                  </Badge>
                </div>
                <Button variant="ghost" className="text-muted-foreground">더보기</Button>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                {MOCK_COMMUNITY_POSTS.map((post) => (
-                  // @ts-ignore - MockPost type compatibility with Database Post type
-                  <PostCard key={post.id} post={post as any} href={`/community/post/${post.id}`} />
+                  <PostCard
+                     key={post.id}
+                     post={toCommunityPostCardPost(post)}
+                     href={`/community/post/${post.id}`}
+                  />
                ))}
             </div>
          </section>

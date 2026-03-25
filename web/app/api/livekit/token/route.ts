@@ -6,6 +6,10 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { getWorkspaceLifecycle, isWorkspaceCompleted } from "@/lib/server/workspace-lifecycle";
 import { extractAuthProfileSeed } from "@/lib/my-profile";
+import {
+  buildWorkspaceVoiceRoomName,
+  isWorkspaceVoiceRoomAlias,
+} from "@/lib/workspace-voice";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +22,8 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    let resolvedRoom = room;
 
     // 1. Authenticate User
     const supabase = createRouteHandlerClient({ cookies });
@@ -33,6 +39,13 @@ export async function GET(req: NextRequest) {
     const seed = extractAuthProfileSeed(user);
 
     if (workspaceId) {
+      if (!isWorkspaceVoiceRoomAlias(room)) {
+        return NextResponse.json(
+          { error: "Invalid workspace voice room" },
+          { status: 400 },
+        );
+      }
+
       const membership = await prisma.workspace_members.findUnique({
         where: {
           workspace_id_user_id: {
@@ -58,6 +71,8 @@ export async function GET(req: NextRequest) {
           { status: 403 },
         );
       }
+
+      resolvedRoom = buildWorkspaceVoiceRoomName(workspaceId, room);
     }
 
     const profile = await prisma.profiles.findUnique({
@@ -90,9 +105,12 @@ export async function GET(req: NextRequest) {
       },
     );
 
-    at.addGrant({ roomJoin: true, room: room });
+    at.addGrant({ roomJoin: true, room: resolvedRoom });
 
-    return NextResponse.json({ token: await at.toJwt() });
+    return NextResponse.json({
+      token: await at.toJwt(),
+      room: resolvedRoom,
+    });
   } catch (error) {
     console.error("LiveKit Token Error:", error);
     return NextResponse.json(

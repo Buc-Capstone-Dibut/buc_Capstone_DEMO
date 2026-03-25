@@ -147,21 +147,27 @@ KOREAN_SPACING_REPLACEMENTS = (
     (re.compile(r"AI면접관"), "AI 면접관"),
     (re.compile(r"세션별상태"), "세션별 상태"),
     (re.compile(r"상태를가볍게"), "상태를 가볍게"),
+    (re.compile(r"상태를가\s*볍게"), "상태를 가볍게"),
     (re.compile(r"가볍게유지하고"), "가볍게 유지하고"),
+    (re.compile(r"가볍게\s*유지\s*하고"), "가볍게 유지하고"),
     (re.compile(r"이벤트처리"), "이벤트 처리"),
     (re.compile(r"처리비동기로"), "처리 비동기로"),
     (re.compile(r"비동기로분"), "비동기로 분"),
     (re.compile(r"분했으며서버"), "분했으며 서버"),
     (re.compile(r"서버인스턴"), "서버 인스턴"),
+    (re.compile(r"서버인\s*스턴"), "서버 인스턴"),
     (re.compile(r"인스턴나눠"), "인스턴 나눠"),
     (re.compile(r"나눠연결"), "나눠 연결"),
+    (re.compile(r"나눠\s*연결"), "나눠 연결"),
     (re.compile(r"시키는방식으로"), "시키는 방식으로"),
+    (re.compile(r"시키\s*는방식"), "시키는 방식"),
     (re.compile(r"방식으로병목"), "방식으로 병목"),
     (re.compile(r"병목줄여"), "병목 줄여"),
     (re.compile(r"줄여수십명접속"), "줄여 수십명 접속"),
     (re.compile(r"끊김없"), "끊김 없"),
     (re.compile(r"끊김 없안정적으로"), "끊김 없이 안정적으로"),
     (re.compile(r"안정적으로운영"), "안정적으로 운영"),
+    (re.compile(r"운\s*영했습니다"), "운영했습니다"),
     (re.compile(r"저희회사"), "저희 회사"),
     (re.compile(r"저희팀"), "저희 팀"),
     (re.compile(r"회사서비스"), "회사 서비스"),
@@ -440,6 +446,8 @@ def _apply_user_transcript_cleanup(text: str) -> str:
         formatted,
     )
     for pattern, replacement in USER_TECHNICAL_RECOVERY_PATTERNS:
+        formatted = pattern.sub(replacement, formatted)
+    for pattern, replacement in KOREAN_SPACING_REPLACEMENTS:
         formatted = pattern.sub(replacement, formatted)
     for pattern, replacement in KOREAN_BOUNDARY_PATTERNS:
         formatted = pattern.sub(replacement, formatted)

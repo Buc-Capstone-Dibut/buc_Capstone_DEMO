@@ -566,7 +566,6 @@ export default function InterviewAnalysisPage() {
   const totalSessions = ALL_SESSIONS.length;
   const totalMockSessions = ALL_SESSIONS.filter((session) => session.kind === "mock").length;
   const totalDefenseSessions = ALL_SESSIONS.filter((session) => session.kind === "defense").length;
-  const recentThirtyDays = totalSessions;
 
   useEffect(() => {
     let cancelled = false;
@@ -640,7 +639,8 @@ export default function InterviewAnalysisPage() {
           query = query.overlaps("tags", tags);
         }
 
-        let { data, error } = await query;
+        const { data: initialData, error } = await query;
+        let data = initialData;
 
         if (error) {
           throw error;
@@ -708,6 +708,9 @@ export default function InterviewAnalysisPage() {
               <LayoutDashboard className="h-10 w-10 text-primary" />
               나의 인터뷰 분석
             </h1>
+            <Badge variant="secondary" className="w-fit rounded-full">
+              데모 리포트 데이터
+            </Badge>
             <p className="text-lg text-muted-foreground">
               면접과 포트폴리오 디펜스 기록을 바탕으로 내 4축 성향과 전체 흐름을 확인합니다.
             </p>

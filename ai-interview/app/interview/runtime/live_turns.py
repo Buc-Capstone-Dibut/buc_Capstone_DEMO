@@ -219,7 +219,7 @@ def prepare_live_user_request(
         )
         if followup_spec.should_announce_closing:
             extra_instruction = (
-                "이번 턴은 마지막 질문입니다."
+                "이번 턴은 마지막 질문입니다. 질문은 정확히 1개만 하세요."
             )
 
     answer_quality_hint = (

@@ -12,20 +12,31 @@ AUDIO_DATA_MESSAGE_TYPES = {"mic-audio-data", "raw-audio-data"}
 AUDIO_END_MESSAGE_TYPES = {"mic-audio-end", "flush-audio", "end-utterance"}
 
 
+async def _noop_begin_live_input_stream(*_args: Any, **_kwargs: Any) -> bool:
+    return False
+
+
+async def _noop_push_live_audio_chunk(
+    *_args: Any,
+    **_kwargs: Any,
+) -> bool:
+    return False
+
+
 @dataclass(frozen=True)
 class ClientMessageRouterDeps:
-    runtime_architecture: str
     send_json: Callable[..., Awaitable[bool]]
     send_avatar_state: Callable[..., Awaitable[bool]]
     handle_session_init: Callable[..., Awaitable[None]]
     coerce_audio_chunk: Callable[[Any], list[float]]
     enqueue_user_segment: Callable[..., Awaitable[None]]
-    begin_live_input_stream: Callable[..., Awaitable[bool]] | None
-    push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None
-    push_parallel_stt_audio_chunk: Callable[[WebSocket, VoiceWsState, list[float], int], Awaitable[bool]] | None
     reset_realtime_user_transcript: Callable[[VoiceWsState], None]
     resume_listening: Callable[..., Awaitable[Any]]
     cancel_playback_resume_task: Callable[[VoiceWsState], None]
+    runtime_architecture: str = ""
+    begin_live_input_stream: Callable[..., Awaitable[bool]] | None = _noop_begin_live_input_stream
+    push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None = _noop_push_live_audio_chunk
+    push_parallel_stt_audio_chunk: Callable[[WebSocket, VoiceWsState, list[float], int], Awaitable[bool]] | None = _noop_push_live_audio_chunk
 
 
 async def handle_client_message(

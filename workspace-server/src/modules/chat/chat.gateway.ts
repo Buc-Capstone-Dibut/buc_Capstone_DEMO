@@ -49,13 +49,37 @@ export const setupChatGateway = (io: Server) => {
             payload.name,
             payload.description,
           );
-          // Broadcast to workspace room? For simple integration, we might not have a workspace-wide room.
-          // Client can poll or we can implement a global event if needed.
-          // For now, assume client re-fetches or manually handling.
-          // Better: Emit to a room named `workspace:${workspaceId}` if implemented.
-          // We'll just callback for now.
+          io.to(payload.workspaceId).emit("chat:channel_created", channel);
           if (callback) callback({ success: true, data: channel });
         } catch (e: any) {
+          if (callback) callback({ success: false, error: e.message });
+        }
+      },
+    );
+
+    socket.on(
+      "chat:delete_channel",
+      async (
+        payload: {
+          channelId: string;
+          requesterId: string;
+        },
+        callback,
+      ) => {
+        try {
+          const deletedChannel = await ChatService.deleteChannel(
+            payload.channelId,
+            payload.requesterId,
+          );
+
+          io.to(deletedChannel.workspaceId).emit(
+            "chat:channel_deleted",
+            deletedChannel,
+          );
+
+          if (callback) callback({ success: true, data: deletedChannel });
+        } catch (e: any) {
+          console.error("Chat Delete Channel Error", e);
           if (callback) callback({ success: false, error: e.message });
         }
       },
