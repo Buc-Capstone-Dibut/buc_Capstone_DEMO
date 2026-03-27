@@ -167,6 +167,7 @@ def _session_engine_deps(
     merge_vad_events=None,
     resume_listening=None,
     next_ai_turn_id=None,
+    finalize_parallel_stt_stream=None,
     runtime_architecture="live-only",
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
@@ -218,6 +219,7 @@ def _session_engine_deps(
         merge_vad_events=merge_vad_events or (lambda events: events[-1] if events else {}),
         resume_listening=resume_listening or AsyncMock(return_value=None),
         next_ai_turn_id=next_ai_turn_id or (lambda session_id: f"{session_id}:next"),
+        finalize_parallel_stt_stream=finalize_parallel_stt_stream or AsyncMock(return_value=True),
         runtime_architecture=runtime_architecture,
     )
 

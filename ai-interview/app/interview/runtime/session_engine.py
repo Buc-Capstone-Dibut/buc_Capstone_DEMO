@@ -158,6 +158,21 @@ def _select_best_user_text(
     )
 
 
+def _select_optimistic_live_user_text(
+    *,
+    parallel_user_text: str,
+    realtime_user_text: str,
+    streamed_user_text: str,
+    utterance_duration_ms: float,
+) -> str:
+    return _select_best_user_text(
+        live_user_text=parallel_user_text,
+        realtime_user_text=realtime_user_text,
+        fallback_user_text=streamed_user_text,
+        utterance_duration_ms=utterance_duration_ms,
+    )
+
+
 def _should_request_fallback_stt(
     *,
     realtime_user_text: str,
@@ -233,7 +248,9 @@ def _capture_live_input_stream_state(
     state: VoiceWsState,
 ) -> tuple[str, str, str, str, float, int]:
     streamed_user_text = sanitize_user_turn_text(
-        state.parallel_stt_best_text or state.live_input_streamed_user_text
+        state.parallel_stt_final_text
+        or state.parallel_stt_best_text
+        or state.live_input_streamed_user_text
     )
     return (
         (state.live_input_turn_id or "").strip(),
@@ -258,10 +275,20 @@ def _clear_live_input_stream_state(
     if state.parallel_stt_task and not state.parallel_stt_task.done():
         state.parallel_stt_task.cancel()
     state.parallel_stt_task = None
+    if state.parallel_stt_stream is not None:
+        try:
+            state.parallel_stt_stream.close()
+        except Exception:
+            pass
+    state.parallel_stt_stream = None
     state.parallel_stt_turn_id = ""
     state.parallel_stt_sample_rate = 16000
     state.parallel_stt_samples = []
     state.parallel_stt_best_text = ""
+    state.parallel_stt_final_text = ""
+    state.parallel_stt_provider = ""
+    state.parallel_stt_has_emitted = False
+    state.parallel_stt_stream_started_at = 0.0
     state.parallel_stt_last_requested_sample_count = 0
 
 
@@ -330,6 +357,64 @@ def _select_parallel_refined_user_text(
     return ""
 
 
+async def _maybe_promote_parallel_user_text_before_followup(
+    deps: SessionEngineDeps,
+    state: VoiceWsState,
+    *,
+    wav_bytes: bytes,
+    utterance_duration_ms: float,
+) -> None:
+    baseline_text = _select_best_user_text(
+        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        realtime_user_text=state.realtime_user_transcript,
+        fallback_user_text=state.live_input_streamed_user_text,
+        utterance_duration_ms=utterance_duration_ms,
+    )
+    if not _should_request_fallback_stt(
+        realtime_user_text=baseline_text,
+        utterance_duration_ms=utterance_duration_ms,
+    ):
+        return
+
+    baseline_text = _select_best_user_text(
+        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        realtime_user_text=state.realtime_user_transcript,
+        fallback_user_text=state.live_input_streamed_user_text,
+        utterance_duration_ms=utterance_duration_ms,
+    )
+    if not _should_request_fallback_stt(
+        realtime_user_text=baseline_text,
+        utterance_duration_ms=utterance_duration_ms,
+    ):
+        return
+
+    refine_fn = getattr(deps, "parallel_refine_user_audio", None)
+    if refine_fn is None or not wav_bytes:
+        return
+
+    try:
+        refined_text, _ = await asyncio.wait_for(refine_fn(state, wav_bytes), timeout=0.22)
+    except asyncio.TimeoutError:
+        return
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.warning("bounded parallel STT refine before followup failed", exc_info=True)
+        return
+
+    improved_text = _select_parallel_refined_user_text(
+        current_text=baseline_text,
+        refined_text=refined_text,
+        utterance_duration_ms=utterance_duration_ms,
+    )
+    if not improved_text:
+        return
+
+    state.parallel_stt_best_text = improved_text
+    state.live_input_streamed_user_text = improved_text
+    state.realtime_user_transcript = improved_text
+
+
 def _schedule_parallel_user_transcript_refinement(
     deps: SessionEngineDeps,
     ws: WebSocket,
@@ -353,7 +438,7 @@ def _schedule_parallel_user_transcript_refinement(
             if not persisted_turn_id:
                 return
 
-            refined_text, refined_provider = await refine_fn(wav_bytes)
+            refined_text, refined_provider = await refine_fn(state, wav_bytes)
             improved_text = _select_parallel_refined_user_text(
                 current_text=current_user_text,
                 refined_text=refined_text,
@@ -377,6 +462,7 @@ def _schedule_parallel_user_transcript_refinement(
                 "user",
                 improved_text,
                 turn_id=user_turn_id,
+                provider=(refined_provider or state.parallel_stt_provider or None),
             )
         except Exception:
             logger.warning(
@@ -441,10 +527,11 @@ class SessionEngineDeps:
     next_ai_turn_id: Callable[[str], str]
     transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None
     commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None
+    finalize_parallel_stt_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None
     runtime_architecture: str = "hybrid"
     stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None
     update_turn_content: Callable[..., Awaitable[Any]] | None = None
-    parallel_refine_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None
+    parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None
 
 
 def build_session_init_request(
@@ -649,8 +736,49 @@ async def process_user_utterance(
         await deps.send_runtime_meta_snapshot(ws, state)
 
         architecture = _runtime_architecture(deps)
-        if architecture == "live-only" and deps.commit_live_input_stream is not None and state.live_input_turn_active:
-            await deps.commit_live_input_stream(state)
+        optimistic_user_turn_id = (
+            (state.live_input_turn_id or "").strip()
+            or deps.next_ai_turn_id(state.session_id)
+        )
+        optimistic_user_text_sent = ""
+        if architecture == "live-only":
+            if deps.finalize_parallel_stt_stream is not None:
+                await deps.finalize_parallel_stt_stream(state)
+            await _maybe_promote_parallel_user_text_before_followup(
+                deps,
+                state,
+                wav_bytes=wav_bytes,
+                utterance_duration_ms=utterance_duration_ms,
+            )
+            parallel_optimistic_text = sanitize_user_turn_text(
+                state.parallel_stt_final_text or state.parallel_stt_best_text
+            )
+            if state.parallel_stt_turn_id:
+                optimistic_user_text = parallel_optimistic_text
+            else:
+                optimistic_user_text = _select_optimistic_live_user_text(
+                    parallel_user_text=parallel_optimistic_text,
+                    realtime_user_text=state.realtime_user_transcript,
+                    streamed_user_text=state.live_input_streamed_user_text,
+                    utterance_duration_ms=utterance_duration_ms,
+                )
+            compact_optimistic_len = len(re.findall(r"[0-9A-Za-z가-힣]", optimistic_user_text))
+            if (
+                optimistic_user_text
+                and compact_optimistic_len >= 6
+                and not deps.is_probable_ai_echo(state, optimistic_user_text, wav_bytes)
+            ):
+                if await deps.send_transcript(
+                    ws,
+                    state.session_id,
+                    "user",
+                    optimistic_user_text,
+                    turn_id=optimistic_user_turn_id,
+                    provider=(state.parallel_stt_provider or None),
+                ):
+                    optimistic_user_text_sent = optimistic_user_text
+            if deps.commit_live_input_stream is not None and state.live_input_turn_active:
+                await deps.commit_live_input_stream(state)
 
         (
             streamed_turn_id,
@@ -678,7 +806,7 @@ async def process_user_utterance(
             await deps.resume_listening(ws, state)
             return
 
-        next_turn_id = streamed_turn_id or deps.next_ai_turn_id(state.session_id)
+        next_turn_id = streamed_turn_id or optimistic_user_turn_id or deps.next_ai_turn_id(state.session_id)
         user_turn_id = next_turn_id
         live_ai_text = ""
         prepared_live_audio = None
@@ -734,13 +862,20 @@ async def process_user_utterance(
                         prompt_user_text=live_request.prompt_user_text,
                         extra_instruction=live_request.extra_instruction,
                     )
-            user_text = _select_best_user_text(
-                live_user_text=live_user_text,
-                realtime_user_text=state.realtime_user_transcript,
-                fallback_user_text=streamed_user_text,
-                utterance_duration_ms=utterance_duration_ms,
+            parallel_user_text = sanitize_user_turn_text(
+                state.parallel_stt_final_text or state.parallel_stt_best_text
             )
-            user_provider_name = (followup_provider_name or live.provider or "").strip()
+            if parallel_user_text:
+                user_text = parallel_user_text
+                user_provider_name = (state.parallel_stt_provider or "google-cloud-stt").strip()
+            else:
+                user_text = _select_best_user_text(
+                    live_user_text=live_user_text,
+                    realtime_user_text=state.realtime_user_transcript,
+                    fallback_user_text=streamed_user_text,
+                    utterance_duration_ms=utterance_duration_ms,
+                )
+                user_provider_name = (followup_provider_name or live.provider or "").strip()
         else:
             user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)
             user_text = sanitize_user_turn_text(user_text)
@@ -828,14 +963,16 @@ async def process_user_utterance(
             channel="voice",
             payload=user_turn_payload,
         )
-        if not transcription_missing and not await deps.send_transcript(
-            ws,
-            state.session_id,
-            "user",
-            user_text,
-            turn_id=user_turn_id,
-        ):
-            return
+        if not transcription_missing and user_text != optimistic_user_text_sent:
+            if not await deps.send_transcript(
+                ws,
+                state.session_id,
+                "user",
+                user_text,
+                turn_id=user_turn_id,
+                provider=(user_provider_name or None),
+            ):
+                return
         _schedule_parallel_user_transcript_refinement(
             deps,
             ws,

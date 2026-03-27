@@ -155,8 +155,9 @@ def build_session_engine_deps(
     resume_listening: Callable[..., Awaitable[Any]],
     next_ai_turn_id: Callable[[str], str],
     commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
+    finalize_parallel_stt_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
     update_turn_content: Callable[..., Awaitable[Any]] | None = None,
-    parallel_refine_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None,
+    parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=create_live_interview_session,
@@ -204,6 +205,7 @@ def build_session_engine_deps(
         resume_listening=resume_listening,
         next_ai_turn_id=next_ai_turn_id,
         commit_live_input_stream=commit_live_input_stream,
+        finalize_parallel_stt_stream=finalize_parallel_stt_stream,
         runtime_architecture=runtime_architecture,
         parallel_refine_user_audio=parallel_refine_user_audio,
     )

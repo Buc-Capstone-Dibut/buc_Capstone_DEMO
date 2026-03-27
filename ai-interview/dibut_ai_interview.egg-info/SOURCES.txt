@@ -65,5 +65,6 @@ tests/test_hybrid_question_flow.py
 tests/test_interview_backend.py
 tests/test_live_client.py
 tests/test_report_agent.py
+tests/test_stt_service.py
 tests/test_turn_text.py
 tests/test_voice_runtime.py

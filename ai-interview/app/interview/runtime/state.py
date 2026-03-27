@@ -154,9 +154,15 @@ class VoiceWsState:
     parallel_stt_turn_id: str = ""
     parallel_stt_sample_rate: int = 16000
     parallel_stt_samples: list[float] = field(default_factory=list)
+    parallel_stt_phrase_hints: list[str] = field(default_factory=list)
     parallel_stt_best_text: str = ""
+    parallel_stt_final_text: str = ""
+    parallel_stt_provider: str = ""
+    parallel_stt_has_emitted: bool = False
+    parallel_stt_stream_started_at: float = 0.0
     parallel_stt_last_requested_sample_count: int = 0
     parallel_stt_task: asyncio.Task[None] | None = None
+    parallel_stt_stream: Any | None = None
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
     waiting_playback_turn_id: str = ""

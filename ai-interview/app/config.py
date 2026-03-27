@@ -56,9 +56,10 @@ class Settings(BaseSettings):
     )
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
-    google_cloud_stt_model: str = Field(default="latest_short", alias="GOOGLE_CLOUD_STT_MODEL")
+    google_cloud_stt_model: str = Field(default="latest_long", alias="GOOGLE_CLOUD_STT_MODEL")
     google_cloud_stt_language_code: str = Field(default="ko-KR", alias="GOOGLE_CLOUD_STT_LANGUAGE_CODE")
-    google_cloud_stt_max_alternatives: int = Field(default=3, alias="GOOGLE_CLOUD_STT_MAX_ALTERNATIVES")
+    google_cloud_stt_max_alternatives: int = Field(default=5, alias="GOOGLE_CLOUD_STT_MAX_ALTERNATIVES")
+    google_cloud_stt_phrase_hint_boost: float = Field(default=16.0, alias="GOOGLE_CLOUD_STT_PHRASE_HINT_BOOST")
     github_token: str | None = Field(default=None, alias="GITHUB_TOKEN")
 
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")

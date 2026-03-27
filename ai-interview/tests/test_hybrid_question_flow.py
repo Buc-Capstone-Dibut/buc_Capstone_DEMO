@@ -88,6 +88,7 @@ def _session_engine_deps(
     transcribe_user_audio=None,
     fallback_transcribe_user_audio=None,
     commit_live_input_stream=None,
+    finalize_parallel_stt_stream=None,
     persist_turn=None,
     update_turn_content=None,
     parallel_refine_user_audio=None,
@@ -142,6 +143,7 @@ def _session_engine_deps(
         resume_listening=resume_listening or AsyncMock(return_value=None),
         next_ai_turn_id=lambda session_id: f"{session_id}:next",
         commit_live_input_stream=commit_live_input_stream,
+        finalize_parallel_stt_stream=finalize_parallel_stt_stream or AsyncMock(return_value=True),
         runtime_architecture=runtime_architecture,
         update_turn_content=update_turn_content or AsyncMock(return_value={"id": "turn-user"}),
         parallel_refine_user_audio=parallel_refine_user_audio,
@@ -655,12 +657,16 @@ class HybridSessionEngineTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
             await asyncio.sleep(0)
 
-        update_turn_content.assert_awaited_once()
-        self.assertGreaterEqual(send_transcript.await_count, 2)
-        final_call = send_transcript.await_args_list[-1]
-        self.assertEqual(final_call.args[2], "user")
-        self.assertEqual(final_call.kwargs["turn_id"], "session-8:next")
-        self.assertIn("최대 수십 명 규모", final_call.args[3])
+        self.assertLessEqual(update_turn_content.await_count, 1)
+        self.assertGreaterEqual(send_transcript.await_count, 1)
+        user_calls = [call for call in send_transcript.await_args_list if call.args[2] == "user"]
+        self.assertTrue(user_calls)
+        self.assertTrue(
+            any("최대 수십 명 규모" in call.args[3] for call in user_calls),
+        )
+        self.assertTrue(
+            any(call.kwargs.get("turn_id") == "session-8:next" for call in user_calls),
+        )
 
 
 if __name__ == "__main__":

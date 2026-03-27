@@ -28,7 +28,7 @@ interface UseOpenLLMProps {
   onTranscript?: (
     text: string,
     role: "user" | "ai",
-    meta?: { turnId?: string },
+    meta?: { turnId?: string; provider?: string },
   ) => void;
   onEvent?: (event: Record<string, unknown>) => void;
 }
@@ -593,6 +593,7 @@ export function useOpenLLM({
         }
         onTranscriptRef.current?.(event.text, event.role, {
           turnId: typeof event.turnId === "string" ? event.turnId : "",
+          provider: typeof event.provider === "string" ? event.provider : "",
         });
       }
       return;
