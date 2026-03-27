@@ -2144,7 +2144,17 @@ export function DocsView({
   };
 
   const handleStartCollab = useCallback(async () => {
-    if (isReadOnly || !activeDocId || editorMode === "collab") return;
+    const targetDocId = activeDocIdRef.current;
+    if (
+      isReadOnly ||
+      !targetDocId ||
+      editorMode === "collab" ||
+      switchingDocRef.current ||
+      isSwitchingDoc ||
+      isLoadingActiveDoc
+    ) {
+      return;
+    }
 
     setIsStartingCollab(true);
     try {
@@ -2153,14 +2163,14 @@ export function DocsView({
         throw new Error("협업 시작 전에 문서를 저장하지 못했습니다.");
       }
 
-      await syncDocPresence(activeDocId, {
+      await syncDocPresence(targetDocId, {
         mode: "NORMAL",
         isDirty: false,
         active: true,
       });
 
       const response = await fetch(
-        `/api/workspaces/${projectId}/docs/${activeDocId}/collab/start`,
+        `/api/workspaces/${projectId}/docs/${targetDocId}/collab/start`,
         {
           method: "POST",
         },
@@ -2188,9 +2198,9 @@ export function DocsView({
         throw new Error("협업 토큰을 받지 못했습니다.");
       }
 
-      pendingCollabEntryDocIdRef.current = activeDocId;
+      pendingCollabEntryDocIdRef.current = targetDocId;
       suppressedCollabAutoJoinDocIdRef.current = null;
-      await syncDocPresence(activeDocId, {
+      await syncDocPresence(targetDocId, {
         mode: "COLLAB",
         isDirty: false,
         active: true,
@@ -2211,10 +2221,11 @@ export function DocsView({
       setIsStartingCollab(false);
     }
   }, [
-    activeDocId,
     editorMode,
     handleSaveCurrentDoc,
+    isLoadingActiveDoc,
     isReadOnly,
+    isSwitchingDoc,
     mutateActiveDoc,
     mutateDocs,
     projectId,
@@ -2963,7 +2974,12 @@ export function DocsView({
                       size="sm"
                       className="h-8 gap-1.5"
                       onClick={() => void handleStartCollab()}
-                      disabled={isStartingCollab || !resolvedActiveDoc}
+                      disabled={
+                        isStartingCollab ||
+                        isSwitchingDoc ||
+                        isLoadingActiveDoc ||
+                        !resolvedActiveDoc
+                      }
                     >
                       {isStartingCollab ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2978,7 +2994,12 @@ export function DocsView({
                       size="sm"
                       className="h-8 gap-1.5"
                       onClick={() => void handleSaveCurrentDoc()}
-                      disabled={isSavingDocument || !resolvedActiveDoc}
+                      disabled={
+                        isSavingDocument ||
+                        isSwitchingDoc ||
+                        isLoadingActiveDoc ||
+                        !resolvedActiveDoc
+                      }
                     >
                       {isSavingDocument ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
