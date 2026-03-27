@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import type { AnyExtension } from "@tiptap/core";
+import type { AnyExtension, Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import ImageExtension from "@tiptap/extension-image";
@@ -43,10 +43,15 @@ interface MarkdownEditorProps {
   className?: string;
 }
 
-function extractMarkdown(instance: {
-  storage: { markdown?: { getMarkdown?: () => string } };
-}) {
-  return instance.storage.markdown?.getMarkdown?.() ?? "";
+type MarkdownStorage = {
+  markdown?: {
+    getMarkdown?: () => string;
+  };
+};
+
+function extractMarkdown(instance: Editor | null) {
+  const storage = instance?.storage as MarkdownStorage | undefined;
+  return storage?.markdown?.getMarkdown?.() ?? "";
 }
 
 export default function MarkdownEditor({

@@ -138,6 +138,29 @@ const normalizeTab = (tab: string | null) => {
   return ALLOWED_TABS.has(tab) ? tab : "overview";
 };
 
+const getWorkspaceSidebarStorageKey = (workspaceId: string) =>
+  `workspace-shell-sidebar-collapsed:${workspaceId}`;
+
+const safeLocalStorageGet = (key: string) => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const safeLocalStorageSet = (key: string, value: string) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // noop
+  }
+};
+
 type WorkspaceMeta = {
   read_only?: boolean;
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
@@ -163,6 +186,8 @@ export default function WorkspaceDetailPage() {
   const [activeTab, setActiveTab] = useState(() =>
     normalizeTab(searchParams.get("tab")),
   );
+  const [isWorkspaceSidebarCollapsed, setIsWorkspaceSidebarCollapsed] =
+    useState(false);
 
   const { connectSocket, disconnectSocket } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
@@ -214,6 +239,18 @@ export default function WorkspaceDetailPage() {
     const nextTab = normalizeTab(searchParams.get("tab"));
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [searchParams]);
+
+  useEffect(() => {
+    const stored = safeLocalStorageGet(getWorkspaceSidebarStorageKey(projectId));
+    setIsWorkspaceSidebarCollapsed(stored === "true");
+  }, [projectId]);
+
+  useEffect(() => {
+    safeLocalStorageSet(
+      getWorkspaceSidebarStorageKey(projectId),
+      isWorkspaceSidebarCollapsed ? "true" : "false",
+    );
+  }, [isWorkspaceSidebarCollapsed, projectId]);
 
   useEffect(() => {
     const taskId = searchParams.get("task");
@@ -328,6 +365,10 @@ export default function WorkspaceDetailPage() {
         projectId={projectId}
         activeTab={activeTab}
         onTabChange={handleTabChange}
+        collapsed={isWorkspaceSidebarCollapsed}
+        onToggleCollapsed={() =>
+          setIsWorkspaceSidebarCollapsed((prev) => !prev)
+        }
       />
       <main className="flex-1 overflow-y-auto h-full">
         {isReadOnly && (
