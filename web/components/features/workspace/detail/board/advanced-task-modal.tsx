@@ -704,7 +704,7 @@ export function AdvancedTaskModal({
                 </span>
 
                 {linkedDocs.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="max-h-[min(32vh,18rem)] space-y-2 overflow-y-auto pr-1">
                     {linkedDocs.map((relation) => {
                       const path = getDocPath(relation.doc.id, docs);
                       return (
@@ -799,7 +799,7 @@ export function AdvancedTaskModal({
                         linkedDocIds={linkedDocs.map((relation) => relation.doc.id)}
                         search={docSearch}
                         onSelect={(docId) => handleLinkDoc(docId)}
-                        className="mt-2 min-h-0"
+                        className="mt-2 min-h-0 flex-1"
                       />
                       <div className="mt-2 shrink-0 border-t pt-2">
                         <Button

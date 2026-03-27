@@ -4,7 +4,6 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import { getWorkspaceDocTemplate } from "@/lib/server/workspace-doc-templates";
-import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
 import { getWorkspaceDocsCollabStateMap } from "@/lib/server/workspace-doc-collab-session";
 
 type DocKind = "page" | "folder";
@@ -194,16 +193,6 @@ export async function POST(
           sort_order: (sibling?.sort_order ?? -1) + 1,
         },
       });
-
-      if (createdDoc.kind === "page") {
-        await tx.workspace_doc_states.create({
-          data: {
-            doc_id: createdDoc.id,
-            yjs_state: snapshotToYjsState(createdDoc.content),
-            updated_by: session.user.id,
-          },
-        });
-      }
 
       return createdDoc;
     });

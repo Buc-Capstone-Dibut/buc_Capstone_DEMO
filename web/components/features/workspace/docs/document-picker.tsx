@@ -157,8 +157,13 @@ export function DocumentPicker({
   );
 
   return (
-    <div className={cn("rounded-md border bg-background", className)}>
-      <ScrollArea className="max-h-[min(60vh,20rem)]">
+    <div
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden rounded-md border bg-background",
+        className,
+      )}
+    >
+      <ScrollArea className="h-full max-h-[min(60vh,20rem)]">
         <div className="p-1.5">
           {hasVisiblePages ? (
             <DocumentPickerBranch

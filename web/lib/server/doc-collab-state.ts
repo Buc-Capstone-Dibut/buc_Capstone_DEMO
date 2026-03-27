@@ -87,6 +87,11 @@ export async function saveDocCollabState(docId: string, yjsState: string) {
   return { ok: true as const };
 }
 
+function toSnapshotJsonValue(content: unknown): Prisma.InputJsonValue {
+  const normalized = Array.isArray(content) ? content : [];
+  return JSON.parse(JSON.stringify(normalized)) as Prisma.InputJsonValue;
+}
+
 type SaveWorkspaceDocSnapshotInput = {
   docId: string;
   yjsState: string;
@@ -95,13 +100,10 @@ type SaveWorkspaceDocSnapshotInput = {
   authorId?: string | null;
 };
 
-export async function saveWorkspaceDocSnapshot({
-  docId,
-  yjsState,
-  title,
-  emoji,
-  authorId,
-}: SaveWorkspaceDocSnapshotInput) {
+async function resolveWorkspaceDocWriteContext(
+  docId: string,
+  authorId?: string | null,
+) {
   const doc = await prisma.workspace_docs.findUnique({
     where: { id: docId },
     select: {
@@ -155,6 +157,28 @@ export async function saveWorkspaceDocSnapshot({
     nextAuthorId = authorId;
   }
 
+  return {
+    ok: true as const,
+    doc,
+    nextAuthorId,
+  };
+}
+
+export async function saveWorkspaceDocSnapshot({
+  docId,
+  yjsState,
+  title,
+  emoji,
+  authorId,
+}: SaveWorkspaceDocSnapshotInput) {
+  const context = await resolveWorkspaceDocWriteContext(docId, authorId);
+
+  if (!context.ok) {
+    return context;
+  }
+
+  const { doc, nextAuthorId } = context;
+
   const trimmedTitle =
     typeof title === "string" && title.trim().length > 0
       ? title.trim()
@@ -179,6 +203,54 @@ export async function saveWorkspaceDocSnapshot({
         ...(emoji !== undefined ? { emoji } : {}),
         ...(nextAuthorId !== doc.author_id ? { author_id: nextAuthorId } : {}),
       },
+    }),
+  ]);
+
+  return { ok: true as const };
+}
+
+type SaveWorkspaceDocContentInput = {
+  docId: string;
+  content: unknown;
+  title?: string;
+  emoji?: string | null;
+  authorId?: string | null;
+};
+
+export async function saveWorkspaceDocContent({
+  docId,
+  content,
+  title,
+  emoji,
+  authorId,
+}: SaveWorkspaceDocContentInput) {
+  const context = await resolveWorkspaceDocWriteContext(docId, authorId);
+
+  if (!context.ok) {
+    return context;
+  }
+
+  const { doc, nextAuthorId } = context;
+
+  const trimmedTitle =
+    typeof title === "string" && title.trim().length > 0
+      ? title.trim()
+      : undefined;
+
+  await prisma.$transaction([
+    prisma.workspace_docs.update({
+      where: { id: docId },
+      data: {
+        content: toSnapshotJsonValue(content),
+        ...(trimmedTitle !== undefined ? { title: trimmedTitle } : {}),
+        ...(emoji !== undefined ? { emoji } : {}),
+        ...(nextAuthorId !== doc.author_id ? { author_id: nextAuthorId } : {}),
+      },
+    }),
+    // Normal editor saves snapshot content directly. Drop any stale Yjs state so
+    // collaboration can be re-seeded from the latest saved content on demand.
+    prisma.workspace_doc_states.deleteMany({
+      where: { doc_id: docId },
     }),
   ]);
 

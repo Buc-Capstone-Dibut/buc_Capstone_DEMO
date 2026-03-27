@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { saveWorkspaceDocSnapshot } from "@/lib/server/doc-collab-state";
-import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
+import {
+  saveWorkspaceDocContent,
+  saveWorkspaceDocSnapshot,
+} from "@/lib/server/doc-collab-state";
 
 export async function POST(
   request: Request,
@@ -28,14 +30,11 @@ export async function POST(
       authorId?: unknown;
     };
 
-    let yjsState: string | null = null;
-    if (typeof payload.yjsState === "string" && payload.yjsState.trim()) {
-      yjsState = payload.yjsState;
-    } else if (Array.isArray(payload.content)) {
-      yjsState = snapshotToYjsState(payload.content);
-    }
+    const hasYjsState =
+      typeof payload.yjsState === "string" && payload.yjsState.trim().length > 0;
+    const hasContentSnapshot = Array.isArray(payload.content);
 
-    if (!yjsState) {
+    if (!hasYjsState && !hasContentSnapshot) {
       return NextResponse.json(
         { error: "유효한 문서 본문이 필요합니다." },
         { status: 400 },
@@ -81,19 +80,33 @@ export async function POST(
       );
     }
 
-    const result = await saveWorkspaceDocSnapshot({
-      docId,
-      yjsState,
+    const metadata = {
       ...(payload.title === undefined || typeof payload.title === "string"
         ? { title: payload.title }
         : {}),
-      ...(payload.emoji === undefined || payload.emoji === null || typeof payload.emoji === "string"
+      ...(payload.emoji === undefined ||
+      payload.emoji === null ||
+      typeof payload.emoji === "string"
         ? { emoji: payload.emoji as string | null | undefined }
         : {}),
-      ...(payload.authorId === undefined || payload.authorId === null || typeof payload.authorId === "string"
+      ...(payload.authorId === undefined ||
+      payload.authorId === null ||
+      typeof payload.authorId === "string"
         ? { authorId: payload.authorId as string | null | undefined }
         : {}),
-    });
+    };
+
+    const result = hasYjsState
+      ? await saveWorkspaceDocSnapshot({
+          docId,
+          yjsState: payload.yjsState as string,
+          ...metadata,
+        })
+      : await saveWorkspaceDocContent({
+          docId,
+          content: payload.content,
+          ...metadata,
+        });
 
     if (!result.ok) {
       return NextResponse.json(
@@ -107,7 +120,11 @@ export async function POST(
       savedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("API: Save Doc State Error", error);
+    console.error("API: Save Doc State Error", {
+      workspaceId: params.id,
+      docId: params.docId,
+      error,
+    });
     return NextResponse.json(
       { error: "문서 저장에 실패했습니다." },
       { status: 500 },
