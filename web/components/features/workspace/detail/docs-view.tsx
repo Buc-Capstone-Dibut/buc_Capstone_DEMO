@@ -187,7 +187,24 @@ type EmojiSelection = {
 
 type EditorHandle = DocumentEditorHandle | NormalDocumentEditorHandle;
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  const payload = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `Request failed with status ${res.status}`;
+
+    throw new Error(message);
+  }
+
+  return payload;
+};
 
 const formatMetaDate = (value?: string | Date | null) => {
   if (!value) return "-";
