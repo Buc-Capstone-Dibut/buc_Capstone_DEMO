@@ -51,7 +51,14 @@ interface NormalDocumentEditorProps {
 }
 
 export interface NormalDocumentEditorHandle {
-  saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
+  saveNow: (options?: {
+    silent?: boolean;
+    header?: {
+      title: string;
+      emoji: string | null;
+      authorId: string | null;
+    };
+  }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
 }
 
@@ -174,11 +181,6 @@ export const NormalDocumentEditor = forwardRef<
   );
 
   useEffect(() => {
-    lastSavedSnapshotRef.current = serializeBlocks(initialContent);
-    emitDirtyChange(false);
-  }, [docId, emitDirtyChange, initialContent]);
-
-  useEffect(() => {
     if (
       initialContent &&
       Array.isArray(initialContent) &&
@@ -202,10 +204,20 @@ export const NormalDocumentEditor = forwardRef<
   }, [editor, emitDirtyChange, initialContent]);
 
   const saveCurrentState = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: {
+      silent?: boolean;
+      header?: {
+        title: string;
+        emoji: string | null;
+        authorId: string | null;
+      };
+    }) => {
+      const snapshot = editor.document;
+      const serializedSnapshot = serializeBlocks(snapshot);
+
       if (!resolvedWorkspaceId || readOnly) {
-        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
-        emitDirtyChange(false);
+        lastSavedSnapshotRef.current = serializedSnapshot;
+        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
         return true;
       }
 
@@ -218,7 +230,14 @@ export const NormalDocumentEditor = forwardRef<
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              content: editor.document,
+              content: snapshot,
+              ...(options?.header
+                ? {
+                    title: options.header.title,
+                    emoji: options.header.emoji,
+                    authorId: options.header.authorId,
+                  }
+                : {}),
             }),
           },
         );
@@ -230,8 +249,8 @@ export const NormalDocumentEditor = forwardRef<
           );
         }
 
-        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
-        emitDirtyChange(false);
+        lastSavedSnapshotRef.current = serializedSnapshot;
+        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
         return true;
       } catch (error) {
         if (!options?.silent) {

@@ -23,10 +23,17 @@ import {
   Loader2,
   Inbox,
   EyeOff,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -343,6 +350,9 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPriorityManagerOpen, setIsPriorityManagerOpen] = useState(false);
   const [isStatusManagerOpen, setIsStatusManagerOpen] = useState(false);
+  const [isViewVisibilityOpen, setIsViewVisibilityOpen] = useState(true);
+  const [isHiddenSectionsOpen, setIsHiddenSectionsOpen] = useState(false);
+  const [isViewActionsOpen, setIsViewActionsOpen] = useState(true);
   const [pendingAction, setPendingAction] = useState<PendingBoardAction | null>(
     null,
   );
@@ -983,142 +993,207 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                   보기 설정
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[280px] p-4">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <Eye className="h-3 w-3" />
-                      속성 표시
-                    </div>
-                    <DraggablePropertySettings
-                      properties={settingsCardProperties}
-                      visibility={{
-                        tags: propertyVisibility.tags,
-                        assignee: propertyVisibility.assignee,
-                        dueDate: propertyVisibility.dueDate,
-                        priority: propertyVisibility.priority,
-                      }}
-                      onToggle={(prop) => {
-                        if (!activeView) return;
-                        if (prop === "title") return;
-                        const nextProperties = activeCardProperties.includes(prop)
-                          ? activeCardProperties.filter((item) => item !== prop)
-                          : [...activeCardProperties, prop];
-                        void handleUpdateView(activeView.id, {
-                          cardProperties: normalizeCardProperties(nextProperties),
-                        });
-                      }}
-                      onReorder={(newOrder) => {
-                        if (activeView) {
-                          const visiblePropertySet = new Set(activeCardProperties);
-                          void handleUpdateView(activeView.id, {
-                            cardProperties: normalizeCardProperties(
-                              newOrder.filter(
-                                (property) =>
-                                  property === "title" ||
-                                  visiblePropertySet.has(property),
-                              ),
-                            ),
-                          });
-                        }
-                      }}
-                    />
-                  </div>
-                  {isMainBoardView && (
-                    <>
-                      <Separator />
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          <EyeOff className="h-3 w-3" />
-                          섹션 숨기기
-                        </div>
-                        <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                          <div className="text-[11px] font-medium text-muted-foreground">
-                            상위 3축 보기
-                          </div>
-                          <div className="space-y-2">
-                            {STATUS_SECTION_OPTIONS.map((section) => {
-                              const checked = !hiddenStatusCategories.has(section.id);
-                              return (
-                                <label
-                                  key={section.id}
-                                  className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={() => {
-                                      void toggleStatusCategoryVisibility(section.id);
-                                    }}
-                                  />
-                                  <span>{section.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                          <div className="text-[11px] font-medium text-muted-foreground">
-                            세부 단계 보기
-                          </div>
-                          <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                            {statusColumns.map((column) => {
-                              const checked = !hiddenColumnIds.has(column.id);
-                              const categoryLabel =
-                                STATUS_SECTION_OPTIONS.find(
-                                  (section) =>
-                                    section.id === (column.category || "todo"),
-                                )?.label || "할 일";
-
-                              return (
-                                <label
-                                  key={column.id}
-                                  className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={() => {
-                                      void toggleColumnVisibility(column.id);
-                                    }}
-                                  />
-                                  <div className="min-w-0">
-                                    <div className="truncate">{column.title}</div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                      {categoryLabel}
-                                    </div>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                            {statusColumns.length === 0 && (
-                              <div className="text-xs text-muted-foreground">
-                                관리할 세부 단계가 없습니다.
-                              </div>
+              <PopoverContent
+                align="end"
+                className="w-[280px] overflow-hidden p-0"
+              >
+                <div className="max-h-[calc(100vh-8rem)] overflow-y-auto overscroll-contain p-4">
+                  <div className="space-y-4">
+                    <Collapsible
+                      open={isViewVisibilityOpen}
+                      onOpenChange={setIsViewVisibilityOpen}
+                    >
+                      <div className="space-y-2">
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                          >
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              <Eye className="h-3 w-3" />
+                              속성 표시
+                            </div>
+                            {isViewVisibilityOpen ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             )}
-                          </div>
-                        </div>
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <DraggablePropertySettings
+                            properties={settingsCardProperties}
+                            visibility={{
+                              tags: propertyVisibility.tags,
+                              assignee: propertyVisibility.assignee,
+                              dueDate: propertyVisibility.dueDate,
+                              priority: propertyVisibility.priority,
+                            }}
+                            onToggle={(prop) => {
+                              if (!activeView) return;
+                              if (prop === "title") return;
+                              const nextProperties = activeCardProperties.includes(prop)
+                                ? activeCardProperties.filter((item) => item !== prop)
+                                : [...activeCardProperties, prop];
+                              void handleUpdateView(activeView.id, {
+                                cardProperties: normalizeCardProperties(nextProperties),
+                              });
+                            }}
+                            onReorder={(newOrder) => {
+                              if (activeView) {
+                                const visiblePropertySet = new Set(activeCardProperties);
+                                void handleUpdateView(activeView.id, {
+                                  cardProperties: normalizeCardProperties(
+                                    newOrder.filter(
+                                      (property) =>
+                                        property === "title" ||
+                                        visiblePropertySet.has(property),
+                                    ),
+                                  ),
+                                });
+                              }
+                            }}
+                          />
+                        </CollapsibleContent>
                       </div>
-                    </>
-                  )}
-                  <Separator />
-                  <div className="space-y-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-full justify-start px-2 text-muted-foreground"
-                      onClick={() => setViewToEdit(activeView)}
+                    </Collapsible>
+                    {isMainBoardView && (
+                      <>
+                        <Separator />
+                        <Collapsible
+                          open={isHiddenSectionsOpen}
+                          onOpenChange={setIsHiddenSectionsOpen}
+                        >
+                          <div className="space-y-3">
+                            <CollapsibleTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                              >
+                                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                  <EyeOff className="h-3 w-3" />
+                                  섹션 숨기기
+                                </div>
+                                {isHiddenSectionsOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-3">
+                              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                <div className="text-[11px] font-medium text-muted-foreground">
+                                  상위 3축 보기
+                                </div>
+                                <div className="space-y-2">
+                                  {STATUS_SECTION_OPTIONS.map((section) => {
+                                    const checked = !hiddenStatusCategories.has(section.id);
+                                    return (
+                                      <label
+                                        key={section.id}
+                                        className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                      >
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={() => {
+                                            void toggleStatusCategoryVisibility(section.id);
+                                          }}
+                                        />
+                                        <span>{section.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                <div className="text-[11px] font-medium text-muted-foreground">
+                                  세부 단계 보기
+                                </div>
+                                <div className="space-y-2">
+                                  {statusColumns.map((column) => {
+                                    const checked = !hiddenColumnIds.has(column.id);
+                                    const categoryLabel =
+                                      STATUS_SECTION_OPTIONS.find(
+                                        (section) =>
+                                          section.id === (column.category || "todo"),
+                                      )?.label || "할 일";
+
+                                    return (
+                                      <label
+                                        key={column.id}
+                                        className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                      >
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={() => {
+                                            void toggleColumnVisibility(column.id);
+                                          }}
+                                        />
+                                        <div className="min-w-0">
+                                          <div className="truncate">{column.title}</div>
+                                          <div className="text-[11px] text-muted-foreground">
+                                            {categoryLabel}
+                                          </div>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                                  {statusColumns.length === 0 && (
+                                    <div className="text-xs text-muted-foreground">
+                                      관리할 세부 단계가 없습니다.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      </>
+                    )}
+                    <Separator />
+                    <Collapsible
+                      open={isViewActionsOpen}
+                      onOpenChange={setIsViewActionsOpen}
                     >
-                      <Pen className="mr-2 h-3 w-3" />
-                      뷰 이름 변경
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-full justify-start px-2 text-muted-foreground"
-                      onClick={() => setIsTagManagerOpen(true)}
-                    >
-                      <TagIcon className="mr-2 h-4 w-4" />
-                      태그 관리
-                    </Button>
+                      <div className="space-y-1">
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="mb-1 flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                          >
+                            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              관리
+                            </div>
+                            {isViewActionsOpen ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-full justify-start px-2 text-muted-foreground"
+                            onClick={() => setViewToEdit(activeView)}
+                          >
+                            <Pen className="mr-2 h-3 w-3" />
+                            뷰 이름 변경
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-full justify-start px-2 text-muted-foreground"
+                            onClick={() => setIsTagManagerOpen(true)}
+                          >
+                            <TagIcon className="mr-2 h-4 w-4" />
+                            태그 관리
+                          </Button>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
                   </div>
                 </div>
               </PopoverContent>

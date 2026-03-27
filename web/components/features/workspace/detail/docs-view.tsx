@@ -17,6 +17,15 @@ import {
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
@@ -36,9 +45,13 @@ import {
   UserRound,
   Users,
   WifiOff,
+  LayoutTemplate,
+  CopyPlus,
+  PencilLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -65,6 +78,7 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { useDebouncedCallback } from "use-debounce";
 import { useAuth } from "@/hooks/use-auth";
+import { registerDocsBeforeLeaveHandler } from "@/lib/docs-before-leave";
 
 // Stable color generator
 const stringToColor = (str: string) => {
@@ -185,8 +199,11 @@ type DocTemplate = {
   id: string;
   name: string;
   description: string;
-  emoji: string;
+  emoji: string | null;
   title: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceDocId: string | null;
 };
 
 type EmojiSelection = {
@@ -332,7 +349,7 @@ export function DocsView({
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
   >(archivedDocsCacheKey, fetcher, docsSWRConfig);
-  const { data: templates } = useSWR<DocTemplate[]>(
+  const { data: templates, mutate: mutateTemplates } = useSWR<DocTemplate[]>(
     `/api/workspaces/${projectId}/doc-templates`,
     fetcher,
     swrOptions,
@@ -387,6 +404,19 @@ export function DocsView({
     docId: string | null;
     options?: { syncQuery?: boolean };
   } | null>(null);
+  const headerDraftRef = useRef<{
+    docId: string | null;
+    title: string;
+    emoji: string | null;
+    docWorkerId: string;
+  }>({
+    docId: null,
+    title: "",
+    emoji: null,
+    docWorkerId: "",
+  });
+  const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const headerSaveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
 
   // Active Doc Data (If Selected)
   const {
@@ -399,7 +429,7 @@ export function DocsView({
     {
       ...swrOptions,
       dedupingInterval: 1_500,
-      refreshInterval: activeDocId ? 2_000 : 0,
+      refreshInterval: activeDocId && editorMode === "collab" ? 2_000 : 0,
     },
   );
 
@@ -428,12 +458,32 @@ export function DocsView({
   const [emoji, setEmoji] = useState<string | null>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] = useState(false);
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+  const [isEditTemplateDialogOpen, setIsEditTemplateDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateEmoji, setTemplateEmoji] = useState<string | null>(null);
+  const [templateDocTitle, setTemplateDocTitle] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [isUpdatingTemplateDetails, setIsUpdatingTemplateDetails] = useState(false);
+  const [templateActionId, setTemplateActionId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   const handleOpenTaskLocally = useCallback((taskId: string) => {
     onNavigateToTask?.(taskId);
     setSelectedTaskId(taskId);
   }, [onNavigateToTask]);
   const [docWorkerId, setDocWorkerId] = useState("");
+
+  useEffect(() => {
+    headerDraftRef.current = {
+      docId: activeDocId,
+      title,
+      emoji: emoji ?? null,
+      docWorkerId,
+    };
+  }, [activeDocId, docWorkerId, emoji, title]);
 
   const loadWorkspaceViewSettings = useCallback(async () => {
     const handle = profile?.handle?.trim();
@@ -525,6 +575,34 @@ export function DocsView({
     return new Map(entries);
   }, [archivedDocs]);
 
+  const activeDocCollabState = useMemo(
+    () =>
+      resolvedActiveDoc?.collab ??
+      (activeDocId ? docMap.get(activeDocId)?.collab : undefined),
+    [activeDocId, docMap, resolvedActiveDoc],
+  );
+
+  const activePageDoc = useMemo(() => {
+    if (!activeDocId) return null;
+
+    if (resolvedActiveDoc?.kind === "page") {
+      return {
+        id: resolvedActiveDoc.id,
+        title: resolvedActiveDoc.title,
+        emoji: resolvedActiveDoc.emoji ?? null,
+      };
+    }
+
+    const summary = docMap.get(activeDocId);
+    if (summary?.kind !== "page") return null;
+
+    return {
+      id: summary.id,
+      title: summary.title,
+      emoji: summary.emoji ?? null,
+    };
+  }, [activeDocId, docMap, resolvedActiveDoc]);
+
   const selectedArchivedDocIdSet = useMemo(
     () => new Set(selectedArchivedDocIds),
     [selectedArchivedDocIds],
@@ -575,6 +653,12 @@ export function DocsView({
       nextTitle: string,
       nextEmoji: string | null,
       nextWorkerId: string,
+      currentHeader = {
+        docId,
+        title: nextTitle,
+        emoji: nextEmoji,
+        docWorkerId: nextWorkerId,
+      },
     ) => {
       headerBaselineRef.current = {
         docId,
@@ -582,7 +666,12 @@ export function DocsView({
         emoji: nextEmoji,
         docWorkerId: nextWorkerId,
       };
-      setIsHeaderDirty(false);
+      setIsHeaderDirty(
+        currentHeader.docId !== docId ||
+          currentHeader.title !== nextTitle ||
+          currentHeader.emoji !== nextEmoji ||
+          currentHeader.docWorkerId !== nextWorkerId,
+      );
     },
     [],
   );
@@ -693,13 +782,13 @@ export function DocsView({
   }, [editorMode]);
 
   useEffect(() => {
-    if (!resolvedActiveDoc?.collab?.isActive) {
+    if (!activeDocCollabState?.isActive) {
       setCollabParticipants([]);
       return;
     }
 
-    setCollabParticipants(resolvedActiveDoc.collab.participants);
-  }, [resolvedActiveDoc?.collab]);
+    setCollabParticipants(activeDocCollabState.participants);
+  }, [activeDocCollabState]);
 
   useEffect(() => {
     if (sidebarMode === "archived" && isOrganizeMode) {
@@ -1021,11 +1110,36 @@ export function DocsView({
       if (kind === "page") {
         void switchActiveDoc(newDoc.id);
       }
-      toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
+      toast.success(
+        kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.",
+      );
     } catch {
       toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
     }
   };
+
+  const openSaveTemplateDialog = useCallback(() => {
+    if (!activePageDoc) {
+      toast.error("페이지 문서를 먼저 열어주세요.");
+      return;
+    }
+
+    setTemplateName(activePageDoc.title || "새 템플릿");
+    setTemplateDescription("");
+    setTemplateEmoji(activePageDoc.emoji ?? "📄");
+    setTemplateDocTitle(activePageDoc.title || "제목 없음");
+    setEditingTemplateId(null);
+    setIsSaveTemplateDialogOpen(true);
+  }, [activePageDoc]);
+
+  const openEditTemplateDialog = useCallback((template: DocTemplate) => {
+    setEditingTemplateId(template.id);
+    setTemplateName(template.name);
+    setTemplateDescription(template.description || "");
+    setTemplateEmoji(template.emoji ?? "📄");
+    setTemplateDocTitle(template.title || "제목 없음");
+    setIsEditTemplateDialogOpen(true);
+  }, []);
 
   const availableTasks = useMemo(() => {
     if (!boardData?.tasks) return [];
@@ -1308,7 +1422,7 @@ export function DocsView({
     [activeDocId, docs, refreshDocs, syncDocQuery],
   );
 
-  const persistDocHeader = useCallback(
+  const persistDocHeaderRequest = useCallback(
     async (
       docId: string,
       updates: Record<string, unknown>,
@@ -1350,6 +1464,20 @@ export function DocsView({
     [isReadOnly, mutateActiveDoc, mutateDocs, projectId],
   );
 
+  const persistDocHeader = useCallback(
+    (
+      docId: string,
+      updates: Record<string, unknown>,
+      options?: { silent?: boolean },
+    ) => {
+      const run = () => persistDocHeaderRequest(docId, updates, options);
+      const next = headerSaveChainRef.current.then(run, run);
+      headerSaveChainRef.current = next.catch(() => true);
+      return next;
+    },
+    [persistDocHeaderRequest],
+  );
+
   const buildHeaderPayload = useCallback(
     (
       nextTitle: string,
@@ -1375,7 +1503,7 @@ export function DocsView({
         buildHeaderPayload(payload.title, payload.emoji, payload.docWorkerId),
         { silent: true },
       );
-      if (!saved) return;
+      if (!saved) return false;
 
       if (activeDocIdRef.current === payload.docId) {
         applyHeaderBaseline(
@@ -1383,12 +1511,14 @@ export function DocsView({
           payload.title,
           payload.emoji,
           payload.docWorkerId,
+          headerDraftRef.current,
         );
       }
       void mutateDocs();
       if (activeDocIdRef.current === payload.docId) {
         void mutateActiveDoc();
       }
+      return true;
     },
     1000,
   );
@@ -1399,6 +1529,13 @@ export function DocsView({
 
   useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
   useEffect(() => () => persistWorkspaceViewSettings.cancel(), [persistWorkspaceViewSettings]);
+
+  const flushPendingHeaderSave = useCallback(async () => {
+    const flushed = debouncedUpdate.flush();
+    const flushedResult = await Promise.resolve(flushed ?? true);
+    const chainedResult = await headerSaveChainRef.current;
+    return flushedResult !== false && chainedResult !== false;
+  }, [debouncedUpdate]);
 
   useEffect(() => {
     return () => {
@@ -1437,6 +1574,7 @@ export function DocsView({
     if (editorMode !== "collab" || !activeDocId) return;
 
     const handlePageHide = () => {
+      void flushPendingHeaderSave();
       sendCollabLeaveBeacon(activeDocId);
     };
 
@@ -1444,77 +1582,89 @@ export function DocsView({
     return () => {
       window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [activeDocId, editorMode, sendCollabLeaveBeacon]);
+  }, [activeDocId, editorMode, flushPendingHeaderSave, sendCollabLeaveBeacon]);
 
   const handleSaveCurrentDoc = useCallback(
-    async (options?: { silent?: boolean }) => {
+    (options?: { silent?: boolean }) => {
       if (isReadOnly || !activeDocId || editorMode !== "normal") {
-        return true;
+        return Promise.resolve(true);
       }
 
-      const savingDocId = activeDocId;
-      const savingTitle = title;
-      const savingEmoji = emoji ?? null;
-      const savingWorkerId = docWorkerId;
-      const canSaveHeader = headerReadyRef.current;
+      const run = async () => {
+        const savingDocId = activeDocId;
+        const savingTitle = title;
+        const savingEmoji = emoji ?? null;
+        const savingWorkerId = docWorkerId;
+        const canSaveHeader = headerReadyRef.current;
 
-      setIsSavingDocument(true);
-      debouncedUpdate.cancel();
+        setIsSavingDocument(true);
+        debouncedUpdate.cancel();
 
-      try {
-        const headerSaved = canSaveHeader
-          ? await persistDocHeader(
-              savingDocId,
-              buildHeaderPayload(savingTitle, savingEmoji, savingWorkerId),
-              { silent: true },
-            )
-          : true;
+        try {
+          const contentSaved = editorRef.current
+            ? await editorRef.current.saveNow({
+                silent: true,
+                ...(canSaveHeader
+                  ? {
+                      header: {
+                        title: savingTitle,
+                        emoji: savingEmoji,
+                        authorId: savingWorkerId || null,
+                      },
+                    }
+                  : {}),
+              })
+            : canSaveHeader
+              ? await persistDocHeader(
+                  savingDocId,
+                  buildHeaderPayload(savingTitle, savingEmoji, savingWorkerId),
+                  { silent: true },
+                )
+              : true;
 
-        if (!headerSaved) {
-          throw new Error("문서 정보 저장에 실패했습니다.");
-        }
+          if (!contentSaved) {
+            throw new Error("문서 저장에 실패했습니다.");
+          }
 
-        const contentSaved = editorRef.current
-          ? await editorRef.current.saveNow({ silent: true })
-          : true;
+          const savedAt = new Date().toISOString();
+          if (activeDocIdRef.current === savingDocId) {
+            setLastSavedAt(savedAt);
+            if (canSaveHeader) {
+              applyHeaderBaseline(
+                savingDocId,
+                savingTitle,
+                savingEmoji,
+                savingWorkerId,
+                headerDraftRef.current,
+              );
+            }
+            setNormalBodyDirty(editorRef.current?.hasUnsavedChanges() ?? false);
+          }
+          void mutateDocs();
+          if (activeDocIdRef.current === savingDocId) {
+            void mutateActiveDoc();
+          }
 
-        if (!contentSaved) {
-          throw new Error("문서 본문 저장에 실패했습니다.");
-        }
+          if (!options?.silent) {
+            toast.success("문서를 저장했습니다.");
+          }
 
-        const savedAt = new Date().toISOString();
-        if (activeDocIdRef.current === savingDocId) {
-          setLastSavedAt(savedAt);
-          if (canSaveHeader) {
-            applyHeaderBaseline(
-              savingDocId,
-              savingTitle,
-              savingEmoji,
-              savingWorkerId,
+          return true;
+        } catch (error) {
+          if (!options?.silent) {
+            toast.error(
+              error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
             );
           }
-          setNormalBodyDirty(false);
+          return false;
+        } finally {
+          setIsSavingDocument(false);
         }
-        void mutateDocs();
-        if (activeDocIdRef.current === savingDocId) {
-          void mutateActiveDoc();
-        }
+      };
 
-        if (!options?.silent) {
-          toast.success("문서를 저장했습니다.");
-        }
-
-        return true;
-      } catch (error) {
-        if (!options?.silent) {
-          toast.error(
-            error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
-          );
-        }
-        return false;
-      } finally {
-        setIsSavingDocument(false);
-      }
+      const next = saveChainRef.current.then(run, run);
+      saveChainRef.current = next.catch(() => true);
+      return next;
     },
     [
       activeDocId,
@@ -1553,6 +1703,8 @@ export function DocsView({
         throw new Error(payload?.error || "협업 나가기에 실패했습니다.");
       }
 
+      activeDocModeRef.current = "NORMAL";
+      activeDocDirtyRef.current = false;
       setEditorMode("normal");
       setCollabToken(null);
       setCollabStatus("synced");
@@ -1594,6 +1746,12 @@ export function DocsView({
 
           if (previousDocId) {
             if (editorMode === "collab") {
+              const headerSaved = await flushPendingHeaderSave();
+              if (!headerSaved) {
+                toast.error("현재 문서 정보를 저장하지 못해 이동을 취소했습니다.");
+                return;
+              }
+
               const leaveResult = await leaveDocCollab(previousDocId, {
                 silent: true,
               });
@@ -1603,7 +1761,11 @@ export function DocsView({
                   : "현재 문서 협업에서 나갔습니다.",
               );
             } else if (!isReadOnly) {
-              await handleSaveCurrentDoc({ silent: true });
+              const saved = await handleSaveCurrentDoc({ silent: true });
+              if (!saved) {
+                toast.error("현재 문서를 저장하지 못해 이동을 취소했습니다.");
+                return;
+              }
             }
           }
 
@@ -1654,6 +1816,7 @@ export function DocsView({
       debouncedUpdate,
       docMap,
       editorMode,
+      flushPendingHeaderSave,
       handleSaveCurrentDoc,
       isReadOnly,
       leaveDocCollab,
@@ -1726,9 +1889,9 @@ export function DocsView({
   }, [activeDocId, editorMode, isReadOnly, normalDocDirty, syncDocPresence]);
 
   useEffect(() => {
-    if (!activeDocId || !resolvedActiveDoc || isReadOnly) return;
+    if (!activeDocId || isReadOnly) return;
 
-    if (!resolvedActiveDoc.collab?.isActive) {
+    if (!activeDocCollabState?.isActive) {
       if (editorMode === "collab") {
         setEditorMode("normal");
         setCollabToken(null);
@@ -1794,10 +1957,10 @@ export function DocsView({
     };
   }, [
     activeDocId,
+    activeDocCollabState,
     editorMode,
     isReadOnly,
     projectId,
-    resolvedActiveDoc,
     syncDocPresence,
   ]);
 
@@ -1949,6 +2112,11 @@ export function DocsView({
 
     setIsLeavingCollab(true);
     try {
+      const headerSaved = await flushPendingHeaderSave();
+      if (!headerSaved) {
+        throw new Error("문서 정보를 저장하지 못해 협업에서 나갈 수 없습니다.");
+      }
+
       const result = await leaveDocCollab(activeDocId, { silent: true });
       if (result.ended) {
         await mutateActiveDoc();
@@ -1968,7 +2136,320 @@ export function DocsView({
     } finally {
       setIsLeavingCollab(false);
     }
-  }, [activeDocId, editorMode, leaveDocCollab, mutateActiveDoc, syncDocQuery]);
+  }, [
+    activeDocId,
+    editorMode,
+    flushPendingHeaderSave,
+    leaveDocCollab,
+    mutateActiveDoc,
+    syncDocQuery,
+  ]);
+
+  const handleBeforeLeaveDocs = useCallback(async () => {
+    const currentDocId = activeDocIdRef.current;
+    if (!currentDocId) {
+      return true;
+    }
+
+    if (activeDocModeRef.current === "COLLAB") {
+      const headerSaved = await flushPendingHeaderSave();
+      if (!headerSaved) {
+        toast.error("현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.");
+        return false;
+      }
+
+      try {
+        const leaveResult = await leaveDocCollab(currentDocId, { silent: true });
+        toast.success(
+          leaveResult.ended
+            ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
+            : "문서 탭을 벗어나며 현재 협업에서 나갔습니다.",
+        );
+        return true;
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "협업을 종료하지 못해 화면을 이동하지 않았습니다.",
+        );
+        return false;
+      }
+    }
+
+    if (activeDocDirtyRef.current || isSavingDocument) {
+      const saved = await handleSaveCurrentDoc({ silent: true });
+      if (!saved) {
+        toast.error("현재 문서를 저장하지 못해 화면을 이동하지 않았습니다.");
+        return false;
+      }
+    }
+
+    return true;
+  }, [flushPendingHeaderSave, handleSaveCurrentDoc, isSavingDocument, leaveDocCollab]);
+
+  const prepareCurrentDocForTemplate = useCallback(async () => {
+    if (!activePageDoc) {
+      toast.error("페이지 문서에서만 템플릿을 만들 수 있습니다.");
+      return false;
+    }
+
+    if (editorMode === "normal") {
+      const saved = await handleSaveCurrentDoc({ silent: true });
+      if (!saved) {
+        toast.error("현재 문서를 저장하지 못해 템플릿으로 만들 수 없습니다.");
+        return false;
+      }
+    } else {
+      const headerSaved = await flushPendingHeaderSave();
+      if (!headerSaved) {
+        toast.error("현재 문서 정보를 저장하지 못해 템플릿으로 만들 수 없습니다.");
+        return false;
+      }
+      await mutateActiveDoc();
+    }
+
+    return true;
+  }, [
+    activePageDoc,
+    editorMode,
+    flushPendingHeaderSave,
+    handleSaveCurrentDoc,
+    mutateActiveDoc,
+  ]);
+
+  const handleCreateTemplate = useCallback(async () => {
+    if (!activePageDoc) {
+      toast.error("템플릿으로 저장할 문서를 찾을 수 없습니다.");
+      return;
+    }
+
+    if (!templateName.trim()) {
+      toast.error("템플릿 이름을 입력해 주세요.");
+      return;
+    }
+
+    setIsSavingTemplate(true);
+
+    try {
+      const ready = await prepareCurrentDocForTemplate();
+      if (!ready) {
+        return;
+      }
+
+      const response = await fetch(`/api/workspaces/${projectId}/doc-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName,
+          description: templateDescription,
+          emoji: templateEmoji,
+          title: templateDocTitle.trim() || activePageDoc.title,
+          sourceDocId: activePageDoc.id,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "템플릿 저장에 실패했습니다.");
+      }
+
+      await mutateTemplates();
+      setIsSaveTemplateDialogOpen(false);
+      toast.success("현재 문서를 템플릿으로 저장했습니다.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "템플릿 저장에 실패했습니다.",
+      );
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  }, [
+    activePageDoc,
+    mutateTemplates,
+    prepareCurrentDocForTemplate,
+    projectId,
+    templateDescription,
+    templateDocTitle,
+    templateEmoji,
+    templateName,
+  ]);
+
+  const handleUseTemplate = async (templateId: string) => {
+    await handleCreateRootDoc("page", templateId);
+    setIsTemplateManagerOpen(false);
+  };
+
+  const handleRefreshTemplateFromCurrentDoc = useCallback(
+    async (templateId: string) => {
+      if (!activePageDoc) {
+        toast.error("현재 열어둔 페이지 문서가 없습니다.");
+        return;
+      }
+
+      setTemplateActionId(templateId);
+      try {
+        const ready = await prepareCurrentDocForTemplate();
+        if (!ready) {
+          return;
+        }
+
+        const response = await fetch(
+          `/api/workspaces/${projectId}/doc-templates/${templateId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sourceDocId: activePageDoc.id,
+            }),
+          },
+        );
+
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "템플릿 갱신에 실패했습니다.");
+        }
+
+        await mutateTemplates();
+        toast.success("현재 문서 내용으로 템플릿을 갱신했습니다.");
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "템플릿 갱신에 실패했습니다.",
+        );
+      } finally {
+        setTemplateActionId(null);
+      }
+    },
+    [activePageDoc, mutateTemplates, prepareCurrentDocForTemplate, projectId],
+  );
+
+  const handleUpdateTemplateDetails = useCallback(async () => {
+    if (!editingTemplateId) {
+      return;
+    }
+
+    if (!templateName.trim()) {
+      toast.error("템플릿 이름을 입력해 주세요.");
+      return;
+    }
+
+    if (!templateDocTitle.trim()) {
+      toast.error("새 문서 기본 제목을 입력해 주세요.");
+      return;
+    }
+
+    setIsUpdatingTemplateDetails(true);
+    setTemplateActionId(editingTemplateId);
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${projectId}/doc-templates/${editingTemplateId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: templateName,
+            description: templateDescription,
+            emoji: templateEmoji,
+            title: templateDocTitle,
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "템플릿 수정에 실패했습니다.");
+      }
+
+      await mutateTemplates();
+      setIsEditTemplateDialogOpen(false);
+      toast.success("템플릿 정보를 수정했습니다.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "템플릿 수정에 실패했습니다.",
+      );
+    } finally {
+      setIsUpdatingTemplateDetails(false);
+      setTemplateActionId(null);
+    }
+  }, [
+    editingTemplateId,
+    mutateTemplates,
+    projectId,
+    templateDescription,
+    templateDocTitle,
+    templateEmoji,
+    templateName,
+  ]);
+
+  const handleDeleteTemplate = useCallback(
+    async (template: DocTemplate) => {
+      const confirmed = window.confirm(
+        `템플릿 "${template.name}"을 삭제할까요?`,
+      );
+      if (!confirmed) return;
+
+      setTemplateActionId(template.id);
+      try {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/doc-templates/${template.id}`,
+          {
+            method: "DELETE",
+          },
+        );
+
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "템플릿 삭제에 실패했습니다.");
+        }
+
+        await mutateTemplates();
+        toast.success("템플릿을 삭제했습니다.");
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "템플릿 삭제에 실패했습니다.",
+        );
+      } finally {
+        setTemplateActionId(null);
+      }
+    },
+    [mutateTemplates, projectId],
+  );
+
+  useEffect(() => registerDocsBeforeLeaveHandler(handleBeforeLeaveDocs), [
+    handleBeforeLeaveDocs,
+  ]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (activeDocModeRef.current === "COLLAB") {
+        if (!isHeaderDirty) {
+          return;
+        }
+      } else if (!activeDocDirtyRef.current && !isSavingDocument) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isHeaderDirty, isSavingDocument]);
 
   const docWorkerName =
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
@@ -1982,7 +2463,7 @@ export function DocsView({
     ? "문서를 전환하는 중..."
     : "문서를 불러오는 중...";
   const collabBadgeVisible =
-    editorMode === "collab" || Boolean(resolvedActiveDoc?.collab?.isActive);
+    editorMode === "collab" || Boolean(activeDocCollabState?.isActive);
   const collabParticipantList = collabParticipants.slice(0, 4);
   const collabStatusText =
     collabStatus === "connecting"
@@ -2061,7 +2542,7 @@ export function DocsView({
                     <DropdownMenuSeparator />
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
-                        <FileText className="h-4 w-4" />
+                        <LayoutTemplate className="h-4 w-4" />
                         템플릿에서 시작
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="w-64">
@@ -2086,6 +2567,20 @@ export function DocsView({
                     </DropdownMenuSub>
                   </>
                 )}
+                {activePageDoc && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={openSaveTemplateDialog}>
+                      <CopyPlus className="h-4 w-4" />
+                      현재 문서를 템플릿으로 저장
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setIsTemplateManagerOpen(true)}>
+                  <LayoutTemplate className="h-4 w-4" />
+                  템플릿 관리
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -2648,6 +3143,289 @@ export function DocsView({
         open={!!selectedTaskId}
         onOpenChange={(open) => !open && setSelectedTaskId(null)}
       />
+
+      <Dialog
+        open={isSaveTemplateDialogOpen}
+        onOpenChange={(open) => {
+          if (!isSavingTemplate) {
+            setIsSaveTemplateDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>현재 문서를 템플릿으로 저장</DialogTitle>
+            <DialogDescription>
+              지금 문서의 구조와 내용을 워크스페이스 템플릿으로 저장합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="doc-template-name">템플릿 이름</Label>
+              <Input
+                id="doc-template-name"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="예: 패치노트 템플릿"
+                disabled={isSavingTemplate}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="doc-template-emoji">템플릿 아이콘</Label>
+              <Input
+                id="doc-template-emoji"
+                value={templateEmoji ?? ""}
+                onChange={(event) => setTemplateEmoji(event.target.value || null)}
+                placeholder="📄"
+                disabled={isSavingTemplate}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="doc-template-title">새 문서 기본 제목</Label>
+              <Input
+                id="doc-template-title"
+                value={templateDocTitle}
+                onChange={(event) => setTemplateDocTitle(event.target.value)}
+                placeholder="예: 이번 주 패치노트"
+                disabled={isSavingTemplate}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="doc-template-description">설명</Label>
+              <Textarea
+                id="doc-template-description"
+                value={templateDescription}
+                onChange={(event) => setTemplateDescription(event.target.value)}
+                placeholder="이 템플릿을 언제 쓰는지 짧게 적어주세요."
+                rows={3}
+                disabled={isSavingTemplate}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsSaveTemplateDialogOpen(false)}
+              disabled={isSavingTemplate}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleCreateTemplate()}
+              disabled={isSavingTemplate || !templateName.trim()}
+            >
+              {isSavingTemplate ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LayoutTemplate className="mr-2 h-4 w-4" />
+              )}
+              템플릿 저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isEditTemplateDialogOpen}
+        onOpenChange={(open) => {
+          if (!isUpdatingTemplateDetails) {
+            setIsEditTemplateDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>템플릿 편집</DialogTitle>
+            <DialogDescription>
+              템플릿 이름, 아이콘, 설명과 새 문서 기본 제목을 직접 수정합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-doc-template-name">템플릿 이름</Label>
+              <Input
+                id="edit-doc-template-name"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="예: 패치노트 템플릿"
+                disabled={isUpdatingTemplateDetails}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-doc-template-emoji">템플릿 아이콘</Label>
+              <Input
+                id="edit-doc-template-emoji"
+                value={templateEmoji ?? ""}
+                onChange={(event) => setTemplateEmoji(event.target.value || null)}
+                placeholder="📄"
+                disabled={isUpdatingTemplateDetails}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-doc-template-title">새 문서 기본 제목</Label>
+              <Input
+                id="edit-doc-template-title"
+                value={templateDocTitle}
+                onChange={(event) => setTemplateDocTitle(event.target.value)}
+                placeholder="예: 이번 주 패치노트"
+                disabled={isUpdatingTemplateDetails}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-doc-template-description">설명</Label>
+              <Textarea
+                id="edit-doc-template-description"
+                value={templateDescription}
+                onChange={(event) => setTemplateDescription(event.target.value)}
+                placeholder="이 템플릿을 언제 쓰는지 짧게 적어주세요."
+                rows={3}
+                disabled={isUpdatingTemplateDetails}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditTemplateDialogOpen(false)}
+              disabled={isUpdatingTemplateDetails}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleUpdateTemplateDetails()}
+              disabled={
+                isUpdatingTemplateDetails ||
+                !templateName.trim() ||
+                !templateDocTitle.trim()
+              }
+            >
+              {isUpdatingTemplateDetails ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PencilLine className="mr-2 h-4 w-4" />
+              )}
+              템플릿 저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTemplateManagerOpen} onOpenChange={setIsTemplateManagerOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>템플릿 관리</DialogTitle>
+            <DialogDescription>
+              워크스페이스에서 직접 만든 문서 템플릿을 사용하거나 정리할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[65vh] pr-4">
+            <div className="space-y-3">
+              {templates && templates.length > 0 ? (
+                templates.map((template) => {
+                  const isBusy = templateActionId === template.id;
+                  return (
+                    <div
+                      key={template.id}
+                      className="rounded-xl border bg-background/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{template.emoji || "📄"}</span>
+                            <span className="truncate font-medium">
+                              {template.name}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {template.description || "설명이 없습니다."}
+                          </p>
+                          <div className="text-xs text-muted-foreground">
+                            생성 문서 제목: {template.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            마지막 수정: {formatMetaDate(template.updatedAt)}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleUseTemplate(template.id)}
+                            disabled={isBusy}
+                          >
+                            사용
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditTemplateDialog(template)}
+                            disabled={isBusy}
+                          >
+                            <PencilLine className="mr-2 h-4 w-4" />
+                            편집
+                          </Button>
+                          {activePageDoc && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                void handleRefreshTemplateFromCurrentDoc(template.id)
+                              }
+                              disabled={isBusy}
+                            >
+                              {isBusy ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "현재 문서로 갱신"
+                              )}
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => void handleDeleteTemplate(template)}
+                            disabled={isBusy}
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  아직 저장된 템플릿이 없습니다. 문서를 하나 만든 뒤 템플릿으로 저장해보세요.
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            {activePageDoc && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsTemplateManagerOpen(false);
+                  openSaveTemplateDialog();
+                }}
+              >
+                <CopyPlus className="mr-2 h-4 w-4" />
+                현재 문서를 템플릿으로 저장
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

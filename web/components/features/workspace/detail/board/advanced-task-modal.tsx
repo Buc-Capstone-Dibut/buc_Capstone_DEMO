@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,6 +189,7 @@ export function AdvancedTaskModal({
   onOpenChange,
   onNavigateToDoc,
 }: AdvancedTaskModalProps) {
+  const router = useRouter();
   const { mutate } = useSWRConfig();
   const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
 
@@ -228,6 +230,21 @@ export function AdvancedTaskModal({
   const [localTask, setLocalTask] = useState<Partial<Task>>({});
   const [newTag, setNewTag] = useState("");
   const [docSearch, setDocSearch] = useState("");
+
+  const handleOpenLinkedDoc = (docId: string) => {
+    if (onNavigateToDoc) {
+      onNavigateToDoc(docId);
+      onOpenChange(false);
+      return;
+    }
+
+    if (!projectId) {
+      return;
+    }
+
+    router.push(`/workspace/${projectId}?tab=docs&doc=${docId}`);
+    onOpenChange(false);
+  };
 
   useEffect(() => {
     if (task) {
@@ -708,7 +725,7 @@ export function AdvancedTaskModal({
                         <button
                           type="button"
                           className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                          onClick={() => onNavigateToDoc?.(relation.doc.id)}
+                          onClick={() => handleOpenLinkedDoc(relation.doc.id)}
                         >
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
                             {relation.doc.emoji ? relation.doc.emoji : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -769,32 +786,33 @@ export function AdvancedTaskModal({
                       문서 연결하기
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-80 p-2">
-                    <Input
-                      value={docSearch}
-                      onChange={(e) => setDocSearch(e.target.value)}
-                      placeholder="문서 또는 폴더 검색"
-                      className="h-8 text-xs"
-                    />
-                    <DocumentPicker
-                      docs={docs}
-                      linkedDocIds={linkedDocs.map((relation) => relation.doc.id)}
-                      search={docSearch}
-                      onSelect={(docId) => handleLinkDoc(docId)}
-                      className="mt-2"
-                    />
-                    {/* Fast Action */}
-                    <div className="mt-2 border-t pt-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="w-full text-xs justify-start"
-                        onClick={handleCreateAndLinkDoc}
-                      >
-                        <FileText className="mr-2 h-3.5 w-3.5" />
-                        새 문서 만들고 바로 연결
-                      </Button>
+                  <PopoverContent align="end" className="w-80 overflow-hidden p-2">
+                    <div className="flex max-h-[min(72vh,32rem)] flex-col">
+                      <Input
+                        value={docSearch}
+                        onChange={(e) => setDocSearch(e.target.value)}
+                        placeholder="문서 또는 폴더 검색"
+                        className="h-8 shrink-0 text-xs"
+                      />
+                      <DocumentPicker
+                        docs={docs}
+                        linkedDocIds={linkedDocs.map((relation) => relation.doc.id)}
+                        search={docSearch}
+                        onSelect={(docId) => handleLinkDoc(docId)}
+                        className="mt-2 min-h-0"
+                      />
+                      <div className="mt-2 shrink-0 border-t pt-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="w-full justify-start text-xs"
+                          onClick={handleCreateAndLinkDoc}
+                        >
+                          <FileText className="mr-2 h-3.5 w-3.5" />
+                          새 문서 만들고 바로 연결
+                        </Button>
+                      </div>
                     </div>
                   </PopoverContent>
                 </Popover>

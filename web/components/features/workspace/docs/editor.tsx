@@ -53,7 +53,14 @@ interface DocumentEditorProps {
 }
 
 export interface DocumentEditorHandle {
-  saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
+  saveNow: (options?: {
+    silent?: boolean;
+    header?: {
+      title: string;
+      emoji: string | null;
+      authorId: string | null;
+    };
+  }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
 }
 

@@ -1,176 +1,366 @@
-type BlockNoteContent = unknown[];
+import type { Prisma } from "@prisma/client";
+import prisma from "@/lib/prisma";
 
 export type WorkspaceDocTemplate = {
   id: string;
   name: string;
   description: string;
-  emoji: string;
+  emoji: string | null;
   title: string;
-  content: BlockNoteContent;
+  content: unknown;
+  createdAt: string;
+  updatedAt: string;
+  sourceDocId: string | null;
 };
 
-export type WorkspaceDocTemplateSummary = Pick<
-  WorkspaceDocTemplate,
-  "id" | "name" | "description" | "emoji" | "title"
->;
+export type WorkspaceDocTemplateSummary = Omit<WorkspaceDocTemplate, "content">;
 
-export const WORKSPACE_DOC_TEMPLATES: WorkspaceDocTemplate[] = [
-  {
-    id: "meeting-note",
-    name: "회의록",
-    description: "회의 목적, 논의 내용, 액션 아이템을 빠르게 정리합니다.",
-    emoji: "📝",
-    title: "회의록",
-    content: [
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "회의 목적", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "오늘 논의할 핵심 안건", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "논의 내용", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "결정된 사항", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "액션 아이템", styles: {} }],
-      },
-      {
-        type: "numberedListItem",
-        content: [{ type: "text", text: "담당자와 마감일을 적어주세요.", styles: {} }],
-      },
-    ],
-  },
-  {
-    id: "prd",
-    name: "요구사항 문서",
-    description: "문제 정의, 목표, 기능 범위를 정리합니다.",
-    emoji: "📌",
-    title: "요구사항 문서",
-    content: [
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "문제 정의", styles: {} }],
-      },
-      {
-        type: "paragraph",
-        content: [{ type: "text", text: "무엇이 문제인지 한 문단으로 적어주세요.", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "목표", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "이번 작업으로 달성하려는 목표", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "범위", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "필수 기능", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "후순위 기능", styles: {} }],
-      },
-    ],
-  },
-  {
-    id: "retrospective",
-    name: "회고",
-    description: "잘한 점, 아쉬운 점, 다음 액션을 정리합니다.",
-    emoji: "🔁",
-    title: "회고",
-    content: [
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "잘한 점", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "유지하고 싶은 점", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "아쉬운 점", styles: {} }],
-      },
-      {
-        type: "bulletListItem",
-        content: [{ type: "text", text: "개선이 필요한 점", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "다음 액션", styles: {} }],
-      },
-      {
-        type: "numberedListItem",
-        content: [{ type: "text", text: "바로 실행할 액션", styles: {} }],
-      },
-    ],
-  },
-  {
-    id: "qa-checklist",
-    name: "QA 체크리스트",
-    description: "검수 항목과 확인 결과를 기록합니다.",
-    emoji: "✅",
-    title: "QA 체크리스트",
-    content: [
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "확인 항목", styles: {} }],
-      },
-      {
-        type: "checkListItem",
-        content: [{ type: "text", text: "핵심 플로우 정상 동작", styles: {} }],
-      },
-      {
-        type: "checkListItem",
-        content: [{ type: "text", text: "오류 상태 확인", styles: {} }],
-      },
-      {
-        type: "heading",
-        props: { level: 2 },
-        content: [{ type: "text", text: "메모", styles: {} }],
-      },
-      {
-        type: "paragraph",
-        content: [{ type: "text", text: "발견한 이슈와 재현 방법을 적어주세요.", styles: {} }],
-      },
-    ],
-  },
-];
+type TemplateSourceSnapshot = {
+  title: string;
+  emoji: string | null;
+  content: unknown;
+};
 
-export function getWorkspaceDocTemplate(templateId: unknown) {
-  if (typeof templateId !== "string" || !templateId) return null;
-  return WORKSPACE_DOC_TEMPLATES.find((template) => template.id === templateId) ?? null;
+function isMissingTemplateTableError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("workspace_doc_templates") &&
+    (message.includes("does not exist") ||
+      message.includes("relation") ||
+      message.includes("table"))
+  );
 }
 
-export function listWorkspaceDocTemplates(): WorkspaceDocTemplateSummary[] {
-  return WORKSPACE_DOC_TEMPLATES.map((template) => ({
+function toTemplateJsonValue(value: unknown): Prisma.InputJsonValue {
+  const normalized = value ?? [];
+  return JSON.parse(JSON.stringify(normalized)) as Prisma.InputJsonValue;
+}
+
+function normalizeTemplateRecord(
+  template: {
+    id: string;
+    name: string;
+    description: string | null;
+    emoji: string | null;
+    title: string;
+    content: unknown;
+    created_at: Date;
+    updated_at: Date;
+    source_doc_id: string | null;
+  },
+): WorkspaceDocTemplate {
+  return {
     id: template.id,
     name: template.name,
-    description: template.description,
-    emoji: template.emoji,
+    description: template.description ?? "",
+    emoji: template.emoji ?? null,
     title: template.title,
-  }));
+    content: template.content ?? [],
+    createdAt: template.created_at.toISOString(),
+    updatedAt: template.updated_at.toISOString(),
+    sourceDocId: template.source_doc_id ?? null,
+  };
+}
+
+async function getTemplateSourceSnapshot(
+  workspaceId: string,
+  sourceDocId: string,
+): Promise<TemplateSourceSnapshot | null> {
+  const sourceDoc = await prisma.workspace_docs.findFirst({
+    where: {
+      id: sourceDocId,
+      workspace_id: workspaceId,
+      kind: "page",
+      is_archived: false,
+    },
+    select: {
+      title: true,
+      emoji: true,
+      content: true,
+    },
+  });
+
+  if (!sourceDoc) {
+    return null;
+  }
+
+  return {
+    title: sourceDoc.title,
+    emoji: sourceDoc.emoji ?? null,
+    content: sourceDoc.content ?? [],
+  };
+}
+
+export async function getWorkspaceDocTemplate(
+  workspaceId: string,
+  templateId: unknown,
+) {
+  if (typeof templateId !== "string" || !templateId) return null;
+
+  const template = await prisma.workspace_doc_templates.findFirst({
+    where: {
+      id: templateId,
+      workspace_id: workspaceId,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      emoji: true,
+      title: true,
+      content: true,
+      created_at: true,
+      updated_at: true,
+      source_doc_id: true,
+    },
+  });
+
+  return template ? normalizeTemplateRecord(template) : null;
+}
+
+export async function listWorkspaceDocTemplates(workspaceId: string) {
+  let templates: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    emoji: string | null;
+    title: string;
+    created_at: Date;
+    updated_at: Date;
+    source_doc_id: string | null;
+  }> = [];
+
+  try {
+    templates = await prisma.workspace_doc_templates.findMany({
+      where: {
+        workspace_id: workspaceId,
+      },
+      orderBy: [
+        { updated_at: "desc" },
+        { created_at: "desc" },
+      ],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        emoji: true,
+        title: true,
+        created_at: true,
+        updated_at: true,
+        source_doc_id: true,
+      },
+    });
+  } catch (error) {
+    if (isMissingTemplateTableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+
+  return templates.map((template) => ({
+    id: template.id,
+    name: template.name,
+    description: template.description ?? "",
+    emoji: template.emoji ?? null,
+    title: template.title,
+    createdAt: template.created_at.toISOString(),
+    updatedAt: template.updated_at.toISOString(),
+    sourceDocId: template.source_doc_id ?? null,
+  })) satisfies WorkspaceDocTemplateSummary[];
+}
+
+export async function createWorkspaceDocTemplate(input: {
+  workspaceId: string;
+  createdBy: string;
+  name: string;
+  description?: string | null;
+  emoji?: string | null;
+  title?: string | null;
+  content?: unknown;
+  sourceDocId?: string | null;
+}) {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error("템플릿 이름을 입력해 주세요.");
+  }
+
+  let sourceSnapshot: TemplateSourceSnapshot | null = null;
+  if (input.sourceDocId) {
+    sourceSnapshot = await getTemplateSourceSnapshot(
+      input.workspaceId,
+      input.sourceDocId,
+    );
+    if (!sourceSnapshot) {
+      throw new Error("템플릿으로 저장할 문서를 찾을 수 없습니다.");
+    }
+  }
+
+  const title =
+    (typeof input.title === "string" && input.title.trim()) ||
+    sourceSnapshot?.title ||
+    "제목 없음";
+  const content =
+    input.content !== undefined ? input.content : sourceSnapshot?.content ?? [];
+  const emoji =
+    input.emoji !== undefined ? input.emoji : sourceSnapshot?.emoji ?? null;
+
+  const created = await prisma.workspace_doc_templates.create({
+    data: {
+      workspace_id: input.workspaceId,
+      created_by: input.createdBy,
+      source_doc_id: input.sourceDocId ?? null,
+      name,
+      description: input.description?.trim() || null,
+      emoji: emoji ?? null,
+      title,
+      content: toTemplateJsonValue(content),
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      emoji: true,
+      title: true,
+      content: true,
+      created_at: true,
+      updated_at: true,
+      source_doc_id: true,
+    },
+  });
+
+  return normalizeTemplateRecord(created);
+}
+
+export async function updateWorkspaceDocTemplate(input: {
+  workspaceId: string;
+  templateId: string;
+  name?: string | null;
+  description?: string | null;
+  emoji?: string | null;
+  title?: string | null;
+  content?: unknown;
+  sourceDocId?: string | null;
+}) {
+  const existing = await prisma.workspace_doc_templates.findFirst({
+    where: {
+      id: input.templateId,
+      workspace_id: input.workspaceId,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      emoji: true,
+      title: true,
+      content: true,
+    },
+  });
+
+  if (!existing) {
+    throw new Error("템플릿을 찾을 수 없습니다.");
+  }
+
+  let sourceSnapshot: TemplateSourceSnapshot | null = null;
+  if (input.sourceDocId) {
+    sourceSnapshot = await getTemplateSourceSnapshot(
+      input.workspaceId,
+      input.sourceDocId,
+    );
+    if (!sourceSnapshot) {
+      throw new Error("템플릿으로 갱신할 문서를 찾을 수 없습니다.");
+    }
+  }
+
+  const nextName =
+    input.name !== undefined
+      ? typeof input.name === "string"
+        ? input.name.trim()
+        : ""
+      : existing.name;
+  if (!nextName) {
+    throw new Error("템플릿 이름을 입력해 주세요.");
+  }
+
+  const updateData: Prisma.workspace_doc_templatesUncheckedUpdateInput = {
+    name: nextName,
+  };
+
+  if (input.description !== undefined) {
+    updateData.description =
+      typeof input.description === "string" && input.description.trim()
+        ? input.description.trim()
+        : null;
+  }
+
+  if (input.emoji !== undefined) {
+    updateData.emoji =
+      typeof input.emoji === "string" && input.emoji ? input.emoji : null;
+  } else if (sourceSnapshot) {
+    updateData.emoji = sourceSnapshot.emoji ?? null;
+  }
+
+  if (input.title !== undefined) {
+    const nextTitle =
+      typeof input.title === "string" ? input.title.trim() : "";
+    updateData.title = nextTitle || existing.title;
+  } else if (sourceSnapshot) {
+    updateData.title = sourceSnapshot.title;
+  }
+
+  if (input.content !== undefined) {
+    updateData.content = toTemplateJsonValue(input.content);
+  } else if (sourceSnapshot) {
+    updateData.content = toTemplateJsonValue(sourceSnapshot.content);
+  }
+
+  if (input.sourceDocId !== undefined) {
+    updateData.source_doc_id = input.sourceDocId || null;
+  }
+
+  const updated = await prisma.workspace_doc_templates.update({
+    where: {
+      id: input.templateId,
+    },
+    data: updateData,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      emoji: true,
+      title: true,
+      content: true,
+      created_at: true,
+      updated_at: true,
+      source_doc_id: true,
+    },
+  });
+
+  return normalizeTemplateRecord(updated);
+}
+
+export async function deleteWorkspaceDocTemplate(
+  workspaceId: string,
+  templateId: string,
+) {
+  const template = await prisma.workspace_doc_templates.findFirst({
+    where: {
+      id: templateId,
+      workspace_id: workspaceId,
+    },
+    select: { id: true },
+  });
+
+  if (!template) {
+    throw new Error("템플릿을 찾을 수 없습니다.");
+  }
+
+  await prisma.workspace_doc_templates.delete({
+    where: {
+      id: templateId,
+    },
+  });
 }

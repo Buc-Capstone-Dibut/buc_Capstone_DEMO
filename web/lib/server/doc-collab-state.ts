@@ -86,3 +86,101 @@ export async function saveDocCollabState(docId: string, yjsState: string) {
 
   return { ok: true as const };
 }
+
+type SaveWorkspaceDocSnapshotInput = {
+  docId: string;
+  yjsState: string;
+  title?: string;
+  emoji?: string | null;
+  authorId?: string | null;
+};
+
+export async function saveWorkspaceDocSnapshot({
+  docId,
+  yjsState,
+  title,
+  emoji,
+  authorId,
+}: SaveWorkspaceDocSnapshotInput) {
+  const doc = await prisma.workspace_docs.findUnique({
+    where: { id: docId },
+    select: {
+      id: true,
+      workspace_id: true,
+      author_id: true,
+    },
+  });
+
+  if (!doc) {
+    return { ok: false as const, status: 404, error: "Document not found" };
+  }
+
+  const writableCheck = await ensureWorkspaceWritable(doc.workspace_id);
+  if (!writableCheck.ok) {
+    return {
+      ok: false as const,
+      status: writableCheck.status,
+      error: writableCheck.error,
+    };
+  }
+
+  let nextAuthorId = doc.author_id;
+  if (authorId !== undefined) {
+    if (typeof authorId !== "string" || !authorId) {
+      return {
+        ok: false as const,
+        status: 400,
+        error: "유효한 작업자를 선택해 주세요.",
+      };
+    }
+
+    const assigneeMembership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: doc.workspace_id,
+          user_id: authorId,
+        },
+      },
+      select: { user_id: true },
+    });
+
+    if (!assigneeMembership) {
+      return {
+        ok: false as const,
+        status: 400,
+        error: "작업자는 워크스페이스 멤버여야 합니다.",
+      };
+    }
+
+    nextAuthorId = authorId;
+  }
+
+  const trimmedTitle =
+    typeof title === "string" && title.trim().length > 0
+      ? title.trim()
+      : undefined;
+
+  await prisma.$transaction([
+    prisma.workspace_doc_states.upsert({
+      where: { doc_id: docId },
+      create: {
+        doc_id: docId,
+        yjs_state: yjsState,
+      },
+      update: {
+        yjs_state: yjsState,
+      },
+    }),
+    prisma.workspace_docs.update({
+      where: { id: docId },
+      data: {
+        content: yjsStateToSnapshot(yjsState) as Prisma.InputJsonValue,
+        ...(trimmedTitle !== undefined ? { title: trimmedTitle } : {}),
+        ...(emoji !== undefined ? { emoji } : {}),
+        ...(nextAuthorId !== doc.author_id ? { author_id: nextAuthorId } : {}),
+      },
+    }),
+  ]);
+
+  return { ok: true as const };
+}

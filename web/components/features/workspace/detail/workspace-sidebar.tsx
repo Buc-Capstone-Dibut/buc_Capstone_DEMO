@@ -477,7 +477,10 @@ export function WorkspaceSidebar({
                 canManageChannels && !isReadOnly && channel.name !== "general";
 
               return (
-                <div key={channel.id} className="flex items-center gap-1">
+                <div
+                  key={channel.id}
+                  className="group flex items-center gap-1"
+                >
                   <Button
                     variant="ghost"
                     className={cn(
@@ -539,7 +542,8 @@ export function WorkspaceSidebar({
                     <button
                       type="button"
                       className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-all",
+                        "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
                         "hover:bg-muted hover:text-red-600",
                       )}
                       onClick={(event) => {

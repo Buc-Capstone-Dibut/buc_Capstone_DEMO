@@ -117,6 +117,7 @@ import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/
 import { useWorkspaceStore } from "@/components/features/workspace/store/mock-data";
 import { useSocketStore } from "@/components/features/workspace/store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
+import { runDocsBeforeLeaveHandler } from "@/lib/docs-before-leave";
 
 const ALLOWED_TABS = new Set([
   "overview",
@@ -177,11 +178,19 @@ export default function WorkspaceDetailPage() {
     workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
   );
 
-  const handleTabChange = (
+  const handleTabChange = async (
     tab: string,
     options?: { docId?: string | null },
   ) => {
     const normalized = normalizeTab(tab);
+
+    if (activeTab === "docs" && normalized !== "docs") {
+      const canLeaveDocs = await runDocsBeforeLeaveHandler();
+      if (!canLeaveDocs) {
+        return;
+      }
+    }
+
     setActiveTab(normalized);
 
     const nextParams = new URLSearchParams(searchParams.toString());

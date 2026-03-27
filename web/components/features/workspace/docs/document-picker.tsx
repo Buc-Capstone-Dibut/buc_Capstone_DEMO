@@ -158,7 +158,7 @@ export function DocumentPicker({
 
   return (
     <div className={cn("rounded-md border bg-background", className)}>
-      <ScrollArea className="max-h-64">
+      <ScrollArea className="max-h-[min(60vh,20rem)]">
         <div className="p-1.5">
           {hasVisiblePages ? (
             <DocumentPickerBranch

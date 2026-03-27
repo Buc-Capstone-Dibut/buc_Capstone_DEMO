@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { saveDocCollabState } from "@/lib/server/doc-collab-state";
+import { saveWorkspaceDocSnapshot } from "@/lib/server/doc-collab-state";
 import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
 
 export async function POST(
@@ -23,6 +23,9 @@ export async function POST(
     const payload = (await request.json()) as {
       yjsState?: unknown;
       content?: unknown;
+      title?: unknown;
+      emoji?: unknown;
+      authorId?: unknown;
     };
 
     let yjsState: string | null = null;
@@ -78,7 +81,19 @@ export async function POST(
       );
     }
 
-    const result = await saveDocCollabState(docId, yjsState);
+    const result = await saveWorkspaceDocSnapshot({
+      docId,
+      yjsState,
+      ...(payload.title === undefined || typeof payload.title === "string"
+        ? { title: payload.title }
+        : {}),
+      ...(payload.emoji === undefined || payload.emoji === null || typeof payload.emoji === "string"
+        ? { emoji: payload.emoji as string | null | undefined }
+        : {}),
+      ...(payload.authorId === undefined || payload.authorId === null || typeof payload.authorId === "string"
+        ? { authorId: payload.authorId as string | null | undefined }
+        : {}),
+    });
 
     if (!result.ok) {
       return NextResponse.json(
