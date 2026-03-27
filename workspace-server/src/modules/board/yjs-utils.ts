@@ -324,6 +324,54 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
   conn.close();
 };
 
+export const resetYjsRoom = async (roomName: string) => {
+  const pendingLoad = docLoadPromises.get(roomName);
+  if (pendingLoad) {
+    await pendingLoad.catch(() => undefined);
+  }
+
+  const doc = docs.get(roomName);
+  if (!doc) {
+    return { ok: true as const, existed: false };
+  }
+
+  if (doc.conns.size > 0) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: "Document room is still active.",
+    };
+  }
+
+  doc.cleanup();
+  docs.delete(roomName);
+  docLoadPromises.delete(roomName);
+  doc.destroy();
+
+  return { ok: true as const, existed: true };
+};
+
+export const flushYjsRoom = async (roomName: string) => {
+  const pendingLoad = docLoadPromises.get(roomName);
+  if (pendingLoad) {
+    await pendingLoad.catch(() => undefined);
+  }
+
+  const doc = docs.get(roomName);
+  if (!doc) {
+    return { ok: true as const, existed: false };
+  }
+
+  doc.cancelScheduledSave();
+  await saveDocState(doc);
+
+  return {
+    ok: true as const,
+    existed: true,
+    activeConnections: doc.conns.size,
+  };
+};
+
 // ─────────────────────────────────────────────
 // 공개 API
 // ─────────────────────────────────────────────

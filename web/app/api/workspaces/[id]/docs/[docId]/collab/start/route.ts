@@ -8,6 +8,7 @@ import {
   touchDocPresence,
 } from "@/lib/server/workspace-doc-collab-session";
 import { syncDocCollabStateFromSnapshot } from "@/lib/server/doc-collab-state";
+import { resetWorkspaceDocCollabRoom } from "@/lib/server/workspace-doc-collab-room";
 import { createWorkspaceDocCollabToken } from "@/lib/server/workspace-doc-collab-token";
 
 export async function POST(
@@ -84,6 +85,14 @@ export async function POST(
         return NextResponse.json(
           { error: seeded.error },
           { status: seeded.status },
+        );
+      }
+
+      const reset = await resetWorkspaceDocCollabRoom(docId);
+      if (!reset.ok) {
+        return NextResponse.json(
+          { error: "이전 협업 상태를 정리하지 못해 협업을 시작할 수 없습니다." },
+          { status: reset.status },
         );
       }
     }

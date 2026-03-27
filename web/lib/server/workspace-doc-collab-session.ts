@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { flushWorkspaceDocCollabRoom } from "@/lib/server/workspace-doc-collab-room";
 
 const DOC_LIVE_PRESENCE_TTL_MS = 30_000;
 const COLLAB_SCHEMA_RESOURCE_NAMES = [
@@ -507,6 +508,13 @@ export async function leaveDocCollabSession(
 
       const now = new Date();
       if (remainingParticipants === 0) {
+        const flush = await flushWorkspaceDocCollabRoom(docId);
+        if (!flush.ok) {
+          throw new Error(
+            "문서 협업 상태를 저장하지 못해 협업을 종료할 수 없습니다.",
+          );
+        }
+
         await prisma.workspace_doc_collab_sessions.upsert({
           where: {
             doc_id: docId,
