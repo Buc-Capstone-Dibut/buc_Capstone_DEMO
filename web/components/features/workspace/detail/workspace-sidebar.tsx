@@ -363,15 +363,6 @@ export function WorkspaceSidebar({
           <PanelLeftOpen className="h-4 w-4" />
         </Button>
 
-        <Link
-          href="/workspace"
-          className="mt-2 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="프로젝트 목록"
-          aria-label="프로젝트 목록"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Link>
-
         <div className="my-3 h-px w-8 bg-border" />
 
         <div className="flex flex-col items-center gap-1">
