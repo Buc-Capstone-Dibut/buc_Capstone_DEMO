@@ -244,7 +244,7 @@ export async function PATCH(
       }
 
       let nextAuthorId: string | undefined;
-      if (authorId !== undefined) {
+      if (authorId !== undefined && authorId !== null) {
         if (typeof authorId !== "string" || !authorId) {
           throw new Error("유효한 작업자를 선택해 주세요.");
         }

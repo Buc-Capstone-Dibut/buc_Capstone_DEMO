@@ -56,7 +56,7 @@ export interface NormalDocumentEditorHandle {
     header?: {
       title: string;
       emoji: string | null;
-      authorId: string | null;
+      authorId?: string | null;
     };
   }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
@@ -209,7 +209,7 @@ export const NormalDocumentEditor = forwardRef<
       header?: {
         title: string;
         emoji: string | null;
-        authorId: string | null;
+        authorId?: string | null;
       };
     }) => {
       const snapshot = editor.document;
@@ -235,7 +235,9 @@ export const NormalDocumentEditor = forwardRef<
                 ? {
                     title: options.header.title,
                     emoji: options.header.emoji,
-                    authorId: options.header.authorId,
+                    ...(options.header.authorId
+                      ? { authorId: options.header.authorId }
+                      : {}),
                   }
                 : {}),
             }),

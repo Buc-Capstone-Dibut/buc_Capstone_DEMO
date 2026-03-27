@@ -58,7 +58,7 @@ export interface DocumentEditorHandle {
     header?: {
       title: string;
       emoji: string | null;
-      authorId: string | null;
+      authorId?: string | null;
     };
   }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;

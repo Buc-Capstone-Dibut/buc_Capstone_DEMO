@@ -8,11 +8,9 @@ import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
 import {
   DocumentEditor,
-  type DocumentEditorHandle,
 } from "@/components/features/workspace/docs/editor";
 import {
   NormalDocumentEditor,
-  type NormalDocumentEditorHandle,
 } from "@/components/features/workspace/docs/normal-editor";
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
@@ -210,7 +208,17 @@ type EmojiSelection = {
   native?: string;
 };
 
-type EditorHandle = DocumentEditorHandle | NormalDocumentEditorHandle;
+type EditorHandle = {
+  saveNow: (options?: {
+    silent?: boolean;
+    header?: {
+      title: string;
+      emoji: string | null;
+      authorId?: string | null;
+    };
+  }) => Promise<boolean>;
+  hasUnsavedChanges: () => boolean;
+};
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -2460,7 +2468,9 @@ export function DocsView({
     isLoadingActiveDoc ||
     Boolean(activeDoc && activeDoc.id !== activeDocId);
   const docLoadingOverlayText = isSwitchingDoc
-    ? "문서를 전환하는 중..."
+    ? isSavingDocument
+      ? "이동 전 저장 중..."
+      : "문서를 전환하는 중..."
     : "문서를 불러오는 중...";
   const collabBadgeVisible =
     editorMode === "collab" || Boolean(activeDocCollabState?.isActive);

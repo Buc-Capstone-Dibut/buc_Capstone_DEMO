@@ -125,7 +125,7 @@ export async function saveWorkspaceDocSnapshot({
   }
 
   let nextAuthorId = doc.author_id;
-  if (authorId !== undefined) {
+  if (authorId !== undefined && authorId !== null) {
     if (typeof authorId !== "string" || !authorId) {
       return {
         ok: false as const,
