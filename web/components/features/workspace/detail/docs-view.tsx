@@ -377,6 +377,7 @@ export function DocsView({
   const activeDocModeRef = useRef<"NORMAL" | "COLLAB">("NORMAL");
   const activeDocDirtyRef = useRef(false);
   const activeDocIdRef = useRef<string | null>(null);
+  const initialDocIdRef = useRef<string | null | undefined>(undefined);
   const expandedDocsHydratedRef = useRef(false);
   const headerReadyRef = useRef(false);
   const workspaceSettingsPayloadRef = useRef<Record<string, unknown>>({});
@@ -1664,10 +1665,21 @@ export function DocsView({
 
   useEffect(() => {
     if (typeof initialDocId === "undefined") return;
-    if ((initialDocId ?? null) === activeDocId) return;
 
-    void switchActiveDoc(initialDocId ?? null, { syncQuery: false });
-  }, [activeDocId, initialDocId, switchActiveDoc]);
+    const nextInitialDocId = initialDocId ?? null;
+    const previousInitialDocId = initialDocIdRef.current;
+    initialDocIdRef.current = nextInitialDocId;
+
+    if (previousInitialDocId === nextInitialDocId) {
+      return;
+    }
+
+    if (nextInitialDocId === activeDocIdRef.current) {
+      return;
+    }
+
+    void switchActiveDoc(nextInitialDocId, { syncQuery: false });
+  }, [initialDocId, switchActiveDoc]);
 
   const handleSelectDoc = useCallback(
     (docId: string) => {
