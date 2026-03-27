@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import { getWorkspaceDocTemplate } from "@/lib/server/workspace-doc-templates";
 import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
+import { getWorkspaceDocsCollabStateMap } from "@/lib/server/workspace-doc-collab-session";
 
 type DocKind = "page" | "folder";
 
@@ -67,7 +68,18 @@ export async function GET(
       },
     });
 
-    return NextResponse.json(docs);
+    const collabStateMap = await getWorkspaceDocsCollabStateMap(
+      workspaceId,
+      docs.map((doc) => doc.id),
+      session.user.id,
+    );
+
+    return NextResponse.json(
+      docs.map((doc) => ({
+        ...doc,
+        collab: collabStateMap.get(doc.id),
+      })),
+    );
   } catch (error) {
     console.error("API: List Docs Error", error);
     const message =

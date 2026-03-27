@@ -520,6 +520,8 @@ model profiles {
   workspace_members  workspace_members[]
   workspace_invites  workspace_invites[]
   workspace_docs     workspace_docs[]
+  started_doc_collab_sessions workspace_doc_collab_sessions[] @relation("WorkspaceDocCollabStartedBy")
+  workspace_doc_live_presence workspace_doc_live_presence[]
   workspace_doc_assets_created workspace_doc_assets[] @relation("WorkspaceDocAssetCreator")
   workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
   workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
@@ -683,6 +685,8 @@ model workspaces {
   tags       kanban_tags[]
   views      workspace_views[]
   docs       workspace_docs[]
+  doc_collab_sessions workspace_doc_collab_sessions[]
+  doc_live_presence workspace_doc_live_presence[]
   doc_assets workspace_doc_assets[]
   task_document_links kanban_task_documents[]
   doc_comments workspace_doc_comments[]
@@ -860,6 +864,8 @@ model workspace_docs {
   parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
   children  workspace_docs[] @relation("DocHierarchy")
   state     workspace_doc_states?
+  collab_session workspace_doc_collab_sessions?
+  live_presence workspace_doc_live_presence[]
   assets    workspace_doc_assets[]
   task_links kanban_task_documents[]
   comments  workspace_doc_comments[]
@@ -878,6 +884,42 @@ model workspace_doc_states {
 
   doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
 
+  @@schema("public")
+}
+
+model workspace_doc_collab_sessions {
+  doc_id           String    @id @db.Uuid
+  workspace_id     String    @db.Uuid
+  status           String    @default("ENDED")
+  started_by       String?   @db.Uuid
+  started_at       DateTime? @db.Timestamptz(6)
+  ended_at         DateTime? @db.Timestamptz(6)
+  last_activity_at DateTime? @db.Timestamptz(6)
+
+  doc        workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  workspace  workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  started_by_profile profiles? @relation("WorkspaceDocCollabStartedBy", fields: [started_by], references: [id], onDelete: SetNull)
+
+  @@index([workspace_id, status, last_activity_at(sort: Desc)])
+  @@schema("public")
+}
+
+model workspace_doc_live_presence {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String   @db.Uuid
+  doc_id       String   @db.Uuid
+  user_id      String   @db.Uuid
+  mode         String   @default("NORMAL")
+  is_dirty     Boolean  @default(false)
+  last_seen_at DateTime @default(now()) @db.Timestamptz(6)
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  doc       workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  user      profiles       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([doc_id, user_id])
+  @@index([workspace_id, doc_id, mode, last_seen_at(sort: Desc)])
+  @@index([user_id, last_seen_at(sort: Desc)])
   @@schema("public")
 }
 

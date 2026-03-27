@@ -6,7 +6,6 @@ import * as decoding from "lib0/decoding";
 import { WebSocket } from "ws";
 import { BFF_URL, INTERNAL_API_SECRET } from "../../config/env";
 
-const wsReadyStateConnecting = 0;
 const wsReadyStateOpen = 1;
 const wsReadyStateClosing = 2; // eslint-disable-line
 const wsReadyStateClosed = 3; // eslint-disable-line
@@ -15,6 +14,8 @@ const docs = new Map<string, WSSharedDoc>();
 
 const messageSync = 0;
 const messageAwareness = 1;
+
+const docLoadPromises = new Map<string, Promise<WSSharedDoc>>();
 
 type RoomTarget =
   | { kind: "doc"; id: string }
@@ -43,6 +44,17 @@ function parseRoomTarget(roomName: string): RoomTarget {
   }
 
   return { kind: "unknown", raw: roomName };
+}
+
+export function extractDocNameFromRequestUrl(requestUrl?: string | null) {
+  if (!requestUrl) return "";
+
+  const url = new URL(requestUrl, "http://localhost");
+  const pathname = url.pathname.startsWith("/")
+    ? url.pathname.slice(1)
+    : url.pathname;
+
+  return decodeURIComponent(pathname);
 }
 
 function getPersistenceUrl(target: RoomTarget) {
@@ -141,6 +153,7 @@ class WSSharedDoc extends Y.Doc {
   name: string;
   conns: Map<WebSocket, Set<number>>;
   awareness: awarenessProtocol.Awareness;
+  isHydrating: boolean;
 
   /** debounce 저장용 타이머 */
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -152,6 +165,7 @@ class WSSharedDoc extends Y.Doc {
     this.name = name;
     this.conns = new Map();
     this.awareness = new awarenessProtocol.Awareness(this);
+    this.isHydrating = false;
     this.awareness.setLocalState(null);
 
     // Awareness 변경 → 모든 클라이언트에 브로드캐스트
@@ -173,6 +187,10 @@ class WSSharedDoc extends Y.Doc {
 
     // Doc 변경 → 다른 클라이언트에 브로드캐스트 + debounce 저장 예약
     this.on("update", (update: Uint8Array, origin: any) => {
+      if (this.isHydrating) {
+        return;
+      }
+
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageSync);
       syncProtocol.writeUpdate(encoder, update);
@@ -233,17 +251,35 @@ class WSSharedDoc extends Y.Doc {
 // 내부 유틸리티
 // ─────────────────────────────────────────────
 
-const getYDoc = (docname: string, gc = true): WSSharedDoc => {
-  let doc = docs.get(docname);
-  if (doc === undefined) {
-    doc = new WSSharedDoc(docname);
+const getYDocAsync = async (docname: string, gc = true): Promise<WSSharedDoc> => {
+  const existingDoc = docs.get(docname);
+  if (existingDoc) {
+    return existingDoc;
+  }
+
+  const existingPromise = docLoadPromises.get(docname);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const loadPromise = (async () => {
+    const doc = new WSSharedDoc(docname);
     doc.gc = gc;
     docs.set(docname, doc);
-    // 새 doc 생성 시 → DB에서 이전 상태 비동기 로드
-    // applyUpdate()가 완료되면 doc.on("update")가 발화해 연결된 클라이언트에 자동 전파됨
-    loadDocState(doc);
-  }
-  return doc;
+
+    try {
+      doc.isHydrating = true;
+      await loadDocState(doc);
+    } finally {
+      doc.isHydrating = false;
+      docLoadPromises.delete(docname);
+    }
+
+    return doc;
+  })();
+
+  docLoadPromises.set(docname, loadPromise);
+  return loadPromise;
 };
 
 const send = (doc: WSSharedDoc, conn: WebSocket, m: Uint8Array) => {
@@ -292,14 +328,19 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
 // 공개 API
 // ─────────────────────────────────────────────
 
-export const setupWSConnection = (
+export const setupWSConnection = async (
   conn: WebSocket,
   req: any,
-  { docName = req.url!.slice(1), gc = true }: any = {},
+  { docName = extractDocNameFromRequestUrl(req.url), gc = true }: any = {},
 ) => {
   console.log(`[YJS] 연결 설정: doc='${docName}'`);
   conn.binaryType = "arraybuffer";
-  const doc = getYDoc(docName, gc);
+  const doc = await getYDocAsync(docName, gc);
+
+  if (conn.readyState === wsReadyStateClosed || conn.readyState === wsReadyStateClosing) {
+    return;
+  }
+
   doc.conns.set(conn, new Set());
 
   conn.on("message", (message: ArrayBuffer) => {

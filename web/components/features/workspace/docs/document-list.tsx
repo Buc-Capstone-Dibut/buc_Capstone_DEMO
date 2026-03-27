@@ -3,27 +3,25 @@
 import { useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronRight,
   ChevronDown,
-  Plus,
-  MoreHorizontal,
-  Trash2,
+  ChevronRight,
   File,
   Folder,
   FolderOpen,
-  PencilLine,
   FolderPlus,
   GripVertical,
+  PencilLine,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
 import {
   computeDocMove,
   type DocTreeItem,
@@ -34,12 +32,17 @@ interface Doc extends DocTreeItem {
   title: string;
   emoji?: string | null;
   updated_at?: string;
+  collab?: {
+    isActive?: boolean;
+    participantCount?: number;
+  };
 }
 
 interface DocumentListProps {
   workspaceId: string;
   docs: Doc[];
   readOnly?: boolean;
+  organizeMode?: boolean;
   level?: number;
   parentId?: string | null;
   onExpand?: (id: string) => void;
@@ -174,6 +177,7 @@ function DocumentTreeBranch({
   workspaceId,
   docs,
   readOnly = false,
+  organizeMode = false,
   level = 0,
   parentId = null,
   onExpand,
@@ -197,12 +201,10 @@ function DocumentTreeBranch({
 
   if (currentDocs.length === 0) return null;
 
-  const handleCreateChild = async (
-    e: MouseEvent,
-    nextParentId: string,
-    kind: "page" | "folder" = "page",
+  const createDoc = async (
+    nextParentId: string | null,
+    kind: "page" | "folder",
   ) => {
-    e.stopPropagation();
     if (readOnly) return;
 
     try {
@@ -220,24 +222,45 @@ function DocumentTreeBranch({
 
       const newDoc = (await res.json()) as { id: string };
 
+      if (nextParentId && !expanded[nextParentId]) {
+        onExpand?.(nextParentId);
+      }
+
       if (kind === "page" && onSelect) {
         onSelect(newDoc.id);
       } else if (kind === "page") {
         router.push(`/workspace/${workspaceId}/docs/${newDoc.id}`);
       }
 
-      onExpand?.(nextParentId);
       onMutate?.();
       toast.success(
-        kind === "folder" ? "하위 폴더가 생성되었습니다." : "문서가 생성되었습니다.",
+        kind === "folder" ? "폴더가 생성되었습니다." : "문서가 생성되었습니다.",
       );
     } catch {
       toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
     }
   };
 
-  const handleDelete = async (e: MouseEvent, docId: string) => {
-    e.stopPropagation();
+  const handleCreateChild = async (
+    event: MouseEvent,
+    targetParentId: string,
+    kind: "page" | "folder",
+  ) => {
+    event.stopPropagation();
+    await createDoc(targetParentId, kind);
+  };
+
+  const handleCreateSibling = async (
+    event: MouseEvent,
+    targetParentId: string | null,
+    kind: "page" | "folder",
+  ) => {
+    event.stopPropagation();
+    await createDoc(targetParentId, kind);
+  };
+
+  const handleDelete = async (event: MouseEvent, docId: string) => {
+    event.stopPropagation();
     if (readOnly) return;
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
 
@@ -257,11 +280,11 @@ function DocumentTreeBranch({
   };
 
   const handleRename = async (
-    e: MouseEvent,
+    event: MouseEvent,
     docId: string,
     currentTitle: string,
   ) => {
-    e.stopPropagation();
+    event.stopPropagation();
     if (readOnly) return;
 
     const nextTitle = window.prompt("새 이름을 입력하세요.", currentTitle)?.trim();
@@ -292,13 +315,14 @@ function DocumentTreeBranch({
         const isDragging = draggingDocId === doc.id;
         const previewPosition =
           dropPreview?.targetId === doc.id ? dropPreview.position : null;
+        const canDrag = organizeMode && !readOnly && !isMoving;
 
         return (
           <div key={doc.id}>
             <div
-              draggable={!readOnly && !isMoving}
+              draggable={canDrag}
               onDragStart={(event) => {
-                if (readOnly || isMoving) return;
+                if (!canDrag) return;
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("text/plain", doc.id);
                 setDraggingDocId(doc.id);
@@ -308,7 +332,7 @@ function DocumentTreeBranch({
                 setDropPreview(null);
               }}
               onDragOver={(event) => {
-                if (!draggingDocId || draggingDocId === doc.id) return;
+                if (!canDrag || !draggingDocId || draggingDocId === doc.id) return;
                 event.preventDefault();
                 const position = getDropPosition(event, isFolder);
                 if (
@@ -319,6 +343,7 @@ function DocumentTreeBranch({
                 }
               }}
               onDrop={async (event) => {
+                if (!organizeMode) return;
                 event.preventDefault();
                 if (!draggingDocId || draggingDocId === doc.id) return;
                 const position =
@@ -330,6 +355,8 @@ function DocumentTreeBranch({
               }}
               role="button"
               onClick={() => {
+                if (organizeMode) return;
+
                 if (isFolder) {
                   onExpand?.(doc.id);
                   return;
@@ -342,36 +369,26 @@ function DocumentTreeBranch({
                 }
               }}
               className={cn(
-                "group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors min-h-[32px]",
+                "group relative flex min-h-[32px] items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                isDragging && "opacity-50",
-                previewPosition === "inside" &&
+                organizeMode && isDragging && "opacity-50",
+                organizeMode &&
+                  previewPosition === "inside" &&
                   "bg-amber-50 text-foreground ring-1 ring-amber-300/70",
               )}
               style={{ paddingLeft: level ? `${level * 12 + 8}px` : "8px" }}
             >
-              {previewPosition === "before" && (
+              {organizeMode && previewPosition === "before" && (
                 <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded-full bg-amber-400" />
               )}
-              {previewPosition === "after" && (
+              {organizeMode && previewPosition === "after" && (
                 <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-amber-400" />
               )}
 
-              {!readOnly ? (
-                <div
-                  className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <GripVertical className="h-3.5 w-3.5" />
-                </div>
-              ) : (
-                <div className="w-4 shrink-0" />
-              )}
-
               <div
-                className="h-6 w-6 rounded-sm hover:bg-muted/70 flex items-center justify-center shrink-0 cursor-pointer"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/70"
                 onClick={(event) => {
                   event.stopPropagation();
                   onExpand?.(doc.id);
@@ -400,30 +417,49 @@ function DocumentTreeBranch({
                 ) : (
                   <File className="h-4 w-4 shrink-0" />
                 )}
-                <span className="truncate">{doc.title}</span>
+                <div className="flex min-w-0 items-center gap-1.5 truncate">
+                  <span className="truncate">{doc.title}</span>
+                  {doc.kind === "page" && doc.collab?.isActive ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      협업
+                      {doc.collab.participantCount
+                        ? ` ${doc.collab.participantCount}`
+                        : ""}
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
-              <div className="ml-auto flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                {!readOnly && (
+              <div
+                className={cn(
+                  "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
+                  organizeMode
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                )}
+              >
+                {organizeMode && !readOnly ? (
+                  <div
+                    className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground/60 hover:bg-muted/70 active:cursor-grabbing"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </div>
+                ) : !readOnly ? (
                   <>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <div
-                          role="button"
-                          className="h-full rounded-sm p-0.5 hover:bg-muted/70"
+                        <button
+                          type="button"
+                          className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
-                        </div>
+                          <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-48">
-                        <DropdownMenuItem
-                          onClick={(event) => handleRename(event, doc.id, doc.title)}
-                        >
-                          <PencilLine className="mr-2 h-4 w-4" />
-                          이름 변경
-                        </DropdownMenuItem>
-                        {isFolder && (
+                      <DropdownMenuContent align="end" className="w-48">
+                        {isFolder ? (
                           <>
                             <DropdownMenuItem
                               onClick={(event) =>
@@ -441,30 +477,47 @@ function DocumentTreeBranch({
                               <FolderPlus className="mr-2 h-4 w-4" />
                               하위 폴더 추가
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                          </>
+                        ) : (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(event) =>
+                                handleCreateSibling(event, doc.parent_id, "page")
+                              }
+                            >
+                              <File className="mr-2 h-4 w-4" />
+                              같은 위치에 문서 추가
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(event) =>
+                                handleCreateSibling(event, doc.parent_id, "folder")
+                              }
+                            >
+                              <FolderPlus className="mr-2 h-4 w-4" />
+                              같은 위치에 폴더 추가
+                            </DropdownMenuItem>
                           </>
                         )}
-                        <DropdownMenuItem
-                          onClick={(event) => handleDelete(event, doc.id)}
-                          className="text-red-500 focus:text-red-500"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          삭제
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {isFolder && (
-                      <div
-                        role="button"
-                        onClick={(event) => handleCreateChild(event, doc.id, "page")}
-                        className="ml-1 h-full rounded-sm p-0.5 hover:bg-muted/70"
-                      >
-                        <Plus className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
+                      onClick={(event) => handleRename(event, doc.id, doc.title)}
+                    >
+                      <PencilLine className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="flex h-6 w-6 items-center justify-center rounded-sm text-red-500 hover:bg-red-50"
+                      onClick={(event) => handleDelete(event, doc.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -473,6 +526,7 @@ function DocumentTreeBranch({
                 workspaceId={workspaceId}
                 docs={docs}
                 readOnly={readOnly}
+                organizeMode={organizeMode}
                 level={level + 1}
                 parentId={doc.id}
                 onExpand={onExpand}

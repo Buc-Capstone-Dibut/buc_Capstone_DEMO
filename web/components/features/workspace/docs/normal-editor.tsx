@@ -7,8 +7,7 @@ import {
   type DefaultReactSuggestionItem,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+import type { PartialBlock } from "@blocknote/core";
 import {
   forwardRef,
   useCallback,
@@ -40,24 +39,21 @@ interface WorkspaceTaskSearchResult {
   columnTitle?: string | null;
 }
 
-interface DocumentEditorProps {
+interface NormalDocumentEditorProps {
   docId: string;
   workspaceId?: string;
+  initialContent?: unknown;
   readOnly?: boolean;
   user?: UserInfo;
   onTaskLinked?: () => void;
   onOpenTask?: (taskId: string) => void;
-  collabToken: string;
-  onStatusChange?: (status: "connecting" | "saving" | "synced" | "unstable") => void;
-  onParticipantsChange?: (participants: UserInfo[]) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export interface DocumentEditorHandle {
+export interface NormalDocumentEditorHandle {
   saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
 }
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
 
 const PAPER_SURFACE_STYLE = {
   "--bn-colors-editor-background": "hsl(42 45% 98%)",
@@ -71,26 +67,29 @@ const PAPER_SURFACE_STYLE = {
   "--bn-border-radius": "0px",
 } as CSSProperties;
 
-export const DocumentEditor = forwardRef<
-  DocumentEditorHandle,
-  DocumentEditorProps
->(function DocumentEditor(
+function serializeBlocks(blocks: unknown) {
+  return JSON.stringify(Array.isArray(blocks) ? blocks : []);
+}
+
+export const NormalDocumentEditor = forwardRef<
+  NormalDocumentEditorHandle,
+  NormalDocumentEditorProps
+>(function NormalDocumentEditor(
   {
     docId,
     workspaceId,
+    initialContent,
     readOnly = false,
-    user,
     onTaskLinked,
     onOpenTask,
-    collabToken,
-    onStatusChange,
-    onParticipantsChange,
-  }: DocumentEditorProps,
+    onDirtyChange,
+  }: NormalDocumentEditorProps,
   ref,
 ) {
   const { theme } = useTheme();
   const pathname = usePathname();
-  const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedSnapshotRef = useRef(serializeBlocks(initialContent));
+  const latestDirtyRef = useRef(false);
 
   const resolvedWorkspaceId = useMemo(() => {
     if (workspaceId) return workspaceId;
@@ -149,36 +148,8 @@ export const DocumentEditor = forwardRef<
     return url;
   }, []);
 
-  // Create Yjs provider and doc
-  const { doc, provider } = useMemo(() => {
-    const ydoc = new Y.Doc();
-    const websocketProvider = new WebsocketProvider(WS_URL, `doc:${docId}`, ydoc, {
-      params: {
-        token: collabToken,
-      },
-    });
-    return { doc: ydoc, provider: websocketProvider };
-  }, [collabToken, docId]);
-
-  // Stable user info
-  const userInfo = useMemo(() => {
-    if (user) return user;
-    if (typeof window === "undefined") {
-      return { name: "Anonymous", color: "#ff0000" };
-    }
-    return {
-      name: getRandomName(),
-      color: getRandomColor(),
-    };
-  }, [user]);
-
   const editor = useCreateBlockNote(
     {
-      collaboration: {
-        provider,
-        fragment: doc.getXmlFragment("document-store"),
-        user: userInfo,
-      },
       uploadFile: async (file) => {
         if (readOnly) {
           throw new Error("읽기 전용 문서에서는 이미지를 업로드할 수 없습니다.");
@@ -186,68 +157,102 @@ export const DocumentEditor = forwardRef<
         return uploadAsset(file);
       },
       resolveFileUrl: resolveAssetUrl,
+      initialContent:
+        Array.isArray(initialContent) && initialContent.length > 0
+          ? (initialContent as PartialBlock[])
+          : undefined,
     },
-    [doc, provider, readOnly, userInfo, docId, resolvedWorkspaceId, resolveAssetUrl],
+    [docId, readOnly, resolvedWorkspaceId, resolveAssetUrl],
+  );
+
+  const emitDirtyChange = useCallback(
+    (nextDirty: boolean) => {
+      latestDirtyRef.current = nextDirty;
+      onDirtyChange?.(nextDirty);
+    },
+    [onDirtyChange],
+  );
+
+  useEffect(() => {
+    lastSavedSnapshotRef.current = serializeBlocks(initialContent);
+    emitDirtyChange(false);
+  }, [docId, emitDirtyChange, initialContent]);
+
+  useEffect(() => {
+    if (
+      initialContent &&
+      Array.isArray(initialContent) &&
+      initialContent.length > 0
+    ) {
+      const currentBlocks = editor.document;
+      const isDefault =
+        currentBlocks.length === 0 ||
+        (currentBlocks.length === 1 &&
+          currentBlocks[0].type === "paragraph" &&
+          (!currentBlocks[0].content ||
+            (Array.isArray(currentBlocks[0].content) &&
+              currentBlocks[0].content.length === 0)));
+
+      if (isDefault) {
+        editor.replaceBlocks(editor.document, initialContent as PartialBlock[]);
+        lastSavedSnapshotRef.current = serializeBlocks(initialContent);
+        emitDirtyChange(false);
+      }
+    }
+  }, [editor, emitDirtyChange, initialContent]);
+
+  const saveCurrentState = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!resolvedWorkspaceId || readOnly) {
+        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
+        emitDirtyChange(false);
+        return true;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/workspaces/${resolvedWorkspaceId}/docs/${docId}/save`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              content: editor.document,
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(
+            payload?.error || payload?.message || "문서 저장에 실패했습니다.",
+          );
+        }
+
+        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
+        emitDirtyChange(false);
+        return true;
+      } catch (error) {
+        if (!options?.silent) {
+          toast.error(
+            (error as Error).message || "문서 저장에 실패했습니다.",
+          );
+        }
+        return false;
+      }
+    },
+    [docId, editor.document, emitDirtyChange, readOnly, resolvedWorkspaceId],
   );
 
   useImperativeHandle(
     ref,
     () => ({
-      saveNow: async () => true,
-      hasUnsavedChanges: () => false,
+      saveNow: saveCurrentState,
+      hasUnsavedChanges: () => latestDirtyRef.current,
     }),
-    [],
+    [saveCurrentState],
   );
-
-  useEffect(() => {
-    onStatusChange?.("connecting");
-
-    const handleProviderStatus = ({ status }: { status: string }) => {
-      if (status === "connected") {
-        onStatusChange?.("synced");
-        return;
-      }
-      onStatusChange?.("unstable");
-    };
-
-    const updateParticipants = () => {
-      const users = Array.from(provider.awareness.getStates().values())
-        .map((state) => (state as { user?: UserInfo }).user)
-        .filter((value): value is UserInfo => Boolean(value));
-      onParticipantsChange?.(users);
-    };
-
-    const handleDocUpdate = () => {
-      onStatusChange?.("saving");
-      if (saveIndicatorTimerRef.current) {
-        clearTimeout(saveIndicatorTimerRef.current);
-      }
-      saveIndicatorTimerRef.current = setTimeout(() => {
-        onStatusChange?.(provider.wsconnected ? "synced" : "unstable");
-      }, 1200);
-    };
-
-    provider.on("status", handleProviderStatus);
-    provider.on("sync", (synced: boolean) => {
-      onStatusChange?.(synced ? "synced" : "connecting");
-    });
-    provider.awareness.on("change", updateParticipants);
-    doc.on("update", handleDocUpdate);
-    updateParticipants();
-
-    return () => {
-      provider.off("status", handleProviderStatus);
-      provider.awareness.off("change", updateParticipants);
-      doc.off("update", handleDocUpdate);
-      if (saveIndicatorTimerRef.current) {
-        clearTimeout(saveIndicatorTimerRef.current);
-        saveIndicatorTimerRef.current = null;
-      }
-      provider.disconnect();
-      provider.destroy();
-      doc.destroy();
-    };
-  }, [doc, onParticipantsChange, onStatusChange, provider]);
 
   const handleTaskMention = useCallback(async (
     task: WorkspaceTaskSearchResult,
@@ -366,7 +371,7 @@ export const DocumentEditor = forwardRef<
     onOpenTask?.(taskId);
   }, [onOpenTask]);
 
-  if (!editor || !collabToken) {
+  if (!editor) {
     return <div>Loading editor...</div>;
   }
 
@@ -384,6 +389,11 @@ export const DocumentEditor = forwardRef<
           theme={theme === "dark" ? "dark" : "light"}
           editable={!readOnly}
           linkToolbar={false}
+          onChange={() => {
+            emitDirtyChange(
+              serializeBlocks(editor.document) !== lastSavedSnapshotRef.current,
+            );
+          }}
           className="min-h-[calc(100vh-24rem)] px-6 py-8 [&_.bn-editor]:rounded-none [&_.bn-editor]:bg-transparent [&_.bn-editor]:shadow-none"
         >
           <SuggestionMenuController
@@ -420,7 +430,7 @@ export const DocumentEditor = forwardRef<
   );
 });
 
-DocumentEditor.displayName = "DocumentEditor";
+NormalDocumentEditor.displayName = "NormalDocumentEditor";
 
 function normalizeTaskSearchItem(
   item: unknown,
@@ -450,35 +460,4 @@ function normalizeTaskSearchItem(
           ? candidate.status
           : undefined,
   };
-}
-
-function getRandomColor() {
-  const colors = [
-    "#ff0000",
-    "#00ff00",
-    "#0000ff",
-    "#ff00ff",
-    "#00ffff",
-    "#ffff00",
-    "#ff8000",
-    "#8000ff",
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-function getRandomName() {
-  const names = [
-    "Anonymous",
-    "Guest",
-    "Visitor",
-    "User",
-    "Editor",
-    "Writer",
-    "Collaborator",
-  ];
-  return (
-    names[Math.floor(Math.random() * names.length)] +
-    " " +
-    Math.floor(Math.random() * 1000)
-  );
 }
