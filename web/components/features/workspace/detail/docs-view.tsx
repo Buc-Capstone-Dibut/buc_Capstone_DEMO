@@ -428,6 +428,8 @@ export function DocsView({
     docId: string | null;
     options?: { syncQuery?: boolean };
   } | null>(null);
+  const suppressedCollabAutoJoinDocIdRef = useRef<string | null>(null);
+  const pendingCollabEntryDocIdRef = useRef<string | null>(null);
   const headerDraftRef = useRef<{
     docId: string | null;
     title: string;
@@ -810,6 +812,22 @@ export function DocsView({
   }, [activeDocId]);
 
   useEffect(() => {
+    if (
+      suppressedCollabAutoJoinDocIdRef.current &&
+      suppressedCollabAutoJoinDocIdRef.current !== activeDocId
+    ) {
+      suppressedCollabAutoJoinDocIdRef.current = null;
+    }
+
+    if (
+      pendingCollabEntryDocIdRef.current &&
+      pendingCollabEntryDocIdRef.current !== activeDocId
+    ) {
+      pendingCollabEntryDocIdRef.current = null;
+    }
+  }, [activeDocId]);
+
+  useEffect(() => {
     activeDocModeRef.current = editorMode === "collab" ? "COLLAB" : "NORMAL";
     activeDocDirtyRef.current = Boolean(normalDocDirty);
   }, [editorMode, normalDocDirty]);
@@ -830,6 +848,22 @@ export function DocsView({
 
     setCollabParticipants(activeDocCollabState.participants);
   }, [activeDocCollabState]);
+
+  useEffect(() => {
+    if (!activeDocId || !activeDocCollabState?.isActive) {
+      return;
+    }
+
+    if (activeDocCollabState.currentUserParticipating) {
+      if (pendingCollabEntryDocIdRef.current === activeDocId) {
+        pendingCollabEntryDocIdRef.current = null;
+      }
+
+      if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
+        suppressedCollabAutoJoinDocIdRef.current = null;
+      }
+    }
+  }, [activeDocCollabState, activeDocId]);
 
   useEffect(() => {
     if (sidebarMode === "archived" && isOrganizeMode) {
@@ -1787,6 +1821,8 @@ export function DocsView({
 
           if (previousDocId) {
             if (editorMode === "collab") {
+              suppressedCollabAutoJoinDocIdRef.current = previousDocId;
+              pendingCollabEntryDocIdRef.current = null;
               const headerSaved = await flushPendingHeaderSave();
               if (!headerSaved) {
                 toast.error("현재 문서 정보를 저장하지 못해 이동을 취소했습니다.");
@@ -1934,17 +1970,46 @@ export function DocsView({
   useEffect(() => {
     if (!activeDocId || isReadOnly) return;
 
-    if (!activeDocCollabState?.isActive) {
-      if (editorMode === "collab") {
-        setEditorMode("normal");
-        setCollabToken(null);
-        setCollabStatus("synced");
-        toast.info("현재 문서 협업이 종료되어 일반 편집으로 전환되었습니다.");
-      }
+    if (editorMode !== "collab" || isLeavingCollab || isSwitchingDoc) {
       return;
     }
 
-    if (editorMode === "collab") {
+    if (pendingCollabEntryDocIdRef.current === activeDocId) {
+      return;
+    }
+
+    if (typeof activeDocCollabState === "undefined") {
+      return;
+    }
+
+    if (!activeDocCollabState.isActive) {
+      setEditorMode("normal");
+      setCollabToken(null);
+      setCollabStatus("synced");
+      toast.info("현재 문서 협업이 종료되어 일반 편집으로 전환되었습니다.");
+      return;
+    }
+  }, [
+    activeDocCollabState,
+    activeDocId,
+    editorMode,
+    isLeavingCollab,
+    isReadOnly,
+    isSwitchingDoc,
+  ]);
+
+  useEffect(() => {
+    if (!activeDocId || isReadOnly) return;
+
+    if (editorMode === "collab" || isLeavingCollab || isSwitchingDoc) {
+      return;
+    }
+
+    if (!activeDocCollabState?.isActive) {
+      return;
+    }
+
+    if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
       return;
     }
 
@@ -1972,6 +2037,8 @@ export function DocsView({
 
         if (isCancelled || !payload?.token) return;
 
+        pendingCollabEntryDocIdRef.current = activeDocId;
+        suppressedCollabAutoJoinDocIdRef.current = null;
         await syncDocPresence(activeDocId, {
           mode: "COLLAB",
           isDirty: false,
@@ -2002,8 +2069,10 @@ export function DocsView({
     activeDocId,
     activeDocCollabState,
     editorMode,
+    isLeavingCollab,
     isReadOnly,
     projectId,
+    isSwitchingDoc,
     syncDocPresence,
   ]);
 
@@ -2119,6 +2188,8 @@ export function DocsView({
         throw new Error("협업 토큰을 받지 못했습니다.");
       }
 
+      pendingCollabEntryDocIdRef.current = activeDocId;
+      suppressedCollabAutoJoinDocIdRef.current = null;
       await syncDocPresence(activeDocId, {
         mode: "COLLAB",
         isDirty: false,
@@ -2155,6 +2226,8 @@ export function DocsView({
 
     setIsLeavingCollab(true);
     try {
+      suppressedCollabAutoJoinDocIdRef.current = activeDocId;
+      pendingCollabEntryDocIdRef.current = null;
       const headerSaved = await flushPendingHeaderSave();
       if (!headerSaved) {
         throw new Error("문서 정보를 저장하지 못해 협업에서 나갈 수 없습니다.");
@@ -2195,6 +2268,8 @@ export function DocsView({
     }
 
     if (activeDocModeRef.current === "COLLAB") {
+      suppressedCollabAutoJoinDocIdRef.current = currentDocId;
+      pendingCollabEntryDocIdRef.current = null;
       const headerSaved = await flushPendingHeaderSave();
       if (!headerSaved) {
         toast.error("현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.");
