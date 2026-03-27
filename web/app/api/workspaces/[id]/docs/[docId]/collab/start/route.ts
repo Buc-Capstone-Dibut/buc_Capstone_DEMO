@@ -79,6 +79,8 @@ export async function POST(
       },
     });
 
+    let seedState: string | null = null;
+
     if (!existingSession || existingSession.status !== "ACTIVE") {
       const seeded = await syncDocCollabStateFromSnapshot(docId);
       if (!seeded.ok) {
@@ -87,6 +89,7 @@ export async function POST(
           { status: seeded.status },
         );
       }
+      seedState = seeded.yjsState;
 
       const reset = await resetWorkspaceDocCollabRoom(docId);
       if (!reset.ok) {
@@ -116,6 +119,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       collab: result.state,
+      seedState,
       token: createWorkspaceDocCollabToken({
         docId,
         workspaceId,
