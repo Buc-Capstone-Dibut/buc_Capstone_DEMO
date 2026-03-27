@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
@@ -147,6 +147,14 @@ type WorkspaceMeta = {
   }>;
 };
 
+type WorkspaceSettingsResponse = {
+  success?: boolean;
+  data?: {
+    publicSummary?: unknown;
+    settingsPayload?: Record<string, unknown> | null;
+  };
+};
+
 type LinkedTaskRelation = {
   id: string;
   relation_type: string;
@@ -247,6 +255,38 @@ const clampDocsSidebarWidth = (width: number, containerWidth?: number) =>
     getDocsSidebarMaxWidth(containerWidth),
   );
 
+function safeStorageGet(
+  storage: "local" | "session",
+  key: string,
+) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const target =
+      storage === "local" ? window.localStorage : window.sessionStorage;
+    return target.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(
+  storage: "local" | "session",
+  key: string,
+  value: string,
+) {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const target =
+      storage === "local" ? window.localStorage : window.sessionStorage;
+    target.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function DocsView({
   projectId,
   initialDocId,
@@ -255,6 +295,7 @@ export function DocsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { mutate: mutateCache } = useSWRConfig();
   const { user, profile } = useAuth();
   const swrOptions = {
     revalidateOnFocus: false,
@@ -264,6 +305,10 @@ export function DocsView({
     ...swrOptions,
     refreshInterval: 5_000,
   } as const;
+  const docsCacheKey = `/api/workspaces/${projectId}/docs`;
+  const archivedDocsCacheKey = `/api/workspaces/${projectId}/docs?archived=true`;
+  const expandedDocsStorageKey = `workspace-docs-expanded:${projectId}`;
+  const docsBootstrapStorageKey = `workspace-docs-bootstrap:${projectId}`;
 
   const { data: workspaceMeta } = useSWR<WorkspaceMeta>(
     `/api/workspaces/${projectId}`,
@@ -280,13 +325,13 @@ export function DocsView({
     mutate: mutateDocs,
     isLoading,
   } = useSWR<WorkspaceDocSummary[]>(
-    `/api/workspaces/${projectId}/docs`,
+    docsCacheKey,
     fetcher,
     docsSWRConfig,
   );
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
-  >(`/api/workspaces/${projectId}/docs?archived=true`, fetcher, docsSWRConfig);
+  >(archivedDocsCacheKey, fetcher, docsSWRConfig);
   const { data: templates } = useSWR<DocTemplate[]>(
     `/api/workspaces/${projectId}/doc-templates`,
     fetcher,
@@ -312,6 +357,8 @@ export function DocsView({
   const [isStartingCollab, setIsStartingCollab] = useState(false);
   const [isLeavingCollab, setIsLeavingCollab] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
+  const [isSwitchingDoc, setIsSwitchingDoc] = useState(false);
+  const [isDocsBootstrapping, setIsDocsBootstrapping] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<string[]>([]);
   const [normalBodyDirty, setNormalBodyDirty] = useState(false);
@@ -329,7 +376,16 @@ export function DocsView({
   });
   const activeDocModeRef = useRef<"NORMAL" | "COLLAB">("NORMAL");
   const activeDocDirtyRef = useRef(false);
+  const activeDocIdRef = useRef<string | null>(null);
+  const expandedDocsHydratedRef = useRef(false);
+  const headerReadyRef = useRef(false);
+  const workspaceSettingsPayloadRef = useRef<Record<string, unknown>>({});
+  const workspacePublicSummaryRef = useRef<unknown>({});
   const switchingDocRef = useRef(false);
+  const queuedDocSwitchRef = useRef<{
+    docId: string | null;
+    options?: { syncQuery?: boolean };
+  } | null>(null);
 
   // Active Doc Data (If Selected)
   const {
@@ -377,6 +433,86 @@ export function DocsView({
     setSelectedTaskId(taskId);
   }, [onNavigateToTask]);
   const [docWorkerId, setDocWorkerId] = useState("");
+
+  const loadWorkspaceViewSettings = useCallback(async () => {
+    const handle = profile?.handle?.trim();
+    if (!handle) {
+      return null;
+    }
+
+    const response = await fetch(
+      `/api/my/workspace-settings/${encodeURIComponent(handle)}`,
+    );
+    const payload = (await response.json().catch(() => null)) as
+      | WorkspaceSettingsResponse
+      | null;
+
+    if (!response.ok || !payload?.success) {
+      throw new Error("문서 보기 설정을 불러오지 못했습니다.");
+    }
+
+    workspaceSettingsPayloadRef.current =
+      payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+        ? payload.data.settingsPayload
+        : {};
+    workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
+
+    return payload.data ?? null;
+  }, [profile?.handle]);
+
+  const persistWorkspaceViewSettings = useDebouncedCallback(
+    async (nextExpandedDocs: Record<string, boolean>) => {
+      const handle = profile?.handle?.trim();
+      if (!handle) return;
+
+      try {
+        const currentPayload =
+          workspaceSettingsPayloadRef.current &&
+          typeof workspaceSettingsPayloadRef.current === "object"
+            ? workspaceSettingsPayloadRef.current
+            : {};
+        const docsViewSettings =
+          currentPayload.docsView && typeof currentPayload.docsView === "object"
+            ? (currentPayload.docsView as Record<string, unknown>)
+            : {};
+
+        const nextSettingsPayload = {
+          ...currentPayload,
+          docsView: {
+            ...docsViewSettings,
+            [projectId]: {
+              expandedDocs: nextExpandedDocs,
+            },
+          },
+        };
+
+        const response = await fetch("/api/my/workspace-settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            publicSummary: workspacePublicSummaryRef.current ?? {},
+            settingsPayload: nextSettingsPayload,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | WorkspaceSettingsResponse
+          | null;
+
+        if (!response.ok || !payload?.success) {
+          throw new Error("문서 보기 설정 저장에 실패했습니다.");
+        }
+
+        workspaceSettingsPayloadRef.current =
+          payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+            ? payload.data.settingsPayload
+            : nextSettingsPayload;
+        workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
+      } catch (error) {
+        console.error("Failed to persist docs view settings", error);
+      }
+    },
+    800,
+  );
 
   const docMap = useMemo(() => {
     const entries = (docs || []).map((doc) => [doc.id, doc] as const);
@@ -433,7 +569,12 @@ export function DocsView({
     return clampDocsSidebarWidth(nextWidth, containerWidth);
   }, []);
   const applyHeaderBaseline = useCallback(
-    (docId: string | null, nextTitle: string, nextEmoji: string | null, nextWorkerId: string) => {
+    (
+      docId: string | null,
+      nextTitle: string,
+      nextEmoji: string | null,
+      nextWorkerId: string,
+    ) => {
       headerBaselineRef.current = {
         docId,
         title: nextTitle,
@@ -445,7 +586,7 @@ export function DocsView({
     [],
   );
 
-  const syncHeaderFromDoc = useCallback(
+  const syncHeaderFromResolvedDoc = useCallback(
     (
       nextDoc:
         | Pick<ActiveWorkspaceDoc, "id" | "title" | "emoji" | "author" | "author_id">
@@ -458,30 +599,46 @@ export function DocsView({
       setEmoji(nextEmoji);
       setDocWorkerId(nextWorkerId);
       applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, nextWorkerId);
+      headerReadyRef.current = true;
     },
     [applyHeaderBaseline],
   );
-  // Sync state with fetching data
+
+  const syncHeaderFromSummary = useCallback(
+    (
+      nextDoc:
+        | Pick<WorkspaceDocSummary, "id" | "title" | "emoji">
+        | null,
+    ) => {
+      const nextTitle = nextDoc?.title ?? "";
+      const nextEmoji = nextDoc?.emoji ?? null;
+      setTitle(nextTitle);
+      setEmoji(nextEmoji);
+      setDocWorkerId("");
+      applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, "");
+      headerReadyRef.current = nextDoc === null;
+    },
+    [applyHeaderBaseline],
+  );
+
   useEffect(() => {
     if (resolvedActiveDoc) {
       const isDocChanged = headerBaselineRef.current.docId !== resolvedActiveDoc.id;
-      if (isDocChanged || !isHeaderDirty) {
-        syncHeaderFromDoc(resolvedActiveDoc);
+      if (isDocChanged || !isHeaderDirty || !headerReadyRef.current) {
+        syncHeaderFromResolvedDoc(resolvedActiveDoc);
       }
       return;
     }
 
     if (activeDocId) {
       const pendingDoc = docMap.get(activeDocId);
-      if (headerBaselineRef.current.docId !== activeDocId) {
-        syncHeaderFromDoc(
+      if (headerBaselineRef.current.docId !== activeDocId || headerReadyRef.current) {
+        syncHeaderFromSummary(
           pendingDoc
             ? {
                 id: pendingDoc.id,
                 title: pendingDoc.title,
                 emoji: pendingDoc.emoji ?? null,
-                author: null,
-                author_id: "",
               }
             : null,
         );
@@ -489,8 +646,15 @@ export function DocsView({
       return;
     }
 
-    syncHeaderFromDoc(null);
-  }, [activeDocId, docMap, isHeaderDirty, resolvedActiveDoc, syncHeaderFromDoc]);
+    syncHeaderFromResolvedDoc(null);
+  }, [
+    activeDocId,
+    docMap,
+    isHeaderDirty,
+    resolvedActiveDoc,
+    syncHeaderFromResolvedDoc,
+    syncHeaderFromSummary,
+  ]);
 
   useEffect(() => {
     if (!activeDocId || headerBaselineRef.current.docId !== activeDocId) {
@@ -509,6 +673,10 @@ export function DocsView({
     !isReadOnly &&
     editorMode === "normal" &&
     (isHeaderDirty || normalBodyDirty || editorRef.current?.hasUnsavedChanges());
+
+  useEffect(() => {
+    activeDocIdRef.current = activeDocId;
+  }, [activeDocId]);
 
   useEffect(() => {
     activeDocModeRef.current = editorMode === "collab" ? "COLLAB" : "NORMAL";
@@ -548,6 +716,222 @@ export function DocsView({
   }, [archivedDocs]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateExpandedDocs = async () => {
+      const storedValue = safeStorageGet("local", expandedDocsStorageKey);
+      if (storedValue) {
+        try {
+          const parsed = JSON.parse(storedValue) as Record<string, boolean>;
+          if (parsed && typeof parsed === "object" && !cancelled) {
+            setExpandedDocs(parsed);
+          }
+        } catch (error) {
+          console.error("Failed to restore expanded docs state", error);
+        } finally {
+          expandedDocsHydratedRef.current = true;
+        }
+        return;
+      }
+
+      try {
+        const settings = await loadWorkspaceViewSettings();
+        const settingsPayload =
+          settings?.settingsPayload && typeof settings.settingsPayload === "object"
+            ? settings.settingsPayload
+            : {};
+        const docsViewSettings =
+          settingsPayload.docsView && typeof settingsPayload.docsView === "object"
+            ? (settingsPayload.docsView as Record<string, unknown>)
+            : {};
+        const projectSettings =
+          docsViewSettings[projectId] && typeof docsViewSettings[projectId] === "object"
+            ? (docsViewSettings[projectId] as Record<string, unknown>)
+            : {};
+        const serverExpandedDocs =
+          projectSettings.expandedDocs &&
+          typeof projectSettings.expandedDocs === "object"
+            ? (projectSettings.expandedDocs as Record<string, boolean>)
+            : null;
+
+        if (serverExpandedDocs && !cancelled) {
+          setExpandedDocs(serverExpandedDocs);
+        }
+      } catch (error) {
+        console.error("Failed to load docs view settings", error);
+      } finally {
+        expandedDocsHydratedRef.current = true;
+      }
+    };
+
+    void hydrateExpandedDocs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedDocsStorageKey, loadWorkspaceViewSettings, projectId]);
+
+  useEffect(() => {
+    if (!expandedDocsHydratedRef.current) return;
+    const serialized = JSON.stringify(expandedDocs);
+    const savedToLocal = safeStorageSet("local", expandedDocsStorageKey, serialized);
+
+    if (!savedToLocal) {
+      persistWorkspaceViewSettings(expandedDocs);
+      return;
+    }
+
+    persistWorkspaceViewSettings(expandedDocs);
+  }, [expandedDocs, expandedDocsStorageKey, persistWorkspaceViewSettings]);
+
+  useEffect(() => {
+    if (!docs?.length) return;
+
+    const validFolderIds = new Set(
+      docs.filter((doc) => doc.kind === "folder").map((doc) => doc.id),
+    );
+
+    setExpandedDocs((prev) => {
+      const nextEntries = Object.entries(prev).filter(
+        ([docId, isExpanded]) => isExpanded && validFolderIds.has(docId),
+      );
+
+      if (nextEntries.length === Object.keys(prev).length) {
+        return prev;
+      }
+
+      return Object.fromEntries(nextEntries);
+    });
+  }, [docs]);
+
+  useEffect(() => {
+    if (!activeDocId) return;
+
+    const ancestorIds: string[] = [];
+    let currentParentId = docMap.get(activeDocId)?.parent_id ?? null;
+
+    while (currentParentId) {
+      ancestorIds.push(currentParentId);
+      currentParentId = docMap.get(currentParentId)?.parent_id ?? null;
+    }
+
+    if (ancestorIds.length === 0) return;
+
+    setExpandedDocs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const ancestorId of ancestorIds) {
+        if (!next[ancestorId]) {
+          next[ancestorId] = true;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [activeDocId, docMap]);
+
+  useEffect(() => {
+    if (safeStorageGet("session", docsBootstrapStorageKey) === "done") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrapDocs = async () => {
+      setIsDocsBootstrapping(true);
+
+      try {
+        const prefetchedDocs = (await mutateCache(
+          docsCacheKey,
+          fetcher(docsCacheKey),
+          {
+            populateCache: true,
+            revalidate: false,
+          },
+        )) as WorkspaceDocSummary[] | undefined;
+
+        await mutateCache(
+          archivedDocsCacheKey,
+          fetcher(archivedDocsCacheKey),
+          {
+            populateCache: true,
+            revalidate: false,
+          },
+        );
+
+        const prioritizedDocIds = Array.isArray(prefetchedDocs)
+          ? [
+              ...(initialDocId ? [initialDocId] : []),
+              ...prefetchedDocs
+                .filter((doc) => doc.kind === "page")
+                .map((doc) => doc.id),
+            ]
+              .filter((docId, index, array) => array.indexOf(docId) === index)
+              .slice(0, 8)
+          : initialDocId
+            ? [initialDocId]
+            : [];
+
+        const runPrefetch = async () => {
+          await Promise.allSettled(
+            prioritizedDocIds.map((docId) =>
+              mutateCache(
+                `/api/workspaces/${projectId}/docs/${docId}`,
+                fetcher(`/api/workspaces/${projectId}/docs/${docId}`),
+                {
+                  populateCache: true,
+                  revalidate: false,
+                },
+              ),
+            ),
+          );
+        };
+
+        const windowWithIdle = window as Window & {
+          requestIdleCallback?: (
+            callback: () => void,
+          ) => number;
+        };
+
+        if (typeof window !== "undefined" && windowWithIdle.requestIdleCallback) {
+          await new Promise<void>((resolve) => {
+            windowWithIdle.requestIdleCallback?.(() => {
+              void runPrefetch().then(resolve);
+            });
+          });
+        } else {
+          await runPrefetch();
+        }
+
+        if (!cancelled) {
+          safeStorageSet("session", docsBootstrapStorageKey, "done");
+        }
+      } catch (error) {
+        console.error("Docs bootstrap sync failed", error);
+      } finally {
+        if (!cancelled) {
+          setIsDocsBootstrapping(false);
+        }
+      }
+    };
+
+    void bootstrapDocs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    archivedDocsCacheKey,
+    docsBootstrapStorageKey,
+    docsCacheKey,
+    initialDocId,
+    mutateCache,
+    projectId,
+  ]);
+
+  useEffect(() => {
     const handleResize = () => {
       setSidebarWidth((currentWidth) =>
         clampSidebarWidthToContainer(currentWidth),
@@ -580,7 +964,15 @@ export function DocsView({
   );
 
   const toggleDoc = (docId: string) => {
-    setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
+    setExpandedDocs((prev) => {
+      const next = { ...prev };
+      if (next[docId]) {
+        delete next[docId];
+      } else {
+        next[docId] = true;
+      }
+      return next;
+    });
   };
 
   const activeDocBreadcrumbs = useMemo(() => {
@@ -673,6 +1065,29 @@ export function DocsView({
     void mutateDocs();
     void mutateArchivedDocs();
   }, [mutateArchivedDocs, mutateDocs]);
+
+  const sendCollabLeaveBeacon = useCallback((docId: string) => {
+    const url = `/api/workspaces/${projectId}/docs/${docId}/collab/leave`;
+
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      try {
+        const sent = navigator.sendBeacon(
+          url,
+          new Blob([], { type: "application/json" }),
+        );
+        if (sent) {
+          return;
+        }
+      } catch {
+        // fall through to keepalive fetch
+      }
+    }
+
+    void fetch(url, {
+      method: "POST",
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [projectId]);
 
   const syncDocPresence = useCallback(
     async (
@@ -894,22 +1309,20 @@ export function DocsView({
 
   const persistDocHeader = useCallback(
     async (
+      docId: string,
       updates: Record<string, unknown>,
       options?: { silent?: boolean },
     ) => {
-      if (isReadOnly || !activeDocId) {
+      if (isReadOnly) {
         return true;
       }
 
       try {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/docs/${activeDocId}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updates),
-          },
-        );
+        const response = await fetch(`/api/workspaces/${projectId}/docs/${docId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
@@ -919,7 +1332,9 @@ export function DocsView({
         }
 
         void mutateDocs();
-        void mutateActiveDoc();
+        if (activeDocIdRef.current === docId) {
+          void mutateActiveDoc();
+        }
         return true;
       } catch (error) {
         console.error("Doc metadata save failed", error);
@@ -931,33 +1346,104 @@ export function DocsView({
         return false;
       }
     },
-    [activeDocId, isReadOnly, mutateActiveDoc, mutateDocs, projectId],
+    [isReadOnly, mutateActiveDoc, mutateDocs, projectId],
   );
 
   const buildHeaderPayload = useCallback(
     (
-      nextTitle = title,
-      nextEmoji = emoji,
-      nextWorkerId = docWorkerId,
+      nextTitle: string,
+      nextEmoji: string | null,
+      nextWorkerId: string,
     ): Record<string, unknown> => ({
       title: nextTitle,
       emoji: nextEmoji,
       ...(nextWorkerId ? { authorId: nextWorkerId } : {}),
     }),
-    [docWorkerId, emoji, title],
+    [],
   );
 
   const debouncedUpdate = useDebouncedCallback(
-    async (updates: Record<string, unknown>) => {
-      const saved = await persistDocHeader(updates, { silent: true });
+    async (payload: {
+      docId: string;
+      title: string;
+      emoji: string | null;
+      docWorkerId: string;
+    }) => {
+      const saved = await persistDocHeader(
+        payload.docId,
+        buildHeaderPayload(payload.title, payload.emoji, payload.docWorkerId),
+        { silent: true },
+      );
       if (!saved) return;
 
-      applyHeaderBaseline(activeDocId, title, emoji ?? null, docWorkerId);
+      if (activeDocIdRef.current === payload.docId) {
+        applyHeaderBaseline(
+          payload.docId,
+          payload.title,
+          payload.emoji,
+          payload.docWorkerId,
+        );
+      }
       void mutateDocs();
-      void mutateActiveDoc();
+      if (activeDocIdRef.current === payload.docId) {
+        void mutateActiveDoc();
+      }
     },
     1000,
   );
+
+  useEffect(() => {
+    debouncedUpdate.cancel();
+  }, [activeDocId, debouncedUpdate]);
+
+  useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
+  useEffect(() => () => persistWorkspaceViewSettings.cancel(), [persistWorkspaceViewSettings]);
+
+  useEffect(() => {
+    return () => {
+      const currentDocId = activeDocIdRef.current;
+      if (!currentDocId || activeDocModeRef.current !== "COLLAB") {
+        return;
+      }
+
+      void fetch(`/api/workspaces/${projectId}/docs/${currentDocId}/collab/leave`, {
+        method: "POST",
+        keepalive: true,
+      })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => null)) as
+            | {
+                ended?: boolean;
+                error?: string;
+              }
+            | null;
+
+          if (!response.ok) {
+            return;
+          }
+
+          toast.success(
+            payload?.ended
+              ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
+              : "문서 탭을 벗어나며 현재 협업에서 나갔습니다.",
+          );
+        })
+        .catch(() => undefined);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (editorMode !== "collab" || !activeDocId) return;
+
+    const handlePageHide = () => {
+      sendCollabLeaveBeacon(activeDocId);
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [activeDocId, editorMode, sendCollabLeaveBeacon]);
 
   const handleSaveCurrentDoc = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -965,14 +1451,23 @@ export function DocsView({
         return true;
       }
 
+      const savingDocId = activeDocId;
+      const savingTitle = title;
+      const savingEmoji = emoji ?? null;
+      const savingWorkerId = docWorkerId;
+      const canSaveHeader = headerReadyRef.current;
+
       setIsSavingDocument(true);
       debouncedUpdate.cancel();
 
       try {
-        const headerSaved = await persistDocHeader(
-          buildHeaderPayload(),
-          { silent: true },
-        );
+        const headerSaved = canSaveHeader
+          ? await persistDocHeader(
+              savingDocId,
+              buildHeaderPayload(savingTitle, savingEmoji, savingWorkerId),
+              { silent: true },
+            )
+          : true;
 
         if (!headerSaved) {
           throw new Error("문서 정보 저장에 실패했습니다.");
@@ -987,11 +1482,22 @@ export function DocsView({
         }
 
         const savedAt = new Date().toISOString();
-        setLastSavedAt(savedAt);
-        applyHeaderBaseline(activeDocId, title, emoji ?? null, docWorkerId);
-        setNormalBodyDirty(false);
+        if (activeDocIdRef.current === savingDocId) {
+          setLastSavedAt(savedAt);
+          if (canSaveHeader) {
+            applyHeaderBaseline(
+              savingDocId,
+              savingTitle,
+              savingEmoji,
+              savingWorkerId,
+            );
+          }
+          setNormalBodyDirty(false);
+        }
         void mutateDocs();
-        void mutateActiveDoc();
+        if (activeDocIdRef.current === savingDocId) {
+          void mutateActiveDoc();
+        }
 
         if (!options?.silent) {
           toast.success("문서를 저장했습니다.");
@@ -1071,14 +1577,30 @@ export function DocsView({
 
   const switchActiveDoc = useCallback(
     async (docId: string | null, options?: { syncQuery?: boolean }) => {
-      if (switchingDocRef.current || docId === activeDocId) return;
+      if (switchingDocRef.current) {
+        queuedDocSwitchRef.current = { docId, options };
+        return;
+      }
+
+      if (docId === activeDocIdRef.current) return;
 
       switchingDocRef.current = true;
+      setIsSwitchingDoc(true);
+      debouncedUpdate.cancel();
       try {
         try {
-          if (activeDocId) {
+          const previousDocId = activeDocIdRef.current;
+
+          if (previousDocId) {
             if (editorMode === "collab") {
-              await leaveDocCollab(activeDocId, { silent: true });
+              const leaveResult = await leaveDocCollab(previousDocId, {
+                silent: true,
+              });
+              toast.success(
+                leaveResult.ended
+                  ? "현재 문서를 떠나면서 협업이 종료되었습니다."
+                  : "현재 문서 협업에서 나갔습니다.",
+              );
             } else if (!isReadOnly) {
               await handleSaveCurrentDoc({ silent: true });
             }
@@ -1086,6 +1608,21 @@ export function DocsView({
 
           setLastSavedAt(null);
           setNormalBodyDirty(false);
+          activeDocIdRef.current = docId;
+          if (docId) {
+            const nextDocSummary = docMap.get(docId);
+            syncHeaderFromSummary(
+              nextDocSummary
+                ? {
+                    id: nextDocSummary.id,
+                    title: nextDocSummary.title,
+                    emoji: nextDocSummary.emoji ?? null,
+                  }
+                : null,
+            );
+          } else {
+            syncHeaderFromResolvedDoc(null);
+          }
           setActiveDocId(docId);
 
           if (options?.syncQuery !== false) {
@@ -1100,14 +1637,27 @@ export function DocsView({
         }
       } finally {
         switchingDocRef.current = false;
+        setIsSwitchingDoc(false);
+
+        const queuedSwitch = queuedDocSwitchRef.current;
+        queuedDocSwitchRef.current = null;
+
+        if (queuedSwitch && queuedSwitch.docId !== docId) {
+          void Promise.resolve().then(() =>
+            switchActiveDoc(queuedSwitch.docId, queuedSwitch.options),
+          );
+        }
       }
     },
     [
-      activeDocId,
+      debouncedUpdate,
+      docMap,
       editorMode,
       handleSaveCurrentDoc,
       isReadOnly,
       leaveDocCollab,
+      syncHeaderFromResolvedDoc,
+      syncHeaderFromSummary,
       syncDocQuery,
     ],
   );
@@ -1171,6 +1721,7 @@ export function DocsView({
         setEditorMode("normal");
         setCollabToken(null);
         setCollabStatus("synced");
+        toast.info("현재 문서 협업이 종료되어 일반 편집으로 전환되었습니다.");
       }
       return;
     }
@@ -1257,31 +1808,51 @@ export function DocsView({
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
-    if (editorMode === "collab") {
-      debouncedUpdate(buildHeaderPayload(newTitle, emoji, docWorkerId));
+    if (editorMode === "collab" && activeDocId) {
+      debouncedUpdate({
+        docId: activeDocId,
+        title: newTitle,
+        emoji,
+        docWorkerId,
+      });
     }
   };
 
   const handleEmojiSelect = (emojiData: EmojiSelection) => {
     const nextEmoji = emojiData.native ?? null;
     setEmoji(nextEmoji);
-    if (editorMode === "collab") {
-      debouncedUpdate(buildHeaderPayload(title, nextEmoji, docWorkerId));
+    if (editorMode === "collab" && activeDocId) {
+      debouncedUpdate({
+        docId: activeDocId,
+        title,
+        emoji: nextEmoji,
+        docWorkerId,
+      });
     }
     setIsEmojiPickerOpen(false);
   };
 
   const handleRemoveEmoji = () => {
     setEmoji(null);
-    if (editorMode === "collab") {
-      debouncedUpdate(buildHeaderPayload(title, null, docWorkerId));
+    if (editorMode === "collab" && activeDocId) {
+      debouncedUpdate({
+        docId: activeDocId,
+        title,
+        emoji: null,
+        docWorkerId,
+      });
     }
   };
 
   const handleDocWorkerChange = (value: string) => {
     setDocWorkerId(value);
-    if (editorMode === "collab") {
-      debouncedUpdate(buildHeaderPayload(title, emoji, value));
+    if (editorMode === "collab" && activeDocId) {
+      debouncedUpdate({
+        docId: activeDocId,
+        title,
+        emoji,
+        docWorkerId: value,
+      });
     }
   };
 
@@ -1392,7 +1963,12 @@ export function DocsView({
     resolvedActiveDoc?.author?.nickname ||
     "미지정";
   const isDocLoadingOverlayVisible =
-    isLoadingActiveDoc || Boolean(activeDoc && activeDoc.id !== activeDocId);
+    isSwitchingDoc ||
+    isLoadingActiveDoc ||
+    Boolean(activeDoc && activeDoc.id !== activeDocId);
+  const docLoadingOverlayText = isSwitchingDoc
+    ? "문서를 전환하는 중..."
+    : "문서를 불러오는 중...";
   const collabBadgeVisible =
     editorMode === "collab" || Boolean(resolvedActiveDoc?.collab?.isActive);
   const collabParticipantList = collabParticipants.slice(0, 4);
@@ -1411,7 +1987,15 @@ export function DocsView({
       : formatSavedTime(lastSavedAt);
 
   return (
-    <div ref={containerRef} className="flex h-full min-w-0">
+    <div ref={containerRef} className="relative flex h-full min-w-0">
+      {isDocsBootstrapping && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-background/90 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground shadow-lg">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            문서를 동기화하고 캐시하는 중...
+          </div>
+        </div>
+      )}
       {/* Docs Sidebar (Inner) */}
       <div
         className="flex h-full flex-none flex-col overflow-hidden border-r bg-muted/10"
@@ -1780,9 +2364,10 @@ export function DocsView({
               {/* Scrollable Document Content */}
               <div className="flex-1 overflow-y-auto relative w-full">
               {isDocLoadingOverlayVisible && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50 pointer-events-none">
-                  <div className="text-muted-foreground text-sm">
-                    문서를 불러오는 중...
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/85">
+                  <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {docLoadingOverlayText}
                   </div>
                 </div>
               )}
