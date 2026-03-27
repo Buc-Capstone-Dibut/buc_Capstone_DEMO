@@ -280,6 +280,22 @@ const clampDocsSidebarWidth = (width: number, containerWidth?: number) =>
     getDocsSidebarMaxWidth(containerWidth),
   );
 
+function readCachedSwrData<T>(cacheValue: unknown): T | null {
+  if (cacheValue == null) {
+    return null;
+  }
+
+  if (
+    typeof cacheValue === "object" &&
+    cacheValue !== null &&
+    "data" in cacheValue
+  ) {
+    return ((cacheValue as { data?: T | null }).data ?? null) as T | null;
+  }
+
+  return cacheValue as T;
+}
+
 function safeStorageGet(
   storage: "local" | "session",
   key: string,
@@ -320,7 +336,7 @@ export function DocsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { mutate: mutateCache } = useSWRConfig();
+  const { mutate: mutateCache, cache } = useSWRConfig();
   const { user, profile } = useAuth();
   const swrOptions = {
     revalidateOnFocus: false,
@@ -441,10 +457,27 @@ export function DocsView({
     },
   );
 
+  const activeDocCacheKey = activeDocId
+    ? `/api/workspaces/${projectId}/docs/${activeDocId}`
+    : null;
+
   const resolvedActiveDoc = useMemo(
-    () =>
-      activeDoc && activeDocId && activeDoc.id === activeDocId ? activeDoc : null,
-    [activeDoc, activeDocId],
+    () => {
+      if (activeDoc && activeDocId && activeDoc.id === activeDocId) {
+        return activeDoc;
+      }
+
+      if (!activeDocCacheKey || !activeDocId) {
+        return null;
+      }
+
+      const cachedDoc = readCachedSwrData<ActiveWorkspaceDoc | null>(
+        cache.get(activeDocCacheKey),
+      );
+
+      return cachedDoc && cachedDoc.id === activeDocId ? cachedDoc : null;
+    },
+    [activeDoc, activeDocCacheKey, activeDocId, cache],
   );
 
   const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
@@ -1768,7 +1801,7 @@ export function DocsView({
                   ? "현재 문서를 떠나면서 협업이 종료되었습니다."
                   : "현재 문서 협업에서 나갔습니다.",
               );
-            } else if (!isReadOnly) {
+            } else if (!isReadOnly && (normalDocDirty || isSavingDocument)) {
               const saved = await handleSaveCurrentDoc({ silent: true });
               if (!saved) {
                 toast.error("현재 문서를 저장하지 못해 이동을 취소했습니다.");
@@ -1827,7 +1860,9 @@ export function DocsView({
       flushPendingHeaderSave,
       handleSaveCurrentDoc,
       isReadOnly,
+      isSavingDocument,
       leaveDocCollab,
+      normalDocDirty,
       syncHeaderFromResolvedDoc,
       syncHeaderFromSummary,
       syncDocQuery,
@@ -2463,10 +2498,15 @@ export function DocsView({
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
     resolvedActiveDoc?.author?.nickname ||
     "미지정";
+  const hasResolvedActiveDoc = Boolean(
+    activeDocId && resolvedActiveDoc && resolvedActiveDoc.id === activeDocId,
+  );
   const isDocLoadingOverlayVisible =
-    isSwitchingDoc ||
-    isLoadingActiveDoc ||
-    Boolean(activeDoc && activeDoc.id !== activeDocId);
+    (isSwitchingDoc && isSavingDocument) ||
+    (!hasResolvedActiveDoc &&
+      (isSwitchingDoc ||
+        isLoadingActiveDoc ||
+        Boolean(activeDocId && activeDoc && activeDoc.id !== activeDocId)));
   const docLoadingOverlayText = isSwitchingDoc
     ? isSavingDocument
       ? "이동 전 저장 중..."
