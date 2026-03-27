@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/components/shared/theme-provider";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Analytics } from "@vercel/analytics/next";
@@ -69,31 +68,24 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-screen bg-background font-sans antialiased"
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AppSWRProvider>
-            <VoiceManager>
-              <div className="relative flex min-h-screen flex-col">
-                <Suspense
-                  fallback={
-                    <div className="h-14 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/50 dark:border-slate-700/50" />
-                  }
-                >
-                  <GlobalHeader />
-                </Suspense>
-                <div className="flex flex-1 flex-col">{children}</div>
-                <GlobalMobileNav />
-              </div>
-            </VoiceManager>
-            <Toaster />
-            <SonnerToaster />
-            <Analytics />
-          </AppSWRProvider>
-        </ThemeProvider>
+        <AppSWRProvider>
+          <VoiceManager>
+            <div className="relative flex min-h-screen flex-col">
+              <Suspense
+                fallback={
+                  <div className="h-14 border-b border-slate-200/50 bg-white/80" />
+                }
+              >
+                <GlobalHeader />
+              </Suspense>
+              <div className="flex flex-1 flex-col">{children}</div>
+              <GlobalMobileNav />
+            </div>
+          </VoiceManager>
+          <Toaster />
+          <SonnerToaster />
+          <Analytics />
+        </AppSWRProvider>
       </body>
     </html>
   );

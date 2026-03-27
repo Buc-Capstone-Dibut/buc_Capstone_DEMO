@@ -1,7 +1,6 @@
 "use client";
 
 import Editor, { OnMount } from "@monaco-editor/react";
-import { useTheme } from "next-themes";
 import { useRef, useEffect } from "react";
 
 interface CodeEditorProps {
@@ -23,7 +22,6 @@ export function CodeEditor({
   hiddenLinePatterns = [],
   hideFromMarker
 }: CodeEditorProps) {
-  const { theme } = useTheme();
   type MonacoEditorInstance = Parameters<OnMount>[0];
   const editorRef = useRef<MonacoEditorInstance | null>(null);
   const decorationsRef = useRef<string[]>([]); // Store current decoration IDs
@@ -113,9 +111,20 @@ export function CodeEditor({
     }
 
     // Monaco type definitions can differ by version; guard optional API at runtime.
-    const setHiddenAreas = (editor as any).setHiddenAreas;
+    const setHiddenAreas = (
+      editor as MonacoEditorInstance & {
+        setHiddenAreas?: (
+          ranges: {
+            startLineNumber: number;
+            startColumn: number;
+            endLineNumber: number;
+            endColumn: number;
+          }[],
+        ) => void;
+      }
+    ).setHiddenAreas;
     if (typeof setHiddenAreas === "function") {
-      setHiddenAreas.call(editor, ranges);
+      setHiddenAreas(ranges);
     }
   }, [value, hiddenLinePatterns, hideFromMarker]);
 
@@ -127,7 +136,7 @@ export function CodeEditor({
         language="python"
         defaultValue={initialCode}
         value={value}
-        theme={theme === "dark" ? "vs-dark" : "light"}
+        theme="light"
         onChange={onChange}
         onMount={handleEditorDidMount}
         options={{

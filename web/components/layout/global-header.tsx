@@ -2,33 +2,35 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { usePathname } from "next/navigation";
 import { UserMenu } from "@/components/auth/user-menu";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { isFlutterWebView } from "@/lib/webview-bridge";
 import { cn } from "@/lib/utils";
-import React, { useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "@/components/features/notification/notification-center";
 import {
   Newspaper,
   Terminal,
   MessageSquare,
-  Users,
   UserPlus,
-  LayoutDashboard,
   Wrench,
   Video,
   PieChart,
-  DoorOpen,
   Calendar,
-  FileText,
-  Briefcase
 } from "lucide-react";
 // 메뉴 구조 정의
 // 메뉴 구조 정의
-const MENUS: Record<string, { label: string; href: string; activePath?: string; submenus: any[] }> = {
+interface HeaderSubmenu {
+  href: string;
+  label: string;
+  icon: typeof Newspaper;
+}
+
+const MENUS: Record<
+  string,
+  { label: string; href: string; activePath?: string; submenus: HeaderSubmenu[] }
+> = {
   insights: {
     label: "인사이트",
     href: "/insights/tech-blog",
@@ -70,7 +72,6 @@ const MENUS: Record<string, { label: string; href: string; activePath?: string; 
 
 export function GlobalHeader() {
   const pathname = usePathname();
-  const router = useRouter();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null);
 
@@ -92,13 +93,13 @@ export function GlobalHeader() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-sm border-b border-neutral-200 dark:border-slate-800 transition-all duration-300">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-neutral-200 bg-white/95 backdrop-blur-sm transition-all duration-300">
         {/* Main Header Bar */}
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 w-full relative">
           {/* Logo - Left */}
           <Link
             href="/"
-            className="text-[15px] font-bold tracking-tight text-neutral-900 dark:text-white hover:opacity-80 transition-opacity"
+            className="text-[15px] font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-80"
           >
             Dibut
           </Link>
@@ -124,8 +125,8 @@ export function GlobalHeader() {
                       className={cn(
                         "relative px-3 py-1.5 text-[13px] font-bold transition-all duration-200",
                         isActive
-                          ? "text-primary bg-transparent hover:!bg-neutral-100 dark:hover:!bg-slate-800 hover:text-primary" // 선택됨: 평소 투명, 호버 시 회색 박스 + 초록색 강제 유지
-                          : "text-neutral-600 dark:text-slate-400 bg-transparent hover:!bg-neutral-100 dark:hover:!bg-slate-800 hover:text-neutral-900 dark:hover:text-white" // 일반: 평소 투명, 호버 시 동일 회색 박스 + 진한 텍스트
+                          ? "bg-transparent text-primary hover:!bg-neutral-100 hover:text-primary" // 선택됨: 평소 투명, 호버 시 회색 박스 + 초록색 강제 유지
+                          : "bg-transparent text-neutral-600 hover:!bg-neutral-100 hover:text-neutral-900" // 일반: 평소 투명, 호버 시 동일 회색 박스 + 진한 텍스트
                       )}
                     >
                       {menu.label}
@@ -135,14 +136,14 @@ export function GlobalHeader() {
                   {/* Sleek Dropdown Submenu - Only show if there are submenus */}
                   {isHovered && menu.submenus.length > 0 && (
                     <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2">
-                      <div className="w-48 overflow-hidden rounded-2xl bg-white dark:bg-slate-900 p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-neutral-100 dark:border-slate-800">
+                      <div className="w-48 overflow-hidden rounded-2xl border border-neutral-100 bg-white p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)]">
                         {menu.submenus.map((sub) => {
                           const Icon = sub.icon;
                           return (
                             <Link
                               key={sub.href}
                               href={sub.href}
-                              className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-neutral-800 dark:text-slate-200 transition-all hover:bg-neutral-50 dark:hover:bg-slate-800 hover:text-primary"
+                              className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-neutral-800 transition-all hover:bg-neutral-50 hover:text-primary"
                             >
                               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-50 group-hover:bg-primary/10 transition-colors">
                                 <Icon className="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" />
@@ -162,7 +163,6 @@ export function GlobalHeader() {
           {/* Right Actions */}
           <div className="flex items-center gap-2">
             <NotificationCenter />
-            <ThemeToggle />
             {!isFlutterWebView() && (
               <UserMenu onLoginClick={() => setIsAuthModalOpen(true)} />
             )}

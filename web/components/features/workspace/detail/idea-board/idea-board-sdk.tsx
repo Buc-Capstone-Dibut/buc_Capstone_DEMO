@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Users } from "lucide-react";
-import { useTheme } from "next-themes";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { ExcalidrawBinding } from "y-excalidraw";
@@ -49,7 +48,6 @@ export default function IdeaBoardSDK({
   projectId,
   readOnly = false,
 }: IdeaBoardSDKProps) {
-  const { theme } = useTheme();
   const { user, profile } = useAuth();
 
   // Yjs State
@@ -138,23 +136,23 @@ export default function IdeaBoardSDK({
   }, [excalidrawAPI]);
 
   return (
-    <div className="h-full w-full flex flex-col relative bg-white dark:bg-zinc-950 overflow-hidden">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-white">
 
       {/* Status Bar */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-3 pointer-events-none">
-        <div className="bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-sm flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-md pointer-events-auto">
           <div className={`h-2 w-2 rounded-full ${isSynced ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-          <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+          <span className="text-xs font-semibold text-gray-900">
             {isSynced ? 'Live Sync' : 'Connecting...'}
           </span>
         </div>
         {readOnly && (
-          <div className="bg-white/80 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-sm text-xs text-gray-700 dark:text-gray-200 pointer-events-auto">
+          <div className="rounded-lg border border-gray-200 bg-white/80 px-3 py-1.5 text-xs text-gray-700 shadow-sm backdrop-blur-md pointer-events-auto">
             읽기 전용
           </div>
         )}
         {isSynced && (
-          <div className="bg-white/60 dark:bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-gray-200/50 dark:border-zinc-800/50 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 transition-opacity duration-500">
+          <div className="flex items-center gap-1.5 rounded-lg border border-gray-200/50 bg-white/60 px-3 py-1.5 text-xs text-gray-500 transition-opacity duration-500 backdrop-blur-md">
             <Users className="h-3 w-3" />
             <span>{awarenessUsers}명 참여 중</span>
           </div>
@@ -167,7 +165,7 @@ export default function IdeaBoardSDK({
           excalidrawAPI={(api)=> setExcalidrawAPI(api)}
           onPointerUpdate={readOnly ? undefined : binding.current?.onPointerUpdate}
           viewModeEnabled={readOnly}
-          theme={theme === "dark" ? "dark" : "light"}
+          theme="light"
           UIOptions={{
             canvasActions: {
               changeViewBackgroundColor: true,

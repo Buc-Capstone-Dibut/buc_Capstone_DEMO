@@ -19,7 +19,6 @@ import {
   type MouseEvent,
 } from "react";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Hash } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -102,7 +101,6 @@ export const NormalDocumentEditor = forwardRef<
   }: NormalDocumentEditorProps,
   ref,
 ) {
-  const { theme } = useTheme();
   const pathname = usePathname();
   const lastSavedSnapshotRef = useRef(
     serializeBlocks(normalizeSnapshotBlocks(initialContent)),
@@ -420,7 +418,7 @@ export const NormalDocumentEditor = forwardRef<
       >
         <BlockNoteView
           editor={editor}
-          theme={theme === "dark" ? "dark" : "light"}
+          theme="light"
           editable={!readOnly}
           linkToolbar={false}
           onChange={() => {

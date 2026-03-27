@@ -20,7 +20,6 @@ import {
   type MouseEvent,
 } from "react";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Hash } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -96,7 +95,6 @@ export const DocumentEditor = forwardRef<
   }: DocumentEditorProps,
   ref,
 ) {
-  const { theme } = useTheme();
   const pathname = usePathname();
   const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -390,7 +388,7 @@ export const DocumentEditor = forwardRef<
       >
         <BlockNoteView
           editor={editor}
-          theme={theme === "dark" ? "dark" : "light"}
+          theme="light"
           editable={!readOnly}
           linkToolbar={false}
           className="min-h-[calc(100vh-24rem)] px-6 py-8 [&_.bn-editor]:rounded-none [&_.bn-editor]:bg-transparent [&_.bn-editor]:shadow-none"
