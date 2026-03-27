@@ -7,6 +7,7 @@ import {
   startDocCollabSession,
   touchDocPresence,
 } from "@/lib/server/workspace-doc-collab-session";
+import { syncDocCollabStateFromSnapshot } from "@/lib/server/doc-collab-state";
 import { createWorkspaceDocCollabToken } from "@/lib/server/workspace-doc-collab-token";
 
 export async function POST(
@@ -67,6 +68,25 @@ export async function POST(
       mode: "NORMAL",
       isDirty: false,
     });
+
+    const existingSession = await prisma.workspace_doc_collab_sessions.findUnique({
+      where: {
+        doc_id: docId,
+      },
+      select: {
+        status: true,
+      },
+    });
+
+    if (!existingSession || existingSession.status !== "ACTIVE") {
+      const seeded = await syncDocCollabStateFromSnapshot(docId);
+      if (!seeded.ok) {
+        return NextResponse.json(
+          { error: seeded.error },
+          { status: seeded.status },
+        );
+      }
+    }
 
     const result = await startDocCollabSession(
       workspaceId,

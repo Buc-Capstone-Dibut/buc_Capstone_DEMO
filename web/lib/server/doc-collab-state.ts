@@ -43,6 +43,35 @@ export async function loadOrSeedDocCollabState(docId: string) {
   return seededState;
 }
 
+export async function syncDocCollabStateFromSnapshot(docId: string) {
+  const doc = await prisma.workspace_docs.findUnique({
+    where: { id: docId },
+    select: {
+      id: true,
+      content: true,
+    },
+  });
+
+  if (!doc) {
+    return { ok: false as const, status: 404, error: "Document not found" };
+  }
+
+  const seededState = snapshotToYjsState(doc.content);
+
+  await prisma.workspace_doc_states.upsert({
+    where: { doc_id: docId },
+    create: {
+      doc_id: docId,
+      yjs_state: seededState,
+    },
+    update: {
+      yjs_state: seededState,
+    },
+  });
+
+  return { ok: true as const, yjsState: seededState };
+}
+
 export async function saveDocCollabState(docId: string, yjsState: string) {
   const doc = await prisma.workspace_docs.findUnique({
     where: { id: docId },
