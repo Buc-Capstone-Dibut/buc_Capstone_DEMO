@@ -824,12 +824,7 @@ export default function InterviewVideoRoomPage() {
     return () => clearInterval(tick);
   }, [activeSessionId, buildResultPath, router, runtimeMeta.interviewComplete]);
 
-  const timerBadgeClass =
-    runtimeMeta.remainingSec <= 30
-      ? "bg-red-600/80 text-white border border-red-400/30"
-      : runtimeMeta.remainingSec <= 60
-        ? "bg-orange-500/75 text-white border border-orange-400/30"
-        : "bg-black/55 text-white border border-white/20";
+
 
   const avatarState = isAISpeaking
     ? "speaking"
@@ -1073,197 +1068,271 @@ export default function InterviewVideoRoomPage() {
     runtimeMeta.remainingSec,
   ]);
 
+  const isUserSpeaking = Boolean(isMicOn && (activeUserCaption || volume > 0.1));
+
   return (
-    <div className="h-[calc(100vh-3.5rem)] overflow-hidden bg-[#0b1220] p-3 md:p-4">
-      <div className="relative h-full overflow-hidden rounded-3xl border border-slate-700/70 bg-[#0f172a]">
-        <div className="absolute right-4 top-4 z-30 flex flex-wrap items-center justify-end gap-2">
-          <Badge className="border border-blue-400/30 bg-blue-600/75 text-[11px] text-white">
+    <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col bg-background p-4 md:p-6 font-sans antialiased text-foreground">
+      
+      {/* Top Header Bar */}
+      <div className="flex shrink-0 items-center justify-between pb-4">
+        <div className="flex items-center gap-2">
+          <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 font-semibold shadow-sm">
             {sessionType === "portfolio_defense" ? "PORTFOLIO DEFENSE" : "LIVE INTERVIEW"}
-            {displayCompany ? ` · ${displayCompany}` : ""}
-            {displayRole ? ` ${displayRole}` : ""}
           </Badge>
-          <Badge className={timerBadgeClass}>
-            <Clock3 className="mr-1.5 h-3.5 w-3.5" /> {formatTime(runtimeMeta.remainingSec)}
-          </Badge>
-          <Badge variant="secondary" className="border border-slate-600/60 bg-slate-800/80 text-slate-100">
-            {isConnected ? "WS Connected" : "WS Connecting"}
-          </Badge>
+          {displayCompany && (
+            <Badge variant="outline" className="border-border text-muted-foreground bg-muted/30 px-2 py-1 font-medium hidden sm:inline-flex">
+              {displayCompany} {displayRole ? `· ${displayRole}` : ""}
+            </Badge>
+          )}
         </div>
 
-        <div className="grid h-full grid-cols-1 pb-28 lg:grid-cols-[0.85fr_1.15fr]">
-          <section className="relative min-h-0 border-b border-slate-700/60 lg:border-b-0 lg:border-r">
-            <div className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-xs font-medium text-white">
-              Dibut 면접관
-            </div>
-            <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,rgba(59,130,246,0.22),rgba(15,23,42,0.95)_45%)] px-8">
-              <Image
-                src={avatarSrc}
-                alt="Dibut interviewer"
-                width={460}
-                height={560}
-                className="h-auto w-full max-w-[420px] object-contain drop-shadow-[0_18px_50px_rgba(15,23,42,0.55)]"
-                priority
-              />
-              {isAISpeaking ? (
-                <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 items-end gap-1.5">
-                  {[6, 10, 14, 10, 6].map((height, index) => (
-                    <span
-                      key={`wave-${index}`}
-                      className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-300"
-                      style={{ height: `${height}px`, animationDelay: `${index * 0.08}s` }}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="relative min-h-0">
-            <div className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/50 px-3 py-1 text-xs font-medium text-white">
-              지원자
-            </div>
-            <div className="h-full w-full">
-              <LocalCameraPreview enabled fill />
-            </div>
-          </section>
-        </div>
-
-        {showCaption ? (
-          <div className="pointer-events-none absolute bottom-28 left-1/2 z-30 w-[min(960px,92%)] -translate-x-1/2">
-            <div className="pointer-events-auto rounded-2xl border border-white/20 bg-black/55 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] text-white/70">
-                <Captions className="h-3.5 w-3.5" />
-                실시간 자막
-              </div>
-              {resolvedCaptionText || activeAiCaption || activeUserCaption ? (
-                <div ref={captionScrollRef} className="max-h-[min(44vh,16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1">
-                  {secondaryCaption ? (
-                    <p className="break-all [overflow-wrap:anywhere] text-[12px] leading-relaxed text-white/60">
-                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
-                    </p>
-                  ) : null}
-                  {resolvedCaptionText ? (
-                    <p className="break-all whitespace-pre-wrap [overflow-wrap:anywhere] text-sm font-medium leading-relaxed">
-                      <span className={`mr-1 ${resolvedCaptionRole === "ai" ? "text-emerald-300" : "text-sky-300"}`}>
-                        {resolvedCaptionRole === "ai" ? "Dibut" : "나"}:
-                      </span>
-                      {resolvedCaptionText}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="text-sm text-white/70">
-                  {isSessionReady ? "AI 자막 수신 대기 중..." : "세션을 초기화하고 있습니다..."}
-                </p>
-              )}
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-xs font-semibold text-muted-foreground border border-border">
+            <span className="relative flex h-2 w-2">
+              <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${isConnected ? 'bg-primary' : 'bg-destructive'}`}></span>
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${isConnected ? 'bg-primary' : 'bg-destructive'}`}></span>
+            </span>
+            {isConnected ? "Connected" : "Connecting"}
           </div>
-        ) : null}
-
-        {isReconnecting ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#020617]/75 backdrop-blur-sm">
-            <div className="mx-6 w-full max-w-md rounded-[28px] border border-white/15 bg-[#111827]/90 p-7 text-white shadow-2xl">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
-                  <WifiOff className="h-5 w-5 text-blue-200" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">재연결 시도중...</p>
-                  <p className="mt-1 text-sm text-white/70">
-                    연결이 복구될 때까지 면접을 잠시 멈췄습니다.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 space-y-2">
-                <div className="flex items-center justify-between text-sm text-white/70">
-                  <span>남은 재연결 시간</span>
-                  <span>{reconnectRemainingSec}초</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full bg-blue-400 transition-all duration-1000"
-                    style={{ width: `${(reconnectRemainingSec / RECONNECT_GRACE_SEC) * 100}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {!isAudioPrimed ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#020617]/82 backdrop-blur-sm">
-            <div className="mx-6 w-full max-w-lg rounded-[28px] border border-white/15 bg-[#111827]/92 p-7 text-white shadow-2xl">
-              <p className="text-lg font-semibold">면접 시작 준비</p>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">
-                첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다.
-              </p>
-              <Button
-                className="mt-5 w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
-                onClick={handlePrimeAudio}
-                disabled={isPrimingAudio}
-              >
-                {isPrimingAudio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                면접 시작하기
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="absolute inset-x-0 bottom-0 z-30 px-4 pb-4">
-          <div className="mx-auto w-full max-w-5xl rounded-2xl border border-white/20 bg-black/60 px-3 py-3 backdrop-blur-md">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <p className="max-w-2xl break-words whitespace-pre-wrap text-xs leading-relaxed text-white/70">
-                {statusMessage}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Button
-                  size="sm"
-                  variant={isMicOn ? "default" : "outline"}
-                  className={
-                    isMicOn
-                      ? "bg-emerald-500 text-white hover:bg-emerald-500/90"
-                      : "border-white/30 bg-transparent text-white hover:bg-white/10"
-                  }
-                  disabled={isReconnecting}
-                  onClick={handleMicToggle}
-                >
-                  {isMicOn ? <Mic className="mr-1.5 h-4 w-4" /> : <MicOff className="mr-1.5 h-4 w-4" />}
-                  {isMicOn ? "마이크 켜짐" : "마이크 켜기"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-white/30 bg-transparent text-white hover:bg-white/10"
-                  onClick={() => setShowCaption((prev) => !prev)}
-                >
-                  <Captions className="mr-1.5 h-4 w-4" />
-                  자막 {showCaption ? "끄기" : "켜기"}
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => void handleFinish()} disabled={isFinishingSession}>
-                  <PhoneOff className="mr-1.5 h-4 w-4" />
-                  {isFinishingSession ? "종료 처리 중..." : "종료"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
-              <div
-                className="h-full bg-emerald-400 transition-all duration-500"
-                style={{ width: `${runtimeMeta.timeProgressPercent}%` }}
-              />
-            </div>
-
-            <div className="mt-2 flex items-center justify-between text-[11px] text-white/70">
-              <span>{runtimeMeta.isClosingPhase ? "마무리 질문 단계" : "핵심 역량 검증 단계"}</span>
-              <span className="inline-flex items-center gap-1.5">
-                {isAIProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                {isAIProcessing ? "응답 생성 중 · " : ""}
-                Mic {Math.round(volume * 100)}%
-              </span>
-            </div>
+          <div className={`flex items-center gap-2 rounded-full border px-4 py-1.5 font-mono text-sm font-bold shadow-sm transition-colors ${
+            runtimeMeta.remainingSec <= 60 
+              ? 'border-destructive bg-destructive/10 text-destructive animate-pulse' 
+              : 'border-border bg-card text-foreground'
+          }`}>
+            <Clock3 className={`h-4 w-4 ${runtimeMeta.remainingSec <= 60 ? 'text-destructive' : 'text-primary'}`} />
+            {formatTime(runtimeMeta.remainingSec)}
           </div>
         </div>
       </div>
+
+      {/* Video Feeds Grid */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row relative">
+        {/* AI Interviewer View */}
+        <section className={`relative flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 ${
+          isAISpeaking 
+            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]' // Using Dibut Green
+            : 'border-border shadow-sm'
+        }`}>
+          <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-md bg-background/90 px-3 py-1.5 text-xs font-bold text-foreground shadow-sm border border-border/50">
+            <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
+            Dibut 면접관
+          </div>
+          <div className="flex h-full w-full items-center justify-center bg-muted/20">
+            <Image
+              src={avatarSrc}
+              alt="Dibut interviewer"
+              width={460}
+              height={560}
+              className="h-auto w-full max-w-[340px] lg:max-w-[400px] object-contain drop-shadow-md transition-transform duration-300"
+              priority
+            />
+            {isAISpeaking && (
+              <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1">
+                {[4, 8, 12, 8, 4].map((height, index) => (
+                  <span
+                    key={`wave-ai-${index}`}
+                    className="w-1.5 rounded-full bg-primary shadow-sm"
+                    style={{ height: `${height}px`, animation: `pulse-voice 1.2s ease-in-out infinite`, animationDelay: `${index * 0.15}s` }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Candidate View */}
+        <section className={`relative flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 ${
+          isUserSpeaking
+            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]'
+            : 'border-border shadow-sm'
+        }`}>
+          <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-md bg-background/90 px-3 py-1.5 text-xs font-bold text-foreground shadow-sm border border-border/50">
+            <div className={`h-2 w-2 rounded-full ${isUserSpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
+            지원자
+          </div>
+          <div className="h-full w-full overflow-hidden bg-muted/40 [&>video]:object-cover [&>video]:scale-105">
+            <LocalCameraPreview enabled fill />
+          </div>
+          {isUserSpeaking && (
+            <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1 z-20">
+              {[3, 6, 9, 6, 3].map((height, index) => (
+                <span
+                  key={`wave-user-${index}`}
+                  className="w-1 rounded-full bg-primary shadow-sm"
+                  style={{ height: `${height}px`, animation: `pulse-voice 1.2s ease-in-out infinite`, animationDelay: `${index * 0.15}s` }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Video Overlay Captions */}
+        {showCaption && (
+          <div className="absolute bottom-5 left-0 right-0 flex w-full flex-col px-4 md:px-8 z-40 transition-all pointer-events-none">
+            {resolvedCaptionText || activeAiCaption || activeUserCaption ? (
+              <div className="mx-auto w-full max-w-2xl rounded-[18px] border border-border/30 bg-background/30 backdrop-blur-md px-5 py-2.5 text-center shadow-sm transition-all duration-300 pointer-events-auto">
+                <div ref={captionScrollRef} className="flex flex-col items-center gap-0.5 max-h-[8rem] overflow-y-auto overscroll-contain px-2">
+                  {secondaryCaption && (
+                    <p className="text-[10px] font-bold text-muted-foreground/80 tracking-widest line-clamp-1 uppercase">
+                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
+                    </p>
+                  )}
+                  {resolvedCaptionText && (
+                    <div className="flex w-full justify-center mt-0.5">
+                      <div className="flex items-start text-left text-[13px] md:text-[14px] font-bold leading-relaxed tracking-tight text-foreground drop-shadow-sm max-w-full">
+                        <span className={`shrink-0 mr-2 font-extrabold mt-[0.5px] ${resolvedCaptionRole === "ai" ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)_/_0.3)]" : "text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"}`}>
+                          {resolvedCaptionRole === "ai" ? "Dibut" : "나"}
+                        </span>
+                        <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                          {resolvedCaptionText}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+      </div>
+
+      {/* Reconnecting Modal */}
+      {isReconnecting && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm flex flex-col items-center text-center overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-xl">
+             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-5">
+               <WifiOff className="h-6 w-6" />
+             </div>
+             <h3 className="text-lg font-bold text-foreground">재연결 시도중...</h3>
+             <p className="mt-2 text-sm text-muted-foreground">
+               연결이 복구될 때까지 면접을 잠시 멈췄습니다.
+             </p>
+             <div className="mt-6 flex w-full flex-col items-center">
+               <div className="flex w-full justify-between text-xs font-semibold text-muted-foreground mb-2">
+                 <span>남은 재연결 시간</span>
+                 <span className="text-destructive">{reconnectRemainingSec}초</span>
+               </div>
+               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                 <div className="h-full bg-destructive transition-all duration-1000 ease-linear" style={{ width: `${(reconnectRemainingSec / RECONNECT_GRACE_SEC) * 100}%` }} />
+               </div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audio Priming Modal */}
+      {!isAudioPrimed && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+           <div className="mx-4 w-full max-w-md flex flex-col items-center text-center overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-xl">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary mb-5">
+               <Mic className="h-6 w-6" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-3">면접 시작 준비</h3>
+            <p className="text-sm text-muted-foreground mb-8">
+              첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다.
+            </p>
+            <Button
+              size="lg"
+              className="w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+              onClick={handlePrimeAudio}
+              disabled={isPrimingAudio}
+            >
+              {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+              {isPrimingAudio ? '준비 중...' : '면접 시작하기'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Refined Minimalist Bottom Control Area */}
+      <div className="mt-4 flex shrink-0 flex-col items-center justify-end w-full pb-4 relative z-20">
+        
+        {/* Invisible Container Floating Controls */}
+        <div className="mt-2 flex shrink-0 flex-col gap-3 md:flex-row md:items-center md:justify-between px-4 md:px-8 w-full z-20 mb-2">
+           
+           {/* Left Info Group */}
+           <div className="flex flex-col gap-1 md:w-1/2 ml-1">
+             <div className="flex items-center gap-2">
+               <span className="inline-flex items-center rounded-md border border-border/50 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold bg-secondary/50 backdrop-blur-sm text-secondary-foreground transition-colors">
+                 {runtimeMeta.isClosingPhase ? "마무리" : "면접 진행중"}
+               </span>
+               <span className="text-[11px] sm:text-[12px] font-bold tracking-widest text-muted-foreground uppercase pt-[1px] drop-shadow-sm">
+                 핵심 역량 검증
+               </span>
+             </div>
+             <div className="text-sm sm:text-[15px] font-semibold text-foreground mt-0.5 truncate max-w-full pl-0.5 drop-shadow-sm">
+               {statusMessage || "AI가 대화를 분석하고 있습니다."}
+             </div>
+           </div>
+
+           {/* Right-Aligned Primary Buttons */}
+           <div className="flex gap-2.5 items-center w-full md:w-auto justify-end">
+             
+             {/* Unified Mic + Audio Status Button */}
+             <Button
+                size="default"
+                variant={isMicOn ? "default" : "outline"}
+                className={`h-11 px-3.5 sm:px-4 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${
+                  isMicOn 
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" 
+                    : "bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-muted border-border/60"
+                }`}
+                disabled={isReconnecting}
+                onClick={handleMicToggle}
+              >
+                {isAIProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="hidden sm:inline-block tracking-wide text-sm">응답 대기 중...</span>
+                  </>
+                ) : (
+                  <>
+                    {isMicOn ? <Mic className="h-4.5 w-4.5" /> : <MicOff className="h-4.5 w-4.5" />}
+                    <div className="h-4 w-[1px] bg-current opacity-30 mx-0.5" />
+                    <span className="text-sm w-9 text-left font-bold tracking-wider">
+                      {isMicOn ? `${Math.round(volume * 100)}%` : 'OFF'}
+                    </span>
+                  </>
+                )}
+             </Button>
+
+             {/* CC Toggle */}
+             <Button
+                size="icon"
+                variant={showCaption ? "default" : "outline"}
+                className={`h-11 w-11 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0 ${
+                  showCaption 
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-transparent' 
+                    : 'bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-muted border-border/60'
+                }`}
+                onClick={() => setShowCaption((prev) => !prev)}
+                title={showCaption ? "자막 끄기" : "자막 켜기"}
+              >
+                <Captions className="h-4.5 w-4.5" />
+             </Button>
+
+             {/* End Call */}
+             <Button 
+                size="default" 
+                variant="destructive" 
+                className="h-11 rounded-xl px-4 sm:px-5 font-bold shadow-sm transition-all hover:scale-105 active:scale-95 border-transparent text-sm tracking-wide shrink-0 ml-0.5" 
+                onClick={() => void handleFinish()} 
+                disabled={isFinishingSession}
+              >
+                {isFinishingSession ? <Loader2 className="mr-2 h-4.5 w-4.5 animate-spin" /> : <PhoneOff className="mr-2 h-4.5 w-4.5" />}
+                {isFinishingSession ? "종료..." : "종료"}
+             </Button>
+           </div>
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes pulse-voice {
+          0%, 100% { transform: scaleY(0.6); opacity: 0.6; }
+          50% { transform: scaleY(1.3); opacity: 1; }
+        }
+      `}} />
     </div>
   );
 }
