@@ -6,6 +6,7 @@ from fastapi import WebSocket
 
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_opening_live_turn, execute_resume_live_turn
 from app.interview.runtime.live_turns import prepare_opening_turn, prepare_resume_turn
+from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.session_engine import (
     SessionEngineDeps,
     drain_pending_user_segments as runtime_drain_pending_user_segments,
@@ -39,6 +40,23 @@ async def generate_and_send_opening_live_turn(
         state,
         spec=opening_spec,
         deps=runtime_executor_deps(),
+    )
+
+
+async def send_prepared_opening_live_turn(
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    artifact: PreparedOpeningArtifact,
+    runtime_executor_deps: Callable[[], RuntimeExecutorDeps],
+) -> bool:
+    return await execute_opening_live_turn(
+        ws,
+        state,
+        spec=artifact.spec,
+        deps=runtime_executor_deps(),
+        prepared_delivery_plan=artifact.delivery_plan,
+        spoken_provider_override=artifact.spoken_provider,
     )
 
 
@@ -147,4 +165,5 @@ __all__ = [
     "generate_and_send_opening_live_turn",
     "generate_and_send_resume_live_turn",
     "process_user_utterance",
+    "send_prepared_opening_live_turn",
 ]

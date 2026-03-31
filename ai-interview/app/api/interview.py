@@ -20,6 +20,11 @@ from app.schemas.interview import (
 from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService, RepoAnalysisError
 from app.interview.reporting import ReportAgent
+from app.interview.runtime.prepared_opening import prepare_opening_artifact_from_session
+from app.interview.runtime.prepared_opening_store import (
+    PREPARED_OPENING_TTL_SEC,
+    put_prepared_opening,
+)
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
 service = InterviewService()
@@ -213,6 +218,54 @@ async def get_session(
     if not detail:
         raise HTTPException(status_code=404, detail="Session not found")
     return detail
+
+
+@router.post("/sessions/{session_id}/prepare-opening")
+async def prepare_session_opening(
+    session_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = _require_authenticated_user(x_user_id)
+    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session_status = str(session.get("status") or "")
+    if session_status == "completed":
+        raise HTTPException(status_code=409, detail="Completed session only")
+
+    turns = service.get_turns(session_id)
+    if turns:
+        return {
+            "success": True,
+            "data": {
+                "sessionId": session_id,
+                "prepared": False,
+                "reason": "session_already_started",
+            },
+        }
+
+    artifact = await prepare_opening_artifact_from_session(session)
+    if artifact is None:
+        return {
+            "success": True,
+            "data": {
+                "sessionId": session_id,
+                "prepared": False,
+                "reason": "opening_unavailable",
+            },
+        }
+
+    put_prepared_opening(session_id, artifact)
+    return {
+        "success": True,
+        "data": {
+            "sessionId": session_id,
+            "prepared": True,
+            "turnId": artifact.spec.turn_id,
+            "expiresInSec": PREPARED_OPENING_TTL_SEC,
+        },
+    }
 
 
 @router.post("/sessions/{session_id}/retry-report")

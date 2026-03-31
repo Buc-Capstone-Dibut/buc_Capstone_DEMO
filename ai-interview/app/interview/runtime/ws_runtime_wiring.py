@@ -8,6 +8,7 @@ from app.interview.runtime.executor import RuntimeExecutorDeps
 from app.interview.runtime.lifecycle import RuntimeLifecycleDeps
 from app.interview.runtime.live_client import LiveClientDeps
 from app.interview.runtime.message_router import ClientMessageRouterDeps
+from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.session_engine import SessionEngineDeps
 from app.interview.runtime.session_interaction import ResumeListeningDeps
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
@@ -121,6 +122,8 @@ def build_session_engine_deps(
     hydrate_state_from_session_row: Callable[..., None],
     resume_existing_session: Callable[..., Awaitable[bool]],
     generate_and_send_opening_live_turn: Callable[..., Awaitable[bool]],
+    send_prepared_opening_live_turn: Callable[..., Awaitable[bool]] | None,
+    consume_prepared_opening: Callable[[str], PreparedOpeningArtifact | None] | None,
     send_json: Callable[..., Awaitable[bool]],
     send_avatar_state: Callable[..., Awaitable[bool]],
     send_runtime_meta_snapshot: Callable[..., Awaitable[bool]],
@@ -171,6 +174,8 @@ def build_session_engine_deps(
         hydrate_state_from_session_row=hydrate_state_from_session_row,
         resume_existing_session=resume_existing_session,
         generate_and_send_opening_live_turn=generate_and_send_opening_live_turn,
+        send_prepared_opening_live_turn=send_prepared_opening_live_turn,
+        consume_prepared_opening=consume_prepared_opening,
         send_json=send_json,
         send_avatar_state=send_avatar_state,
         send_runtime_meta_snapshot=send_runtime_meta_snapshot,

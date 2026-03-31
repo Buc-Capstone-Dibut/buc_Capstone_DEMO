@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Briefcase, Layers3 } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, Briefcase, Layers3, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +10,13 @@ import {
   getRoleTrackKeywords,
 } from "@/lib/interview/role-track";
 import { getRoleCategoryById, ROLE_TRACK_CATEGORIES } from "@/lib/interview/role-taxonomy";
+import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 
 export function RoleTrainingBriefStep() {
   const router = useRouter();
-  const { jobData, rolePrepData, setStep } = useInterviewSetupStore();
+  const [isStartingInterview, setIsStartingInterview] = useState(false);
+  const { jobData, rolePrepData, setInterviewSessionId, setStep } = useInterviewSetupStore();
 
   if (!jobData || !rolePrepData) {
     return (
@@ -37,6 +40,29 @@ export function RoleTrainingBriefStep() {
   const roleTitle = selectedRole?.label ?? `${category.label} 공통 기준`;
   const roleDescription = selectedRole?.description ?? category.description;
   const questionFlowLabel = selectedRole ? "선택한 세부 직무 기준" : `${category.label} 범주의 공통 기준`;
+  const handleStartInterview = async () => {
+    if (isStartingInterview) return;
+    setIsStartingInterview(true);
+    try {
+      const { sessionId } = await startInterviewPreflight({
+        sessionStartEndpoint: "/api/interview/session/start",
+        sessionStartBody: {
+          mode: "video",
+          personality: "professional",
+          jobData,
+          resumeData: {},
+          targetDurationSec: 10 * 60,
+          closingThresholdSec: 60,
+        },
+      });
+      setInterviewSessionId(sessionId);
+      router.push(`/interview/room/video?duration=10&track=role&sessionId=${encodeURIComponent(sessionId)}`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "면접 시작 준비에 실패했습니다.");
+    } finally {
+      setIsStartingInterview(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-6 pb-20">
@@ -143,9 +169,10 @@ export function RoleTrainingBriefStep() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           직무 설계로
         </Button>
-        <Button onClick={() => router.push("/interview/room/video?duration=10&track=role")} className="h-11 rounded-full px-6">
-          화상면접 시작
-          <ArrowRight className="ml-2 h-4 w-4" />
+        <Button onClick={() => void handleStartInterview()} disabled={isStartingInterview} className="h-11 rounded-full px-6">
+          {isStartingInterview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {isStartingInterview ? "면접 준비 중..." : "화상면접 시작"}
+          {!isStartingInterview ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
         </Button>
       </div>
     </div>

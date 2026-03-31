@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
+import {
+  getInterviewPlaybackAudioContext,
+  isInterviewPlaybackAudioReady,
+  prepareInterviewPlaybackAudio,
+  releaseInterviewPlaybackAudio,
+} from "@/lib/interview/playback-audio";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
 const AUDIO_DRAIN_SETTLE_MS = 80;
@@ -119,15 +125,12 @@ export function useOpenLLM({
   }, [onEvent]);
 
   const getOrCreateAudioContext = useCallback((): AudioContext | null => {
-    if (typeof window === "undefined") return null;
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      return audioContextRef.current;
+    const sharedContext = getInterviewPlaybackAudioContext();
+    if (!sharedContext) return null;
+    audioContextRef.current = sharedContext;
+    if (isInterviewPlaybackAudioReady() && sharedContext.state === "running") {
+      audioUnlockedRef.current = true;
     }
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return null;
-    audioContextRef.current = new AudioContextClass();
     return audioContextRef.current;
   }, []);
 
@@ -346,7 +349,7 @@ export function useOpenLLM({
     }
 
     try {
-      await ctx.resume();
+      await prepareInterviewPlaybackAudio();
       const resumedState = ctx.state;
       audioUnlockedRef.current = resumedState === "running";
       if (!audioUnlockedRef.current) {
@@ -380,7 +383,7 @@ export function useOpenLLM({
       clearPendingMicRestart();
       clearReconnectTimer();
       clearPendingPlaybackDrainCheck();
-      audioContextRef.current?.close();
+      void releaseInterviewPlaybackAudio();
     };
   }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, unlockAudioContext]);
 

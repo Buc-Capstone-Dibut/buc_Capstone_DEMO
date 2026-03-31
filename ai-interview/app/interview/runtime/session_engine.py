@@ -17,6 +17,7 @@ from app.interview.runtime.orchestration import (
     build_voice_model_turn_payload,
     build_voice_user_turn_payload,
 )
+from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.state import PendingUserSegment, PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
@@ -495,6 +496,8 @@ class SessionEngineDeps:
     hydrate_state_from_session_row: Callable[..., None]
     resume_existing_session: Callable[..., Awaitable[bool]]
     generate_and_send_opening_live_turn: Callable[..., Awaitable[bool]]
+    send_prepared_opening_live_turn: Callable[..., Awaitable[bool]] | None
+    consume_prepared_opening: Callable[[str], PreparedOpeningArtifact | None] | None
     send_json: Callable[..., Awaitable[bool]]
     send_avatar_state: Callable[..., Awaitable[bool]]
     send_runtime_meta_snapshot: Callable[..., Awaitable[bool]]
@@ -677,7 +680,20 @@ async def handle_session_init(
             "message": "음성 면접 실시간 파이프라인이 시작되었습니다.",
         },
     )
-    generated = await deps.generate_and_send_opening_live_turn(ws, state)
+    generated = False
+    prepared_opening = (
+        deps.consume_prepared_opening(request.session_id)
+        if deps.consume_prepared_opening is not None
+        else None
+    )
+    if prepared_opening is not None and deps.send_prepared_opening_live_turn is not None:
+        generated = await deps.send_prepared_opening_live_turn(
+            ws,
+            state,
+            artifact=prepared_opening,
+        )
+    if not generated:
+        generated = await deps.generate_and_send_opening_live_turn(ws, state)
     if not generated:
         logger.warning(
             "opening turn generation failed; recreating live session once (session=%s, runtime_mode=%s, phase=%s)",

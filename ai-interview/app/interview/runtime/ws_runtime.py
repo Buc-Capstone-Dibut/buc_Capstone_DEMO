@@ -4,7 +4,6 @@ import asyncio
 import logging
 import re
 import time
-from itertools import count
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -84,9 +83,12 @@ from app.interview.runtime.turn_entrypoints import (
     generate_and_send_opening_live_turn as runtime_generate_and_send_opening_live_turn,
     generate_and_send_resume_live_turn as runtime_generate_and_send_resume_live_turn,
     process_user_utterance as runtime_entrypoint_process_user_utterance,
+    send_prepared_opening_live_turn as runtime_send_prepared_opening_live_turn,
 )
 from app.interview.runtime.live_turns import prepare_live_user_followup
+from app.interview.runtime.prepared_opening_store import consume_prepared_opening
 from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
+from app.interview.runtime.turn_ids import next_ai_turn_id
 from app.interview.runtime.delivery import (
     ReplayLastModelTurnDeps,
     build_ai_delivery_plan as runtime_build_ai_delivery_plan,
@@ -146,7 +148,6 @@ service_adapter = RuntimeServiceAdapter(service)
 logger = logging.getLogger("dibut.ws")
 
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
-AI_TURN_SEQ = count(1)
 RUNTIME_MODE_LIVE_SINGLE = "live-single"
 RUNTIME_MODE_DISABLED = "disabled"
 VOICE_TURN_END_GRACE_SEC = max(0.08, settings.voice_turn_end_grace_ms / 1000.0)
@@ -247,7 +248,7 @@ def _build_parallel_stt_phrase_hints(state: VoiceWsState) -> list[str]:
 
 
 def _next_ai_turn_id(session_id: str) -> str:
-    return f"{session_id}:{next(AI_TURN_SEQ)}"
+    return next_ai_turn_id(session_id)
 
 
 def _resume_listening_deps():
@@ -322,6 +323,8 @@ def _session_engine_deps():
         hydrate_state_from_session_row=transcript_hydrate_state_from_session_row,
         resume_existing_session=_resume_existing_session,
         generate_and_send_opening_live_turn=_generate_and_send_opening_live_turn,
+        send_prepared_opening_live_turn=_send_prepared_opening_live_turn,
+        consume_prepared_opening=consume_prepared_opening,
         send_json=_send_json,
         send_avatar_state=_send_avatar_state,
         send_runtime_meta_snapshot=_send_runtime_meta_snapshot,
@@ -736,6 +739,8 @@ def _should_emit_gemini_user_delta(state: VoiceWsState) -> bool:
         return True
     if not state.parallel_stt_turn_id:
         return True
+    if not _parallel_stt_stream_is_active(state) and not state.parallel_stt_final_text:
+        return True
     if state.parallel_stt_has_emitted:
         return False
     if state.parallel_stt_best_text or state.parallel_stt_final_text:
@@ -864,6 +869,14 @@ async def _push_parallel_stt_audio_chunk(
         return False
     if not state.live_input_turn_active or not state.parallel_stt_turn_id:
         return False
+
+    if state.parallel_stt_stream is not None and not _parallel_stt_stream_is_active(state):
+        try:
+            state.parallel_stt_stream.close()
+        except Exception:
+            logger.warning("stale parallel streaming STT close failed", exc_info=True)
+        state.parallel_stt_stream = None
+        state.parallel_stt_stream_started_at = 0.0
 
     if state.parallel_stt_stream is None:
         state.parallel_stt_sample_rate = max(8000, int(sample_rate or state.parallel_stt_sample_rate or 16000))
@@ -1445,6 +1458,15 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         next_turn_id=_next_ai_turn_id,
         live_opening_prompt=LIVE_OPENING_PROMPT,
         runtime_timing=transcript_runtime_timing,
+        runtime_executor_deps=_runtime_executor_deps,
+    )
+
+
+async def _send_prepared_opening_live_turn(ws: WebSocket, state: VoiceWsState, *, artifact) -> bool:
+    return await runtime_send_prepared_opening_live_turn(
+        ws,
+        state,
+        artifact=artifact,
         runtime_executor_deps=_runtime_executor_deps,
     )
 

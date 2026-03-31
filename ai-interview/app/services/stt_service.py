@@ -392,7 +392,7 @@ class GoogleCloudSttService:
             enable_automatic_punctuation=self.enable_automatic_punctuation,
             phrase_hints=session_phrase_hints,
             phrase_hint_boost=self.phrase_hint_boost if phrase_hint_boost is None else max(0.0, float(phrase_hint_boost)),
-            timeout_sec=max(self.timeout_sec, 20.0),
+            timeout_sec=None,
             on_result=on_result,
         )
 
@@ -469,7 +469,7 @@ class GoogleCloudStreamingSttSession:
         enable_automatic_punctuation: bool,
         phrase_hints: Iterable[str],
         phrase_hint_boost: float,
-        timeout_sec: float,
+        timeout_sec: float | None,
         on_result: Callable[[StreamingSttEvent], None] | None = None,
     ) -> None:
         self._client = client
@@ -481,7 +481,7 @@ class GoogleCloudStreamingSttSession:
         self.enable_automatic_punctuation = bool(enable_automatic_punctuation)
         self.phrase_hints = [hint.strip() for hint in phrase_hints if (hint or "").strip()]
         self.phrase_hint_boost = max(0.0, float(phrase_hint_boost or 0.0))
-        self.timeout_sec = max(5.0, float(timeout_sec or 20.0))
+        self.timeout_sec = None if timeout_sec is None else max(30.0, float(timeout_sec))
         self._on_result = on_result
         self._audio_queue: "queue.Queue[bytes | None]" = queue.Queue()
         self._closed = threading.Event()
@@ -563,11 +563,13 @@ class GoogleCloudStreamingSttSession:
 
     def _run(self) -> None:
         try:
-            responses = self._client.streaming_recognize(
-                config=self._streaming_config(),
-                requests=self._request_iter(),
-                timeout=self.timeout_sec,
-            )
+            request_kwargs: dict[str, Any] = {
+                "config": self._streaming_config(),
+                "requests": self._request_iter(),
+            }
+            if self.timeout_sec is not None:
+                request_kwargs["timeout"] = self.timeout_sec
+            responses = self._client.streaming_recognize(**request_kwargs)
             for response in responses:
                 for result in getattr(response, "results", []) or []:
                     alternatives = [

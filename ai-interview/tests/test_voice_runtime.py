@@ -89,6 +89,7 @@ from app.interview.runtime.state import (
     PreparedTtsAudio,
     VoiceWsState,
 )
+from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
 from app.interview.runtime.vad_policy import retune_vad_for_next_turn
 from app.interview.transcript.session_state import (
     hydrate_state_from_session_row,
@@ -185,6 +186,8 @@ def _session_engine_deps(
         resume_existing_session=resume_existing_session or AsyncMock(return_value=False),
         generate_and_send_opening_live_turn=generate_and_send_opening_live_turn
         or AsyncMock(return_value=True),
+        send_prepared_opening_live_turn=AsyncMock(return_value=True),
+        consume_prepared_opening=lambda session_id: None,
         send_json=send_json or AsyncMock(return_value=True),
         send_avatar_state=send_avatar_state or AsyncMock(return_value=True),
         send_runtime_meta_snapshot=send_runtime_meta_snapshot or AsyncMock(return_value=True),
@@ -257,6 +260,29 @@ class QuestionTypeTests(unittest.TestCase):
         next_type = select_next_question_type(state, preferred="metric_validation")
 
         self.assertEqual(next_type, "tradeoff")
+
+
+class ParallelSttFallbackTests(unittest.TestCase):
+    def test_gemini_user_delta_resumes_when_parallel_stream_fails_mid_turn(self) -> None:
+        state = VoiceWsState(session_id="session-1")
+        state.parallel_stt_turn_id = "session-1:2"
+        state.parallel_stt_has_emitted = True
+        state.parallel_stt_best_text = "세션 정보를 최소화하고"
+
+        class _FailedStream:
+            def is_closed(self) -> bool:
+                return True
+
+            def failed(self) -> bool:
+                return True
+
+        state.parallel_stt_stream = _FailedStream()
+
+        with patch("app.interview.runtime.ws_runtime.settings.voice_parallel_stt_enabled", True), patch(
+            "app.interview.runtime.ws_runtime.runtime_get_parallel_stt_service",
+            return_value=types.SimpleNamespace(enabled=True),
+        ):
+            self.assertTrue(_should_emit_gemini_user_delta(state))
 
     def test_record_question_type_advances_rotation_cursor(self) -> None:
         state = VoiceWsState()

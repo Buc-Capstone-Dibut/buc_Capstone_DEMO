@@ -528,39 +528,45 @@ async def execute_opening_live_turn(
     *,
     spec: OpeningTurnSpec,
     deps: RuntimeExecutorDeps,
+    prepared_delivery_plan: AiDeliveryPlan | None = None,
+    spoken_provider_override: str = "",
 ) -> bool:
     if not state.session_id:
         return False
 
     started_at = monotonic()
     ai_text = " ".join((spec.prompt or _build_fallback_opening_text(state)).split()).strip()
-    _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
-        state,
-        text=ai_text,
-    )
-    if prepared_live_audio is None:
-        logger.warning(
-            "opening turn produced no audio (session=%s, turn=%s, ai_text=%s)",
-            state.session_id,
-            spec.turn_id,
-            ai_text,
+    spoken_provider = spoken_provider_override
+    if prepared_delivery_plan is None:
+        _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+            state,
+            text=ai_text,
         )
-        await deps.send_json(
-            ws,
-            {
-                "type": "error",
-                "message": "첫 질문 음성을 생성하지 못했습니다. 새로고침 후 다시 시작해 주세요.",
-                "turnId": spec.turn_id,
-            },
-        )
-        return False
+        if prepared_live_audio is None:
+            logger.warning(
+                "opening turn produced no audio (session=%s, turn=%s, ai_text=%s)",
+                state.session_id,
+                spec.turn_id,
+                ai_text,
+            )
+            await deps.send_json(
+                ws,
+                {
+                    "type": "error",
+                    "message": "첫 질문 음성을 생성하지 못했습니다. 새로고침 후 다시 시작해 주세요.",
+                    "turnId": spec.turn_id,
+                },
+            )
+            return False
 
-    delivery_plan = await deps.build_ai_delivery_plan(
-        ws,
-        text=ai_text,
-        turn_id=spec.turn_id,
-        preferred_full_audio=prepared_live_audio,
-    )
+        delivery_plan = await deps.build_ai_delivery_plan(
+            ws,
+            text=ai_text,
+            turn_id=spec.turn_id,
+            preferred_full_audio=prepared_live_audio,
+        )
+    else:
+        delivery_plan = prepared_delivery_plan
 
     state.current_phase = spec.phase
     state.runtime_status = "model_speaking"

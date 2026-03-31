@@ -109,6 +109,8 @@ def _session_engine_deps(
         hydrate_state_from_session_row=lambda *args, **kwargs: None,
         resume_existing_session=AsyncMock(return_value=False),
         generate_and_send_opening_live_turn=AsyncMock(return_value=True),
+        send_prepared_opening_live_turn=AsyncMock(return_value=True),
+        consume_prepared_opening=lambda session_id: None,
         send_json=AsyncMock(return_value=True),
         send_avatar_state=AsyncMock(return_value=True),
         send_runtime_meta_snapshot=AsyncMock(return_value=True),

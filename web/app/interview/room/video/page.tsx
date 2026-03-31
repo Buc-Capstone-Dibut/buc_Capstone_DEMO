@@ -16,6 +16,7 @@ import {
   LOCAL_INTERVIEW_FALLBACK_USER_ID,
   resolveInterviewBaseUrlFromWsUrl,
 } from "@/lib/interview/dev-auth";
+import { isInterviewPlaybackAudioReady } from "@/lib/interview/playback-audio";
 import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
@@ -199,8 +200,9 @@ export default function InterviewVideoRoomPage() {
   const [showCaption, setShowCaption] = useState(true);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectRemainingSec, setReconnectRemainingSec] = useState(RECONNECT_GRACE_SEC);
-  const [isAudioPrimed, setIsAudioPrimed] = useState(false);
+  const [isAudioPrimed, setIsAudioPrimed] = useState(() => isInterviewPlaybackAudioReady());
   const [isPrimingAudio, setIsPrimingAudio] = useState(false);
+  const [hasConfirmedInterviewStart, setHasConfirmedInterviewStart] = useState(false);
   const [isFinishingSession, setIsFinishingSession] = useState(false);
 
   const startedRef = useRef(false);
@@ -735,7 +737,7 @@ export default function InterviewVideoRoomPage() {
   }, [requestedSessionId, setInterviewSessionId]);
 
   useEffect(() => {
-    if (!isConnected || startedRef.current || !isAudioPrimed) return;
+    if (!isConnected || startedRef.current || !isAudioPrimed || !hasConfirmedInterviewStart) return;
 
     let cancelled = false;
     startedRef.current = true;
@@ -756,11 +758,21 @@ export default function InterviewVideoRoomPage() {
     };
   }, [
     ensureSessionId,
+    hasConfirmedInterviewStart,
     isAudioPrimed,
     isConnected,
     requestedSessionId,
     sendInterviewInit,
   ]);
+
+  useEffect(() => {
+    if (startedRef.current || hasConfirmedInterviewStart || isSessionReady) return;
+    setStatusMessage(
+      isAudioPrimed
+        ? "준비가 완료되었습니다. 면접 시작을 누르면 바로 시작됩니다."
+        : "오디오를 준비한 뒤 면접 시작을 눌러주세요.",
+    );
+  }, [hasConfirmedInterviewStart, isAudioPrimed, isSessionReady]);
 
   useEffect(() => () => clearInitRetryTimer(), [clearInitRetryTimer]);
 
@@ -977,13 +989,16 @@ export default function InterviewVideoRoomPage() {
     if (isPrimingAudio) return;
     setIsPrimingAudio(true);
     try {
-      const ready = await prepareAudio();
-      if (!ready) {
-        setStatusMessage("오디오 재생을 시작하지 못했습니다. 브라우저에서 사운드 자동재생을 허용해 주세요.");
-        return;
+      if (!isAudioPrimed) {
+        const ready = await prepareAudio();
+        if (!ready) {
+          setStatusMessage("오디오 재생을 시작하지 못했습니다. 브라우저에서 사운드 자동재생을 허용해 주세요.");
+          return;
+        }
+        setIsAudioPrimed(true);
       }
-      setIsAudioPrimed(true);
-      setStatusMessage("오디오 준비가 완료되었습니다. 면접을 시작합니다.");
+      setHasConfirmedInterviewStart(true);
+      setStatusMessage("준비가 완료되었습니다. 첫 질문을 불러오는 중...");
     } finally {
       setIsPrimingAudio(false);
     }
@@ -1222,7 +1237,7 @@ export default function InterviewVideoRoomPage() {
       )}
 
       {/* Audio Priming Modal */}
-      {!isAudioPrimed && (
+      {!hasConfirmedInterviewStart && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
            <div className="mx-4 w-full max-w-md flex flex-col items-center text-center overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-xl">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary mb-5">
@@ -1230,7 +1245,9 @@ export default function InterviewVideoRoomPage() {
             </div>
             <h3 className="text-xl font-bold text-foreground mb-3">면접 시작 준비</h3>
             <p className="text-sm text-muted-foreground mb-8">
-              첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다.
+              {isAudioPrimed
+                ? "준비는 완료되었습니다. 면접 시작을 누르면 첫 질문이 바로 재생됩니다."
+                : "첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다."}
             </p>
             <Button
               size="lg"
@@ -1239,7 +1256,7 @@ export default function InterviewVideoRoomPage() {
               disabled={isPrimingAudio}
             >
               {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              {isPrimingAudio ? '준비 중...' : '면접 시작하기'}
+              {isPrimingAudio ? "준비 중..." : "면접 시작하기"}
             </Button>
           </div>
         </div>
