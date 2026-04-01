@@ -662,62 +662,64 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="relative h-40 overflow-hidden shrink-0 sm:h-48">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/45 via-primary/15 to-background" />
-        <div className="absolute -right-10 -top-12 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute left-[28%] top-8 h-36 w-36 rounded-full bg-emerald-200/40 blur-3xl" />
+      <div className="relative z-0 h-40 overflow-hidden shrink-0 sm:h-48">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/45 via-primary/15 to-background" />
+        <div className="pointer-events-none absolute -right-10 -top-12 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute left-[28%] top-8 h-36 w-36 rounded-full bg-emerald-200/40 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 sm:px-6 lg:px-8">
-        <div className="-mt-14 mb-8 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
-            <Avatar className="h-24 w-24 ring-4 ring-background shadow-xl sm:h-28 sm:w-28">
-              <AvatarImage src={profile.avatarUrl ?? undefined} />
-              <AvatarFallback className="bg-primary/10 text-3xl font-bold text-primary">
-                {(profile.nickname || "U").charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="space-y-2 pb-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  {profile.nickname || "사용자"}
-                </h1>
-                {isOwner && (
-                  <Badge className="h-5 border-primary/20 bg-primary/10 px-1.5 text-[10px] font-normal text-primary">
-                    내 프로필
-                  </Badge>
-                )}
-                {profile.tier && (
+      <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="relative -mt-14 mb-8 sm:-mt-16">
+          <div className="relative flex flex-col gap-4 rounded-[28px] bg-transparent px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-end">
+              <Avatar className="h-24 w-24 ring-4 ring-background sm:h-28 sm:w-28">
+                <AvatarImage src={profile.avatarUrl ?? undefined} />
+                <AvatarFallback className="bg-primary/10 text-3xl font-bold text-primary">
+                  {(profile.nickname || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-2 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                    {profile.nickname || "사용자"}
+                  </h1>
+                  {isOwner && (
+                    <Badge className="h-5 border-primary/20 bg-primary/10 px-1.5 text-[10px] font-normal text-primary">
+                      내 프로필
+                    </Badge>
+                  )}
+                  {profile.tier && (
+                    <Badge
+                      variant="outline"
+                      className={`h-5 px-1.5 text-[10px] font-normal ${tierStyle}`}
+                    >
+                      ★ {profile.tier}
+                    </Badge>
+                  )}
                   <Badge
                     variant="outline"
-                    className={`h-5 px-1.5 text-[10px] font-normal ${tierStyle}`}
+                    className="h-5 border-primary/30 px-1.5 text-[10px] font-normal text-primary"
                   >
-                    ★ {profile.tier}
+                    점수 {Math.max(0, profile.reputation || 0).toLocaleString()}
                   </Badge>
-                )}
-                <Badge
-                  variant="outline"
-                  className="h-5 border-primary/30 px-1.5 text-[10px] font-normal text-primary"
-                >
-                  점수 {Math.max(0, profile.reputation || 0).toLocaleString()}
-                </Badge>
+                </div>
+                <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                  {profile.bio || "내 활동과 아카이브를 대시보드로 정리할 수 있는 공간입니다."}
+                </p>
               </div>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                {profile.bio || "내 활동과 아카이브를 대시보드로 정리할 수 있는 공간입니다."}
-              </p>
             </div>
+            {isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start gap-1.5 sm:self-auto"
+                onClick={() => setEditSheetOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                프로필 편집
+              </Button>
+            )}
           </div>
-          {isOwner && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-start gap-1.5 sm:self-auto"
-              onClick={() => setEditSheetOpen(true)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              프로필 편집
-            </Button>
-          )}
         </div>
 
         <div className="space-y-6">

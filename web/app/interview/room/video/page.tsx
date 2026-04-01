@@ -1,16 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, WifiOff } from "lucide-react";
+import { TalkingHeadInterviewer } from "@/components/features/interview/avatar/talking-head-interviewer";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import {
   buildInterviewResultPath,
   shouldRouteToSetupOnReconnectTimeout,
 } from "@/lib/interview/interview-session-flow";
+import type { InterviewAvatarState } from "@/lib/interview/interviewer-avatar-config";
 import {
   isLocalInterviewBaseUrl,
   LOCAL_INTERVIEW_FALLBACK_USER_ID,
@@ -57,13 +58,6 @@ interface StickyCaption {
 
 const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 const RECONNECT_GRACE_SEC = 60;
-
-const AVATAR_ASSETS = {
-  idle: "/interview/avatar/dibut-idle.svg",
-  thinking: "/interview/avatar/dibut-thinking.svg",
-  listening: "/interview/avatar/dibut-listening.svg",
-  speaking: "/interview/avatar/dibut-speaking.svg",
-} as const;
 
 const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   const parsed = Number(raw);
@@ -838,15 +832,13 @@ export default function InterviewVideoRoomPage() {
 
 
 
-  const avatarState = isAISpeaking
+  const avatarState: InterviewAvatarState = isAISpeaking
     ? "speaking"
     : isAIProcessing
       ? "thinking"
       : isMicOn
         ? "listening"
         : "idle";
-
-  const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
   const activeAiCaption = formatStreamingTranscriptForDisplay(streamingAiCaption.trim(), "ai");
@@ -1132,14 +1124,10 @@ export default function InterviewVideoRoomPage() {
             <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
             Dibut 면접관
           </div>
-          <div className="flex h-full w-full items-center justify-center bg-muted/20">
-            <Image
-              src={avatarSrc}
-              alt="Dibut interviewer"
-              width={460}
-              height={560}
-              className="h-auto w-full max-w-[340px] lg:max-w-[400px] object-contain drop-shadow-md transition-transform duration-300"
-              priority
+          <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,rgba(59,130,246,0.18),rgba(15,23,42,0.95)_45%)] px-4 md:px-8">
+            <TalkingHeadInterviewer
+              state={avatarState}
+              className="h-full w-full max-w-[520px]"
             />
             {isAISpeaking && (
               <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1">

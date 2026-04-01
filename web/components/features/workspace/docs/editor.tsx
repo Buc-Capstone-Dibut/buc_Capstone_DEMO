@@ -15,6 +15,7 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   type CSSProperties,
   type MouseEvent,
 } from "react";
@@ -42,15 +43,18 @@ interface WorkspaceTaskSearchResult {
 interface DocumentEditorProps {
   docId: string;
   workspaceId?: string;
-  initialContent?: unknown;
   readOnly?: boolean;
   user?: UserInfo;
   onTaskLinked?: () => void;
   onOpenTask?: (taskId: string) => void;
+  collabToken: string;
+  onStatusChange?: (status: "connecting" | "saving" | "synced" | "unstable") => void;
+  onParticipantsChange?: (participants: UserInfo[]) => void;
 }
 
 export interface DocumentEditorHandle {
   saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
+  hasUnsavedChanges: () => boolean;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
@@ -74,16 +78,19 @@ export const DocumentEditor = forwardRef<
   {
     docId,
     workspaceId,
-    initialContent,
     readOnly = false,
     user,
     onTaskLinked,
     onOpenTask,
+    collabToken,
+    onStatusChange,
+    onParticipantsChange,
   }: DocumentEditorProps,
   ref,
 ) {
   const { theme } = useTheme();
   const pathname = usePathname();
+  const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resolvedWorkspaceId = useMemo(() => {
     if (workspaceId) return workspaceId;
@@ -145,9 +152,13 @@ export const DocumentEditor = forwardRef<
   // Create Yjs provider and doc
   const { doc, provider } = useMemo(() => {
     const ydoc = new Y.Doc();
-    const websocketProvider = new WebsocketProvider(WS_URL, `doc:${docId}`, ydoc);
+    const websocketProvider = new WebsocketProvider(WS_URL, `doc:${docId}`, ydoc, {
+      params: {
+        token: collabToken,
+      },
+    });
     return { doc: ydoc, provider: websocketProvider };
-  }, [docId]);
+  }, [collabToken, docId]);
 
   // Stable user info
   const userInfo = useMemo(() => {
@@ -179,81 +190,64 @@ export const DocumentEditor = forwardRef<
     [doc, provider, readOnly, userInfo, docId, resolvedWorkspaceId, resolveAssetUrl],
   );
 
-  const saveCurrentState = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!resolvedWorkspaceId || readOnly) {
-        return true;
-      }
-
-      try {
-        const response = await fetch(
-          `/api/workspaces/${resolvedWorkspaceId}/docs/${docId}/save`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              yjsState: encodeYjsState(doc),
-            }),
-          },
-        );
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(
-            payload?.error || payload?.message || "문서 저장에 실패했습니다.",
-          );
-        }
-
-        return true;
-      } catch (error) {
-        if (!options?.silent) {
-          toast.error(
-            (error as Error).message || "문서 저장에 실패했습니다.",
-          );
-        }
-        return false;
-      }
-    },
-    [doc, docId, readOnly, resolvedWorkspaceId],
-  );
-
   useImperativeHandle(
     ref,
     () => ({
-      saveNow: saveCurrentState,
+      saveNow: async () => true,
+      hasUnsavedChanges: () => false,
     }),
-    [saveCurrentState],
+    [],
   );
 
   useEffect(() => {
+    onStatusChange?.("connecting");
+
+    const handleProviderStatus = ({ status }: { status: string }) => {
+      if (status === "connected") {
+        onStatusChange?.("synced");
+        return;
+      }
+      onStatusChange?.("unstable");
+    };
+
+    const updateParticipants = () => {
+      const users = Array.from(provider.awareness.getStates().values())
+        .map((state) => (state as { user?: UserInfo }).user)
+        .filter((value): value is UserInfo => Boolean(value));
+      onParticipantsChange?.(users);
+    };
+
+    const handleDocUpdate = () => {
+      onStatusChange?.("saving");
+      if (saveIndicatorTimerRef.current) {
+        clearTimeout(saveIndicatorTimerRef.current);
+      }
+      saveIndicatorTimerRef.current = setTimeout(() => {
+        onStatusChange?.(provider.wsconnected ? "synced" : "unstable");
+      }, 1200);
+    };
+
+    provider.on("status", handleProviderStatus);
+    provider.on("sync", (synced: boolean) => {
+      onStatusChange?.(synced ? "synced" : "connecting");
+    });
+    provider.awareness.on("change", updateParticipants);
+    doc.on("update", handleDocUpdate);
+    updateParticipants();
+
     return () => {
+      provider.off("status", handleProviderStatus);
+      provider.awareness.off("change", updateParticipants);
+      doc.off("update", handleDocUpdate);
+      if (saveIndicatorTimerRef.current) {
+        clearTimeout(saveIndicatorTimerRef.current);
+        saveIndicatorTimerRef.current = null;
+      }
       provider.disconnect();
+      provider.destroy();
       doc.destroy();
     };
-  }, [provider, doc]);
-
-  useEffect(() => {
-    if (
-      initialContent &&
-      Array.isArray(initialContent) &&
-      initialContent.length > 0
-    ) {
-      const currentBlocks = editor.document;
-      const isDefault =
-        currentBlocks.length === 0 ||
-        (currentBlocks.length === 1 &&
-          currentBlocks[0].type === "paragraph" &&
-          (!currentBlocks[0].content ||
-            (Array.isArray(currentBlocks[0].content) &&
-              currentBlocks[0].content.length === 0)));
-
-      if (isDefault) {
-        editor.replaceBlocks(editor.document, initialContent);
-      }
-    }
-  }, [editor, initialContent]);
+  }, [doc, onParticipantsChange, onStatusChange, provider]);
 
   const handleTaskMention = useCallback(async (
     task: WorkspaceTaskSearchResult,
@@ -372,7 +366,7 @@ export const DocumentEditor = forwardRef<
     onOpenTask?.(taskId);
   }, [onOpenTask]);
 
-  if (!editor) {
+  if (!editor || !collabToken) {
     return <div>Loading editor...</div>;
   }
 
@@ -487,16 +481,4 @@ function getRandomName() {
     " " +
     Math.floor(Math.random() * 1000)
   );
-}
-
-function encodeYjsState(doc: Y.Doc) {
-  const update = Y.encodeStateAsUpdate(doc);
-  let binary = "";
-
-  for (let index = 0; index < update.length; index += 0x8000) {
-    const chunk = update.subarray(index, index + 0x8000);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
 }

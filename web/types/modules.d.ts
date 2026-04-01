@@ -28,3 +28,31 @@ declare module '@prisma/config' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function defineConfig(config: any): any;
 }
+
+declare module '@met4citizen/talkinghead' {
+  interface TalkingHeadMorphTarget {
+    realtime?: number | null;
+    needsUpdate?: boolean;
+  }
+
+  export class TalkingHead {
+    mtAvatar?: Record<string, TalkingHeadMorphTarget>;
+
+    constructor(node: HTMLElement, opt?: Record<string, unknown>);
+
+    showAvatar(
+      avatar: Record<string, unknown>,
+      onprogress?: (event: ProgressEvent<EventTarget>) => void,
+    ): Promise<void>;
+
+    setView(view: string, opt?: Record<string, unknown>): void;
+    setLighting(opt?: Record<string, unknown>): void;
+    setMood(mood: string): void;
+    makeEyeContact(durationMs: number): void;
+    lookAhead(durationMs: number): void;
+    lookAtCamera(durationMs: number): void;
+    playGesture(name: string, durationSec?: number, mirror?: boolean, transitionMs?: number): void;
+    stopGesture(transitionMs?: number): void;
+    dispose(): void;
+  }
+}

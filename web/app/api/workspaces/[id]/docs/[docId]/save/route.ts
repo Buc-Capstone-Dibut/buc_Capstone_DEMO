@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { saveDocCollabState } from "@/lib/server/doc-collab-state";
+import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
 
 export async function POST(
   request: Request,
@@ -19,11 +20,21 @@ export async function POST(
     }
 
     const { id: workspaceId, docId } = params;
-    const { yjsState } = (await request.json()) as { yjsState?: unknown };
+    const payload = (await request.json()) as {
+      yjsState?: unknown;
+      content?: unknown;
+    };
 
-    if (typeof yjsState !== "string" || !yjsState.trim()) {
+    let yjsState: string | null = null;
+    if (typeof payload.yjsState === "string" && payload.yjsState.trim()) {
+      yjsState = payload.yjsState;
+    } else if (Array.isArray(payload.content)) {
+      yjsState = snapshotToYjsState(payload.content);
+    }
+
+    if (!yjsState) {
       return NextResponse.json(
-        { error: "유효한 문서 상태가 필요합니다." },
+        { error: "유효한 문서 본문이 필요합니다." },
         { status: 400 },
       );
     }
