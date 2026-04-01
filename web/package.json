@@ -22,6 +22,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.54",
     "@blocknote/core": "^0.46.1",
     "@blocknote/mantine": "^0.46.1",
     "@blocknote/react": "^0.46.1",
@@ -82,6 +83,7 @@
     "@tiptap/starter-kit": "^3.15.3",
     "@vercel/analytics": "^1.5.0",
     "@xyflow/react": "^12.10.0",
+    "ai": "^6.0.141",
     "autoprefixer": "^10.4.20",
     "axios": "^1.10.0",
     "cheerio": "^1.1.2",

@@ -33,7 +33,7 @@ interface ResumeAiAssistantProps {
     backgroundContext?: string;
 }
 
-type Mode = "main" | "stadri" | "chat";
+type Mode = "main" | "setup" | "chat";
 
 interface Message {
     role: "user" | "assistant";
@@ -50,7 +50,7 @@ export function ResumeAiAssistant({
     backgroundContext,
 }: ResumeAiAssistantProps) {
     const { toast } = useToast();
-    const [mode, setMode] = useState<Mode>(isWizard ? "stadri" : initialMode);
+    const [mode, setMode] = useState<Mode>(isWizard ? "setup" : initialMode as Mode);
     const [loading, setLoading] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
 
@@ -58,15 +58,9 @@ export function ResumeAiAssistant({
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
 
-    // STADRI State — prefill from initialStadri if provided
-    const [stadriData, setStadriData] = useState({
-        s: initialStadri?.s || "",
-        t: initialStadri?.t || "",
-        a: initialStadri?.a || "",
-        d: initialStadri?.d || "",
-        r: initialStadri?.r || "",
-        i: initialStadri?.i || "",
-    });
+    // Setup State
+    const [targetRole, setTargetRole] = useState("");
+    const [strengths, setStrengths] = useState("");
 
     const [chatInput, setChatInput] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,23 +73,21 @@ export function ResumeAiAssistant({
         }
     }, [messages, isStreaming]);
 
-    const handleStadriChange = (key: keyof typeof stadriData, value: string) => {
-        setStadriData(prev => ({ ...prev, [key]: value }));
-    };
-
-    const startStadriGeneration = async () => {
+    const startCoverLetterGeneration = async () => {
         setMode("chat");
-        setMessages([]); // Reset messages for new generation
+        setMessages([{ role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." }]);
         setIsStreaming(true);
 
         try {
-            const response = await fetch("/api/resume/ai-coach", {
+            const response = await fetch("/api/career/cover-letters/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    action: "stadri-structure",
-                    payload: stadriData,
+                    messages: [{ role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." }],
+                    targetRole,
+                    strengths,
                     backgroundContext,
+                    personalInfo: currentPayload,
                 }),
             });
 
@@ -108,7 +100,7 @@ export function ResumeAiAssistant({
 
             let fullText = "";
             // Initializing with an empty assistant message
-            setMessages([{ role: "assistant", content: "" }]);
+            setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -244,7 +236,7 @@ export function ResumeAiAssistant({
         }
     };
 
-    if (mode === "stadri") {
+    if (mode === "setup") {
         return (
             <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", isWizard && "w-full max-w-4xl mx-auto py-8")}>
                 {!isWizard && (
@@ -252,79 +244,54 @@ export function ResumeAiAssistant({
                         <ChevronLeft className="w-4 h-4 mr-1" /> 사이드바 목록
                     </Button>
                 )}
-                <div className="space-y-2 text-center">
-                    <h3 className={cn("font-bold flex items-center gap-2 justify-center", isWizard ? "text-3xl" : "text-lg")}>
+                <div className="space-y-4 text-center pb-6 border-b border-border/40">
+                    <h3 className={cn("font-bold flex items-center gap-2 justify-center", isWizard ? "text-3xl" : "text-xl")}>
                         <Sparkles className="w-6 h-6 text-primary" />
-                        {isWizard ? "경험을 AI와 함께 문장으로 만들어요" : "STADRI 경험 정리"}
+                        {isWizard ? "내 경험으로 맞춤형 자소서 생성하기" : "맞춤형 자소서 생성하기"}
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed max-w-lg mx-auto">
-                        {isWizard
-                            ? "기억나는 대로 단어나 짧은 문장으로 적어도 괜찮아요. AI가 자소서 문장으로 다듬어 드립니다."
-                            : "키워드나 짧은 문장으로 적어주시면 AI가 전문적인 자소서 문장을 만듭니다."}
+                    <p className="text-[15px] text-muted-foreground leading-relaxed max-w-xl mx-auto">
+                        선택하신 경험 기록들을 바탕으로 압도적인 자기소개서를 작성합니다.<br />
+                        AI가 글을 잘 쓸 수 있도록 <strong className="text-foreground">지원 직무</strong>만 알려주세요.
                     </p>
                 </div>
 
-                <div className={cn("grid gap-5 mt-8", isWizard ? "grid-cols-2" : "grid-cols-1")}>
-                    {[
-                        {
-                            id: 's',
-                            label: '① 어떤 상황이었나요?',
-                            sub: '프로젝트/업무의 배경이나 맥락을 자유롭게 적어주세요.',
-                            placeholder: '예) 팀 프로젝트에서 백엔드 담당, 사용자 응답 속도가 너무 느린 문제가 생겼어요'
-                        },
-                        {
-                            id: 't',
-                            label: '② 내가 맡은 역할·목표는?',
-                            sub: '어떤 임무를 맡았고, 무엇을 달성해야 했나요?',
-                            placeholder: '예) API 응답 시간을 50% 이상 단축해야 했어요'
-                        },
-                        {
-                            id: 'a',
-                            label: '③ 어떻게 해결했나요?',
-                            sub: '직접 실행한 행동이나 방법을 구체적으로 적어주세요.',
-                            placeholder: '예) DB 쿼리를 분석해서 N+1 문제를 발견하고 배치 쿼리로 교체했어요'
-                        },
-                        {
-                            id: 'd',
-                            label: '④ 어떤 어려움이 있었나요?',
-                            sub: '과정 중 막혔던 순간이나 까다로웠던 점을 적어주세요.',
-                            placeholder: '예) 레거시 코드가 많아서 수정 범위를 파악하는 데 오래 걸렸어요'
-                        },
-                        {
-                            id: 'r',
-                            label: '⑤ 결과는 어땠나요?',
-                            sub: '수치나 변화가 있다면 적어 주세요.',
-                            placeholder: '예) 응답 속도 60% 개선, 사용자 이탈률 15% 감소'
-                        },
-                        {
-                            id: 'i',
-                            label: '⑥ 무엇을 배웠나요?',
-                            sub: '이 경험에서 얻은 인사이트나 다음에 활용할 점을 적어주세요.',
-                            placeholder: '예) 성능 문제는 항상 데이터 흐름부터 분석해야 한다는 걸 배웠어요'
-                        },
-                    ].map((item) => (
-                        <div key={item.id} className="space-y-2 focus-within:translate-x-1 transition-transform">
-                            <div>
-                                <Label htmlFor={item.id} className="text-sm font-bold text-foreground">{item.label}</Label>
-                                <p className="text-[11px] text-muted-foreground mt-0.5">{item.sub}</p>
-                            </div>
-                            <Textarea
-                                id={item.id}
-                                placeholder={item.placeholder}
-                                value={stadriData[item.id as keyof typeof stadriData]}
-                                onChange={(e) => handleStadriChange(item.id as keyof typeof stadriData, e.target.value)}
-                                className="min-h-[80px] text-sm bg-muted/30 border-none focus-visible:ring-primary/30 transition-shadow resize-none p-3"
-                            />
+                <div className="space-y-8 mt-8 pb-4 max-w-2xl mx-auto">
+                    <div className="space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                        <div>
+                            <Label className="text-[15px] font-bold text-foreground">어느 회사에 어떤 직무로 지원하시나요? <span className="text-red-500">*</span></Label>
+                            <p className="text-[13px] text-muted-foreground mt-1">예: 카카오 프론트엔드 개발자, 네이버 서비스 기획자</p>
                         </div>
-                    ))}
+                        <Input
+                            placeholder="지원 직무를 적어주세요 (필수)"
+                            value={targetRole}
+                            onChange={(e) => setTargetRole(e.target.value)}
+                            className="h-12 text-[15px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30"
+                        />
+                    </div>
+
+                    <div className="space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                        <div>
+                            <Label className="text-[15px] font-bold text-foreground">이 자소서에서 특별히 자랑하고 싶은 나의 강점은? <span className="text-muted-foreground font-normal">(선택)</span></Label>
+                            <p className="text-[13px] text-muted-foreground mt-1">예: 주도적으로 문제를 찾아 해결하는 능력을 강조해줘</p>
+                        </div>
+                        <Textarea
+                            placeholder="원하시는 강조 포인트가 있다면 적어주세요"
+                            value={strengths}
+                            onChange={(e) => setStrengths(e.target.value)}
+                            className="min-h-[100px] text-[15px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30 resize-none p-4"
+                        />
+                    </div>
                 </div>
-                <Button
-                    className={cn("w-full mt-6 h-12 font-bold gap-2 shadow-xl shadow-primary/20 bg-primary hover:scale-[1.02] active:scale-[0.98] transition-all", isWizard && "text-lg")}
-                    onClick={startStadriGeneration}
-                    disabled={!stadriData.s && !stadriData.a}
-                >
-                    <Sparkles className="w-5 h-5" /> 전문 문구 실시간 생성
-                </Button>
+
+                <div className="max-w-2xl mx-auto mt-8">
+                    <Button
+                        className={cn("w-full h-14 font-bold gap-2 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground hover:scale-[1.02] active:scale-[0.98] rounded-2xl transition-all", isWizard && "text-lg")}
+                        onClick={startCoverLetterGeneration}
+                        disabled={!targetRole.trim()}
+                    >
+                        <Sparkles className="w-5 h-5" /> 전문 자소서 실시간 생성 시작
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -333,8 +300,8 @@ export function ResumeAiAssistant({
         return (
             <div className={cn("flex flex-col h-full space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", isWizard && "w-full max-w-4xl mx-auto py-8")}>
                 <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => setMode("stadri")} className="p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
-                        <ChevronLeft className="w-4 h-4 mr-1" /> 항목 다시 수정하기
+                    <Button variant="ghost" size="sm" onClick={() => setMode("setup")} className="p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
+                        <ChevronLeft className="w-4 h-4 mr-1" /> 항목 및 기획 다시 수정하기
                     </Button>
                     <Badge variant="secondary" className="text-[10px] py-0 px-2 bg-primary/10 text-primary border-none">
                         {isStreaming ? "AI 스트리밍 보정 중" : "맞춤형 보정 완료"}

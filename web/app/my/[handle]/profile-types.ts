@@ -51,7 +51,14 @@ export interface ResumePayload {
     position: string;
     period: string;
     description: string;
-    // --- Career Timeline Additions ---
+  }>;
+  // --- New Timeline Additions (STADRI) ---
+  timeline?: Array<{
+    id?: string;
+    company: string;
+    position: string;
+    period: string;
+    description: string;
     tags?: string[];
     situation?: string;
     role?: string;

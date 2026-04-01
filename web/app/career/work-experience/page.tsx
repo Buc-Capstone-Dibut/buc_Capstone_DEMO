@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import CareerTimelineClient from "./client";
+import WorkExperienceClient from "./client";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 
 export const dynamic = "force-dynamic";
 
-export default async function CareerExperiencesPage() {
+export default async function WorkExperiencePage() {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -16,7 +16,7 @@ export default async function CareerExperiencesPage() {
 
   const userId = session.user.id;
 
-  // Retrieve master profile to get consolidated experience
+  // Retrieve master profile
   const profile = await prisma.user_resume_profiles.findUnique({
     where: { user_id: userId }
   });
@@ -24,9 +24,9 @@ export default async function CareerExperiencesPage() {
   let experiences: any[] = [];
   if (profile && profile.resume_payload) {
     const payload = profile.resume_payload as unknown as ResumePayload;
-    experiences = payload.timeline || [];
+    experiences = payload.experience || [];
   } else {
-    // Fallback to active resume if profile doesn't exist yet
+    // Fallback to active resume
     let activeResume = await prisma.user_resumes.findFirst({
       where: { user_id: userId, is_active: true }
     });
@@ -38,9 +38,9 @@ export default async function CareerExperiencesPage() {
     }
     if (activeResume && activeResume.resume_payload) {
       const payload = activeResume.resume_payload as unknown as ResumePayload;
-      experiences = payload.timeline || [];
+      experiences = payload.experience || [];
     }
   }
 
-  return <CareerTimelineClient initialExperiences={experiences} />;
+  return <WorkExperienceClient initialExperiences={experiences} />;
 }
