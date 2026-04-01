@@ -52,6 +52,20 @@ export interface ResumePayload {
     period: string;
     description: string;
   }>;
+  timeline?: Array<{
+    id?: string;
+    company: string;
+    position: string;
+    period: string;
+    description: string;
+    tags?: string[];
+    situation?: string;
+    role?: string;
+    solution?: string;
+    difficulty?: string;
+    result?: string;
+    lesson?: string;
+  }>;
   skills: Array<{ name: string; level: string; category?: string }>;
   selfIntroduction: string;
   projects: Array<{
@@ -61,6 +75,20 @@ export interface ResumePayload {
     description: string;
     techStack: string[];
     achievements: string[];
+    tags?: string[];
+    situation?: string;
+    role?: string;
+    solution?: string;
+    difficulty?: string;
+    result?: string;
+    lesson?: string;
+  }>;
+  coverLetters?: Array<{
+    id: string;
+    title: string;
+    content: string;
+    createdAt: string;
+    sourceExperienceIds: string[];
   }>;
 }
 
