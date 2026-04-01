@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
+from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
 from app.interview.domain.interview_memory import extract_memory_keywords
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
@@ -28,6 +29,18 @@ def build_live_session_instruction(
     personality = (state.personality or "professional").strip()
     job_brief = compact_context_text(state.job_data, max_chars=900)
     resume_brief = compact_context_text(state.resume_data, max_chars=900)
+    level = resolve_interview_level(
+        state.job_data if isinstance(state.job_data, dict) else {},
+        state.resume_data,
+    )
+    if level == "new_grad":
+        level_guidance = "신입 수준에 맞춰 프로젝트 맥락, 역할, 구현 흐름, 배운 점 중심으로 묻고 과도한 수치/트레이드오프 집착은 피한다."
+    elif level == "junior":
+        level_guidance = "주니어 수준에 맞춰 구현 디테일, 문제 해결, 협업 경험을 우선 묻고 수치/트레이드오프 질문은 꼭 필요할 때만 사용한다."
+    elif level == "mid":
+        level_guidance = "미들 수준에 맞춰 구현과 설계 판단을 균형 있게 검증하고, 후반부에만 지표와 트레이드오프 질문 강도를 높인다."
+    else:
+        level_guidance = "시니어 수준에 맞춰 설계 판단, 우선순위, 트레이드오프를 검증하되 초반부터 과도하게 수치 질문만 반복하지 않는다."
     target_min = max(1, int(state.target_duration_sec // 60))
     return (
         "당신은 한국어 AI 면접관 Dibut입니다.\n"
@@ -44,6 +57,8 @@ def build_live_session_instruction(
         "9) 직전 답변을 더 깊게 검증할 필요가 있으면 같은 질문 축을 한 번 더 파고들 수 있다. 질문 유형을 기계적으로 바꾸지 않는다.\n"
         "10) 지원자 방금 답변과 무관한 새 주제로 갑자기 전환하지 않는다.\n"
         f"면접 스타일: {personality}\n"
+        f"지원자 레벨: {interview_level_label(level)}\n"
+        f"난이도 가이드: {level_guidance}\n"
         f"권장 면접 길이: 약 {target_min}분\n"
         f"채용 맥락 요약: {job_brief}\n"
         f"지원자 요약: {resume_brief}\n"
@@ -63,6 +78,14 @@ def build_live_turn_prompt(
     compact_context_text: Callable[..., str],
 ) -> str:
     parts: list[str] = ["다음 조건을 참고해 이번 면접관 발화를 구성하세요."]
+    level = resolve_interview_level(
+        state.job_data if isinstance(state.job_data, dict) else {},
+        state.resume_data,
+    )
+    if level in {"new_grad", "junior"}:
+        parts.append("- 초반에는 맥락, 역할, 구현, 문제 해결 과정을 우선 질문하고 수치/트레이드오프 질문을 연속으로 하지 말 것")
+    else:
+        parts.append("- 초반에는 맥락과 역할을 먼저 확인하고, 설계·수치·트레이드오프는 후반에 깊게 물을 것")
     if question_type:
         parts.append(f"- 우선 질문 유형: {question_type_label(question_type)}")
     recent_type_labels = ", ".join(question_type_label(item) for item in state.recent_question_types[-3:])

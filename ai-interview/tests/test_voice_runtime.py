@@ -47,10 +47,14 @@ from app.interview.domain.interview_memory import (
     record_question_type,
     remember_model_turn,
     remember_user_turn,
+    select_opening_question_type,
+    select_question_strategy,
     select_next_question_type,
 )
+from app.interview.domain.interview_level import resolve_interview_level
 from app.interview.domain.turn_text import (
     build_opening_turn_text,
+    compose_ai_question_text,
     looks_like_complete_ai_question,
     sanitize_ai_turn_text,
     sanitize_user_turn_text,
@@ -228,38 +232,114 @@ def _session_engine_deps(
 
 
 class QuestionTypeTests(unittest.TestCase):
+    def test_resolve_interview_level_uses_resume_experience(self) -> None:
+        level = resolve_interview_level(
+            {"interviewLevel": "auto", "role": "Backend Developer"},
+            {
+                "parsedContent": {
+                    "experience": [
+                        {"position": "Backend Engineer", "period": "2021 - 2025"},
+                    ],
+                },
+            },
+        )
+
+        self.assertEqual(level, "mid")
+
+    def test_select_opening_question_type_is_project_context_for_new_grad(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "new_grad"}
+
+        self.assertEqual(select_opening_question_type(state), "project_context")
+
     def test_select_next_question_type_skips_recent_types(self) -> None:
         state = VoiceWsState()
-        state.recent_question_types = ["tradeoff", "failure_recovery"]
+        state.job_data = {"interviewLevel": "junior"}
+        state.recent_question_types = ["role_contribution", "implementation_detail"]
         state.question_type_cursor = 1
 
         next_type = select_next_question_type(state)
 
-        self.assertEqual(next_type, "design_decision")
+        self.assertEqual(next_type, "failure_recovery")
 
     def test_preferred_question_type_is_used_when_not_recent(self) -> None:
         state = VoiceWsState()
-        state.recent_question_types = ["tradeoff", "failure_recovery"]
+        state.job_data = {"interviewLevel": "mid"}
+        state.recent_question_types = ["design_decision", "problem_solving_process"]
 
         next_type = select_next_question_type(state, preferred="metric_validation")
 
-        self.assertEqual(next_type, "metric_validation")
+        self.assertEqual(next_type, "implementation_detail")
 
     def test_preferred_question_type_can_repeat_once_for_grounded_followup(self) -> None:
         state = VoiceWsState()
-        state.recent_question_types = ["metric_validation"]
+        state.job_data = {"interviewLevel": "junior"}
+        state.recent_question_types = ["implementation_detail"]
 
-        next_type = select_next_question_type(state, preferred="metric_validation")
+        next_type = select_next_question_type(state, preferred="implementation_detail")
 
-        self.assertEqual(next_type, "metric_validation")
+        self.assertEqual(next_type, "implementation_detail")
 
     def test_preferred_question_type_rotates_after_two_consecutive_repeats(self) -> None:
         state = VoiceWsState()
-        state.recent_question_types = ["metric_validation", "metric_validation"]
+        state.job_data = {"interviewLevel": "junior"}
+        state.recent_question_types = ["implementation_detail", "implementation_detail"]
+
+        next_type = select_next_question_type(state, preferred="implementation_detail")
+
+        self.assertEqual(next_type, "failure_recovery")
+
+    def test_metric_validation_is_not_default_first_followup_for_new_grad(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "new_grad"}
+        state.recent_question_types = ["project_context"]
+
+        preferred = derive_question_type_preference(
+            state,
+            "실시간 면접 서비스를 만들면서 웹소켓 연결과 사용자 흐름을 구현했습니다.",
+        )
+
+        self.assertEqual(preferred, "implementation_detail")
+
+    def test_metric_question_is_cooled_down_when_recently_used(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "mid"}
+        state.recent_question_types = ["implementation_detail", "metric_validation", "design_decision"]
 
         next_type = select_next_question_type(state, preferred="metric_validation")
 
-        self.assertEqual(next_type, "tradeoff")
+        self.assertNotEqual(next_type, "metric_validation")
+
+    def test_tradeoff_is_blocked_after_recent_design_heavy_turn(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "mid"}
+        state.recent_question_types = ["design_decision", "failure_recovery"]
+
+        next_type = select_next_question_type(state, preferred="tradeoff")
+
+        self.assertNotEqual(next_type, "tradeoff")
+
+    def test_experience_detail_rotation_breaks_after_two_recent_detail_turns(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "junior"}
+        state.recent_question_types = ["role_contribution", "implementation_detail"]
+
+        next_type = select_next_question_type(state, preferred="problem_solving_process")
+
+        self.assertNotEqual(next_type, "problem_solving_process")
+
+    def test_select_question_strategy_allows_same_axis_followup_once(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewLevel": "junior"}
+        state.recent_question_types = ["implementation_detail"]
+
+        strategy, question_type = select_question_strategy(
+            state,
+            "웹소켓 기반으로 이벤트를 분리해 구현했고 Redis 캐시를 함께 사용했습니다.",
+        )
+
+        self.assertEqual(strategy, "followup")
+        self.assertEqual(question_type, "implementation_detail")
 
 
 class ParallelSttFallbackTests(unittest.TestCase):
@@ -290,20 +370,22 @@ class ParallelSttFallbackTests(unittest.TestCase):
         record_question_type(state, "design_decision")
 
         self.assertEqual(state.recent_question_types, ["design_decision"])
-        self.assertEqual(state.question_type_cursor, 4)
+        self.assertEqual(state.question_type_cursor, 9)
 
     def test_derive_question_type_prefers_metric_when_answer_has_no_numbers(self) -> None:
         state = VoiceWsState()
+        state.job_data = {"interviewLevel": "mid"}
 
         preferred = derive_question_type_preference(
             state,
             "성능 개선을 진행했고 사용자 경험을 더 좋게 만들었습니다.",
         )
 
-        self.assertEqual(preferred, "metric_validation")
+        self.assertEqual(preferred, "problem_solving_process")
 
     def test_derive_question_type_prefers_failure_recovery_on_incident_answer(self) -> None:
         state = VoiceWsState()
+        state.job_data = {"interviewLevel": "mid"}
         state.recent_question_types = ["metric_validation"]
 
         preferred = derive_question_type_preference(
@@ -312,6 +394,34 @@ class ParallelSttFallbackTests(unittest.TestCase):
         )
 
         self.assertEqual(preferred, "failure_recovery")
+
+    def test_new_grad_question_wording_uses_soft_metric_prompt(self) -> None:
+        question = compose_ai_question_text(
+            user_text="응답 속도를 줄이기 위해 캐시 정책을 조정했습니다.",
+            question_type="metric_validation",
+            strategy="followup",
+            session_type="live_interview",
+            interview_level="new_grad",
+            question_index=2,
+            job_data={"interviewLevel": "new_grad"},
+            resume_data={},
+        )
+
+        self.assertIn("성과를 어떻게 확인", question)
+        self.assertNotIn("어떤 수치나 지표", question)
+
+    def test_senior_opening_text_mentions_decision_scope(self) -> None:
+        text = build_opening_turn_text(
+            session_type="live_interview",
+            company="디벗",
+            role="백엔드 개발자",
+            job_data={"role": "백엔드 개발자", "interviewLevel": "senior"},
+            resume_data={},
+            interview_level="senior",
+            seed_text="seed",
+        )
+
+        self.assertTrue("의사결정" in text or "판단" in text)
 
 
 class MemoryNoteTests(unittest.TestCase):

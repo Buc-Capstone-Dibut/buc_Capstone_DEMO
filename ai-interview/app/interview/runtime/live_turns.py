@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.interview.domain.interview_memory import can_repeat_followup_question_type
 from app.interview.domain.turn_text import build_opening_turn_text, compose_ai_question_text
 from app.interview.domain.turn_policy import plan_next_question, resolve_completion_decision, runtime_question_count
 from app.interview.runtime.orchestration import build_resume_live_prompt
@@ -83,6 +84,7 @@ def prepare_opening_turn(
             role=str(job_data.get("role") or "").strip(),
             job_data=job_data,
             resume_data=state.resume_data,
+            interview_level=str(job_data.get("interviewLevel") or "").strip(),
             seed_text=state.session_id or next_turn_id,
         ),
         question_type=question_type,
@@ -124,11 +126,17 @@ def prepare_resume_turn(
     last_type = (state.recent_question_types[-1] if state.recent_question_types else "").strip()
     if should_bias_closing:
         strategy = "transition"
-        question_type = select_next_question_type(state, preferred="priority_judgment")
+        question_type = select_next_question_type(
+            state,
+            preferred=preferred_question_type or "priority_judgment",
+        )
     elif not latest_user_text.strip():
         strategy = "retry"
         question_type = last_type or "motivation_validation"
     elif preferred_question_type and preferred_question_type != last_type:
+        strategy = "followup"
+        question_type = preferred_question_type
+    elif preferred_question_type and preferred_question_type == last_type and can_repeat_followup_question_type(state, preferred_question_type):
         strategy = "followup"
         question_type = preferred_question_type
     else:
@@ -137,6 +145,7 @@ def prepare_resume_turn(
             state,
             preferred=preferred_question_type or None,
         )
+    job_data = state.job_data if isinstance(state.job_data, dict) else {}
     return ResumeTurnSpec(
         turn_id=next_turn_id,
         latest_user_text=latest_user_text,
@@ -150,6 +159,10 @@ def prepare_resume_turn(
             question_type=question_type,
             strategy=strategy,
             session_type=state.session_type,
+            interview_level=str(job_data.get("interviewLevel") or "").strip(),
+            question_index=turn_plan.question_index,
+            job_data=job_data,
+            resume_data=state.resume_data,
         ),
         target_duration_sec=state.target_duration_sec,
         closing_threshold_sec=state.closing_threshold_sec,
@@ -197,12 +210,15 @@ def prepare_live_user_request(
             strategy = "transition"
             planned_question_type = select_next_question_type(
                 state,
-                preferred="priority_judgment",
+                preferred=preferred_question_type or "priority_judgment",
             )
         elif not resolved_prompt_user_text:
             strategy = "retry"
             planned_question_type = last_type or "motivation_validation"
         elif preferred_question_type and preferred_question_type != last_type:
+            strategy = "followup"
+            planned_question_type = preferred_question_type
+        elif preferred_question_type and preferred_question_type == last_type and can_repeat_followup_question_type(state, preferred_question_type):
             strategy = "followup"
             planned_question_type = preferred_question_type
         else:
@@ -211,11 +227,16 @@ def prepare_live_user_request(
                 state,
                 preferred=preferred_question_type or None,
             )
+        job_data = state.job_data if isinstance(state.job_data, dict) else {}
         planned_question_text = compose_ai_question_text(
             user_text=resolved_prompt_user_text,
             question_type=planned_question_type,
             strategy=strategy,
             session_type=state.session_type,
+            interview_level=str(job_data.get("interviewLevel") or "").strip(),
+            question_index=followup_spec.question_index,
+            job_data=job_data,
+            resume_data=state.resume_data,
         )
         if followup_spec.should_announce_closing:
             extra_instruction = (

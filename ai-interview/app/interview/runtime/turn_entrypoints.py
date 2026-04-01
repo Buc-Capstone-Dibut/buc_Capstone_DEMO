@@ -4,6 +4,7 @@ from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
+from app.interview.domain.interview_memory import select_opening_question_type
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_opening_live_turn, execute_resume_live_turn
 from app.interview.runtime.live_turns import prepare_opening_turn, prepare_resume_turn
 from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
@@ -32,7 +33,7 @@ async def generate_and_send_opening_live_turn(
         state,
         next_turn_id=next_turn_id(state.session_id),
         prompt=live_opening_prompt,
-        question_type="motivation_validation",
+        question_type=select_opening_question_type(state),
         runtime_timing=runtime_timing,
     )
     return await execute_opening_live_turn(

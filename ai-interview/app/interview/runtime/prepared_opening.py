@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.interview.domain.interview_memory import compact_context_text
+from app.interview.domain.interview_memory import compact_context_text, select_opening_question_type
 from app.interview.domain.turn_text import (
     looks_like_complete_ai_question,
     sanitize_ai_turn_text,
@@ -62,7 +62,7 @@ async def prepare_opening_artifact_from_session(
         state,
         next_turn_id=next_ai_turn_id(state.session_id),
         prompt="",
-        question_type="motivation_validation",
+        question_type=select_opening_question_type(state),
         runtime_timing=runtime_timing,
     )
 

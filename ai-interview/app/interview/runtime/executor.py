@@ -79,10 +79,20 @@ def _fallback_question_for_type(state: VoiceWsState, question_type: str | None) 
     normalized = (question_type or "").strip()
     if normalized == "motivation_validation":
         return "이 직무와 가장 관련 있는 프로젝트 경험 한 가지를 구체적으로 말씀해 주세요."
+    if normalized == "project_context":
+        return "가장 대표적인 프로젝트 한 가지가 어떤 문제를 풀던 경험이었는지 먼저 설명해 주세요."
+    if normalized == "role_contribution":
+        return "그 프로젝트에서 본인이 맡았던 역할과 직접 기여한 부분을 말씀해 주세요."
+    if normalized == "implementation_detail":
+        return "그 경험을 실제로 어떻게 구현하셨는지 핵심 흐름을 설명해 주세요."
+    if normalized == "problem_solving_process":
+        return "그 과정에서 어떤 문제를 발견했고 어떤 순서로 해결하셨는지 말씀해 주세요."
+    if normalized == "learning_reflection":
+        return "그 경험을 통해 가장 크게 배운 점이나 다음에 바꾸고 싶은 점을 말씀해 주세요."
     if normalized == "metric_validation":
-        return "그 경험에서 만든 성과를 수치와 지표 중심으로 구체적으로 말씀해 주세요."
+        return "그 경험의 성과를 어떻게 확인하셨는지 말씀해 주세요."
     if normalized == "tradeoff":
-        return "그 상황에서 어떤 선택지를 두고 무엇을 기준으로 판단했는지 구체적으로 말씀해 주세요."
+        return "그 상황에서 왜 그 방식을 선택하셨는지 판단 기준을 말씀해 주세요."
     if normalized == "failure_recovery":
         return "가장 어려웠던 장애나 실패 사례 한 가지와 복구 과정을 구체적으로 말씀해 주세요."
     if normalized == "design_decision":
@@ -126,8 +136,18 @@ def _build_grounded_followup_fallback_text(
     focus_keyword = (_extract_grounding_keywords(user_text, max_items=1) or ["방금 말씀하신 내용"])[0]
     focus_label = f"'{focus_keyword}'" if focus_keyword != "방금 말씀하신 내용" else focus_keyword
     normalized = (question_type or "").strip()
+    if normalized == "project_context":
+        return f"방금 말씀하신 {focus_label}가 어떤 문제를 풀던 프로젝트였는지 먼저 설명해 주실 수 있을까요?"
+    if normalized == "role_contribution":
+        return f"방금 말씀하신 {focus_label}와 관련해, 본인이 맡은 역할과 직접 기여한 부분을 말씀해 주실 수 있을까요?"
+    if normalized == "implementation_detail":
+        return f"방금 말씀하신 {focus_label}를 실제로 어떤 방식으로 구현하셨는지 설명해 주실 수 있을까요?"
+    if normalized == "problem_solving_process":
+        return f"방금 말씀하신 {focus_label}에서 어떤 문제를 발견했고, 어떤 순서로 해결하셨는지 말씀해 주실 수 있을까요?"
+    if normalized == "learning_reflection":
+        return f"방금 말씀하신 {focus_label}를 통해 가장 크게 배운 점은 무엇이었는지 말씀해 주실 수 있을까요?"
     if normalized == "metric_validation":
-        return f"방금 말씀하신 {focus_label}과 관련해, 어떤 수치나 지표로 성과를 검증하셨는지 구체적으로 말씀해 주세요."
+        return f"방금 말씀하신 {focus_label}과 관련해, 성과를 어떻게 확인하셨는지 말씀해 주세요."
     if normalized == "failure_recovery":
         return f"방금 말씀하신 {focus_label} 사례에서 가장 큰 문제와 복구 과정을 구체적으로 말씀해 주세요."
     if normalized == "design_decision":
@@ -137,7 +157,7 @@ def _build_grounded_followup_fallback_text(
     if normalized == "priority_judgment":
         return f"방금 말씀하신 {focus_label}와 관련해, 무엇을 기준으로 우선순위를 판단했는지 구체적으로 말씀해 주세요."
     if normalized == "tradeoff":
-        return f"방금 말씀하신 {focus_label}와 관련해, 어떤 선택지를 비교했고 무엇을 기준으로 결정했는지 구체적으로 말씀해 주세요."
+        return f"방금 말씀하신 {focus_label}와 관련해, 왜 그 방식을 선택하셨는지 판단 기준을 말씀해 주세요."
     return f"방금 말씀하신 {focus_label}와 관련해, 가장 핵심적인 사례를 하나 더 구체적으로 말씀해 주세요."
 
 

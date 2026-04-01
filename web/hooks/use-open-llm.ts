@@ -10,8 +10,7 @@ import {
 } from "@/lib/interview/playback-audio";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
-const AUDIO_DRAIN_SETTLE_MS = 80;
-const MIC_RESTART_COOLDOWN_MS = 120;
+const AUDIO_DRAIN_SETTLE_MS = 30;
 const RECONNECT_BASE_DELAY_MS = 900;
 const RECONNECT_MAX_DELAY_MS = 4000;
 
@@ -186,16 +185,6 @@ export function useOpenLLM({
     pendingPlaybackDrainTimerRef.current = null;
   }, []);
 
-  const schedulePendingMicRestart = useCallback(() => {
-    clearPendingMicRestart();
-    pendingMicRestartTimerRef.current = window.setTimeout(() => {
-      pendingMicRestartTimerRef.current = null;
-      if (!pendingStartMicRef.current) return;
-      pendingStartMicRef.current = false;
-      void startMicRef.current();
-    }, MIC_RESTART_COOLDOWN_MS);
-  }, [clearPendingMicRestart]);
-
   const sendJson = useCallback((payload: Record<string, unknown>) => {
     if (socketRef.current?.readyState !== WebSocket.OPEN) return false;
     socketRef.current.send(JSON.stringify(payload));
@@ -245,10 +234,12 @@ export function useOpenLLM({
     }
 
     if (pendingStartMicRef.current && !isMicStreamingRef.current && !isMicStartingRef.current) {
-      schedulePendingMicRestart();
+      pendingStartMicRef.current = false;
+      clearPendingMicRestart();
+      void startMicRef.current();
     }
     return true;
-  }, [clearPendingPlaybackDrainCheck, hasPendingAiAudio, schedulePendingMicRestart, sendPlaybackComplete]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, hasPendingAiAudio, sendPlaybackComplete]);
 
   const schedulePlaybackDrainCheck = useCallback((ctx?: AudioContext | null) => {
     const currentCtx = ctx ?? audioContextRef.current;

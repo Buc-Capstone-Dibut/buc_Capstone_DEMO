@@ -66,6 +66,7 @@ export const buildRoleTrainingJobData = (
   return {
     role: selectedRole?.label ?? `${category.label} 공통 트랙`,
     company: "직무 기반 모의면접",
+    interviewLevel: "auto",
     companyDescription: selectedRole
       ? `${selectedRole.label} 직무를 기준으로 질문을 구성합니다.`
       : `${category.label} 범주의 공통 직무 기준으로 질문을 구성합니다.`,

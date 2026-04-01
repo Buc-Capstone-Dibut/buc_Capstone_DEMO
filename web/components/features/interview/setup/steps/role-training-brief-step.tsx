@@ -12,11 +12,12 @@ import {
 import { getRoleCategoryById, ROLE_TRACK_CATEGORIES } from "@/lib/interview/role-taxonomy";
 import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
+import { InterviewLevelCard } from "./interview-level-card";
 
 export function RoleTrainingBriefStep() {
   const router = useRouter();
   const [isStartingInterview, setIsStartingInterview] = useState(false);
-  const { jobData, rolePrepData, setInterviewSessionId, setStep } = useInterviewSetupStore();
+  const { jobData, rolePrepData, updateJobData, setInterviewSessionId, setStep } = useInterviewSetupStore();
 
   if (!jobData || !rolePrepData) {
     return (
@@ -163,6 +164,13 @@ export function RoleTrainingBriefStep() {
           </section>
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <InterviewLevelCard
+          jobData={jobData}
+          updateJobData={updateJobData}
+        />
+      </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-border/70 bg-background px-4 py-4">
         <Button variant="outline" onClick={() => setStep("target")} className="h-11 rounded-full px-5">

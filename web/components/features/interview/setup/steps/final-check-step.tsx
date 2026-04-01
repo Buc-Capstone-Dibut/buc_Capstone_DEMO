@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { RoleTrainingBriefStep } from "./role-training-brief-step";
+import { InterviewLevelCard } from "./interview-level-card";
 
 type SetupTrack = "posting" | "role";
 
@@ -121,6 +122,14 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
           <JdCheckForm jobData={jobData} updateJobData={updateJobData} />
         </TabsContent>
       </Tabs>
+
+      <div className="mt-8">
+        <InterviewLevelCard
+          jobData={jobData}
+          resumeData={resumeData}
+          updateJobData={updateJobData}
+        />
+      </div>
 
       <div className="flex justify-between mt-10">
         <Button
