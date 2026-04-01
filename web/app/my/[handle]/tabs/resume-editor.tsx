@@ -11,6 +11,7 @@ import { Trash2, Plus, Loader2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
+import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 
 interface ResumeEditorProps {
   payload: ResumePayload;
@@ -436,11 +437,9 @@ export function ResumeEditor({
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">기간</Label>
-                <Input
-                  value={exp.period}
-                  onChange={(event) => setExp(index, { period: event.target.value })}
-                  placeholder="2022.03 ~ 2024.02"
-                  className="h-8 text-sm"
+                <MonthRangePicker
+                  value={exp.period || ""}
+                  onChange={(v) => setExp(index, { period: v })}
                 />
               </div>
               <div className="space-y-1">
@@ -490,29 +489,23 @@ export function ResumeEditor({
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">프로젝트명</Label>
-                  <Input
-                    value={project.name}
-                    onChange={(event) =>
-                      setPrj(projectIndex, { name: event.target.value })
-                    }
-                    placeholder="프로젝트 이름"
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">기간</Label>
-                  <Input
-                    value={project.period}
-                    onChange={(event) =>
-                      setPrj(projectIndex, { period: event.target.value })
-                    }
-                    placeholder="2023.06 ~ 2023.12"
-                    className="h-8 text-sm"
-                  />
-                </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">프로젝트명</Label>
+                <Input
+                  value={project.name}
+                  onChange={(event) =>
+                    setPrj(projectIndex, { name: event.target.value })
+                  }
+                  placeholder="프로젝트 이름"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">기간</Label>
+                <MonthRangePicker
+                  value={project.period || ""}
+                  onChange={(v) => setPrj(projectIndex, { period: v })}
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">설명</Label>

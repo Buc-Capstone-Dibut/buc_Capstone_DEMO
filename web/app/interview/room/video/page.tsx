@@ -433,6 +433,16 @@ export default function InterviewVideoRoomPage() {
         }
       }
       setTranscript((prev) => {
+        if (turnId) {
+          const existingIndex = prev.findLastIndex(
+            (item) => item.role === role && (item.turnId || "") === turnId,
+          );
+          if (existingIndex >= 0) {
+            const next = [...prev];
+            next[existingIndex] = { ...next[existingIndex], text: clean, timestamp: Date.now(), turnId };
+            return next;
+          }
+        }
         const last = prev[prev.length - 1];
         if (last && last.role === role && last.text === clean && (last.turnId || "") === turnId) {
           return prev;

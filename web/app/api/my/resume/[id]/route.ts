@@ -70,33 +70,14 @@ export async function PUT(
             },
         });
 
-        // If isActive is becoming true, deactivate others and sync to profile
+        // If isActive is becoming true, deactivate others
         if (isActive === true) {
-            // 1. Deactivate other resumes
             await (prisma as any).user_resumes.updateMany({
                 where: {
                     user_id: session.user.id,
                     id: { not: params.id }
                 },
                 data: { is_active: false }
-            });
-
-            // Sync to profile table (user_resume_profiles)
-            const { buildResumePublicSummary } = await import("@/lib/my-profile");
-            const publicSum = buildResumePublicSummary(updatedResume.resume_payload, updatedResume.title);
-
-            await prisma.user_resume_profiles.upsert({
-                where: { user_id: session.user.id },
-                update: {
-                    resume_payload: updatedResume.resume_payload as any,
-                    public_summary: publicSum as any,
-                    updated_at: new Date()
-                },
-                create: {
-                    user_id: session.user.id,
-                    resume_payload: updatedResume.resume_payload as any,
-                    public_summary: publicSum as any
-                }
             });
         }
 

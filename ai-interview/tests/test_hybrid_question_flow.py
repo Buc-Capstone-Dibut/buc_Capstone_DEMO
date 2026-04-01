@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 import unittest
@@ -87,6 +88,9 @@ def _session_engine_deps(
     transcribe_user_audio=None,
     fallback_transcribe_user_audio=None,
     commit_live_input_stream=None,
+    persist_turn=None,
+    update_turn_content=None,
+    parallel_refine_user_audio=None,
     send_transcript=None,
     runtime_executor_deps=None,
     resume_listening=None,
@@ -123,7 +127,7 @@ def _session_engine_deps(
         is_probable_ai_echo=lambda *_args, **_kwargs: False,
         reset_realtime_user_transcript=lambda state: setattr(state, "realtime_user_transcript", ""),
         remember_user_turn=lambda state, text: None,
-        persist_turn=AsyncMock(return_value={"id": "turn-user"}),
+        persist_turn=persist_turn or AsyncMock(return_value={"id": "turn-user"}),
         send_transcript=send_transcript or AsyncMock(return_value=True),
         log_runtime_event=lambda *args, **kwargs: None,
         is_short_stt_result=lambda text, wav_bytes: False,
@@ -139,6 +143,8 @@ def _session_engine_deps(
         next_ai_turn_id=lambda session_id: f"{session_id}:next",
         commit_live_input_stream=commit_live_input_stream,
         runtime_architecture=runtime_architecture,
+        update_turn_content=update_turn_content or AsyncMock(return_value={"id": "turn-user"}),
+        parallel_refine_user_audio=parallel_refine_user_audio,
     )
 
 
@@ -492,6 +498,57 @@ class HybridSessionEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(followup_mock.await_args.kwargs["audio_already_streamed"])
         self.assertEqual(followup_mock.await_args.kwargs["streamed_audio_chunk_count"], 6)
 
+    async def test_process_user_utterance_live_only_prefers_parallel_stt_text_over_weaker_live_text(self) -> None:
+        state = VoiceWsState(session_id="session-6b", current_phase="technical")
+        state.live_interview = _DummyLiveSession(model="gemini-live", enabled=True)
+        state.realtime_user_transcript = "실시간 AI 면접 서비스를 개발했습니다."
+        state.live_input_turn_active = True
+        state.live_input_turn_id = "session-6b:turn"
+        state.parallel_stt_best_text = "실시간 AI 면접 서비스를 개발하며 웹소켓 기반 통신과 백엔드 API 설계를 담당했습니다."
+
+        async def commit_live_input_stream(current_state: VoiceWsState) -> bool:
+            current_state.live_input_turn_active = False
+            current_state.live_input_streamed_user_text = (
+                "실시간 AI 면접 서비스를 개발 하며 웹소켓 기반 통신과 백엔드 PI 설계해다수 사용 자의동시 요청을 안정적으로 처리한경험이 있습니다."
+            )
+            current_state.live_input_streamed_ai_text = (
+                "웹소켓 기반 구조에서 어떤 지표를 관리하셨나요?"
+            )
+            current_state.live_input_streamed_provider = "gemini-live"
+            current_state.live_input_streamed_audio_duration_sec = 1.1
+            current_state.live_input_streamed_audio_chunk_count = 4
+            return True
+
+        followup_mock = AsyncMock(return_value=True)
+        send_transcript = AsyncMock(return_value=True)
+        deps = _session_engine_deps(
+            commit_live_input_stream=AsyncMock(side_effect=commit_live_input_stream),
+            transcribe_user_audio=AsyncMock(return_value=("", "")),
+            send_transcript=send_transcript,
+            runtime_executor_deps=lambda: _runtime_executor_deps(),
+            resume_listening=AsyncMock(return_value=None),
+            runtime_architecture="live-only",
+        )
+
+        with patch(
+            "app.interview.runtime.session_engine.execute_live_user_followup_turn",
+            new=followup_mock,
+        ):
+            await process_user_utterance(
+                object(),
+                state,
+                b"wav-bytes",
+                deps=deps,
+                vad_meta={"reason": "silence"},
+                runtime_mode_disabled="disabled",
+                closing_sentence="수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.",
+            )
+
+        final_user_call = send_transcript.await_args_list[0]
+        self.assertEqual(final_user_call.args[2], "user")
+        self.assertIn("백엔드 API 설계", final_user_call.args[3])
+        self.assertNotIn("백엔드 PI", final_user_call.args[3])
+
     async def test_process_user_utterance_live_only_keeps_streamed_transcript_without_strict_restt(self) -> None:
         state = VoiceWsState(session_id="session-7", current_phase="technical")
         state.live_interview = _DummyLiveSession(model="gemini-live", enabled=True)
@@ -542,6 +599,68 @@ class HybridSessionEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("웹소켓", prompt_user_text)
         self.assertIn("API", prompt_user_text)
         self.assertIn("동시 요청", prompt_user_text)
+
+    async def test_process_user_utterance_can_refine_user_transcript_in_background(self) -> None:
+        state = VoiceWsState(session_id="session-8", current_phase="technical")
+        state.live_interview = _DummyLiveSession(model="gemini-live", enabled=True)
+        state.realtime_user_transcript = "실시간 AI 면접"
+
+        followup_mock = AsyncMock(return_value=True)
+        send_transcript = AsyncMock(return_value=True)
+        update_turn_content = AsyncMock(return_value={"id": "turn-user"})
+        deps = _session_engine_deps(
+            request_live_audio_turn=AsyncMock(
+                return_value=(
+                    "테스트기준 으로 최대수십명규모의동시 사용 자를했고 매소켓반지속연결구조세션 상태 가 볍게 유지 하는 방식과비이 벤트 처리흐름을적해안정적으로 요청 처리 습니다.",
+                    "당시 어떤 지표를 관리하셨나요?",
+                    None,
+                    "gemini-live",
+                )
+            ),
+            transcribe_user_audio=AsyncMock(return_value=("", "")),
+            send_transcript=send_transcript,
+            persist_turn=AsyncMock(
+                return_value={
+                    "id": "turn-user",
+                    "role": "user",
+                    "content": "테스트기준 으로 최대수십명규모의동시 사용 자를했고 매소켓반지속연결구조세션 상태 가 볍게 유지 하는 방식과비이 벤트 처리흐름을적해안정적으로 요청 처리 습니다.",
+                    "payload": {},
+                }
+            ),
+            update_turn_content=update_turn_content,
+            parallel_refine_user_audio=AsyncMock(
+                return_value=(
+                    "테스트 기준으로 최대 수십 명 규모의 동시 사용자를 처리했고, 웹소켓 기반 지속 연결 구조와 세션 상태를 가볍게 유지하는 방식으로 안정적으로 요청을 처리했습니다.",
+                    "openai",
+                )
+            ),
+            runtime_executor_deps=lambda: _runtime_executor_deps(),
+            resume_listening=AsyncMock(return_value=None),
+            runtime_architecture="live-only",
+        )
+
+        with patch(
+            "app.interview.runtime.session_engine.execute_live_user_followup_turn",
+            new=followup_mock,
+        ):
+            await process_user_utterance(
+                object(),
+                state,
+                b"wav-bytes",
+                deps=deps,
+                vad_meta={"reason": "silence"},
+                runtime_mode_disabled="disabled",
+                closing_sentence="수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.",
+            )
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+        update_turn_content.assert_awaited_once()
+        self.assertGreaterEqual(send_transcript.await_count, 2)
+        final_call = send_transcript.await_args_list[-1]
+        self.assertEqual(final_call.args[2], "user")
+        self.assertEqual(final_call.kwargs["turn_id"], "session-8:next")
+        self.assertIn("최대 수십 명 규모", final_call.args[3])
 
 
 if __name__ == "__main__":

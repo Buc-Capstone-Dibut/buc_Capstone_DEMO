@@ -22,7 +22,7 @@ type PulseWorkspace = {
 };
 
 export function GlobalPulseSidebar() {
-    const { onlineUsers } = usePresence();
+    const { globalOnlineUsers } = usePresence();
     const { data: workspaces } = useSWR<PulseWorkspace[]>("/api/workspaces", fetcher);
 
     // Extract all unique members across all workspaces
@@ -32,7 +32,7 @@ export function GlobalPulseSidebar() {
         ).values()
     ) : [];
 
-    const onlineCount = allMembers.filter((member) => onlineUsers.has(member.id)).length;
+    const onlineCount = allMembers.filter((member) => globalOnlineUsers.has(member.id)).length;
 
     return (
         <div className="space-y-6">
@@ -58,11 +58,11 @@ export function GlobalPulseSidebar() {
                                     avatarUrl={member.avatar_url}
                                     className={cn(
                                     "h-8 w-8 ring-2 ring-background border-2 transition-transform hover:-translate-y-1",
-                                    onlineUsers.has(member.id) ? "border-green-500/50" : "border-transparent"
+                                    globalOnlineUsers.has(member.id) ? "border-green-500/50" : "border-transparent"
                                 )}
                                     fallbackClassName="text-[10px]"
                                 />
-                                {onlineUsers.has(member.id) && (
+                                {globalOnlineUsers.has(member.id) && (
                                     <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-1 ring-background" />
                                 )}
                             </div>

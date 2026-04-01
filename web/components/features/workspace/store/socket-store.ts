@@ -21,6 +21,14 @@ export interface Channel {
   hasMention?: boolean;
 }
 
+type ChannelPayload = Partial<Channel> & {
+  id: string;
+  name: string;
+  type?: string;
+  description?: string | null;
+  workspace_id?: string;
+};
+
 export interface Message {
   id: string;
   channelId: string;
@@ -58,6 +66,16 @@ interface CreateChannelAck {
   error?: string;
 }
 
+interface DeleteChannelAck {
+  success: boolean;
+  data?: {
+    id: string;
+    name?: string;
+    workspaceId: string;
+  };
+  error?: string;
+}
+
 interface MessageMutationAck {
   success: boolean;
   data?: Message | { id: string; channelId: string };
@@ -84,6 +102,10 @@ interface SocketStore {
     description: string,
     userId: string,
   ) => void;
+  deleteChannel: (
+    channelId: string,
+    requesterId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   joinChannel: (channelId: string) => void;
   markChannelAsRead: (channelId: string) => void;
   setChannelMention: (channelId: string, hasMention: boolean) => void;
@@ -101,6 +123,18 @@ interface SocketStore {
     messageId: string,
     requesterId: string,
   ) => Promise<{ success: boolean; error?: string }>;
+}
+
+function normalizeChannel(channel: ChannelPayload): Channel {
+  return {
+    id: channel.id,
+    name: channel.name,
+    description: channel.description ?? "",
+    type: channel.type || "PUBLIC",
+    workspaceId: channel.workspaceId || channel.workspace_id || "",
+    unreadCount: channel.unreadCount ?? 0,
+    hasMention: channel.hasMention ?? false,
+  };
 }
 
 export const useSocketStore = create<SocketStore>((set, get) => ({
@@ -194,6 +228,48 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       },
     );
 
+    socket.on("chat:channel_created", (channelPayload: ChannelPayload) => {
+      const channel = normalizeChannel(channelPayload);
+      set((state) => {
+        if (
+          state.channels.some(
+            (currentChannel) => currentChannel.id === channel.id,
+          )
+        ) {
+          return state;
+        }
+
+        return {
+          channels: [...state.channels, channel],
+        };
+      });
+    });
+
+    socket.on(
+      "chat:channel_deleted",
+      (payload: { id: string; workspaceId: string }) => {
+        const state = get();
+        const remainingChannels = state.channels.filter(
+          (channel) => channel.id !== payload.id,
+        );
+        const shouldMoveActiveChannel = state.activeChannelId === payload.id;
+
+        set({
+          channels: remainingChannels,
+          ...(shouldMoveActiveChannel
+            ? {
+                activeChannelId: null,
+                messages: [],
+              }
+            : {}),
+        });
+
+        if (shouldMoveActiveChannel && remainingChannels.length > 0) {
+          get().joinChannel(remainingChannels[0].id);
+        }
+      },
+    );
+
     set({ socket });
   },
 
@@ -227,10 +303,11 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     if (socket?.connected) {
       socket.emit("chat:get_channels", { workspaceId }, (res: ChannelsAck) => {
         if (res.success) {
-          set({ channels: res.data });
+          const channels = res.data.map(normalizeChannel);
+          set({ channels });
           const state = get();
-          if (res.data.length > 0 && !state.activeChannelId) {
-            state.joinChannel(res.data[0].id);
+          if (channels.length > 0 && !state.activeChannelId) {
+            state.joinChannel(channels[0].id);
           }
         } else {
           console.error("[Socket] Failed to fetch channels:", res.error);
@@ -292,10 +369,15 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       { workspaceId, name: normalizedName, description, userId },
       (res: CreateChannelAck) => {
         if (res.success) {
+          const channel = normalizeChannel(res.data);
           set((state) => ({
-            channels: [...state.channels, res.data],
+            channels: state.channels.some(
+              (currentChannel) => currentChannel.id === channel.id,
+            )
+              ? state.channels
+              : [...state.channels, channel],
           }));
-          get().joinChannel(res.data.id);
+          get().joinChannel(channel.id);
           return;
         }
 
@@ -303,6 +385,36 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
         notifyWorkspaceServerUnstable();
       },
     );
+  },
+
+  deleteChannel: (channelId, requesterId) => {
+    const socket = get().socket;
+
+    if (!socket?.connected) {
+      notifyWorkspaceServerUnstable();
+      return Promise.resolve({
+        success: false,
+        error: WORKSPACE_SERVER_UNSTABLE_MESSAGE,
+      });
+    }
+
+    return new Promise((resolve) => {
+      socket.emit(
+        "chat:delete_channel",
+        { channelId, requesterId },
+        (res: DeleteChannelAck) => {
+          if (!res.success) {
+            resolve({
+              success: false,
+              error: res.error || "채널 삭제에 실패했습니다.",
+            });
+            return;
+          }
+
+          resolve({ success: true });
+        },
+      );
+    });
   },
 
   sendMessage: (channelId, content, senderId) => {

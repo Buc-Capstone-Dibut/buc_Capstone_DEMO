@@ -127,6 +127,53 @@ export class ChatService {
     });
   }
 
+  static async deleteChannel(channelId: string, requesterId: string) {
+    const channel = await prisma.workspace_channels.findUnique({
+      where: { id: channelId },
+      select: {
+        id: true,
+        name: true,
+        workspace_id: true,
+      },
+    });
+
+    if (!channel) {
+      throw new Error("채널을 찾을 수 없습니다.");
+    }
+
+    if (channel.name === "general") {
+      throw new Error("기본 채널은 삭제할 수 없습니다.");
+    }
+
+    const member = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: channel.workspace_id,
+          user_id: requesterId,
+        },
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    if (!member || !["owner", "admin"].includes((member.role || "").toLowerCase())) {
+      throw new Error("채널 삭제 권한이 없습니다.");
+    }
+
+    await this.assertWorkspaceWritable(channel.workspace_id);
+
+    await prisma.workspace_channels.delete({
+      where: { id: channelId },
+    });
+
+    return {
+      id: channel.id,
+      name: channel.name,
+      workspaceId: channel.workspace_id,
+    };
+  }
+
   static async getChannelById(channelId: string) {
     return await prisma.workspace_channels.findUnique({
       where: { id: channelId },
@@ -212,7 +259,12 @@ export class ChatService {
                   type: "MENTION",
                   title: `New mention in #${channel?.name || "chat"}`,
                   message: `${msg.sender?.nickname || "Someone"} mentioned you: "${displayContent.substring(0, 50)}${displayContent.length > 50 ? "..." : ""}"`,
-                  link: `/workspace/${workspaceId}`,
+                  link:
+                    workspaceId && channelId
+                      ? `/workspace/${workspaceId}?tab=chat-${channelId}`
+                      : workspaceId
+                        ? `/workspace/${workspaceId}`
+                        : undefined,
                 },
               });
             }),

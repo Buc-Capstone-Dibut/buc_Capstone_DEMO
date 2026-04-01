@@ -5,6 +5,7 @@ import { ResumeEditor } from "./resume-editor";
 import { ResumeList } from "./resume-list";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeResumePayload } from "../profile-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +57,10 @@ export function ResumeTab({ isOwner }: ResumeTabProps) {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "상세 내용을 불러오지 못했습니다.");
       setSelectedResumeId(id);
-      setCurrentPayload(json.data.resume_payload);
+      
+      const payload = json.data.resume_payload || json.data.resumePayload;
+      setCurrentPayload(normalizeResumePayload(payload));
+      
       setCurrentTitle(json.data.title || "");
       setResumeSummary(json.data.public_summary);
       setViewMode("editor");

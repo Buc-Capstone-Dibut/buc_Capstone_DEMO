@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../my/[handle]/profile-types";
 import { EMPTY_RESUME, normalizeResumePayload } from "../my/[handle]/profile-utils";
-import { cn } from "@/lib/utils";
+
 
 export default function ResumePage() {
     const router = useRouter();
@@ -20,29 +20,104 @@ export default function ResumePage() {
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
-    const [isWizardMode, setIsWizardMode] = useState(false);
-
-    useEffect(() => {
-        setIsWizardMode(isWizardModeFromUrl);
-    }, [isWizardModeFromUrl]);
+    const [isWizardMode, setIsWizardMode] = useState(isWizardModeFromUrl);
 
     useEffect(() => {
         const fetchResume = async () => {
+            const isPrefill = searchParams.get("prefill") === "true";
+            const resumeId = searchParams.get("id");
+
+            // 1. Determine fetch URL: Specific ID or Active
+            const fetchUrl = resumeId ? `/api/my/resume/${resumeId}` : "/api/my/resume/active";
+            let currentPayload = { ...EMPTY_RESUME };
+            let currentTitle = "";
+
+            try {
+                const res = await fetch(fetchUrl, { cache: "no-store" });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success) {
+                        const payload = json.data.resume_payload || json.data.resumePayload;
+                        currentPayload = normalizeResumePayload(payload);
+                        currentTitle = json.data.title || "";
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch current resume:", error);
+            }
+
+            // 2. Handle prefill from Career Wizard
+            if (isPrefill) {
+                const coverLetter = sessionStorage.getItem("prefill_cover_letter");
+                const experienceIdsStr = sessionStorage.getItem("prefill_experience_ids");
+
+                let prefilledPayload = { ...currentPayload };
+
+                if (coverLetter) {
+                    prefilledPayload.selfIntroduction = coverLetter;
+                }
+
+                if (experienceIdsStr) {
+                    try {
+                        const ids = experienceIdsStr.split(",").filter(Boolean);
+                        const { getExperiencesByIdsAction } = await import("../career/experiences/actions");
+                        const fetchedExps = await getExperiencesByIdsAction(ids);
+
+                        const newProjects = fetchedExps
+                            .filter(e => !prefilledPayload.projects.some(p => p.id === e.id)) // Avoid duplicates
+                            .map(e => ({
+                                id: e.id || Math.random().toString(36).substring(2, 11),
+                                name: e.company || "경험 기반 프로젝트",
+                                period: e.period || "",
+                                description: e.description || "", // Only map Short Summary as requested
+                                techStack: e.tags || [],
+                                achievements: [],
+                            }));
+
+                        prefilledPayload.projects = [
+                            ...prefilledPayload.projects,
+                            ...newProjects
+                        ];
+                    } catch (error) {
+                        console.error("Failed to fetch experiences for prefill:", error);
+                    }
+                }
+
+                setResumePayload(prefilledPayload);
+                if (!currentTitle) {
+                    setResumeTitle(`커리어 허브 연동 이력서 (${new Date().toLocaleDateString("ko-KR")})`);
+                } else {
+                    setResumeTitle(currentTitle);
+                }
+
+                setIsWizardMode(false);
+                setLoading(false);
+
+                // Clean up session storage
+                sessionStorage.removeItem("prefill_cover_letter");
+                sessionStorage.removeItem("prefill_experience_ids");
+                return;
+            }
+
             // In setup mode, we start with a clean slate
-            if (isWizardModeFromUrl) {
+            if (isWizardModeFromUrl && !resumeId) {
                 setResumePayload(EMPTY_RESUME);
                 setLoading(false);
                 return;
             }
 
             try {
-                const res = await fetch("/api/my/resume/active", { cache: "no-store" });
+                // Determine fetch URL: Specific ID or Active
+                const url = resumeId ? `/api/my/resume/${resumeId}` : "/api/my/resume/active";
+                const res = await fetch(url, { cache: "no-store" });
+
                 if (res.status === 404) {
                     setResumePayload(EMPTY_RESUME);
                 } else {
                     const json = await res.json();
                     if (res.ok && json.success) {
-                        setResumePayload(normalizeResumePayload(json.data.resumePayload));
+                        const payload = json.data.resume_payload || json.data.resumePayload;
+                        setResumePayload(normalizeResumePayload(payload));
                         setResumeTitle(json.data.title || "");
                     }
                 }
@@ -53,14 +128,25 @@ export default function ResumePage() {
             }
         };
         fetchResume();
-    }, [isWizardModeFromUrl]);
+    }, [isWizardModeFromUrl, searchParams]);
 
     const handleSave = async (silent = false) => {
         setSaving(true);
         try {
             const isNew = searchParams.get("mode") === "setup";
-            const url = isNew ? "/api/my/resume" : "/api/my/resume/active";
-            const method = isNew ? "POST" : "PUT";
+            const resumeId = searchParams.get("id");
+
+            // Determine URL and Method based on mode and presence of ID
+            let url = "/api/my/resume/active";
+            let method = "PUT";
+
+            if (isNew && !resumeId) {
+                url = "/api/my/resume";
+                method = "POST";
+            } else if (resumeId) {
+                url = `/api/my/resume/${resumeId}`;
+                method = "PUT";
+            }
 
             const res = await fetch(url, {
                 method,
@@ -79,8 +165,8 @@ export default function ResumePage() {
                 toast({ title: "이력서가 저장되었습니다." });
             }
 
-            if (!silent && searchParams.get("mode") === "setup") {
-                router.push("/my/resumes");
+            if (!silent && isNew && !resumeId) {
+                router.push("/career/resumes");
             }
         } catch (err: any) {
             toast({
@@ -107,19 +193,22 @@ export default function ResumePage() {
 
     return (
         <div className="min-h-screen bg-slate-50/50">
-            {/* Wizard Mode Overlay */}
+            {/* Wizard Mode Overlay (for /resume?mode=setup, non-career flow) */}
             {isWizardMode && (
                 <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-xl animate-in fade-in duration-500 flex flex-col">
-                    <header className="w-full border-b bg-white/80 backdrop-blur-md px-6 h-16 flex items-center justify-between shrink-0">
+                    <header className="w-full border-b bg-white/80 backdrop-blur-md px-6 h-16 flex items-center shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-primary/10 rounded-lg">
                                 <Wand2 className="w-5 h-5 text-primary" />
                             </div>
                             <h2 className="font-bold text-lg">AI 이력서 작성 가이드</h2>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => setIsWizardMode(false)} className="text-muted-foreground">
-                            나중에 작성하기 (건너뛰기)
-                        </Button>
+                        <button
+                            onClick={() => setIsWizardMode(false)}
+                            className="ml-auto text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-md hover:bg-slate-100"
+                        >
+                            나중에 작성하기
+                        </button>
                     </header>
                     <div className="flex-1 overflow-y-auto px-6">
                         <div className="max-w-4xl mx-auto h-full flex flex-col justify-center">
@@ -132,7 +221,6 @@ export default function ResumePage() {
                                     toast({
                                         title: "마법사 단계 완료!",
                                         description: "작성하신 내용이 이력서 본문에 반영되었습니다. 전체 저장을 위해 상단의 '저장' 버튼을 눌러주세요.",
-                                        variant: "default"
                                     });
                                 }}
                             />

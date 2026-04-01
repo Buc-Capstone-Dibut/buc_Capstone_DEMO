@@ -61,6 +61,9 @@ dibut_ai_interview.egg-info/dependency_links.txt
 dibut_ai_interview.egg-info/requires.txt
 dibut_ai_interview.egg-info/top_level.txt
 tests/test_gemini_live_voice_service.py
+tests/test_hybrid_question_flow.py
 tests/test_interview_backend.py
+tests/test_live_client.py
 tests/test_report_agent.py
+tests/test_turn_text.py
 tests/test_voice_runtime.py

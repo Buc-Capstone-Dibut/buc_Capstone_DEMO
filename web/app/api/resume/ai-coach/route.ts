@@ -14,7 +14,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { action, payload, message } = body;
+        const { action, payload, message, backgroundContext } = body;
 
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
@@ -32,13 +32,15 @@ export async function POST(req: Request) {
 제시된 키워드를 단순 나열하거나 기계적으로 이어 붙이는 것이 절대 아닙니다!! 
 반드시 전문가의 시각에서 문맥을 이해하여, 자연스러운 흐름과 흡입력 있는 문체로 내용을 기승전결이 있는 완전한 글로 '재작성(Rewrite)'해야 합니다.
 
+${backgroundContext ? `[참고용 배경 지식 (사용자가 선택한 경험 상세)]\n${backgroundContext}\n\n*위 배경 지식을 참고하되, 아래의 [사용자 입력 메모]를 중심으로 작성하세요.*` : ""}
+
 [사용자 입력 메모]
 - Situation (상황/배경): ${s}
 - Task (목표/과제): ${t}
 - Action (핵심 행동/해결책): ${a}
-- Difficulty (어려움/극복 과정): ${d}
-- Result (정량적/정성적 성과): ${r}
-- Insight (배운 점/인사이트): ${i}
+- Difficulty (극복 과정): ${d}
+- Result (성과): ${r}
+- Insight (배운 점): ${i}
 
 [작성 가이드라인 - 엄격히 준수하세요]
 1. 출력 제한 (가장 중요!): "물론입니다.", "작성해 드리겠습니다.", "### 완성된 자기소개서 내용" 등과 같은 인사말, 헤더, 부연 설명은 절대 포함하지 마세요. 반드시 바로 자기소개서 본문의 첫 문장으로 시작하고 끝나야 합니다.

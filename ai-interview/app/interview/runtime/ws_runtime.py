@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -49,6 +50,7 @@ from app.interview.runtime.session_interaction import (
 from app.interview.runtime.session_support import (
     create_live_interview_session as runtime_create_live_interview_session,
     get_live_stt_service as runtime_get_live_stt_service,
+    get_parallel_stt_service as runtime_get_parallel_stt_service,
     latest_user_answer as runtime_latest_user_answer,
 )
 from app.interview.runtime.vad_policy import retune_vad_for_next_turn as runtime_retune_vad_for_next_turn
@@ -137,6 +139,7 @@ from app.interview.transcript.session_state import (
 )
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.interview_service import InterviewService
+from app.services.voice_pipeline import float_samples_to_wav_bytes
 
 service = InterviewService()
 service_adapter = RuntimeServiceAdapter(service)
@@ -154,6 +157,8 @@ LIVE_OPENING_PROMPT = (
     "마지막 문장에서 첫 질문 1개를 구체적으로 하세요. "
     "질문 외 메타설명은 금지합니다."
 )
+PARALLEL_STT_MIN_TOTAL_SEC = 0.85
+PARALLEL_STT_MIN_INCREMENT_SEC = 0.65
 
 
 def _next_ai_turn_id(session_id: str) -> str:
@@ -252,6 +257,7 @@ def _session_engine_deps():
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
         remember_user_turn=domain_remember_user_turn,
         persist_turn=service_adapter.persist_turn,
+        update_turn_content=service_adapter.update_turn_content,
         send_transcript=_send_transcript,
         log_runtime_event=lambda event, state, turn_id="", **fields: runtime_log_runtime_event(
             logger,
@@ -277,6 +283,7 @@ def _session_engine_deps():
         resume_listening=_resume_listening,
         next_ai_turn_id=_next_ai_turn_id,
         commit_live_input_stream=_commit_live_input_stream,
+        parallel_refine_user_audio=_parallel_refine_user_audio,
     )
 
 def _client_message_router_deps():
@@ -294,6 +301,7 @@ def _client_message_router_deps():
         enqueue_user_segment=_enqueue_user_segment,
         begin_live_input_stream=_begin_live_input_stream,
         push_live_input_audio_chunk=_push_live_input_audio_chunk,
+        push_parallel_stt_audio_chunk=_push_parallel_stt_audio_chunk,
         reset_realtime_user_transcript=cache_reset_realtime_user_transcript,
         resume_listening=_resume_listening,
         cancel_playback_resume_task=_cancel_playback_resume_task,
@@ -553,6 +561,7 @@ async def _emit_realtime_user_delta(
         delta,
         cleaned,
         state.realtime_user_delta_seq,
+        turn_id=(state.live_input_turn_id or "").strip() or None,
     )
 
 
@@ -579,6 +588,140 @@ async def _transcribe_user_audio(wav_bytes: bytes) -> tuple[str, str]:
         logger.warning("live STT transcription failed", exc_info=True)
         return "", ""
     return (result.text or "").strip(), (result.provider or "").strip()
+
+
+async def _parallel_refine_user_audio(wav_bytes: bytes) -> tuple[str, str]:
+    if not settings.voice_parallel_stt_enabled or not wav_bytes:
+        return "", ""
+
+    service = runtime_get_parallel_stt_service()
+    if not service.enabled:
+        return "", ""
+
+    try:
+        result = await asyncio.to_thread(service.transcribe_wav, wav_bytes, "ko")
+    except Exception:
+        logger.warning("parallel STT refinement failed", exc_info=True)
+        return "", ""
+    return (result.text or "").strip(), (result.provider or "").strip()
+
+
+def _parallel_stt_realtime_enabled() -> bool:
+    if not settings.voice_parallel_stt_enabled:
+        return False
+    return bool(runtime_get_parallel_stt_service().enabled)
+
+
+def _clear_parallel_stt_realtime_state(
+    state: VoiceWsState,
+    *,
+    cancel_task: bool,
+) -> None:
+    task = state.parallel_stt_task
+    if cancel_task and task and not task.done():
+        task.cancel()
+    state.parallel_stt_task = None
+    state.parallel_stt_turn_id = ""
+    state.parallel_stt_sample_rate = 16000
+    state.parallel_stt_samples = []
+    state.parallel_stt_best_text = ""
+    state.parallel_stt_last_requested_sample_count = 0
+
+
+async def _maybe_schedule_parallel_stt_realtime(
+    ws: WebSocket,
+    state: VoiceWsState,
+) -> bool:
+    if not _parallel_stt_realtime_enabled():
+        return False
+    if state.parallel_stt_task and not state.parallel_stt_task.done():
+        return False
+
+    turn_id = (state.parallel_stt_turn_id or "").strip()
+    sample_rate = max(8000, int(state.parallel_stt_sample_rate or 16000))
+    sample_count = len(state.parallel_stt_samples)
+    if not turn_id or sample_count <= 0:
+        return False
+
+    min_total_samples = int(sample_rate * PARALLEL_STT_MIN_TOTAL_SEC)
+    min_increment_samples = int(sample_rate * PARALLEL_STT_MIN_INCREMENT_SEC)
+    if sample_count < min_total_samples:
+        return False
+    if (sample_count - int(state.parallel_stt_last_requested_sample_count or 0)) < min_increment_samples:
+        return False
+
+    snapshot_samples = list(state.parallel_stt_samples)
+    state.parallel_stt_last_requested_sample_count = sample_count
+
+    async def runner() -> None:
+        try:
+            service = runtime_get_parallel_stt_service()
+            if not service.enabled:
+                return
+            wav_bytes = float_samples_to_wav_bytes(snapshot_samples, sample_rate=sample_rate)
+            result = await asyncio.to_thread(service.transcribe_wav, wav_bytes, "ko")
+            normalized = domain_sanitize_user_turn_text((result.text or "").strip())
+            if not normalized:
+                return
+            if turn_id != (state.parallel_stt_turn_id or "").strip():
+                return
+
+            best_parallel = _prefer_user_stream_text(state.parallel_stt_best_text, normalized)
+            if not best_parallel:
+                return
+            state.parallel_stt_best_text = best_parallel
+            state.live_input_streamed_user_text = _prefer_user_stream_text(
+                state.live_input_streamed_user_text,
+                best_parallel,
+            )
+
+            merged_realtime = _prefer_user_stream_text(state.realtime_user_transcript, best_parallel)
+            if not merged_realtime or merged_realtime == state.realtime_user_transcript:
+                return
+
+            previous = state.realtime_user_transcript
+            delta = merged_realtime[len(previous):] if merged_realtime.startswith(previous) else merged_realtime
+            state.realtime_user_transcript = merged_realtime
+            state.realtime_user_delta_seq += 1
+            await _send_transcript_delta(
+                ws,
+                state.session_id,
+                "user",
+                delta or merged_realtime,
+                merged_realtime,
+                state.realtime_user_delta_seq,
+                turn_id=turn_id,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("parallel realtime STT update failed", exc_info=True)
+        finally:
+            if state.parallel_stt_task is task_ref:
+                state.parallel_stt_task = None
+
+    task_ref = asyncio.create_task(runner())
+    state.parallel_stt_task = task_ref
+    return True
+
+
+async def _push_parallel_stt_audio_chunk(
+    ws: WebSocket,
+    state: VoiceWsState,
+    audio_chunk: list[float],
+    sample_rate: int,
+) -> bool:
+    if not _parallel_stt_realtime_enabled():
+        return False
+    if not audio_chunk:
+        return False
+    if not state.live_input_turn_active or not state.parallel_stt_turn_id:
+        return False
+
+    state.parallel_stt_sample_rate = max(8000, int(sample_rate or state.parallel_stt_sample_rate or 16000))
+    state.parallel_stt_samples.extend(audio_chunk)
+    await _maybe_schedule_parallel_stt_realtime(ws, state)
+    return True
 
 
 def _get_or_create_live_interview(state: VoiceWsState) -> GeminiLiveInterviewSession:
@@ -740,6 +883,7 @@ async def _stream_live_audio_turn(
             delta or normalized,
             normalized,
             state.realtime_user_delta_seq,
+            turn_id=turn_id,
         )
 
     user_text, ai_text, provider_name, duration_sec, live_chunk_count = await runtime_stream_live_audio_turn(
@@ -810,6 +954,7 @@ def _clear_live_input_stream_state(state: VoiceWsState) -> None:
     state.live_input_streamed_provider = ""
     state.live_input_streamed_audio_duration_sec = 0.0
     state.live_input_streamed_audio_chunk_count = 0
+    _clear_parallel_stt_realtime_state(state, cancel_task=True)
 
 
 def _prefer_non_regressing_stream_text(previous: str, candidate: str) -> str:
@@ -942,8 +1087,10 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
         previous = streamed_user_text
         delta = normalized[len(previous):] if normalized.startswith(previous) else normalized
         streamed_user_text = normalized
-        state.realtime_user_transcript = normalized
         state.live_input_streamed_user_text = normalized
+        if state.parallel_stt_best_text:
+            return
+        state.realtime_user_transcript = normalized
         state.realtime_user_delta_seq += 1
         await _send_transcript_delta(
             ws,
@@ -952,6 +1099,7 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
             delta or normalized,
             normalized,
             state.realtime_user_delta_seq,
+            turn_id=turn_id,
         )
 
     started = await runtime_begin_live_audio_input_stream(
@@ -971,6 +1119,11 @@ async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
     state.live_input_turn_active = True
     state.live_input_turn_id = turn_id
     state.live_input_streamed_provider = "gemini-live-single"
+    state.parallel_stt_turn_id = turn_id
+    state.parallel_stt_sample_rate = 16000
+    state.parallel_stt_samples = []
+    state.parallel_stt_best_text = ""
+    state.parallel_stt_last_requested_sample_count = 0
     return True
 
 

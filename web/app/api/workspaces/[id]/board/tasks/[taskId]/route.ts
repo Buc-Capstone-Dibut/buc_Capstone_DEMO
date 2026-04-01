@@ -95,6 +95,39 @@ export async function PATCH(
       // Support priorityId from frontend
       allowedUpdates.priority = updates.priorityId;
 
+    const task = await prisma.kanban_tasks.findFirst({
+      where: {
+        id: taskId,
+        column: {
+          workspace_id: workspaceId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    if (allowedUpdates.column_id) {
+      const destinationColumn = await prisma.kanban_columns.findFirst({
+        where: {
+          id: allowedUpdates.column_id,
+          workspace_id: workspaceId,
+        },
+        select: { id: true },
+      });
+
+      if (!destinationColumn) {
+        return NextResponse.json(
+          { error: "Destination column not found" },
+          { status: 404 },
+        );
+      }
+    }
+
     const updatedTask = await prisma.kanban_tasks.update({
       where: {
         id: taskId,
@@ -173,6 +206,20 @@ export async function DELETE(
         { error: writableCheck.error },
         { status: writableCheck.status },
       );
+    }
+
+    const task = await prisma.kanban_tasks.findFirst({
+      where: {
+        id: taskId,
+        column: {
+          workspace_id: workspaceId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
     await prisma.kanban_tasks.delete({

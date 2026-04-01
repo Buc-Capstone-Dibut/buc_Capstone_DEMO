@@ -155,6 +155,8 @@ def build_session_engine_deps(
     resume_listening: Callable[..., Awaitable[Any]],
     next_ai_turn_id: Callable[[str], str],
     commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
+    update_turn_content: Callable[..., Awaitable[Any]] | None = None,
+    parallel_refine_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None = None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=create_live_interview_session,
@@ -187,6 +189,7 @@ def build_session_engine_deps(
         reset_realtime_user_transcript=reset_realtime_user_transcript,
         remember_user_turn=remember_user_turn,
         persist_turn=persist_turn,
+        update_turn_content=update_turn_content,
         send_transcript=send_transcript,
         log_runtime_event=log_runtime_event,
         is_short_stt_result=is_short_stt_result,
@@ -202,6 +205,7 @@ def build_session_engine_deps(
         next_ai_turn_id=next_ai_turn_id,
         commit_live_input_stream=commit_live_input_stream,
         runtime_architecture=runtime_architecture,
+        parallel_refine_user_audio=parallel_refine_user_audio,
     )
 
 
@@ -215,6 +219,7 @@ def build_client_message_router_deps(
     enqueue_user_segment: Callable[..., Awaitable[None]],
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None,
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None,
+    push_parallel_stt_audio_chunk: Callable[[Any, VoiceWsState, list[float], int], Awaitable[bool]] | None,
     reset_realtime_user_transcript: Callable[[VoiceWsState], None],
     resume_listening: Callable[..., Awaitable[Any]],
     cancel_playback_resume_task: Callable[[VoiceWsState], None],
@@ -228,6 +233,7 @@ def build_client_message_router_deps(
         enqueue_user_segment=enqueue_user_segment,
         begin_live_input_stream=begin_live_input_stream,
         push_live_input_audio_chunk=push_live_input_audio_chunk,
+        push_parallel_stt_audio_chunk=push_parallel_stt_audio_chunk,
         reset_realtime_user_transcript=reset_realtime_user_transcript,
         resume_listening=resume_listening,
         cancel_playback_resume_task=cancel_playback_resume_task,
