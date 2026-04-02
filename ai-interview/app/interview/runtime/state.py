@@ -25,21 +25,21 @@ def _effective_voice_vad_threshold() -> float:
 def _effective_voice_vad_silence_ms() -> int:
     silence_ms = int(settings.voice_vad_silence_ms)
     if _is_live_only_architecture():
-        silence_ms = max(silence_ms, 980)
+        silence_ms = max(silence_ms, 760)
     return silence_ms
 
 
 def _effective_voice_vad_min_utterance_ms() -> int:
     min_utterance_ms = int(settings.voice_vad_min_utterance_ms)
     if _is_live_only_architecture():
-        min_utterance_ms = max(min_utterance_ms, 900)
+        min_utterance_ms = max(min_utterance_ms, 700)
     return min_utterance_ms
 
 
 def _effective_voice_vad_short_utterance_silence_ms() -> int:
     short_silence_ms = int(settings.voice_vad_short_utterance_silence_ms)
     if _is_live_only_architecture():
-        short_silence_ms = max(short_silence_ms, 1650)
+        short_silence_ms = max(short_silence_ms, 1250)
     return short_silence_ms
 
 

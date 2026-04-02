@@ -17,9 +17,8 @@ export const INTERVIEWER_AVATAR_FALLBACKS: Record<InterviewAvatarState, string> 
 
 const customAvatarUrl = process.env.NEXT_PUBLIC_INTERVIEWER_AVATAR_URL?.trim();
 
-// Placeholder sample avatar for the demo. Replace with a MetaPerson/Avaturn export when ready.
 export const DEFAULT_INTERVIEWER_AVATAR: InterviewerAvatarModelConfig = {
-  url: customAvatarUrl || "/interview/avatar/dibut-interviewer.glb",
+  url: customAvatarUrl || "/interview/avatar/avatarsdk.glb",
   body: "F",
   avatarMood: "neutral",
   baseline: {

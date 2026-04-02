@@ -61,21 +61,21 @@ export function TalkingHeadInterviewer({
           cameraPanEnable: false,
           cameraRotateEnable: false,
           cameraZoomEnable: false,
-          modelFPS: 30,
-          modelPixelRatio: 0.9,
+          modelFPS: 20,
+          modelPixelRatio: 0.55,
           lipsyncModules: [],
           avatarMood: "neutral",
           avatarIdleEyeContact: 0.35,
-          avatarIdleHeadMove: 0.2,
+          avatarIdleHeadMove: 0.12,
           avatarSpeakingEyeContact: 0.8,
-          avatarSpeakingHeadMove: 0.65,
+          avatarSpeakingHeadMove: 0.4,
           lightAmbientIntensity: 2.1,
           lightDirectColor: 0xcbd5f5,
-          lightDirectIntensity: 18,
+          lightDirectIntensity: 12,
           lightDirectPhi: 1,
           lightDirectTheta: 2,
           lightSpotColor: 0x93c5fd,
-          lightSpotIntensity: 6,
+          lightSpotIntensity: 3.5,
           lightSpotPhi: 0.2,
           lightSpotTheta: 4.2,
           lightSpotDispersion: 0.65,
@@ -99,8 +99,8 @@ export function TalkingHeadInterviewer({
         });
         head.setLighting({
           lightAmbientIntensity: 2.1,
-          lightDirectIntensity: 18,
-          lightSpotIntensity: 6,
+          lightDirectIntensity: 12,
+          lightSpotIntensity: 3.5,
         });
         head.makeEyeContact(1800);
 
