@@ -65,10 +65,10 @@ export function TalkingHeadInterviewer({
           modelPixelRatio: 0.55,
           lipsyncModules: [],
           avatarMood: "neutral",
-          avatarIdleEyeContact: 0.35,
-          avatarIdleHeadMove: 0.12,
+          avatarIdleEyeContact: 0.62,
+          avatarIdleHeadMove: 0.08,
           avatarSpeakingEyeContact: 0.8,
-          avatarSpeakingHeadMove: 0.4,
+          avatarSpeakingHeadMove: 0.26,
           lightAmbientIntensity: 2.1,
           lightDirectColor: 0xcbd5f5,
           lightDirectIntensity: 12,
@@ -92,17 +92,18 @@ export function TalkingHeadInterviewer({
         }
 
         head.setView("upper", {
-          cameraDistance: 1.15,
-          cameraY: 0.02,
-          cameraRotateY: 0.05,
-          cameraRotateX: -0.02,
+          cameraDistance: 0.95,
+          cameraY: 0.14,
+          cameraRotateY: 0,
+          cameraRotateX: 0.03,
         });
         head.setLighting({
           lightAmbientIntensity: 2.1,
           lightDirectIntensity: 12,
           lightSpotIntensity: 3.5,
         });
-        head.makeEyeContact(1800);
+        head.makeEyeContact(2200);
+        head.lookAtCamera(2200);
 
         headRef.current = head;
         setLoadProgress(100);
@@ -137,30 +138,33 @@ export function TalkingHeadInterviewer({
     if (!head || !isReady) return;
 
     if (state === "speaking") {
+      head.stopGesture(250);
       head.setMood("happy");
-      head.makeEyeContact(3200);
-      head.lookAtCamera(2600);
+      head.makeEyeContact(3600);
+      head.lookAtCamera(3200);
       return;
     }
 
     if (state === "listening") {
       head.stopGesture(250);
       head.setMood("neutral");
-      head.makeEyeContact(2400);
-      head.lookAtCamera(1800);
+      head.makeEyeContact(2800);
+      head.lookAtCamera(2400);
       return;
     }
 
     if (state === "thinking") {
       head.stopGesture(250);
       head.setMood("neutral");
-      head.lookAhead(1600);
+      head.makeEyeContact(2000);
+      head.lookAtCamera(1800);
       return;
     }
 
     head.stopGesture(250);
     head.setMood("neutral");
-    head.lookAhead(1200);
+    head.makeEyeContact(1800);
+    head.lookAtCamera(1600);
   }, [isReady, state]);
 
   useEffect(() => {
@@ -204,7 +208,13 @@ export function TalkingHeadInterviewer({
 
   return (
     <div className={cn("relative h-full w-full overflow-hidden", className)}>
-      <div ref={containerRef} className={cn("h-full w-full transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")} />
+      <div
+        ref={containerRef}
+        className={cn(
+          "h-full w-full -translate-y-[3%] transition-opacity duration-500",
+          isReady ? "opacity-100" : "opacity-0",
+        )}
+      />
 
       {!isReady && !hasError ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -228,7 +238,7 @@ export function TalkingHeadInterviewer({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/40 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white via-white/65 to-transparent" />
 
       {state === "speaking" ? (
         <div className="pointer-events-none absolute bottom-10 left-1/2 flex -translate-x-1/2 items-end gap-1.5">

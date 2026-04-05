@@ -1124,7 +1124,7 @@ export default function InterviewVideoRoomPage() {
             <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
             Dibut 면접관
           </div>
-          <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,rgba(59,130,246,0.18),rgba(15,23,42,0.95)_45%)] px-4 md:px-8">
+          <div className="flex h-full w-full items-center justify-center bg-white px-4 md:px-8">
             <TalkingHeadInterviewer
               state={avatarState}
               className="h-full w-full max-w-[520px]"

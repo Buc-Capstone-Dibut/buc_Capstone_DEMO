@@ -22,7 +22,7 @@ export const DEFAULT_INTERVIEWER_AVATAR: InterviewerAvatarModelConfig = {
   body: "F",
   avatarMood: "neutral",
   baseline: {
-    headRotateX: -0.03,
+    headRotateX: 0.01,
     eyeBlinkLeft: 0.05,
     eyeBlinkRight: 0.05,
   },
