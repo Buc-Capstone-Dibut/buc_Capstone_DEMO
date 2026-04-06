@@ -34,6 +34,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Footer } from "@/components/layout/footer";
 import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
@@ -1231,6 +1232,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           </SheetContent>
         </Sheet>
       )}
+      <Footer />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Footer } from "@/components/layout/footer";
 import { GlobalHeader } from "@/components/layout/global-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -222,6 +223,7 @@ export default function InterviewPage() {
           </Card>
         </section>
       </main>
+      <Footer />
     </div>
   );
 }
