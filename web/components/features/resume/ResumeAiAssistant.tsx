@@ -33,7 +33,7 @@ interface ResumeAiAssistantProps {
     backgroundContext?: string;
 }
 
-type Mode = "main" | "setup" | "chat";
+type Mode = "main" | "setup" | "chat" | "stadri";
 
 interface Message {
     role: "user" | "assistant";
@@ -75,7 +75,11 @@ export function ResumeAiAssistant({
 
     const startCoverLetterGeneration = async () => {
         setMode("chat");
-        setMessages([{ role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." }]);
+        // 빈 assistant 메시지를 fetch 전에 미리 추가 → 스켈레톤이 바로 표시됨
+        setMessages([
+            { role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." },
+            { role: "assistant", content: "" },
+        ]);
         setIsStreaming(true);
 
         try {
@@ -99,8 +103,6 @@ export function ResumeAiAssistant({
             if (!reader) return;
 
             let fullText = "";
-            // Initializing with an empty assistant message
-            setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -328,12 +330,28 @@ export function ResumeAiAssistant({
                                                         <BrainCircuit className="w-4 h-4" /> AI 추천 자소서 전문
                                                     </div>
                                                 )}
-                                                <div className="text-[17px] leading-[1.8] text-slate-800 whitespace-pre-wrap font-normal selection:bg-primary/20">
-                                                    {msg.content}
-                                                    {isStreaming && i === messages.length - 1 && (
-                                                        <span className="inline-block w-1.5 h-6 ml-1 bg-primary animate-pulse align-middle" />
-                                                    )}
-                                                </div>
+
+                                                {/* 스켈레톤: 스트리밍 중이고 아직 내용이 없을 때 */}
+                                                {isStreaming && i === messages.length - 1 && msg.content === "" ? (
+                                                    <div className="space-y-1 py-1">
+                                                        <p className="text-[12px] text-slate-400 font-medium mb-3 flex items-center gap-1.5">
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            AI 답변을 생성하고 있어요...
+                                                        </p>
+                                                        <div className="space-y-3">
+                                                            <div className="skeleton-shimmer h-5 rounded-lg w-full" />
+                                                            <div className="skeleton-shimmer h-5 rounded-lg w-[85%]" style={{ animationDelay: "0.15s" }} />
+                                                            <div className="skeleton-shimmer h-5 rounded-lg w-[65%]" style={{ animationDelay: "0.3s" }} />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[17px] leading-[1.8] text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-normal selection:bg-primary/20">
+                                                        {msg.content}
+                                                        {isStreaming && i === messages.length - 1 && (
+                                                            <span className="inline-block w-1.5 h-6 ml-1 bg-primary animate-pulse align-middle" />
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
