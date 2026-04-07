@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
@@ -161,6 +161,14 @@ type WorkspaceMeta = {
   }>;
 };
 
+type WorkspaceSettingsResponse = {
+  success?: boolean;
+  data?: {
+    publicSummary?: unknown;
+    settingsPayload?: Record<string, unknown> | null;
+  };
+};
+
 type LinkedTaskRelation = {
   id: string;
   relation_type: string;
@@ -247,6 +255,51 @@ const clampDocsSidebarWidth = (width: number, containerWidth?: number) =>
     getDocsSidebarMaxWidth(containerWidth),
   );
 
+function readCachedSwrData<T>(cacheValue: unknown): T | null {
+  if (cacheValue == null) {
+    return null;
+  }
+
+  if (
+    typeof cacheValue === "object" &&
+    cacheValue !== null &&
+    "data" in cacheValue
+  ) {
+    return ((cacheValue as { data?: T | null }).data ?? null) as T | null;
+  }
+
+  return cacheValue as T;
+}
+
+function safeStorageGet(storage: "local" | "session", key: string) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const target =
+      storage === "local" ? window.localStorage : window.sessionStorage;
+    return target.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(
+  storage: "local" | "session",
+  key: string,
+  value: string,
+) {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const target =
+      storage === "local" ? window.localStorage : window.sessionStorage;
+    target.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function DocsView({
   projectId,
   initialDocId,
@@ -255,7 +308,12 @@ export function DocsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { mutate: mutateCache, cache } = useSWRConfig();
   const { user, profile } = useAuth();
+  const docsCacheKey = `/api/workspaces/${projectId}/docs`;
+  const archivedDocsCacheKey = `/api/workspaces/${projectId}/docs?archived=true`;
+  const expandedDocsStorageKey = `workspace-docs-expanded:${projectId}`;
+  const docsBootstrapStorageKey = `workspace-docs-bootstrap:${projectId}`;
   const swrOptions = {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
@@ -280,13 +338,13 @@ export function DocsView({
     mutate: mutateDocs,
     isLoading,
   } = useSWR<WorkspaceDocSummary[]>(
-    `/api/workspaces/${projectId}/docs`,
+    docsCacheKey,
     fetcher,
     docsSWRConfig,
   );
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
-  >(`/api/workspaces/${projectId}/docs?archived=true`, fetcher, docsSWRConfig);
+  >(archivedDocsCacheKey, fetcher, docsSWRConfig);
   const { data: templates, mutate: mutateTemplates } = useSWR<DocTemplate[]>(
     `/api/workspaces/${projectId}/doc-templates`,
     fetcher,
@@ -314,6 +372,7 @@ export function DocsView({
   const [isLeavingCollab, setIsLeavingCollab] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
   const [isSwitchingDoc, setIsSwitchingDoc] = useState(false);
+  const [isDocsBootstrapping, setIsDocsBootstrapping] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<string[]>([]);
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
@@ -344,7 +403,10 @@ export function DocsView({
   const activeDocDirtyRef = useRef(false);
   const activeDocIdRef = useRef<string | null>(null);
   const initialDocIdRef = useRef<string | null | undefined>(undefined);
+  const expandedDocsHydratedRef = useRef(false);
   const headerReadyRef = useRef(false);
+  const workspaceSettingsPayloadRef = useRef<Record<string, unknown>>({});
+  const workspacePublicSummaryRef = useRef<unknown>({});
   const switchingDocRef = useRef(false);
   const queuedDocSwitchRef = useRef<{
     docId: string | null;
@@ -381,10 +443,27 @@ export function DocsView({
     },
   );
 
+  const activeDocCacheKey = activeDocId
+    ? `/api/workspaces/${projectId}/docs/${activeDocId}`
+    : null;
+
   const resolvedActiveDoc = useMemo(
-    () =>
-      activeDoc && activeDocId && activeDoc.id === activeDocId ? activeDoc : null,
-    [activeDoc, activeDocId],
+    () => {
+      if (activeDoc && activeDocId && activeDoc.id === activeDocId) {
+        return activeDoc;
+      }
+
+      if (!activeDocCacheKey || !activeDocId) {
+        return null;
+      }
+
+      const cachedDoc = readCachedSwrData<ActiveWorkspaceDoc | null>(
+        cache.get(activeDocCacheKey),
+      );
+
+      return cachedDoc && cachedDoc.id === activeDocId ? cachedDoc : null;
+    },
+    [activeDoc, activeDocCacheKey, activeDocId, cache],
   );
 
   const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
@@ -433,6 +512,86 @@ export function DocsView({
       docWorkerId,
     };
   }, [activeDocId, docWorkerId, emoji, title]);
+
+  const loadWorkspaceViewSettings = useCallback(async () => {
+    const handle = profile?.handle?.trim();
+    if (!handle) {
+      return null;
+    }
+
+    const response = await fetch(
+      `/api/my/workspace-settings/${encodeURIComponent(handle)}`,
+    );
+    const payload = (await response.json().catch(() => null)) as
+      | WorkspaceSettingsResponse
+      | null;
+
+    if (!response.ok || !payload?.success) {
+      throw new Error("문서 보기 설정을 불러오지 못했습니다.");
+    }
+
+    workspaceSettingsPayloadRef.current =
+      payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+        ? payload.data.settingsPayload
+        : {};
+    workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
+
+    return payload.data ?? null;
+  }, [profile?.handle]);
+
+  const persistWorkspaceViewSettings = useDebouncedCallback(
+    async (nextExpandedDocs: Record<string, boolean>) => {
+      const handle = profile?.handle?.trim();
+      if (!handle) return;
+
+      try {
+        const currentPayload =
+          workspaceSettingsPayloadRef.current &&
+          typeof workspaceSettingsPayloadRef.current === "object"
+            ? workspaceSettingsPayloadRef.current
+            : {};
+        const docsViewSettings =
+          currentPayload.docsView && typeof currentPayload.docsView === "object"
+            ? (currentPayload.docsView as Record<string, unknown>)
+            : {};
+
+        const nextSettingsPayload = {
+          ...currentPayload,
+          docsView: {
+            ...docsViewSettings,
+            [projectId]: {
+              expandedDocs: nextExpandedDocs,
+            },
+          },
+        };
+
+        const response = await fetch("/api/my/workspace-settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            publicSummary: workspacePublicSummaryRef.current ?? {},
+            settingsPayload: nextSettingsPayload,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | WorkspaceSettingsResponse
+          | null;
+
+        if (!response.ok || !payload?.success) {
+          throw new Error("문서 보기 설정 저장에 실패했습니다.");
+        }
+
+        workspaceSettingsPayloadRef.current =
+          payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+            ? payload.data.settingsPayload
+            : nextSettingsPayload;
+        workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
+      } catch (error) {
+        console.error("Failed to persist docs view settings", error);
+      }
+    },
+    800,
+  );
 
   const activePageDoc = useMemo(() => {
     if (!activeDocId) return null;
@@ -691,6 +850,220 @@ export function DocsView({
       prev.filter((docId) => validDocIds.has(docId)),
     );
   }, [archivedDocs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateExpandedDocs = async () => {
+      const storedValue = safeStorageGet("local", expandedDocsStorageKey);
+      if (storedValue) {
+        try {
+          const parsed = JSON.parse(storedValue) as Record<string, boolean>;
+          if (parsed && typeof parsed === "object" && !cancelled) {
+            setExpandedDocs(parsed);
+          }
+        } catch (error) {
+          console.error("Failed to restore expanded docs state", error);
+        } finally {
+          expandedDocsHydratedRef.current = true;
+        }
+        return;
+      }
+
+      try {
+        const settings = await loadWorkspaceViewSettings();
+        const settingsPayload =
+          settings?.settingsPayload && typeof settings.settingsPayload === "object"
+            ? settings.settingsPayload
+            : {};
+        const docsViewSettings =
+          settingsPayload.docsView && typeof settingsPayload.docsView === "object"
+            ? (settingsPayload.docsView as Record<string, unknown>)
+            : {};
+        const projectSettings =
+          docsViewSettings[projectId] && typeof docsViewSettings[projectId] === "object"
+            ? (docsViewSettings[projectId] as Record<string, unknown>)
+            : {};
+        const serverExpandedDocs =
+          projectSettings.expandedDocs &&
+          typeof projectSettings.expandedDocs === "object"
+            ? (projectSettings.expandedDocs as Record<string, boolean>)
+            : null;
+
+        if (serverExpandedDocs && !cancelled) {
+          setExpandedDocs(serverExpandedDocs);
+        }
+      } catch (error) {
+        console.error("Failed to load docs view settings", error);
+      } finally {
+        expandedDocsHydratedRef.current = true;
+      }
+    };
+
+    void hydrateExpandedDocs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedDocsStorageKey, loadWorkspaceViewSettings, projectId]);
+
+  useEffect(() => {
+    if (!expandedDocsHydratedRef.current) return;
+    const serialized = JSON.stringify(expandedDocs);
+    const savedToLocal = safeStorageSet("local", expandedDocsStorageKey, serialized);
+
+    if (!savedToLocal) {
+      persistWorkspaceViewSettings(expandedDocs);
+      return;
+    }
+
+    persistWorkspaceViewSettings(expandedDocs);
+  }, [expandedDocs, expandedDocsStorageKey, persistWorkspaceViewSettings]);
+
+  useEffect(() => {
+    if (!docs?.length) return;
+
+    const validFolderIds = new Set(
+      docs.filter((doc) => doc.kind === "folder").map((doc) => doc.id),
+    );
+
+    setExpandedDocs((prev) => {
+      const nextEntries = Object.entries(prev).filter(
+        ([docId, isExpanded]) => isExpanded && validFolderIds.has(docId),
+      );
+
+      if (nextEntries.length === Object.keys(prev).length) {
+        return prev;
+      }
+
+      return Object.fromEntries(nextEntries);
+    });
+  }, [docs]);
+
+  useEffect(() => {
+    if (!activeDocId) return;
+
+    const ancestorIds: string[] = [];
+    let currentParentId = docMap.get(activeDocId)?.parent_id ?? null;
+
+    while (currentParentId) {
+      ancestorIds.push(currentParentId);
+      currentParentId = docMap.get(currentParentId)?.parent_id ?? null;
+    }
+
+    if (ancestorIds.length === 0) return;
+
+    setExpandedDocs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const ancestorId of ancestorIds) {
+        if (!next[ancestorId]) {
+          next[ancestorId] = true;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [activeDocId, docMap]);
+
+  useEffect(() => {
+    if (safeStorageGet("session", docsBootstrapStorageKey) === "done") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrapDocs = async () => {
+      setIsDocsBootstrapping(true);
+
+      try {
+        const prefetchedDocs = (await mutateCache(
+          docsCacheKey,
+          fetcher(docsCacheKey),
+          {
+            populateCache: true,
+            revalidate: false,
+          },
+        )) as WorkspaceDocSummary[] | undefined;
+
+        await mutateCache(
+          archivedDocsCacheKey,
+          fetcher(archivedDocsCacheKey),
+          {
+            populateCache: true,
+            revalidate: false,
+          },
+        );
+
+        const prioritizedDocIds = Array.isArray(prefetchedDocs)
+          ? [
+              ...(initialDocId ? [initialDocId] : []),
+              ...prefetchedDocs
+                .filter((doc) => doc.kind === "page")
+                .map((doc) => doc.id),
+            ]
+              .filter((docId, index, array) => array.indexOf(docId) === index)
+              .slice(0, 8)
+          : initialDocId
+            ? [initialDocId]
+            : [];
+
+        const runPrefetch = async () => {
+          await Promise.allSettled(
+            prioritizedDocIds.map((docId) =>
+              mutateCache(
+                `/api/workspaces/${projectId}/docs/${docId}`,
+                fetcher(`/api/workspaces/${projectId}/docs/${docId}`),
+                {
+                  populateCache: true,
+                  revalidate: false,
+                },
+              ),
+            ),
+          );
+        };
+
+        const windowWithIdle = window as Window & {
+          requestIdleCallback?: (callback: () => void) => number;
+        };
+
+        if (typeof window !== "undefined" && windowWithIdle.requestIdleCallback) {
+          await new Promise<void>((resolve) => {
+            windowWithIdle.requestIdleCallback?.(() => {
+              void runPrefetch().then(resolve);
+            });
+          });
+        } else {
+          await runPrefetch();
+        }
+
+        if (!cancelled) {
+          safeStorageSet("session", docsBootstrapStorageKey, "done");
+        }
+      } catch (error) {
+        console.error("Docs bootstrap sync failed", error);
+      } finally {
+        if (!cancelled) {
+          setIsDocsBootstrapping(false);
+        }
+      }
+    };
+
+    void bootstrapDocs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    archivedDocsCacheKey,
+    docsBootstrapStorageKey,
+    docsCacheKey,
+    initialDocId,
+    mutateCache,
+    projectId,
+  ]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1857,6 +2230,7 @@ export function DocsView({
   }, [editorMode, handleSaveCurrentDoc, isReadOnly]);
 
   useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
+  useEffect(() => () => persistWorkspaceViewSettings.cancel(), [persistWorkspaceViewSettings]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -2129,8 +2503,20 @@ export function DocsView({
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
     resolvedActiveDoc?.author?.nickname ||
     "미지정";
+  const hasResolvedActiveDoc = Boolean(
+    activeDocId && resolvedActiveDoc && resolvedActiveDoc.id === activeDocId,
+  );
   const isDocLoadingOverlayVisible =
-    isLoadingActiveDoc || Boolean(activeDoc && activeDoc.id !== activeDocId);
+    (isSwitchingDoc && isSavingDocument) ||
+    (!hasResolvedActiveDoc &&
+      (isSwitchingDoc ||
+        isLoadingActiveDoc ||
+        Boolean(activeDocId && activeDoc && activeDoc.id !== activeDocId)));
+  const docLoadingOverlayText = isSwitchingDoc
+    ? isSavingDocument
+      ? "이동 전 저장 중..."
+      : "문서를 전환하는 중..."
+    : "문서를 불러오는 중...";
   const collabBadgeVisible =
     editorMode === "collab" || Boolean(resolvedActiveDoc?.collab?.isActive);
   const collabParticipantList = collabParticipants.slice(0, 4);
@@ -2149,7 +2535,15 @@ export function DocsView({
       : formatSavedTime(lastSavedAt);
 
   return (
-    <div ref={containerRef} className="flex h-full min-w-0">
+    <div ref={containerRef} className="relative flex h-full min-w-0">
+      {isDocsBootstrapping && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-background/90 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground shadow-lg">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            문서를 동기화하고 캐시하는 중...
+          </div>
+        </div>
+      )}
       {/* Docs Sidebar (Inner) */}
       <div
         className="flex h-full flex-none flex-col overflow-hidden border-r bg-muted/10"
@@ -2528,41 +2922,42 @@ export function DocsView({
             <div className="flex flex-1 min-h-0">
               {/* Scrollable Document Content */}
               <div className="flex-1 overflow-y-auto relative w-full">
-              {isDocLoadingOverlayVisible && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50 pointer-events-none">
-                  <div className="text-muted-foreground text-sm">
-                    문서를 불러오는 중...
+                {isDocLoadingOverlayVisible && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/85">
+                    <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {docLoadingOverlayText}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="max-w-4xl mx-auto w-full pt-12 px-12 pb-4">
-                <div className="flex items-start gap-4">
-                  <div className="group relative shrink-0">
-                    <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
-                      <PopoverTrigger asChild>
-                        {emoji ? (
-                          <button
-                            type="button"
-                            disabled={isReadOnly}
-                            className={`flex h-16 w-16 items-center justify-center rounded-2xl transition-colors ${
-                              isReadOnly
-                                ? "cursor-not-allowed opacity-60"
-                                : "cursor-pointer hover:bg-muted/70"
-                            }`}
-                          >
-                            <span className="text-[52px] leading-none">
-                              {emoji}
-                            </span>
-                          </button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="h-16 min-w-16 rounded-2xl border border-dashed border-border/70 bg-background/70 px-3 text-muted-foreground hover:bg-muted/60"
-                            disabled={isReadOnly}
-                          >
-                            <Smile className="mr-2 h-4 w-4" />
+                <div className="max-w-4xl mx-auto w-full pt-12 px-12 pb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="group relative shrink-0">
+                      <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+                        <PopoverTrigger asChild>
+                          {emoji ? (
+                            <button
+                              type="button"
+                              disabled={isReadOnly}
+                              className={`flex h-16 w-16 items-center justify-center rounded-2xl transition-colors ${
+                                isReadOnly
+                                  ? "cursor-not-allowed opacity-60"
+                                  : "cursor-pointer hover:bg-muted/70"
+                              }`}
+                            >
+                              <span className="text-[52px] leading-none">
+                                {emoji}
+                              </span>
+                            </button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-16 min-w-16 rounded-2xl border border-dashed border-border/70 bg-background/70 px-3 text-muted-foreground hover:bg-muted/60"
+                              disabled={isReadOnly}
+                            >
+                              <Smile className="mr-2 h-4 w-4" />
                             아이콘
                           </Button>
                         )}
