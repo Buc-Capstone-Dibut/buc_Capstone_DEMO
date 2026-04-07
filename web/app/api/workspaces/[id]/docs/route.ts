@@ -116,7 +116,7 @@ export async function POST(
     const coverUrl =
       typeof body.coverUrl === "string" && body.coverUrl ? body.coverUrl : null;
     const kind = normalizeDocKind(body.kind);
-    const template = getWorkspaceDocTemplate(body.templateId);
+    const template = await getWorkspaceDocTemplate(workspaceId, body.templateId);
     const content = body.content ?? template?.content ?? null;
 
     const membership = await prisma.workspace_members.findUnique({

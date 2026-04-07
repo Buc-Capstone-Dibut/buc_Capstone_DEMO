@@ -26,6 +26,7 @@ import {
   createWorkspaceDocAssetAccessPath,
   parseWorkspaceDocAssetUrl,
 } from "@/lib/workspace-doc-assets";
+import { safeBlockNotePasteHandler } from "@/components/features/workspace/docs/blocknote-paste";
 
 interface UserInfo {
   name: string;
@@ -156,6 +157,7 @@ export const NormalDocumentEditor = forwardRef<
         }
         return uploadAsset(file);
       },
+      pasteHandler: safeBlockNotePasteHandler,
       resolveFileUrl: resolveAssetUrl,
       initialContent:
         Array.isArray(initialContent) && initialContent.length > 0
