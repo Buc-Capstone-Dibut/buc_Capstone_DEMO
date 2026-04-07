@@ -68,8 +68,16 @@ const PAPER_SURFACE_STYLE = {
   "--bn-border-radius": "0px",
 } as CSSProperties;
 
+function normalizeSnapshotBlocks(blocks: unknown): PartialBlock[] {
+  if (!Array.isArray(blocks)) {
+    return [];
+  }
+
+  return JSON.parse(JSON.stringify(blocks)) as PartialBlock[];
+}
+
 function serializeBlocks(blocks: unknown) {
-  return JSON.stringify(Array.isArray(blocks) ? blocks : []);
+  return JSON.stringify(normalizeSnapshotBlocks(blocks));
 }
 
 export const NormalDocumentEditor = forwardRef<
@@ -89,7 +97,9 @@ export const NormalDocumentEditor = forwardRef<
 ) {
   const { theme } = useTheme();
   const pathname = usePathname();
-  const lastSavedSnapshotRef = useRef(serializeBlocks(initialContent));
+  const lastSavedSnapshotRef = useRef(
+    serializeBlocks(normalizeSnapshotBlocks(initialContent)),
+  );
   const latestDirtyRef = useRef(false);
 
   const resolvedWorkspaceId = useMemo(() => {
@@ -176,7 +186,9 @@ export const NormalDocumentEditor = forwardRef<
   );
 
   useEffect(() => {
-    lastSavedSnapshotRef.current = serializeBlocks(initialContent);
+    lastSavedSnapshotRef.current = serializeBlocks(
+      normalizeSnapshotBlocks(initialContent),
+    );
     emitDirtyChange(false);
   }, [docId, emitDirtyChange, initialContent]);
 
@@ -196,8 +208,9 @@ export const NormalDocumentEditor = forwardRef<
               currentBlocks[0].content.length === 0)));
 
       if (isDefault) {
-        editor.replaceBlocks(editor.document, initialContent as PartialBlock[]);
-        lastSavedSnapshotRef.current = serializeBlocks(initialContent);
+        const normalizedInitialContent = normalizeSnapshotBlocks(initialContent);
+        editor.replaceBlocks(editor.document, normalizedInitialContent);
+        lastSavedSnapshotRef.current = serializeBlocks(normalizedInitialContent);
         emitDirtyChange(false);
       }
     }
@@ -205,9 +218,12 @@ export const NormalDocumentEditor = forwardRef<
 
   const saveCurrentState = useCallback(
     async (options?: { silent?: boolean }) => {
+      const snapshot = normalizeSnapshotBlocks(editor.document);
+      const serializedSnapshot = serializeBlocks(snapshot);
+
       if (!resolvedWorkspaceId || readOnly) {
-        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
-        emitDirtyChange(false);
+        lastSavedSnapshotRef.current = serializedSnapshot;
+        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
         return true;
       }
 
@@ -220,7 +236,7 @@ export const NormalDocumentEditor = forwardRef<
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              content: editor.document,
+              content: snapshot,
             }),
           },
         );
@@ -232,8 +248,8 @@ export const NormalDocumentEditor = forwardRef<
           );
         }
 
-        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
-        emitDirtyChange(false);
+        lastSavedSnapshotRef.current = serializedSnapshot;
+        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
         return true;
       } catch (error) {
         if (!options?.silent) {

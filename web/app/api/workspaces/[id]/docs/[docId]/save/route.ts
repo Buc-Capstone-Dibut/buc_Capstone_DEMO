@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { saveDocCollabState } from "@/lib/server/doc-collab-state";
-import { snapshotToYjsState } from "@/lib/server/workspace-doc-collab";
+import {
+  saveWorkspaceDocContent,
+  saveWorkspaceDocSnapshot,
+} from "@/lib/server/doc-collab-state";
 
 export async function POST(
   request: Request,
@@ -23,16 +25,16 @@ export async function POST(
     const payload = (await request.json()) as {
       yjsState?: unknown;
       content?: unknown;
+      title?: unknown;
+      emoji?: unknown;
+      authorId?: unknown;
     };
 
-    let yjsState: string | null = null;
-    if (typeof payload.yjsState === "string" && payload.yjsState.trim()) {
-      yjsState = payload.yjsState;
-    } else if (Array.isArray(payload.content)) {
-      yjsState = snapshotToYjsState(payload.content);
-    }
+    const hasYjsState =
+      typeof payload.yjsState === "string" && payload.yjsState.trim().length > 0;
+    const hasContentSnapshot = Array.isArray(payload.content);
 
-    if (!yjsState) {
+    if (!hasYjsState && !hasContentSnapshot) {
       return NextResponse.json(
         { error: "유효한 문서 본문이 필요합니다." },
         { status: 400 },
@@ -78,7 +80,33 @@ export async function POST(
       );
     }
 
-    const result = await saveDocCollabState(docId, yjsState);
+    const metadata = {
+      ...(payload.title === undefined || typeof payload.title === "string"
+        ? { title: payload.title }
+        : {}),
+      ...(payload.emoji === undefined ||
+      payload.emoji === null ||
+      typeof payload.emoji === "string"
+        ? { emoji: payload.emoji as string | null | undefined }
+        : {}),
+      ...(payload.authorId === undefined ||
+      payload.authorId === null ||
+      typeof payload.authorId === "string"
+        ? { authorId: payload.authorId as string | null | undefined }
+        : {}),
+    };
+
+    const result = hasYjsState
+      ? await saveWorkspaceDocSnapshot({
+          docId,
+          yjsState: payload.yjsState as string,
+          ...metadata,
+        })
+      : await saveWorkspaceDocContent({
+          docId,
+          content: payload.content,
+          ...metadata,
+        });
 
     if (!result.ok) {
       return NextResponse.json(
