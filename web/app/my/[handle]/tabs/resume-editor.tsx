@@ -7,11 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, Loader2, Upload } from "lucide-react";
+import { Trash2, Plus, Loader2, Upload, Download, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
+import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
+import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
+import type { WorkExperienceInput } from "@/app/career/work-experience/actions";
 
 interface ResumeEditorProps {
   payload: ResumePayload;
@@ -34,6 +37,8 @@ export function ResumeEditor({
 }: ResumeEditorProps) {
   const [newSkill, setNewSkill] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
@@ -172,6 +177,65 @@ export function ResumeEditor({
       title: "주요 성과 삭제됨",
       description: "선택한 성과 내용이 제거되었습니다.",
     });
+  };
+
+  const handleImportExperiences = (selected: any[]) => {
+    const newProjects = selected
+        .filter(e => !payload.projects.some(p => p.id === e.id)) // Avoid duplicates
+        .map(e => ({
+            id: e.id || Math.random().toString(36).substring(2, 11),
+            name: e.company || "경험 기반 프로젝트",
+            period: e.period || "",
+            description: e.description || "",
+            techStack: e.tags || [],
+            achievements: [],
+        }));
+
+    if (newProjects.length > 0) {
+        onChange({
+            ...payload,
+            projects: [...payload.projects, ...newProjects]
+        });
+        toast({
+            title: "경험 불러오기 완료",
+            description: `${newProjects.length}개의 경험이 프로젝트로 추가되었습니다.`,
+        });
+    } else {
+        toast({
+            title: "불러올 경험이 없습니다.",
+            description: "이미 추가된 경험이거나 잘못된 요청입니다.",
+            variant: "destructive"
+        });
+    }
+  };
+
+  const handleImportWorkExperiences = (selected: WorkExperienceInput[]) => {
+    const newExps = selected
+        .filter(e => !payload.experience.some(p => p.id === e.id)) // Avoid duplicates
+        .map(e => ({
+            id: e.id || Math.random().toString(36).substring(2, 11),
+            company: e.company || "",
+            position: e.position || "",
+            period: e.period || "",
+            description: e.description || "",
+        }));
+
+    if (newExps.length > 0) {
+        onChange({
+            ...payload,
+            experience: [...payload.experience, ...newExps]
+        });
+        toast({
+            title: "경력 불러오기 완료",
+            description: `${newExps.length}개의 경력이 추가되었습니다.`,
+        });
+    } else {
+        toast({
+            title: "불러올 경력이 없습니다.",
+            description: "이미 추가된 경력이거나 잘못된 요청입니다.",
+            variant: "destructive"
+        });
+    }
   };
 
   const parseResumeFile = async (file: File) => {
@@ -393,9 +457,20 @@ export function ResumeEditor({
 
       <Card>
         <CardContent className="p-5 space-y-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            경력
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              경력
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-[11px] font-bold gap-1.5 text-primary border-primary/20 bg-primary/5 hover:bg-primary/10"
+              onClick={() => setIsWorkExpModalOpen(true)}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              내 경력 보관함에서 불러오기
+            </Button>
+          </div>
           {payload.experience.map((exp, index) => (
             <div key={exp.id || index} className="relative rounded-lg border p-4 space-y-3 bg-muted/20">
               <Button
@@ -468,9 +543,21 @@ export function ResumeEditor({
 
       <Card>
         <CardContent className="p-5 space-y-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            프로젝트
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              프로젝트
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsImportModalOpen(true)}
+              className="h-8 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              내 경험 보관함에서 불러오기
+            </Button>
+          </div>
           {payload.projects.map((project, projectIndex) => (
             <div
               key={project.id || projectIndex}
@@ -588,6 +675,19 @@ export function ResumeEditor({
           이력서 저장
         </Button>
       </div>
+
+      <ExperienceImportModal 
+        open={isImportModalOpen} 
+        onOpenChange={setIsImportModalOpen} 
+        onImport={handleImportExperiences} 
+      />
+      
+      <WorkExperienceImportModal 
+        open={isWorkExpModalOpen} 
+        onOpenChange={setIsWorkExpModalOpen} 
+        onImport={handleImportWorkExperiences} 
+        existingIds={payload.experience.map((e) => e.id).filter(Boolean) as string[]}
+      />
     </div>
   );
 }

@@ -20,10 +20,10 @@ export default function CoverLetterWizardPage() {
     const [isCompleted, setIsCompleted] = useState(false);
     const [generatedContent, setGeneratedContent] = useState("");
 
-    const situationFromUrl = searchParams.get("situation") || undefined;
     const experienceIds = searchParams.get("experienceIds")?.split(",").filter(Boolean) || [];
-    // We pass situation information as backgroundContext, and keep initialStadri empty for the first question
-    const backgroundContext = situationFromUrl;
+    
+    // We read the rich context passed from the timeline via sessionStorage
+    const [backgroundContext, setBackgroundContext] = useState<string | undefined>(undefined);
 
     // Check session storage on mount to survive page refreshes/revalidations
     useState(() => {
@@ -33,6 +33,11 @@ export default function CoverLetterWizardPage() {
             if (savedFlag === "true" && savedContent) {
                 setGeneratedContent(savedContent);
                 setIsCompleted(true);
+            }
+
+            const contextData = sessionStorage.getItem("wizard_context_data");
+            if (contextData) {
+                setBackgroundContext(contextData);
             }
         }
     });

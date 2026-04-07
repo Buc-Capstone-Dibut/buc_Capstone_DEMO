@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { syncResumeToProfile } from "@/lib/my-profile";
 
-export type ExperienceInput = ResumePayload["experience"][number];
+export type ExperienceInput = NonNullable<ResumePayload["timeline"]>[number];
 
 export async function saveExperienceAction(data: ExperienceInput) {
   const supabase = await createClient();
@@ -48,7 +48,8 @@ export async function saveExperienceAction(data: ExperienceInput) {
   }
 
   const payload = (activeResume.resume_payload as any) || {};
-  const experiences: ExperienceInput[] = payload.experience || [];
+  // Handle backwards compatibility where timeline data might be in experience
+  const experiences: ExperienceInput[] = payload.timeline || [];
 
   if (data.id) {
     // Update existing
@@ -64,7 +65,7 @@ export async function saveExperienceAction(data: ExperienceInput) {
     experiences.push(data);
   }
 
-  payload.experience = experiences;
+  payload.timeline = experiences;
 
   await prisma.user_resumes.update({
     where: { id: activeResume.id },
@@ -83,24 +84,42 @@ export async function deleteExperienceAction(id: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
+  const userId = session.user.id;
+
   const activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: session.user.id, is_active: true }
+    where: { user_id: userId, is_active: true }
   });
 
   if (!activeResume) throw new Error("No active resume");
 
   const payload = (activeResume.resume_payload as any) || {};
-  let experiences: ExperienceInput[] = payload.experience || [];
+  let experiences: ExperienceInput[] = payload.timeline || [];
   experiences = experiences.filter((e: any) => e.id !== id);
-  payload.experience = experiences;
+  payload.timeline = experiences;
 
   await prisma.user_resumes.update({
     where: { id: activeResume.id },
     data: { resume_payload: payload as any }
   });
 
+  // Explicitly delete from master profile to avoid merge-only reappearances
+  const profile = await prisma.user_resume_profiles.findUnique({
+    where: { user_id: userId }
+  });
+
+  if (profile && profile.resume_payload) {
+    const profilePayload = profile.resume_payload as any;
+    if (Array.isArray(profilePayload.timeline)) {
+      profilePayload.timeline = profilePayload.timeline.filter((e: any) => e.id !== id);
+      await prisma.user_resume_profiles.update({
+        where: { user_id: userId },
+        data: { resume_payload: profilePayload as any }
+      });
+    }
+  }
+
   // --- 전역 프로필 동기화 ---
-  await syncResumeToProfile(session.user.id, payload);
+  await syncResumeToProfile(userId, payload);
 
   revalidatePath("/career/experiences");
   return { success: true };
@@ -120,7 +139,7 @@ export async function getExperiencesByIdsAction(ids: string[]) {
 
   if (profile && profile.resume_payload) {
     const payload = profile.resume_payload as any;
-    const experiences: ExperienceInput[] = payload.experience || [];
+    const experiences: ExperienceInput[] = payload.timeline || [];
     const matched = experiences.filter(e => ids.includes(e.id!));
     if (matched.length > 0) return matched;
   }
@@ -133,7 +152,38 @@ export async function getExperiencesByIdsAction(ids: string[]) {
   if (!activeResume) return [];
 
   const payload = (activeResume.resume_payload as any) || {};
-  const experiences: ExperienceInput[] = payload.experience || [];
+  const experiences: ExperienceInput[] = payload.timeline || [];
 
-  return experiences.filter(e => ids.includes(e.id!));
+  return experiences.filter((e: any) => ids.includes(e.id!));
+}
+
+export async function getAllExperiencesAction() {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Unauthorized");
+
+  const userId = session.user.id;
+
+  // Read from master profile first (authoritative source for career experiences)
+  const profile = await prisma.user_resume_profiles.findUnique({
+    where: { user_id: userId }
+  });
+
+  if (profile && profile.resume_payload) {
+    const payload = profile.resume_payload as any;
+    const experiences: ExperienceInput[] = payload.timeline || [];
+    return experiences;
+  }
+
+  // Fallback to active resume
+  const activeResume = await prisma.user_resumes.findFirst({
+    where: { user_id: userId, is_active: true }
+  });
+
+  if (!activeResume) return [];
+
+  const payload = (activeResume.resume_payload as any) || {};
+  const experiences: ExperienceInput[] = payload.timeline || [];
+
+  return experiences;
 }

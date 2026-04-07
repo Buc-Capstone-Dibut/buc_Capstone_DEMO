@@ -25,21 +25,21 @@ def _effective_voice_vad_threshold() -> float:
 def _effective_voice_vad_silence_ms() -> int:
     silence_ms = int(settings.voice_vad_silence_ms)
     if _is_live_only_architecture():
-        silence_ms = max(silence_ms, 980)
+        silence_ms = max(silence_ms, 760)
     return silence_ms
 
 
 def _effective_voice_vad_min_utterance_ms() -> int:
     min_utterance_ms = int(settings.voice_vad_min_utterance_ms)
     if _is_live_only_architecture():
-        min_utterance_ms = max(min_utterance_ms, 900)
+        min_utterance_ms = max(min_utterance_ms, 700)
     return min_utterance_ms
 
 
 def _effective_voice_vad_short_utterance_silence_ms() -> int:
     short_silence_ms = int(settings.voice_vad_short_utterance_silence_ms)
     if _is_live_only_architecture():
-        short_silence_ms = max(short_silence_ms, 1650)
+        short_silence_ms = max(short_silence_ms, 1250)
     return short_silence_ms
 
 
@@ -151,6 +151,18 @@ class VoiceWsState:
     live_input_streamed_provider: str = ""
     live_input_streamed_audio_duration_sec: float = 0.0
     live_input_streamed_audio_chunk_count: int = 0
+    parallel_stt_turn_id: str = ""
+    parallel_stt_sample_rate: int = 16000
+    parallel_stt_samples: list[float] = field(default_factory=list)
+    parallel_stt_phrase_hints: list[str] = field(default_factory=list)
+    parallel_stt_best_text: str = ""
+    parallel_stt_final_text: str = ""
+    parallel_stt_provider: str = ""
+    parallel_stt_has_emitted: bool = False
+    parallel_stt_stream_started_at: float = 0.0
+    parallel_stt_last_requested_sample_count: int = 0
+    parallel_stt_task: asyncio.Task[None] | None = None
+    parallel_stt_stream: Any | None = None
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
     waiting_playback_turn_id: str = ""

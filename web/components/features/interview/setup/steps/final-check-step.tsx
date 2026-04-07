@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useRouter } from "next/navigation";
 import { JdCheckForm } from "./jd-check-form";
 import { ResumeCheckForm } from "./resume-check-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { RoleTrainingBriefStep } from "./role-training-brief-step";
+import { InterviewLevelCard } from "./interview-level-card";
 
 type SetupTrack = "posting" | "role";
 
@@ -18,11 +21,13 @@ interface FinalCheckStepProps {
 
 export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
   const router = useRouter();
+  const [isStartingInterview, setIsStartingInterview] = useState(false);
   const {
     jobData,
     updateJobData,
     resumeData,
     updateResumeData,
+    setInterviewSessionId,
     setStep,
   } = useInterviewSetupStore();
 
@@ -30,8 +35,28 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     return <RoleTrainingBriefStep />;
   }
 
-  const handleStartInterview = () => {
-    router.push(`/interview/room/video?duration=10&track=${track}`);
+  const handleStartInterview = async () => {
+    if (isStartingInterview) return;
+    setIsStartingInterview(true);
+    try {
+      const { sessionId } = await startInterviewPreflight({
+        sessionStartEndpoint: "/api/interview/session/start",
+        sessionStartBody: {
+          mode: "video",
+          personality: "professional",
+          jobData,
+          resumeData,
+          targetDurationSec: 10 * 60,
+          closingThresholdSec: 60,
+        },
+      });
+      setInterviewSessionId(sessionId);
+      router.push(`/interview/room/video?duration=10&track=${track}&sessionId=${encodeURIComponent(sessionId)}`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "면접 시작 준비에 실패했습니다.");
+    } finally {
+      setIsStartingInterview(false);
+    }
   };
   const hasResumeData = Boolean(resumeData);
   const isResumeRequired = track === "posting";
@@ -98,6 +123,14 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
         </TabsContent>
       </Tabs>
 
+      <div className="mt-8">
+        <InterviewLevelCard
+          jobData={jobData}
+          resumeData={resumeData}
+          updateJobData={updateJobData}
+        />
+      </div>
+
       <div className="flex justify-between mt-10">
         <Button
           variant="outline"
@@ -109,9 +142,12 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
 
         <Button
           onClick={handleStartInterview}
+          disabled={isStartingInterview}
           className="px-8 h-12 text-base shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 animate-pulse hover:animate-none"
         >
-          면접 시작하기 <ArrowRight className="ml-2 w-4 h-4" />
+          {isStartingInterview ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
+          {isStartingInterview ? "면접 준비 중..." : "면접 시작하기"}
+          {!isStartingInterview ? <ArrowRight className="ml-2 w-4 h-4" /> : null}
         </Button>
       </div>
     </div>

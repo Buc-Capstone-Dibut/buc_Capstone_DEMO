@@ -4,6 +4,8 @@ import hashlib
 import re
 from typing import Any
 
+from app.interview.domain.interview_level import InterviewLevel, resolve_interview_level
+
 COMPLETE_ANSWER_ENDINGS = (
     "습니다",
     "입니다",
@@ -69,14 +71,55 @@ QUESTION_ENDINGS = (
     "공유해 주세요",
     "어떻게 했나요",
 )
-QUESTION_TEXT_TEMPLATES = {
-    "motivation_validation": "{focus_phrase} 경험이 이번 직무와 가장 맞닿아 있다고 판단하신 이유는 무엇인가요?",
-    "metric_validation": "{focus_phrase}에서 어떤 수치나 지표를 기준으로 성과를 검증하셨나요?",
-    "tradeoff": "{focus_phrase}를 진행할 때 어떤 선택지를 비교했고 무엇을 기준으로 결정하셨나요?",
-    "failure_recovery": "{focus_phrase}에서 가장 큰 문제나 장애가 생겼을 때 어떻게 복구하셨나요?",
-    "design_decision": "{focus_phrase}와 관련해, 핵심 설계 결정을 어떻게 내리셨나요?",
-    "collaboration_conflict": "{focus_phrase}를 진행하면서 협업상 조율이 필요했던 순간을 어떻게 해결하셨나요?",
-    "priority_judgment": "{focus_phrase}에서 무엇을 우선순위로 두고 판단하셨나요?",
+QUESTION_TEXT_TEMPLATES: dict[str, dict[str, str]] = {
+    "motivation_validation": {
+        "soft": "{focus_phrase} 경험이 이번 직무와 가장 맞닿아 있다고 판단하신 이유는 무엇인가요?",
+        "hard": "{focus_phrase} 경험이 이번 직무와 직접적으로 이어진다고 보신 근거를 조금 더 분명하게 말씀해 주실 수 있을까요?",
+    },
+    "project_context": {
+        "soft": "{focus_phrase}가 어떤 문제를 풀기 위한 프로젝트였는지 먼저 설명해 주실 수 있을까요?",
+        "hard": "{focus_phrase}가 해결하려던 문제와 프로젝트 목표를 먼저 정리해 주실 수 있을까요?",
+    },
+    "role_contribution": {
+        "soft": "{focus_phrase}에서 본인이 맡았던 역할과 직접 기여한 부분을 중심으로 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 본인이 책임졌던 범위와 실제 의사결정에 관여한 지점을 구체적으로 말씀해 주실 수 있을까요?",
+    },
+    "implementation_detail": {
+        "soft": "{focus_phrase}를 구현하실 때 실제로 어떻게 풀어가셨는지 설명해 주실 수 있을까요?",
+        "hard": "{focus_phrase}를 구현할 때 핵심 로직이나 구조를 어떤 식으로 나눠 설계했는지 구체적으로 말씀해 주실 수 있을까요?",
+    },
+    "problem_solving_process": {
+        "soft": "{focus_phrase}를 진행하면서 어떤 문제를 발견했고, 어떤 순서로 해결하셨는지 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 문제가 생겼을 때 원인을 어떻게 좁혀 갔고, 어떤 기준으로 해결 방향을 정하셨는지 설명해 주실 수 있을까요?",
+    },
+    "learning_reflection": {
+        "soft": "{focus_phrase}를 통해 본인이 가장 크게 배운 점은 무엇이었나요?",
+        "hard": "{focus_phrase}를 다시 진행한다면 다르게 가져갈 판단이나 개선 포인트는 무엇일까요?",
+    },
+    "metric_validation": {
+        "soft": "{focus_phrase}의 성과를 어떻게 확인하셨는지 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 어떤 수치나 지표를 기준으로 성과를 검증하셨나요?",
+    },
+    "tradeoff": {
+        "soft": "{focus_phrase}에서 왜 그 방식을 선택하셨는지 설명해 주실 수 있을까요?",
+        "hard": "{focus_phrase}를 진행할 때 어떤 선택지를 비교했고 무엇을 기준으로 결정하셨나요?",
+    },
+    "failure_recovery": {
+        "soft": "{focus_phrase}에서 가장 어려웠던 문제를 어떻게 해결하셨는지 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 가장 큰 문제나 장애가 생겼을 때 어떻게 복구하셨나요?",
+    },
+    "design_decision": {
+        "soft": "{focus_phrase}와 관련해, 핵심 설계 결정을 어떻게 내리셨나요?",
+        "hard": "{focus_phrase}와 관련해, 대안들과 비교했을 때 왜 그 설계를 채택했는지 설명해 주실 수 있을까요?",
+    },
+    "collaboration_conflict": {
+        "soft": "{focus_phrase}를 진행하면서 협업상 조율이 필요했던 순간을 어떻게 해결하셨나요?",
+        "hard": "{focus_phrase}를 진행하면서 의견이 갈렸던 지점이 있다면, 어떤 기준으로 합의를 이끌어 내셨나요?",
+    },
+    "priority_judgment": {
+        "soft": "{focus_phrase}에서 무엇을 우선순위로 두고 판단하셨나요?",
+        "hard": "{focus_phrase}에서 일정, 품질, 구현 범위가 충돌했을 때 무엇을 우선순위로 두고 판단하셨나요?",
+    },
 }
 FOCUS_KEYWORD_STOPWORDS = {
     "그냥",
@@ -597,6 +640,7 @@ def build_opening_turn_text(
     role: str = "",
     job_data: dict[str, Any] | None = None,
     resume_data: Any = None,
+    interview_level: str | None = None,
     seed_text: str = "",
 ) -> str:
     normalized_company = (company or "").strip()
@@ -604,12 +648,14 @@ def build_opening_turn_text(
     context_target = " ".join(part for part in (normalized_company, normalized_role) if part).strip()
     role_target = normalized_role or "이번 직무"
     focus_term = _extract_opening_focus_term(job_data=job_data, resume_data=resume_data)
+    effective_level = _normalize_interview_level_for_prompt(interview_level, job_data=job_data, resume_data=resume_data)
     variant_seed = seed_text or "|".join(
         (
             session_type,
             normalized_company,
             normalized_role,
             focus_term,
+            effective_level,
         )
     )
     if session_type == "portfolio_defense":
@@ -620,11 +666,30 @@ def build_opening_turn_text(
         )
         return variants[_opening_variant_index(variant_seed, len(variants))]
 
-    variants = [
-        f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
-        f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 본인 기여 중심으로 설명해 주실 수 있을까요?",
-        f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
-    ]
+    if effective_level == "new_grad":
+        variants = [
+            f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+            f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 어떤 문제를 풀었는지와 본인 역할을 함께 설명해 주실 수 있을까요?",
+            f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+        ]
+    elif effective_level == "junior":
+        variants = [
+            f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+            f"안녕하세요. {role_target}와 가장 가까웠던 프로젝트 하나를 골라, 본인 기여와 구현 포인트 중심으로 설명해 주실 수 있을까요?",
+            f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+        ]
+    elif effective_level == "mid":
+        variants = [
+            f"안녕하세요. {role_target}와 가장 직접적으로 연결되는 프로젝트 하나를 골라, 본인 기여와 핵심 설계 판단을 함께 말씀해 주실 수 있을까요?",
+            f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 어떤 판단을 주도했는지 중심으로 설명해 주실 수 있을까요?",
+            f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+        ]
+    else:
+        variants = [
+            f"안녕하세요. {role_target}와 가장 직접적으로 연결되는 프로젝트 하나를 골라, 본인이 주도한 핵심 의사결정과 영향 범위를 함께 말씀해 주실 수 있을까요?",
+            f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 어떤 문제를 어떻게 판단하며 풀었는지 중심으로 설명해 주실 수 있을까요?",
+            f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+        ]
     if focus_term:
         variants.append(
             f"안녕하세요. {role_target}와 관련해 특히 {focus_term} 활용 경험이 있다면, 가장 대표적인 프로젝트 한 가지를 말씀해 주실 수 있을까요?"
@@ -643,9 +708,18 @@ def compose_ai_question_text(
     question_type: str | None,
     strategy: str,
     session_type: str,
+    interview_level: str | None = None,
+    question_index: int = 1,
+    job_data: dict[str, Any] | None = None,
+    resume_data: Any = None,
 ) -> str:
     normalized_strategy = (strategy or "").strip() or "transition"
     normalized_type = (question_type or "").strip() or "metric_validation"
+    effective_level = _normalize_interview_level_for_prompt(
+        interview_level,
+        job_data=job_data,
+        resume_data=resume_data,
+    )
 
     if normalized_strategy == "retry":
         return build_retry_question_text(user_text)
@@ -663,14 +737,52 @@ def compose_ai_question_text(
     focus_phrase = _build_focus_phrase(user_text, session_type=session_type)
     template = QUESTION_TEXT_TEMPLATES.get(
         normalized_type,
-        "{focus_phrase}에서 가장 중요했던 판단 기준을 구체적으로 말씀해 주실 수 있을까요?",
+        {
+            "soft": "{focus_phrase}에서 가장 중요했던 판단 기준을 설명해 주실 수 있을까요?",
+            "hard": "{focus_phrase}에서 가장 중요했던 판단 기준을 구체적으로 말씀해 주실 수 있을까요?",
+        },
     )
-    question = template.format(focus_phrase=focus_phrase).strip()
+    variant = "hard" if _should_use_hard_question_variant(
+        effective_level,
+        question_type=normalized_type,
+        question_index=question_index,
+    ) else "soft"
+    question = template.get(variant, template.get("soft", "")).format(focus_phrase=focus_phrase).strip()
     if question.endswith("?"):
         return question
     if question.endswith(("주세요", "주실 수 있을까요", "주실 수 있나요", "말씀해 주실 수 있을까요")):
         return f"{question}?"
     return question
+
+
+def _normalize_interview_level_for_prompt(
+    interview_level: str | None,
+    *,
+    job_data: dict[str, Any] | None = None,
+    resume_data: Any = None,
+) -> InterviewLevel:
+    return resolve_interview_level(
+        {
+            **(job_data if isinstance(job_data, dict) else {}),
+            "interviewLevel": interview_level or (job_data.get("interviewLevel") if isinstance(job_data, dict) else ""),
+        },
+        resume_data,
+    )
+
+
+def _should_use_hard_question_variant(
+    interview_level: InterviewLevel,
+    *,
+    question_type: str,
+    question_index: int,
+) -> bool:
+    if question_type in {"project_context", "role_contribution", "implementation_detail", "problem_solving_process", "learning_reflection"}:
+        return False
+    if interview_level in {"new_grad", "junior"}:
+        return False
+    if interview_level == "mid":
+        return question_type in {"metric_validation", "tradeoff", "design_decision", "priority_judgment"} and question_index >= 5
+    return question_type in {"metric_validation", "tradeoff", "design_decision", "priority_judgment", "collaboration_conflict"} and question_index >= 4
 
 
 def sanitize_ai_turn_text(text: str) -> str:

@@ -20,6 +20,7 @@ export default function ResumePage() {
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
+    const isNewModeFromUrl = searchParams.get("mode") === "new";
     const [isWizardMode, setIsWizardMode] = useState(isWizardModeFromUrl);
 
     useEffect(() => {
@@ -49,39 +50,13 @@ export default function ResumePage() {
             // 2. Handle prefill from Career Wizard
             if (isPrefill) {
                 const coverLetter = sessionStorage.getItem("prefill_cover_letter");
-                const experienceIdsStr = sessionStorage.getItem("prefill_experience_ids");
-
-                let prefilledPayload = { ...currentPayload };
+                const prefilledPayload = { ...currentPayload };
 
                 if (coverLetter) {
                     prefilledPayload.selfIntroduction = coverLetter;
                 }
 
-                if (experienceIdsStr) {
-                    try {
-                        const ids = experienceIdsStr.split(",").filter(Boolean);
-                        const { getExperiencesByIdsAction } = await import("../career/experiences/actions");
-                        const fetchedExps = await getExperiencesByIdsAction(ids);
-
-                        const newProjects = fetchedExps
-                            .filter(e => !prefilledPayload.projects.some(p => p.id === e.id)) // Avoid duplicates
-                            .map(e => ({
-                                id: e.id || Math.random().toString(36).substring(2, 11),
-                                name: e.company || "경험 기반 프로젝트",
-                                period: e.period || "",
-                                description: e.description || "", // Only map Short Summary as requested
-                                techStack: e.tags || [],
-                                achievements: [],
-                            }));
-
-                        prefilledPayload.projects = [
-                            ...prefilledPayload.projects,
-                            ...newProjects
-                        ];
-                    } catch (error) {
-                        console.error("Failed to fetch experiences for prefill:", error);
-                    }
-                }
+                // (경험 자동 불러오기 로직 삭제됨 - 사용자가 수동으로 불러오도록 변경)
 
                 setResumePayload(prefilledPayload);
                 if (!currentTitle) {
@@ -99,8 +74,8 @@ export default function ResumePage() {
                 return;
             }
 
-            // In setup mode, we start with a clean slate
-            if (isWizardModeFromUrl && !resumeId) {
+            // In setup mode or new mode, we start with a clean slate
+            if ((isWizardModeFromUrl || isNewModeFromUrl) && !resumeId) {
                 setResumePayload(EMPTY_RESUME);
                 setLoading(false);
                 return;
@@ -128,12 +103,12 @@ export default function ResumePage() {
             }
         };
         fetchResume();
-    }, [isWizardModeFromUrl, searchParams]);
+    }, [isNewModeFromUrl, isWizardModeFromUrl, searchParams]);
 
     const handleSave = async (silent = false) => {
         setSaving(true);
         try {
-            const isNew = searchParams.get("mode") === "setup";
+            const isNew = searchParams.get("mode") === "setup" || searchParams.get("mode") === "new";
             const resumeId = searchParams.get("id");
 
             // Determine URL and Method based on mode and presence of ID
@@ -168,10 +143,11 @@ export default function ResumePage() {
             if (!silent && isNew && !resumeId) {
                 router.push("/career/resumes");
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "오류가 발생했습니다.";
             toast({
                 title: "저장 실패",
-                description: err.message || "오류가 발생했습니다.",
+                description: message,
                 variant: "destructive",
             });
         } finally {
@@ -186,7 +162,7 @@ export default function ResumePage() {
                     <Loader2 className="w-12 h-12 animate-spin text-primary" />
                     <Sparkles className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
-                <p className="text-sm font-medium text-slate-500 animate-pulse">AI가 이력서 정보를 분석하고 있습니다...</p>
+                <p className="text-sm font-medium text-slate-500 animate-pulse">저장된 데이터와 이력서를 불러오는 중입니다...</p>
             </div>
         );
     }
@@ -237,8 +213,8 @@ export default function ResumePage() {
                         </Button>
                         <div>
                             <h1 className="text-lg font-bold flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-primary" />
-                                AI 이력서 연구소
+                                {/* <Sparkles className="w-4 h-4 text-primary" /> */}
+                                이력서 연구소
                             </h1>
                             <p className="text-[11px] text-muted-foreground font-medium">나만의 고유한 강점을 이력서에 담아보세요</p>
                         </div>

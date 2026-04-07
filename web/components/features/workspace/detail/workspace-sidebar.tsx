@@ -9,8 +9,6 @@ import {
   FileText,
   Lightbulb,
   ChevronLeft,
-  PanelLeftClose,
-  PanelLeftOpen,
   Hash,
   Plus,
   Volume2,
@@ -65,8 +63,6 @@ interface WorkspaceSidebarProps {
   projectId: string;
   activeTab: string;
   onTabChange: (tab: string) => void;
-  collapsed?: boolean;
-  onToggleCollapsed?: () => void;
 }
 
 type WorkspaceSummary = {
@@ -116,8 +112,6 @@ export function WorkspaceSidebar({
   projectId,
   activeTab,
   onTabChange,
-  collapsed = false,
-  onToggleCollapsed,
 }: WorkspaceSidebarProps) {
   const router = useRouter();
   const {
@@ -348,69 +342,16 @@ export function WorkspaceSidebar({
     ...(isOwner ? [{ id: "settings", label: "설정", icon: Settings }] : []),
   ];
 
-  if (collapsed) {
-    return (
-      <div className="flex h-full w-14 flex-col items-center border-r bg-muted/10 py-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          onClick={onToggleCollapsed}
-          title="사이드바 펼치기"
-          aria-label="사이드바 펼치기"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </Button>
-
-        <div className="my-3 h-px w-8 bg-border" />
-
-        <div className="flex flex-col items-center gap-1">
-          {navItems.map((item) => (
-            <Button
-              key={item.id}
-              type="button"
-              variant={activeTab === item.id ? "secondary" : "ghost"}
-              size="icon"
-              className={cn(
-                "h-9 w-9",
-                activeTab === item.id && "bg-secondary",
-              )}
-              onClick={() => onTabChange(item.id)}
-              title={item.label}
-              aria-label={item.label}
-            >
-              <item.icon className="h-4 w-4" />
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-64 border-r bg-muted/10 h-full flex flex-col">
       <div className="p-4 border-b">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <Link
-            href="/workspace"
-            className="flex min-w-0 items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-            <span className="truncate">프로젝트 목록</span>
-          </Link>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={onToggleCollapsed}
-            title="사이드바 접기"
-            aria-label="사이드바 접기"
-          >
-            <PanelLeftClose className="h-4 w-4" />
-          </Button>
-        </div>
+        <Link
+          href="/workspace"
+          className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          프로젝트 목록
+        </Link>
 
         {/* Unified Project Switcher */}
         {(() => {
@@ -536,10 +477,7 @@ export function WorkspaceSidebar({
                 canManageChannels && !isReadOnly && channel.name !== "general";
 
               return (
-                <div
-                  key={channel.id}
-                  className="group flex items-center gap-1"
-                >
+                <div key={channel.id} className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     className={cn(
@@ -601,8 +539,7 @@ export function WorkspaceSidebar({
                     <button
                       type="button"
                       className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-all",
-                        "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors",
                         "hover:bg-muted hover:text-red-600",
                       )}
                       onClick={(event) => {

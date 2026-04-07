@@ -9,6 +9,7 @@ from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
 if TYPE_CHECKING:
     from app.services.gemini_live_voice_service import GeminiLiveSttService, GeminiLiveTtsService
+    from app.services.stt_service import GoogleCloudSttService
 
 
 def create_live_interview_session() -> GeminiLiveInterviewSession:
@@ -51,6 +52,27 @@ def get_fallback_stt_service() -> GeminiLiveSttService:
     return get_live_stt_service()
 
 
+@lru_cache(maxsize=1)
+def get_parallel_stt_service() -> GoogleCloudSttService:
+    from app.services.stt_service import GoogleCloudSttService
+
+    return GoogleCloudSttService(
+        model=(settings.google_cloud_stt_model or "").strip() or "latest_long",
+        language_code=(settings.google_cloud_stt_language_code or "").strip() or "ko-KR",
+        max_alternatives=max(1, int(settings.google_cloud_stt_max_alternatives or 1)),
+        phrase_hint_boost=max(0.0, float(settings.google_cloud_stt_phrase_hint_boost or 0.0)),
+        quota_project_id=(settings.google_cloud_project or "").strip() or None,
+        service_account_file=(settings.google_application_credentials or "").strip() or None,
+        service_account_json_base64=(settings.gemini_service_account_json_base64 or "").strip() or None,
+    )
+
+
+def build_parallel_stt_phrase_hints(job_data: dict[str, Any] | None, resume_data: Any) -> list[str]:
+    from app.services.stt_service import build_session_stt_phrase_hints
+
+    return build_session_stt_phrase_hints(job_data=job_data, resume_data=resume_data)
+
+
 def elapsed_seconds(started_at: datetime | None) -> int:
     if not isinstance(started_at, datetime):
         return 0
@@ -72,5 +94,7 @@ __all__ = [
     "get_live_stt_service",
     "get_fallback_stt_service",
     "get_fallback_tts_service",
+    "get_parallel_stt_service",
+    "build_parallel_stt_phrase_hints",
     "latest_user_answer",
 ]

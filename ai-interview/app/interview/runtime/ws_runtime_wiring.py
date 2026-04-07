@@ -8,6 +8,7 @@ from app.interview.runtime.executor import RuntimeExecutorDeps
 from app.interview.runtime.lifecycle import RuntimeLifecycleDeps
 from app.interview.runtime.live_client import LiveClientDeps
 from app.interview.runtime.message_router import ClientMessageRouterDeps
+from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.session_engine import SessionEngineDeps
 from app.interview.runtime.session_interaction import ResumeListeningDeps
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
@@ -121,6 +122,8 @@ def build_session_engine_deps(
     hydrate_state_from_session_row: Callable[..., None],
     resume_existing_session: Callable[..., Awaitable[bool]],
     generate_and_send_opening_live_turn: Callable[..., Awaitable[bool]],
+    send_prepared_opening_live_turn: Callable[..., Awaitable[bool]] | None,
+    consume_prepared_opening: Callable[[str], PreparedOpeningArtifact | None] | None,
     send_json: Callable[..., Awaitable[bool]],
     send_avatar_state: Callable[..., Awaitable[bool]],
     send_runtime_meta_snapshot: Callable[..., Awaitable[bool]],
@@ -155,6 +158,9 @@ def build_session_engine_deps(
     resume_listening: Callable[..., Awaitable[Any]],
     next_ai_turn_id: Callable[[str], str],
     commit_live_input_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
+    finalize_parallel_stt_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None,
+    update_turn_content: Callable[..., Awaitable[Any]] | None = None,
+    parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=create_live_interview_session,
@@ -168,6 +174,8 @@ def build_session_engine_deps(
         hydrate_state_from_session_row=hydrate_state_from_session_row,
         resume_existing_session=resume_existing_session,
         generate_and_send_opening_live_turn=generate_and_send_opening_live_turn,
+        send_prepared_opening_live_turn=send_prepared_opening_live_turn,
+        consume_prepared_opening=consume_prepared_opening,
         send_json=send_json,
         send_avatar_state=send_avatar_state,
         send_runtime_meta_snapshot=send_runtime_meta_snapshot,
@@ -187,6 +195,7 @@ def build_session_engine_deps(
         reset_realtime_user_transcript=reset_realtime_user_transcript,
         remember_user_turn=remember_user_turn,
         persist_turn=persist_turn,
+        update_turn_content=update_turn_content,
         send_transcript=send_transcript,
         log_runtime_event=log_runtime_event,
         is_short_stt_result=is_short_stt_result,
@@ -201,7 +210,9 @@ def build_session_engine_deps(
         resume_listening=resume_listening,
         next_ai_turn_id=next_ai_turn_id,
         commit_live_input_stream=commit_live_input_stream,
+        finalize_parallel_stt_stream=finalize_parallel_stt_stream,
         runtime_architecture=runtime_architecture,
+        parallel_refine_user_audio=parallel_refine_user_audio,
     )
 
 
@@ -215,6 +226,7 @@ def build_client_message_router_deps(
     enqueue_user_segment: Callable[..., Awaitable[None]],
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None,
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None,
+    push_parallel_stt_audio_chunk: Callable[[Any, VoiceWsState, list[float], int], Awaitable[bool]] | None,
     reset_realtime_user_transcript: Callable[[VoiceWsState], None],
     resume_listening: Callable[..., Awaitable[Any]],
     cancel_playback_resume_task: Callable[[VoiceWsState], None],
@@ -228,6 +240,7 @@ def build_client_message_router_deps(
         enqueue_user_segment=enqueue_user_segment,
         begin_live_input_stream=begin_live_input_stream,
         push_live_input_audio_chunk=push_live_input_audio_chunk,
+        push_parallel_stt_audio_chunk=push_parallel_stt_audio_chunk,
         reset_realtime_user_transcript=reset_realtime_user_transcript,
         resume_listening=resume_listening,
         cancel_playback_resume_task=cancel_playback_resume_task,

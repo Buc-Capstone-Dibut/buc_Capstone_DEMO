@@ -214,6 +214,23 @@ def reset_voice_runtime_state(
     state.pending_user_segments = []
     state.realtime_user_transcript = ""
     state.realtime_user_delta_seq = 0
+    if state.parallel_stt_task and not state.parallel_stt_task.done():
+        state.parallel_stt_task.cancel()
+    state.parallel_stt_task = None
+    if state.parallel_stt_stream is not None:
+        try:
+            state.parallel_stt_stream.close()
+        except Exception:
+            pass
+    state.parallel_stt_stream = None
+    state.parallel_stt_turn_id = ""
+    state.parallel_stt_sample_rate = 16000
+    state.parallel_stt_samples = []
+    state.parallel_stt_phrase_hints = []
+    state.parallel_stt_best_text = ""
+    state.parallel_stt_final_text = ""
+    state.parallel_stt_provider = ""
+    state.parallel_stt_last_requested_sample_count = 0
     state.last_ai_tts_text = ""
     state.last_ai_audio_guard_until = 0.0
     state.waiting_playback_turn_id = ""

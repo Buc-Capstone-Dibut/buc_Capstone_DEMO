@@ -19,13 +19,13 @@ import {
   type MouseEvent,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Hash } from "lucide-react";
 import { toast } from "sonner";
 import {
   createWorkspaceDocAssetAccessPath,
   parseWorkspaceDocAssetUrl,
 } from "@/lib/workspace-doc-assets";
-import { safeBlockNotePasteHandler } from "@/components/features/workspace/docs/blocknote-paste";
 
 interface UserInfo {
   name: string;
@@ -51,14 +51,7 @@ interface NormalDocumentEditorProps {
 }
 
 export interface NormalDocumentEditorHandle {
-  saveNow: (options?: {
-    silent?: boolean;
-    header?: {
-      title: string;
-      emoji: string | null;
-      authorId?: string | null;
-    };
-  }) => Promise<boolean>;
+  saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
 }
 
@@ -74,16 +67,8 @@ const PAPER_SURFACE_STYLE = {
   "--bn-border-radius": "0px",
 } as CSSProperties;
 
-function normalizeSnapshotBlocks(blocks: unknown): PartialBlock[] {
-  if (!Array.isArray(blocks)) {
-    return [];
-  }
-
-  return JSON.parse(JSON.stringify(blocks)) as PartialBlock[];
-}
-
 function serializeBlocks(blocks: unknown) {
-  return JSON.stringify(normalizeSnapshotBlocks(blocks));
+  return JSON.stringify(Array.isArray(blocks) ? blocks : []);
 }
 
 export const NormalDocumentEditor = forwardRef<
@@ -101,10 +86,9 @@ export const NormalDocumentEditor = forwardRef<
   }: NormalDocumentEditorProps,
   ref,
 ) {
+  const { theme } = useTheme();
   const pathname = usePathname();
-  const lastSavedSnapshotRef = useRef(
-    serializeBlocks(normalizeSnapshotBlocks(initialContent)),
-  );
+  const lastSavedSnapshotRef = useRef(serializeBlocks(initialContent));
   const latestDirtyRef = useRef(false);
 
   const resolvedWorkspaceId = useMemo(() => {
@@ -172,7 +156,6 @@ export const NormalDocumentEditor = forwardRef<
         }
         return uploadAsset(file);
       },
-      pasteHandler: safeBlockNotePasteHandler,
       resolveFileUrl: resolveAssetUrl,
       initialContent:
         Array.isArray(initialContent) && initialContent.length > 0
@@ -191,6 +174,11 @@ export const NormalDocumentEditor = forwardRef<
   );
 
   useEffect(() => {
+    lastSavedSnapshotRef.current = serializeBlocks(initialContent);
+    emitDirtyChange(false);
+  }, [docId, emitDirtyChange, initialContent]);
+
+  useEffect(() => {
     if (
       initialContent &&
       Array.isArray(initialContent) &&
@@ -206,29 +194,18 @@ export const NormalDocumentEditor = forwardRef<
               currentBlocks[0].content.length === 0)));
 
       if (isDefault) {
-        const normalizedInitialContent = normalizeSnapshotBlocks(initialContent);
-        editor.replaceBlocks(editor.document, normalizedInitialContent);
-        lastSavedSnapshotRef.current = serializeBlocks(normalizedInitialContent);
+        editor.replaceBlocks(editor.document, initialContent as PartialBlock[]);
+        lastSavedSnapshotRef.current = serializeBlocks(initialContent);
         emitDirtyChange(false);
       }
     }
   }, [editor, emitDirtyChange, initialContent]);
 
   const saveCurrentState = useCallback(
-    async (options?: {
-      silent?: boolean;
-      header?: {
-        title: string;
-        emoji: string | null;
-        authorId?: string | null;
-      };
-    }) => {
-      const snapshot = normalizeSnapshotBlocks(editor.document);
-      const serializedSnapshot = serializeBlocks(snapshot);
-
+    async (options?: { silent?: boolean }) => {
       if (!resolvedWorkspaceId || readOnly) {
-        lastSavedSnapshotRef.current = serializedSnapshot;
-        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
+        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
+        emitDirtyChange(false);
         return true;
       }
 
@@ -241,16 +218,7 @@ export const NormalDocumentEditor = forwardRef<
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              content: snapshot,
-              ...(options?.header
-                ? {
-                    title: options.header.title,
-                    emoji: options.header.emoji,
-                    ...(options.header.authorId
-                      ? { authorId: options.header.authorId }
-                      : {}),
-                  }
-                : {}),
+              content: editor.document,
             }),
           },
         );
@@ -262,8 +230,8 @@ export const NormalDocumentEditor = forwardRef<
           );
         }
 
-        lastSavedSnapshotRef.current = serializedSnapshot;
-        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
+        lastSavedSnapshotRef.current = serializeBlocks(editor.document);
+        emitDirtyChange(false);
         return true;
       } catch (error) {
         if (!options?.silent) {
@@ -418,13 +386,12 @@ export const NormalDocumentEditor = forwardRef<
       >
         <BlockNoteView
           editor={editor}
-          theme="light"
+          theme={theme === "dark" ? "dark" : "light"}
           editable={!readOnly}
           linkToolbar={false}
           onChange={() => {
             emitDirtyChange(
-              serializeBlocks(normalizeSnapshotBlocks(editor.document)) !==
-                lastSavedSnapshotRef.current,
+              serializeBlocks(editor.document) !== lastSavedSnapshotRef.current,
             );
           }}
           className="min-h-[calc(100vh-24rem)] px-6 py-8 [&_.bn-editor]:rounded-none [&_.bn-editor]:bg-transparent [&_.bn-editor]:shadow-none"

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, FileText, FileBadge } from "lucide-react";
+import { FolderKanban, FileText, FileBadge, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Footer } from "@/components/layout/footer";
 
@@ -10,15 +10,16 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   const tabs = [
-    { name: "나의 경험 타임라인", href: "/career/experiences", icon: FolderKanban },
-    { name: "내 자소서 관리", href: "/career/cover-letters", icon: FileText },
-    { name: "내 이력서 캐비닛", href: "/career/resumes", icon: FileBadge },
+    { name: "경험 타임라인", href: "/career/experiences", icon: FolderKanban },
+    { name: "경력 보관함", href: "/career/work-experience", icon: Building2 },
+    { name: "자소서 관리", href: "/career/cover-letters", icon: FileText },
+    { name: "이력서 캐비닛", href: "/career/resumes", icon: FileBadge },
   ];
 
   return (
     <div className="flex min-h-full flex-col bg-slate-50/50 dark:bg-slate-950/50 w-full overflow-x-hidden">
       <div className="w-full flex flex-1 justify-center max-w-[1920px] mx-auto">
-        
+
         {/* 1. Left Vertical Menu (Desktop Only) */}
         <div className="w-56 shrink-0 hidden lg:block pt-12 xl:pt-20 px-2 lg:px-4 z-40">
           <div className="sticky top-24 flex flex-col gap-2">
@@ -46,7 +47,7 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
 
         {/* 2. Main Content Area (Perfectly Centered Mathematically) */}
         <div className="flex-1 max-w-7xl w-full bg-transparent relative">
-          
+
           {/* Mobile Fallback Navigation (Top Horizontal Tabs for small screens) */}
           <div className="lg:hidden w-full pt-8 pb-4 px-4 sm:px-8">
             <div className="flex items-center gap-1 p-1 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm rounded-2xl w-fit border border-slate-200/50 dark:border-slate-700/50 shadow-sm overflow-x-auto no-scrollbar">

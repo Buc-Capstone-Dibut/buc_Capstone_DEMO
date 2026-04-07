@@ -20,13 +20,13 @@ import {
   type MouseEvent,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Hash } from "lucide-react";
 import { toast } from "sonner";
 import {
   createWorkspaceDocAssetAccessPath,
   parseWorkspaceDocAssetUrl,
 } from "@/lib/workspace-doc-assets";
-import { safeBlockNotePasteHandler } from "@/components/features/workspace/docs/blocknote-paste";
 
 interface UserInfo {
   name: string;
@@ -45,7 +45,6 @@ interface DocumentEditorProps {
   workspaceId?: string;
   readOnly?: boolean;
   user?: UserInfo;
-  initialYjsState?: string | null;
   onTaskLinked?: () => void;
   onOpenTask?: (taskId: string) => void;
   collabToken: string;
@@ -54,14 +53,7 @@ interface DocumentEditorProps {
 }
 
 export interface DocumentEditorHandle {
-  saveNow: (options?: {
-    silent?: boolean;
-    header?: {
-      title: string;
-      emoji: string | null;
-      authorId?: string | null;
-    };
-  }) => Promise<boolean>;
+  saveNow: (options?: { silent?: boolean }) => Promise<boolean>;
   hasUnsavedChanges: () => boolean;
 }
 
@@ -88,7 +80,6 @@ export const DocumentEditor = forwardRef<
     workspaceId,
     readOnly = false,
     user,
-    initialYjsState,
     onTaskLinked,
     onOpenTask,
     collabToken,
@@ -97,11 +88,9 @@ export const DocumentEditor = forwardRef<
   }: DocumentEditorProps,
   ref,
 ) {
+  const { theme } = useTheme();
   const pathname = usePathname();
   const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const generatedUserInfoRef = useRef<UserInfo | null>(null);
-  const userName = user?.name;
-  const userColor = user?.color;
 
   const resolvedWorkspaceId = useMemo(() => {
     if (workspaceId) return workspaceId;
@@ -160,66 +149,28 @@ export const DocumentEditor = forwardRef<
     return url;
   }, []);
 
-  const decodeYjsState = useCallback((encodedState: string) => {
-    if (typeof window === "undefined") {
-      return Uint8Array.from(Buffer.from(encodedState, "base64"));
-    }
-
-    const binary = window.atob(encodedState);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    return bytes;
-  }, []);
-
-  const userInfo = useMemo(() => {
-    if (userName && userColor) {
-      return {
-        name: userName,
-        color: userColor,
-      };
-    }
-
-    if (!generatedUserInfoRef.current) {
-      generatedUserInfoRef.current =
-        typeof window === "undefined"
-          ? { name: "Anonymous", color: "#ff0000" }
-          : {
-              name: getRandomName(),
-              color: getRandomColor(),
-            };
-    }
-
-    return generatedUserInfoRef.current;
-  }, [userColor, userName]);
-
   // Create Yjs provider and doc
   const { doc, provider } = useMemo(() => {
     const ydoc = new Y.Doc();
-
-    if (initialYjsState) {
-      try {
-        Y.applyUpdate(ydoc, decodeYjsState(initialYjsState));
-      } catch (error) {
-        console.error("Failed to preload collaboration state", error);
-      }
-    }
-
-    const websocketProvider = new WebsocketProvider(
-      WS_URL,
-      `doc:${docId}`,
-      ydoc,
-      {
-        connect: false,
-        params: {
-          token: collabToken,
-        },
+    const websocketProvider = new WebsocketProvider(WS_URL, `doc:${docId}`, ydoc, {
+      params: {
+        token: collabToken,
       },
-    );
-
+    });
     return { doc: ydoc, provider: websocketProvider };
-  }, [collabToken, decodeYjsState, docId, initialYjsState]);
+  }, [collabToken, docId]);
+
+  // Stable user info
+  const userInfo = useMemo(() => {
+    if (user) return user;
+    if (typeof window === "undefined") {
+      return { name: "Anonymous", color: "#ff0000" };
+    }
+    return {
+      name: getRandomName(),
+      color: getRandomColor(),
+    };
+  }, [user]);
 
   const editor = useCreateBlockNote(
     {
@@ -234,19 +185,9 @@ export const DocumentEditor = forwardRef<
         }
         return uploadAsset(file);
       },
-      pasteHandler: safeBlockNotePasteHandler,
       resolveFileUrl: resolveAssetUrl,
     },
-    [
-      doc,
-      provider,
-      readOnly,
-      userInfo.color,
-      userInfo.name,
-      docId,
-      resolvedWorkspaceId,
-      resolveAssetUrl,
-    ],
+    [doc, provider, readOnly, userInfo, docId, resolvedWorkspaceId, resolveAssetUrl],
   );
 
   useImperativeHandle(
@@ -268,9 +209,6 @@ export const DocumentEditor = forwardRef<
       }
       onStatusChange?.("unstable");
     };
-    const handleProviderSync = (synced: boolean) => {
-      onStatusChange?.(synced ? "synced" : "connecting");
-    };
 
     const updateParticipants = () => {
       const users = Array.from(provider.awareness.getStates().values())
@@ -290,15 +228,15 @@ export const DocumentEditor = forwardRef<
     };
 
     provider.on("status", handleProviderStatus);
-    provider.on("sync", handleProviderSync);
+    provider.on("sync", (synced: boolean) => {
+      onStatusChange?.(synced ? "synced" : "connecting");
+    });
     provider.awareness.on("change", updateParticipants);
     doc.on("update", handleDocUpdate);
-    provider.connect();
     updateParticipants();
 
     return () => {
       provider.off("status", handleProviderStatus);
-      provider.off("sync", handleProviderSync);
       provider.awareness.off("change", updateParticipants);
       doc.off("update", handleDocUpdate);
       if (saveIndicatorTimerRef.current) {
@@ -443,7 +381,7 @@ export const DocumentEditor = forwardRef<
       >
         <BlockNoteView
           editor={editor}
-          theme="light"
+          theme={theme === "dark" ? "dark" : "light"}
           editable={!readOnly}
           linkToolbar={false}
           className="min-h-[calc(100vh-24rem)] px-6 py-8 [&_.bn-editor]:rounded-none [&_.bn-editor]:bg-transparent [&_.bn-editor]:shadow-none"

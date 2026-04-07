@@ -51,7 +51,13 @@ export interface ResumePayload {
     position: string;
     period: string;
     description: string;
-    // --- Career Timeline Additions ---
+  }>;
+  timeline?: Array<{
+    id?: string;
+    company: string;
+    position: string;
+    period: string;
+    description: string;
     tags?: string[];
     situation?: string;
     role?: string;
@@ -69,7 +75,6 @@ export interface ResumePayload {
     description: string;
     techStack: string[];
     achievements: string[];
-    // --- Career Timeline Additions ---
     tags?: string[];
     situation?: string;
     role?: string;

@@ -89,6 +89,7 @@ async def send_transcript(
     text: str,
     *,
     turn_id: str | None = None,
+    provider: str | None = None,
 ) -> bool:
     normalized = (text or "").strip()
     if normalized:
@@ -99,17 +100,17 @@ async def send_transcript(
             role,
             normalized,
         )
-    return await send_json(
-        ws,
-        {
-            "type": "transcript.final",
-            "role": role,
-            "text": text,
-            "sessionId": session_id,
-            "turnId": turn_id,
-            "timestamp": int(time.time()),
-        },
-    )
+    payload = {
+        "type": "transcript.final",
+        "role": role,
+        "text": text,
+        "sessionId": session_id,
+        "turnId": turn_id,
+        "timestamp": int(time.time()),
+    }
+    if provider:
+        payload["provider"] = provider
+    return await send_json(ws, payload)
 
 
 async def send_transcript_delta(
@@ -121,6 +122,7 @@ async def send_transcript_delta(
     sequence: int,
     *,
     turn_id: str | None = None,
+    provider: str | None = None,
 ) -> bool:
     normalized_delta = (delta or "").strip()
     if role == "ai" and normalized_delta:
@@ -131,19 +133,19 @@ async def send_transcript_delta(
             sequence,
             normalized_delta,
         )
-    return await send_json(
-        ws,
-        {
-            "type": "transcript.delta",
-            "role": role,
-            "delta": delta,
-            "accumulatedText": accumulated_text,
-            "sessionId": session_id,
-            "turnId": turn_id,
-            "seq": sequence,
-            "timestamp": int(time.time()),
-        },
-    )
+    payload = {
+        "type": "transcript.delta",
+        "role": role,
+        "delta": delta,
+        "accumulatedText": accumulated_text,
+        "sessionId": session_id,
+        "turnId": turn_id,
+        "seq": sequence,
+        "timestamp": int(time.time()),
+    }
+    if provider:
+        payload["provider"] = provider
+    return await send_json(ws, payload)
 
 
 async def send_runtime_meta_snapshot(

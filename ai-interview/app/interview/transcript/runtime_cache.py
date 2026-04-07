@@ -14,6 +14,7 @@ def reset_realtime_user_transcript(state: VoiceWsState) -> None:
 def append_cached_turn(
     state: VoiceWsState,
     *,
+    row_id: str | None = None,
     role: str,
     content: str,
     channel: str = "text",
@@ -27,6 +28,8 @@ def append_cached_turn(
         "content": (content or "").strip(),
         "payload": payload if isinstance(payload, dict) else {},
     }
+    if row_id:
+        cached_turn["id"] = row_id
     if turn_index is not None:
         cached_turn["turn_index"] = turn_index
     if isinstance(created_at, datetime):
@@ -34,6 +37,27 @@ def append_cached_turn(
     state.turn_history.append(cached_turn)
     if cached_turn["role"] in {"model", "ai"}:
         state.model_turn_count += 1
+
+
+def update_cached_turn_content(
+    state: VoiceWsState,
+    *,
+    row_id: str,
+    content: str,
+    payload: dict[str, Any] | None = None,
+) -> bool:
+    normalized_row_id = str(row_id or "").strip()
+    if not normalized_row_id:
+        return False
+
+    for cached_turn in reversed(state.turn_history):
+        if str(cached_turn.get("id") or "").strip() != normalized_row_id:
+            continue
+        cached_turn["content"] = (content or "").strip()
+        if isinstance(payload, dict):
+            cached_turn["payload"] = payload
+        return True
+    return False
 
 
 def mark_session_status(state: VoiceWsState, status: str, *, phase: str | None = None) -> None:
@@ -75,6 +99,7 @@ def hydrate_state_from_turns(
     for turn in turns:
         append_cached_turn(
             state,
+            row_id=str(turn.get("id") or "") or None,
             role=str(turn.get("role") or "user"),
             content=str(turn.get("content") or ""),
             channel=str(turn.get("channel") or "text"),

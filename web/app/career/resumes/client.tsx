@@ -19,7 +19,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
   const [localResumes, setLocalResumes] = useState(resumes);
   
   const handleCreateNew = () => {
-    router.push("/resume?mode=setup");
+    router.push("/resume?mode=new");
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {

@@ -2,10 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
+import {
+  getInterviewPlaybackAudioContext,
+  isInterviewPlaybackAudioReady,
+  prepareInterviewPlaybackAudio,
+  releaseInterviewPlaybackAudio,
+} from "@/lib/interview/playback-audio";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
-const AUDIO_DRAIN_SETTLE_MS = 80;
-const MIC_RESTART_COOLDOWN_MS = 120;
+const AUDIO_DRAIN_SETTLE_MS = 30;
 const RECONNECT_BASE_DELAY_MS = 900;
 const RECONNECT_MAX_DELAY_MS = 4000;
 
@@ -28,7 +33,7 @@ interface UseOpenLLMProps {
   onTranscript?: (
     text: string,
     role: "user" | "ai",
-    meta?: { turnId?: string },
+    meta?: { turnId?: string; provider?: string },
   ) => void;
   onEvent?: (event: Record<string, unknown>) => void;
 }
@@ -119,15 +124,12 @@ export function useOpenLLM({
   }, [onEvent]);
 
   const getOrCreateAudioContext = useCallback((): AudioContext | null => {
-    if (typeof window === "undefined") return null;
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      return audioContextRef.current;
+    const sharedContext = getInterviewPlaybackAudioContext();
+    if (!sharedContext) return null;
+    audioContextRef.current = sharedContext;
+    if (isInterviewPlaybackAudioReady() && sharedContext.state === "running") {
+      audioUnlockedRef.current = true;
     }
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return null;
-    audioContextRef.current = new AudioContextClass();
     return audioContextRef.current;
   }, []);
 
@@ -183,16 +185,6 @@ export function useOpenLLM({
     pendingPlaybackDrainTimerRef.current = null;
   }, []);
 
-  const schedulePendingMicRestart = useCallback(() => {
-    clearPendingMicRestart();
-    pendingMicRestartTimerRef.current = window.setTimeout(() => {
-      pendingMicRestartTimerRef.current = null;
-      if (!pendingStartMicRef.current) return;
-      pendingStartMicRef.current = false;
-      void startMicRef.current();
-    }, MIC_RESTART_COOLDOWN_MS);
-  }, [clearPendingMicRestart]);
-
   const sendJson = useCallback((payload: Record<string, unknown>) => {
     if (socketRef.current?.readyState !== WebSocket.OPEN) return false;
     socketRef.current.send(JSON.stringify(payload));
@@ -242,10 +234,12 @@ export function useOpenLLM({
     }
 
     if (pendingStartMicRef.current && !isMicStreamingRef.current && !isMicStartingRef.current) {
-      schedulePendingMicRestart();
+      pendingStartMicRef.current = false;
+      clearPendingMicRestart();
+      void startMicRef.current();
     }
     return true;
-  }, [clearPendingPlaybackDrainCheck, hasPendingAiAudio, schedulePendingMicRestart, sendPlaybackComplete]);
+  }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, hasPendingAiAudio, sendPlaybackComplete]);
 
   const schedulePlaybackDrainCheck = useCallback((ctx?: AudioContext | null) => {
     const currentCtx = ctx ?? audioContextRef.current;
@@ -346,7 +340,7 @@ export function useOpenLLM({
     }
 
     try {
-      await ctx.resume();
+      await prepareInterviewPlaybackAudio();
       const resumedState = ctx.state;
       audioUnlockedRef.current = resumedState === "running";
       if (!audioUnlockedRef.current) {
@@ -380,7 +374,7 @@ export function useOpenLLM({
       clearPendingMicRestart();
       clearReconnectTimer();
       clearPendingPlaybackDrainCheck();
-      audioContextRef.current?.close();
+      void releaseInterviewPlaybackAudio();
     };
   }, [clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, unlockAudioContext]);
 
@@ -593,6 +587,7 @@ export function useOpenLLM({
         }
         onTranscriptRef.current?.(event.text, event.role, {
           turnId: typeof event.turnId === "string" ? event.turnId : "",
+          provider: typeof event.provider === "string" ? event.provider : "",
         });
       }
       return;

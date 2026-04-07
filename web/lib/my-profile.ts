@@ -209,6 +209,7 @@ export async function syncResumeToProfile(userId: string, incomingPayload: any) 
   const masterPayload: any = profile?.resume_payload || {
     personalInfo: { name: "", email: "", phone: "", intro: "", links: {} },
     experience: [],
+    timeline: [],
     projects: [],
     skills: [],
     selfIntroduction: "",
@@ -216,6 +217,7 @@ export async function syncResumeToProfile(userId: string, incomingPayload: any) 
   };
 
   const incomingExp = Array.isArray(incomingPayload.experience) ? incomingPayload.experience : [];
+  const incomingTimeline = Array.isArray(incomingPayload.timeline) ? incomingPayload.timeline : [];
   const incomingPrj = Array.isArray(incomingPayload.projects) ? incomingPayload.projects : [];
   const incomingCl = Array.isArray(incomingPayload.coverLetters) ? incomingPayload.coverLetters : [];
 
@@ -235,6 +237,20 @@ export async function syncResumeToProfile(userId: string, incomingPayload: any) 
   });
 
   masterPayload.experience = Array.from(expMap.values());
+
+  // 2.5 Merge Timeline (STADRI)
+  const masterTimeline = Array.isArray(masterPayload.timeline) ? masterPayload.timeline : [];
+  const timelineMap = new Map(masterTimeline.map((e: any) => [e.id || e.company, e]));
+
+  incomingTimeline.forEach((e: any) => {
+    const key = e.id || e.company;
+    if (key) {
+      const existing = timelineMap.get(key);
+      timelineMap.set(key, existing ? { ...existing, ...e } : e);
+    }
+  });
+
+  masterPayload.timeline = Array.from(timelineMap.values());
 
   // 3. Merge Cover Letters
   const masterCoverLetters = Array.isArray(masterPayload.coverLetters) ? masterPayload.coverLetters : [];

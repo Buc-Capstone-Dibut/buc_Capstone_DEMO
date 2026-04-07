@@ -122,6 +122,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
       setJobData({
         role: result.title || "Unknown Position",
         company: result.company || "Unknown Company",
+        interviewLevel: "auto",
         companyDescription: result.description || "",
         teamCulture: result.culture || [],
         techStack: result.techStack || [],

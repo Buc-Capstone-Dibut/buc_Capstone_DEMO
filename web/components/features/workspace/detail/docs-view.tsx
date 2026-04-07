@@ -2,28 +2,21 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
 import {
   DocumentEditor,
+  type DocumentEditorHandle,
 } from "@/components/features/workspace/docs/editor";
 import {
   NormalDocumentEditor,
+  type NormalDocumentEditorHandle,
 } from "@/components/features/workspace/docs/normal-editor";
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
@@ -43,13 +36,9 @@ import {
   UserRound,
   Users,
   WifiOff,
-  LayoutTemplate,
-  CopyPlus,
-  PencilLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -76,7 +65,6 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { useDebouncedCallback } from "use-debounce";
 import { useAuth } from "@/hooks/use-auth";
-import { registerDocsBeforeLeaveHandler } from "@/lib/docs-before-leave";
 
 // Stable color generator
 const stringToColor = (str: string) => {
@@ -159,14 +147,6 @@ type WorkspaceMeta = {
   }>;
 };
 
-type WorkspaceSettingsResponse = {
-  success?: boolean;
-  data?: {
-    publicSummary?: unknown;
-    settingsPayload?: Record<string, unknown> | null;
-  };
-};
-
 type LinkedTaskRelation = {
   id: string;
   relation_type: string;
@@ -197,47 +177,17 @@ type DocTemplate = {
   id: string;
   name: string;
   description: string;
-  emoji: string | null;
+  emoji: string;
   title: string;
-  createdAt: string;
-  updatedAt: string;
-  sourceDocId: string | null;
 };
 
 type EmojiSelection = {
   native?: string;
 };
 
-type EditorHandle = {
-  saveNow: (options?: {
-    silent?: boolean;
-    header?: {
-      title: string;
-      emoji: string | null;
-      authorId?: string | null;
-    };
-  }) => Promise<boolean>;
-  hasUnsavedChanges: () => boolean;
-};
+type EditorHandle = DocumentEditorHandle | NormalDocumentEditorHandle;
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  const payload = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    const message =
-      payload &&
-      typeof payload === "object" &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : `Request failed with status ${res.status}`;
-
-    throw new Error(message);
-  }
-
-  return payload;
-};
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const formatMetaDate = (value?: string | Date | null) => {
   if (!value) return "-";
@@ -280,54 +230,6 @@ const clampDocsSidebarWidth = (width: number, containerWidth?: number) =>
     getDocsSidebarMaxWidth(containerWidth),
   );
 
-function readCachedSwrData<T>(cacheValue: unknown): T | null {
-  if (cacheValue == null) {
-    return null;
-  }
-
-  if (
-    typeof cacheValue === "object" &&
-    cacheValue !== null &&
-    "data" in cacheValue
-  ) {
-    return ((cacheValue as { data?: T | null }).data ?? null) as T | null;
-  }
-
-  return cacheValue as T;
-}
-
-function safeStorageGet(
-  storage: "local" | "session",
-  key: string,
-) {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const target =
-      storage === "local" ? window.localStorage : window.sessionStorage;
-    return target.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function safeStorageSet(
-  storage: "local" | "session",
-  key: string,
-  value: string,
-) {
-  if (typeof window === "undefined") return false;
-
-  try {
-    const target =
-      storage === "local" ? window.localStorage : window.sessionStorage;
-    target.setItem(key, value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function DocsView({
   projectId,
   initialDocId,
@@ -336,7 +238,6 @@ export function DocsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { mutate: mutateCache, cache } = useSWRConfig();
   const { user, profile } = useAuth();
   const swrOptions = {
     revalidateOnFocus: false,
@@ -346,10 +247,6 @@ export function DocsView({
     ...swrOptions,
     refreshInterval: 5_000,
   } as const;
-  const docsCacheKey = `/api/workspaces/${projectId}/docs`;
-  const archivedDocsCacheKey = `/api/workspaces/${projectId}/docs?archived=true`;
-  const expandedDocsStorageKey = `workspace-docs-expanded:${projectId}`;
-  const docsBootstrapStorageKey = `workspace-docs-bootstrap:${projectId}`;
 
   const { data: workspaceMeta } = useSWR<WorkspaceMeta>(
     `/api/workspaces/${projectId}`,
@@ -366,14 +263,14 @@ export function DocsView({
     mutate: mutateDocs,
     isLoading,
   } = useSWR<WorkspaceDocSummary[]>(
-    docsCacheKey,
+    `/api/workspaces/${projectId}/docs`,
     fetcher,
     docsSWRConfig,
   );
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
-  >(archivedDocsCacheKey, fetcher, docsSWRConfig);
-  const { data: templates, mutate: mutateTemplates } = useSWR<DocTemplate[]>(
+  >(`/api/workspaces/${projectId}/docs?archived=true`, fetcher, docsSWRConfig);
+  const { data: templates } = useSWR<DocTemplate[]>(
     `/api/workspaces/${projectId}/doc-templates`,
     fetcher,
     swrOptions,
@@ -389,7 +286,6 @@ export function DocsView({
   const [isOrganizeMode, setIsOrganizeMode] = useState(false);
   const [editorMode, setEditorMode] = useState<"normal" | "collab">("normal");
   const [collabToken, setCollabToken] = useState<string | null>(null);
-  const [collabInitialYjsState, setCollabInitialYjsState] = useState<string | null>(null);
   const [collabStatus, setCollabStatus] = useState<
     "connecting" | "saving" | "synced" | "unstable"
   >("synced");
@@ -399,8 +295,6 @@ export function DocsView({
   const [isStartingCollab, setIsStartingCollab] = useState(false);
   const [isLeavingCollab, setIsLeavingCollab] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
-  const [isSwitchingDoc, setIsSwitchingDoc] = useState(false);
-  const [isDocsBootstrapping, setIsDocsBootstrapping] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<string[]>([]);
   const [normalBodyDirty, setNormalBodyDirty] = useState(false);
@@ -418,32 +312,7 @@ export function DocsView({
   });
   const activeDocModeRef = useRef<"NORMAL" | "COLLAB">("NORMAL");
   const activeDocDirtyRef = useRef(false);
-  const activeDocIdRef = useRef<string | null>(null);
-  const initialDocIdRef = useRef<string | null | undefined>(undefined);
-  const expandedDocsHydratedRef = useRef(false);
-  const headerReadyRef = useRef(false);
-  const workspaceSettingsPayloadRef = useRef<Record<string, unknown>>({});
-  const workspacePublicSummaryRef = useRef<unknown>({});
   const switchingDocRef = useRef(false);
-  const queuedDocSwitchRef = useRef<{
-    docId: string | null;
-    options?: { syncQuery?: boolean };
-  } | null>(null);
-  const suppressedCollabAutoJoinDocIdRef = useRef<string | null>(null);
-  const pendingCollabEntryDocIdRef = useRef<string | null>(null);
-  const headerDraftRef = useRef<{
-    docId: string | null;
-    title: string;
-    emoji: string | null;
-    docWorkerId: string;
-  }>({
-    docId: null,
-    title: "",
-    emoji: null,
-    docWorkerId: "",
-  });
-  const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
-  const headerSaveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
 
   // Active Doc Data (If Selected)
   const {
@@ -456,31 +325,14 @@ export function DocsView({
     {
       ...swrOptions,
       dedupingInterval: 1_500,
-      refreshInterval: activeDocId && editorMode === "collab" ? 2_000 : 0,
+      refreshInterval: activeDocId ? 2_000 : 0,
     },
   );
 
-  const activeDocCacheKey = activeDocId
-    ? `/api/workspaces/${projectId}/docs/${activeDocId}`
-    : null;
-
   const resolvedActiveDoc = useMemo(
-    () => {
-      if (activeDoc && activeDocId && activeDoc.id === activeDocId) {
-        return activeDoc;
-      }
-
-      if (!activeDocCacheKey || !activeDocId) {
-        return null;
-      }
-
-      const cachedDoc = readCachedSwrData<ActiveWorkspaceDoc | null>(
-        cache.get(activeDocCacheKey),
-      );
-
-      return cachedDoc && cachedDoc.id === activeDocId ? cachedDoc : null;
-    },
-    [activeDoc, activeDocCacheKey, activeDocId, cache],
+    () =>
+      activeDoc && activeDocId && activeDoc.id === activeDocId ? activeDoc : null,
+    [activeDoc, activeDocId],
   );
 
   const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
@@ -502,29 +354,6 @@ export function DocsView({
   const [emoji, setEmoji] = useState<string | null>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] = useState(false);
-  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
-  const [isEditTemplateDialogOpen, setIsEditTemplateDialogOpen] = useState(false);
-  const [templateName, setTemplateName] = useState("");
-  const [templateDescription, setTemplateDescription] = useState("");
-  const [templateEmoji, setTemplateEmoji] = useState<string | null>(null);
-  const [templateDocTitle, setTemplateDocTitle] = useState("");
-  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [isUpdatingTemplateDetails, setIsUpdatingTemplateDetails] = useState(false);
-  const [templateActionId, setTemplateActionId] = useState<string | null>(null);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const userId = user?.id;
-  const userEmail = user?.email;
-  const editorUser = useMemo(() => {
-    if (!userId) {
-      return undefined;
-    }
-
-    return {
-      name: profile?.nickname || userEmail?.split("@")[0] || "User",
-      color: stringToColor(userId),
-    };
-  }, [profile?.nickname, userEmail, userId]);
 
   const handleOpenTaskLocally = useCallback((taskId: string) => {
     onNavigateToTask?.(taskId);
@@ -532,132 +361,44 @@ export function DocsView({
   }, [onNavigateToTask]);
   const [docWorkerId, setDocWorkerId] = useState("");
 
-  useEffect(() => {
-    headerDraftRef.current = {
-      docId: activeDocId,
-      title,
-      emoji: emoji ?? null,
-      docWorkerId,
-    };
-  }, [activeDocId, docWorkerId, emoji, title]);
-
-  const loadWorkspaceViewSettings = useCallback(async () => {
-    const handle = profile?.handle?.trim();
-    if (!handle) {
-      return null;
-    }
-
-    const response = await fetch(
-      `/api/my/workspace-settings/${encodeURIComponent(handle)}`,
-    );
-    const payload = (await response.json().catch(() => null)) as
-      | WorkspaceSettingsResponse
-      | null;
-
-    if (!response.ok || !payload?.success) {
-      throw new Error("문서 보기 설정을 불러오지 못했습니다.");
-    }
-
-    workspaceSettingsPayloadRef.current =
-      payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
-        ? payload.data.settingsPayload
-        : {};
-    workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
-
-    return payload.data ?? null;
-  }, [profile?.handle]);
-
-  const persistWorkspaceViewSettings = useDebouncedCallback(
-    async (nextExpandedDocs: Record<string, boolean>) => {
-      const handle = profile?.handle?.trim();
-      if (!handle) return;
-
-      try {
-        const currentPayload =
-          workspaceSettingsPayloadRef.current &&
-          typeof workspaceSettingsPayloadRef.current === "object"
-            ? workspaceSettingsPayloadRef.current
-            : {};
-        const docsViewSettings =
-          currentPayload.docsView && typeof currentPayload.docsView === "object"
-            ? (currentPayload.docsView as Record<string, unknown>)
-            : {};
-
-        const nextSettingsPayload = {
-          ...currentPayload,
-          docsView: {
-            ...docsViewSettings,
-            [projectId]: {
-              expandedDocs: nextExpandedDocs,
-            },
-          },
-        };
-
-        const response = await fetch("/api/my/workspace-settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            publicSummary: workspacePublicSummaryRef.current ?? {},
-            settingsPayload: nextSettingsPayload,
-          }),
-        });
-        const payload = (await response.json().catch(() => null)) as
-          | WorkspaceSettingsResponse
-          | null;
-
-        if (!response.ok || !payload?.success) {
-          throw new Error("문서 보기 설정 저장에 실패했습니다.");
-        }
-
-        workspaceSettingsPayloadRef.current =
-          payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
-            ? payload.data.settingsPayload
-            : nextSettingsPayload;
-        workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
-      } catch (error) {
-        console.error("Failed to persist docs view settings", error);
-      }
-    },
-    800,
-  );
-
   const docMap = useMemo(() => {
     const entries = (docs || []).map((doc) => [doc.id, doc] as const);
     return new Map(entries);
   }, [docs]);
 
+  const applyHeaderBaseline = useCallback(
+    (docId: string | null, nextTitle: string, nextEmoji: string | null, nextWorkerId: string) => {
+      headerBaselineRef.current = {
+        docId,
+        title: nextTitle,
+        emoji: nextEmoji,
+        docWorkerId: nextWorkerId,
+      };
+      setIsHeaderDirty(false);
+    },
+    [],
+  );
+
+  const syncHeaderFromDoc = useCallback(
+    (
+      nextDoc:
+        | Pick<ActiveWorkspaceDoc, "id" | "title" | "emoji" | "author" | "author_id">
+        | null,
+    ) => {
+      const nextTitle = nextDoc?.title ?? "";
+      const nextEmoji = nextDoc?.emoji ?? null;
+      const nextWorkerId = nextDoc?.author?.id ?? nextDoc?.author_id ?? "";
+      setTitle(nextTitle);
+      setEmoji(nextEmoji);
+      setDocWorkerId(nextWorkerId);
+      applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, nextWorkerId);
+    },
+    [applyHeaderBaseline],
+  );
   const archivedDocMap = useMemo(() => {
     const entries = (archivedDocs || []).map((doc) => [doc.id, doc] as const);
     return new Map(entries);
   }, [archivedDocs]);
-
-  const activeDocCollabState = useMemo(
-    () =>
-      resolvedActiveDoc?.collab ??
-      (activeDocId ? docMap.get(activeDocId)?.collab : undefined),
-    [activeDocId, docMap, resolvedActiveDoc],
-  );
-
-  const activePageDoc = useMemo(() => {
-    if (!activeDocId) return null;
-
-    if (resolvedActiveDoc?.kind === "page") {
-      return {
-        id: resolvedActiveDoc.id,
-        title: resolvedActiveDoc.title,
-        emoji: resolvedActiveDoc.emoji ?? null,
-      };
-    }
-
-    const summary = docMap.get(activeDocId);
-    if (summary?.kind !== "page") return null;
-
-    return {
-      id: summary.id,
-      title: summary.title,
-      emoji: summary.emoji ?? null,
-    };
-  }, [activeDocId, docMap, resolvedActiveDoc]);
 
   const selectedArchivedDocIdSet = useMemo(
     () => new Set(selectedArchivedDocIds),
@@ -667,7 +408,7 @@ export function DocsView({
   const allArchivedSelected = useMemo(
     () =>
       Boolean(archivedDocs?.length) &&
-      archivedDocs?.every((doc) => selectedArchivedDocIdSet.has(doc.id)) === true,
+      archivedDocs.every((doc) => selectedArchivedDocIdSet.has(doc.id)),
     [archivedDocs, selectedArchivedDocIdSet],
   );
 
@@ -703,88 +444,27 @@ export function DocsView({
     const containerWidth = containerRef.current?.getBoundingClientRect().width;
     return clampDocsSidebarWidth(nextWidth, containerWidth);
   }, []);
-  const applyHeaderBaseline = useCallback(
-    (
-      docId: string | null,
-      nextTitle: string,
-      nextEmoji: string | null,
-      nextWorkerId: string,
-      currentHeader = {
-        docId,
-        title: nextTitle,
-        emoji: nextEmoji,
-        docWorkerId: nextWorkerId,
-      },
-    ) => {
-      headerBaselineRef.current = {
-        docId,
-        title: nextTitle,
-        emoji: nextEmoji,
-        docWorkerId: nextWorkerId,
-      };
-      setIsHeaderDirty(
-        currentHeader.docId !== docId ||
-          currentHeader.title !== nextTitle ||
-          currentHeader.emoji !== nextEmoji ||
-          currentHeader.docWorkerId !== nextWorkerId,
-      );
-    },
-    [],
-  );
-
-  const syncHeaderFromResolvedDoc = useCallback(
-    (
-      nextDoc:
-        | Pick<ActiveWorkspaceDoc, "id" | "title" | "emoji" | "author" | "author_id">
-        | null,
-    ) => {
-      const nextTitle = nextDoc?.title ?? "";
-      const nextEmoji = nextDoc?.emoji ?? null;
-      const nextWorkerId = nextDoc?.author?.id ?? nextDoc?.author_id ?? "";
-      setTitle(nextTitle);
-      setEmoji(nextEmoji);
-      setDocWorkerId(nextWorkerId);
-      applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, nextWorkerId);
-      headerReadyRef.current = true;
-    },
-    [applyHeaderBaseline],
-  );
-
-  const syncHeaderFromSummary = useCallback(
-    (
-      nextDoc:
-        | Pick<WorkspaceDocSummary, "id" | "title" | "emoji">
-        | null,
-    ) => {
-      const nextTitle = nextDoc?.title ?? "";
-      const nextEmoji = nextDoc?.emoji ?? null;
-      setTitle(nextTitle);
-      setEmoji(nextEmoji);
-      setDocWorkerId("");
-      applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, "");
-      headerReadyRef.current = nextDoc === null;
-    },
-    [applyHeaderBaseline],
-  );
-
+  // Sync state with fetching data
   useEffect(() => {
     if (resolvedActiveDoc) {
       const isDocChanged = headerBaselineRef.current.docId !== resolvedActiveDoc.id;
-      if (isDocChanged || !isHeaderDirty || !headerReadyRef.current) {
-        syncHeaderFromResolvedDoc(resolvedActiveDoc);
+      if (isDocChanged || !isHeaderDirty) {
+        syncHeaderFromDoc(resolvedActiveDoc);
       }
       return;
     }
 
     if (activeDocId) {
       const pendingDoc = docMap.get(activeDocId);
-      if (headerBaselineRef.current.docId !== activeDocId || headerReadyRef.current) {
-        syncHeaderFromSummary(
+      if (headerBaselineRef.current.docId !== activeDocId) {
+        syncHeaderFromDoc(
           pendingDoc
             ? {
                 id: pendingDoc.id,
                 title: pendingDoc.title,
                 emoji: pendingDoc.emoji ?? null,
+                author: null,
+                author_id: "",
               }
             : null,
         );
@@ -792,15 +472,8 @@ export function DocsView({
       return;
     }
 
-    syncHeaderFromResolvedDoc(null);
-  }, [
-    activeDocId,
-    docMap,
-    isHeaderDirty,
-    resolvedActiveDoc,
-    syncHeaderFromResolvedDoc,
-    syncHeaderFromSummary,
-  ]);
+    syncHeaderFromDoc(null);
+  }, [activeDocId, docMap, isHeaderDirty, resolvedActiveDoc, syncHeaderFromDoc]);
 
   useEffect(() => {
     if (!activeDocId || headerBaselineRef.current.docId !== activeDocId) {
@@ -821,26 +494,6 @@ export function DocsView({
     (isHeaderDirty || normalBodyDirty || editorRef.current?.hasUnsavedChanges());
 
   useEffect(() => {
-    activeDocIdRef.current = activeDocId;
-  }, [activeDocId]);
-
-  useEffect(() => {
-    if (
-      suppressedCollabAutoJoinDocIdRef.current &&
-      suppressedCollabAutoJoinDocIdRef.current !== activeDocId
-    ) {
-      suppressedCollabAutoJoinDocIdRef.current = null;
-    }
-
-    if (
-      pendingCollabEntryDocIdRef.current &&
-      pendingCollabEntryDocIdRef.current !== activeDocId
-    ) {
-      pendingCollabEntryDocIdRef.current = null;
-    }
-  }, [activeDocId]);
-
-  useEffect(() => {
     activeDocModeRef.current = editorMode === "collab" ? "COLLAB" : "NORMAL";
     activeDocDirtyRef.current = Boolean(normalDocDirty);
   }, [editorMode, normalDocDirty]);
@@ -848,36 +501,19 @@ export function DocsView({
   useEffect(() => {
     if (editorMode !== "collab") {
       setCollabToken(null);
-      setCollabInitialYjsState(null);
       setCollabStatus("synced");
       setCollabParticipants([]);
     }
   }, [editorMode]);
 
   useEffect(() => {
-    if (!activeDocCollabState?.isActive) {
+    if (!resolvedActiveDoc?.collab?.isActive) {
       setCollabParticipants([]);
       return;
     }
 
-    setCollabParticipants(activeDocCollabState.participants);
-  }, [activeDocCollabState]);
-
-  useEffect(() => {
-    if (!activeDocId || !activeDocCollabState?.isActive) {
-      return;
-    }
-
-    if (activeDocCollabState.currentUserParticipating) {
-      if (pendingCollabEntryDocIdRef.current === activeDocId) {
-        pendingCollabEntryDocIdRef.current = null;
-      }
-
-      if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
-        suppressedCollabAutoJoinDocIdRef.current = null;
-      }
-    }
-  }, [activeDocCollabState, activeDocId]);
+    setCollabParticipants(resolvedActiveDoc.collab.participants);
+  }, [resolvedActiveDoc?.collab]);
 
   useEffect(() => {
     if (sidebarMode === "archived" && isOrganizeMode) {
@@ -893,222 +529,6 @@ export function DocsView({
       prev.filter((docId) => validDocIds.has(docId)),
     );
   }, [archivedDocs]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const hydrateExpandedDocs = async () => {
-      const storedValue = safeStorageGet("local", expandedDocsStorageKey);
-      if (storedValue) {
-        try {
-          const parsed = JSON.parse(storedValue) as Record<string, boolean>;
-          if (parsed && typeof parsed === "object" && !cancelled) {
-            setExpandedDocs(parsed);
-          }
-        } catch (error) {
-          console.error("Failed to restore expanded docs state", error);
-        } finally {
-          expandedDocsHydratedRef.current = true;
-        }
-        return;
-      }
-
-      try {
-        const settings = await loadWorkspaceViewSettings();
-        const settingsPayload =
-          settings?.settingsPayload && typeof settings.settingsPayload === "object"
-            ? settings.settingsPayload
-            : {};
-        const docsViewSettings =
-          settingsPayload.docsView && typeof settingsPayload.docsView === "object"
-            ? (settingsPayload.docsView as Record<string, unknown>)
-            : {};
-        const projectSettings =
-          docsViewSettings[projectId] && typeof docsViewSettings[projectId] === "object"
-            ? (docsViewSettings[projectId] as Record<string, unknown>)
-            : {};
-        const serverExpandedDocs =
-          projectSettings.expandedDocs &&
-          typeof projectSettings.expandedDocs === "object"
-            ? (projectSettings.expandedDocs as Record<string, boolean>)
-            : null;
-
-        if (serverExpandedDocs && !cancelled) {
-          setExpandedDocs(serverExpandedDocs);
-        }
-      } catch (error) {
-        console.error("Failed to load docs view settings", error);
-      } finally {
-        expandedDocsHydratedRef.current = true;
-      }
-    };
-
-    void hydrateExpandedDocs();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [expandedDocsStorageKey, loadWorkspaceViewSettings, projectId]);
-
-  useEffect(() => {
-    if (!expandedDocsHydratedRef.current) return;
-    const serialized = JSON.stringify(expandedDocs);
-    const savedToLocal = safeStorageSet("local", expandedDocsStorageKey, serialized);
-
-    if (!savedToLocal) {
-      persistWorkspaceViewSettings(expandedDocs);
-      return;
-    }
-
-    persistWorkspaceViewSettings(expandedDocs);
-  }, [expandedDocs, expandedDocsStorageKey, persistWorkspaceViewSettings]);
-
-  useEffect(() => {
-    if (!docs?.length) return;
-
-    const validFolderIds = new Set(
-      docs.filter((doc) => doc.kind === "folder").map((doc) => doc.id),
-    );
-
-    setExpandedDocs((prev) => {
-      const nextEntries = Object.entries(prev).filter(
-        ([docId, isExpanded]) => isExpanded && validFolderIds.has(docId),
-      );
-
-      if (nextEntries.length === Object.keys(prev).length) {
-        return prev;
-      }
-
-      return Object.fromEntries(nextEntries);
-    });
-  }, [docs]);
-
-  useEffect(() => {
-    if (!activeDocId) return;
-
-    const ancestorIds: string[] = [];
-    let currentParentId = docMap.get(activeDocId)?.parent_id ?? null;
-
-    while (currentParentId) {
-      ancestorIds.push(currentParentId);
-      currentParentId = docMap.get(currentParentId)?.parent_id ?? null;
-    }
-
-    if (ancestorIds.length === 0) return;
-
-    setExpandedDocs((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      for (const ancestorId of ancestorIds) {
-        if (!next[ancestorId]) {
-          next[ancestorId] = true;
-          changed = true;
-        }
-      }
-
-      return changed ? next : prev;
-    });
-  }, [activeDocId, docMap]);
-
-  useEffect(() => {
-    if (safeStorageGet("session", docsBootstrapStorageKey) === "done") {
-      return;
-    }
-
-    let cancelled = false;
-
-    const bootstrapDocs = async () => {
-      setIsDocsBootstrapping(true);
-
-      try {
-        const prefetchedDocs = (await mutateCache(
-          docsCacheKey,
-          fetcher(docsCacheKey),
-          {
-            populateCache: true,
-            revalidate: false,
-          },
-        )) as WorkspaceDocSummary[] | undefined;
-
-        await mutateCache(
-          archivedDocsCacheKey,
-          fetcher(archivedDocsCacheKey),
-          {
-            populateCache: true,
-            revalidate: false,
-          },
-        );
-
-        const prioritizedDocIds = Array.isArray(prefetchedDocs)
-          ? [
-              ...(initialDocId ? [initialDocId] : []),
-              ...prefetchedDocs
-                .filter((doc) => doc.kind === "page")
-                .map((doc) => doc.id),
-            ]
-              .filter((docId, index, array) => array.indexOf(docId) === index)
-              .slice(0, 8)
-          : initialDocId
-            ? [initialDocId]
-            : [];
-
-        const runPrefetch = async () => {
-          await Promise.allSettled(
-            prioritizedDocIds.map((docId) =>
-              mutateCache(
-                `/api/workspaces/${projectId}/docs/${docId}`,
-                fetcher(`/api/workspaces/${projectId}/docs/${docId}`),
-                {
-                  populateCache: true,
-                  revalidate: false,
-                },
-              ),
-            ),
-          );
-        };
-
-        const windowWithIdle = window as Window & {
-          requestIdleCallback?: (
-            callback: () => void,
-          ) => number;
-        };
-
-        if (typeof window !== "undefined" && windowWithIdle.requestIdleCallback) {
-          await new Promise<void>((resolve) => {
-            windowWithIdle.requestIdleCallback?.(() => {
-              void runPrefetch().then(resolve);
-            });
-          });
-        } else {
-          await runPrefetch();
-        }
-
-        if (!cancelled) {
-          safeStorageSet("session", docsBootstrapStorageKey, "done");
-        }
-      } catch (error) {
-        console.error("Docs bootstrap sync failed", error);
-      } finally {
-        if (!cancelled) {
-          setIsDocsBootstrapping(false);
-        }
-      }
-    };
-
-    void bootstrapDocs();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    archivedDocsCacheKey,
-    docsBootstrapStorageKey,
-    docsCacheKey,
-    initialDocId,
-    mutateCache,
-    projectId,
-  ]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1143,15 +563,7 @@ export function DocsView({
   );
 
   const toggleDoc = (docId: string) => {
-    setExpandedDocs((prev) => {
-      const next = { ...prev };
-      if (next[docId]) {
-        delete next[docId];
-      } else {
-        next[docId] = true;
-      }
-      return next;
-    });
+    setExpandedDocs((prev) => ({ ...prev, [docId]: !prev[docId] }));
   };
 
   const activeDocBreadcrumbs = useMemo(() => {
@@ -1199,36 +611,11 @@ export function DocsView({
       if (kind === "page") {
         void switchActiveDoc(newDoc.id);
       }
-      toast.success(
-        kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.",
-      );
+      toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
     } catch {
       toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
     }
   };
-
-  const openSaveTemplateDialog = useCallback(() => {
-    if (!activePageDoc) {
-      toast.error("페이지 문서를 먼저 열어주세요.");
-      return;
-    }
-
-    setTemplateName(activePageDoc.title || "새 템플릿");
-    setTemplateDescription("");
-    setTemplateEmoji(activePageDoc.emoji ?? "📄");
-    setTemplateDocTitle(activePageDoc.title || "제목 없음");
-    setEditingTemplateId(null);
-    setIsSaveTemplateDialogOpen(true);
-  }, [activePageDoc]);
-
-  const openEditTemplateDialog = useCallback((template: DocTemplate) => {
-    setEditingTemplateId(template.id);
-    setTemplateName(template.name);
-    setTemplateDescription(template.description || "");
-    setTemplateEmoji(template.emoji ?? "📄");
-    setTemplateDocTitle(template.title || "제목 없음");
-    setIsEditTemplateDialogOpen(true);
-  }, []);
 
   const availableTasks = useMemo(() => {
     if (!boardData?.tasks) return [];
@@ -1270,29 +657,6 @@ export function DocsView({
     void mutateArchivedDocs();
   }, [mutateArchivedDocs, mutateDocs]);
 
-  const sendCollabLeaveBeacon = useCallback((docId: string) => {
-    const url = `/api/workspaces/${projectId}/docs/${docId}/collab/leave`;
-
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      try {
-        const sent = navigator.sendBeacon(
-          url,
-          new Blob([], { type: "application/json" }),
-        );
-        if (sent) {
-          return;
-        }
-      } catch {
-        // fall through to keepalive fetch
-      }
-    }
-
-    void fetch(url, {
-      method: "POST",
-      keepalive: true,
-    }).catch(() => undefined);
-  }, [projectId]);
-
   const syncDocPresence = useCallback(
     async (
       docId: string,
@@ -1315,7 +679,6 @@ export function DocsView({
     },
     [projectId],
   );
-
   const permanentlyDeleteDoc = useCallback(
     async (docId: string) => {
       const res = await fetch(
@@ -1511,22 +874,24 @@ export function DocsView({
     [activeDocId, docs, refreshDocs, syncDocQuery],
   );
 
-  const persistDocHeaderRequest = useCallback(
+  const persistDocHeader = useCallback(
     async (
-      docId: string,
       updates: Record<string, unknown>,
       options?: { silent?: boolean },
     ) => {
-      if (isReadOnly) {
+      if (isReadOnly || !activeDocId) {
         return true;
       }
 
       try {
-        const response = await fetch(`/api/workspaces/${projectId}/docs/${docId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updates),
-        });
+        const response = await fetch(
+          `/api/workspaces/${projectId}/docs/${activeDocId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          },
+        );
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
@@ -1536,9 +901,7 @@ export function DocsView({
         }
 
         void mutateDocs();
-        if (activeDocIdRef.current === docId) {
-          void mutateActiveDoc();
-        }
+        void mutateActiveDoc();
         return true;
       } catch (error) {
         console.error("Doc metadata save failed", error);
@@ -1550,210 +913,83 @@ export function DocsView({
         return false;
       }
     },
-    [isReadOnly, mutateActiveDoc, mutateDocs, projectId],
-  );
-
-  const persistDocHeader = useCallback(
-    (
-      docId: string,
-      updates: Record<string, unknown>,
-      options?: { silent?: boolean },
-    ) => {
-      const run = () => persistDocHeaderRequest(docId, updates, options);
-      const next = headerSaveChainRef.current.then(run, run);
-      headerSaveChainRef.current = next.catch(() => true);
-      return next;
-    },
-    [persistDocHeaderRequest],
+    [activeDocId, isReadOnly, mutateActiveDoc, mutateDocs, projectId],
   );
 
   const buildHeaderPayload = useCallback(
     (
-      nextTitle: string,
-      nextEmoji: string | null,
-      nextWorkerId: string,
+      nextTitle = title,
+      nextEmoji = emoji,
+      nextWorkerId = docWorkerId,
     ): Record<string, unknown> => ({
       title: nextTitle,
       emoji: nextEmoji,
       ...(nextWorkerId ? { authorId: nextWorkerId } : {}),
     }),
-    [],
+    [docWorkerId, emoji, title],
   );
 
   const debouncedUpdate = useDebouncedCallback(
-    async (payload: {
-      docId: string;
-      title: string;
-      emoji: string | null;
-      docWorkerId: string;
-    }) => {
-      const saved = await persistDocHeader(
-        payload.docId,
-        buildHeaderPayload(payload.title, payload.emoji, payload.docWorkerId),
-        { silent: true },
-      );
-      if (!saved) return false;
+    async (updates: Record<string, unknown>) => {
+      const saved = await persistDocHeader(updates, { silent: true });
+      if (!saved) return;
 
-      if (activeDocIdRef.current === payload.docId) {
-        applyHeaderBaseline(
-          payload.docId,
-          payload.title,
-          payload.emoji,
-          payload.docWorkerId,
-          headerDraftRef.current,
-        );
-      }
+      applyHeaderBaseline(activeDocId, title, emoji ?? null, docWorkerId);
       void mutateDocs();
-      if (activeDocIdRef.current === payload.docId) {
-        void mutateActiveDoc();
-      }
-      return true;
+      void mutateActiveDoc();
     },
     1000,
   );
 
-  useEffect(() => {
-    debouncedUpdate.cancel();
-  }, [activeDocId, debouncedUpdate]);
-
-  useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
-  useEffect(() => () => persistWorkspaceViewSettings.cancel(), [persistWorkspaceViewSettings]);
-
-  const flushPendingHeaderSave = useCallback(async () => {
-    const flushed = debouncedUpdate.flush();
-    const flushedResult = await Promise.resolve(flushed ?? true);
-    const chainedResult = await headerSaveChainRef.current;
-    return flushedResult !== false && chainedResult !== false;
-  }, [debouncedUpdate]);
-
-  useEffect(() => {
-    return () => {
-      const currentDocId = activeDocIdRef.current;
-      if (!currentDocId || activeDocModeRef.current !== "COLLAB") {
-        return;
-      }
-
-      void fetch(`/api/workspaces/${projectId}/docs/${currentDocId}/collab/leave`, {
-        method: "POST",
-        keepalive: true,
-      })
-        .then(async (response) => {
-          const payload = (await response.json().catch(() => null)) as
-            | {
-                ended?: boolean;
-                error?: string;
-              }
-            | null;
-
-          if (!response.ok) {
-            return;
-          }
-
-          toast.success(
-            payload?.ended
-              ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
-              : "문서 탭을 벗어나며 현재 협업에서 나갔습니다.",
-          );
-        })
-        .catch(() => undefined);
-    };
-  }, [projectId]);
-
-  useEffect(() => {
-    if (editorMode !== "collab" || !activeDocId) return;
-
-    const handlePageHide = () => {
-      void flushPendingHeaderSave();
-      sendCollabLeaveBeacon(activeDocId);
-    };
-
-    window.addEventListener("pagehide", handlePageHide);
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [activeDocId, editorMode, flushPendingHeaderSave, sendCollabLeaveBeacon]);
-
   const handleSaveCurrentDoc = useCallback(
-    (options?: { silent?: boolean }) => {
+    async (options?: { silent?: boolean }) => {
       if (isReadOnly || !activeDocId || editorMode !== "normal") {
-        return Promise.resolve(true);
+        return true;
       }
 
-      const run = async () => {
-        const savingDocId = activeDocId;
-        const savingTitle = title;
-        const savingEmoji = emoji ?? null;
-        const savingWorkerId = docWorkerId;
-        const canSaveHeader = headerReadyRef.current;
+      setIsSavingDocument(true);
+      debouncedUpdate.cancel();
 
-        setIsSavingDocument(true);
-        debouncedUpdate.cancel();
+      try {
+        const headerSaved = await persistDocHeader(
+          buildHeaderPayload(),
+          { silent: true },
+        );
 
-        try {
-          const contentSaved = editorRef.current
-            ? await editorRef.current.saveNow({
-                silent: true,
-                ...(canSaveHeader
-                  ? {
-                      header: {
-                        title: savingTitle,
-                        emoji: savingEmoji,
-                        authorId: savingWorkerId || null,
-                      },
-                    }
-                  : {}),
-              })
-            : canSaveHeader
-              ? await persistDocHeader(
-                  savingDocId,
-                  buildHeaderPayload(savingTitle, savingEmoji, savingWorkerId),
-                  { silent: true },
-                )
-              : true;
-
-          if (!contentSaved) {
-            throw new Error("문서 저장에 실패했습니다.");
-          }
-
-          const savedAt = new Date().toISOString();
-          if (activeDocIdRef.current === savingDocId) {
-            setLastSavedAt(savedAt);
-            if (canSaveHeader) {
-              applyHeaderBaseline(
-                savingDocId,
-                savingTitle,
-                savingEmoji,
-                savingWorkerId,
-                headerDraftRef.current,
-              );
-            }
-            setNormalBodyDirty(editorRef.current?.hasUnsavedChanges() ?? false);
-          }
-          void mutateDocs();
-          if (activeDocIdRef.current === savingDocId) {
-            void mutateActiveDoc();
-          }
-
-          if (!options?.silent) {
-            toast.success("문서를 저장했습니다.");
-          }
-
-          return true;
-        } catch (error) {
-          if (!options?.silent) {
-            toast.error(
-              error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
-            );
-          }
-          return false;
-        } finally {
-          setIsSavingDocument(false);
+        if (!headerSaved) {
+          throw new Error("문서 정보 저장에 실패했습니다.");
         }
-      };
 
-      const next = saveChainRef.current.then(run, run);
-      saveChainRef.current = next.catch(() => true);
-      return next;
+        const contentSaved = editorRef.current
+          ? await editorRef.current.saveNow({ silent: true })
+          : true;
+
+        if (!contentSaved) {
+          throw new Error("문서 본문 저장에 실패했습니다.");
+        }
+
+        const savedAt = new Date().toISOString();
+        setLastSavedAt(savedAt);
+        applyHeaderBaseline(activeDocId, title, emoji ?? null, docWorkerId);
+        setNormalBodyDirty(false);
+        void mutateDocs();
+        void mutateActiveDoc();
+
+        if (!options?.silent) {
+          toast.success("문서를 저장했습니다.");
+        }
+
+        return true;
+      } catch (error) {
+        if (!options?.silent) {
+          toast.error(
+            error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
+          );
+        }
+        return false;
+      } finally {
+        setIsSavingDocument(false);
+      }
     },
     [
       activeDocId,
@@ -1792,11 +1028,8 @@ export function DocsView({
         throw new Error(payload?.error || "협업 나가기에 실패했습니다.");
       }
 
-      activeDocModeRef.current = "NORMAL";
-      activeDocDirtyRef.current = false;
       setEditorMode("normal");
       setCollabToken(null);
-      setCollabInitialYjsState(null);
       setCollabStatus("synced");
       setCollabParticipants(payload?.collab?.participants ?? []);
       void mutateDocs();
@@ -1820,64 +1053,21 @@ export function DocsView({
 
   const switchActiveDoc = useCallback(
     async (docId: string | null, options?: { syncQuery?: boolean }) => {
-      if (switchingDocRef.current) {
-        queuedDocSwitchRef.current = { docId, options };
-        return;
-      }
-
-      if (docId === activeDocIdRef.current) return;
+      if (switchingDocRef.current || docId === activeDocId) return;
 
       switchingDocRef.current = true;
-      setIsSwitchingDoc(true);
-      debouncedUpdate.cancel();
       try {
         try {
-          const previousDocId = activeDocIdRef.current;
-
-          if (previousDocId) {
+          if (activeDocId) {
             if (editorMode === "collab") {
-              suppressedCollabAutoJoinDocIdRef.current = previousDocId;
-              pendingCollabEntryDocIdRef.current = null;
-              const headerSaved = await flushPendingHeaderSave();
-              if (!headerSaved) {
-                toast.error("현재 문서 정보를 저장하지 못해 이동을 취소했습니다.");
-                return;
-              }
-
-              const leaveResult = await leaveDocCollab(previousDocId, {
-                silent: true,
-              });
-              toast.success(
-                leaveResult.ended
-                  ? "현재 문서를 떠나면서 협업이 종료되었습니다."
-                  : "현재 문서 협업에서 나갔습니다.",
-              );
-            } else if (!isReadOnly && (normalDocDirty || isSavingDocument)) {
-              const saved = await handleSaveCurrentDoc({ silent: true });
-              if (!saved) {
-                toast.error("현재 문서를 저장하지 못해 이동을 취소했습니다.");
-                return;
-              }
+              await leaveDocCollab(activeDocId, { silent: true });
+            } else if (!isReadOnly) {
+              await handleSaveCurrentDoc({ silent: true });
             }
           }
 
           setLastSavedAt(null);
           setNormalBodyDirty(false);
-          activeDocIdRef.current = docId;
-          if (docId) {
-            const nextDocSummary = docMap.get(docId);
-            syncHeaderFromSummary(
-              nextDocSummary
-                ? {
-                    id: nextDocSummary.id,
-                    title: nextDocSummary.title,
-                    emoji: nextDocSummary.emoji ?? null,
-                  }
-                : null,
-            );
-          } else {
-            syncHeaderFromResolvedDoc(null);
-          }
           setActiveDocId(docId);
 
           if (options?.syncQuery !== false) {
@@ -1892,51 +1082,24 @@ export function DocsView({
         }
       } finally {
         switchingDocRef.current = false;
-        setIsSwitchingDoc(false);
-
-        const queuedSwitch = queuedDocSwitchRef.current;
-        queuedDocSwitchRef.current = null;
-
-        if (queuedSwitch && queuedSwitch.docId !== docId) {
-          void Promise.resolve().then(() =>
-            switchActiveDoc(queuedSwitch.docId, queuedSwitch.options),
-          );
-        }
       }
     },
     [
-      debouncedUpdate,
-      docMap,
+      activeDocId,
       editorMode,
-      flushPendingHeaderSave,
       handleSaveCurrentDoc,
       isReadOnly,
-      isSavingDocument,
       leaveDocCollab,
-      normalDocDirty,
-      syncHeaderFromResolvedDoc,
-      syncHeaderFromSummary,
       syncDocQuery,
     ],
   );
 
   useEffect(() => {
     if (typeof initialDocId === "undefined") return;
+    if ((initialDocId ?? null) === activeDocId) return;
 
-    const nextInitialDocId = initialDocId ?? null;
-    const previousInitialDocId = initialDocIdRef.current;
-    initialDocIdRef.current = nextInitialDocId;
-
-    if (previousInitialDocId === nextInitialDocId) {
-      return;
-    }
-
-    if (nextInitialDocId === activeDocIdRef.current) {
-      return;
-    }
-
-    void switchActiveDoc(nextInitialDocId, { syncQuery: false });
-  }, [initialDocId, switchActiveDoc]);
+    void switchActiveDoc(initialDocId ?? null, { syncQuery: false });
+  }, [activeDocId, initialDocId, switchActiveDoc]);
 
   const handleSelectDoc = useCallback(
     (docId: string) => {
@@ -1983,48 +1146,18 @@ export function DocsView({
   }, [activeDocId, editorMode, isReadOnly, normalDocDirty, syncDocPresence]);
 
   useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
+    if (!activeDocId || !resolvedActiveDoc || isReadOnly) return;
 
-    if (editorMode !== "collab" || isLeavingCollab || isSwitchingDoc) {
+    if (!resolvedActiveDoc.collab?.isActive) {
+      if (editorMode === "collab") {
+        setEditorMode("normal");
+        setCollabToken(null);
+        setCollabStatus("synced");
+      }
       return;
     }
 
-    if (pendingCollabEntryDocIdRef.current === activeDocId) {
-      return;
-    }
-
-    if (typeof activeDocCollabState === "undefined") {
-      return;
-    }
-
-    if (!activeDocCollabState.isActive) {
-      setEditorMode("normal");
-      setCollabToken(null);
-      setCollabStatus("synced");
-      toast.info("현재 문서 협업이 종료되어 일반 편집으로 전환되었습니다.");
-      return;
-    }
-  }, [
-    activeDocCollabState,
-    activeDocId,
-    editorMode,
-    isLeavingCollab,
-    isReadOnly,
-    isSwitchingDoc,
-  ]);
-
-  useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
-
-    if (editorMode === "collab" || isLeavingCollab || isSwitchingDoc) {
-      return;
-    }
-
-    if (!activeDocCollabState?.isActive) {
-      return;
-    }
-
-    if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
+    if (editorMode === "collab") {
       return;
     }
 
@@ -2052,15 +1185,12 @@ export function DocsView({
 
         if (isCancelled || !payload?.token) return;
 
-        pendingCollabEntryDocIdRef.current = activeDocId;
-        suppressedCollabAutoJoinDocIdRef.current = null;
         await syncDocPresence(activeDocId, {
           mode: "COLLAB",
           isDirty: false,
           active: true,
         });
         setCollabToken(payload.token);
-        setCollabInitialYjsState(null);
         setCollabParticipants(payload.collab?.participants ?? []);
         setCollabStatus("connecting");
         setEditorMode("collab");
@@ -2083,12 +1213,10 @@ export function DocsView({
     };
   }, [
     activeDocId,
-    activeDocCollabState,
     editorMode,
-    isLeavingCollab,
     isReadOnly,
     projectId,
-    isSwitchingDoc,
+    resolvedActiveDoc,
     syncDocPresence,
   ]);
 
@@ -2111,66 +1239,36 @@ export function DocsView({
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title: newTitle,
-        emoji,
-        docWorkerId,
-      });
+    if (editorMode === "collab") {
+      debouncedUpdate(buildHeaderPayload(newTitle, emoji, docWorkerId));
     }
   };
 
   const handleEmojiSelect = (emojiData: EmojiSelection) => {
     const nextEmoji = emojiData.native ?? null;
     setEmoji(nextEmoji);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji: nextEmoji,
-        docWorkerId,
-      });
+    if (editorMode === "collab") {
+      debouncedUpdate(buildHeaderPayload(title, nextEmoji, docWorkerId));
     }
     setIsEmojiPickerOpen(false);
   };
 
   const handleRemoveEmoji = () => {
     setEmoji(null);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji: null,
-        docWorkerId,
-      });
+    if (editorMode === "collab") {
+      debouncedUpdate(buildHeaderPayload(title, null, docWorkerId));
     }
   };
 
   const handleDocWorkerChange = (value: string) => {
     setDocWorkerId(value);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji,
-        docWorkerId: value,
-      });
+    if (editorMode === "collab") {
+      debouncedUpdate(buildHeaderPayload(title, emoji, value));
     }
   };
 
   const handleStartCollab = useCallback(async () => {
-    const targetDocId = activeDocIdRef.current;
-    if (
-      isReadOnly ||
-      !targetDocId ||
-      editorMode === "collab" ||
-      switchingDocRef.current ||
-      isSwitchingDoc ||
-      isLoadingActiveDoc
-    ) {
-      return;
-    }
+    if (isReadOnly || !activeDocId || editorMode === "collab") return;
 
     setIsStartingCollab(true);
     try {
@@ -2179,14 +1277,14 @@ export function DocsView({
         throw new Error("협업 시작 전에 문서를 저장하지 못했습니다.");
       }
 
-      await syncDocPresence(targetDocId, {
+      await syncDocPresence(activeDocId, {
         mode: "NORMAL",
         isDirty: false,
         active: true,
       });
 
       const response = await fetch(
-        `/api/workspaces/${projectId}/docs/${targetDocId}/collab/start`,
+        `/api/workspaces/${projectId}/docs/${activeDocId}/collab/start`,
         {
           method: "POST",
         },
@@ -2196,7 +1294,6 @@ export function DocsView({
         | {
             error?: string;
             token?: string;
-            seedState?: string | null;
             blockers?: Array<{ userId: string; name: string }>;
             collab?: WorkspaceDocCollabState;
           }
@@ -2215,16 +1312,13 @@ export function DocsView({
         throw new Error("협업 토큰을 받지 못했습니다.");
       }
 
-      pendingCollabEntryDocIdRef.current = targetDocId;
-      suppressedCollabAutoJoinDocIdRef.current = null;
-      await syncDocPresence(targetDocId, {
+      await syncDocPresence(activeDocId, {
         mode: "COLLAB",
         isDirty: false,
         active: true,
       });
 
       setCollabToken(payload.token);
-      setCollabInitialYjsState(payload.seedState ?? null);
       setCollabParticipants(payload.collab?.participants ?? []);
       setCollabStatus("connecting");
       setEditorMode("collab");
@@ -2239,11 +1333,10 @@ export function DocsView({
       setIsStartingCollab(false);
     }
   }, [
+    activeDocId,
     editorMode,
     handleSaveCurrentDoc,
-    isLoadingActiveDoc,
     isReadOnly,
-    isSwitchingDoc,
     mutateActiveDoc,
     mutateDocs,
     projectId,
@@ -2255,13 +1348,6 @@ export function DocsView({
 
     setIsLeavingCollab(true);
     try {
-      suppressedCollabAutoJoinDocIdRef.current = activeDocId;
-      pendingCollabEntryDocIdRef.current = null;
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        throw new Error("문서 정보를 저장하지 못해 협업에서 나갈 수 없습니다.");
-      }
-
       const result = await leaveDocCollab(activeDocId, { silent: true });
       if (result.ended) {
         await mutateActiveDoc();
@@ -2281,343 +1367,16 @@ export function DocsView({
     } finally {
       setIsLeavingCollab(false);
     }
-  }, [
-    activeDocId,
-    editorMode,
-    flushPendingHeaderSave,
-    leaveDocCollab,
-    mutateActiveDoc,
-    syncDocQuery,
-  ]);
-
-  const handleBeforeLeaveDocs = useCallback(async () => {
-    const currentDocId = activeDocIdRef.current;
-    if (!currentDocId) {
-      return true;
-    }
-
-    if (activeDocModeRef.current === "COLLAB") {
-      suppressedCollabAutoJoinDocIdRef.current = currentDocId;
-      pendingCollabEntryDocIdRef.current = null;
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        toast.error("현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.");
-        return false;
-      }
-
-      try {
-        const leaveResult = await leaveDocCollab(currentDocId, { silent: true });
-        toast.success(
-          leaveResult.ended
-            ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
-            : "문서 탭을 벗어나며 현재 협업에서 나갔습니다.",
-        );
-        return true;
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "협업을 종료하지 못해 화면을 이동하지 않았습니다.",
-        );
-        return false;
-      }
-    }
-
-    if (activeDocDirtyRef.current || isSavingDocument) {
-      const saved = await handleSaveCurrentDoc({ silent: true });
-      if (!saved) {
-        toast.error("현재 문서를 저장하지 못해 화면을 이동하지 않았습니다.");
-        return false;
-      }
-    }
-
-    return true;
-  }, [flushPendingHeaderSave, handleSaveCurrentDoc, isSavingDocument, leaveDocCollab]);
-
-  const prepareCurrentDocForTemplate = useCallback(async () => {
-    if (!activePageDoc) {
-      toast.error("페이지 문서에서만 템플릿을 만들 수 있습니다.");
-      return false;
-    }
-
-    if (editorMode === "normal") {
-      const saved = await handleSaveCurrentDoc({ silent: true });
-      if (!saved) {
-        toast.error("현재 문서를 저장하지 못해 템플릿으로 만들 수 없습니다.");
-        return false;
-      }
-    } else {
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        toast.error("현재 문서 정보를 저장하지 못해 템플릿으로 만들 수 없습니다.");
-        return false;
-      }
-      await mutateActiveDoc();
-    }
-
-    return true;
-  }, [
-    activePageDoc,
-    editorMode,
-    flushPendingHeaderSave,
-    handleSaveCurrentDoc,
-    mutateActiveDoc,
-  ]);
-
-  const handleCreateTemplate = useCallback(async () => {
-    if (!activePageDoc) {
-      toast.error("템플릿으로 저장할 문서를 찾을 수 없습니다.");
-      return;
-    }
-
-    if (!templateName.trim()) {
-      toast.error("템플릿 이름을 입력해 주세요.");
-      return;
-    }
-
-    setIsSavingTemplate(true);
-
-    try {
-      const ready = await prepareCurrentDocForTemplate();
-      if (!ready) {
-        return;
-      }
-
-      const response = await fetch(`/api/workspaces/${projectId}/doc-templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: templateName,
-          description: templateDescription,
-          emoji: templateEmoji,
-          title: templateDocTitle.trim() || activePageDoc.title,
-          sourceDocId: activePageDoc.id,
-        }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "템플릿 저장에 실패했습니다.");
-      }
-
-      await mutateTemplates();
-      setIsSaveTemplateDialogOpen(false);
-      toast.success("현재 문서를 템플릿으로 저장했습니다.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "템플릿 저장에 실패했습니다.",
-      );
-    } finally {
-      setIsSavingTemplate(false);
-    }
-  }, [
-    activePageDoc,
-    mutateTemplates,
-    prepareCurrentDocForTemplate,
-    projectId,
-    templateDescription,
-    templateDocTitle,
-    templateEmoji,
-    templateName,
-  ]);
-
-  const handleUseTemplate = async (templateId: string) => {
-    await handleCreateRootDoc("page", templateId);
-    setIsTemplateManagerOpen(false);
-  };
-
-  const handleRefreshTemplateFromCurrentDoc = useCallback(
-    async (templateId: string) => {
-      if (!activePageDoc) {
-        toast.error("현재 열어둔 페이지 문서가 없습니다.");
-        return;
-      }
-
-      setTemplateActionId(templateId);
-      try {
-        const ready = await prepareCurrentDocForTemplate();
-        if (!ready) {
-          return;
-        }
-
-        const response = await fetch(
-          `/api/workspaces/${projectId}/doc-templates/${templateId}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sourceDocId: activePageDoc.id,
-            }),
-          },
-        );
-
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-
-        if (!response.ok) {
-          throw new Error(payload?.error || "템플릿 갱신에 실패했습니다.");
-        }
-
-        await mutateTemplates();
-        toast.success("현재 문서 내용으로 템플릿을 갱신했습니다.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "템플릿 갱신에 실패했습니다.",
-        );
-      } finally {
-        setTemplateActionId(null);
-      }
-    },
-    [activePageDoc, mutateTemplates, prepareCurrentDocForTemplate, projectId],
-  );
-
-  const handleUpdateTemplateDetails = useCallback(async () => {
-    if (!editingTemplateId) {
-      return;
-    }
-
-    if (!templateName.trim()) {
-      toast.error("템플릿 이름을 입력해 주세요.");
-      return;
-    }
-
-    if (!templateDocTitle.trim()) {
-      toast.error("새 문서 기본 제목을 입력해 주세요.");
-      return;
-    }
-
-    setIsUpdatingTemplateDetails(true);
-    setTemplateActionId(editingTemplateId);
-
-    try {
-      const response = await fetch(
-        `/api/workspaces/${projectId}/doc-templates/${editingTemplateId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: templateName,
-            description: templateDescription,
-            emoji: templateEmoji,
-            title: templateDocTitle,
-          }),
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "템플릿 수정에 실패했습니다.");
-      }
-
-      await mutateTemplates();
-      setIsEditTemplateDialogOpen(false);
-      toast.success("템플릿 정보를 수정했습니다.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "템플릿 수정에 실패했습니다.",
-      );
-    } finally {
-      setIsUpdatingTemplateDetails(false);
-      setTemplateActionId(null);
-    }
-  }, [
-    editingTemplateId,
-    mutateTemplates,
-    projectId,
-    templateDescription,
-    templateDocTitle,
-    templateEmoji,
-    templateName,
-  ]);
-
-  const handleDeleteTemplate = useCallback(
-    async (template: DocTemplate) => {
-      const confirmed = window.confirm(
-        `템플릿 "${template.name}"을 삭제할까요?`,
-      );
-      if (!confirmed) return;
-
-      setTemplateActionId(template.id);
-      try {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/doc-templates/${template.id}`,
-          {
-            method: "DELETE",
-          },
-        );
-
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-
-        if (!response.ok) {
-          throw new Error(payload?.error || "템플릿 삭제에 실패했습니다.");
-        }
-
-        await mutateTemplates();
-        toast.success("템플릿을 삭제했습니다.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "템플릿 삭제에 실패했습니다.",
-        );
-      } finally {
-        setTemplateActionId(null);
-      }
-    },
-    [mutateTemplates, projectId],
-  );
-
-  useEffect(() => registerDocsBeforeLeaveHandler(handleBeforeLeaveDocs), [
-    handleBeforeLeaveDocs,
-  ]);
-
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (activeDocModeRef.current === "COLLAB") {
-        if (!isHeaderDirty) {
-          return;
-        }
-      } else if (!activeDocDirtyRef.current && !isSavingDocument) {
-        return;
-      }
-
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [isHeaderDirty, isSavingDocument]);
+  }, [activeDocId, editorMode, leaveDocCollab, mutateActiveDoc, syncDocQuery]);
 
   const docWorkerName =
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
     resolvedActiveDoc?.author?.nickname ||
     "미지정";
-  const hasResolvedActiveDoc = Boolean(
-    activeDocId && resolvedActiveDoc && resolvedActiveDoc.id === activeDocId,
-  );
   const isDocLoadingOverlayVisible =
-    (isSwitchingDoc && isSavingDocument) ||
-    (!hasResolvedActiveDoc &&
-      (isSwitchingDoc ||
-        isLoadingActiveDoc ||
-        Boolean(activeDocId && activeDoc && activeDoc.id !== activeDocId)));
-  const docLoadingOverlayText = isSwitchingDoc
-    ? isSavingDocument
-      ? "이동 전 저장 중..."
-      : "문서를 전환하는 중..."
-    : "문서를 불러오는 중...";
+    isLoadingActiveDoc || Boolean(activeDoc && activeDoc.id !== activeDocId);
   const collabBadgeVisible =
-    editorMode === "collab" || Boolean(activeDocCollabState?.isActive);
+    editorMode === "collab" || Boolean(resolvedActiveDoc?.collab?.isActive);
   const collabParticipantList = collabParticipants.slice(0, 4);
   const collabStatusText =
     collabStatus === "connecting"
@@ -2634,15 +1393,7 @@ export function DocsView({
       : formatSavedTime(lastSavedAt);
 
   return (
-    <div ref={containerRef} className="relative flex h-full min-w-0">
-      {isDocsBootstrapping && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-background/90 backdrop-blur-sm">
-          <div className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground shadow-lg">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            문서를 동기화하고 캐시하는 중...
-          </div>
-        </div>
-      )}
+    <div ref={containerRef} className="flex h-full min-w-0">
       {/* Docs Sidebar (Inner) */}
       <div
         className="flex h-full flex-none flex-col overflow-hidden border-r bg-muted/10"
@@ -2696,7 +1447,7 @@ export function DocsView({
                     <DropdownMenuSeparator />
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
-                        <LayoutTemplate className="h-4 w-4" />
+                        <FileText className="h-4 w-4" />
                         템플릿에서 시작
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="w-64">
@@ -2721,20 +1472,6 @@ export function DocsView({
                     </DropdownMenuSub>
                   </>
                 )}
-                {activePageDoc && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={openSaveTemplateDialog}>
-                      <CopyPlus className="h-4 w-4" />
-                      현재 문서를 템플릿으로 저장
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setIsTemplateManagerOpen(true)}>
-                  <LayoutTemplate className="h-4 w-4" />
-                  템플릿 관리
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -2992,12 +1729,7 @@ export function DocsView({
                       size="sm"
                       className="h-8 gap-1.5"
                       onClick={() => void handleStartCollab()}
-                      disabled={
-                        isStartingCollab ||
-                        isSwitchingDoc ||
-                        isLoadingActiveDoc ||
-                        !resolvedActiveDoc
-                      }
+                      disabled={isStartingCollab || !resolvedActiveDoc}
                     >
                       {isStartingCollab ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3012,12 +1744,7 @@ export function DocsView({
                       size="sm"
                       className="h-8 gap-1.5"
                       onClick={() => void handleSaveCurrentDoc()}
-                      disabled={
-                        isSavingDocument ||
-                        isSwitchingDoc ||
-                        isLoadingActiveDoc ||
-                        !resolvedActiveDoc
-                      }
+                      disabled={isSavingDocument || !resolvedActiveDoc}
                     >
                       {isSavingDocument ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3035,10 +1762,9 @@ export function DocsView({
               {/* Scrollable Document Content */}
               <div className="flex-1 overflow-y-auto relative w-full">
               {isDocLoadingOverlayVisible && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/85">
-                  <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {docLoadingOverlayText}
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50 pointer-events-none">
+                  <div className="text-muted-foreground text-sm">
+                    문서를 불러오는 중...
                   </div>
                 </div>
               )}
@@ -3237,13 +1963,22 @@ export function DocsView({
                   workspaceId={projectId}
                   readOnly={isReadOnly}
                   collabToken={collabToken}
-                  initialYjsState={collabInitialYjsState}
                   onStatusChange={setCollabStatus}
                   onTaskLinked={() => {
                     void mutateLinkedTasks();
                   }}
                   onOpenTask={handleOpenTaskLocally}
-                  user={editorUser}
+                  user={
+                    user
+                      ? {
+                          name:
+                            profile?.nickname ||
+                            user.email?.split("@")[0] ||
+                            "User",
+                          color: stringToColor(user.id),
+                        }
+                      : undefined
+                  }
                 />
               ) : (
                 <NormalDocumentEditor
@@ -3258,7 +1993,17 @@ export function DocsView({
                     void mutateLinkedTasks();
                   }}
                   onOpenTask={handleOpenTaskLocally}
-                  user={editorUser}
+                  user={
+                    user
+                      ? {
+                          name:
+                            profile?.nickname ||
+                            user.email?.split("@")[0] ||
+                            "User",
+                          color: stringToColor(user.id),
+                        }
+                      : undefined
+                  }
                 />
               )}
               </div>
@@ -3288,289 +2033,6 @@ export function DocsView({
         open={!!selectedTaskId}
         onOpenChange={(open) => !open && setSelectedTaskId(null)}
       />
-
-      <Dialog
-        open={isSaveTemplateDialogOpen}
-        onOpenChange={(open) => {
-          if (!isSavingTemplate) {
-            setIsSaveTemplateDialogOpen(open);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>현재 문서를 템플릿으로 저장</DialogTitle>
-            <DialogDescription>
-              지금 문서의 구조와 내용을 워크스페이스 템플릿으로 저장합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="doc-template-name">템플릿 이름</Label>
-              <Input
-                id="doc-template-name"
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="예: 패치노트 템플릿"
-                disabled={isSavingTemplate}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="doc-template-emoji">템플릿 아이콘</Label>
-              <Input
-                id="doc-template-emoji"
-                value={templateEmoji ?? ""}
-                onChange={(event) => setTemplateEmoji(event.target.value || null)}
-                placeholder="📄"
-                disabled={isSavingTemplate}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="doc-template-title">새 문서 기본 제목</Label>
-              <Input
-                id="doc-template-title"
-                value={templateDocTitle}
-                onChange={(event) => setTemplateDocTitle(event.target.value)}
-                placeholder="예: 이번 주 패치노트"
-                disabled={isSavingTemplate}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="doc-template-description">설명</Label>
-              <Textarea
-                id="doc-template-description"
-                value={templateDescription}
-                onChange={(event) => setTemplateDescription(event.target.value)}
-                placeholder="이 템플릿을 언제 쓰는지 짧게 적어주세요."
-                rows={3}
-                disabled={isSavingTemplate}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsSaveTemplateDialogOpen(false)}
-              disabled={isSavingTemplate}
-            >
-              취소
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleCreateTemplate()}
-              disabled={isSavingTemplate || !templateName.trim()}
-            >
-              {isSavingTemplate ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <LayoutTemplate className="mr-2 h-4 w-4" />
-              )}
-              템플릿 저장
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isEditTemplateDialogOpen}
-        onOpenChange={(open) => {
-          if (!isUpdatingTemplateDetails) {
-            setIsEditTemplateDialogOpen(open);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>템플릿 편집</DialogTitle>
-            <DialogDescription>
-              템플릿 이름, 아이콘, 설명과 새 문서 기본 제목을 직접 수정합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-doc-template-name">템플릿 이름</Label>
-              <Input
-                id="edit-doc-template-name"
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="예: 패치노트 템플릿"
-                disabled={isUpdatingTemplateDetails}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-doc-template-emoji">템플릿 아이콘</Label>
-              <Input
-                id="edit-doc-template-emoji"
-                value={templateEmoji ?? ""}
-                onChange={(event) => setTemplateEmoji(event.target.value || null)}
-                placeholder="📄"
-                disabled={isUpdatingTemplateDetails}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-doc-template-title">새 문서 기본 제목</Label>
-              <Input
-                id="edit-doc-template-title"
-                value={templateDocTitle}
-                onChange={(event) => setTemplateDocTitle(event.target.value)}
-                placeholder="예: 이번 주 패치노트"
-                disabled={isUpdatingTemplateDetails}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-doc-template-description">설명</Label>
-              <Textarea
-                id="edit-doc-template-description"
-                value={templateDescription}
-                onChange={(event) => setTemplateDescription(event.target.value)}
-                placeholder="이 템플릿을 언제 쓰는지 짧게 적어주세요."
-                rows={3}
-                disabled={isUpdatingTemplateDetails}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsEditTemplateDialogOpen(false)}
-              disabled={isUpdatingTemplateDetails}
-            >
-              취소
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleUpdateTemplateDetails()}
-              disabled={
-                isUpdatingTemplateDetails ||
-                !templateName.trim() ||
-                !templateDocTitle.trim()
-              }
-            >
-              {isUpdatingTemplateDetails ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <PencilLine className="mr-2 h-4 w-4" />
-              )}
-              템플릿 저장
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isTemplateManagerOpen} onOpenChange={setIsTemplateManagerOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>템플릿 관리</DialogTitle>
-            <DialogDescription>
-              워크스페이스에서 직접 만든 문서 템플릿을 사용하거나 정리할 수 있습니다.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[65vh] pr-4">
-            <div className="space-y-3">
-              {templates && templates.length > 0 ? (
-                templates.map((template) => {
-                  const isBusy = templateActionId === template.id;
-                  return (
-                    <div
-                      key={template.id}
-                      className="rounded-xl border bg-background/70 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{template.emoji || "📄"}</span>
-                            <span className="truncate font-medium">
-                              {template.name}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {template.description || "설명이 없습니다."}
-                          </p>
-                          <div className="text-xs text-muted-foreground">
-                            생성 문서 제목: {template.title}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            마지막 수정: {formatMetaDate(template.updatedAt)}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void handleUseTemplate(template.id)}
-                            disabled={isBusy}
-                          >
-                            사용
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEditTemplateDialog(template)}
-                            disabled={isBusy}
-                          >
-                            <PencilLine className="mr-2 h-4 w-4" />
-                            편집
-                          </Button>
-                          {activePageDoc && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                void handleRefreshTemplateFromCurrentDoc(template.id)
-                              }
-                              disabled={isBusy}
-                            >
-                              {isBusy ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "현재 문서로 갱신"
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => void handleDeleteTemplate(template)}
-                            disabled={isBusy}
-                          >
-                            삭제
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  아직 저장된 템플릿이 없습니다. 문서를 하나 만든 뒤 템플릿으로 저장해보세요.
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-          <DialogFooter>
-            {activePageDoc && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsTemplateManagerOpen(false);
-                  openSaveTemplateDialog();
-                }}
-              >
-                <CopyPlus className="mr-2 h-4 w-4" />
-                현재 문서를 템플릿으로 저장
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

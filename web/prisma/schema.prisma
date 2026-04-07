@@ -525,7 +525,6 @@ model profiles {
   workspace_docs     workspace_docs[]
   started_doc_collab_sessions workspace_doc_collab_sessions[] @relation("WorkspaceDocCollabStartedBy")
   workspace_doc_live_presence workspace_doc_live_presence[]
-  workspace_doc_templates_created workspace_doc_templates[] @relation("WorkspaceDocTemplateCreator")
   workspace_doc_assets_created workspace_doc_assets[] @relation("WorkspaceDocAssetCreator")
   workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
   workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
@@ -691,7 +690,6 @@ model workspaces {
   docs       workspace_docs[]
   doc_collab_sessions workspace_doc_collab_sessions[]
   doc_live_presence workspace_doc_live_presence[]
-  doc_templates workspace_doc_templates[]
   doc_assets workspace_doc_assets[]
   task_document_links kanban_task_documents[]
   doc_comments workspace_doc_comments[]
@@ -871,7 +869,6 @@ model workspace_docs {
   state     workspace_doc_states?
   collab_session workspace_doc_collab_sessions?
   live_presence workspace_doc_live_presence[]
-  templates_based_on workspace_doc_templates[] @relation("WorkspaceDocTemplateSourceDoc")
   assets    workspace_doc_assets[]
   task_links kanban_task_documents[]
   comments  workspace_doc_comments[]
@@ -945,29 +942,6 @@ model workspace_doc_assets {
 
   @@index([workspace_id, doc_id, created_at(sort: Desc)])
   @@index([doc_id, created_at(sort: Desc)])
-  @@schema("public")
-}
-
-model workspace_doc_templates {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id  String   @db.Uuid
-  created_by    String   @db.Uuid
-  source_doc_id String?  @db.Uuid
-  name          String
-  description   String?
-  emoji         String?
-  title         String
-  content       Json?    @db.Json
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  workspace workspaces      @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  creator   profiles        @relation("WorkspaceDocTemplateCreator", fields: [created_by], references: [id], onDelete: Cascade)
-  source_doc workspace_docs? @relation("WorkspaceDocTemplateSourceDoc", fields: [source_doc_id], references: [id], onDelete: SetNull)
-
-  @@index([workspace_id, updated_at(sort: Desc)])
-  @@index([workspace_id, name])
-  @@index([source_doc_id])
   @@schema("public")
 }
 

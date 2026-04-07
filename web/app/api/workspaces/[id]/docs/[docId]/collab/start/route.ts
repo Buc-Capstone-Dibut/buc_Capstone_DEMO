@@ -7,8 +7,6 @@ import {
   startDocCollabSession,
   touchDocPresence,
 } from "@/lib/server/workspace-doc-collab-session";
-import { syncDocCollabStateFromSnapshot } from "@/lib/server/doc-collab-state";
-import { resetWorkspaceDocCollabRoom } from "@/lib/server/workspace-doc-collab-room";
 import { createWorkspaceDocCollabToken } from "@/lib/server/workspace-doc-collab-token";
 
 export async function POST(
@@ -70,36 +68,6 @@ export async function POST(
       isDirty: false,
     });
 
-    const existingSession = await prisma.workspace_doc_collab_sessions.findUnique({
-      where: {
-        doc_id: docId,
-      },
-      select: {
-        status: true,
-      },
-    });
-
-    let seedState: string | null = null;
-
-    if (!existingSession || existingSession.status !== "ACTIVE") {
-      const seeded = await syncDocCollabStateFromSnapshot(docId);
-      if (!seeded.ok) {
-        return NextResponse.json(
-          { error: seeded.error },
-          { status: seeded.status },
-        );
-      }
-      seedState = seeded.yjsState;
-
-      const reset = await resetWorkspaceDocCollabRoom(docId);
-      if (!reset.ok) {
-        return NextResponse.json(
-          { error: "이전 협업 상태를 정리하지 못해 협업을 시작할 수 없습니다." },
-          { status: reset.status },
-        );
-      }
-    }
-
     const result = await startDocCollabSession(
       workspaceId,
       docId,
@@ -119,7 +87,6 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       collab: result.state,
-      seedState,
       token: createWorkspaceDocCollabToken({
         docId,
         workspaceId,

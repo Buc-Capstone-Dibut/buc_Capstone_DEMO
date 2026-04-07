@@ -24,7 +24,7 @@ export default async function CareerExperiencesPage() {
   let experiences: any[] = [];
   if (profile && profile.resume_payload) {
     const payload = profile.resume_payload as unknown as ResumePayload;
-    experiences = payload.experience || [];
+    experiences = payload.timeline || [];
   } else {
     // Fallback to active resume if profile doesn't exist yet
     let activeResume = await prisma.user_resumes.findFirst({
@@ -38,7 +38,7 @@ export default async function CareerExperiencesPage() {
     }
     if (activeResume && activeResume.resume_payload) {
       const payload = activeResume.resume_payload as unknown as ResumePayload;
-      experiences = payload.experience || [];
+      experiences = payload.timeline || [];
     }
   }
 

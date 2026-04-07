@@ -1,17 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import { saveExperienceAction, deleteExperienceAction, type ExperienceInput } from "./actions";
-import { Plus, Trash2, Sparkles, Check, ChevronRight, X, MousePointerClick } from "lucide-react";
+import { Plus, Trash2, Sparkles, Check, ChevronRight, ChevronDown, ChevronUp, X, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 
@@ -22,11 +16,12 @@ interface ExperienceFormProps {
 
 const ExperienceFormUI = ({ formData, setFormData }: ExperienceFormProps) => {
   const [tagsInput, setTagsInput] = React.useState(formData.tags?.join(", ") || "");
+  const [isStadriOpen, setIsStadriOpen] = React.useState(false);
 
   // Update local state when formData changes (e.g. when opening a new experience)
   React.useEffect(() => {
     setTagsInput(formData.tags?.join(", ") || "");
-  }, [formData.id]);
+  }, [formData.id, formData.tags]);
 
   const handleTagsChange = (val: string) => {
     setTagsInput(val);
@@ -35,41 +30,105 @@ const ExperienceFormUI = ({ formData, setFormData }: ExperienceFormProps) => {
   };
 
   return (
-    <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">활동명 (Title)</label>
-        <input 
-          value={formData.company || ""} 
-          onChange={e => setFormData({...formData, company: e.target.value})}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: GDSC 3기 멤버" />
-      </div>
+    <div className="space-y-4">
+      <div className="space-y-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+        <div className="space-y-2">
+          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">활동명 (Title)</label>
+          <input
+            value={formData.company || ""}
+            onChange={e => setFormData({ ...formData, company: e.target.value })}
+            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: GDSC 3기 멤버" />
+        </div>
 
-      <div className="flex gap-4">
-        <div className="space-y-2 flex-1">
-          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">진행 기간 (Date)</label>
-          <MonthRangePicker 
-            value={formData.period || ""} 
-            onChange={v => setFormData({...formData, period: v})}
-          />
+        <div className="flex gap-4">
+          <div className="space-y-2 flex-1">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">진행 기간 (Date)</label>
+            <MonthRangePicker
+              value={formData.period || ""}
+              onChange={v => setFormData({ ...formData, period: v })}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">1줄 요약 (Short Summary)</label>
+          <input
+            value={formData.description || ""}
+            onChange={e => setFormData({ ...formData, description: e.target.value })}
+            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 팀장으로서 5명의 팀원을 이끌고 메신저 앱 배포" />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">핵심 태그 (Tags: 쉼표로 구분)</label>
+          <input
+            value={tagsInput}
+            onChange={e => handleTagsChange(e.target.value)}
+            className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 리더십, 소통, React, 배포" />
+          <p className="text-[11px] text-slate-500 font-medium ml-1">입력한 태그가 타임라인 카드에 표시됩니다.</p>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">1줄 요약 (Short Summary)</label>
-        <input 
-          value={formData.description || ""} 
-          onChange={e => setFormData({...formData, description: e.target.value})}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 팀장으로서 5명의 팀원을 이끌고 메신저 앱 배포" />
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsStadriOpen(!isStadriOpen)}
+        className="w-full h-10 flex items-center justify-between px-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors group"
+      >
+        <span className="text-[14px] font-bold">상세 경험 보기</span>
+        {isStadriOpen ? <ChevronUp className="w-5 h-5 group-hover:bg-slate-100 dark:group-hover:bg-slate-800 rounded-full p-0.5 transition-colors" /> : <ChevronDown className="w-5 h-5 group-hover:bg-slate-100 dark:group-hover:bg-slate-800 rounded-full p-0.5 transition-colors" />}
+      </button>
 
-      <div className="space-y-2">
-        <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">핵심 태그 (Tags: 쉼표로 구분)</label>
-        <input 
-          value={tagsInput} 
-          onChange={e => handleTagsChange(e.target.value)}
-          className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm text-[14px]" placeholder="예: 리더십, 소통, React, 배포" />
-        <p className="text-[11px] text-slate-500 font-medium ml-1">입력한 태그가 타임라인 카드에 표시됩니다.</p>
-      </div>
+      {isStadriOpen && (
+        <div className="p-6 space-y-6 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm animate-in slide-in-from-top-2 duration-300">
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">어떤 상황이었나요? (Situation)</label>
+            <textarea
+              value={formData.situation || ""}
+              onChange={e => setFormData({ ...formData, situation: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">나의 임무는 무엇이었나요? (Role)</label>
+            <textarea
+              value={formData.role || ""}
+              onChange={e => setFormData({ ...formData, role: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">구체적으로 어떤 행동을 했나요? (Solution)</label>
+            <textarea
+              value={formData.solution || ""}
+              onChange={e => setFormData({ ...formData, solution: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">가장 힘들었던 점은 무엇인가요? (Difficulty)</label>
+            <textarea
+              value={formData.difficulty || ""}
+              onChange={e => setFormData({ ...formData, difficulty: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">어떤 결과물이 있었나요? (Result)</label>
+            <textarea
+              value={formData.result || ""}
+              onChange={e => setFormData({ ...formData, result: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">새롭게 배운 점은 무엇인가요? (Lesson)</label>
+            <textarea
+              value={formData.lesson || ""}
+              onChange={e => setFormData({ ...formData, lesson: e.target.value })}
+              className="w-full min-h-[100px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px] leading-relaxed resize-none shadow-sm"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -79,15 +138,13 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const [experiences, setExperiences] = useState<ExperienceInput[]>(initialExperiences || []);
   const [formData, setFormData] = useState<Partial<ExperienceInput>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const handleAddNew = () => {
-    setFormData({ company: "", period: "", description: "", tags: [] });
-    setIsSheetOpen(true);
+    router.push("/career/experiences/new");
   };
 
   const handleSave = async (closeFn: () => void) => {
@@ -106,7 +163,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
         });
         closeFn();
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       alert("저장 중 오류가 발생했습니다.");
     } finally {
@@ -121,7 +178,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
       await deleteExperienceAction(id);
       setExperiences(prev => prev.filter(e => e.id !== id));
       if (activeId === id) setActiveId(null);
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       alert("삭제 중 오류가 발생했습니다.");
     }
@@ -145,12 +202,26 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
   // Navigate to the AI resume setup wizard with pre-filled experience context
   const navigateToAiSetup = () => {
     const selectedExps = experiences.filter(e => selectedIds.includes(e.id!));
-    const situation = selectedExps
-      .map(e => `[${e.company}] ${e.period || ""}\n${e.description || ""}\n태그: ${e.tags?.join(", ") || ""}`.trim())
-      .join("\n\n");
+
+    // Build a rich context string including all STADRI fields
+    const fullContextString = selectedExps.map(e => `
+[경험 제목: ${e.company}]
+진행 기간: ${e.period || "미입력"}
+요약: ${e.description || "미입력"}
+태그: ${e.tags?.join(", ") || "없음"}
+상황(Situation): ${e.situation || "미입력"}
+역할(Role): ${e.role || "미입력"}
+행동(Solution): ${e.solution || "미입력"}
+어려움(Difficulty): ${e.difficulty || "미입력"}
+결과(Result): ${e.result || "미입력"}
+배운점(Lesson): ${e.lesson || "미입력"}
+    `.trim()).join("\n\n---\n\n");
+
+    // Store in sessionStorage to bypass URL length limits
+    sessionStorage.setItem("wizard_context_data", fullContextString);
+
     const params = new URLSearchParams({
       source: "career",
-      situation: situation,
       experienceIds: selectedIds.join(","),
     });
     router.push(`/career/cover-letter-wizard?${params.toString()}`);
@@ -198,7 +269,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
         <div className={cn(
           "relative w-full pb-20 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
           (experiences.length > 0 && activeId !== null && !selectionMode) ? "translate-x-0" :
-          (experiences.length > 0) ? "lg:translate-x-[20%]" : "translate-x-0"
+            (experiences.length > 0) ? "lg:translate-x-[20%]" : "translate-x-0"
         )}>
           {/* Centered Vertical Line — only visible when there are experiences */}
           {experiences.length > 0 && (
@@ -206,14 +277,27 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
           )}
 
           {experiences.length === 0 && (
-             <div className="relative z-10 flex flex-col items-center justify-center py-20 mx-auto w-full bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
-               <p className="text-slate-500 font-medium mb-4">아직 등록된 경험이 없습니다.</p>
-               <Button onClick={handleAddNew} variant="outline" className="rounded-full">새 경험 추가하기</Button>
-             </div>
+            <div className="relative z-10 flex flex-col items-center justify-center py-20 mx-auto w-full bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
+              <p className="text-slate-500 font-medium mb-4">아직 등록된 경험이 없습니다.</p>
+              <Button onClick={handleAddNew} variant="outline" className="rounded-full">새 경험 추가하기</Button>
+            </div>
           )}
 
           <div className="flex flex-col gap-10 relative z-10">
-            {experiences.map((exp) => {
+            {[...experiences].sort((a, b) => {
+              const getDateString = (periodStr?: string) => {
+                if (!periodStr) return "0000.00";
+                const startPart = periodStr.split("~")[0].trim();
+                const match = startPart.match(/(\d{4})[:./-](\d{1,2})/);
+                if (match) {
+                  return `${match[1]}.${match[2].padStart(2, '0')}`;
+                }
+                return "0000.00";
+              };
+              const dateA = getDateString(a.period);
+              const dateB = getDateString(b.period);
+              return dateB.localeCompare(dateA);
+            }).map((exp) => {
               const isActive = activeId === exp.id;
               const isSelected = selectedIds.includes(exp.id!);
 
@@ -239,9 +323,9 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
                           </div>
                         </div>
                       )}
-                      
+
                       {!selectionMode && !isActive && (
-                        <button 
+                        <button
                           onClick={(e) => handleDelete(exp.id!, e)}
                           className="absolute top-6 right-6 p-2 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-300 transition-colors opacity-0 group-hover:opacity-100"
                         >
@@ -294,7 +378,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
                           <div className="p-8 max-h-[700px] overflow-y-auto no-scrollbar">
                             <div className="flex justify-between items-center mb-8">
                               <h4 className="font-semibold text-[15px] text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                상세 경험 편집
+                                경험 편집
                               </h4>
                               <button onClick={() => setActiveId(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors">
                                 <X className="w-4 h-4" />
@@ -335,7 +419,7 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
             </span>
           </div>
 
-          <Button 
+          <Button
             onClick={navigateToAiSetup}
             className="rounded-full h-12 px-6 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-bold space-x-2 transition-transform active:scale-95"
           >
@@ -344,29 +428,6 @@ export default function CareerTimelineClient({ initialExperiences }: { initialEx
           </Button>
         </div>
       </div>
-
-      <Dialog open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <DialogContent className="max-w-lg w-full rounded-2xl bg-white dark:bg-slate-950 p-0 overflow-hidden shadow-2xl">
-          <DialogHeader className="px-8 pt-8 pb-6 border-b border-slate-100 dark:border-slate-800">
-            <DialogTitle className="text-xl font-bold tracking-tight">새로운 경험 기록</DialogTitle>
-            <DialogDescription className="text-[14px] mt-1 text-slate-500">
-              경험의 기본 정보들을 가볍게 기록해 두고, 나중에 상세 내용을 채워보세요!
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-8 py-6 overflow-y-auto max-h-[60vh]">
-            <ExperienceFormUI formData={formData} setFormData={setFormData} />
-          </div>
-          <div className="px-8 pb-8 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button
-              className="w-full h-12 font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md text-[15px]"
-              onClick={() => handleSave(() => setIsSheetOpen(false))}
-              disabled={isSaving}
-            >
-              {isSaving ? "저장 중..." : "기록 저장하기"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
