@@ -46,6 +46,7 @@ interface DocumentEditorProps {
   workspaceId?: string;
   readOnly?: boolean;
   user?: UserInfo;
+  initialYjsState?: string | null;
   onTaskLinked?: () => void;
   onOpenTask?: (taskId: string) => void;
   collabToken: string;
@@ -81,6 +82,7 @@ export const DocumentEditor = forwardRef<
     workspaceId,
     readOnly = false,
     user,
+    initialYjsState,
     onTaskLinked,
     onOpenTask,
     collabToken,
@@ -92,6 +94,9 @@ export const DocumentEditor = forwardRef<
   const { theme } = useTheme();
   const pathname = usePathname();
   const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generatedUserInfoRef = useRef<UserInfo | null>(null);
+  const userName = user?.name;
+  const userColor = user?.color;
 
   const resolvedWorkspaceId = useMemo(() => {
     if (workspaceId) return workspaceId;
@@ -150,28 +155,65 @@ export const DocumentEditor = forwardRef<
     return url;
   }, []);
 
+  const decodeYjsState = useCallback((encodedState: string) => {
+    if (typeof window === "undefined") {
+      return Uint8Array.from(Buffer.from(encodedState, "base64"));
+    }
+
+    const binary = window.atob(encodedState);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }, []);
+
   // Create Yjs provider and doc
   const { doc, provider } = useMemo(() => {
     const ydoc = new Y.Doc();
-    const websocketProvider = new WebsocketProvider(WS_URL, `doc:${docId}`, ydoc, {
-      params: {
-        token: collabToken,
+    if (initialYjsState) {
+      try {
+        Y.applyUpdate(ydoc, decodeYjsState(initialYjsState));
+      } catch (error) {
+        console.error("Failed to preload collaboration state", error);
+      }
+    }
+
+    const websocketProvider = new WebsocketProvider(
+      WS_URL,
+      `doc:${docId}`,
+      ydoc,
+      {
+        connect: false,
+        params: {
+          token: collabToken,
+        },
       },
-    });
+    );
     return { doc: ydoc, provider: websocketProvider };
-  }, [collabToken, docId]);
+  }, [collabToken, decodeYjsState, docId, initialYjsState]);
 
   // Stable user info
   const userInfo = useMemo(() => {
-    if (user) return user;
-    if (typeof window === "undefined") {
-      return { name: "Anonymous", color: "#ff0000" };
+    if (userName && userColor) {
+      return {
+        name: userName,
+        color: userColor,
+      };
     }
-    return {
-      name: getRandomName(),
-      color: getRandomColor(),
-    };
-  }, [user]);
+
+    if (!generatedUserInfoRef.current) {
+      generatedUserInfoRef.current =
+        typeof window === "undefined"
+          ? { name: "Anonymous", color: "#ff0000" }
+          : {
+              name: getRandomName(),
+              color: getRandomColor(),
+            };
+    }
+
+    return generatedUserInfoRef.current;
+  }, [userColor, userName]);
 
   const editor = useCreateBlockNote(
     {
@@ -211,6 +253,9 @@ export const DocumentEditor = forwardRef<
       }
       onStatusChange?.("unstable");
     };
+    const handleProviderSync = (synced: boolean) => {
+      onStatusChange?.(synced ? "synced" : "connecting");
+    };
 
     const updateParticipants = () => {
       const users = Array.from(provider.awareness.getStates().values())
@@ -230,15 +275,15 @@ export const DocumentEditor = forwardRef<
     };
 
     provider.on("status", handleProviderStatus);
-    provider.on("sync", (synced: boolean) => {
-      onStatusChange?.(synced ? "synced" : "connecting");
-    });
+    provider.on("sync", handleProviderSync);
     provider.awareness.on("change", updateParticipants);
     doc.on("update", handleDocUpdate);
+    provider.connect();
     updateParticipants();
 
     return () => {
       provider.off("status", handleProviderStatus);
+      provider.off("sync", handleProviderSync);
       provider.awareness.off("change", updateParticipants);
       doc.off("update", handleDocUpdate);
       if (saveIndicatorTimerRef.current) {

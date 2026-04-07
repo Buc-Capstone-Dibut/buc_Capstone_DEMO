@@ -303,6 +303,7 @@ export function DocsView({
   const [isOrganizeMode, setIsOrganizeMode] = useState(false);
   const [editorMode, setEditorMode] = useState<"normal" | "collab">("normal");
   const [collabToken, setCollabToken] = useState<string | null>(null);
+  const [collabInitialYjsState, setCollabInitialYjsState] = useState<string | null>(null);
   const [collabStatus, setCollabStatus] = useState<
     "connecting" | "saving" | "synced" | "unstable"
   >("synced");
@@ -558,6 +559,7 @@ export function DocsView({
   useEffect(() => {
     if (editorMode !== "collab") {
       setCollabToken(null);
+      setCollabInitialYjsState(null);
       setCollabStatus("synced");
       setCollabParticipants([]);
     }
@@ -1436,6 +1438,7 @@ export function DocsView({
 
       setEditorMode("normal");
       setCollabToken(null);
+      setCollabInitialYjsState(null);
       setCollabStatus("synced");
       setCollabParticipants(payload?.collab?.participants ?? []);
       void mutateDocs();
@@ -1567,14 +1570,15 @@ export function DocsView({
   useEffect(() => {
     if (!activeDocId || !resolvedActiveDoc || isReadOnly) return;
 
-    if (!resolvedActiveDoc.collab?.isActive) {
-      if (editorMode === "collab") {
-        setEditorMode("normal");
-        setCollabToken(null);
-        setCollabStatus("synced");
+      if (!resolvedActiveDoc.collab?.isActive) {
+        if (editorMode === "collab") {
+          setEditorMode("normal");
+          setCollabToken(null);
+          setCollabInitialYjsState(null);
+          setCollabStatus("synced");
+        }
+        return;
       }
-      return;
-    }
 
     if (editorMode === "collab") {
       return;
@@ -1610,6 +1614,7 @@ export function DocsView({
           active: true,
         });
         setCollabToken(payload.token);
+        setCollabInitialYjsState(null);
         setCollabParticipants(payload.collab?.participants ?? []);
         setCollabStatus("connecting");
         setEditorMode("collab");
@@ -1735,6 +1740,7 @@ export function DocsView({
         | {
             error?: string;
             token?: string;
+            seedState?: string | null;
             blockers?: Array<{ userId: string; name: string }>;
             collab?: WorkspaceDocCollabState;
           }
@@ -1760,6 +1766,7 @@ export function DocsView({
       });
 
       setCollabToken(payload.token);
+      setCollabInitialYjsState(payload.seedState ?? null);
       setCollabParticipants(payload.collab?.participants ?? []);
       setCollabStatus("connecting");
       setEditorMode("collab");
@@ -2494,6 +2501,7 @@ export function DocsView({
                   workspaceId={projectId}
                   readOnly={isReadOnly}
                   collabToken={collabToken}
+                  initialYjsState={collabInitialYjsState}
                   onStatusChange={setCollabStatus}
                   onTaskLinked={() => {
                     void mutateLinkedTasks();
