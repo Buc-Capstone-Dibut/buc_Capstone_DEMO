@@ -703,7 +703,7 @@ export default function InterviewVideoRoomPage() {
       if (isSessionReadyRef.current || initRetryAttemptedRef.current) return;
       initRetryAttemptedRef.current = true;
       void sendInterviewInit(sessionId, "retry");
-    }, 4000);
+    }, 8000);
 
     return true;
   }, [

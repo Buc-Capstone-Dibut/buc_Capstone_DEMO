@@ -25,6 +25,7 @@ venv/
 .env
 .env*.local
 .env.local
+ai-interview/debut-492601-2c2a8bf7446c.json
 
 # Logs
 npm-debug.log*

@@ -7,6 +7,7 @@ import logging
 import queue
 import re
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -82,6 +83,29 @@ _NOISY_HINTS = {
     "summary",
     "description",
 }
+
+
+def _is_fatal_google_stt_error(exc: Exception) -> bool:
+    if isinstance(exc, DefaultCredentialsError):
+        return True
+    if google_api_exceptions is not None:
+        fatal_types = tuple(
+            cls
+            for cls in (
+                getattr(google_api_exceptions, "PermissionDenied", None),
+                getattr(google_api_exceptions, "Unauthenticated", None),
+            )
+            if cls is not None
+        )
+        if fatal_types and isinstance(exc, fatal_types):
+            return True
+    message = str(exc).casefold()
+    return (
+        "service_disabled" in message
+        or "speech.googleapis.com" in message and "disabled" in message
+        or "user_project_denied" in message
+        or "permission denied" in message
+    )
 
 
 @dataclass
@@ -309,6 +333,8 @@ class GoogleCloudSttService:
         self.timeout_sec = max(2.0, float(timeout_sec or 8.0))
         self._client = None
         self._init_error: Exception | None = None
+        self._runtime_disabled_reason: str | None = None
+        self._runtime_disabled_at: float | None = None
 
         if speech is None:
             self._init_error = RuntimeError("google-cloud-speech dependency is not available")
@@ -364,7 +390,17 @@ class GoogleCloudSttService:
 
     @property
     def enabled(self) -> bool:
-        return self._client is not None
+        return self._client is not None and self._runtime_disabled_reason is None
+
+    def _disable_runtime(self, exc: Exception) -> None:
+        if self._runtime_disabled_reason is not None:
+            return
+        self._runtime_disabled_reason = str(exc).strip() or exc.__class__.__name__
+        self._runtime_disabled_at = time.monotonic()
+        logger.warning(
+            "google STT disabled after fatal runtime error: %s",
+            self._runtime_disabled_reason,
+        )
 
     def start_streaming_session(
         self,
@@ -375,7 +411,7 @@ class GoogleCloudSttService:
         phrase_hint_boost: float | None = None,
         on_result: Callable[[StreamingSttEvent], None] | None = None,
     ) -> "GoogleCloudStreamingSttSession | None":
-        if not self._client:
+        if not self.enabled:
             return None
         session_phrase_hints: list[str] = []
         for hint in [*self.phrase_hints, *(phrase_hints or [])]:
@@ -394,6 +430,7 @@ class GoogleCloudSttService:
             phrase_hint_boost=self.phrase_hint_boost if phrase_hint_boost is None else max(0.0, float(phrase_hint_boost)),
             timeout_sec=None,
             on_result=on_result,
+            on_error=self._disable_runtime,
         )
 
     def transcribe_wav(
@@ -404,7 +441,7 @@ class GoogleCloudSttService:
         phrase_hints: Iterable[str] | None = None,
         phrase_hint_boost: float | None = None,
     ) -> SttResult:
-        if not self._client or not wav_bytes:
+        if not self.enabled or not wav_bytes:
             return SttResult(text="", provider=self.provider)
 
         effective_phrase_hints: list[str] = []
@@ -438,9 +475,9 @@ class GoogleCloudSttService:
                 audio=audio,
                 timeout=self.timeout_sec,
             )
-        except Exception:
-            if google_api_exceptions is None:
-                raise
+        except Exception as exc:
+            if _is_fatal_google_stt_error(exc):
+                self._disable_runtime(exc)
             raise
 
         alternatives: list[str] = []
@@ -471,6 +508,7 @@ class GoogleCloudStreamingSttSession:
         phrase_hint_boost: float,
         timeout_sec: float | None,
         on_result: Callable[[StreamingSttEvent], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
     ) -> None:
         self._client = client
         self.provider = provider
@@ -483,6 +521,7 @@ class GoogleCloudStreamingSttSession:
         self.phrase_hint_boost = max(0.0, float(phrase_hint_boost or 0.0))
         self.timeout_sec = None if timeout_sec is None else max(30.0, float(timeout_sec))
         self._on_result = on_result
+        self._on_error = on_error
         self._audio_queue: "queue.Queue[bytes | None]" = queue.Queue()
         self._closed = threading.Event()
         self._failed = threading.Event()
@@ -585,8 +624,13 @@ class GoogleCloudStreamingSttSession:
                         is_final=bool(getattr(result, "is_final", False)),
                         stability=float(getattr(result, "stability", 0.0) or 0.0),
                     )
-        except Exception:
+        except Exception as exc:
             self._failed.set()
+            if _is_fatal_google_stt_error(exc) and self._on_error is not None:
+                try:
+                    self._on_error(exc)
+                except Exception:
+                    pass
             logger.warning("google streaming STT session failed", exc_info=True)
         finally:
             self._closed.set()
