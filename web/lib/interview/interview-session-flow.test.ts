@@ -16,7 +16,9 @@ test("isPendingReportStatus matches pending and running only", () => {
   assert.equal(isPendingReportStatus(undefined), false);
 });
 
-test("shouldRedirectToPortfolioReport checks rubricScores presence", () => {
+test("shouldRedirectToPortfolioReport checks session type first and falls back to rubricScores", () => {
+  assert.equal(shouldRedirectToPortfolioReport({ session_type: "portfolio_defense" }), true);
+  assert.equal(shouldRedirectToPortfolioReport({ report_view: { sessionType: "portfolio_defense" } }), true);
   assert.equal(shouldRedirectToPortfolioReport({ analysis: { rubricScores: { design_intent: 88 } } }), true);
   assert.equal(shouldRedirectToPortfolioReport({ analysis: {} }), false);
   assert.equal(shouldRedirectToPortfolioReport(null), false);

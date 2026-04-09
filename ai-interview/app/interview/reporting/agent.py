@@ -94,6 +94,11 @@ def _build_fallback_live_interview_report(
         "strengths": strengths,
         "improvements": improvements,
         "nextActions": next_actions,
+        "analysisMode": "fallback_basic",
+        "analysisMeta": {
+            "analysisMode": "fallback_basic",
+            "fallbackReason": "gemini-analysis-unavailable",
+        },
     }
 
 

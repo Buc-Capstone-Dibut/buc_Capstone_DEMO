@@ -56,6 +56,8 @@ export interface ReportShellModel {
 }
 
 export interface MockInterviewReportModel extends ReportShellModel {
+  analysisMode?: "full" | "summary";
+  isFallback?: boolean;
   fitSummary: string;
   questionHighlights: ReportHighlight[];
   deliveryInsights: string[];

@@ -4,7 +4,13 @@ export function isPendingReportStatus(status: string | null | undefined): boolea
   return status === "pending" || status === "running";
 }
 
-export function shouldRedirectToPortfolioReport(detail: { analysis?: { rubricScores?: unknown } | null } | null | undefined): boolean {
+export function shouldRedirectToPortfolioReport(detail: {
+  session_type?: string | null;
+  report_view?: { sessionType?: string | null } | null;
+  analysis?: { rubricScores?: unknown } | null;
+} | null | undefined): boolean {
+  if (detail?.session_type === "portfolio_defense") return true;
+  if (detail?.report_view?.sessionType === "portfolio_defense") return true;
   return Boolean(detail?.analysis?.rubricScores);
 }
 

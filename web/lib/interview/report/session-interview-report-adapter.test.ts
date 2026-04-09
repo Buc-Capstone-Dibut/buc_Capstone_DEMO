@@ -120,3 +120,40 @@ test("session interview adapter falls back to analysis and feedback when report 
   assert.equal(model.questionHighlights[0]?.title, "성능 개선 경험을 설명해주세요.");
   assert.equal(model.footerActions[0]?.href, "/interview/analysis");
 });
+
+test("session interview adapter builds summary-only report when analysis is missing", () => {
+  const model = buildSessionInterviewReportModel({
+    analysis: null,
+    reportView: {
+      sessionType: "live_interview",
+      analysisMode: "summary",
+      company: "Dibut",
+      role: "Backend Engineer",
+      summary: "질문 흐름 중심의 요약 리포트입니다.",
+      strengths: ["구조적인 답변 흐름"],
+      improvements: ["성과 수치를 더 또렷하게 제시하기"],
+      nextActions: ["프로젝트 답변을 STAR 형식으로 다시 정리하기"],
+    },
+    session: {
+      company: "Dibut",
+      role: "Backend Engineer",
+      createdAt: 1710000000,
+      schemaVersion: "v2",
+      reportGenerationMeta: {
+        questionCount: 4,
+        turnCount: 8,
+        analysisMode: "summary",
+      },
+    },
+  });
+
+  assert.equal(model.analysisMode, "summary");
+  assert.equal(model.isFallback, true);
+  assert.equal(model.typeName, "요약 리포트");
+  assert.equal(model.summary, "질문 흐름 중심의 요약 리포트입니다.");
+  assert.equal(model.heroMetrics[0]?.value, "4개");
+  assert.equal(model.heroMetrics[1]?.value, "8턴");
+  assert.equal(model.heroMetrics[2]?.value, "요약 리포트");
+  assert.equal(model.questionHighlights.length, 0);
+  assert.equal(model.axisEvidence[0]?.description.includes("중립값"), true);
+});

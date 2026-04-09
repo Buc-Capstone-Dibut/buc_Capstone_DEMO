@@ -33,6 +33,38 @@ def _format_timeline_time(seconds: int) -> str:
     return f"{minutes:02d}:{remains:02d}"
 
 
+def _extract_analysis_meta(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    meta = payload.get("analysisMeta")
+    if isinstance(meta, dict):
+        return meta
+    return {}
+
+
+def _resolve_analysis_mode(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return "full"
+
+    analysis_mode = str(
+        payload.get("analysisMode")
+        or _extract_analysis_meta(payload).get("analysisMode")
+        or "full"
+    ).strip()
+
+    if analysis_mode in {"full", "summary", "fallback_basic"}:
+        return analysis_mode
+    return "full"
+
+
+def _resolve_fallback_reason(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return ""
+
+    value = payload.get("fallbackReason") or _extract_analysis_meta(payload).get("fallbackReason")
+    return str(value or "").strip()
+
+
 def coerce_report_document(payload: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
@@ -119,6 +151,7 @@ def _build_default_report_view(
 ) -> dict[str, Any]:
     job_payload = session.get("job_payload") or {}
     session_type = str(session.get("session_type") or "live_interview")
+    analysis_mode = _resolve_analysis_mode(compat_analysis)
     feedback = compat_analysis.get("feedback") or {}
     strengths = _sanitize_text_list(compat_analysis.get("strengths") or feedback.get("strengths"))
     improvements = _sanitize_text_list(compat_analysis.get("improvements") or feedback.get("improvements"))
@@ -126,6 +159,7 @@ def _build_default_report_view(
 
     return {
         "sessionType": session_type,
+        "analysisMode": analysis_mode,
         "company": job_payload.get("company", ""),
         "role": job_payload.get("role", ""),
         "repoUrl": job_payload.get("repoUrl", ""),
@@ -146,6 +180,9 @@ def build_report_document(
     compat_analysis: dict[str, Any],
     comparison_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    analysis_mode = _resolve_analysis_mode(compat_analysis)
+    fallback_reason = _resolve_fallback_reason(compat_analysis)
+
     existing = coerce_report_document(compat_analysis)
     if existing:
         timeline = existing.get("timeline")
@@ -156,13 +193,28 @@ def build_report_document(
                 paused_duration_sec=int(session.get("paused_duration_sec") or 0),
             )
         existing["timeline"] = timeline
+        existing_report_view = existing.get("reportView")
+        if not isinstance(existing_report_view, dict):
+            existing_report_view = _build_default_report_view(
+                session=session,
+                compat_analysis=existing.get("compatAnalysis") or {},
+                timeline=timeline,
+                comparison_payload=comparison_payload or existing.get("comparisonPayload") or {},
+            )
+        existing_report_view["sessionType"] = session.get("session_type", "live_interview")
+        existing_report_view["analysisMode"] = existing_report_view.get("analysisMode") or analysis_mode
+        existing["reportView"] = existing_report_view
         existing["generationMeta"] = {
             **(existing.get("generationMeta") or {}),
             "sessionType": session.get("session_type", "live_interview"),
             "turnCount": len(turns),
             "questionCount": sum(1 for turn in turns if _normalize_turn_role(turn.get("role")) == "model"),
+            "timelineCount": len(timeline),
+            "analysisMode": existing.get("generationMeta", {}).get("analysisMode") or analysis_mode,
             "generatedAt": existing.get("generationMeta", {}).get("generatedAt") or int(datetime.now(timezone.utc).timestamp()),
         }
+        if fallback_reason:
+            existing["generationMeta"]["fallbackReason"] = fallback_reason
         if comparison_payload:
             existing["comparisonPayload"] = comparison_payload
         return existing
@@ -178,8 +230,11 @@ def build_report_document(
         "turnCount": len(turns),
         "questionCount": sum(1 for turn in turns if _normalize_turn_role(turn.get("role")) == "model"),
         "timelineCount": len(timeline),
+        "analysisMode": analysis_mode,
         "source": "report-agent",
     }
+    if fallback_reason:
+        generation_meta["fallbackReason"] = fallback_reason
     return {
         "schemaVersion": REPORT_SCHEMA_VERSION,
         "compatAnalysis": compat_analysis,

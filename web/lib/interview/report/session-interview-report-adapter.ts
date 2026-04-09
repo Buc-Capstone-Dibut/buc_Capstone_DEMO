@@ -1,8 +1,10 @@
 import { AnalysisResult } from "@/store/interview-setup-store";
 import { clampScore, getTypeLabels, getTypeName } from "@/lib/interview/report/dibeot-axis";
-import { DibeotAxisScores, MockInterviewReportModel } from "@/lib/interview/report/report-types";
+import { DibeotAxisScores, MockInterviewReportModel, ReportMetric } from "@/lib/interview/report/report-types";
 
 interface SessionReportView {
+  sessionType?: string;
+  analysisMode?: string;
   company?: string;
   role?: string;
   repoUrl?: string;
@@ -16,8 +18,20 @@ interface SessionReportMeta {
   company?: string;
   role?: string;
   mode?: string;
+  sessionType?: string;
   createdAt?: string | number;
   originalUrl?: string;
+  schemaVersion?: string;
+  reportGenerationMeta?: {
+    generatedAt?: number;
+    sessionType?: string;
+    turnCount?: number;
+    questionCount?: number;
+    timelineCount?: number;
+    source?: string;
+    analysisMode?: string;
+    fallbackReason?: string;
+  } | null;
 }
 
 type SessionAnalysis = AnalysisResult & {
@@ -26,6 +40,13 @@ type SessionAnalysis = AnalysisResult & {
   strengths?: string[];
   improvements?: string[];
   nextActions?: string[];
+};
+
+const DEFAULT_AXES: DibeotAxisScores = {
+  approach: 50,
+  scope: 50,
+  decision: 50,
+  execution: 50,
 };
 
 function formatDate(value?: string | number): string {
@@ -43,6 +64,43 @@ function formatDate(value?: string | number): string {
 function sanitizeTextList(items: unknown): string[] {
   if (!Array.isArray(items)) return [];
   return items.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function resolveAnalysisMode(
+  analysis: SessionAnalysis | null | undefined,
+  reportView?: SessionReportView | null,
+  session?: SessionReportMeta,
+): "full" | "summary" {
+  const source = String(
+    session?.reportGenerationMeta?.analysisMode ||
+      reportView?.analysisMode ||
+      (analysis ? "full" : "summary"),
+  ).trim();
+
+  if (source === "fallback_basic" || source === "summary") return "summary";
+  return analysis ? "full" : "summary";
+}
+
+function buildHeroMetrics(session?: SessionReportMeta, analysisMode: "full" | "summary"): ReportMetric[] {
+  const metrics: ReportMetric[] = [];
+  const questionCount = Number(session?.reportGenerationMeta?.questionCount || 0);
+  const turnCount = Number(session?.reportGenerationMeta?.turnCount || 0);
+  const schemaVersion = String(session?.schemaVersion || "").trim();
+
+  if (questionCount > 0) {
+    metrics.push({ label: "질문 수", value: `${questionCount}개` });
+  }
+
+  if (turnCount > 0) {
+    metrics.push({ label: "발화 수", value: `${turnCount}턴` });
+  }
+
+  metrics.push({
+    label: "리포트 상태",
+    value: analysisMode === "full" ? (schemaVersion || "정식 분석") : "요약 리포트",
+  });
+
+  return metrics.slice(0, 3);
 }
 
 function resolveRoleBias(role?: string): number {
@@ -76,44 +134,50 @@ export function buildSessionInterviewReportModel({
   reportView,
   session,
 }: {
-  analysis: SessionAnalysis;
+  analysis?: SessionAnalysis | null;
   reportView?: SessionReportView | null;
   session?: SessionReportMeta;
 }): MockInterviewReportModel {
+  const analysisMode = resolveAnalysisMode(analysis, reportView, session);
+  const hasDetailedAnalysis = Boolean(analysis);
   const company = reportView?.company || session?.company || "모의면접";
   const role = reportView?.role || session?.role || "직무 정보 없음";
   const originalUrl = session?.originalUrl || "";
   const strengths = sanitizeTextList(reportView?.strengths).length > 0
     ? sanitizeTextList(reportView?.strengths)
-    : sanitizeTextList(analysis.strengths).length > 0
-      ? sanitizeTextList(analysis.strengths)
-      : sanitizeTextList(analysis.feedback?.strengths);
+    : sanitizeTextList(analysis?.strengths).length > 0
+      ? sanitizeTextList(analysis?.strengths)
+      : sanitizeTextList(analysis?.feedback?.strengths);
   const improvements = sanitizeTextList(reportView?.improvements).length > 0
     ? sanitizeTextList(reportView?.improvements)
-    : sanitizeTextList(analysis.improvements).length > 0
-      ? sanitizeTextList(analysis.improvements)
-      : sanitizeTextList(analysis.feedback?.improvements);
+    : sanitizeTextList(analysis?.improvements).length > 0
+      ? sanitizeTextList(analysis?.improvements)
+      : sanitizeTextList(analysis?.feedback?.improvements);
   const nextActions = sanitizeTextList(reportView?.nextActions).length > 0
     ? sanitizeTextList(reportView?.nextActions)
-    : sanitizeTextList(analysis.nextActions);
+    : sanitizeTextList(analysis?.nextActions);
 
-  const axes = buildAxes(analysis, role);
-  const typeName = getTypeName(axes);
-  const typeLabels = getTypeLabels(axes);
+  const axes = analysis ? buildAxes(analysis, role) : DEFAULT_AXES;
+  const typeName = analysis ? getTypeName(axes) : "요약 리포트";
+  const typeLabels = analysis ? getTypeLabels(axes) : ["핵심 요약", "질문 흐름", "강점 정리"];
   const primaryImprovement = improvements[0] || "답변 첫 문장의 밀도를 높여보세요.";
   const primaryStrength = strengths[0] || "직무 이해도와 답변 구조가 안정적입니다.";
-  const summary = String(reportView?.summary || analysis.summary || `${primaryStrength} 다만 ${primaryImprovement} 흐름을 보완하면 전체 인상이 더 강해집니다.`).trim();
+  const summary = String(reportView?.summary || analysis?.summary || `${primaryStrength} 다만 ${primaryImprovement} 흐름을 보완하면 전체 인상이 더 강해집니다.`).trim();
   const fitSummary = String(
-    analysis.fitSummary ||
-      `${company}의 ${role} 면접 기준으로 보면, 답변의 구조와 직무 연결성은 좋았고 전달 밀도를 조금만 끌어올리면 더 강한 인상을 줄 수 있습니다.`,
+    analysis?.fitSummary ||
+      (hasDetailedAnalysis
+        ? `${company}의 ${role} 면접 기준으로 보면, 답변의 구조와 직무 연결성은 좋았고 전달 밀도를 조금만 끌어올리면 더 강한 인상을 줄 수 있습니다.`
+        : `${company}의 ${role} 면접 기록을 기준으로 핵심 답변 흐름과 다음 액션을 먼저 요약했습니다.`),
   ).trim();
 
   return {
-    badgeLabel: "이번 면접의 디벗 유형",
+    analysisMode,
+    isFallback: analysisMode !== "full",
+    badgeLabel: hasDetailedAnalysis ? "이번 면접의 디벗 유형" : "이번 면접 요약 리포트",
     typeName,
     typeLabels,
     summary,
-    heroMetrics: [],
+    heroMetrics: buildHeroMetrics(session, analysisMode),
     metaItems: [
       { label: "직무", value: role },
       originalUrl
@@ -122,28 +186,51 @@ export function buildSessionInterviewReportModel({
       { label: "일시", value: formatDate(session?.createdAt) },
     ],
     axes,
-    axisEvidence: [
-      {
-        axisKey: "approach",
-        title: "문제 접근 방식",
-        description: `논리력 ${analysis.evaluation.logic}점을 바탕으로, 답변을 바로 풀기보다 구조를 먼저 세우는 흐름이 강하게 보였습니다.`,
-      },
-      {
-        axisKey: "scope",
-        title: "사고 범위",
-        description: `${role} 맥락과 답변의 전개 방식을 함께 보면, 이번 세션은 ${typeLabels[1]} 쪽으로 더 읽혔습니다.`,
-      },
-      {
-        axisKey: "decision",
-        title: "의사결정 전략",
-        description: `태도 ${analysis.evaluation.attitude}점과 개선 포인트를 함께 보면, 빠른 시도보다 안정적으로 설명하는 쪽이 더 강했습니다.`,
-      },
-      {
-        axisKey: "execution",
-        title: "실행 방식",
-        description: `전달력 ${analysis.evaluation.communication}점과 역할 성격을 종합하면, 실제 구현 장면을 드러내는 답변 비중이 높았습니다.`,
-      },
-    ],
+    axisEvidence: hasDetailedAnalysis
+      ? [
+          {
+            axisKey: "approach",
+            title: "문제 접근 방식",
+            description: `논리력 ${analysis.evaluation.logic}점을 바탕으로, 답변을 바로 풀기보다 구조를 먼저 세우는 흐름이 강하게 보였습니다.`,
+          },
+          {
+            axisKey: "scope",
+            title: "사고 범위",
+            description: `${role} 맥락과 답변의 전개 방식을 함께 보면, 이번 세션은 ${typeLabels[1]} 쪽으로 더 읽혔습니다.`,
+          },
+          {
+            axisKey: "decision",
+            title: "의사결정 전략",
+            description: `태도 ${analysis.evaluation.attitude}점과 개선 포인트를 함께 보면, 빠른 시도보다 안정적으로 설명하는 쪽이 더 강했습니다.`,
+          },
+          {
+            axisKey: "execution",
+            title: "실행 방식",
+            description: `전달력 ${analysis.evaluation.communication}점과 역할 성격을 종합하면, 실제 구현 장면을 드러내는 답변 비중이 높았습니다.`,
+          },
+        ]
+      : [
+          {
+            axisKey: "approach",
+            title: "문제 접근 방식",
+            description: "세부 평가 점수가 없어 축별 해석은 아직 중립값으로 표시합니다.",
+          },
+          {
+            axisKey: "scope",
+            title: "사고 범위",
+            description: "질문 흐름과 요약 리포트는 볼 수 있지만, 직무별 세부 판정 데이터는 아직 없습니다.",
+          },
+          {
+            axisKey: "decision",
+            title: "의사결정 전략",
+            description: "정밀 분석이 없을 때는 실제 답변 기록과 핵심 요약 위주로 먼저 확인할 수 있습니다.",
+          },
+          {
+            axisKey: "execution",
+            title: "실행 방식",
+            description: "세부 분석 데이터가 보강되면 축별 판정과 질문별 진단이 함께 제공됩니다.",
+          },
+        ],
     strengths: (strengths.length > 0 ? strengths : ["강점 데이터가 아직 없습니다."]).slice(0, 3),
     weaknesses: (improvements.length > 0 ? improvements : ["개선 포인트 데이터가 아직 없습니다."]).slice(0, 3),
     focusPoint: primaryImprovement,
@@ -155,21 +242,29 @@ export function buildSessionInterviewReportModel({
           "질문이 길어질수록 핵심 키워드를 먼저 요약하기",
         ]).slice(0, 3),
     fitSummary,
-    questionHighlights: analysis.bestPractices.slice(0, 2).map((item, index) => ({
+    questionHighlights: (analysis?.bestPractices || []).slice(0, 2).map((item, index) => ({
       label: `질문 하이라이트 ${index + 1}`,
       title: item.question,
       summary: item.reason,
       detail: `내 답변: "${item.userAnswer}"\n개선 답변: "${item.refinedAnswer}"`,
       tone: index === 0 ? "positive" : "caution",
     })),
-    deliveryInsights: [
-      analysis.habits.length > 0
-        ? `습관어는 총 ${analysis.habits.reduce((sum, item) => sum + item.count, 0)}회 감지됐습니다.`
-        : "습관어는 거의 감지되지 않아 화법 자체는 깔끔한 편이었습니다.",
-      "답변 초반에 핵심을 먼저 말하면 전달력이 더 선명해집니다.",
-      "상위 구조 설명을 한 줄 먼저 제시하면 전체 답변의 설득력이 더 올라갑니다.",
-    ],
-    habits: analysis.habits,
+    deliveryInsights: hasDetailedAnalysis
+      ? [
+          analysis.habits.length > 0
+            ? `습관어는 총 ${analysis.habits.reduce((sum, item) => sum + item.count, 0)}회 감지됐습니다.`
+            : "습관어는 거의 감지되지 않아 화법 자체는 깔끔한 편이었습니다.",
+          "답변 초반에 핵심을 먼저 말하면 전달력이 더 선명해집니다.",
+          "상위 구조 설명을 한 줄 먼저 제시하면 전체 답변의 설득력이 더 올라갑니다.",
+        ]
+      : [
+          session?.reportGenerationMeta?.questionCount
+            ? `총 ${session.reportGenerationMeta.questionCount}개 질문 흐름을 기준으로 요약 리포트를 구성했습니다.`
+            : "저장된 질문 흐름을 기준으로 요약 리포트를 구성했습니다.",
+          "세부 점수 대신 강점과 다음 액션 중심으로 먼저 읽을 수 있습니다.",
+          "정밀 분석 데이터가 준비되면 질문별 피드백과 축별 판정이 함께 보강됩니다.",
+        ],
+    habits: analysis?.habits || [],
     footerActions: [
       { label: "나의 인터뷰 분석으로", href: "/interview/analysis", variant: "outline" },
       { label: "같은 직무로 다시 연습", href: "/interview/posting/setup" },
