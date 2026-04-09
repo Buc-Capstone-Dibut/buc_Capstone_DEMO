@@ -83,14 +83,14 @@
 
 체크리스트:
 
-- [ ] `AnalysisReport` 스키마 확장 초안 정의
-- [ ] `questionFindings` 구조 추가
-- [ ] 각 질문별 `question`, `answer`, `strengths`, `weaknesses`, `improvedAnswer`, `followUp`, `evidence` 필드 정의
-- [ ] `JD/직무 요구사항 커버리지` 구조 추가
-- [ ] `confidence` 또는 `analysisQuality` 같은 신뢰도 필드 추가
-- [ ] Gemini 분석 프롬프트를 질문별 분석 중심으로 재설계
-- [ ] report document에 확장 분석 결과를 저장
-- [ ] 테스트 fixture와 validator 갱신
+- [x] `AnalysisReport` 스키마 확장 초안 정의
+- [x] `questionFindings` 구조 추가
+- [x] 각 질문별 `question`, `answer`, `strengths`, `weaknesses`, `improvedAnswer`, `followUp`, `evidence` 필드 정의
+- [x] `JD/직무 요구사항 커버리지` 구조 추가
+- [x] `confidence` 또는 `analysisQuality` 같은 신뢰도 필드 추가
+- [x] Gemini 분석 프롬프트를 질문별 분석 중심으로 재설계
+- [x] report document에 확장 분석 결과를 저장
+- [x] 테스트 fixture와 validator 갱신
 
 주요 대상 파일:
 
@@ -105,6 +105,14 @@
 - 결과 페이지가 질문별 분석 데이터를 실제 면접 기록 기준으로 받을 수 있음
 - `핵심 질문` 섹션이 더 이상 프론트 합성 데이터에 의존하지 않아도 됨
 
+진행 메모 (2026-04-09):
+
+- `AnalysisReport`에 `questionFindings`, `competencyCoverage`, `jdCoverage` 추가
+- Gemini interview analysis prompt에 질문별 분석/역량 커버리지/JD 커버리지 규칙 추가
+- `interview_service` normalization과 report document가 새 필드를 보존하도록 수정
+- 프론트 `session-analysis-guard`와 `AnalysisResult` 타입도 새 필드를 보존하도록 확장
+- targeted lint / frontend report tests / backend normalization/report document tests 통과
+
 ---
 
 ### Phase 3. 프론트 heuristic 제거
@@ -115,12 +123,12 @@
 
 체크리스트:
 
-- [ ] 디벗 4축 점수 계산을 백엔드 report document로 이동
-- [ ] 디벗 유형(typeName/typeLabels) 계산을 백엔드에서 확정
-- [ ] axis evidence도 백엔드가 내려주도록 정리
-- [ ] `session-interview-report-adapter`의 heuristic 축 계산 제거
-- [ ] `session-interview-detail-adapter`의 supplemental 질문/답변 합성 로직 축소 또는 제거
-- [ ] 프론트 adapter는 표시 전용 매핑 레이어로 축소
+- [x] 디벗 4축 점수 계산을 백엔드 report document로 이동
+- [x] 디벗 유형(typeName/typeLabels) 계산을 백엔드에서 확정
+- [x] axis evidence도 백엔드가 내려주도록 정리
+- [x] `session-interview-report-adapter`의 heuristic 축 계산 제거
+- [x] `session-interview-detail-adapter`의 supplemental 질문/답변 합성 로직 축소 또는 제거
+- [x] 프론트 adapter는 표시 전용 매핑 레이어로 축소
 
 주요 대상 파일:
 
@@ -134,6 +142,14 @@
 - 결과 페이지의 핵심 해석이 프론트 추론이 아니라 저장된 report document 기준으로 이루어짐
 - 직무명 regex 같은 임시 규칙 의존도가 크게 줄어듦
 
+진행 메모 (2026-04-09):
+
+- `reportView.profile`에 4축 점수, 디벗 유형, axis evidence를 저장하도록 `document.py` 보강
+- `reportView.deliveryInsights`도 백엔드에서 생성하도록 추가
+- `session-interview-report-adapter`는 backend `profile/questionFindings/deliveryInsights`를 우선 사용하고, 구형 리포트에만 fallback heuristic 유지
+- `session-interview-detail-adapter`는 `questionFindings` 기반 detail을 우선 사용하고, 기존 supplemental 합성 카드를 제거
+- targeted lint / frontend interview report tests / backend report document tests 통과
+
 ---
 
 ### Phase 4. 실제 분석과 AI 코칭 분리
@@ -144,11 +160,11 @@
 
 체크리스트:
 
-- [ ] 결과 페이지 섹션을 `실제 분석`과 `성장 가이드`로 명시적으로 분리
-- [ ] 질문별 카드에 `근거 기반 분석` 표시 추가
-- [ ] AI가 생성한 보완 답변/예상 꼬리 질문에는 코칭 배지 또는 구분 라벨 추가
-- [ ] timeline insight와 question finding의 연결 방식을 실제 question id 기반으로 정리
-- [ ] fallback 리포트에는 별도 상태 배지 추가
+- [x] 결과 페이지 섹션을 `실제 분석`과 `성장 가이드`로 명시적으로 분리
+- [x] 질문별 카드에 `근거 기반 분석` 표시 추가
+- [x] AI가 생성한 보완 답변/예상 꼬리 질문에는 코칭 배지 또는 구분 라벨 추가
+- [x] timeline insight와 question finding의 연결 방식을 실제 question id 기반으로 정리
+- [x] fallback 리포트에는 별도 상태 배지 추가
 
 주요 대상 파일:
 
@@ -161,6 +177,14 @@
 - 사용자가 “이건 실제 분석”, “이건 AI 코칭”을 혼동하지 않음
 - 타임라인과 질문별 피드백의 연결이 index 기반 임시 매칭에서 벗어남
 
+진행 메모 (2026-04-09):
+
+- `result` 페이지의 상세 분석 탭에서 실제 분석 카드와 AI 코칭 카드를 명시적으로 분리
+- 질문 카드와 타임라인 가이드에 `실제 면접 기반 분석`, `리포트 해석 기반`, `AI 코칭` 배지 추가
+- `session-interview-detail-adapter`가 index 매칭 대신 timeline id + 질문/답변 텍스트 매칭으로 grounded analysis를 연결
+- summary/fallback 리포트 배너에 `summary-only` / `fallback/basic` 상태와 fallback reason 표시 추가
+- targeted lint / frontend interview report tests / backend report document tests 통과
+
 ---
 
 ### Phase 5. 신뢰도/품질 표시 강화
@@ -171,11 +195,11 @@
 
 체크리스트:
 
-- [ ] `report_generation_meta` 일부를 결과 페이지에서 노출
-- [ ] 분석 생성 시각, 사용된 턴 수, 질문 수 표시 여부 결정
-- [ ] `confidence` 또는 `분석 신뢰도` UI 추가
-- [ ] `fallback/basic report` 상태를 사용자에게 명확히 표시
-- [ ] 실패/부분 실패/재생성 상태 문구 정리
+- [x] `report_generation_meta` 일부를 결과 페이지에서 노출
+- [x] 분석 생성 시각, 사용된 턴 수, 질문 수 표시 여부 결정
+- [x] `confidence` 또는 `분석 신뢰도` UI 추가
+- [x] `fallback/basic report` 상태를 사용자에게 명확히 표시
+- [x] 실패/부분 실패/재생성 상태 문구 정리
 
 주요 대상 파일:
 
@@ -188,6 +212,15 @@
 - 사용자가 결과를 볼 때 “이 분석이 어떤 상태에서 생성된 것인지” 이해할 수 있음
 - 기본 리포트와 정식 리포트를 구분할 수 있음
 
+진행 메모 (2026-04-09):
+
+- backend `generationMeta.analysisQuality`에 신뢰도 점수, completeness, grounded question count, warnings를 추가
+- `reportView.analysisQuality`도 함께 저장해서 기존 v2 payload를 backfill할 때 품질 메타를 유지
+- `result` 페이지 상단 상태 배너를 공통화하고, `full-analysis / partial-analysis / summary-only / fallback-basic` 상태를 모두 표시
+- 생성 시각, 질문 수, 발화 수, 타임라인 수, 근거 질문 수, JD 매칭 수를 결과 페이지에서 노출
+- 리포트 실패 문구와 재생성 완료 메시지를 더 구체적으로 정리
+- targeted lint / frontend interview report tests / backend normalization/report document tests 통과
+
 ---
 
 ### Phase 6. 히스토리/트렌드 확장
@@ -198,10 +231,10 @@
 
 체크리스트:
 
-- [ ] 세션 간 성장 추세 정의
-- [ ] 최근 n회 기준 축 변화/질문 대응력 변화 설계
-- [ ] `/interview/analysis`를 목데이터 기반 페이지에서 실세션 기반 허브로 전환할지 결정
-- [ ] 추천 훈련 액션을 최근 약점과 연동하는 구조 설계
+- [x] 세션 간 성장 추세 정의
+- [x] 최근 n회 기준 축 변화/질문 대응력 변화 설계
+- [x] `/interview/analysis`를 목데이터 기반 페이지에서 실세션 기반 허브로 전환할지 결정
+- [x] 추천 훈련 액션을 최근 약점과 연동하는 구조 설계
 
 주요 대상 파일:
 
@@ -213,6 +246,14 @@
 
 - 분석 허브가 실제 세션 데이터를 기준으로 동작
 - 단발성 결과가 아니라 성장 흐름을 보여줄 수 있음
+
+진행 메모 (2026-04-09):
+
+- `list_sessions_for_user` 응답에 `timeline`, `reportGenerationMeta`, `schemaVersion`, `detectedTopics`를 포함해 analysis 허브에서 추가 fetch 없이 실제 리포트 요약을 재구성할 수 있게 정리
+- `web/lib/interview/report/analysis-hub.ts`를 추가해 live/defense 세션을 공통 허브 모델로 변환하고, 대표 축/추세/반복 약점/추천 액션 계산을 분리
+- `/interview/analysis` 페이지를 mock 데이터 기반 페이지에서 실세션 기반 허브로 전환
+- 추천 블로그 태그도 실제 세션 대표 축과 최근 기록을 기준으로 계산
+- targeted lint / frontend interview report tests / backend normalization/report document tests 통과
 
 ## 권장 실행 순서
 

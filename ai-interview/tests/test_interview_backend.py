@@ -32,7 +32,7 @@ if "app.services.interview_service" in sys.modules:
     del sys.modules["app.services.interview_service"]
 
 from app.interview.reporting.repository import ReportRepository
-from app.services.interview_service import InterviewService
+from app.services.interview_service import InterviewService, _normalize_report_analysis
 
 
 class FakeCursor:
@@ -183,6 +183,40 @@ class ReportRepositoryLifecycleTests(unittest.TestCase):
         self.assertIn("UPDATE public.interview_sessions", executed_sql)
         self.assertIn("INSERT INTO public.interview_report_jobs", executed_sql)
 
+    def test_enqueue_report_job_force_resets_existing_pending_job(self) -> None:
+        existing_job = {
+            "id": "job-9",
+            "session_id": "session-9",
+            "session_type": "live_interview",
+            "status": "pending",
+            "attempts": 2,
+            "max_attempts": 3,
+            "error": "stalled",
+            "requested_at": None,
+            "started_at": None,
+            "completed_at": None,
+            "updated_at": None,
+        }
+        reset_job = {
+            **existing_job,
+            "attempts": 0,
+            "error": "",
+        }
+        cursor = FakeCursor(
+            fetchone_results=[
+                existing_job,
+                reset_job,
+            ]
+        )
+        connection = FakeConnection(cursor)
+
+        with patch("app.interview.reporting.repository.get_connection", return_value=connection):
+            row = ReportRepository().enqueue_report_job("session-9", "live_interview", force=True)
+
+        self.assertEqual(row, reset_job)
+        self.assertEqual(connection.commit_count, 1)
+        self.assertIn("attempts = 0", cursor.executed[2][0])
+
     def test_reserve_next_report_job_marks_job_running(self) -> None:
         reserved_job = {
             "id": "job-2",
@@ -212,6 +246,57 @@ class ReportRepositoryLifecycleTests(unittest.TestCase):
         self.assertEqual(connection.commit_count, 1)
         self.assertIn("FOR UPDATE SKIP LOCKED", cursor.executed[0][0])
         self.assertIn("status = 'running'", cursor.executed[1][0])
+
+
+class ReportAnalysisNormalizationTests(unittest.TestCase):
+    def test_normalize_report_analysis_preserves_question_level_fields(self) -> None:
+        normalized = _normalize_report_analysis(
+            {
+                "evaluation": {
+                    "jobFit": 77,
+                    "logic": 81,
+                    "communication": 74,
+                    "attitude": 79,
+                },
+                "feedback": {
+                    "strengths": ["구조화된 답변"],
+                    "improvements": ["성과 수치 보강"],
+                },
+                "questionFindings": [
+                    {
+                        "question": "프로젝트에서 맡은 역할은 무엇인가요?",
+                        "userAnswer": "백엔드 구조를 담당했습니다.",
+                        "strengths": ["질문 의도를 빠르게 파악했습니다."],
+                        "improvements": ["성과 수치를 더 명확히 제시하면 좋습니다."],
+                        "refinedAnswer": "문제 상황과 성과를 먼저 설명하세요.",
+                        "followUpQuestion": "직접 판단한 지점을 더 설명해주실 수 있나요?",
+                        "evidence": ["백엔드 구조를 담당했습니다."],
+                        "confidence": 82,
+                    }
+                ],
+                "competencyCoverage": [
+                    {
+                        "competency": "문제 해결",
+                        "score": 78,
+                        "evidence": "문제 원인과 해결 방향을 설명했습니다.",
+                        "confidence": 76,
+                    }
+                ],
+                "jdCoverage": [
+                    {
+                        "requirement": "WebSocket 경험",
+                        "matched": True,
+                        "evidence": "실시간 처리 경험을 설명했습니다.",
+                        "confidence": 71,
+                    }
+                ],
+            }
+        )
+
+        self.assertIsNotNone(normalized)
+        self.assertEqual(normalized["questionFindings"][0]["confidence"], 82)
+        self.assertEqual(normalized["competencyCoverage"][0]["competency"], "문제 해결")
+        self.assertEqual(normalized["jdCoverage"][0]["matched"], True)
 
     def test_fail_report_job_requeues_before_max_attempts(self) -> None:
         cursor = FakeCursor()

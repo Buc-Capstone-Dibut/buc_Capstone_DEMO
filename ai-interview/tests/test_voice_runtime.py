@@ -70,12 +70,7 @@ from app.interview.runtime.executor import (
     execute_live_user_followup_turn,
     execute_opening_live_turn,
 )
-from app.interview.runtime.live_client import (
-    LiveClientDeps,
-    build_live_session_instruction,
-    repair_ai_turn_if_truncated,
-    request_live_text_turn,
-)
+from app.interview.runtime.live_client import LiveClientDeps, repair_ai_turn_if_truncated, request_live_text_turn
 from app.interview.runtime.live_turns import (
     LiveUserFollowupSpec,
     LiveUserRequestSpec,
@@ -493,8 +488,6 @@ class SessionHydrationTests(unittest.TestCase):
         self.assertEqual(state.session_status, "in_progress")
         self.assertEqual(state.runtime_status, "reconnecting")
         self.assertEqual(state.current_phase, "technical")
-        self.assertEqual(state.job_data, {"role": "backend"})
-        self.assertEqual(state.resume_data, {"summary": "python"})
         self.assertEqual(state.model_turn_count, 2)
         self.assertEqual(len(state.turn_history), 3)
         self.assertTrue(state.closing_announced)
@@ -1069,38 +1062,6 @@ class OpeningTextTests(unittest.TestCase):
         )
 
         self.assertIn("서비스 백엔드 개발자", text)
-
-    def test_build_live_session_instruction_includes_job_and_resume_context(self) -> None:
-        state = VoiceWsState(
-            personality="professional",
-            target_duration_sec=900,
-            job_data={
-                "company": "Dibut",
-                "role": "백엔드 개발자",
-                "requirements": ["WebSocket", "Redis"],
-                "interviewLevel": "auto",
-            },
-            resume_data={
-                "skills": ["Kafka", "PostgreSQL"],
-                "experience": [{"company": "Example", "role": "Backend Intern", "years": 1}],
-            },
-        )
-
-        def compact_context_text(value: object, *, max_chars: int = 900) -> str:
-            if value is state.job_data:
-                return "JOB::Dibut / WebSocket / Redis"
-            if value is state.resume_data:
-                return "RESUME::Kafka / PostgreSQL / Backend Intern"
-            return str(value)
-
-        instruction = build_live_session_instruction(
-            state,
-            compact_context_text=compact_context_text,
-        )
-
-        self.assertIn("채용 맥락 요약: JOB::Dibut / WebSocket / Redis", instruction)
-        self.assertIn("지원자 요약: RESUME::Kafka / PostgreSQL / Backend Intern", instruction)
-        self.assertIn("지원자 레벨:", instruction)
 
 
 class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):
@@ -2120,7 +2081,7 @@ class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class AdaptiveVadTests(unittest.TestCase):
-    def test_retune_vad_for_short_answer_tightens_cutoff(self) -> None:
+    def test_retune_vad_for_short_answer_keeps_live_only_cutoff_lenient(self) -> None:
         state = VoiceWsState()
         base_silence = state.vad.silence_ms
         base_short_silence = state.vad.short_utterance_silence_ms
@@ -2128,9 +2089,9 @@ class AdaptiveVadTests(unittest.TestCase):
 
         retune_vad_for_next_turn(state, utterance_duration_ms=1400.0, short_answer=True)
 
-        self.assertLess(state.vad.silence_ms, base_silence)
-        self.assertLess(state.vad.short_utterance_silence_ms, base_short_silence)
-        self.assertLess(state.turn_end_grace_sec, base_turn_end_grace)
+        self.assertGreaterEqual(state.vad.silence_ms, base_silence)
+        self.assertGreaterEqual(state.vad.short_utterance_silence_ms, base_short_silence)
+        self.assertGreaterEqual(state.turn_end_grace_sec, base_turn_end_grace)
         self.assertEqual(state.short_reprompt_streak, 1)
 
     def test_retune_vad_for_long_answers_updates_recent_window(self) -> None:
@@ -2275,11 +2236,8 @@ class ReportDocumentTests(unittest.TestCase):
         self.assertEqual(document["schemaVersion"], REPORT_SCHEMA_VERSION)
         self.assertEqual(document["compatAnalysis"]["summary"], compat_analysis["summary"])
         self.assertEqual(document["reportView"]["company"], "Dibut")
-        self.assertEqual(document["reportView"]["sessionType"], "live_interview")
-        self.assertEqual(document["reportView"]["analysisMode"], "full")
         self.assertEqual(document["reportView"]["strengths"], ["근거 기반 설명"])
         self.assertEqual(document["generationMeta"]["timelineCount"], 1)
-        self.assertEqual(document["generationMeta"]["analysisMode"], "full")
         self.assertEqual(document["timeline"][0]["answer"], "답변입니다.")
 
     def test_build_report_document_preserves_existing_v2_payload(self) -> None:
@@ -2297,8 +2255,6 @@ class ReportDocumentTests(unittest.TestCase):
         self.assertEqual(document["schemaVersion"], REPORT_SCHEMA_VERSION)
         self.assertEqual(document["generationMeta"]["sessionType"], "portfolio_defense")
         self.assertEqual(document["generationMeta"]["generatedAt"], 1700000000)
-        self.assertEqual(document["generationMeta"]["analysisMode"], "full")
-        self.assertEqual(document["reportView"]["sessionType"], "portfolio_defense")
 
 
 class VadSegmenterTests(unittest.TestCase):

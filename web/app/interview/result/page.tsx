@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, FileText, Lightbulb, Loader2, MessageSquareQuote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,8 @@ import {
 import { coerceSessionAnalysisPayload } from "@/lib/interview/report/session-analysis-guard";
 import { buildSessionInterviewReportModel } from "@/lib/interview/report/session-interview-report-adapter";
 import {
-  isPendingReportStatus,
+  hasRenderableInterviewReport,
+  shouldWaitForInterviewReport,
   shouldRedirectToPortfolioReport,
 } from "@/lib/interview/interview-session-flow";
 import { AnalysisResult, useInterviewSetupStore } from "@/store/interview-setup-store";
@@ -36,6 +37,9 @@ interface SessionDetail {
   reportError?: string;
   reportAttempts?: number;
   reportMaxAttempts?: number;
+  reportRequestedAt?: number;
+  reportStartedAt?: number;
+  reportUpdatedAt?: number;
   schema_version?: string;
   report_view?: SessionReportView | null;
   timeline?: TimelineEntry[];
@@ -59,6 +63,58 @@ interface SessionReportView {
   strengths?: string[];
   improvements?: string[];
   nextActions?: string[];
+  questionFindings?: Array<{
+    question?: string;
+    userAnswer?: string;
+    strengths?: string[];
+    improvements?: string[];
+    refinedAnswer?: string;
+    followUpQuestion?: string;
+    evidence?: string[];
+    confidence?: number;
+  }>;
+  competencyCoverage?: Array<{
+    competency?: string;
+    score?: number;
+    evidence?: string;
+    confidence?: number;
+  }>;
+  jdCoverage?: Array<{
+    requirement?: string;
+    matched?: boolean;
+    evidence?: string;
+    confidence?: number;
+  }>;
+  deliveryInsights?: string[];
+  analysisQuality?: {
+    score?: number;
+    level?: string;
+    label?: string;
+    completenessScore?: number;
+    questionFindingCount?: number;
+    groundedQuestionCount?: number;
+    competencyCount?: number;
+    jdRequirementCount?: number;
+    matchedRequirementCount?: number;
+    directEvidenceCount?: number;
+    warnings?: string[];
+  };
+  profile?: {
+    axes?: {
+      approach?: number;
+      scope?: number;
+      decision?: number;
+      execution?: number;
+    };
+    typeCode?: string;
+    typeName?: string;
+    typeLabels?: string[];
+    axisEvidence?: Array<{
+      axisKey?: string;
+      title?: string;
+      description?: string;
+    }>;
+  } | null;
 }
 
 interface SessionReportGenerationMeta {
@@ -70,6 +126,19 @@ interface SessionReportGenerationMeta {
   source?: string;
   analysisMode?: string;
   fallbackReason?: string;
+  analysisQuality?: {
+    score?: number;
+    level?: string;
+    label?: string;
+    completenessScore?: number;
+    questionFindingCount?: number;
+    groundedQuestionCount?: number;
+    competencyCount?: number;
+    jdRequirementCount?: number;
+    matchedRequirementCount?: number;
+    directEvidenceCount?: number;
+    warnings?: string[];
+  };
 }
 
 type SessionAnalysisPayload = AnalysisResult & {
@@ -109,6 +178,85 @@ function formatGeneratedAt(value?: number): string {
   });
 }
 
+function getAnalysisSourceBadge(source: "question_finding" | "best_practice" | "none") {
+  if (source === "question_finding") {
+    return {
+      label: "실제 면접 기반 분석",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (source === "best_practice") {
+    return {
+      label: "리포트 해석 기반",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "직접 연결된 분석 없음",
+    className: "border-slate-200 bg-slate-50 text-slate-600",
+  };
+}
+
+function getCoachingSourceBadge(source: "question_finding" | "generated") {
+  if (source === "question_finding") {
+    return {
+      label: "분석 기반 AI 코칭",
+      className: "border-primary/20 bg-primary/5 text-primary",
+    };
+  }
+
+  return {
+    label: "일반 AI 코칭",
+    className: "border-sky-200 bg-sky-50 text-sky-700",
+  };
+}
+
+function resolveReportPresentationState({
+  isBasicFallbackReport,
+  isSummaryOnlyReport,
+  analysisQualityLevel,
+}: {
+  isBasicFallbackReport: boolean;
+  isSummaryOnlyReport: boolean;
+  analysisQualityLevel: string;
+}) {
+  if (isBasicFallbackReport) {
+    return {
+      badge: "fallback/basic",
+      title: "기본 리포트",
+      description: "정식 질문별 분석이 완성되지 않아, 저장된 질문 흐름과 요약 필드 중심으로 기본 리포트를 먼저 보여줍니다.",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (isSummaryOnlyReport) {
+    return {
+      badge: "summary-only",
+      title: "요약 리포트",
+      description: "세부 평가 데이터가 아직 충분하지 않아 `report_view`와 질문 흐름 중심의 최소 리포트를 먼저 보여줍니다.",
+      className: "border-primary/20 bg-primary/5 text-primary",
+    };
+  }
+
+  if (analysisQualityLevel === "low") {
+    return {
+      badge: "partial-analysis",
+      title: "부분 분석 리포트",
+      description: "정식 분석은 완료됐지만 질문별 근거나 커버리지 데이터가 충분하지 않아, 일부 항목은 보수적으로 해석했습니다.",
+      className: "border-orange-200 bg-orange-50 text-orange-700",
+    };
+  }
+
+  return {
+    badge: "full-analysis",
+    title: "정식 분석 리포트",
+    description: "질문별 분석, 역량 커버리지, JD 커버리지까지 포함한 정식 결과 리포트입니다.",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+}
+
 
 export default function InterviewResultPage() {
   const router = useRouter();
@@ -133,7 +281,11 @@ export default function InterviewResultPage() {
     () => (Array.isArray(sessionDetail?.timeline) ? sessionDetail.timeline : []),
     [sessionDetail?.timeline],
   );
-  const hasMinimalReportData = Boolean(sessionDetail?.report_view) || sessionTimeline.length > 0;
+  const hasMinimalReportData = hasRenderableInterviewReport({
+    analysis: effectiveAnalysis,
+    report_view: sessionDetail?.report_view,
+    timeline: sessionTimeline,
+  });
 
   useEffect(() => {
     if (!resolvedSessionId) return;
@@ -163,7 +315,7 @@ export default function InterviewResultPage() {
         if (cancelled) return;
         setSessionDetail(json.data as SessionDetail);
 
-        setIsAnalyzing(isPendingReportStatus(String(json.data.reportStatus || "")));
+        setIsAnalyzing(shouldWaitForInterviewReport(json.data));
       } catch (error) {
         console.error("Session Fetch Error:", error);
         if (!cancelled) {
@@ -181,7 +333,7 @@ export default function InterviewResultPage() {
 
   useEffect(() => {
     if (!resolvedSessionId || !sessionDetail) return;
-    if (!isPendingReportStatus(sessionDetail.reportStatus || "")) return;
+    if (!shouldWaitForInterviewReport(sessionDetail)) return;
 
     const id = window.setInterval(async () => {
       try {
@@ -193,7 +345,7 @@ export default function InterviewResultPage() {
           return;
         }
         setSessionDetail(json.data as SessionDetail);
-        setIsAnalyzing(isPendingReportStatus(String(json.data.reportStatus || "")));
+        setIsAnalyzing(shouldWaitForInterviewReport(json.data));
       } catch {
         // retry on next interval
       }
@@ -238,12 +390,13 @@ export default function InterviewResultPage() {
     () =>
       buildSessionInterviewDetailModel({
         analysis: effectiveAnalysis,
+        reportView: sessionDetail?.report_view,
         reportModel,
         roleLabel,
         durationMinutes: sessionDurationMinutes,
         timeline: sessionTimeline,
       }),
-    [effectiveAnalysis, reportModel, roleLabel, sessionDurationMinutes, sessionTimeline],
+    [effectiveAnalysis, reportModel, roleLabel, sessionDetail?.report_view, sessionDurationMinutes, sessionTimeline],
   );
 
   const activeCoreResponse =
@@ -251,9 +404,73 @@ export default function InterviewResultPage() {
   const activeTimelineInsight =
     detailModel.timelineInsights[selectedTimelineIndex] || detailModel.timelineInsights[0] || null;
   const positioningGuide = detailModel.positioningGuide;
-  const hasDetailedAnalysis = Boolean(effectiveAnalysis);
+  const hasDetailedAnalysis = Boolean(reportModel?.hasDetailedProfile) && reportModel?.analysisMode === "full";
   const isSummaryOnlyReport = Boolean(reportModel) && !hasDetailedAnalysis;
   const reportGenerationMeta = sessionDetail?.report_generation_meta || null;
+  const fallbackReason = String(reportGenerationMeta?.fallbackReason || "").trim();
+  const isBasicFallbackReport = isSummaryOnlyReport && Boolean(fallbackReason);
+  const analysisQuality =
+    reportGenerationMeta?.analysisQuality ||
+    sessionDetail?.report_view?.analysisQuality ||
+    null;
+  const reportPresentationState = resolveReportPresentationState({
+    isBasicFallbackReport,
+    isSummaryOnlyReport,
+    analysisQualityLevel: String(analysisQuality?.level || ""),
+  });
+  const analysisQualityWarnings = Array.isArray(analysisQuality?.warnings)
+    ? analysisQuality.warnings.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  const reportPendingAnchor = Number(
+    sessionDetail?.reportStartedAt
+      || sessionDetail?.reportRequestedAt
+      || sessionDetail?.reportUpdatedAt
+      || 0,
+  );
+  const reportPendingTooLong = Boolean(
+    shouldWaitForInterviewReport(sessionDetail)
+    && reportPendingAnchor > 0
+    && (Date.now() / 1000) - reportPendingAnchor >= 30,
+  );
+
+  const requestRetryReport = useCallback(async () => {
+    if (!resolvedSessionId || isRetryingReport) return;
+    setIsRetryingReport(true);
+    try {
+      const response = await fetch(`/api/interview/sessions/${resolvedSessionId}/retry-report`, {
+        method: "POST",
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        throw new Error(json?.error || "리포트 재생성 요청에 실패했습니다.");
+      }
+      setSessionDetail((prev) => (
+        prev
+          ? {
+              ...prev,
+              reportStatus: "pending",
+              reportError: "",
+              reportRequestedAt: Math.floor(Date.now() / 1000),
+              reportStartedAt: undefined,
+            }
+          : prev
+      ));
+      setIsAnalyzing(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "리포트 재생성 요청에 실패했습니다.";
+      setSessionDetail((prev) => (
+        prev
+          ? {
+              ...prev,
+              reportError: message,
+            }
+          : prev
+      ));
+      setIsAnalyzing(false);
+    } finally {
+      setIsRetryingReport(false);
+    }
+  }, [isRetryingReport, resolvedSessionId]);
 
   useEffect(() => {
     if (selectedCoreResponseIndex >= detailModel.coreResponses.length) {
@@ -268,6 +485,35 @@ export default function InterviewResultPage() {
   }, [detailModel.timelineInsights.length, selectedTimelineIndex]);
 
   if (isAnalyzing) {
+    if (reportPendingTooLong) {
+      return (
+        <div className="min-h-screen bg-[#f6f7fb] text-foreground">
+          <GlobalHeader />
+          <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
+            <Card className="w-full rounded-[30px] border border-[#e7ebf1] bg-white text-center shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+              <CardContent className="space-y-4 p-8">
+                <AlertTriangle className="mx-auto h-10 w-10 text-orange-500" />
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold">리포트 생성이 예상보다 오래 걸리고 있습니다.</h2>
+                  <p className="text-muted-foreground">
+                    현재 작업이 지연되고 있어 리포트 생성을 다시 요청할 수 있습니다.
+                  </p>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+                  <Button className="rounded-full px-6" onClick={() => void requestRetryReport()} disabled={isRetryingReport}>
+                    {isRetryingReport ? "리포트 재생성 요청 중..." : "리포트 다시 생성"}
+                  </Button>
+                  <Button variant="outline" className="rounded-full px-6" onClick={() => window.location.reload()}>
+                    다시 불러오기
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
@@ -286,41 +532,6 @@ export default function InterviewResultPage() {
     const reportStatus = String(sessionDetail?.reportStatus || "");
     const reportError = String(sessionDetail?.reportError || "").trim();
     const isReportFailure = reportStatus === "failed";
-    const handleRetryReport = async () => {
-      if (!resolvedSessionId || isRetryingReport) return;
-      setIsRetryingReport(true);
-      try {
-        const response = await fetch(`/api/interview/sessions/${resolvedSessionId}/retry-report`, {
-          method: "POST",
-        });
-        const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.success) {
-          throw new Error(json?.error || "리포트 재생성 요청에 실패했습니다.");
-        }
-        setSessionDetail((prev) => (
-          prev
-            ? {
-                ...prev,
-                reportStatus: "pending",
-                reportError: "",
-              }
-            : prev
-        ));
-        setIsAnalyzing(true);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "리포트 재생성 요청에 실패했습니다.";
-        setSessionDetail((prev) => (
-          prev
-            ? {
-                ...prev,
-                reportError: message,
-              }
-            : prev
-        ));
-      } finally {
-        setIsRetryingReport(false);
-      }
-    };
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
@@ -334,7 +545,7 @@ export default function InterviewResultPage() {
                 </h2>
                 <p className="text-muted-foreground">
                   {isReportFailure
-                    ? reportError || "리포트 생성 중 오류가 발생했습니다. 새 세션에서 다시 시도해 주세요."
+                    ? reportError || "리포트 생성이 여러 차례 시도됐지만 완료되지 않았습니다. 재생성을 다시 요청하거나 새 세션에서 다시 시도해 주세요."
                     : "면접을 마친 뒤 상세 리포트를 확인할 수 있습니다."}
                 </p>
                 {isReportFailure && sessionDetail?.reportAttempts != null && sessionDetail?.reportMaxAttempts != null ? (
@@ -347,7 +558,7 @@ export default function InterviewResultPage() {
                 {isReportFailure ? (
                   <Button
                     className="rounded-full px-6"
-                    onClick={handleRetryReport}
+                    onClick={() => void requestRetryReport()}
                     disabled={isRetryingReport}
                   >
                     {isRetryingReport ? "리포트 재생성 요청 중..." : "리포트 다시 생성"}
@@ -434,22 +645,59 @@ export default function InterviewResultPage() {
             {activeTimelineInsight ? (
               <div className="space-y-4">
                 <div>
-                  <p className="text-lg font-semibold">선택한 응답 가이드</p>
+                  <p className="text-lg font-semibold">선택한 응답 분석과 코칭</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    왼쪽 타임라인에서 질문 응답을 선택하면, 여기에서 AI 추천 답변과 예상 꼬리 질문을 바로 확인할 수 있습니다.
+                    왼쪽 타임라인에서 질문 응답을 선택하면, 여기에서 실제 분석이 연결됐는지와 AI 코칭이 어떻게 붙었는지를 함께 확인할 수 있습니다.
                   </p>
+                </div>
+
+                <div className="rounded-[18px] border border-[#e7ebf1] bg-white px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className={getAnalysisSourceBadge(activeTimelineInsight.analysisSource).className}>
+                      {getAnalysisSourceBadge(activeTimelineInsight.analysisSource).label}
+                    </Badge>
+                    {activeTimelineInsight.linkedCoreResponseLabel ? (
+                      <span className="text-xs text-muted-foreground">{activeTimelineInsight.linkedCoreResponseLabel}</span>
+                    ) : null}
+                    {activeTimelineInsight.confidence != null && activeTimelineInsight.analysisSource === "question_finding" ? (
+                      <span className="text-xs text-muted-foreground">신뢰도 {activeTimelineInsight.confidence}%</span>
+                    ) : null}
+                  </div>
+                  {activeTimelineInsight.analysis ? (
+                    <p className="mt-3 text-sm leading-7 text-foreground">{activeTimelineInsight.analysis}</p>
+                  ) : (
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                      이 응답은 아직 저장된 질문별 분석과 직접 연결되지 않았습니다. 아래 코칭은 실제 답변 흐름을 바탕으로 AI가 보강한 가이드입니다.
+                    </p>
+                  )}
+                  {activeTimelineInsight.evidence.length > 0 ? (
+                    <div className="mt-3 rounded-[14px] border border-[#eef2f6] bg-[#fbfcfe] px-3 py-3">
+                      <p className="text-xs font-medium text-muted-foreground">근거 문장</p>
+                      <div className="mt-2 space-y-1.5">
+                        {activeTimelineInsight.evidence.map((item) => (
+                          <p key={item} className="text-sm leading-6 text-foreground">{item}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-[18px] border border-primary/15 bg-white px-4 py-4">
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={getCoachingSourceBadge(activeTimelineInsight.coachingSource).className}>
+                      {getCoachingSourceBadge(activeTimelineInsight.coachingSource).label}
+                    </Badge>
                     <Lightbulb className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold text-foreground">AI 추천 답변</p>
+                    <p className="text-sm font-semibold text-foreground">추천 답변 가이드</p>
                   </div>
                   <p className="mt-3 text-sm leading-7 text-foreground">{activeTimelineInsight.recommendedAnswer}</p>
                 </div>
 
                 <div className="rounded-[18px] border border-[#cfe0ff] bg-white px-4 py-4">
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={getCoachingSourceBadge(activeTimelineInsight.coachingSource).className}>
+                      {getCoachingSourceBadge(activeTimelineInsight.coachingSource).label}
+                    </Badge>
                     <MessageSquareQuote className="h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">예상 꼬리 질문</p>
                   </div>
@@ -538,7 +786,7 @@ export default function InterviewResultPage() {
       <div className="space-y-5">
         <div>
           <p className="text-lg font-semibold">상세 피드백</p>
-          <p className="mt-1 text-sm text-muted-foreground">핵심 질문 응답 5~10개를 골라 질문별로 다시 읽고, 탭마다 하나의 핵심 피드백만 선명하게 제공합니다.</p>
+          <p className="mt-1 text-sm text-muted-foreground">실제 면접 기반 분석과 AI 코칭을 분리해서 보여줍니다. 먼저 실제 분석을 보고, 그 다음 보완 답변과 꼬리 질문 코칭을 읽는 구조입니다.</p>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -565,6 +813,12 @@ export default function InterviewResultPage() {
                 <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
                   {activeCoreResponse.label}
                 </Badge>
+                <Badge variant="outline" className={getAnalysisSourceBadge(activeCoreResponse.analysisSource).className}>
+                  {getAnalysisSourceBadge(activeCoreResponse.analysisSource).label}
+                </Badge>
+                {activeCoreResponse.confidence != null && activeCoreResponse.analysisSource === "question_finding" ? (
+                  <span className="text-xs font-medium text-muted-foreground">신뢰도 {activeCoreResponse.confidence}%</span>
+                ) : null}
                 <span className="text-xs font-medium text-muted-foreground">{activeCoreResponse.timeLabel}</span>
               </div>
               <p className="mt-4 text-lg font-semibold text-foreground">{activeCoreResponse.question}</p>
@@ -577,23 +831,48 @@ export default function InterviewResultPage() {
 
             <div className="space-y-4">
               <div className="rounded-[24px] border border-[#e7ebf1] bg-[#fbfcfe] p-5">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={getAnalysisSourceBadge(activeCoreResponse.analysisSource).className}>
+                    {getAnalysisSourceBadge(activeCoreResponse.analysisSource).label}
+                  </Badge>
                   <MessageSquareQuote className="h-5 w-5 text-primary" />
-                  <p className="text-lg font-semibold">핵심 피드백</p>
+                  <p className="text-lg font-semibold">실제 분석</p>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-foreground">{activeCoreResponse.analysis}</p>
+                {activeCoreResponse.evidence.length > 0 ? (
+                  <div className="mt-4 rounded-[18px] border border-[#e7ebf1] bg-white px-4 py-4">
+                    <p className="text-xs font-medium text-muted-foreground">근거 문장</p>
+                    <div className="mt-2 space-y-2">
+                      {activeCoreResponse.evidence.map((item) => (
+                        <p key={item} className="text-sm leading-7 text-foreground">{item}</p>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[18px] border border-dashed border-[#d8dee8] bg-white px-4 py-4 text-sm leading-6 text-muted-foreground">
+                    이 항목은 저장된 질문별 근거 문장 없이 리포트 해석 중심으로 표시됩니다.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-[24px] border border-primary/15 bg-primary/5 p-5">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={getCoachingSourceBadge(activeCoreResponse.coachingSource).className}>
+                    {getCoachingSourceBadge(activeCoreResponse.coachingSource).label}
+                  </Badge>
                   <Lightbulb className="h-5 w-5 text-primary" />
-                  <p className="text-lg font-semibold">보완 답변</p>
+                  <p className="text-lg font-semibold">AI 코칭: 보완 답변</p>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-foreground">{activeCoreResponse.improvedAnswer}</p>
               </div>
 
               <div className="rounded-[24px] border border-[#cfe0ff] bg-[#f8fbff] p-5">
-                <p className="text-sm font-semibold text-foreground">예상 꼬리 질문</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={getCoachingSourceBadge(activeCoreResponse.coachingSource).className}>
+                    {getCoachingSourceBadge(activeCoreResponse.coachingSource).label}
+                  </Badge>
+                  <p className="text-sm font-semibold text-foreground">AI 코칭: 예상 꼬리 질문</p>
+                </div>
                 <p className="mt-3 text-sm leading-7 text-foreground">{activeCoreResponse.followUp}</p>
               </div>
             </div>
@@ -606,7 +885,7 @@ export default function InterviewResultPage() {
       <div className="space-y-5">
         <div>
           <p className="text-lg font-semibold">세부 분석 준비 중</p>
-          <p className="mt-1 text-sm text-muted-foreground">현재는 저장된 질문/답변 흐름을 기준으로 한 요약 가이드만 먼저 제공합니다.</p>
+          <p className="mt-1 text-sm text-muted-foreground">현재는 실제 분석보다 AI 코칭 중심으로 먼저 제공합니다. 질문별 근거 분석이 준비되면 실제 분석 카드가 함께 표시됩니다.</p>
         </div>
 
         {detailModel.timelineInsights.length > 0 ? (
@@ -629,10 +908,16 @@ export default function InterviewResultPage() {
                     <p className="mt-1 text-sm leading-7 text-foreground">{item.answer}</p>
                   </div>
                   <div className="rounded-[18px] border border-primary/15 bg-white px-4 py-4">
+                    <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+                      일반 AI 코칭
+                    </Badge>
                     <p className="text-sm font-semibold text-foreground">다음 답변 가이드</p>
                     <p className="mt-2 text-sm leading-7 text-foreground">{item.recommendedAnswer}</p>
                   </div>
                   <div className="rounded-[18px] border border-[#cfe0ff] bg-white px-4 py-4">
+                    <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+                      일반 AI 코칭
+                    </Badge>
                     <p className="text-sm font-semibold text-foreground">예상 꼬리 질문</p>
                     <p className="mt-2 text-sm leading-7 text-foreground">{item.followUp}</p>
                   </div>
@@ -654,8 +939,13 @@ export default function InterviewResultPage() {
       <section className="rounded-[32px] border border-primary/15 bg-primary/5 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)] md:p-6">
         <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-3">
-            <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/10">
-              개발자 면접 포지셔닝
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/10">
+                개발자 면접 포지셔닝
+              </div>
+              <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+                AI 코칭 기반 가이드
+              </Badge>
             </div>
             <h3 className="text-2xl font-black tracking-tight">{reportModel.typeName}</h3>
             <p className="text-sm leading-7 text-foreground">{positioningGuide?.interviewerImpression}</p>
@@ -684,7 +974,7 @@ export default function InterviewResultPage() {
                 <ClipboardCheck className="h-5 w-5 text-primary" />
                 <p className="text-lg font-semibold">성장 가이드</p>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">우리 서비스의 4축 결과를 기준으로 다음 면접에서 더 잘 보이는 방법만 정리합니다.</p>
+              <p className="mt-2 text-sm text-muted-foreground">아래 내용은 실제 분석 결과를 바탕으로 서비스가 정리한 AI 코칭 가이드입니다.</p>
             </div>
             <div className="space-y-3">
               {(positioningGuide?.guideSteps || []).map((step, index) => (
@@ -772,26 +1062,80 @@ export default function InterviewResultPage() {
     </>
   );
 
+  const statusBanner = (
+    <div className="rounded-[24px] border border-[#e7ebf1] bg-white px-4 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={reportPresentationState.className}>
+            {reportPresentationState.badge}
+          </Badge>
+          <p className="text-sm font-semibold text-foreground">{reportPresentationState.title}</p>
+          {sessionDetail?.reportAttempts && sessionDetail.reportAttempts > 1 ? (
+            <span className="text-xs text-muted-foreground">재생성 {sessionDetail.reportAttempts}회 후 완료</span>
+          ) : null}
+        </div>
+
+        <p className="text-sm text-muted-foreground">{reportPresentationState.description}</p>
+        {fallbackReason ? (
+          <p className="text-xs text-muted-foreground">기본 리포트 사유: {fallbackReason}</p>
+        ) : null}
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">생성 상태</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{reportPresentationState.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">생성 시각 {formatGeneratedAt(reportGenerationMeta?.generatedAt)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">리포트 버전 {sessionDetail?.schema_version || "-"}</p>
+          </div>
+          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">분석 신뢰도</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {analysisQuality?.score ? `${analysisQuality.score}점` : "데이터 부족"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {analysisQuality?.label || "요약 리포트"}
+              {analysisQuality?.completenessScore ? ` · 완성도 ${analysisQuality.completenessScore}점` : ""}
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">근거 데이터</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              질문 {analysisQuality?.groundedQuestionCount ?? 0}개 · 근거 {analysisQuality?.directEvidenceCount ?? 0}개
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              저장된 질문 분석 {analysisQuality?.questionFindingCount ?? 0}개
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">생성 입력 규모</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              질문 {reportGenerationMeta?.questionCount ?? 0}개 · 발화 {reportGenerationMeta?.turnCount ?? 0}턴
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              타임라인 {reportGenerationMeta?.timelineCount ?? 0}개 · JD 매칭 {analysisQuality?.matchedRequirementCount ?? 0}/{analysisQuality?.jdRequirementCount ?? 0}
+            </p>
+          </div>
+        </div>
+
+        {analysisQualityWarnings.length > 0 ? (
+          <div className="rounded-[18px] border border-dashed border-[#d8dee8] bg-[#fbfcfe] px-4 py-4">
+            <p className="text-xs font-medium text-muted-foreground">분석 메모</p>
+            <div className="mt-2 space-y-1.5">
+              {analysisQualityWarnings.slice(0, 3).map((item) => (
+                <p key={item} className="text-sm leading-6 text-muted-foreground">{item}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-foreground">
       <GlobalHeader />
       <InterviewReportScreen
-        banner={isSummaryOnlyReport ? (
-          <div className="rounded-[24px] border border-primary/20 bg-primary/5 px-4 py-4">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-primary">요약 리포트로 표시 중입니다</p>
-              <p className="text-sm text-muted-foreground">
-                세부 평가 데이터가 아직 충분하지 않아 `report_view`와 질문 흐름 중심의 최소 리포트를 먼저 보여줍니다.
-              </p>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <span>리포트 버전: {sessionDetail?.schema_version || "-"}</span>
-                <span>생성 시각: {formatGeneratedAt(reportGenerationMeta?.generatedAt)}</span>
-                <span>질문 수: {reportGenerationMeta?.questionCount ?? 0}</span>
-                <span>발화 수: {reportGenerationMeta?.turnCount ?? 0}</span>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        banner={statusBanner}
         hero={(
           <SessionReportHero
             badgeLabel={reportModel.badgeLabel}

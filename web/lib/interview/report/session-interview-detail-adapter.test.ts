@@ -58,6 +58,7 @@ const reportModelFixture: MockInterviewReportModel = {
 test("session interview detail adapter builds timeline insights and positioning guide", () => {
   const model = buildSessionInterviewDetailModel({
     analysis: analysisFixture,
+    reportView: null,
     reportModel: reportModelFixture,
     roleLabel: "Backend Engineer",
     durationMinutes: 10,
@@ -73,18 +74,63 @@ test("session interview detail adapter builds timeline insights and positioning 
     ],
   });
 
-  assert.equal(model.coreResponses.length, 6);
+  assert.equal(model.coreResponses.length, 1);
   assert.equal(model.timelineInsights.length, 1);
   assert.equal(model.timelineInsights[0]?.recommendedAnswer, "문제 상황과 결과를 먼저 연결해 설명하세요.");
   assert.ok(model.timelineInsights[0]?.followUp.includes("구체적으로 설명"));
+  assert.equal(model.timelineInsights[0]?.analysisSource, "best_practice");
+  assert.equal(model.timelineInsights[0]?.coachingSource, "question_finding");
   assert.ok(model.positioningGuide);
   assert.equal(model.positioningGuide?.dominantAxes.length, 4);
   assert.equal(model.positioningGuide?.guideSteps.length, 3);
 });
 
+test("session interview detail adapter prefers report view question findings when analysis is missing", () => {
+  const model = buildSessionInterviewDetailModel({
+    analysis: null,
+    reportView: {
+      questionFindings: [
+        {
+          question: "최근 프로젝트에서 맡은 역할을 설명해주세요.",
+          userAnswer: "백엔드 구조 개선을 맡았습니다.",
+          strengths: ["역할과 판단 근거를 비교적 선명하게 설명했습니다."],
+          improvements: ["성과 수치를 더 또렷하게 붙이면 좋습니다."],
+          refinedAnswer: "문제 상황과 결과를 먼저 연결해 설명하세요.",
+          followUpQuestion: "직접 판단한 부분을 더 설명해주실 수 있나요?",
+          evidence: ["백엔드 구조 개선을 맡았습니다."],
+          confidence: 84,
+        },
+      ],
+    },
+    reportModel: reportModelFixture,
+    roleLabel: "Backend Engineer",
+    durationMinutes: 10,
+    timeline: [
+      {
+        id: "t-1",
+        timeLabel: "01:20",
+        phaseLabel: "technical",
+        prompt: "최근 프로젝트에서 맡은 역할을 설명해주세요.",
+        answer: "백엔드 구조 개선을 맡았습니다.",
+        hasExactTimestamp: true,
+      },
+    ],
+  });
+
+  assert.equal(model.coreResponses.length, 1);
+  assert.equal(model.coreResponses[0]?.timeLabel, "01:20");
+  assert.ok(model.coreResponses[0]?.analysis.includes("좋았던 점"));
+  assert.equal(model.coreResponses[0]?.analysisSource, "question_finding");
+  assert.deepEqual(model.coreResponses[0]?.evidence, ["백엔드 구조 개선을 맡았습니다."]);
+  assert.equal(model.timelineInsights[0]?.followUp, "직접 판단한 부분을 더 설명해주실 수 있나요?");
+  assert.equal(model.timelineInsights[0]?.analysisSource, "question_finding");
+  assert.equal(model.timelineInsights[0]?.confidence, 84);
+});
+
 test("session interview detail adapter tolerates missing analysis and report model", () => {
   const model = buildSessionInterviewDetailModel({
     analysis: null,
+    reportView: null,
     reportModel: null,
     roleLabel: "개발자",
     durationMinutes: 5,
@@ -104,4 +150,6 @@ test("session interview detail adapter tolerates missing analysis and report mod
   assert.equal(model.timelineInsights.length, 1);
   assert.equal(model.positioningGuide, null);
   assert.ok(model.timelineInsights[0]?.recommendedAnswer.includes("프로젝트 설명"));
+  assert.equal(model.timelineInsights[0]?.analysisSource, "none");
+  assert.equal(model.timelineInsights[0]?.coachingSource, "generated");
 });

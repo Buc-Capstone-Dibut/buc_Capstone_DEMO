@@ -18,6 +18,40 @@ function sanitizeTextList(items: unknown): string[] {
   return items.map((item) => String(item || "").trim()).filter(Boolean);
 }
 
+function sanitizeQuestionFindings(items: unknown): NonNullable<SessionAnalysisPayload["questionFindings"]> {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    question: String(item?.question || "").trim(),
+    userAnswer: String(item?.userAnswer || "").trim(),
+    strengths: sanitizeTextList(item?.strengths),
+    improvements: sanitizeTextList(item?.improvements),
+    refinedAnswer: String(item?.refinedAnswer || "").trim(),
+    followUpQuestion: String(item?.followUpQuestion || "").trim(),
+    evidence: sanitizeTextList(item?.evidence),
+    confidence: isFiniteNumber(item?.confidence) ? item.confidence : 0,
+  })).filter((item) => item.question || item.userAnswer);
+}
+
+function sanitizeCompetencyCoverage(items: unknown): NonNullable<SessionAnalysisPayload["competencyCoverage"]> {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    competency: String(item?.competency || "").trim(),
+    score: isFiniteNumber(item?.score) ? item.score : 0,
+    evidence: String(item?.evidence || "").trim(),
+    confidence: isFiniteNumber(item?.confidence) ? item.confidence : 0,
+  })).filter((item) => item.competency);
+}
+
+function sanitizeJdCoverage(items: unknown): NonNullable<SessionAnalysisPayload["jdCoverage"]> {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    requirement: String(item?.requirement || "").trim(),
+    matched: Boolean(item?.matched),
+    evidence: String(item?.evidence || "").trim(),
+    confidence: isFiniteNumber(item?.confidence) ? item.confidence : 0,
+  })).filter((item) => item.requirement);
+}
+
 export function coerceSessionAnalysisPayload(source: unknown): SessionAnalysisPayload | null {
   if (!source || typeof source !== "object") return null;
 
@@ -77,5 +111,8 @@ export function coerceSessionAnalysisPayload(source: unknown): SessionAnalysisPa
     strengths: sanitizeTextList(candidate.strengths),
     improvements: sanitizeTextList(candidate.improvements),
     nextActions: sanitizeTextList(candidate.nextActions),
+    questionFindings: sanitizeQuestionFindings(candidate.questionFindings),
+    competencyCoverage: sanitizeCompetencyCoverage(candidate.competencyCoverage),
+    jdCoverage: sanitizeJdCoverage(candidate.jdCoverage),
   };
 }

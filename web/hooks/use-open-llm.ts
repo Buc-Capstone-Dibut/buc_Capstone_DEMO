@@ -10,7 +10,7 @@ import {
 } from "@/lib/interview/playback-audio";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
-const AUDIO_DRAIN_SETTLE_MS = 30;
+const AUDIO_DRAIN_SETTLE_MS = 10;
 const RECONNECT_BASE_DELAY_MS = 900;
 const RECONNECT_MAX_DELAY_MS = 4000;
 

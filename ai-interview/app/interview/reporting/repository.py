@@ -66,7 +66,7 @@ class ReportRepository:
                 )
             conn.commit()
 
-    def enqueue_report_job(self, session_id: str, session_type: str) -> dict[str, Any]:
+    def enqueue_report_job(self, session_id: str, session_type: str, *, force: bool = False) -> dict[str, Any]:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -88,7 +88,7 @@ class ReportRepository:
                 )
                 existing = cur.fetchone()
                 if existing:
-                    if existing["status"] in {"done", "running", "pending"}:
+                    if existing["status"] in {"done", "running", "pending"} and not force:
                         return existing
 
                     cur.execute(
@@ -96,6 +96,7 @@ class ReportRepository:
                         UPDATE public.interview_report_jobs
                         SET
                             status = 'pending',
+                            attempts = 0,
                             error = '',
                             requested_at = now(),
                             started_at = NULL,

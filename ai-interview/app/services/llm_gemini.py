@@ -1230,8 +1230,18 @@ README 요약: {readme_summary}
 
 [분석 대상 데이터]
 직무: {job_data.get('role', '')} @ {job_data.get('company', '')}
+채용 정보: {json.dumps(job_data, ensure_ascii=False)}
 이력서: {json.dumps(resume_data, ensure_ascii=False)}
 면접 대화 기록: {json.dumps(chat_history, ensure_ascii=False)}
+
+[작성 규칙]
+1. `questionFindings`는 실제 면접 대화에서 나온 질문/답변을 기준으로 3~6개 작성하세요.
+2. `questionFindings.question`에는 실제 면접 질문을, `userAnswer`에는 실제 답변 핵심을 넣으세요.
+3. `questionFindings.evidence`에는 실제 답변의 짧은 근거 문장을 1~2개 넣으세요.
+4. `competencyCoverage`는 적어도 4개를 작성하고, 각 항목은 역량명/점수/근거/신뢰도를 포함하세요.
+5. `jdCoverage`는 JD의 requirements/responsibilities/preferred 중 실제로 중요한 항목을 3~5개 뽑아, 면접 답변에서 다뤘는지 표시하세요.
+6. 면접 기록에 없는 내용은 추측해서 단정하지 말고, confidence를 낮추고 evidence를 비워두거나 약하게 작성하세요.
+7. 모든 문장은 한국어로 작성하세요.
 
 [JSON 형식]
 {{
@@ -1257,6 +1267,34 @@ README 요약: {readme_summary}
       "userAnswer": "지원자 답변",
       "refinedAnswer": "개선 답변",
       "reason": "개선 이유"
+    }}
+  ],
+  "questionFindings": [
+    {{
+      "question": "실제 면접 질문",
+      "userAnswer": "실제 답변 핵심",
+      "strengths": [string],
+      "improvements": [string],
+      "refinedAnswer": "더 나은 답변 예시",
+      "followUpQuestion": "예상 꼬리 질문",
+      "evidence": [string],
+      "confidence": number (0-100)
+    }}
+  ],
+  "competencyCoverage": [
+    {{
+      "competency": "문제 해결",
+      "score": number (0-100),
+      "evidence": "근거 설명",
+      "confidence": number (0-100)
+    }}
+  ],
+  "jdCoverage": [
+    {{
+      "requirement": "JD 요구사항",
+      "matched": true,
+      "evidence": "면접 답변과의 연결 근거",
+      "confidence": number (0-100)
     }}
   ]
 }}

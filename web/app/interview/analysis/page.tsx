@@ -14,160 +14,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GlobalHeader } from "@/components/layout/global-header";
+import {
+  ANALYSIS_HUB_AXES,
+  AnalysisHubSession,
+  AnalysisHubSourceSession,
+  AnalysisHubTabKind,
+  AnalysisHubQuadrantKey,
+  collectRecommendedActions,
+  collectRecurringWeaknesses,
+  buildAnalysisHubSessions,
+  computeAxisTrends,
+  computeRepresentativeAxes,
+  deriveSessionTags,
+  getAxisLabel,
+  getDominantAxesText,
+  getQuadrantKey,
+  getQuadrantPoint,
+} from "@/lib/interview/report/analysis-hub";
 import { Blog } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase/client";
-import { MOCK_INTERVIEW_LIST } from "@/mocks/interview-data";
 import { cn } from "@/lib/utils";
+import { getTypeName } from "@/lib/interview/report/dibeot-axis";
 
-type SessionKind = "mock" | "defense";
-type TabKind = "all" | SessionKind;
-type AxisKey = "approach" | "scope" | "decision" | "execution";
-type AxisPolarity = "A" | "B";
-
-interface AxisDefinition {
-  key: AxisKey;
-  label: string;
-  left: string;
-  right: string;
-  description: string;
-  colorClass: string;
-  bgClass: string;
-}
-
-interface AxisScores {
-  approach: number;
-  scope: number;
-  decision: number;
-  execution: number;
-}
-
-interface AnalysisHubSession {
-  id: string;
-  kind: SessionKind;
-  date: string;
-  title: string;
-  subtitle: string;
-  typeName: string;
-  summary: string;
-  strongestAxis: string;
-  weakestAxis: string;
-  axes: AxisScores;
-  href: string;
-}
-
-type QuadrantKey = "tl" | "tr" | "bl" | "br";
-
-interface RecommendedBlog extends Blog {
+type RecommendedBlog = Blog & {
   recommendationReason: string;
-}
-
-const AXES: AxisDefinition[] = [
-  {
-    key: "approach",
-    label: "문제 접근 방식",
-    left: "구조형",
-    right: "탐색형",
-    description: "설계·분석부터 시작하는지, 실험·구현부터 시작하는지",
-    colorClass: "text-primary",
-    bgClass: "bg-primary/10",
-  },
-  {
-    key: "scope",
-    label: "사고 범위",
-    left: "시스템형",
-    right: "구현형",
-    description: "시스템 구조 중심인지, 코드 구현 중심인지",
-    colorClass: "text-primary",
-    bgClass: "bg-primary/10",
-  },
-  {
-    key: "decision",
-    label: "의사결정 전략",
-    left: "안정형",
-    right: "실험형",
-    description: "리스크 최소화 우선인지, 빠른 실험·학습 우선인지",
-    colorClass: "text-primary",
-    bgClass: "bg-primary/10",
-  },
-  {
-    key: "execution",
-    label: "실행 방식",
-    left: "구축형",
-    right: "조정형",
-    description: "직접 구현 중심인지, 구조·협업 조정 중심인지",
-    colorClass: "text-primary",
-    bgClass: "bg-primary/10",
-  },
-];
-
-const TYPE_NAMES: Record<`${AxisPolarity}${AxisPolarity}${AxisPolarity}${AxisPolarity}`, string> = {
-  AAAA: "시스템 엔지니어형",
-  AAAB: "아키텍트형",
-  AABA: "혁신 엔지니어형",
-  AABB: "전략가형",
-  ABAA: "장인형 개발자",
-  ABAB: "코드 아키텍트형",
-  ABBA: "실험적 빌더형",
-  ABBB: "기술 전략가형",
-  BAAA: "인프라 엔지니어형",
-  BAAB: "운영 설계형",
-  BABA: "플랫폼 빌더형",
-  BABB: "플랫폼 전략형",
-  BBAA: "디버깅 전문가형",
-  BBAB: "운영 개발자형",
-  BBBA: "빌더형",
-  BBBB: "스타트업 엔지니어형",
 };
-
-const INTERVIEW_AXIS_MAP: AxisScores[] = [
-  { approach: 74, scope: 68, decision: 60, execution: 42 },
-  { approach: 48, scope: 39, decision: 71, execution: 58 },
-  { approach: 70, scope: 63, decision: 44, execution: 61 },
-];
-
-const PORTFOLIO_DEFENSE_SESSIONS: AnalysisHubSession[] = [
-  {
-    id: "defense-1",
-    kind: "defense",
-    date: "2024-03-22",
-    title: "포트폴리오 디펜스",
-    subtitle: "협업형 SaaS 플랫폼",
-    typeName: "전략가형",
-    summary: "시스템 흐름 설명은 좋았고, 구현 기여도는 더 또렷하게 드러낼 필요가 있습니다.",
-    strongestAxis: "시스템형",
-    weakestAxis: "구축형",
-    axes: { approach: 81, scope: 76, decision: 46, execution: 58 },
-    href: "/interview/training/portfolio/report?id=defense-1",
-  },
-  {
-    id: "defense-2",
-    kind: "defense",
-    date: "2024-03-13",
-    title: "포트폴리오 디펜스",
-    subtitle: "디자인 시스템 리뉴얼",
-    typeName: "코드 아키텍트형",
-    summary: "품질 기준과 구조 정리는 강점이었고, 실험 기반 의사결정 사례는 보강이 필요합니다.",
-    strongestAxis: "구조형",
-    weakestAxis: "실험형",
-    axes: { approach: 72, scope: 41, decision: 67, execution: 54 },
-    href: "/interview/training/portfolio/report?id=defense-2",
-  },
-  {
-    id: "defense-3",
-    kind: "defense",
-    date: "2024-03-06",
-    title: "포트폴리오 디펜스",
-    subtitle: "레포 분석 기반 공개 프로젝트",
-    typeName: "플랫폼 전략형",
-    summary: "플랫폼 맥락 설명은 안정적이었지만, 직접 구현한 장면의 밀도는 조금 약했습니다.",
-    strongestAxis: "조정형",
-    weakestAxis: "구축형",
-    axes: { approach: 45, scope: 73, decision: 49, execution: 69 },
-    href: "/interview/training/portfolio/report?id=defense-3",
-  },
-];
-
-const uniq = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
 const TECH_STACK_TAG_MAP: Record<string, string[]> = {
   react: ["react", "frontend", "typescript"],
@@ -201,61 +72,58 @@ const TECH_STACK_TAG_MAP: Record<string, string[]> = {
 };
 
 const normalizeTechStack = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
+const uniq = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
-const deriveSessionTags = (sessions: AnalysisHubSession[]) => {
-  const tags: string[] = [];
-
-  sessions.forEach((session) => {
-    const source = `${session.title} ${session.subtitle}`.toLowerCase();
-
-    if (source.includes("frontend")) tags.push("frontend", "react", "typescript", "nextjs");
-    if (source.includes("product")) tags.push("product", "ui/ux", "frontend");
-    if (source.includes("service") || source.includes("backend")) tags.push("backend", "java", "spring", "node");
-    if (source.includes("platform")) tags.push("architecture", "scalability", "backend");
-    if (source.includes("design")) tags.push("ui/ux", "css", "frontend");
-    if (source.includes("saas")) tags.push("product", "case-study", "architecture");
-  });
-
-  return uniq(tags);
-};
-
-const buildRecommendationTags = (axes: AxisScores, sessions: AnalysisHubSession[], techStack: string[]) => {
+function buildRecommendationTags(
+  sessions: AnalysisHubSession[],
+  representativeLabels: string[],
+  techStack: string[],
+) {
+  const representativeAxes = computeRepresentativeAxes(sessions);
   const tags: string[] = [];
 
   techStack.forEach((item) => {
     tags.push(...(TECH_STACK_TAG_MAP[normalizeTechStack(item)] ?? []));
   });
 
-  if (axes.approach >= 50) {
+  if (representativeAxes.approach >= 50) {
     tags.push("architecture", "system design", "case-study");
   } else {
     tags.push("product", "case-study");
   }
 
-  if (axes.scope >= 50) {
+  if (representativeAxes.scope >= 50) {
     tags.push("backend", "scalability", "monitoring");
   } else {
     tags.push("frontend", "typescript", "react");
   }
 
-  if (axes.decision >= 50) {
+  if (representativeAxes.decision >= 50) {
     tags.push("monitoring", "sre", "case-study");
   } else {
     tags.push("cicd", "ai", "product");
   }
 
-  if (axes.execution >= 50) {
+  if (representativeAxes.execution >= 50) {
     tags.push("api", "java", "spring", "node", "go", "react");
   } else {
     tags.push("business", "product", "case-study");
   }
 
+  representativeLabels.forEach((label) => {
+    if (label.includes("시스템")) tags.push("architecture", "backend");
+    if (label.includes("구현")) tags.push("frontend", "react", "typescript");
+    if (label.includes("안정")) tags.push("monitoring", "sre");
+    if (label.includes("실험")) tags.push("product", "case-study", "ai");
+    if (label.includes("구축")) tags.push("backend", "api");
+    if (label.includes("조정")) tags.push("product", "business");
+  });
+
   tags.push(...deriveSessionTags(sessions));
-
   return uniq(tags);
-};
+}
 
-const getRecommendationReason = (blog: Blog, labels: string[]) => {
+function getRecommendationReason(blog: Blog, labels: string[]) {
   const lowerTags = (blog.tags ?? []).map((tag) => tag.toLowerCase());
 
   if (lowerTags.some((tag) => ["architecture", "system design", "scalability"].includes(tag))) {
@@ -265,72 +133,14 @@ const getRecommendationReason = (blog: Blog, labels: string[]) => {
     return `${labels[2]} 성향과 잘 맞는 운영 · 안정화 사례`;
   }
   if (lowerTags.some((tag) => ["frontend", "react", "typescript", "ui/ux"].includes(tag))) {
-    return `최근 관심 흐름에 맞는 구현 · 인터랙션 관점의 글`;
+    return `최근 구현 흐름과 맞는 프론트엔드 · 인터랙션 관점의 글`;
   }
   if (lowerTags.some((tag) => ["backend", "java", "spring", "node", "go"].includes(tag))) {
     return `서비스 설계와 구현 밀도를 함께 넓혀줄 백엔드 글`;
   }
 
-  return `지금의 디벗 성향과 최근 기록을 기준으로 골랐어요`;
-};
-
-const getTypeCode = (axes: AxisScores): `${AxisPolarity}${AxisPolarity}${AxisPolarity}${AxisPolarity}` => {
-  const approach = axes.approach >= 50 ? "A" : "B";
-  const scope = axes.scope >= 50 ? "A" : "B";
-  const decision = axes.decision >= 50 ? "A" : "B";
-  const execution = axes.execution >= 50 ? "A" : "B";
-  return `${approach}${scope}${decision}${execution}`;
-};
-
-const getAxisLabel = (axis: AxisDefinition, value: number) => (value >= 50 ? axis.left : axis.right);
-
-const getDominantAxesText = (axes: AxisScores) =>
-  AXES.map((axis) => ({ label: getAxisLabel(axis, axes[axis.key]), score: Math.abs(axes[axis.key] - 50) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 2)
-    .map((item) => item.label)
-    .join(" · ");
-
-const getWeakAxisLabel = (axes: AxisScores) =>
-  AXES.map((axis) => ({ axis, distance: Math.abs(axes[axis.key] - 50) }))
-    .sort((a, b) => a.distance - b.distance)[0]?.axis;
-
-const getQuadrantPoint = (axes: AxisScores) => ({
-  x: Math.round(((100 - axes.approach) + (100 - axes.scope)) / 2),
-  y: Math.round((axes.decision + (100 - axes.execution)) / 2),
-});
-
-const getQuadrantKey = (point: { x: number; y: number }): QuadrantKey => {
-  if (point.y >= 50 && point.x < 50) return "tl";
-  if (point.y >= 50 && point.x >= 50) return "tr";
-  if (point.y < 50 && point.x < 50) return "bl";
-  return "br";
-};
-
-const buildMockInterviewSessions = (): AnalysisHubSession[] =>
-  MOCK_INTERVIEW_LIST.map((session, index) => {
-    const axes = INTERVIEW_AXIS_MAP[index] ?? INTERVIEW_AXIS_MAP[0];
-    const typeName = TYPE_NAMES[getTypeCode(axes)];
-    const weakAxis = getWeakAxisLabel(axes);
-
-    return {
-      id: session.id,
-      kind: "mock",
-      date: session.date,
-      title: `${session.company} 모의면접`,
-      subtitle: session.role,
-      typeName,
-      summary: session.analysis.feedback.improvements[0] ?? "상세 결과에서 세부 피드백을 확인하세요.",
-      strongestAxis: getDominantAxesText(axes),
-      weakestAxis: weakAxis ? getAxisLabel(weakAxis, axes[weakAxis.key] >= 50 ? 100 - axes[weakAxis.key] : axes[weakAxis.key]) : "균형형",
-      axes,
-      href: `/interview/result?id=${session.id}`,
-    };
-  });
-
-const ALL_SESSIONS: AnalysisHubSession[] = [...buildMockInterviewSessions(), ...PORTFOLIO_DEFENSE_SESSIONS].sort(
-  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-);
+  return "최근 세션 흐름과 기술 스택을 기준으로 골랐습니다.";
+}
 
 function DibeotCharacter({ typeName }: { typeName: string }) {
   return (
@@ -355,11 +165,11 @@ function AxisCard({
   axis,
   value,
 }: {
-  axis: AxisDefinition;
+  axis: (typeof ANALYSIS_HUB_AXES)[number];
   value: number;
 }) {
   const isLeftDominant = value >= 50;
-  const dominant = isLeftDominant ? axis.left : axis.right;
+  const dominant = getAxisLabel(axis, value);
   const distance = Math.abs(value - 50);
   const leaningText =
     distance < 8
@@ -376,18 +186,14 @@ function AxisCard({
             <p className="text-sm font-semibold text-foreground">{axis.label}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">{axis.description}</p>
           </div>
-          <div
-            className={cn(
-              "shrink-0 whitespace-nowrap rounded-2xl border border-[#e7ebf1] bg-[#fbfcfe] px-3 py-1.5 text-center text-xs font-semibold text-foreground",
-            )}
-          >
+          <div className="shrink-0 whitespace-nowrap rounded-2xl border border-[#e7ebf1] bg-[#fbfcfe] px-3 py-1.5 text-center text-xs font-semibold text-foreground">
             {axis.left} ↔ {axis.right}
           </div>
         </div>
 
         <div className="border-t border-[#eef2f6] pt-4">
           <div className="flex items-center gap-2 text-sm">
-            <span className={cn("font-semibold", axis.colorClass)}>{dominant}</span>
+            <span className="font-semibold text-primary">{dominant}</span>
             <span className="text-muted-foreground">쪽에 더 가까움</span>
           </div>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{leaningText}</p>
@@ -411,20 +217,20 @@ function QuadrantMapCard({
   growthAxisText,
 }: {
   point: { x: number; y: number };
-  quadrantKey: QuadrantKey;
+  quadrantKey: AnalysisHubQuadrantKey;
   typeName: string;
   dominantAxisText: string;
   unstableAxisText: string;
   growthAxisText: string;
 }) {
-  const quadrantLabels: Array<{ key: QuadrantKey; title: string; subtitle: string }> = [
+  const quadrantLabels: Array<{ key: AnalysisHubQuadrantKey; title: string; subtitle: string }> = [
     { key: "tl", title: "구조 · 시스템", subtitle: "안정 · 조정" },
     { key: "tr", title: "탐색 · 구현", subtitle: "안정 · 조정" },
     { key: "bl", title: "구조 · 시스템", subtitle: "실험 · 구축" },
     { key: "br", title: "탐색 · 구현", subtitle: "실험 · 구축" },
   ];
 
-  const quadrantSummaryMap: Record<QuadrantKey, string> = {
+  const quadrantSummaryMap: Record<AnalysisHubQuadrantKey, string> = {
     tl: "설계와 시스템 구조를 먼저 보고, 안정과 조율을 우선하는 위치입니다.",
     tr: "실무 문제를 빠르게 파악하되, 리스크와 협업 정렬도 함께 챙기는 위치입니다.",
     bl: "전략적 설계를 바탕으로 실험과 직접 추진까지 함께 끌고 가는 위치입니다.",
@@ -438,7 +244,7 @@ function QuadrantMapCard({
           <Sparkles className="h-5 w-5 text-primary" />
           디벗 성향 맵
         </CardTitle>
-        <CardDescription>가로축은 문제 접근 방식 + 사고 범위를, 세로축은 의사결정 전략 + 실행 방식을 합쳐 보여줍니다.</CardDescription>
+        <CardDescription>실제 세션 평균을 기준으로 현재 답변 성향이 어디에 모이는지 보여줍니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="relative aspect-square rounded-[28px] border border-[#e7ebf1] bg-[#fbfcfe] p-4">
@@ -454,9 +260,7 @@ function QuadrantMapCard({
                 quadrant.key === "tr" && "right-4 top-4",
                 quadrant.key === "bl" && "bottom-4 left-4",
                 quadrant.key === "br" && "bottom-4 right-4",
-                quadrant.key === quadrantKey
-                  ? "text-primary"
-                  : "text-muted-foreground/70",
+                quadrant.key === quadrantKey ? "text-primary" : "text-muted-foreground/70",
               )}
             >
               <p className="text-xs font-semibold text-foreground">{quadrant.title}</p>
@@ -493,8 +297,23 @@ function QuadrantMapCard({
 
         <div className="rounded-2xl border border-[#e7ebf1] bg-[#f8fafc] px-4 py-3 text-sm">
           <p className="font-medium">{quadrantSummaryMap[quadrantKey]}</p>
-          <p className="mt-1 text-muted-foreground">현재는 {dominantAxisText} 축의 존재감이 가장 크고, {unstableAxisText} 축에서 최근 변동이 큽니다. 다음에는 {growthAxisText} 축을 의식적으로 보완하는 흐름이 적합합니다.</p>
+          <p className="mt-1 text-muted-foreground">
+            현재는 {dominantAxisText} 축의 존재감이 가장 크고, {unstableAxisText} 축에서 최근 변동이 큽니다.
+            다음에는 {growthAxisText} 축을 의식적으로 보완하는 흐름이 적합합니다.
+          </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoadingCard() {
+  return (
+    <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+      <CardContent className="space-y-3 p-6">
+        <div className="h-4 w-24 rounded-full bg-primary/10" />
+        <div className="h-6 w-2/3 rounded-full bg-muted" />
+        <div className="h-16 rounded-[18px] bg-muted/70" />
       </CardContent>
     </Card>
   );
@@ -502,70 +321,89 @@ function QuadrantMapCard({
 
 export default function InterviewAnalysisPage() {
   const router = useRouter();
-  const [selectedTab, setSelectedTab] = useState<TabKind>("all");
+  const [selectedTab, setSelectedTab] = useState<AnalysisHubTabKind>("all");
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [sourceSessions, setSourceSessions] = useState<AnalysisHubSourceSession[]>([]);
   const [displayName, setDisplayName] = useState("회원");
   const [profileTags, setProfileTags] = useState<string[]>([]);
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
   const [resolvedRecommendationTags, setResolvedRecommendationTags] = useState<string[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
 
-  const filteredSessions = useMemo(() => {
-    return ALL_SESSIONS.filter((session) => selectedTab === "all" || session.kind === selectedTab);
-  }, [selectedTab]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const recentSessions = useMemo(() => ALL_SESSIONS.slice(0, 5), []);
+    const loadSessions = async () => {
+      setSessionsLoading(true);
+      setSessionsError(null);
+      try {
+        const res = await fetch("/api/interview/sessions?limit=24", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (res.status === 401) {
+          router.push("/auth/login");
+          return;
+        }
+        if (!json?.success || !Array.isArray(json?.data)) {
+          throw new Error(json?.error || "세션 목록을 불러오지 못했습니다.");
+        }
+        if (!cancelled) {
+          setSourceSessions(json.data as AnalysisHubSourceSession[]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSessionsError(error instanceof Error ? error.message : "세션 목록을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!cancelled) {
+          setSessionsLoading(false);
+        }
+      }
+    };
+
+    void loadSessions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const allSessions = useMemo(() => buildAnalysisHubSessions(sourceSessions), [sourceSessions]);
+  const filteredSessions = useMemo(
+    () => allSessions.filter((session) => selectedTab === "all" || session.kind === selectedTab),
+    [allSessions, selectedTab],
+  );
   const recentProfileBase = useMemo(
-    () => (recentSessions.length > 0 ? recentSessions : ALL_SESSIONS),
-    [recentSessions],
+    () => (allSessions.length > 0 ? allSessions.slice(0, 6) : []),
+    [allSessions],
   );
   const representativeAxes = useMemo(
-    () =>
-      AXES.reduce((acc, axis) => {
-        const total = recentProfileBase.reduce((sum, session) => sum + session.axes[axis.key], 0);
-        acc[axis.key] = Math.round(total / recentProfileBase.length);
-        return acc;
-      }, {} as AxisScores),
+    () => computeRepresentativeAxes(recentProfileBase),
     [recentProfileBase],
   );
-  const representativeTypeName = TYPE_NAMES[getTypeCode(representativeAxes)];
+  const representativeTypeName = useMemo(() => getTypeName(representativeAxes), [representativeAxes]);
   const representativeLabels = useMemo(
-    () => AXES.map((axis) => getAxisLabel(axis, representativeAxes[axis.key])),
+    () => ANALYSIS_HUB_AXES.map((axis) => getAxisLabel(axis, representativeAxes[axis.key])),
     [representativeAxes],
   );
-  const quadrantPoint = getQuadrantPoint(representativeAxes);
-  const quadrantKey = getQuadrantKey(quadrantPoint);
+  const quadrantPoint = useMemo(() => getQuadrantPoint(representativeAxes), [representativeAxes]);
+  const quadrantKey = useMemo(() => getQuadrantKey(quadrantPoint), [quadrantPoint]);
+  const axisTrends = useMemo(() => computeAxisTrends(recentProfileBase), [recentProfileBase]);
+  const totalSessions = allSessions.length;
+  const totalMockSessions = allSessions.filter((session) => session.kind === "mock").length;
+  const totalDefenseSessions = allSessions.filter((session) => session.kind === "defense").length;
+  const recurringWeaknesses = useMemo(() => collectRecurringWeaknesses(recentProfileBase), [recentProfileBase]);
+  const recommendedActions = useMemo(() => collectRecommendedActions(recentProfileBase), [recentProfileBase]);
 
-  const axisTrends = useMemo(
-    () =>
-      AXES.reduce((acc, axis) => {
-        const recent = recentProfileBase.slice(0, 3);
-        const previous = recentProfileBase.slice(3, 6);
-        const recentAvg =
-          recent.length > 0 ? recent.reduce((sum, session) => sum + session.axes[axis.key], 0) / recent.length : 0;
-        const previousAvg =
-          previous.length > 0 ? previous.reduce((sum, session) => sum + session.axes[axis.key], 0) / previous.length : recentAvg;
-        acc[axis.key] = Math.round(recentAvg - previousAvg);
-        return acc;
-      }, {} as Record<AxisKey, number>),
-    [recentProfileBase],
-  );
-
-  const dominantAxis = AXES.map((axis) => ({
-    axis,
-    distance: Math.abs(representativeAxes[axis.key] - 50),
-  })).sort((a, b) => b.distance - a.distance)[0]?.axis;
-  const unstableAxis = AXES.map((axis) => ({
-    axis,
-    movement: Math.abs(axisTrends[axis.key]),
-  })).sort((a, b) => b.movement - a.movement)[0]?.axis;
-  const growthAxis = AXES.map((axis) => ({
-    axis,
-    distance: Math.abs(representativeAxes[axis.key] - 50),
-  })).sort((a, b) => a.distance - b.distance)[0]?.axis;
-
-  const totalSessions = ALL_SESSIONS.length;
-  const totalMockSessions = ALL_SESSIONS.filter((session) => session.kind === "mock").length;
-  const totalDefenseSessions = ALL_SESSIONS.filter((session) => session.kind === "defense").length;
+  const dominantAxis = ANALYSIS_HUB_AXES
+    .map((axis) => ({ axis, distance: Math.abs(representativeAxes[axis.key] - 50) }))
+    .sort((a, b) => b.distance - a.distance)[0]?.axis;
+  const unstableAxis = ANALYSIS_HUB_AXES
+    .map((axis) => ({ axis, movement: Math.abs(axisTrends[axis.key]) }))
+    .sort((a, b) => b.movement - a.movement)[0]?.axis;
+  const growthAxis = ANALYSIS_HUB_AXES
+    .map((axis) => ({ axis, distance: Math.abs(representativeAxes[axis.key] - 50) }))
+    .sort((a, b) => a.distance - b.distance)[0]?.axis;
 
   useEffect(() => {
     let cancelled = false;
@@ -625,7 +463,7 @@ export default function InterviewAnalysisPage() {
           ),
         );
 
-        const candidateTags = buildRecommendationTags(representativeAxes, recentProfileBase, techStack);
+        const candidateTags = buildRecommendationTags(recentProfileBase, representativeLabels, techStack);
         const tags = candidateTags.filter((tag) => availableTagSet.has(tag)).slice(0, 8);
 
         let query = supabase
@@ -690,12 +528,14 @@ export default function InterviewAnalysisPage() {
       }
     };
 
-    loadRecommendations();
+    void loadRecommendations();
 
     return () => {
       cancelled = true;
     };
-  }, [recentProfileBase, representativeAxes, representativeLabels]);
+  }, [recentProfileBase, representativeLabels]);
+
+  const hasSessions = allSessions.length > 0;
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-foreground">
@@ -708,130 +548,219 @@ export default function InterviewAnalysisPage() {
               <LayoutDashboard className="h-10 w-10 text-primary" />
               나의 인터뷰 분석
             </h1>
-            <Badge variant="secondary" className="w-fit rounded-full">
-              데모 리포트 데이터
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="w-fit rounded-full">
+                실세션 기반 허브
+              </Badge>
+              {sessionsLoading ? (
+                <Badge variant="outline" className="rounded-full border-[#e5eaf1] bg-white text-muted-foreground">
+                  불러오는 중
+                </Badge>
+              ) : null}
+            </div>
             <p className="text-lg text-muted-foreground">
-              면접과 포트폴리오 디펜스 기록을 바탕으로 내 4축 성향과 전체 흐름을 확인합니다.
+              실제 모의면접과 포트폴리오 디펜스 결과를 바탕으로 내 4축 성향과 최근 보완 포인트를 확인합니다.
             </p>
           </div>
+          {sessionsError ? (
+            <div className="rounded-[24px] border border-orange-200 bg-orange-50 px-4 py-4 text-sm text-orange-700">
+              세션 목록을 불러오지 못했습니다. {sessionsError}
+            </div>
+          ) : null}
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
-          <Card className="overflow-hidden rounded-[32px] border border-[#e7ebf1] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-            <CardContent className="space-y-6 p-6">
-              <div className="grid gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
-                <DibeotCharacter typeName={representativeTypeName} />
+          {sessionsLoading ? (
+            <>
+              <LoadingCard />
+              <LoadingCard />
+            </>
+          ) : (
+            <>
+              <Card className="overflow-hidden rounded-[32px] border border-[#e7ebf1] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+                <CardContent className="space-y-6 p-6">
+                  <div className="grid gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
+                    <DibeotCharacter typeName={representativeTypeName} />
 
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
-                      대표 디벗 유형
-                    </Badge>
-                    <h2 className="text-3xl font-black tracking-tight">{representativeTypeName}</h2>
-                    <p className="text-base font-medium text-foreground">
-                      {representativeLabels.join(" · ")}
-                    </p>
-                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                      최근 면접과 디펜스 기록을 종합하면, 설계를 먼저 정리하고 구조와 안정성을 중시하는 방향이 가장 강하게 드러났습니다.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#eef2f6] pt-4 text-sm">
-                    {[
-                      { label: "총 세션", value: `${totalSessions}회` },
-                      { label: "모의면접", value: `${totalMockSessions}회` },
-                      { label: "포트폴리오 디펜스", value: `${totalDefenseSessions}회` },
-                    ].map((item, index, array) => (
-                      <div key={item.label} className="flex items-center gap-1.5 text-muted-foreground">
-                        <span className="font-medium">{item.label}</span>
-                        <span>:</span>
-                        <span className="font-semibold text-foreground">{item.value}</span>
-                        {index < array.length - 1 ? <span className="ml-2 text-[#cfd6e2]">|</span> : null}
+                    <div className="space-y-5">
+                      <div className="space-y-2">
+                        <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+                          대표 디벗 유형
+                        </Badge>
+                        <h2 className="text-3xl font-black tracking-tight">{representativeTypeName}</h2>
+                        <p className="text-base font-medium text-foreground">{representativeLabels.join(" · ")}</p>
+                        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                          {hasSessions
+                            ? `최근 ${Math.min(recentProfileBase.length, 6)}개 세션을 종합하면 ${getDominantAxesText(representativeAxes)} 축이 가장 강하게 드러났습니다.`
+                            : "아직 분석할 세션이 없어 기본 축을 중립값으로 표시합니다."}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
-              <div className="rounded-[28px] border border-[#e7ebf1] bg-white px-5 py-4">
-                <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">기록 허브</p>
-                    <p className="mt-1 text-xs text-muted-foreground">면접과 디펜스 기록 중 필요한 결과만 바로 확인할 수 있습니다.</p>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#eef2f6] pt-4 text-sm">
+                        {[
+                          { label: "총 분석 세션", value: `${totalSessions}회` },
+                          { label: "모의면접", value: `${totalMockSessions}회` },
+                          { label: "포트폴리오 디펜스", value: `${totalDefenseSessions}회` },
+                        ].map((item, index, array) => (
+                          <div key={item.label} className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="font-medium">{item.label}</span>
+                            <span>:</span>
+                            <span className="font-semibold text-foreground">{item.value}</span>
+                            {index < array.length - 1 ? <span className="ml-2 text-[#cfd6e2]">|</span> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="inline-flex items-center rounded-full border border-[#e5eaf1] bg-[#f8fafc] p-1">
-                      {[
-                        { key: "all", label: "전체" },
-                        { key: "mock", label: "모의면접" },
-                        { key: "defense", label: "디펜스" },
-                      ].map((tab) => (
-                        <button
-                          key={tab.key}
-                          type="button"
-                          onClick={() => setSelectedTab(tab.key as TabKind)}
-                          className={cn(
-                            "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                            selectedTab === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
+
+                  <div className="rounded-[28px] border border-[#e7ebf1] bg-white px-5 py-4">
+                    <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">기록 허브</p>
+                        <p className="mt-1 text-xs text-muted-foreground">실제 리포트가 생성된 세션만 묶어 보여줍니다.</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <div className="inline-flex items-center rounded-full border border-[#e5eaf1] bg-[#f8fafc] p-1">
+                          {[
+                            { key: "all", label: "전체" },
+                            { key: "mock", label: "모의면접" },
+                            { key: "defense", label: "디펜스" },
+                          ].map((tab) => (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setSelectedTab(tab.key as AnalysisHubTabKind)}
+                              className={cn(
+                                "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                                selectedTab === tab.key
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
+                      </div>
                     </div>
 
-                    <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
+                    {filteredSessions.length > 0 ? (
+                      <div className="divide-y divide-[#eef2f6]">
+                        {filteredSessions.slice(0, 6).map((session) => (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => router.push(session.href)}
+                            className="flex w-full items-center justify-between px-1 py-4 text-left transition-colors hover:bg-primary/[0.03]"
+                          >
+                            <div className="min-w-0 pr-4">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
+                                  {session.kind === "mock" ? "모의면접" : "포트폴리오 디펜스"}
+                                </Badge>
+                                <Badge variant="outline" className="rounded-full border-[#e5eaf1] bg-white text-muted-foreground">
+                                  {session.analysisQualityLabel}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{session.date}</span>
+                              </div>
+                              <p className="mt-2 truncate text-sm font-semibold text-foreground">{session.title}</p>
+                              <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
+                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{session.summary}</p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <span className="rounded-full bg-[#f2f4f8] px-3 py-1 text-xs font-medium">{session.typeName}</span>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                        아직 분석할 세션이 없습니다. 면접이나 디펜스를 완료하면 여기서 실제 기록 기반 추세를 확인할 수 있습니다.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <QuadrantMapCard
+                point={quadrantPoint}
+                quadrantKey={quadrantKey}
+                typeName={representativeTypeName}
+                dominantAxisText={dominantAxis ? getAxisLabel(dominantAxis, representativeAxes[dominantAxis.key]) : "대표 축"}
+                unstableAxisText={unstableAxis ? unstableAxis.label : "최근 변화"}
+                growthAxisText={growthAxis ? growthAxis.label : "보완 축"}
+              />
+            </>
+          )}
+        </section>
+
+        {!sessionsLoading ? (
+          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {ANALYSIS_HUB_AXES.map((axis) => (
+              <AxisCard
+                key={axis.key}
+                axis={axis}
+                value={representativeAxes[axis.key]}
+              />
+            ))}
+          </section>
+        ) : null}
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Sparkles className="h-5 w-5 text-primary" />
+                최근 반복된 보완 포인트
+              </CardTitle>
+              <CardDescription>최근 실제 세션에서 자주 반복된 약점만 추렸습니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recurringWeaknesses.length > 0 ? recurringWeaknesses.map((item, index) => (
+                <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="border-[#e5eaf1] bg-white text-muted-foreground">
+                      보완 {index + 1}
+                    </Badge>
+                    <p className="text-sm font-semibold text-foreground">{item}</p>
                   </div>
                 </div>
-
-                <div className="divide-y divide-[#eef2f6]">
-                  {filteredSessions.slice(0, 3).map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      onClick={() => router.push(session.href)}
-                      className="flex w-full items-center justify-between px-1 py-4 text-left transition-colors hover:bg-primary/[0.03]"
-                    >
-                      <div className="min-w-0 pr-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
-                            {session.kind === "mock" ? "모의면접" : "포트폴리오 디펜스"}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{session.date}</span>
-                        </div>
-                        <p className="mt-2 truncate text-sm font-semibold text-foreground">{session.title}</p>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span className="rounded-full bg-[#f2f4f8] px-3 py-1 text-xs font-medium">{session.typeName}</span>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </button>
-                  ))}
+              )) : (
+                <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                  아직 반복 약점을 집계할 세션이 충분하지 않습니다.
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          <QuadrantMapCard
-            point={quadrantPoint}
-            quadrantKey={quadrantKey}
-            typeName={representativeTypeName}
-            dominantAxisText={dominantAxis ? getAxisLabel(dominantAxis, representativeAxes[dominantAxis.key]) : "대표"}
-            unstableAxisText={unstableAxis ? unstableAxis.label : "최근 변화"}
-            growthAxisText={growthAxis ? growthAxis.label : "보완"}
-          />
-        </section>
-
-        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {AXES.map((axis) => (
-            <AxisCard
-              key={axis.key}
-              axis={axis}
-              value={representativeAxes[axis.key]}
-            />
-          ))}
+          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Sparkles className="h-5 w-5 text-primary" />
+                다음 추천 훈련 액션
+              </CardTitle>
+              <CardDescription>실제 세션 리포트에서 자주 반복된 액션만 모았습니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recommendedActions.length > 0 ? recommendedActions.map((item, index) => (
+                <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+                      액션 {index + 1}
+                    </Badge>
+                    <p className="text-sm font-semibold text-foreground">{item}</p>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                  아직 추천 액션을 집계할 세션이 충분하지 않습니다.
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -842,16 +771,13 @@ export default function InterviewAnalysisPage() {
                 {displayName}님이 읽어보면 좋을 기술 블로그
               </CardTitle>
               <CardDescription>
-                최근 면접 성향과 기술 스택을 바탕으로, 바로 읽어볼 만한 글만 골라두었습니다.
+                실제 세션 성향과 기술 스택을 바탕으로, 바로 읽어볼 만한 글만 골라두었습니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {isRecommendationsLoading ? (
                 Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4"
-                  >
+                  <div key={index} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
                     <div className="h-3 w-24 rounded-full bg-primary/10" />
                     <div className="mt-3 h-5 w-3/4 rounded-full bg-muted" />
                     <div className="mt-2 h-4 w-full rounded-full bg-muted/70" />
@@ -881,9 +807,7 @@ export default function InterviewAnalysisPage() {
                         ))}
                       </div>
                       <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{blog.title}</p>
-                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                        {blog.recommendationReason}
-                      </p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
                     </div>
                     <span className="mt-1 flex shrink-0 items-center gap-1 rounded-full bg-[#f4f6fa] px-3 py-1 text-xs font-medium text-foreground">
                       원문 읽기
@@ -906,7 +830,7 @@ export default function InterviewAnalysisPage() {
                 추천에 반영한 태그
               </CardTitle>
               <CardDescription>
-                디벗 성향, 최근 기록, 기술 스택에서 겹치는 주제들을 우선 반영했습니다.
+                실제 세션 성향, 최근 기록, 기술 스택에서 겹치는 주제를 우선 반영했습니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -931,7 +855,7 @@ export default function InterviewAnalysisPage() {
                   {representativeLabels.join(" · ")} 흐름과
                   {profileTags.length > 0
                     ? ` ${profileTags.slice(0, 3).join(", ")}`
-                    : " 최근 면접에서 드러난 직무 맥락"}
+                    : " 최근 세션에서 드러난 직무 맥락"}
                   을 함께 보고, 바로 도움이 될 만한 원문 글을 우선 보여줍니다.
                 </p>
               </div>
@@ -943,7 +867,7 @@ export default function InterviewAnalysisPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-lg font-semibold">디벗과 다시 연습해볼까요?</p>
-              <p className="mt-1 text-sm text-muted-foreground">대표 유형을 유지할지, 반대 축을 키울지 선택해 다음 연습으로 이어갈 수 있습니다.</p>
+              <p className="mt-1 text-sm text-muted-foreground">최근 약점을 기준으로 새 모의면접이나 포트폴리오 디펜스로 바로 이어갈 수 있습니다.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button variant="outline" className="rounded-full px-5" onClick={() => router.push("/interview")}>

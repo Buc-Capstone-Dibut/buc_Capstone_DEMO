@@ -4,6 +4,25 @@ export function isPendingReportStatus(status: string | null | undefined): boolea
   return status === "pending" || status === "running";
 }
 
+export function hasRenderableInterviewReport(detail: {
+  analysis?: unknown;
+  report_view?: unknown;
+  timeline?: unknown[] | null;
+} | null | undefined): boolean {
+  if (detail?.report_view) return true;
+  if (Array.isArray(detail?.timeline) && detail.timeline.length > 0) return true;
+  return Boolean(detail?.analysis);
+}
+
+export function shouldWaitForInterviewReport(detail: {
+  reportStatus?: string | null;
+  analysis?: unknown;
+  report_view?: unknown;
+  timeline?: unknown[] | null;
+} | null | undefined): boolean {
+  return isPendingReportStatus(detail?.reportStatus) && !hasRenderableInterviewReport(detail);
+}
+
 export function shouldRedirectToPortfolioReport(detail: {
   session_type?: string | null;
   report_view?: { sessionType?: string | null } | null;

@@ -30,9 +30,9 @@ def retune_vad_for_next_turn(
 
     if short_answer:
         if live_only:
-            silence_ms -= 60
-            short_silence_ms -= 180
-            turn_end_grace_ms -= 20
+            silence_ms += 70
+            short_silence_ms += 180
+            turn_end_grace_ms += 25
         else:
             silence_ms -= 70
             short_silence_ms -= 180
@@ -46,25 +46,30 @@ def retune_vad_for_next_turn(
         short_silence_ms += 20
         turn_end_grace_ms += 5
     elif avg_ms and avg_ms <= 1800:
-        silence_ms -= 35
-        short_silence_ms -= 80
-        turn_end_grace_ms -= 20
+        if live_only:
+            silence_ms += 20
+            short_silence_ms += 40
+            turn_end_grace_ms += 10
+        else:
+            silence_ms -= 35
+            short_silence_ms -= 80
+            turn_end_grace_ms -= 20
 
     if state.short_reprompt_streak >= 2:
         if live_only:
-            silence_ms -= 20
-            short_silence_ms -= 40
-            turn_end_grace_ms -= 10
+            silence_ms += 35
+            short_silence_ms += 80
+            turn_end_grace_ms += 15
         else:
             silence_ms -= 20
             short_silence_ms -= 40
             turn_end_grace_ms -= 10
 
-    silence_floor = 700 if live_only else 420
-    short_silence_floor = 1180 if live_only else 560
-    short_gap_floor = 220 if live_only else 140
-    grace_floor = 100 if live_only else 60
-    grace_cap = 260 if live_only else 180
+    silence_floor = 1120 if live_only else 420
+    short_silence_floor = 1950 if live_only else 560
+    short_gap_floor = 240 if live_only else 140
+    grace_floor = 180 if live_only else 60
+    grace_cap = 320 if live_only else 180
 
     silence_ms = max(silence_floor, min(short_silence_ms - 120, silence_ms))
     short_silence_ms = max(max(silence_ms + short_gap_floor, short_silence_floor), min(1800, short_silence_ms))

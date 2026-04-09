@@ -95,6 +95,28 @@ export interface AnalysisResult {
     refinedAnswer: string;
     reason: string;
   }[];
+  questionFindings?: {
+    question: string;
+    userAnswer: string;
+    strengths: string[];
+    improvements: string[];
+    refinedAnswer: string;
+    followUpQuestion: string;
+    evidence: string[];
+    confidence: number;
+  }[];
+  competencyCoverage?: {
+    competency: string;
+    score: number;
+    evidence: string;
+    confidence: number;
+  }[];
+  jdCoverage?: {
+    requirement: string;
+    matched: boolean;
+    evidence: string;
+    confidence: number;
+  }[];
 }
 
 export interface RolePrepData {

@@ -283,6 +283,7 @@ async def retry_session_report(
     job = service.enqueue_report_job(
         session_id=session_id,
         session_type=str(session.get("session_type") or "live_interview"),
+        force=True,
     )
     return {"success": True, "data": {"status": job.get("status", "pending")}}
 

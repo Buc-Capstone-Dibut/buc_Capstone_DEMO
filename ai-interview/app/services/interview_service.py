@@ -38,6 +38,77 @@ def _to_text_snapshot(payload: Any, max_chars: int = 12000) -> str:
     return json.dumps(payload, ensure_ascii=False)[:max_chars]
 
 
+def _sanitize_text_list(items: Any) -> list[str]:
+    if not isinstance(items, list):
+        return []
+    return [str(item).strip() for item in items if str(item or "").strip()]
+
+
+def _sanitize_question_findings(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for item in items:
+        question = str((item or {}).get("question") or "").strip()
+        user_answer = str((item or {}).get("userAnswer") or "").strip()
+        if not question and not user_answer:
+            continue
+        findings.append(
+            {
+                "question": question,
+                "userAnswer": user_answer,
+                "strengths": _sanitize_text_list((item or {}).get("strengths")),
+                "improvements": _sanitize_text_list((item or {}).get("improvements")),
+                "refinedAnswer": str((item or {}).get("refinedAnswer") or "").strip(),
+                "followUpQuestion": str((item or {}).get("followUpQuestion") or "").strip(),
+                "evidence": _sanitize_text_list((item or {}).get("evidence")),
+                "confidence": int((item or {}).get("confidence") or 0),
+            }
+        )
+    return findings
+
+
+def _sanitize_competency_coverage(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+
+    result: list[dict[str, Any]] = []
+    for item in items:
+        competency = str((item or {}).get("competency") or "").strip()
+        if not competency:
+            continue
+        result.append(
+            {
+                "competency": competency,
+                "score": int((item or {}).get("score") or 0),
+                "evidence": str((item or {}).get("evidence") or "").strip(),
+                "confidence": int((item or {}).get("confidence") or 0),
+            }
+        )
+    return result
+
+
+def _sanitize_jd_coverage(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+
+    result: list[dict[str, Any]] = []
+    for item in items:
+        requirement = str((item or {}).get("requirement") or "").strip()
+        if not requirement:
+            continue
+        result.append(
+            {
+                "requirement": requirement,
+                "matched": bool((item or {}).get("matched")),
+                "evidence": str((item or {}).get("evidence") or "").strip(),
+                "confidence": int((item or {}).get("confidence") or 0),
+            }
+        )
+    return result
+
+
 def _normalize_report_analysis(payload: Any) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         return None
@@ -60,14 +131,17 @@ def _normalize_report_analysis(payload: Any) -> dict[str, Any] | None:
         for key in required_scores
     }
     normalized["feedback"] = {
-        "strengths": feedback.get("strengths") if isinstance(feedback.get("strengths"), list) else [],
-        "improvements": feedback.get("improvements") if isinstance(feedback.get("improvements"), list) else [],
+        "strengths": _sanitize_text_list(feedback.get("strengths")),
+        "improvements": _sanitize_text_list(feedback.get("improvements")),
     }
     normalized["habits"] = payload.get("habits") if isinstance(payload.get("habits"), list) else []
     normalized["bestPractices"] = payload.get("bestPractices") if isinstance(payload.get("bestPractices"), list) else []
     normalized["sentimentTimeline"] = (
         payload.get("sentimentTimeline") if isinstance(payload.get("sentimentTimeline"), list) else []
     )
+    normalized["questionFindings"] = _sanitize_question_findings(payload.get("questionFindings"))
+    normalized["competencyCoverage"] = _sanitize_competency_coverage(payload.get("competencyCoverage"))
+    normalized["jdCoverage"] = _sanitize_jd_coverage(payload.get("jdCoverage"))
     return normalized
 
 
@@ -607,8 +681,8 @@ class InterviewService:
         )
         self._report_repository.save_report_document(session_id, document)
 
-    def enqueue_report_job(self, session_id: str, session_type: str) -> dict[str, Any]:
-        return self._report_repository.enqueue_report_job(session_id, session_type)
+    def enqueue_report_job(self, session_id: str, session_type: str, *, force: bool = False) -> dict[str, Any]:
+        return self._report_repository.enqueue_report_job(session_id, session_type, force=force)
 
     def reserve_next_report_job(self) -> dict[str, Any] | None:
         return self._report_repository.reserve_next_report_job()
@@ -745,11 +819,15 @@ class InterviewService:
                     "company": job.get("company", ""),
                     "role": job.get("role", ""),
                     "repoUrl": job.get("repoUrl", ""),
+                    "detectedTopics": job.get("detectedTopics", []),
                     "createdAt": int(row["created_at"].timestamp())
                     if isinstance(row["created_at"], datetime)
                     else 0,
                     "analysis": compat_analysis,
                     "reportView": report_doc.get("reportView") if report_doc else None,
+                    "timeline": report_doc.get("timeline") if report_doc else [],
+                    "reportGenerationMeta": report_doc.get("generationMeta") if report_doc else None,
+                    "schemaVersion": report_doc.get("schemaVersion") if report_doc else "",
                     "reportStatus": row.get("report_status") or "",
                 }
             )

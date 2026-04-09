@@ -135,6 +135,31 @@ class BestPractice(BaseModel):
     reason: str = ""
 
 
+class QuestionFinding(BaseModel):
+    question: str = ""
+    userAnswer: str = ""
+    strengths: list[str] = Field(default_factory=list)
+    improvements: list[str] = Field(default_factory=list)
+    refinedAnswer: str = ""
+    followUpQuestion: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    confidence: int = Field(default=0, ge=0, le=100)
+
+
+class CompetencyCoverageItem(BaseModel):
+    competency: str = ""
+    score: int = Field(default=0, ge=0, le=100)
+    evidence: str = ""
+    confidence: int = Field(default=0, ge=0, le=100)
+
+
+class JdCoverageItem(BaseModel):
+    requirement: str = ""
+    matched: bool = False
+    evidence: str = ""
+    confidence: int = Field(default=0, ge=0, le=100)
+
+
 class AnalysisReport(BaseModel):
     overallScore: int = Field(default=0, ge=0, le=100)
     passProbability: int = Field(default=0, ge=0, le=100)
@@ -143,6 +168,9 @@ class AnalysisReport(BaseModel):
     habits: list[HabitItem] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
     bestPractices: list[BestPractice] = Field(default_factory=list)
+    questionFindings: list[QuestionFinding] = Field(default_factory=list)
+    competencyCoverage: list[CompetencyCoverageItem] = Field(default_factory=list)
+    jdCoverage: list[JdCoverageItem] = Field(default_factory=list)
 
 
 class TtsRequest(BaseModel):

@@ -157,3 +157,67 @@ test("session interview adapter builds summary-only report when analysis is miss
   assert.equal(model.questionHighlights.length, 0);
   assert.equal(model.axisEvidence[0]?.description.includes("중립값"), true);
 });
+
+test("session interview adapter prefers backend profile when report view already has finalized profile", () => {
+  const model = buildSessionInterviewReportModel({
+    analysis: null,
+    reportView: {
+      sessionType: "live_interview",
+      analysisMode: "full",
+      company: "Dibut",
+      role: "Backend Engineer",
+      summary: "백엔드 확정 프로필 기반 리포트입니다.",
+      deliveryInsights: ["문제 해결 근거가 선명했습니다.", "JD 요구사항 2개가 직접 확인됐습니다."],
+      questionFindings: [
+        {
+          question: "최근 프로젝트에서 맡은 역할을 설명해주세요.",
+          userAnswer: "백엔드 구조 개선을 맡았습니다.",
+          strengths: ["역할과 판단 근거를 비교적 선명하게 설명했습니다."],
+          refinedAnswer: "문제 상황과 결과를 먼저 연결해 설명하세요.",
+        },
+      ],
+      profile: {
+        axes: {
+          approach: 83,
+          scope: 67,
+          decision: 71,
+          execution: 64,
+        },
+        typeName: "시스템 엔지니어형",
+        typeLabels: ["구조형", "시스템형", "안정형", "구축형"],
+        axisEvidence: [
+          {
+            axisKey: "approach",
+            title: "문제 접근 방식",
+            description: "저장된 질문별 분석을 근거로 구조형 성향이 확인됐습니다.",
+          },
+        ],
+      },
+    },
+    session: {
+      company: "Dibut",
+      role: "Backend Engineer",
+      createdAt: 1710000000,
+      schemaVersion: "v2",
+      reportGenerationMeta: {
+        analysisMode: "full",
+        questionCount: 5,
+        turnCount: 10,
+      },
+    },
+  });
+
+  assert.equal(model.analysisMode, "full");
+  assert.equal(model.hasDetailedProfile, true);
+  assert.equal(model.badgeLabel, "이번 면접의 디벗 유형");
+  assert.deepEqual(model.axes, {
+    approach: 83,
+    scope: 67,
+    decision: 71,
+    execution: 64,
+  });
+  assert.equal(model.typeName, "시스템 엔지니어형");
+  assert.equal(model.axisEvidence[0]?.description, "저장된 질문별 분석을 근거로 구조형 성향이 확인됐습니다.");
+  assert.equal(model.questionHighlights[0]?.title, "최근 프로젝트에서 맡은 역할을 설명해주세요.");
+  assert.equal(model.deliveryInsights[0], "문제 해결 근거가 선명했습니다.");
+});
