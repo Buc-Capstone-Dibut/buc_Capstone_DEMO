@@ -149,7 +149,8 @@ test("session interview adapter builds summary-only report when analysis is miss
 
   assert.equal(model.analysisMode, "summary");
   assert.equal(model.isFallback, true);
-  assert.equal(model.typeName, "요약 리포트");
+  assert.equal(model.typeName, "Backend Engineer 면접 요약");
+  assert.deepEqual(model.typeLabels, ["질문 4개", "강점 1개", "보완점 1개", "요약 리포트"]);
   assert.equal(model.summary, "질문 흐름 중심의 요약 리포트입니다.");
   assert.equal(model.heroMetrics[0]?.value, "4개");
   assert.equal(model.heroMetrics[1]?.value, "8턴");

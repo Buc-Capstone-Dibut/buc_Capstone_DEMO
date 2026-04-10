@@ -67,32 +67,32 @@ class _FakeLongInterviewService(_FakeInterviewService):
 
 
 class ReportAgentFallbackTests(unittest.TestCase):
-    def test_process_job_saves_fallback_when_gemini_missing(self) -> None:
+    def test_process_job_raises_when_gemini_missing(self) -> None:
         service = _FakeInterviewService()
         agent = ReportAgent(interview_service=service, gemini_factory=lambda: None)
 
-        agent._process_job({"session_id": "session-1", "session_type": "live_interview"})
+        with self.assertRaises(RuntimeError):
+            agent._process_job({"session_id": "session-1", "session_type": "live_interview"})
 
-        self.assertIsNotNone(service.saved_report)
-        self.assertEqual(service.saved_report["payload"]["analysisMeta"]["fallbackReason"], "insufficient-turns-for-full-analysis")
+        self.assertIsNone(service.saved_report)
 
-    def test_process_job_saves_fallback_when_gemini_raises(self) -> None:
+    def test_process_job_raises_when_gemini_raises(self) -> None:
         service = _FakeInterviewService()
         agent = ReportAgent(interview_service=service, gemini_factory=lambda: _FailingGemini())
 
-        agent._process_job({"session_id": "session-2", "session_type": "live_interview"})
+        with self.assertRaises(RuntimeError):
+            agent._process_job({"session_id": "session-2", "session_type": "live_interview"})
 
-        self.assertIsNotNone(service.saved_report)
-        self.assertEqual(service.saved_report["payload"]["analysisMeta"]["fallbackReason"], "insufficient-turns-for-full-analysis")
+        self.assertIsNone(service.saved_report)
 
-    def test_process_job_saves_fallback_when_full_analysis_fails(self) -> None:
+    def test_process_job_raises_when_full_analysis_fails(self) -> None:
         service = _FakeLongInterviewService()
         agent = ReportAgent(interview_service=service, gemini_factory=lambda: _FailingGemini())
 
-        agent._process_job({"session_id": "session-3", "session_type": "live_interview"})
+        with self.assertRaises(RuntimeError):
+            agent._process_job({"session_id": "session-3", "session_type": "live_interview"})
 
-        self.assertIsNotNone(service.saved_report)
-        self.assertEqual(service.saved_report["payload"]["analysisMeta"]["fallbackReason"], "gemini-analysis-failed")
+        self.assertIsNone(service.saved_report)
 
 
 if __name__ == "__main__":

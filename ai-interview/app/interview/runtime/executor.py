@@ -951,6 +951,19 @@ async def execute_live_user_followup_turn(
             text=ai_text,
         )
         provider_name = spoken_provider or provider_name
+        if prepared_audio is None:
+            recovered_text, recovered_audio = await _recover_live_audio_for_ai_text(
+                state,
+                ai_text=ai_text,
+                question_type=user_request.planned_question_type,
+                extra_instruction=user_request.extra_instruction,
+                user_text=user_request.prompt_user_text,
+                deps=deps,
+            )
+            if recovered_text:
+                ai_text = recovered_text
+            if recovered_audio is not None:
+                prepared_audio = recovered_audio
     if prepared_audio is None and not spec.completion_reason and not audio_already_streamed:
         if streamed_turn_visible:
             logger.warning(

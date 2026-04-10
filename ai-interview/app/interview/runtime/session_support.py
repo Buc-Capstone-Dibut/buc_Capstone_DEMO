@@ -56,6 +56,12 @@ def get_fallback_stt_service() -> GeminiLiveSttService:
 def get_parallel_stt_service() -> GoogleCloudSttService:
     from app.services.stt_service import GoogleCloudSttService
 
+    service_account_json_base64 = (
+        (settings.google_service_account_json_b64 or "").strip()
+        or (settings.gemini_service_account_json_base64 or "").strip()
+        or None
+    )
+
     return GoogleCloudSttService(
         model=(settings.google_cloud_stt_model or "").strip() or "latest_long",
         language_code=(settings.google_cloud_stt_language_code or "").strip() or "ko-KR",
@@ -63,7 +69,7 @@ def get_parallel_stt_service() -> GoogleCloudSttService:
         phrase_hint_boost=max(0.0, float(settings.google_cloud_stt_phrase_hint_boost or 0.0)),
         quota_project_id=(settings.google_cloud_project or "").strip() or None,
         service_account_file=(settings.google_application_credentials or "").strip() or None,
-        service_account_json_base64=(settings.gemini_service_account_json_base64 or "").strip() or None,
+        service_account_json_base64=service_account_json_base64,
     )
 
 

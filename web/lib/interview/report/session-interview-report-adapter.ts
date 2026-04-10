@@ -187,6 +187,68 @@ function buildHeroMetrics(session?: SessionReportMeta, analysisMode: "full" | "s
   return metrics.slice(0, 3);
 }
 
+function buildSummaryTypeName(
+  role: string,
+  session?: SessionReportMeta,
+): string {
+  const fallbackReason = String(session?.reportGenerationMeta?.fallbackReason || "").trim();
+  if (fallbackReason === "insufficient-turns-for-full-analysis") {
+    return `${role} 기본 리포트`;
+  }
+  if (fallbackReason === "gemini-analysis-unavailable" || fallbackReason === "gemini-analysis-failed") {
+    return `${role} 임시 리포트`;
+  }
+  return `${role} 면접 요약`;
+}
+
+function buildSummaryTypeLabels({
+  strengths,
+  improvements,
+  reportView,
+  session,
+}: {
+  strengths: string[];
+  improvements: string[];
+  reportView?: SessionReportView | null;
+  session?: SessionReportMeta;
+}): string[] {
+  const labels: string[] = [];
+  const questionFindingCount = (reportView?.questionFindings || []).filter(
+    (item) => String(item?.question || item?.userAnswer || "").trim().length > 0,
+  ).length;
+  const questionCount = Number(session?.reportGenerationMeta?.questionCount || 0);
+  const timelineCount = Number(session?.reportGenerationMeta?.timelineCount || 0);
+  const fallbackReason = String(session?.reportGenerationMeta?.fallbackReason || "").trim();
+
+  if (questionFindingCount > 0) {
+    labels.push(`질문 분석 ${questionFindingCount}개`);
+  } else if (questionCount > 0) {
+    labels.push(`질문 ${questionCount}개`);
+  }
+
+  if (timelineCount > 0) {
+    labels.push(`답변 기록 ${timelineCount}개`);
+  }
+
+  if (strengths.length > 0) {
+    labels.push(`강점 ${Math.min(strengths.length, 3)}개`);
+  }
+
+  if (improvements.length > 0) {
+    labels.push(`보완점 ${Math.min(improvements.length, 3)}개`);
+  }
+
+  if (fallbackReason === "insufficient-turns-for-full-analysis") {
+    labels.push("짧은 세션");
+  } else if (fallbackReason) {
+    labels.push("기본 리포트");
+  } else {
+    labels.push("요약 리포트");
+  }
+
+  return [...new Set(labels)].slice(0, 4);
+}
+
 function resolveRoleBias(role?: string): number {
   const source = (role || "").toLowerCase();
   if (/(backend|platform|infra|data|security|devops)/.test(source)) return 68;
@@ -331,8 +393,15 @@ export function buildSessionInterviewReportModel({
     ? sanitizeTextList(reportView?.nextActions)
     : sanitizeTextList(analysis?.nextActions);
   const axes = reportProfile?.axes || (analysis ? buildAxes(analysis, role) : DEFAULT_AXES);
-  const typeName = reportProfile?.typeName || (analysis ? getTypeName(axes) : "요약 리포트");
-  const typeLabels = reportProfile?.typeLabels || (analysis ? getTypeLabels(axes) : ["핵심 요약", "질문 흐름", "강점 정리"]);
+  const typeName = reportProfile?.typeName || (analysis ? getTypeName(axes) : buildSummaryTypeName(role, session));
+  const typeLabels = reportProfile?.typeLabels || (analysis
+    ? getTypeLabels(axes)
+    : buildSummaryTypeLabels({
+        strengths,
+        improvements,
+        reportView,
+        session,
+      }));
   const primaryImprovement = improvements[0] || "답변 첫 문장의 밀도를 높여보세요.";
   const primaryStrength = strengths[0] || "직무 이해도와 답변 구조가 안정적입니다.";
   const summary = String(reportView?.summary || analysis?.summary || `${primaryStrength} 다만 ${primaryImprovement} 흐름을 보완하면 전체 인상이 더 강해집니다.`).trim();

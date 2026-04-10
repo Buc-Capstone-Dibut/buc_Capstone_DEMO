@@ -194,6 +194,7 @@ export default function InterviewVideoRoomPage() {
   const [streamingUserTurnId, setStreamingUserTurnId] = useState("");
   const [streamingUserProvider, setStreamingUserProvider] = useState("");
   const [stickyCaption, setStickyCaption] = useState<StickyCaption | null>(null);
+  const [committedAiCaption, setCommittedAiCaption] = useState<StickyCaption | null>(null);
   const [committedUserCaption, setCommittedUserCaption] = useState<StickyCaption | null>(null);
   const [statusMessage, setStatusMessage] = useState("음성 파이프라인 연결 준비 중...");
   const [isSessionReady, setIsSessionReady] = useState(false);
@@ -261,6 +262,21 @@ export default function InterviewVideoRoomPage() {
 
   const snapshotCommittedUserCaption = useCallback((text: string, turnId: string = "", provider = "") => {
     setCommittedUserCaption((prev) => mergeCommittedUserCaption(prev, text, turnId, provider));
+  }, []);
+
+  const snapshotCommittedAiCaption = useCallback((text: string, turnId: string = "", provider = "") => {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    const cleanTurnId = turnId.trim();
+    setCommittedAiCaption((prev) => ({
+      role: "ai",
+      text:
+        cleanTurnId && prev?.turnId === cleanTurnId
+          ? preferLongerCaption(prev.text, cleanText)
+          : cleanText,
+      turnId: cleanTurnId || prev?.turnId || "",
+      provider: provider || prev?.provider,
+    }));
   }, []);
 
   useEffect(() => {
@@ -462,6 +478,7 @@ export default function InterviewVideoRoomPage() {
       const turnId = (meta?.turnId || "").trim();
       const provider = (meta?.provider || "").trim();
       if (role === "ai") {
+        snapshotCommittedAiCaption(clean, turnId, provider);
         setStreamingAiCaption((prev) => {
           if (turnId && streamingAiTurnId && turnId === streamingAiTurnId) {
             return preferLongerCaption(prev, clean);
@@ -543,6 +560,7 @@ export default function InterviewVideoRoomPage() {
         setStreamingUserTurnId("");
         setStreamingUserProvider("");
         setStickyCaption(null);
+        setCommittedAiCaption(null);
         setCommittedUserCaption(null);
         setRuntimeMeta((prev) => ({
           ...prev,
@@ -851,6 +869,10 @@ export default function InterviewVideoRoomPage() {
   const previousCaption = transcript[transcript.length - 2];
   const activeAiCaption = formatStreamingTranscriptForDisplay(streamingAiCaption.trim(), "ai");
   const activeUserCaption = formatStreamingTranscriptForDisplay(streamingUserCaption.trim(), "user");
+  const committedAiCaptionText = committedAiCaption
+    ? formatTranscriptForDisplay(committedAiCaption.text, "ai")
+    : "";
+  const committedAiCaptionTurnId = committedAiCaption?.turnId ?? "";
   const committedUserCaptionText = committedUserCaption
     ? formatTranscriptForDisplay(committedUserCaption.text, "user")
     : "";
@@ -885,19 +907,16 @@ export default function InterviewVideoRoomPage() {
       && fallbackCaptionRole === latestCaption.role
       ? preferLongerCaption(latestCaptionText, fallbackCaptionText)
       : (latestCaptionText || fallbackCaptionText);
-  const aiStickyCaption =
-    fallbackCaptionRole === "ai"
-      ? fallbackCaptionText
-      : "";
+  const aiStickyCaption = committedAiCaptionText || (fallbackCaptionRole === "ai" ? fallbackCaptionText : "");
   const aiPresentationText =
     sameTurnAiCaption
-    || (((isAISpeaking || isAIProcessing) && aiStickyCaption) ? aiStickyCaption : "");
+    || (((isAISpeaking || isAIProcessing || !activeUserCaption) && aiStickyCaption) ? aiStickyCaption : "");
   const latestUserCaptionText =
     latestCaption?.role === "user" && isGoogleTranscriptProvider(latestCaption.provider)
       ? stableLatestCaptionText
       : "";
   const committedUserPresentationText = committedUserCaptionText || latestUserCaptionText;
-  const isAiPrimary = Boolean(aiPresentationText) && (isAISpeaking || Boolean(sameTurnAiCaption));
+  const isAiPrimary = Boolean(aiPresentationText) && (isAISpeaking || isAIProcessing || Boolean(sameTurnAiCaption) || !activeUserCaption);
   const userPresentationText =
     isAIProcessing && !isAISpeaking
       ? committedUserPresentationText
@@ -920,6 +939,9 @@ export default function InterviewVideoRoomPage() {
       }
     }
     const candidates = [
+      committedAiCaptionText
+        ? { role: "ai" as const, text: committedAiCaptionText, turnId: committedAiCaptionTurnId }
+        : null,
       latestCaption && latestCaptionText
         ? { role: latestCaption.role, text: latestCaptionText, turnId: latestCaptionTurnId }
         : null,

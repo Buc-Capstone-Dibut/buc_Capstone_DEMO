@@ -1494,8 +1494,8 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
             closing_sentence="수고하셨습니다. 이것으로 모든 면접을 마치겠습니다.",
         )
 
-        runtime_executor_deps.request_live_text_turn.assert_not_awaited()
-        resume_listening.assert_not_awaited()
+        runtime_executor_deps.request_live_text_turn.assert_awaited_once()
+        resume_listening.assert_awaited_once()
         self.assertEqual(state.active_question_turn_id, "session-retry:1")
         self.assertEqual(state.current_question_retry_count, 0)
 
@@ -1637,6 +1637,8 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
         state.active_question_turn_id = "session-followup-fail:1"
         state.live_interview = _DummyLiveSession(model="gemini-live-2.5-flash-live", enabled=True)
 
+        send_json = AsyncMock(return_value=True)
+        resume_listening = AsyncMock(return_value=None)
         runtime_executor_deps = RuntimeExecutorDeps(
             request_live_text_turn=AsyncMock(return_value=("마지막 문장부터 한 번만 더 말씀해 주세요.", None)),
             repair_ai_turn_if_truncated=AsyncMock(return_value=("마지막 문장부터 한 번만 더 말씀해 주세요.", None)),
@@ -1648,11 +1650,11 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
             set_closing_announced=AsyncMock(return_value=None),
             mark_session_status=lambda *args, **kwargs: None,
             log_runtime_event=lambda *args, **kwargs: None,
-            send_json=AsyncMock(return_value=True),
+            send_json=send_json,
             send_transcript=AsyncMock(return_value=True),
             stream_prepared_ai_delivery=AsyncMock(return_value=False),
             arm_playback_resume=lambda *args, **kwargs: None,
-            resume_listening=AsyncMock(return_value=None),
+            resume_listening=resume_listening,
             reconnect_remaining_sec=lambda current_state: 0,
             live_active_model=lambda current_state: "gemini-live",
             snapshot_vad_config=lambda current_state: {},
@@ -1664,7 +1666,7 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
             request_live_audio_turn=AsyncMock(
                 return_value=("웹소켓으로 실시간 양방향 통신을 구성했습니다.", "", None, "gemini-live")
             ),
-            send_json=AsyncMock(return_value=True),
+            send_json=send_json,
             send_avatar_state=AsyncMock(return_value=True),
             send_runtime_meta_snapshot=AsyncMock(return_value=True),
             set_runtime_status=AsyncMock(return_value=None),
@@ -1672,7 +1674,7 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
             get_or_create_live_interview=lambda current_state: current_state.live_interview,
             estimate_wav_duration_ms=lambda _wav_bytes: 3200.0,
             runtime_executor_deps=lambda: runtime_executor_deps,
-            resume_listening=AsyncMock(return_value=None),
+            resume_listening=resume_listening,
         )
 
         with patch(
@@ -1691,6 +1693,9 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
 
         runtime_executor_deps.request_live_text_turn.assert_not_awaited()
         self.assertEqual(state.current_question_retry_count, 0)
+        resume_listening.assert_awaited_once()
+        warning_payloads = [call.args[1] for call in send_json.await_args_list if len(call.args) >= 2]
+        self.assertTrue(any(payload.get("type") == "warning" for payload in warning_payloads))
 
     async def test_process_user_utterance_reopens_mic_when_echo_is_detected(self) -> None:
         state = VoiceWsState(session_id="session-retry-budget", current_phase="technical")
@@ -2076,6 +2081,107 @@ class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(generated)
+        self.assertIn("redis", send_transcript.await_args.args[3].lower())
+        resume_listening.assert_not_awaited()
+
+    async def test_execute_live_user_followup_turn_recovers_audio_once_when_spoken_audio_is_missing(self) -> None:
+        state = VoiceWsState(session_id="session-followup-audio-recovery", current_phase="technical")
+        send_transcript = AsyncMock(return_value=True)
+        resume_listening = AsyncMock(return_value=None)
+        prepared_audio = PreparedTtsAudio(
+            chunks=["audio"],
+            sample_rate=24000,
+            provider="gemini-live",
+            duration_sec=1.0,
+        )
+        request_live_text_turn = AsyncMock(
+            return_value=(
+                "방금 말씀하신 redis 캐시 TTL 조정에서, 어떤 수치로 성능 개선을 검증하셨는지 구체적으로 말씀해 주세요.",
+                prepared_audio,
+            )
+        )
+        deps = RuntimeExecutorDeps(
+            request_live_text_turn=request_live_text_turn,
+            repair_ai_turn_if_truncated=AsyncMock(
+                return_value=(
+                    "방금 말씀하신 redis 캐시 TTL 조정에서, 어떤 수치로 성능 개선을 검증하셨는지 구체적으로 말씀해 주세요.",
+                    prepared_audio,
+                )
+            ),
+            looks_like_complete_ai_question=lambda text: text.endswith("요.") or text.endswith("주세요."),
+            build_ai_delivery_plan=AsyncMock(
+                return_value=AiDeliveryPlan(
+                    segments=[
+                        PreparedDeliverySegment(
+                            text="방금 말씀하신 redis 캐시 TTL 조정에서, 어떤 수치로 성능 개선을 검증하셨는지 구체적으로 말씀해 주세요.",
+                            prepared_audio=prepared_audio,
+                        )
+                    ],
+                    mode="full",
+                    provider="gemini-live",
+                )
+            ),
+            persist_turn=AsyncMock(return_value={"id": "turn-followup"}),
+            set_runtime_status=AsyncMock(return_value=None),
+            update_session_status=AsyncMock(return_value=None),
+            set_closing_announced=AsyncMock(return_value=None),
+            mark_session_status=lambda *args, **kwargs: None,
+            log_runtime_event=lambda *args, **kwargs: None,
+            send_json=AsyncMock(return_value=True),
+            send_transcript=send_transcript,
+            stream_prepared_ai_delivery=AsyncMock(return_value=True),
+            arm_playback_resume=lambda *args, **kwargs: None,
+            resume_listening=resume_listening,
+            reconnect_remaining_sec=lambda current_state: 0,
+            live_active_model=lambda current_state: "gemini-live",
+            snapshot_vad_config=lambda current_state: {},
+            build_memory_snapshot=lambda current_state: "",
+            remember_model_turn=lambda *args, **kwargs: None,
+            record_question_type=lambda *args, **kwargs: None,
+            request_live_spoken_text_turn=AsyncMock(
+                return_value=(
+                    "방금 말씀하신 redis 캐시 TTL 조정에서, 어떤 수치로 성능 개선을 검증하셨는지 구체적으로 말씀해 주세요.",
+                    None,
+                    "gemini-live",
+                )
+            ),
+        )
+
+        generated = await execute_live_user_followup_turn(
+            object(),
+            state,
+            spec=LiveUserFollowupSpec(
+                model_count=2,
+                target_duration_sec=600,
+                closing_threshold_sec=60,
+                elapsed_sec=150,
+                remaining_sec=450,
+                estimated_total_questions=6,
+                completion_reason="",
+                question_index=2,
+                should_announce_closing=False,
+                phase="technical",
+                response_question_index=2,
+            ),
+            user_request=LiveUserRequestSpec(
+                prompt_user_text="Redis 캐시 TTL과 Kafka 재처리 전략을 조정해 p95 응답 시간을 180ms에서 95ms로 줄였습니다.",
+                answer_quality_hint="근거 확인",
+                planned_question_type="metric_validation",
+                extra_instruction="지원자의 직전 답변을 바탕으로 자연스러운 후속 질문을 완성하세요.",
+            ),
+            next_turn_id="session-followup-audio-recovery:3",
+            live_ai_text="방금 말씀하신 redis 캐시 TTL 조정에서, 어떤 수치로 성능 개선을 검증하셨는지 구체적으로 말씀해 주세요.",
+            prepared_live_audio=None,
+            provider_name="gemini-live",
+            active_live_provider="gemini-live",
+            utterance_duration_ms=2800.0,
+            vad_meta={"reason": "silence"},
+            started_at=0.0,
+            deps=deps,
+        )
+
+        self.assertTrue(generated)
+        request_live_text_turn.assert_awaited_once()
         self.assertIn("redis", send_transcript.await_args.args[3].lower())
         resume_listening.assert_not_awaited()
 

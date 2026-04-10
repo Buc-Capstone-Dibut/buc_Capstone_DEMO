@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, FileText, Lightbulb, Loader2, MessageSquareQuote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { coerceSessionAnalysisPayload } from "@/lib/interview/report/session-ana
 import { buildSessionInterviewReportModel } from "@/lib/interview/report/session-interview-report-adapter";
 import {
   hasRenderableInterviewReport,
-  shouldWaitForInterviewReport,
+  shouldRecoverInterruptedInterviewReport,
   shouldRedirectToPortfolioReport,
 } from "@/lib/interview/interview-session-flow";
 import { AnalysisResult, useInterviewSetupStore } from "@/store/interview-setup-store";
@@ -150,6 +150,32 @@ type SessionAnalysisPayload = AnalysisResult & {
   nextActions?: string[];
 };
 
+function hasOfficialInterviewReport(detail: SessionDetail | null | undefined): boolean {
+  const analysisMode = String(
+    detail?.report_generation_meta?.analysisMode
+      || detail?.report_view?.analysisMode
+      || "",
+  ).trim();
+
+  if (analysisMode && analysisMode !== "full") return false;
+  if (detail?.analysis) return true;
+
+  const reportView = detail?.report_view;
+  if (!reportView) return false;
+
+  return Boolean(
+    reportView.profile
+      || (Array.isArray(reportView.questionFindings) && reportView.questionFindings.length > 0)
+      || (Array.isArray(reportView.competencyCoverage) && reportView.competencyCoverage.length > 0)
+      || (Array.isArray(reportView.jdCoverage) && reportView.jdCoverage.length > 0),
+  );
+}
+
+function shouldWaitForOfficialInterviewReport(detail: SessionDetail | null | undefined): boolean {
+  const reportStatus = String(detail?.reportStatus || "").trim();
+  return (reportStatus === "pending" || reportStatus === "running") && !hasOfficialInterviewReport(detail);
+}
+
 function clampSessionDurationMinute(raw: string | null): 5 | 10 | 15 {
   const value = Number(raw);
   if (value === 5 || value === 10 || value === 15) return value;
@@ -269,6 +295,7 @@ export default function InterviewResultPage() {
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
+  const recoveryRequestedRef = useRef<Set<string>>(new Set());
   const effectiveAnalysis = useMemo(
     () => coerceSessionAnalysisPayload(sessionDetail?.analysis ?? null),
     [sessionDetail?.analysis],
@@ -286,6 +313,40 @@ export default function InterviewResultPage() {
     report_view: sessionDetail?.report_view,
     timeline: sessionTimeline,
   });
+  const hasOfficialReportData = useMemo(
+    () => hasOfficialInterviewReport(sessionDetail),
+    [sessionDetail],
+  );
+
+  const recoverInterruptedSession = useCallback(async (detail: SessionDetail): Promise<SessionDetail> => {
+    if (!resolvedSessionId) return detail;
+    if (recoveryRequestedRef.current.has(resolvedSessionId)) return detail;
+
+    recoveryRequestedRef.current.add(resolvedSessionId);
+
+    try {
+      const response = await fetch(`/api/interview/sessions/${resolvedSessionId}/complete`, {
+        method: "POST",
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok || !json?.success) {
+        throw new Error(json?.error || "중단된 면접 종료 처리에 실패했습니다.");
+      }
+
+      return {
+        ...detail,
+        status: String(json?.data?.status || "completed"),
+        reportStatus: String(json?.data?.reportStatus || detail.reportStatus || "pending"),
+        reportError: "",
+        reportRequestedAt: detail.reportRequestedAt || Math.floor(Date.now() / 1000),
+      };
+    } catch (error) {
+      console.error("Interrupted Session Recovery Error:", error);
+      recoveryRequestedRef.current.delete(resolvedSessionId);
+      return detail;
+    }
+  }, [resolvedSessionId]);
 
   useEffect(() => {
     if (!resolvedSessionId) return;
@@ -307,15 +368,20 @@ export default function InterviewResultPage() {
           throw new Error(json?.error || "세션 정보를 불러오지 못했습니다.");
         }
 
-        if (shouldRedirectToPortfolioReport(json.data)) {
+        let nextDetail = json.data as SessionDetail;
+
+        if (shouldRedirectToPortfolioReport(nextDetail)) {
           router.replace(`/interview/training/portfolio/report?id=${resolvedSessionId}`);
           return;
         }
 
-        if (cancelled) return;
-        setSessionDetail(json.data as SessionDetail);
+        if (shouldRecoverInterruptedInterviewReport(nextDetail)) {
+          nextDetail = await recoverInterruptedSession(nextDetail);
+        }
 
-        setIsAnalyzing(shouldWaitForInterviewReport(json.data));
+        if (cancelled) return;
+        setSessionDetail(nextDetail);
+        setIsAnalyzing(shouldWaitForOfficialInterviewReport(nextDetail));
       } catch (error) {
         console.error("Session Fetch Error:", error);
         if (!cancelled) {
@@ -329,23 +395,24 @@ export default function InterviewResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [resolvedSessionId, router]);
+  }, [recoverInterruptedSession, resolvedSessionId, router]);
 
   useEffect(() => {
     if (!resolvedSessionId || !sessionDetail) return;
-    if (!shouldWaitForInterviewReport(sessionDetail)) return;
+    if (!shouldWaitForOfficialInterviewReport(sessionDetail)) return;
 
     const id = window.setInterval(async () => {
       try {
         const res = await fetch(`/api/interview/sessions/${resolvedSessionId}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!json?.success || !json?.data) return;
-        if (shouldRedirectToPortfolioReport(json.data)) {
+        const nextDetail = json.data as SessionDetail;
+        if (shouldRedirectToPortfolioReport(nextDetail)) {
           router.replace(`/interview/training/portfolio/report?id=${resolvedSessionId}`);
           return;
         }
-        setSessionDetail(json.data as SessionDetail);
-        setIsAnalyzing(shouldWaitForInterviewReport(json.data));
+        setSessionDetail(nextDetail);
+        setIsAnalyzing(shouldWaitForOfficialInterviewReport(nextDetail));
       } catch {
         // retry on next interval
       }
@@ -355,7 +422,7 @@ export default function InterviewResultPage() {
   }, [resolvedSessionId, router, sessionDetail]);
 
   const reportModel = useMemo(() => {
-    if (!sessionDetail || (!effectiveAnalysis && !hasMinimalReportData)) return null;
+    if (!sessionDetail || !hasOfficialReportData || (!effectiveAnalysis && !hasMinimalReportData)) return null;
 
     const sessionJob = sessionDetail?.job_payload || {};
     const originalPostingUrl =
@@ -378,7 +445,7 @@ export default function InterviewResultPage() {
         reportGenerationMeta: sessionDetail?.report_generation_meta,
       },
     });
-  }, [effectiveAnalysis, hasMinimalReportData, sessionDetail]);
+  }, [effectiveAnalysis, hasMinimalReportData, hasOfficialReportData, sessionDetail]);
 
   const roleLabel =
     reportModel?.metaItems.find((item) => item.label === "직무")?.value ||
@@ -428,7 +495,7 @@ export default function InterviewResultPage() {
       || 0,
   );
   const reportPendingTooLong = Boolean(
-    shouldWaitForInterviewReport(sessionDetail)
+    shouldWaitForOfficialInterviewReport(sessionDetail)
     && reportPendingAnchor > 0
     && (Date.now() / 1000) - reportPendingAnchor >= 30,
   );
@@ -531,7 +598,12 @@ export default function InterviewResultPage() {
   if (!reportModel) {
     const reportStatus = String(sessionDetail?.reportStatus || "");
     const reportError = String(sessionDetail?.reportError || "").trim();
-    const isReportFailure = reportStatus === "failed";
+    const reportAnalysisMode = String(
+      sessionDetail?.report_generation_meta?.analysisMode
+        || sessionDetail?.report_view?.analysisMode
+        || "",
+    ).trim();
+    const isReportFailure = reportStatus === "failed" || (reportStatus === "completed" && reportAnalysisMode !== "full");
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <GlobalHeader />
@@ -541,11 +613,11 @@ export default function InterviewResultPage() {
               <AlertTriangle className="mx-auto h-10 w-10 text-orange-500" />
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold">
-                  {isReportFailure ? "리포트 생성에 실패했습니다." : "분석 데이터가 없습니다."}
+                  {isReportFailure ? "정식 분석 리포트를 아직 만들지 못했습니다." : "분석 데이터가 없습니다."}
                 </h2>
                 <p className="text-muted-foreground">
                   {isReportFailure
-                    ? reportError || "리포트 생성이 여러 차례 시도됐지만 완료되지 않았습니다. 재생성을 다시 요청하거나 새 세션에서 다시 시도해 주세요."
+                    ? reportError || "요약/기본 리포트 대신 정식 분석 결과만 보여주도록 설정되어 있습니다. 리포트를 다시 생성해 정식 분석을 완료해 주세요."
                     : "면접을 마친 뒤 상세 리포트를 확인할 수 있습니다."}
                 </p>
                 {isReportFailure && sessionDetail?.reportAttempts != null && sessionDetail?.reportMaxAttempts != null ? (

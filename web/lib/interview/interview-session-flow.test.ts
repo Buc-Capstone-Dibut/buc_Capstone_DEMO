@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   buildInterviewResultPath,
   hasRenderableInterviewReport,
+  hasStructuredInterviewReport,
   isPendingReportStatus,
+  shouldPollForInterviewReport,
+  shouldRecoverInterruptedInterviewReport,
   shouldWaitForInterviewReport,
   shouldRedirectToPortfolioReport,
   shouldRouteToSetupOnReconnectTimeout,
@@ -34,11 +37,35 @@ test("hasRenderableInterviewReport accepts minimal renderable report payloads", 
   assert.equal(hasRenderableInterviewReport(null), false);
 });
 
+test("hasStructuredInterviewReport requires analysis or report_view", () => {
+  assert.equal(hasStructuredInterviewReport({ report_view: { summary: "ok" } }), true);
+  assert.equal(hasStructuredInterviewReport({ analysis: { summary: "ok" } }), true);
+  assert.equal(hasStructuredInterviewReport({ timeline: [{ turnId: "1" }] }), false);
+  assert.equal(hasStructuredInterviewReport({}), false);
+});
+
 test("shouldWaitForInterviewReport only waits when report is pending and nothing renderable exists", () => {
   assert.equal(shouldWaitForInterviewReport({ reportStatus: "pending" }), true);
   assert.equal(shouldWaitForInterviewReport({ reportStatus: "running", report_view: { summary: "ok" } }), false);
   assert.equal(shouldWaitForInterviewReport({ reportStatus: "done" }), false);
   assert.equal(shouldWaitForInterviewReport(null), false);
+});
+
+test("shouldPollForInterviewReport keeps polling while only timeline fallback is available", () => {
+  assert.equal(shouldPollForInterviewReport({ reportStatus: "pending" }), true);
+  assert.equal(shouldPollForInterviewReport({ reportStatus: "pending", timeline: [{ turnId: "1" }] }), true);
+  assert.equal(shouldPollForInterviewReport({ reportStatus: "running", report_view: { summary: "ok" } }), false);
+  assert.equal(shouldPollForInterviewReport({ reportStatus: "running", analysis: { summary: "ok" } }), false);
+  assert.equal(shouldPollForInterviewReport(null), false);
+});
+
+test("shouldRecoverInterruptedInterviewReport only targets unfinished sessions with usable interview data", () => {
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "in_progress", timeline: [{ turnId: "1" }] }), true);
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "created", analysis: { summary: "ok" } }), true);
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "completed", timeline: [{ turnId: "1" }] }), false);
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "failed", timeline: [{ turnId: "1" }] }), false);
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "in_progress", reportStatus: "pending", timeline: [{ turnId: "1" }] }), false);
+  assert.equal(shouldRecoverInterruptedInterviewReport({ status: "in_progress" }), false);
 });
 
 test("buildInterviewResultPath builds route by session type", () => {

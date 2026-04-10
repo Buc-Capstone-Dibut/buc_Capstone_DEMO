@@ -1043,9 +1043,17 @@ async def process_user_utterance(
         _clear_live_input_stream_state(state)
         if not followup_generated:
             logger.warning(
-                "followup generation finished without deliverable turn; keeping current listening state (session=%s)",
+                "followup generation finished without deliverable turn; reopening listening state (session=%s)",
                 state.session_id,
             )
+            await deps.send_json(
+                ws,
+                {
+                    "type": "warning",
+                    "message": "다음 질문 생성이 지연되어 마이크를 다시 엽니다.",
+                },
+            )
+            await deps.resume_listening(ws, state)
     except Exception as exc:
         logger.exception("voice turn processing error", extra={"session_id": state.session_id})
         sent = await deps.send_json(

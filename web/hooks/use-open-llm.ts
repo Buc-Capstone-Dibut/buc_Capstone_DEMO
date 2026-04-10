@@ -231,6 +231,9 @@ export function useOpenLLM({
     const completedTurnId = pendingPlaybackCompleteTurnIdRef.current;
     if (completedTurnId) {
       sendPlaybackComplete(completedTurnId);
+      if (!isMicStreamingRef.current && !isMicStartingRef.current && !pendingStartMicRef.current) {
+        void startMicRef.current();
+      }
     }
 
     if (pendingStartMicRef.current && !isMicStreamingRef.current && !isMicStartingRef.current) {

@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default=None,
         alias="GEMINI_SERVICE_ACCOUNT_JSON_BASE64",
     )
+    google_service_account_json_b64: str | None = Field(
+        default=None,
+        alias="GOOGLE_SERVICE_ACCOUNT_JSON_B64",
+    )
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
     google_cloud_stt_model: str = Field(default="latest_long", alias="GOOGLE_CLOUD_STT_MODEL")
@@ -126,6 +130,7 @@ class Settings(BaseSettings):
         "google_cloud_project",
         "google_application_credentials",
         "gemini_service_account_json_base64",
+        "google_service_account_json_b64",
         "github_token",
         "livekit_url",
         "livekit_api_key",

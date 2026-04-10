@@ -14,6 +14,13 @@ export function hasRenderableInterviewReport(detail: {
   return Boolean(detail?.analysis);
 }
 
+export function hasStructuredInterviewReport(detail: {
+  analysis?: unknown;
+  report_view?: unknown;
+} | null | undefined): boolean {
+  return Boolean(detail?.report_view || detail?.analysis);
+}
+
 export function shouldWaitForInterviewReport(detail: {
   reportStatus?: string | null;
   analysis?: unknown;
@@ -21,6 +28,27 @@ export function shouldWaitForInterviewReport(detail: {
   timeline?: unknown[] | null;
 } | null | undefined): boolean {
   return isPendingReportStatus(detail?.reportStatus) && !hasRenderableInterviewReport(detail);
+}
+
+export function shouldPollForInterviewReport(detail: {
+  reportStatus?: string | null;
+  analysis?: unknown;
+  report_view?: unknown;
+} | null | undefined): boolean {
+  return isPendingReportStatus(detail?.reportStatus) && !hasStructuredInterviewReport(detail);
+}
+
+export function shouldRecoverInterruptedInterviewReport(detail: {
+  status?: string | null;
+  reportStatus?: string | null;
+  analysis?: unknown;
+  report_view?: unknown;
+  timeline?: unknown[] | null;
+} | null | undefined): boolean {
+  const status = String(detail?.status || "").trim();
+  if (!status || status === "completed" || status === "failed") return false;
+  if (isPendingReportStatus(detail?.reportStatus)) return false;
+  return hasRenderableInterviewReport(detail);
 }
 
 export function shouldRedirectToPortfolioReport(detail: {
