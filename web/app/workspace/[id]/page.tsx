@@ -176,6 +176,7 @@ export default function WorkspaceDetailPage() {
   const isReadOnly = Boolean(
     workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
   );
+  const hasWorkspaceMeta = Boolean(workspaceMeta);
 
   const handleTabChange = (
     tab: string,
@@ -215,16 +216,42 @@ export default function WorkspaceDetailPage() {
   }, [searchParams, setActiveTaskId]);
 
   useEffect(() => {
-    if (projectId && user) {
-      const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
-      connectSocket(url, user.id, projectId);
+    if (!projectId || !user || !hasWorkspaceMeta) {
+      return;
     }
+
+    if (isReadOnly) {
+      disconnectSocket();
+      return;
+    }
+
+    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
+    connectSocket(url, user.id, projectId);
+
     return () => {
       disconnectSocket();
     };
-  }, [projectId, user, connectSocket, disconnectSocket]);
+  }, [
+    connectSocket,
+    disconnectSocket,
+    isReadOnly,
+    projectId,
+    user,
+    hasWorkspaceMeta,
+  ]);
 
   const renderContent = () => {
+    if (isReadOnly && (activeTab.startsWith("chat-") || activeTab === "huddle")) {
+      return (
+        <div className="h-full p-6">
+          <div className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">
+            종료된 워크스페이스는 실시간 채팅/음성 기능이 중지됩니다.
+            개요, 보드, 문서 등 읽기 전용 탭에서 기록을 확인할 수 있습니다.
+          </div>
+        </div>
+      );
+    }
+
     // ... (existing switch case) ...
     // Copy existing renderContent logic here
     if (activeTab.startsWith("chat-")) {

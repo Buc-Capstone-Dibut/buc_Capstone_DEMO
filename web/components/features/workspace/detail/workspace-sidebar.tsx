@@ -486,8 +486,14 @@ export function WorkspaceSidebar({
                         "bg-accent text-accent-foreground font-medium",
                       showBadge && "text-foreground font-semibold",
                       isMentioned && "text-primary",
+                      isReadOnly && "cursor-not-allowed opacity-60",
                     )}
+                    disabled={isReadOnly}
                     onClick={() => {
+                      if (isReadOnly) {
+                        toast.error("종료된 팀 공간은 실시간 채팅을 사용할 수 없습니다.");
+                        return;
+                      }
                       const relevantNotifications = notifications?.filter(
                         (n) =>
                           !n.is_read &&
@@ -595,6 +601,11 @@ export function WorkspaceSidebar({
                     : "채널을 열거나 추가하세요."}
                 </div>
               </>
+            )}
+            {isReadOnly && channels.length > 0 && (
+              <div className="px-2 pt-1 text-[11px] text-muted-foreground">
+                종료된 팀 공간은 실시간 채팅이 중지됩니다.
+              </div>
             )}
           </div>
         </div>

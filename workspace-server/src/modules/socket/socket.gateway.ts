@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { setupChatGateway } from "../chat/chat.gateway";
 // import { setupHuddleGateway } from '../huddle/huddle.gateway'; // Removed
 import { setupBoardGateway } from "../board/board.gateway";
+import { ChatService } from "../chat/chat.service";
 
 interface ConnectedUser {
   socketId: string;
@@ -18,21 +19,37 @@ export const setupSocketGateway = (io: Server) => {
     console.log(`Client connected: ${socket.id}`);
 
     // Handle initial join/auth
-    socket.on("join", ({ userId, projectId }) => {
-      console.log(`User ${userId} joined project ${projectId}`);
+    socket.on("join", async ({ userId, projectId }) => {
+      const workspaceId = typeof projectId === "string" ? projectId.trim() : "";
+      if (!workspaceId) {
+        return;
+      }
+
+      const readOnly = await ChatService.isWorkspaceReadOnly(workspaceId);
+      if (readOnly) {
+        socket.emit("workspace:readonly", {
+          projectId: workspaceId,
+          message:
+            "이 워크스페이스는 종료되어 실시간 기능이 중지되었습니다.",
+        });
+        socket.disconnect(true);
+        return;
+      }
+
+      console.log(`User ${userId} joined project ${workspaceId}`);
 
       connectedUsers.set(socket.id, {
         socketId: socket.id,
         userId,
-        projectId,
+        projectId: workspaceId,
         online: true,
       });
 
       // Join project room
-      socket.join(projectId);
+      socket.join(workspaceId);
 
       // Broadcast presence update
-      io.to(projectId).emit("presence:update", {
+      io.to(workspaceId).emit("presence:update", {
         userId,
         status: "online",
       });
