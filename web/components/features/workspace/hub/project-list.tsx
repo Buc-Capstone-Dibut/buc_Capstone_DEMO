@@ -5,15 +5,12 @@ import useSWR from "swr";
 import Link from "next/link";
 import {
   Plus,
-  Clock,
   MoreVertical,
   Trash2,
   Loader2,
   Pencil,
   ArrowRight,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
 import { toast } from "sonner";
 
 import {
@@ -55,9 +52,12 @@ interface Workspace {
   description?: string;
   icon_url?: string;
   category?: string;
+  lifecycle_status: "IN_PROGRESS" | "COMPLETED";
+  completed_at?: string | null;
   created_at: string;
   updated_at: string;
   my_role: string;
+  my_team_role?: string | null;
   member_count: number;
   recent_members?: {
     id: string;
@@ -80,6 +80,27 @@ const fetcher = async (url: string) => {
   }
   return res.json();
 };
+
+function workspaceStatusLabel(status: Workspace["lifecycle_status"]) {
+  return status === "COMPLETED" ? "종료" : "진행중";
+}
+
+function workspaceStatusBadgeClass(status: Workspace["lifecycle_status"]) {
+  return status === "COMPLETED"
+    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+    : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200";
+}
+
+function formatWorkspaceDate(value: string | null | undefined) {
+  if (!value) return "미정";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "미정";
+  return parsed.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
 
 export function ProjectList() {
   const {
@@ -174,7 +195,7 @@ export function ProjectList() {
           >
             <Card className="hover:border-primary/50 transition-all cursor-pointer h-full flex flex-col relative overflow-hidden bg-card group shadow-sm hover:shadow-md">
               {/* Demo Project Actions */}
-              <div className="absolute top-4 right-4 z-20">
+              <div className="absolute top-3 right-3 z-20">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -207,13 +228,19 @@ export function ProjectList() {
                 </DropdownMenu>
               </div>
 
-              <CardHeader className="pb-3 space-y-3">
+              <CardHeader className="pb-3 space-y-3 pr-12">
                 <div className="flex justify-between items-center">
                   <Badge
                     variant="secondary"
                     className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                   >
                     {getTeamTypeLabel("Demo Project")}
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  >
+                    진행중
                   </Badge>
                 </div>
 
@@ -245,10 +272,20 @@ export function ProjectList() {
                 </div>
               </CardContent>
 
-              <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5 flex justify-between items-center text-xs text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  Active now
+              <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5">
+                <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-foreground/80">직무</span>
+                    <span>프론트엔드</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-foreground/80">최근 활동</span>
+                    <span>방금 전</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-foreground/80">생성일</span>
+                    <span>데모</span>
+                  </div>
                 </div>
               </CardFooter>
             </Card>
@@ -263,13 +300,25 @@ export function ProjectList() {
                 className="block h-full"
               >
                 <Card className="hover:border-primary/50 transition-all cursor-pointer h-full flex flex-col relative overflow-hidden bg-card group shadow-sm hover:shadow-md">
-                  <CardHeader className="pb-3 space-y-3">
+                  <CardHeader
+                    className={`pb-3 space-y-3 ${
+                      workspace.my_role === "owner" ? "pr-12" : ""
+                    }`}
+                  >
                     <div className="flex justify-between items-center">
                       <Badge
                         variant="secondary"
                         className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider"
                       >
                         {getTeamTypeLabel(workspace.category)}
+                      </Badge>
+                      <Badge
+                        variant="secondary"
+                        className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${workspaceStatusBadgeClass(
+                          workspace.lifecycle_status,
+                        )}`}
+                      >
+                        {workspaceStatusLabel(workspace.lifecycle_status)}
                       </Badge>
                     </div>
 
@@ -303,16 +352,20 @@ export function ProjectList() {
                     </div>
                   </CardContent>
 
-                  <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5 flex justify-between items-center text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatDistanceToNow(new Date(workspace.updated_at), {
-                        addSuffix: true,
-                        locale: ko,
-                      })}
-                    </div>
-                    <div className="text-xs font-medium text-orange-500">
-                      {workspace.my_role === "owner" ? "Owner" : "Member"}
+                  <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5">
+                    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground/80">직무</span>
+                        <span>{workspace.my_team_role?.trim() || "미설정"}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground/80">최근 활동</span>
+                        <span>{formatWorkspaceDate(workspace.updated_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground/80">생성일</span>
+                        <span>{formatWorkspaceDate(workspace.created_at)}</span>
+                      </div>
                     </div>
                   </CardFooter>
                 </Card>
@@ -320,7 +373,7 @@ export function ProjectList() {
 
               {/* Owner Actions - Positioned absolutely but outside the Link */}
               {workspace.my_role === "owner" && (
-                <div className="absolute top-4 right-4 z-20">
+                <div className="absolute top-3 right-3 z-20">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button

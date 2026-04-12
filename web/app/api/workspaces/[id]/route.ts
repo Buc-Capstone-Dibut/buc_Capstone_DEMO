@@ -8,6 +8,7 @@ import {
   isWorkspaceCompleted,
 } from "@/lib/server/workspace-lifecycle";
 import { buildWorkspaceDetailPayload } from "@/lib/server/workspace-detail";
+import { getWorkspaceCareerImportCandidate } from "@/lib/server/workspace-career-import";
 import { normalizeTeamType } from "@/lib/team-types";
 
 const getErrorMessage = (error: unknown) => {
@@ -117,6 +118,10 @@ export async function GET(
     }
 
     const lifecycle = await getWorkspaceLifecycle(workspaceId);
+    const careerImportCandidate = await getWorkspaceCareerImportCandidate(
+      userId,
+      workspaceId,
+    );
     const detailPayload = await buildWorkspaceDetailPayload(workspace);
 
     // Transform response to match frontend expectation
@@ -130,6 +135,9 @@ export async function GET(
       result_link: lifecycle?.result_link ?? null,
       result_note: lifecycle?.result_note ?? null,
       read_only: isWorkspaceCompleted(lifecycle),
+      career_import_status: careerImportCandidate?.status ?? "NONE",
+      career_imported_experience_id:
+        careerImportCandidate?.importedExperienceId ?? null,
       my_role: memberCheck.role,
       members: members.map((wm) => ({
         id: wm.user_id,

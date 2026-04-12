@@ -26,12 +26,18 @@ type RoomParticipant = {
 interface TeamPulseProps {
   members: TeamPulseMember[];
   projectId: string;
+  lifecycleStatus?: "IN_PROGRESS" | "COMPLETED";
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
+export function TeamPulse({
+  members = [],
+  projectId,
+  lifecycleStatus,
+}: TeamPulseProps) {
   const { onlineUsers } = usePresence();
+  const isCompleted = lifecycleStatus === "COMPLETED";
 
   // Fetch Voice Participants
   const { data: roomParticipants } = useSWR(
@@ -47,7 +53,7 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
   const inVoiceCount = Object.values(roomParticipants || {}).flat().length;
 
   return (
-    <Card className="h-full border-none shadow-sm bg-gradient-to-b from-background to-muted/20 flex flex-col">
+    <Card className="flex h-full min-h-[280px] max-h-[420px] flex-col border-none bg-transparent shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -55,13 +61,15 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
             팀 활동
           </div>
           <div className="flex gap-2">
-            <Badge
-              variant="secondary"
-              className="bg-green-500/10 text-green-600 hover:bg-green-500/20"
-            >
-              온라인 {onlineCount}명
-            </Badge>
-            {inVoiceCount > 0 && (
+            {!isCompleted && (
+              <Badge
+                variant="secondary"
+                className="bg-green-500/10 text-green-600 hover:bg-green-500/20"
+              >
+                온라인 {onlineCount}명
+              </Badge>
+            )}
+            {!isCompleted && inVoiceCount > 0 && (
               <Badge
                 variant="secondary"
                 className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 animate-pulse"
@@ -76,6 +84,7 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
         <div className="space-y-4">
           {members
             .sort((a, b) => {
+              if (isCompleted) return 0;
               const aOnline = onlineUsers.has(a.id);
               const bOnline = onlineUsers.has(b.id);
               if (aOnline === bOnline) return 0;
@@ -112,12 +121,12 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
                         avatarUrl={member.avatar}
                         className={cn(
                           "h-9 w-9 border-2",
-                          isOnline
+                          !isCompleted && isOnline
                             ? "border-green-500/20"
                             : "border-transparent",
                         )}
                       />
-                      {isOnline && (
+                      {!isCompleted && isOnline && (
                         <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
                       )}
                     </div>
@@ -126,7 +135,7 @@ export function TeamPulse({ members = [], projectId }: TeamPulseProps) {
                         {member.name}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {currentRoomName ? (
+                        {!isCompleted && currentRoomName ? (
                           <span className="text-purple-600 flex items-center gap-1">
                             <Volume2 className="h-3 w-3" />
                             {getWorkspaceVoiceRoomLabel(

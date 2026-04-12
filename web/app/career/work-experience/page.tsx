@@ -11,7 +11,7 @@ export default async function WorkExperiencePage() {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
-    redirect("/login");
+    redirect("/login?next=/career/work-experience");
   }
 
   const userId = session.user.id;
@@ -21,7 +21,7 @@ export default async function WorkExperiencePage() {
     where: { user_id: userId }
   });
 
-  let experiences: any[] = [];
+  let experiences: ResumePayload["experience"] = [];
   if (profile && profile.resume_payload) {
     const payload = profile.resume_payload as unknown as ResumePayload;
     experiences = payload.experience || [];

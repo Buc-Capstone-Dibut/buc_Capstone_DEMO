@@ -68,6 +68,29 @@ const STEPS = [
   },
 ];
 
+const IMPORT_LOADING_STEPS = [
+  {
+    id: "collect",
+    title: "워크스페이스 기록을 불러오는 중",
+    description: "완료 태스크와 역할 정보를 정리하고 있어요.",
+  },
+  {
+    id: "analyze",
+    title: "활동 내용을 분석하는 중",
+    description: "핵심 성과와 경험 포인트를 추출하고 있어요.",
+  },
+  {
+    id: "draft",
+    title: "경험 초안을 작성하는 중",
+    description: "기본정보와 질문 단계 답변을 채우고 있어요.",
+  },
+  {
+    id: "polish",
+    title: "문장을 다듬는 중",
+    description: "읽기 쉬운 표현으로 정리하고 태그를 보완하고 있어요.",
+  },
+];
+
 function formatDateLabel(value: string | null) {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -109,6 +132,10 @@ export default function ExperienceWizardClient() {
   const [applyingWorkspaceId, setApplyingWorkspaceId] = useState<string | null>(
     null,
   );
+  const [loadingWorkspaceName, setLoadingWorkspaceName] = useState<string | null>(
+    null,
+  );
+  const [importLoadingStepIndex, setImportLoadingStepIndex] = useState(0);
   const [candidates, setCandidates] = useState<WorkspaceExperienceImportCandidate[]>(
     [],
   );
@@ -121,6 +148,26 @@ export default function ExperienceWizardClient() {
   const [workspaceDraftNotice, setWorkspaceDraftNotice] = useState<string | null>(
     null,
   );
+
+  const isImportPreparing = Boolean(applyingWorkspaceId);
+
+  useEffect(() => {
+    if (!isImportPreparing) {
+      setImportLoadingStepIndex(0);
+      return;
+    }
+
+    setImportLoadingStepIndex(0);
+    const timer = window.setInterval(() => {
+      setImportLoadingStepIndex((prev) =>
+        prev >= IMPORT_LOADING_STEPS.length - 1 ? prev : prev + 1,
+      );
+    }, 1300);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isImportPreparing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,8 +265,12 @@ export default function ExperienceWizardClient() {
     }
   };
 
-  const handleApplyWorkspaceCandidate = async (workspaceId: string) => {
+  const handleApplyWorkspaceCandidate = async (
+    workspaceId: string,
+    workspaceName: string,
+  ) => {
     try {
+      setLoadingWorkspaceName(workspaceName);
       setApplyingWorkspaceId(workspaceId);
       const result = await prepareWorkspaceExperienceDraftAction(workspaceId);
       if (!result.success) {
@@ -246,6 +297,7 @@ export default function ExperienceWizardClient() {
       );
     } finally {
       setApplyingWorkspaceId(null);
+      setLoadingWorkspaceName(null);
     }
   };
 
@@ -519,9 +571,12 @@ export default function ExperienceWizardClient() {
                       type="button"
                       size="sm"
                       className="shrink-0"
-                      disabled={applyingWorkspaceId === candidate.workspaceId}
+                      disabled={Boolean(applyingWorkspaceId)}
                       onClick={() =>
-                        handleApplyWorkspaceCandidate(candidate.workspaceId)
+                        handleApplyWorkspaceCandidate(
+                          candidate.workspaceId,
+                          candidate.workspaceName,
+                        )
                       }
                     >
                       {applyingWorkspaceId === candidate.workspaceId ? (
@@ -547,6 +602,72 @@ export default function ExperienceWizardClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isImportPreparing ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 px-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-background p-5 shadow-2xl dark:border-slate-800">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {IMPORT_LOADING_STEPS[importLoadingStepIndex]?.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {IMPORT_LOADING_STEPS[importLoadingStepIndex]?.description}
+                </p>
+                {loadingWorkspaceName ? (
+                  <p className="text-xs font-medium text-primary">
+                    대상 워크스페이스: {loadingWorkspaceName}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                style={{
+                  width: `${((importLoadingStepIndex + 1) / IMPORT_LOADING_STEPS.length) * 100}%`,
+                }}
+              />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {IMPORT_LOADING_STEPS.map((step, index) => {
+                const done = index < importLoadingStepIndex;
+                const current = index === importLoadingStepIndex;
+                return (
+                  <div
+                    key={step.id}
+                    className={`flex items-center gap-2 text-xs ${
+                      done
+                        ? "text-emerald-600"
+                        : current
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {done ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : current ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 rounded-full border border-current/40" />
+                    )}
+                    <span>{step.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="mt-4 text-[11px] text-muted-foreground">
+              AI가 워크스페이스 활동을 분석해 작성 초안을 만드는 중입니다.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

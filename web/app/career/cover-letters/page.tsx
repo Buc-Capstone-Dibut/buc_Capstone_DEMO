@@ -11,7 +11,7 @@ export default async function CareerCoverLettersPage() {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    redirect("/login");
+    redirect("/login?next=/career/cover-letters");
   }
 
   const userId = session.user.id;
@@ -21,10 +21,12 @@ export default async function CareerCoverLettersPage() {
     where: { user_id: userId }
   });
 
-  let coverLetters: any[] = [];
+  let coverLetters: NonNullable<ResumePayload["coverLetters"]> = [];
+  let timeline: NonNullable<ResumePayload["timeline"]> = [];
   if (profile && profile.resume_payload) {
     const payload = profile.resume_payload as unknown as ResumePayload;
     coverLetters = payload.coverLetters || [];
+    timeline = payload.timeline || [];
   } else {
     // Fallback to active resume
     let activeResume = await prisma.user_resumes.findFirst({
@@ -39,8 +41,47 @@ export default async function CareerCoverLettersPage() {
     if (activeResume && activeResume.resume_payload) {
       const payload = activeResume.resume_payload as unknown as ResumePayload;
       coverLetters = payload.coverLetters || [];
+      timeline = payload.timeline || [];
     }
   }
+
+  type SourceExperienceSnapshotItem = NonNullable<
+    NonNullable<ResumePayload["coverLetters"]>[number]["sourceExperienceSnapshot"]
+  >[number];
+
+  const timelineMap = new Map<string, SourceExperienceSnapshotItem>(
+    (timeline || [])
+      .filter((exp) => exp.id)
+      .map((exp) => [
+        exp.id as string,
+        {
+          id: exp.id as string,
+          title: exp.company || "제목 없음",
+          tags: exp.tags || [],
+          period: exp.period || "",
+          description: exp.description || "",
+          situation: exp.situation || "",
+          role: exp.role || "",
+          solution: exp.solution || "",
+          difficulty: exp.difficulty || "",
+          result: exp.result || "",
+          lesson: exp.lesson || "",
+        },
+      ]),
+  );
+
+  coverLetters = coverLetters.map((letter) => {
+    if (Array.isArray(letter.sourceExperienceSnapshot) && letter.sourceExperienceSnapshot.length) {
+      return letter;
+    }
+    const fallbackSnapshot = (letter.sourceExperienceIds || [])
+      .map((id: string) => timelineMap.get(id))
+      .filter((item): item is SourceExperienceSnapshotItem => Boolean(item));
+    return {
+      ...letter,
+      sourceExperienceSnapshot: fallbackSnapshot,
+    };
+  });
 
   // Ensure coverLetters are sorted by createdAt descending
   coverLetters.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
