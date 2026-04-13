@@ -192,18 +192,6 @@ function resolveDurationMinutes(raw: string | null, targetDurationSec?: number):
   return queryDuration;
 }
 
-function formatGeneratedAt(value?: number): string {
-  if (!value) return "-";
-  const date = new Date(value * 1000);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function getAnalysisSourceBadge(source: "question_finding" | "best_practice" | "none") {
   if (source === "question_finding") {
     return {
@@ -238,51 +226,6 @@ function getCoachingSourceBadge(source: "question_finding" | "generated") {
     className: "border-sky-200 bg-sky-50 text-sky-700",
   };
 }
-
-function resolveReportPresentationState({
-  isBasicFallbackReport,
-  isSummaryOnlyReport,
-  analysisQualityLevel,
-}: {
-  isBasicFallbackReport: boolean;
-  isSummaryOnlyReport: boolean;
-  analysisQualityLevel: string;
-}) {
-  if (isBasicFallbackReport) {
-    return {
-      badge: "fallback/basic",
-      title: "기본 리포트",
-      description: "정식 질문별 분석이 완성되지 않아, 저장된 질문 흐름과 요약 필드 중심으로 기본 리포트를 먼저 보여줍니다.",
-      className: "border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  if (isSummaryOnlyReport) {
-    return {
-      badge: "summary-only",
-      title: "요약 리포트",
-      description: "세부 평가 데이터가 아직 충분하지 않아 `report_view`와 질문 흐름 중심의 최소 리포트를 먼저 보여줍니다.",
-      className: "border-primary/20 bg-primary/5 text-primary",
-    };
-  }
-
-  if (analysisQualityLevel === "low") {
-    return {
-      badge: "partial-analysis",
-      title: "부분 분석 리포트",
-      description: "정식 분석은 완료됐지만 질문별 근거나 커버리지 데이터가 충분하지 않아, 일부 항목은 보수적으로 해석했습니다.",
-      className: "border-orange-200 bg-orange-50 text-orange-700",
-    };
-  }
-
-  return {
-    badge: "full-analysis",
-    title: "정식 분석 리포트",
-    description: "질문별 분석, 역량 커버리지, JD 커버리지까지 포함한 정식 결과 리포트입니다.",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  };
-}
-
 
 export default function InterviewResultPage() {
   const router = useRouter();
@@ -472,22 +415,6 @@ export default function InterviewResultPage() {
     detailModel.timelineInsights[selectedTimelineIndex] || detailModel.timelineInsights[0] || null;
   const positioningGuide = detailModel.positioningGuide;
   const hasDetailedAnalysis = Boolean(reportModel?.hasDetailedProfile) && reportModel?.analysisMode === "full";
-  const isSummaryOnlyReport = Boolean(reportModel) && !hasDetailedAnalysis;
-  const reportGenerationMeta = sessionDetail?.report_generation_meta || null;
-  const fallbackReason = String(reportGenerationMeta?.fallbackReason || "").trim();
-  const isBasicFallbackReport = isSummaryOnlyReport && Boolean(fallbackReason);
-  const analysisQuality =
-    reportGenerationMeta?.analysisQuality ||
-    sessionDetail?.report_view?.analysisQuality ||
-    null;
-  const reportPresentationState = resolveReportPresentationState({
-    isBasicFallbackReport,
-    isSummaryOnlyReport,
-    analysisQualityLevel: String(analysisQuality?.level || ""),
-  });
-  const analysisQualityWarnings = Array.isArray(analysisQuality?.warnings)
-    ? analysisQuality.warnings.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : [];
   const reportPendingAnchor = Number(
     sessionDetail?.reportStartedAt
       || sessionDetail?.reportRequestedAt
@@ -666,7 +593,7 @@ export default function InterviewResultPage() {
         <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
           <div className="rounded-[24px] border border-[#e7ebf1] bg-[#fbfcfe] p-4">
             {detailModel.timelineInsights.length > 0 ? (
-              <div className="max-h-[560px] overflow-y-auto pr-1">
+              <div className="max-h-[680px] overflow-y-auto pr-2 pb-2">
                 {detailModel.timelineInsights.map((item, index) => (
                   <div key={item.id} className="grid grid-cols-[44px_10px_minmax(0,1fr)] gap-1.5">
                     <div className="pt-1 text-[11px] font-semibold text-muted-foreground">
@@ -690,14 +617,14 @@ export default function InterviewResultPage() {
                           <div className="flex justify-start">
                             <div className="max-w-[92%] rounded-2xl rounded-bl-md bg-white px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-[#e7ebf1]">
                               <p className="text-[10px] font-medium text-muted-foreground">질문</p>
-                              <p className="mt-1 truncate text-sm text-foreground">{item.prompt}</p>
+                              <p className="mt-1 line-clamp-3 break-words text-sm leading-6 text-foreground">{item.prompt}</p>
                             </div>
                           </div>
 
                           <div className="flex justify-end">
                             <div className="max-w-[92%] rounded-2xl rounded-br-md bg-primary/8 px-3 py-2 ring-1 ring-primary/10">
                               <p className="text-[10px] font-medium text-muted-foreground">내 답변</p>
-                              <p className="mt-1 truncate text-sm text-foreground">{item.answer}</p>
+                              <p className="mt-1 line-clamp-3 break-words text-sm leading-6 text-foreground">{item.answer}</p>
                             </div>
                           </div>
                         </div>
@@ -1134,80 +1061,10 @@ export default function InterviewResultPage() {
     </>
   );
 
-  const statusBanner = (
-    <div className="rounded-[24px] border border-[#e7ebf1] bg-white px-4 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={reportPresentationState.className}>
-            {reportPresentationState.badge}
-          </Badge>
-          <p className="text-sm font-semibold text-foreground">{reportPresentationState.title}</p>
-          {sessionDetail?.reportAttempts && sessionDetail.reportAttempts > 1 ? (
-            <span className="text-xs text-muted-foreground">재생성 {sessionDetail.reportAttempts}회 후 완료</span>
-          ) : null}
-        </div>
-
-        <p className="text-sm text-muted-foreground">{reportPresentationState.description}</p>
-        {fallbackReason ? (
-          <p className="text-xs text-muted-foreground">기본 리포트 사유: {fallbackReason}</p>
-        ) : null}
-
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground">생성 상태</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{reportPresentationState.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">생성 시각 {formatGeneratedAt(reportGenerationMeta?.generatedAt)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">리포트 버전 {sessionDetail?.schema_version || "-"}</p>
-          </div>
-          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground">분석 신뢰도</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              {analysisQuality?.score ? `${analysisQuality.score}점` : "데이터 부족"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {analysisQuality?.label || "요약 리포트"}
-              {analysisQuality?.completenessScore ? ` · 완성도 ${analysisQuality.completenessScore}점` : ""}
-            </p>
-          </div>
-          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground">근거 데이터</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              질문 {analysisQuality?.groundedQuestionCount ?? 0}개 · 근거 {analysisQuality?.directEvidenceCount ?? 0}개
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              저장된 질문 분석 {analysisQuality?.questionFindingCount ?? 0}개
-            </p>
-          </div>
-          <div className="rounded-[18px] border border-[#eef2f6] bg-[#fbfcfe] px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground">생성 입력 규모</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              질문 {reportGenerationMeta?.questionCount ?? 0}개 · 발화 {reportGenerationMeta?.turnCount ?? 0}턴
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              타임라인 {reportGenerationMeta?.timelineCount ?? 0}개 · JD 매칭 {analysisQuality?.matchedRequirementCount ?? 0}/{analysisQuality?.jdRequirementCount ?? 0}
-            </p>
-          </div>
-        </div>
-
-        {analysisQualityWarnings.length > 0 ? (
-          <div className="rounded-[18px] border border-dashed border-[#d8dee8] bg-[#fbfcfe] px-4 py-4">
-            <p className="text-xs font-medium text-muted-foreground">분석 메모</p>
-            <div className="mt-2 space-y-1.5">
-              {analysisQualityWarnings.slice(0, 3).map((item) => (
-                <p key={item} className="text-sm leading-6 text-muted-foreground">{item}</p>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-foreground">
       <GlobalHeader />
       <InterviewReportScreen
-        banner={statusBanner}
         hero={(
           <SessionReportHero
             badgeLabel={reportModel.badgeLabel}

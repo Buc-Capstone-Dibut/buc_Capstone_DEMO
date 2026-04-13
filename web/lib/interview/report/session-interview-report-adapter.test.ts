@@ -152,9 +152,7 @@ test("session interview adapter builds summary-only report when analysis is miss
   assert.equal(model.typeName, "Backend Engineer 면접 요약");
   assert.deepEqual(model.typeLabels, ["질문 4개", "강점 1개", "보완점 1개", "요약 리포트"]);
   assert.equal(model.summary, "질문 흐름 중심의 요약 리포트입니다.");
-  assert.equal(model.heroMetrics[0]?.value, "4개");
-  assert.equal(model.heroMetrics[1]?.value, "8턴");
-  assert.equal(model.heroMetrics[2]?.value, "요약 리포트");
+  assert.equal(model.heroMetrics.length, 0);
   assert.equal(model.questionHighlights.length, 0);
   assert.equal(model.axisEvidence[0]?.description.includes("중립값"), true);
 });

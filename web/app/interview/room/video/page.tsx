@@ -907,16 +907,21 @@ export default function InterviewVideoRoomPage() {
       && fallbackCaptionRole === latestCaption.role
       ? preferLongerCaption(latestCaptionText, fallbackCaptionText)
       : (latestCaptionText || fallbackCaptionText);
-  const aiStickyCaption = committedAiCaptionText || (fallbackCaptionRole === "ai" ? fallbackCaptionText : "");
-  const aiPresentationText =
-    sameTurnAiCaption
-    || (((isAISpeaking || isAIProcessing || !activeUserCaption) && aiStickyCaption) ? aiStickyCaption : "");
   const latestUserCaptionText =
     latestCaption?.role === "user" && isGoogleTranscriptProvider(latestCaption.provider)
       ? stableLatestCaptionText
       : "";
   const committedUserPresentationText = committedUserCaptionText || latestUserCaptionText;
-  const isAiPrimary = Boolean(aiPresentationText) && (isAISpeaking || isAIProcessing || Boolean(sameTurnAiCaption) || !activeUserCaption);
+  const hasUserPresentationText = Boolean(activeUserCaption || committedUserPresentationText);
+  const aiStickyCaption = committedAiCaptionText || (fallbackCaptionRole === "ai" ? fallbackCaptionText : "");
+  const aiPresentationText =
+    sameTurnAiCaption
+    || (((isAISpeaking || (!hasUserPresentationText && isAIProcessing)) && aiStickyCaption) ? aiStickyCaption : "");
+  const isAiPrimary = Boolean(aiPresentationText) && (
+    isAISpeaking
+    || Boolean(sameTurnAiCaption)
+    || (!hasUserPresentationText && isAIProcessing)
+  );
   const userPresentationText =
     isAIProcessing && !isAISpeaking
       ? committedUserPresentationText

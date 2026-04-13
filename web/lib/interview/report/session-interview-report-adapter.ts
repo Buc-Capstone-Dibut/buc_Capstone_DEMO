@@ -166,25 +166,9 @@ function resolveAnalysisMode(
 }
 
 function buildHeroMetrics(session?: SessionReportMeta, analysisMode: "full" | "summary"): ReportMetric[] {
-  const metrics: ReportMetric[] = [];
-  const questionCount = Number(session?.reportGenerationMeta?.questionCount || 0);
-  const turnCount = Number(session?.reportGenerationMeta?.turnCount || 0);
-  const schemaVersion = String(session?.schemaVersion || "").trim();
-
-  if (questionCount > 0) {
-    metrics.push({ label: "질문 수", value: `${questionCount}개` });
-  }
-
-  if (turnCount > 0) {
-    metrics.push({ label: "발화 수", value: `${turnCount}턴` });
-  }
-
-  metrics.push({
-    label: "리포트 상태",
-    value: analysisMode === "full" ? (schemaVersion || "정식 분석") : "요약 리포트",
-  });
-
-  return metrics.slice(0, 3);
+  void session;
+  void analysisMode;
+  return [];
 }
 
 function buildSummaryTypeName(

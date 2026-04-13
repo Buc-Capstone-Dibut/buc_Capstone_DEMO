@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { GlobalHeader } from "@/components/layout/global-header";
 import {
   ANALYSIS_HUB_AXES,
-  AnalysisHubSession,
   AnalysisHubSourceSession,
   AnalysisHubTabKind,
   AnalysisHubQuadrantKey,
@@ -25,122 +24,16 @@ import {
   buildAnalysisHubSessions,
   computeAxisTrends,
   computeRepresentativeAxes,
-  deriveSessionTags,
   getAxisLabel,
   getDominantAxesText,
   getQuadrantKey,
   getQuadrantPoint,
 } from "@/lib/interview/report/analysis-hub";
-import { Blog } from "@/lib/supabase";
+import { rankRecommendedBlogs } from "@/lib/interview/report/blog-recommendations";
+import type { RecommendedBlog } from "@/lib/interview/report/blog-recommendations";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getTypeName } from "@/lib/interview/report/dibeot-axis";
-
-type RecommendedBlog = Blog & {
-  recommendationReason: string;
-};
-
-const TECH_STACK_TAG_MAP: Record<string, string[]> = {
-  react: ["react", "frontend", "typescript"],
-  nextjs: ["nextjs", "react", "typescript", "frontend"],
-  typescript: ["typescript", "javascript", "frontend"],
-  javascript: ["javascript", "frontend"],
-  css: ["css", "frontend", "ui/ux"],
-  html: ["html", "frontend"],
-  figma: ["ui/ux", "frontend"],
-  java: ["java", "backend"],
-  spring: ["spring", "java", "backend"],
-  springboot: ["spring", "java", "backend"],
-  node: ["node", "backend"],
-  nodejs: ["node", "backend"],
-  nest: ["nest", "node", "backend"],
-  nestjs: ["nest", "node", "backend"],
-  python: ["python", "backend", "ai"],
-  go: ["go", "backend"],
-  kotlin: ["kotlin", "mobile"],
-  swift: ["swift", "ios", "mobile"],
-  flutter: ["flutter", "mobile"],
-  reactnative: ["react-native", "mobile"],
-  aws: ["aws", "cloud", "devops"],
-  docker: ["docker", "devops"],
-  kubernetes: ["kubernetes", "devops"],
-  sql: ["sql", "data"],
-  postgresql: ["postgresql", "sql", "data"],
-  mysql: ["mysql", "sql", "data"],
-  mongodb: ["mongodb", "data"],
-  supabase: ["backend", "database"],
-};
-
-const normalizeTechStack = (value: string) => value.toLowerCase().replace(/[\s._-]+/g, "");
-const uniq = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
-
-function buildRecommendationTags(
-  sessions: AnalysisHubSession[],
-  representativeLabels: string[],
-  techStack: string[],
-) {
-  const representativeAxes = computeRepresentativeAxes(sessions);
-  const tags: string[] = [];
-
-  techStack.forEach((item) => {
-    tags.push(...(TECH_STACK_TAG_MAP[normalizeTechStack(item)] ?? []));
-  });
-
-  if (representativeAxes.approach >= 50) {
-    tags.push("architecture", "system design", "case-study");
-  } else {
-    tags.push("product", "case-study");
-  }
-
-  if (representativeAxes.scope >= 50) {
-    tags.push("backend", "scalability", "monitoring");
-  } else {
-    tags.push("frontend", "typescript", "react");
-  }
-
-  if (representativeAxes.decision >= 50) {
-    tags.push("monitoring", "sre", "case-study");
-  } else {
-    tags.push("cicd", "ai", "product");
-  }
-
-  if (representativeAxes.execution >= 50) {
-    tags.push("api", "java", "spring", "node", "go", "react");
-  } else {
-    tags.push("business", "product", "case-study");
-  }
-
-  representativeLabels.forEach((label) => {
-    if (label.includes("시스템")) tags.push("architecture", "backend");
-    if (label.includes("구현")) tags.push("frontend", "react", "typescript");
-    if (label.includes("안정")) tags.push("monitoring", "sre");
-    if (label.includes("실험")) tags.push("product", "case-study", "ai");
-    if (label.includes("구축")) tags.push("backend", "api");
-    if (label.includes("조정")) tags.push("product", "business");
-  });
-
-  tags.push(...deriveSessionTags(sessions));
-  return uniq(tags);
-}
-
-function getRecommendationReason(blog: Blog, labels: string[]) {
-  const lowerTags = (blog.tags ?? []).map((tag) => tag.toLowerCase());
-
-  if (lowerTags.some((tag) => ["architecture", "system design", "scalability"].includes(tag))) {
-    return `${labels[0]} · ${labels[1]} 관점으로 읽기 좋은 구조 설계 글`;
-  }
-  if (lowerTags.some((tag) => ["monitoring", "sre", "case-study"].includes(tag))) {
-    return `${labels[2]} 성향과 잘 맞는 운영 · 안정화 사례`;
-  }
-  if (lowerTags.some((tag) => ["frontend", "react", "typescript", "ui/ux"].includes(tag))) {
-    return `최근 구현 흐름과 맞는 프론트엔드 · 인터랙션 관점의 글`;
-  }
-  if (lowerTags.some((tag) => ["backend", "java", "spring", "node", "go"].includes(tag))) {
-    return `서비스 설계와 구현 밀도를 함께 넓혀줄 백엔드 글`;
-  }
-
-  return "최근 세션 흐름과 기술 스택을 기준으로 골랐습니다.";
-}
 
 function DibeotCharacter({ typeName }: { typeName: string }) {
   return (
@@ -446,74 +339,26 @@ export default function InterviewAnalysisPage() {
           setProfileTags(techStack);
         }
 
-        const { data: tagRows, error: tagRowsError } = await supabase
-          .from("blogs")
-          .select("tags")
-          .eq("blog_type", "company");
-
-        if (tagRowsError) {
-          throw tagRowsError;
-        }
-
-        const availableTagSet = new Set(
-          (tagRows ?? []).flatMap((row) =>
-            Array.isArray(row.tags)
-              ? row.tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)
-              : [],
-          ),
-        );
-
-        const candidateTags = buildRecommendationTags(recentProfileBase, representativeLabels, techStack);
-        const tags = candidateTags.filter((tag) => availableTagSet.has(tag)).slice(0, 8);
-
-        let query = supabase
+        const { data: blogs, error: blogsError } = await supabase
           .from("blogs")
           .select("*")
           .eq("blog_type", "company")
           .order("published_at", { ascending: false })
-          .limit(3);
+          .limit(120);
 
-        if (tags.length > 0) {
-          query = query.overlaps("tags", tags);
-        }
-
-        const { data: initialData, error } = await query;
-        let data = initialData;
-
-        if (error) {
-          throw error;
-        }
-
-        if (!data || data.length < 3) {
-          const fallback = await supabase
-            .from("blogs")
-            .select("*")
-            .eq("blog_type", "company")
-            .order("published_at", { ascending: false })
-            .limit(3);
-
-          if (fallback.error) {
-            throw fallback.error;
-          }
-
-          data = fallback.data ?? [];
+        if (blogsError) {
+          throw blogsError;
         }
 
         if (!cancelled) {
-          const fallbackTags =
-            ((data as Blog[]) ?? []).flatMap((blog) =>
-              Array.isArray(blog.tags)
-                ? blog.tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)
-                : [],
-            );
-
-          setResolvedRecommendationTags(tags.length > 0 ? tags : uniq(fallbackTags).slice(0, 8));
-          setRecommendedBlogs(
-            ((data as Blog[]) ?? []).map((blog) => ({
-              ...blog,
-              recommendationReason: getRecommendationReason(blog, representativeLabels),
-            })),
-          );
+          const ranked = rankRecommendedBlogs({
+            blogs: blogs ?? [],
+            sessions: recentProfileBase,
+            representativeLabels,
+            techStack,
+          });
+          setResolvedRecommendationTags(ranked.resolvedRecommendationTags);
+          setRecommendedBlogs(ranked.recommendedBlogs);
         }
       } catch (error) {
         console.error("추천 기술 블로그를 불러오지 못했습니다.", error);
@@ -722,7 +567,7 @@ export default function InterviewAnalysisPage() {
               {recurringWeaknesses.length > 0 ? recurringWeaknesses.map((item, index) => (
                 <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="border-[#e5eaf1] bg-white text-muted-foreground">
+                    <Badge variant="outline" className="shrink-0 whitespace-nowrap border-[#e5eaf1] bg-white text-muted-foreground">
                       보완 {index + 1}
                     </Badge>
                     <p className="text-sm font-semibold text-foreground">{item}</p>
@@ -748,7 +593,7 @@ export default function InterviewAnalysisPage() {
               {recommendedActions.length > 0 ? recommendedActions.map((item, index) => (
                 <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+                    <Badge variant="outline" className="shrink-0 whitespace-nowrap border-primary/20 bg-primary/5 text-primary">
                       액션 {index + 1}
                     </Badge>
                     <p className="text-sm font-semibold text-foreground">{item}</p>
@@ -771,7 +616,7 @@ export default function InterviewAnalysisPage() {
                 {displayName}님이 읽어보면 좋을 기술 블로그
               </CardTitle>
               <CardDescription>
-                실제 세션 성향과 기술 스택을 바탕으로, 바로 읽어볼 만한 글만 골라두었습니다.
+              반복 약점과 다음 액션, 최근 세션 맥락을 바탕으로 바로 도움이 될 글을 골랐습니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -830,7 +675,7 @@ export default function InterviewAnalysisPage() {
                 추천에 반영한 태그
               </CardTitle>
               <CardDescription>
-                실제 세션 성향, 최근 기록, 기술 스택에서 겹치는 주제를 우선 반영했습니다.
+              반복 약점, 다음 액션, 최근 세션 맥락에서 직접 연결되는 태그를 우선 반영했습니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -852,11 +697,10 @@ export default function InterviewAnalysisPage() {
               <div className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
                 <p className="text-sm font-semibold text-foreground">추천 기준</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {representativeLabels.join(" · ")} 흐름과
+                  반복 약점과 다음 액션을 가장 먼저 보고,
                   {profileTags.length > 0
-                    ? ` ${profileTags.slice(0, 3).join(", ")}`
-                    : " 최근 세션에서 드러난 직무 맥락"}
-                  을 함께 보고, 바로 도움이 될 만한 원문 글을 우선 보여줍니다.
+                    ? ` ${profileTags.slice(0, 3).join(", ")} 같은 기술 스택과 최근 세션 성향이 맞는 글을 함께 반영합니다.`
+                    : " 최근 세션 성향과 직무 맥락이 맞는 글까지 함께 반영합니다."}
                 </p>
               </div>
             </CardContent>
