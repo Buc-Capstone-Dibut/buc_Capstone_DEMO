@@ -11,6 +11,7 @@ app/db/__init__.py
 app/db/database.py
 app/interview/__init__.py
 app/interview/domain/__init__.py
+app/interview/domain/interview_level.py
 app/interview/domain/interview_memory.py
 app/interview/domain/pacing.py
 app/interview/domain/turn_policy.py
@@ -28,6 +29,8 @@ app/interview/runtime/live_client.py
 app/interview/runtime/live_turns.py
 app/interview/runtime/message_router.py
 app/interview/runtime/orchestration.py
+app/interview/runtime/prepared_opening.py
+app/interview/runtime/prepared_opening_store.py
 app/interview/runtime/service_adapter.py
 app/interview/runtime/session_engine.py
 app/interview/runtime/session_interaction.py
@@ -36,6 +39,7 @@ app/interview/runtime/session_support.py
 app/interview/runtime/state.py
 app/interview/runtime/transport.py
 app/interview/runtime/turn_entrypoints.py
+app/interview/runtime/turn_ids.py
 app/interview/runtime/vad_policy.py
 app/interview/runtime/voice_support.py
 app/interview/runtime/ws_runtime.py

@@ -37,7 +37,7 @@ export function WorkspaceResultCard({
   const isCompleted = lifecycleStatus === "COMPLETED";
 
   return (
-    <Card className="h-full border shadow-sm">
+    <Card className="flex h-full min-h-[280px] max-h-[420px] flex-col border-none bg-transparent shadow-none">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           {isCompleted ? (

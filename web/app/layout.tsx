@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Analytics } from "@vercel/analytics/next";
 import { GlobalHeader } from "@/components/layout/global-header";
 import { GlobalMobileNav } from "@/components/layout/mobile-nav";
 import { Suspense } from "react";
+import Script from "next/script";
 import { AppSWRProvider } from "@/components/providers/swr-provider";
 import { VoiceManager } from "@/components/features/workspace/voice/voice-manager";
 
@@ -68,24 +70,74 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-screen bg-background font-sans antialiased"
       >
-        <AppSWRProvider>
-          <VoiceManager>
-            <div className="relative flex min-h-screen flex-col">
-              <Suspense
-                fallback={
-                  <div className="h-14 border-b border-slate-200/50 bg-white/80" />
-                }
-              >
-                <GlobalHeader />
-              </Suspense>
-              <div className="flex flex-1 flex-col">{children}</div>
-              <GlobalMobileNav />
-            </div>
-          </VoiceManager>
-          <Toaster />
-          <SonnerToaster />
-          <Analytics />
-        </AppSWRProvider>
+        <Script id="chunk-load-recovery" strategy="afterInteractive">
+          {`
+            (function () {
+              var KEY = "__dibut_chunk_reload__";
+              var shouldRecover = function (message) {
+                if (!message) return false;
+                var hasChunkError =
+                  message.indexOf("ChunkLoadError") !== -1 ||
+                  message.indexOf("Loading chunk") !== -1 ||
+                  message.indexOf("Failed to fetch dynamically imported module") !== -1;
+                if (!hasChunkError) return false;
+
+                // Avoid reloading on prefetch errors for unrelated route chunks.
+                var routeMatch = message.match(/app\\/([^\\/]+)\\//);
+                if (!routeMatch || !routeMatch[1]) return true;
+                var seg = "/" + routeMatch[1];
+                var current = window.location.pathname || "/";
+                return current === seg || current.indexOf(seg + "/") === 0;
+              };
+              var tryReload = function (message) {
+                if (!shouldRecover(message)) return;
+                if (sessionStorage.getItem(KEY) === "1") return;
+                sessionStorage.setItem(KEY, "1");
+                window.location.reload();
+              };
+              window.addEventListener("error", function (event) {
+                var msg = event && event.message ? String(event.message) : "";
+                tryReload(msg);
+              });
+              window.addEventListener("unhandledrejection", function (event) {
+                var reason = event && event.reason ? event.reason : "";
+                var msg = "";
+                if (typeof reason === "string") msg = reason;
+                else if (reason && reason.message) msg = String(reason.message);
+                else msg = String(reason || "");
+                tryReload(msg);
+              });
+              window.addEventListener("pageshow", function () {
+                sessionStorage.removeItem(KEY);
+              });
+            })();
+          `}
+        </Script>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppSWRProvider>
+            <VoiceManager>
+              <div className="relative flex min-h-screen flex-col">
+                <Suspense
+                  fallback={
+                    <div className="h-14 border-b border-slate-200/50 bg-white/80 dark:border-slate-700/50 dark:bg-slate-900/80" />
+                  }
+                >
+                  <GlobalHeader />
+                </Suspense>
+                <div className="flex flex-1 flex-col">{children}</div>
+                <GlobalMobileNav />
+              </div>
+            </VoiceManager>
+            <Toaster />
+            <SonnerToaster />
+            <Analytics />
+          </AppSWRProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

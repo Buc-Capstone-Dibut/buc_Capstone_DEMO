@@ -121,19 +121,23 @@ export default function IdeaBoardSDK({
 
     if (binding.current) return;
 
-    const undoManager = new Y.UndoManager(ydoc.current.getArray("elements"));
+    const undoManager = readOnly
+      ? undefined
+      : new Y.UndoManager(ydoc.current.getArray("elements"));
 
     binding.current = new ExcalidrawBinding(
       ydoc.current.getArray("elements"),
       ydoc.current.getMap("assets"),
       excalidrawAPI,
       provider.current.awareness,
-      {
-        undoManager,
-        excalidrawDom: wrapperRef.current,
-      },
+      undoManager
+        ? {
+            undoManager,
+            excalidrawDom: wrapperRef.current,
+          }
+        : undefined,
     );
-  }, [excalidrawAPI]);
+  }, [excalidrawAPI, readOnly]);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-white">

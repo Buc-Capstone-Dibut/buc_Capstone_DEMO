@@ -545,8 +545,14 @@ export function WorkspaceSidebar({
                         "bg-accent text-accent-foreground font-medium",
                       showBadge && "text-foreground font-semibold",
                       isMentioned && "text-primary",
+                      isReadOnly && "cursor-not-allowed opacity-60",
                     )}
+                    disabled={isReadOnly}
                     onClick={() => {
+                      if (isReadOnly) {
+                        toast.error("종료된 팀 공간은 실시간 채팅을 사용할 수 없습니다.");
+                        return;
+                      }
                       const relevantNotifications = notifications?.filter(
                         (n) =>
                           !n.is_read &&
@@ -655,102 +661,108 @@ export function WorkspaceSidebar({
                 </div>
               </>
             )}
+            {isReadOnly && channels.length > 0 && (
+              <div className="px-2 pt-1 text-[11px] text-muted-foreground">
+                종료된 팀 공간은 실시간 채팅이 중지됩니다.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Voice Rooms */}
-        <div>
-          <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            음성
-            <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer" />
-          </div>
-          <div className="space-y-0.5">
-            <Button
-              variant={currentRoom === "dev-room" ? "secondary" : "ghost"}
-              className={cn(
-                "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
-                currentRoom === "dev-room" &&
-                "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
-              )}
-              onClick={() => joinRoom(projectId, "dev-room")}
-              disabled={isReadOnly}
-            >
-              <Volume2 className="mr-2 h-3.5 w-3.5" />
-              {getWorkspaceVoiceRoomLabel("dev-room")}
-            </Button>
-            {devParticipants.length > 0 && (
-              <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {devParticipants.map((p) => (
-                  <div
-                    key={p.identity}
-                    className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="relative">
-                      <WorkspaceUserAvatar
-                        name={p.name}
-                        avatarUrl={p.avatarUrl}
-                        className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
-                        imageClassName="object-cover"
-                        fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
-                      />
-                      <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
+        {!isReadOnly && (
+          <div>
+            <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
+              음성
+              <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer" />
+            </div>
+            <div className="space-y-0.5">
+              <Button
+                variant={currentRoom === "dev-room" ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
+                  currentRoom === "dev-room" &&
+                    "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
+                )}
+                onClick={() => joinRoom(projectId, "dev-room")}
+                disabled={isReadOnly}
+              >
+                <Volume2 className="mr-2 h-3.5 w-3.5" />
+                {getWorkspaceVoiceRoomLabel("dev-room")}
+              </Button>
+              {devParticipants.length > 0 && (
+                <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
+                  {devParticipants.map((p) => (
+                    <div
+                      key={p.identity}
+                      className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="relative">
+                        <WorkspaceUserAvatar
+                          name={p.name}
+                          avatarUrl={p.avatarUrl}
+                          className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
+                          imageClassName="object-cover"
+                          fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
+                        />
+                        <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
+                      </div>
+                      <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
+                        {p.name || "알 수 없음"}
+                        {p.identity === user?.id && (
+                          <span className="ml-1 text-xs text-muted-foreground font-normal">
+                            (나)
+                          </span>
+                        )}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
-                      {p.name || "알 수 없음"}
-                      {p.identity === user?.id && (
-                        <span className="ml-1 text-xs text-muted-foreground font-normal">
-                          (나)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              variant={currentRoom === "lounge" ? "secondary" : "ghost"}
-              className={cn(
-                "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
-                currentRoom === "lounge" &&
-                "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
+                  ))}
+                </div>
               )}
-              onClick={() => joinRoom(projectId, "lounge")}
-              disabled={isReadOnly}
-            >
-              <Volume2 className="mr-2 h-3.5 w-3.5" />
-              {getWorkspaceVoiceRoomLabel("lounge")}
-            </Button>
-            {loungeParticipants.length > 0 && (
-              <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
-                {loungeParticipants.map((p) => (
-                  <div
-                    key={p.identity}
-                    className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="relative">
-                      <WorkspaceUserAvatar
-                        name={p.name}
-                        avatarUrl={p.avatarUrl}
-                        className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
-                        imageClassName="object-cover"
-                        fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
-                      />
-                      <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
+              <Button
+                variant={currentRoom === "lounge" ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start h-8 px-2 text-muted-foreground font-normal",
+                  currentRoom === "lounge" &&
+                    "bg-green-500/10 text-green-600 hover:bg-green-500/20 font-medium",
+                )}
+                onClick={() => joinRoom(projectId, "lounge")}
+                disabled={isReadOnly}
+              >
+                <Volume2 className="mr-2 h-3.5 w-3.5" />
+                {getWorkspaceVoiceRoomLabel("lounge")}
+              </Button>
+              {loungeParticipants.length > 0 && (
+                <div className="pl-4 pb-1 flex flex-col gap-1 mt-1">
+                  {loungeParticipants.map((p) => (
+                    <div
+                      key={p.identity}
+                      className="flex items-center gap-3 py-1 px-3 rounded-md hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="relative">
+                        <WorkspaceUserAvatar
+                          name={p.name}
+                          avatarUrl={p.avatarUrl}
+                          className="h-6 w-6 rounded-full ring-2 ring-background shadow-sm"
+                          imageClassName="object-cover"
+                          fallbackClassName="text-[10px] bg-primary/10 text-primary font-medium"
+                        />
+                        <span className="absolute bottom-0 right-0 block h-2 w-2 rounded-full ring-1 ring-background bg-green-500" />
+                      </div>
+                      <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
+                        {p.name || "알 수 없음"}
+                        {p.identity === user?.id && (
+                          <span className="ml-1 text-xs text-muted-foreground font-normal">
+                            (나)
+                          </span>
+                        )}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium opacity-90 truncate max-w-[120px]">
-                      {p.name || "알 수 없음"}
-                      {p.identity === user?.id && (
-                        <span className="ml-1 text-xs text-muted-foreground font-normal">
-                          (나)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="p-4 border-t">
@@ -775,9 +787,11 @@ export function WorkspaceSidebar({
                 className="flex items-center justify-between px-2 py-1.5 text-sm group hover:bg-muted/50 rounded-md"
               >
                 <div className="flex items-center overflow-hidden">
-                  <div
-                    className={`h-2 w-2 rounded-full mr-2 ${isOnline ? "bg-green-500" : "bg-slate-300"}`}
-                  ></div>
+                  {!isReadOnly && (
+                    <div
+                      className={`h-2 w-2 rounded-full mr-2 ${isOnline ? "bg-green-500" : "bg-slate-300"}`}
+                    ></div>
+                  )}
                   <span className="truncate">{member.name}</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground border px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">

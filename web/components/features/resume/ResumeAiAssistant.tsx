@@ -17,7 +17,6 @@ import {
     Send,
     ChevronLeft,
     CheckCircle2,
-    MessageSquare
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
@@ -28,8 +27,13 @@ interface ResumeAiAssistantProps {
     onUpdatePayload: (payload: ResumePayload) => void;
     initialMode?: Mode;
     isWizard?: boolean;
-    onWizardComplete?: (content: string) => void;
-    initialStadri?: Partial<{ s: string; t: string; a: string; d: string; r: string; i: string }>;
+    compactLayout?: boolean;
+    immersiveWizard?: boolean;
+    wizardEntryMode?: "setup" | "chat";
+    initialTargetRole?: string;
+    initialStrengths?: string;
+    autoStartOnMount?: boolean;
+    onWizardComplete?: (result: { content: string; applicationTarget: string }) => void;
     backgroundContext?: string;
 }
 
@@ -45,26 +49,36 @@ export function ResumeAiAssistant({
     onUpdatePayload,
     initialMode = "main",
     isWizard = false,
+    compactLayout = false,
+    immersiveWizard = false,
+    wizardEntryMode = "setup",
+    initialTargetRole = "",
+    initialStrengths = "",
+    autoStartOnMount = false,
     onWizardComplete,
-    initialStadri,
     backgroundContext,
 }: ResumeAiAssistantProps) {
     const { toast } = useToast();
-    const [mode, setMode] = useState<Mode>(isWizard ? "setup" : initialMode as Mode);
+    const [mode, setMode] = useState<Mode>(
+        isWizard
+            ? (wizardEntryMode === "chat" ? "chat" : "setup")
+            : (initialMode as Mode),
+    );
     const [loading, setLoading] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
 
     // Chat & Messages State
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isStartingGeneration, setIsStartingGeneration] = useState(false);
 
     // Setup State
-    const [targetRole, setTargetRole] = useState("");
-    const [strengths, setStrengths] = useState("");
+    const [targetRole, setTargetRole] = useState(initialTargetRole);
+    const [strengths, setStrengths] = useState(initialStrengths);
 
     const [chatInput, setChatInput] = useState("");
-    const scrollRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const generationLockRef = useRef(false);
 
     // Auto-scroll to bottom whenever messages or streaming content changes
     useEffect(() => {
@@ -73,7 +87,34 @@ export function ResumeAiAssistant({
         }
     }, [messages, isStreaming]);
 
+    useEffect(() => {
+        if (!autoStartOnMount) return;
+        if (mode !== "chat") return;
+        if (messages.length > 0) return;
+        if (isStreaming) return;
+        if (generationLockRef.current) return;
+        if (!targetRole.trim()) return;
+        void startCoverLetterGeneration();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoStartOnMount, mode, messages.length, isStreaming, targetRole]);
+
+    const parseApiError = async (response: Response, fallbackMessage: string) => {
+        try {
+            const json = await response.json();
+            if (typeof json?.error === "string" && json.error.trim()) {
+                return json.error;
+            }
+        } catch {
+            // ignore response parse error
+        }
+        return fallbackMessage;
+    };
+
     const startCoverLetterGeneration = async () => {
+        if (!targetRole.trim()) return;
+        if (generationLockRef.current || isStreaming || isStartingGeneration) return;
+        generationLockRef.current = true;
+        setIsStartingGeneration(true);
         setMode("chat");
         // 빈 assistant 메시지를 fetch 전에 미리 추가 → 스켈레톤이 바로 표시됨
         setMessages([
@@ -95,7 +136,14 @@ export function ResumeAiAssistant({
                 }),
             });
 
-            if (!response.ok) throw new Error("API 요청 실패");
+            if (!response.ok) {
+                const fallbackMessage =
+                    response.status === 429
+                        ? "요청이 많아 잠시 대기 중입니다. 2~3초 후 다시 시도해주세요."
+                        : "API 요청 실패";
+                const message = await parseApiError(response, fallbackMessage);
+                throw new Error(message);
+            }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
@@ -119,10 +167,13 @@ export function ResumeAiAssistant({
                     return next;
                 });
             }
-        } catch (err: any) {
-            toast({ title: "생성 실패", description: err.message, variant: "destructive" });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "알 수 없는 오류";
+            toast({ title: "생성 실패", description: message, variant: "destructive" });
         } finally {
             setIsStreaming(false);
+            setIsStartingGeneration(false);
+            generationLockRef.current = false;
         }
     };
 
@@ -179,8 +230,9 @@ export function ResumeAiAssistant({
                     return next;
                 });
             }
-        } catch (err: any) {
-            toast({ title: "수정 실패", description: err.message, variant: "destructive" });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "알 수 없는 오류";
+            toast({ title: "수정 실패", description: message, variant: "destructive" });
         } finally {
             setIsStreaming(false);
         }
@@ -203,8 +255,9 @@ export function ResumeAiAssistant({
                 onUpdatePayload(json.data.updatedPayload);
                 toast({ title: "AI 제안 완료", description: "내용이 업데이트되었습니다." });
             }
-        } catch (err: any) {
-            toast({ title: "AI 요청 실패", description: err.message, variant: "destructive" });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "알 수 없는 오류";
+            toast({ title: "AI 요청 실패", description: message, variant: "destructive" });
         } finally {
             setLoading(false);
         }
@@ -223,7 +276,6 @@ export function ResumeAiAssistant({
             return;
         }
 
-        const currentIntro = updatedPayload.selfIntroduction || "";
         // If it's a new generation, we might want to replace or append. 
         // User's previous request suggests adding a "Self-Introduction" field, so we replace/update it.
         updatedPayload.selfIntroduction = latestAssistantMessage.content;
@@ -234,31 +286,51 @@ export function ResumeAiAssistant({
         if (!isWizard) {
             setMode("main");
         } else if (onWizardComplete) {
-            onWizardComplete(latestAssistantMessage.content);
+            onWizardComplete({
+                content: latestAssistantMessage.content,
+                applicationTarget: targetRole.trim(),
+            });
         }
     };
 
     if (mode === "setup") {
         return (
-            <div className={cn("space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", isWizard && "w-full max-w-4xl mx-auto py-8")}>
+            <div
+                className={cn(
+                    "space-y-4 animate-in fade-in slide-in-from-right-4 duration-300",
+                    isWizard &&
+                        (compactLayout
+                            ? "w-full max-w-3xl mx-auto py-2"
+                            : "w-full max-w-4xl mx-auto py-8"),
+                )}
+            >
                 {!isWizard && (
                     <Button variant="ghost" size="sm" onClick={() => setMode("main")} className="mb-2 p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
                         <ChevronLeft className="w-4 h-4 mr-1" /> 사이드바 목록
                     </Button>
                 )}
-                <div className="space-y-4 text-center pb-6 border-b border-border/40">
-                    <h3 className={cn("font-bold flex items-center gap-2 justify-center", isWizard ? "text-3xl" : "text-xl")}>
+                <div className={cn("space-y-3 text-center border-b border-border/40", compactLayout ? "pb-4" : "pb-6")}>
+                    <h3
+                        className={cn(
+                            "font-bold flex items-center gap-2 justify-center",
+                            isWizard
+                                ? compactLayout
+                                    ? "text-xl"
+                                    : "text-3xl"
+                                : "text-xl",
+                        )}
+                    >
                         <Sparkles className="w-6 h-6 text-primary" />
                         {isWizard ? "내 경험으로 맞춤형 자소서 생성하기" : "맞춤형 자소서 생성하기"}
                     </h3>
-                    <p className="text-[15px] text-muted-foreground leading-relaxed max-w-xl mx-auto">
+                    <p className={cn("text-muted-foreground leading-relaxed max-w-xl mx-auto", compactLayout ? "text-[13px]" : "text-[15px]")}>
                         선택하신 경험 기록들을 바탕으로 압도적인 자기소개서를 작성합니다.<br />
                         AI가 글을 잘 쓸 수 있도록 <strong className="text-foreground">지원 직무</strong>만 알려주세요.
                     </p>
                 </div>
 
-                <div className="space-y-8 mt-8 pb-4 max-w-2xl mx-auto">
-                    <div className="space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                <div className={cn("max-w-2xl mx-auto", compactLayout ? "space-y-4 mt-4 pb-1" : "space-y-8 mt-8 pb-4")}>
+                    <div className={cn("space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800/50", compactLayout ? "p-4" : "p-6")}>
                         <div>
                             <Label className="text-[15px] font-bold text-foreground">어느 회사에 어떤 직무로 지원하시나요? <span className="text-red-500">*</span></Label>
                             <p className="text-[13px] text-muted-foreground mt-1">예: 카카오 프론트엔드 개발자, 네이버 서비스 기획자</p>
@@ -267,11 +339,14 @@ export function ResumeAiAssistant({
                             placeholder="지원 직무를 적어주세요 (필수)"
                             value={targetRole}
                             onChange={(e) => setTargetRole(e.target.value)}
-                            className="h-12 text-[15px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30"
+                            className={cn(
+                                "text-[14px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30",
+                                compactLayout ? "h-10" : "h-12",
+                            )}
                         />
                     </div>
 
-                    <div className="space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                    <div className={cn("space-y-3 focus-within:translate-x-1 transition-transform bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800/50", compactLayout ? "p-4" : "p-6")}>
                         <div>
                             <Label className="text-[15px] font-bold text-foreground">이 자소서에서 특별히 자랑하고 싶은 나의 강점은? <span className="text-muted-foreground font-normal">(선택)</span></Label>
                             <p className="text-[13px] text-muted-foreground mt-1">예: 주도적으로 문제를 찾아 해결하는 능력을 강조해줘</p>
@@ -280,18 +355,25 @@ export function ResumeAiAssistant({
                             placeholder="원하시는 강조 포인트가 있다면 적어주세요"
                             value={strengths}
                             onChange={(e) => setStrengths(e.target.value)}
-                            className="min-h-[100px] text-[15px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30 resize-none p-4"
+                            className={cn(
+                                "text-[14px] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-primary/30 resize-none p-3",
+                                compactLayout ? "min-h-[76px]" : "min-h-[100px]",
+                            )}
                         />
                     </div>
                 </div>
 
-                <div className="max-w-2xl mx-auto mt-8">
+                <div className={cn("max-w-2xl mx-auto", compactLayout ? "mt-4" : "mt-8")}>
                     <Button
-                        className={cn("w-full h-14 font-bold gap-2 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground hover:scale-[1.02] active:scale-[0.98] rounded-2xl transition-all", isWizard && "text-lg")}
+                        className={cn(
+                            "w-full font-bold gap-2 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground hover:scale-[1.01] active:scale-[0.99] rounded-2xl transition-all",
+                            compactLayout ? "h-11 text-sm" : "h-14",
+                            isWizard && !compactLayout && "text-lg",
+                        )}
                         onClick={startCoverLetterGeneration}
-                        disabled={!targetRole.trim()}
+                        disabled={!targetRole.trim() || isStreaming || isStartingGeneration}
                     >
-                        <Sparkles className="w-5 h-5" /> 전문 자소서 실시간 생성 시작
+                        <Sparkles className={compactLayout ? "w-4 h-4" : "w-5 h-5"} /> 전문 자소서 생성 시작
                     </Button>
                 </div>
             </div>
@@ -299,114 +381,187 @@ export function ResumeAiAssistant({
     }
 
     if (mode === "chat") {
+        const showInitialComposer = messages.length === 0 && !autoStartOnMount;
+
         return (
-            <div className={cn("flex flex-col h-full space-y-4 animate-in fade-in slide-in-from-right-4 duration-300", isWizard && "w-full max-w-4xl mx-auto py-8")}>
+            <div
+                className={cn(
+                    "flex flex-col h-full space-y-3 animate-in fade-in slide-in-from-right-4 duration-300",
+                    isWizard && !immersiveWizard &&
+                        (compactLayout
+                            ? "w-full max-w-3xl mx-auto py-1"
+                            : "w-full max-w-4xl mx-auto py-8"),
+                    isWizard && immersiveWizard && "w-full h-full py-2",
+                )}
+            >
                 <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => setMode("setup")} className="p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
-                        <ChevronLeft className="w-4 h-4 mr-1" /> 항목 및 기획 다시 수정하기
-                    </Button>
+                    {wizardEntryMode === "setup" ? (
+                        <Button variant="ghost" size="sm" onClick={() => setMode("setup")} className="p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
+                            <ChevronLeft className="w-4 h-4 mr-1" /> 항목 및 기획 다시 수정하기
+                        </Button>
+                    ) : (
+                        <div />
+                    )}
                     <Badge variant="secondary" className="text-[10px] py-0 px-2 bg-primary/10 text-primary border-none">
-                        {isStreaming ? "AI 스트리밍 보정 중" : "맞춤형 보정 완료"}
+                        {showInitialComposer
+                            ? "지원 대상 입력 후 생성"
+                            : isStreaming
+                                ? "AI 스트리밍 보정 중"
+                                : "맞춤형 보정 완료"}
                     </Badge>
                 </div>
 
                 <div className="flex-1 flex flex-col bg-transparent">
-                    <div className="flex-1 pb-44"> {/* Extra padding for sticky input area */}
-                        <div className="flex flex-col gap-10">
-                            {messages.map((msg, i) => (
-                                <div key={i} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-500", msg.role === "user" ? "justify-end" : "justify-start items-start gap-4")}>
-                                    {msg.role === "user" ? (
-                                        <div className="max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed shadow-md bg-primary text-white rounded-tr-none">
-                                            <div className="whitespace-pre-wrap">{msg.content}</div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-start gap-5 w-full">
-                                            <div className="p-2.5 h-11 w-11 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shrink-0 shadow-lg border-2 border-white mt-1">
-                                                <Sparkles className="w-6 h-6 text-white" />
-                                            </div>
-                                            <div className="flex-1 space-y-4 pt-2">
-                                                {i === 0 && (
-                                                    <div className="flex items-center gap-2 text-primary font-bold text-[12px] uppercase tracking-[0.2em] mb-2 opacity-80">
-                                                        <BrainCircuit className="w-4 h-4" /> AI 추천 자소서 전문
-                                                    </div>
-                                                )}
-
-                                                {/* 스켈레톤: 스트리밍 중이고 아직 내용이 없을 때 */}
-                                                {isStreaming && i === messages.length - 1 && msg.content === "" ? (
-                                                    <div className="space-y-1 py-1">
-                                                        <p className="text-[12px] text-slate-400 font-medium mb-3 flex items-center gap-1.5">
-                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                            AI 답변을 생성하고 있어요...
-                                                        </p>
-                                                        <div className="space-y-3">
-                                                            <div className="skeleton-shimmer h-5 rounded-lg w-full" />
-                                                            <div className="skeleton-shimmer h-5 rounded-lg w-[85%]" style={{ animationDelay: "0.15s" }} />
-                                                            <div className="skeleton-shimmer h-5 rounded-lg w-[65%]" style={{ animationDelay: "0.3s" }} />
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-[17px] leading-[1.8] text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-normal selection:bg-primary/20">
-                                                        {msg.content}
-                                                        {isStreaming && i === messages.length - 1 && (
-                                                            <span className="inline-block w-1.5 h-6 ml-1 bg-primary animate-pulse align-middle" />
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div ref={bottomRef} className="h-4" />
-                        </div>
-                    </div>
-
-                    {/* Sticky Input Area */}
-                    <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-                        <div className={cn("max-w-4xl mx-auto w-full p-6 pb-8 pointer-events-auto", !isWizard && "pl-[300px]")}> {/* Adjust padding if in sidebar mode */}
-                            <div className="bg-white/80 backdrop-blur-xl border border-slate-200/50 rounded-3xl shadow-2xl p-4 space-y-4">
-                                <div className="relative group">
+                    <div className={cn("flex-1", compactLayout ? "pb-4" : "pb-44")}>
+                        {showInitialComposer ? (
+                            <div className="mx-auto w-full max-w-2xl pt-8">
+                                <div className="space-y-3 rounded-xl border bg-white/90 p-4">
+                                    <div className="text-sm font-semibold">
+                                        지원 회사/직무
+                                    </div>
+                                    <Input
+                                        placeholder="예: 카카오 프론트엔드 개발자"
+                                        value={targetRole}
+                                        onChange={(e) => setTargetRole(e.target.value)}
+                                        className="h-10 text-sm"
+                                    />
                                     <Textarea
-                                        placeholder="예) 좀 더 도전적인 느낌으로 수정해줘, 기술 역량을 더 강조해줘"
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        className="min-h-[80px] pr-14 bg-transparent border-none focus-visible:ring-0 transition-all resize-none text-[15px]"
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleChatRefine();
-                                            }
-                                        }}
+                                        placeholder="강조하고 싶은 강점 (선택)"
+                                        value={strengths}
+                                        onChange={(e) => setStrengths(e.target.value)}
+                                        className="min-h-[72px] resize-none text-sm"
                                     />
                                     <Button
-                                        size="icon"
-                                        className="absolute right-2 bottom-2 h-10 w-10 rounded-xl shadow-xl hover:scale-105 transition-transform"
-                                        onClick={handleChatRefine}
-                                        disabled={isStreaming || !chatInput.trim()}
+                                        className="h-10 w-full text-sm font-semibold"
+                                        onClick={startCoverLetterGeneration}
+                                        disabled={
+                                            !targetRole.trim() ||
+                                            isStreaming ||
+                                            isStartingGeneration
+                                        }
                                     >
-                                        {isStreaming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                                    </Button>
-                                </div>
-
-                                <div className="flex gap-3">
-                                    <Button
-                                        variant="outline"
-                                        className="flex-1 h-12 rounded-2xl font-medium border-slate-200 hover:bg-slate-50 transition-colors"
-                                        onClick={() => setMode("stadri")}
-                                    >
-                                        처음부터 다시 쓰기
-                                    </Button>
-                                    <Button
-                                        className="flex-[2] h-12 rounded-2xl font-bold bg-slate-900 border-none hover:bg-slate-800 shadow-xl transition-all"
-                                        onClick={applyToResume}
-                                    >
-                                        <CheckCircle2 className="w-5 h-5 mr-2" />
-                                        {isWizard ? "이 내용으로 가이드 완료하기" : "이력서에 즉시 반영하기"}
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        AI 자소서 초안 생성
                                     </Button>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className={cn("flex flex-col", compactLayout ? "gap-5" : "gap-10")}>
+                                {messages.map((msg, i) => (
+                                    <div key={i} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-500", msg.role === "user" ? "justify-end" : "justify-start items-start gap-4")}>
+                                        {msg.role === "user" ? (
+                                            <div className={cn("max-w-[82%] rounded-2xl leading-relaxed shadow-md bg-primary text-white rounded-tr-none", compactLayout ? "px-3.5 py-2.5 text-[13px]" : "px-5 py-3.5 text-[15px]")}>
+                                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                            </div>
+                                        ) : (
+                                            <div className={cn("flex items-start w-full", compactLayout ? "gap-3" : "gap-5")}>
+                                                <div className={cn("rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shrink-0 shadow-lg border-2 border-white", compactLayout ? "p-1.5 h-8 w-8 mt-0.5" : "p-2.5 h-11 w-11 mt-1")}>
+                                                    <Sparkles className={compactLayout ? "w-4 h-4 text-white" : "w-6 h-6 text-white"} />
+                                                </div>
+                                                <div className={cn("flex-1", compactLayout ? "space-y-2 pt-0.5" : "space-y-4 pt-2")}>
+                                                    {i === 0 && (
+                                                        <div className={cn("flex items-center gap-2 text-primary font-bold uppercase opacity-80", compactLayout ? "text-[10px] tracking-[0.12em] mb-1" : "text-[12px] tracking-[0.2em] mb-2")}>
+                                                            <BrainCircuit className="w-4 h-4" /> AI 추천 자소서 전문
+                                                        </div>
+                                                    )}
+
+                                                    {/* 스켈레톤: 스트리밍 중이고 아직 내용이 없을 때 */}
+                                                    {isStreaming && i === messages.length - 1 && msg.content === "" ? (
+                                                        <div className="space-y-1 py-1">
+                                                            <p className="text-[12px] text-slate-400 font-medium mb-3 flex items-center gap-1.5">
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                AI 답변을 생성하고 있어요...
+                                                            </p>
+                                                            <div className="space-y-3">
+                                                                <div className="skeleton-shimmer h-5 rounded-lg w-full" />
+                                                                <div className="skeleton-shimmer h-5 rounded-lg w-[85%]" style={{ animationDelay: "0.15s" }} />
+                                                                <div className="skeleton-shimmer h-5 rounded-lg w-[65%]" style={{ animationDelay: "0.3s" }} />
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className={cn("text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-normal selection:bg-primary/20", compactLayout ? "text-[14px] leading-[1.65]" : "text-[17px] leading-[1.8]")}>
+                                                            {msg.content}
+                                                            {isStreaming && i === messages.length - 1 && (
+                                                                <span className="inline-block w-1.5 h-6 ml-1 bg-primary animate-pulse align-middle" />
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                <div ref={bottomRef} className="h-4" />
+                            </div>
+                        )}
                     </div>
+
+                    {/* Sticky Input Area */}
+                    {!showInitialComposer && (
+                        <div
+                            className={cn(
+                                compactLayout
+                                    ? "sticky bottom-0 z-30 pt-2"
+                                    : "fixed bottom-0 left-0 right-0 z-50 pointer-events-none",
+                            )}
+                        >
+                            <div
+                                className={cn(
+                                    compactLayout
+                                        ? "max-w-3xl mx-auto w-full pointer-events-auto"
+                                        : immersiveWizard
+                                            ? "w-full px-4 pb-4 pointer-events-auto"
+                                            : "max-w-4xl mx-auto w-full p-6 pb-8 pointer-events-auto",
+                                    !compactLayout && !isWizard && "pl-[300px]",
+                                )}
+                            >
+                                <div className={cn("bg-white/90 backdrop-blur-xl border border-slate-200/60 shadow-xl", compactLayout ? "rounded-2xl p-3 space-y-3" : "rounded-3xl p-4 space-y-4")}>
+                                    <div className="relative group">
+                                        <Textarea
+                                            placeholder="예) 좀 더 도전적인 느낌으로 수정해줘, 기술 역량을 더 강조해줘"
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            className={cn(
+                                                "pr-14 bg-transparent border-none focus-visible:ring-0 transition-all resize-none",
+                                                compactLayout ? "min-h-[58px] text-[13px]" : "min-h-[80px] text-[15px]",
+                                            )}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleChatRefine();
+                                                }
+                                            }}
+                                        />
+                                        <Button
+                                            size="icon"
+                                            className={cn("absolute right-2 bottom-2 rounded-xl shadow-xl hover:scale-105 transition-transform", compactLayout ? "h-8 w-8" : "h-10 w-10")}
+                                            onClick={handleChatRefine}
+                                            disabled={isStreaming || !chatInput.trim()}
+                                        >
+                                            {isStreaming ? <Loader2 className={compactLayout ? "w-4 h-4 animate-spin" : "w-5 h-5 animate-spin"} /> : <Send className={compactLayout ? "w-4 h-4" : "w-5 h-5"} />}
+                                        </Button>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <Button
+                                            variant="outline"
+                                            className={cn("flex-1 rounded-2xl font-medium border-slate-200 hover:bg-slate-50 transition-colors", compactLayout ? "h-10 text-sm" : "h-12")}
+                                            onClick={() => setMode("stadri")}
+                                        >
+                                            처음부터 다시 쓰기
+                                        </Button>
+                                        <Button
+                                            className={cn("flex-[2] rounded-2xl font-bold bg-slate-900 border-none hover:bg-slate-800 shadow-xl transition-all", compactLayout ? "h-10 text-sm" : "h-12")}
+                                            onClick={applyToResume}
+                                        >
+                                            <CheckCircle2 className={cn("mr-2", compactLayout ? "w-4 h-4" : "w-5 h-5")} />
+                                            {isWizard ? "이 내용으로 가이드 완료하기" : "이력서에 즉시 반영하기"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );

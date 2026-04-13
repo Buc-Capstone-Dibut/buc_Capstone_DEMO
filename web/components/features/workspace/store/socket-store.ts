@@ -174,6 +174,17 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       set({ isConnected: false });
     });
 
+    socket.on(
+      "workspace:readonly",
+      (payload: { projectId?: string; message?: string }) => {
+        toast.error(
+          payload?.message ||
+            "이 워크스페이스는 종료되어 실시간 기능이 중지되었습니다.",
+        );
+        get().disconnectSocket();
+      },
+    );
+
     socket.on("chat:message", (message: Message) => {
       const state = get();
 

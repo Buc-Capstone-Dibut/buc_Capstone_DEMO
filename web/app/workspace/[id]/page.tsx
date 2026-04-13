@@ -12,6 +12,8 @@ import { WorkspaceSidebar } from "@/components/features/workspace/detail/workspa
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Lock } from "lucide-react";
 
 const KanbanBoard = dynamic(
   () =>
@@ -166,6 +168,8 @@ type WorkspaceMeta = {
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
   result_type?: string | null;
   result_link?: string | null;
+  career_import_status?: "NONE" | "PENDING" | "IMPORTED";
+  career_imported_experience_id?: string | null;
 };
 
 const fetcher = async (url: string) => {
@@ -202,6 +206,8 @@ export default function WorkspaceDetailPage() {
   const isReadOnly = Boolean(
     workspaceMeta?.read_only || workspaceMeta?.lifecycle_status === "COMPLETED",
   );
+  const isCompleted = workspaceMeta?.lifecycle_status === "COMPLETED";
+  const hasWorkspaceMeta = Boolean(workspaceMeta);
 
   const handleTabChange = async (
     tab: string,
@@ -261,16 +267,42 @@ export default function WorkspaceDetailPage() {
   }, [searchParams, setActiveTaskId]);
 
   useEffect(() => {
-    if (projectId && user) {
-      const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
-      connectSocket(url, user.id, projectId);
+    if (!projectId || !user || !hasWorkspaceMeta) {
+      return;
     }
+
+    if (isReadOnly) {
+      disconnectSocket();
+      return;
+    }
+
+    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
+    connectSocket(url, user.id, projectId);
+
     return () => {
       disconnectSocket();
     };
-  }, [projectId, user, connectSocket, disconnectSocket]);
+  }, [
+    connectSocket,
+    disconnectSocket,
+    isReadOnly,
+    projectId,
+    user,
+    hasWorkspaceMeta,
+  ]);
 
   const renderContent = () => {
+    if (isReadOnly && (activeTab.startsWith("chat-") || activeTab === "huddle")) {
+      return (
+        <div className="h-full p-6">
+          <div className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">
+            종료된 워크스페이스는 실시간 채팅/음성 기능이 중지됩니다.
+            개요, 보드, 문서 등 읽기 전용 탭에서 기록을 확인할 수 있습니다.
+          </div>
+        </div>
+      );
+    }
+
     // ... (existing switch case) ...
     // Copy existing renderContent logic here
     if (activeTab.startsWith("chat-")) {
@@ -321,6 +353,24 @@ export default function WorkspaceDetailPage() {
           />
         );
       case "ideas":
+        if (isCompleted) {
+          return (
+            <div className="h-full p-6">
+              <div className="flex h-full items-center justify-center rounded-xl border bg-muted/30 p-8">
+                <div className="max-w-md text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border bg-background text-muted-foreground">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-semibold">종료된 워크스페이스입니다</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    아이디어 보드는 종료 후 편집이 잠깁니다. 개요, 문서, 결과 탭에서
+                    기록만 확인할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="h-full">
             <IdeaBoard projectId={projectId} readOnly={isReadOnly} />
@@ -394,6 +444,24 @@ export default function WorkspaceDetailPage() {
                     결과 링크
                   </a>
                 )}
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  <a
+                    href={
+                      workspaceMeta?.career_import_status === "IMPORTED"
+                        ? "/career/experiences"
+                        : `/career/experiences/new?workspaceId=${projectId}`
+                    }
+                  >
+                    {workspaceMeta?.career_import_status === "IMPORTED"
+                      ? "수정하러 가기"
+                      : "내 경험으로 등록하기"}
+                  </a>
+                </Button>
               </div>
             </div>
           </div>

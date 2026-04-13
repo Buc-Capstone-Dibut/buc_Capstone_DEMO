@@ -7,7 +7,7 @@ export default async function NewExperiencePage() {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    redirect("/login");
+    redirect("/login?next=/career/experiences/new");
   }
 
   return (

@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import {
   Dialog,
   DialogContent,
@@ -91,8 +92,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
   const [deleting, setDeleting] = useState(false);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [resultType, setResultType] = useState("");
   const [resultLink, setResultLink] = useState("");
+  const [completionPeriod, setCompletionPeriod] = useState("");
+  const [completionTags, setCompletionTags] = useState("");
   const [resultNote, setResultNote] = useState("");
   const { data, isLoading } = useSWR(`/api/workspaces/${projectId}`, fetcher, {
     revalidateOnFocus: false,
@@ -133,7 +135,6 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (!data) return;
-    setResultType(data.result_type || "");
     setResultLink(data.result_link || "");
     setResultNote(data.result_note || "");
   }, [data]);
@@ -174,8 +175,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resultType,
           resultLink,
+          periodLabel: completionPeriod,
+          focusTags: completionTags,
           resultNote,
         }),
       });
@@ -185,7 +187,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         throw new Error(result.error || "팀 공간 종료에 실패했습니다.");
       }
 
-      toast.success("팀 공간이 종료되어 읽기 전용으로 전환되었습니다.");
+      toast.success("팀 공간이 종료되어 읽기 전용 전환 및 커리어 후보 생성이 완료되었습니다.");
       setCompleteDialogOpen(false);
       void globalMutate(`/api/workspaces/${projectId}`);
       void globalMutate("/api/workspaces");
@@ -285,7 +287,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 rel="noreferrer"
                 className="inline-flex text-primary underline underline-offset-4"
               >
-                결과 링크 열기
+                GitHub 링크 열기
               </a>
             )}
           </CardContent>
@@ -456,8 +458,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         onOpenChange={(open) => {
           setCompleteDialogOpen(open);
           if (!open && data) {
-            setResultType(data.result_type || "");
             setResultLink(data.result_link || "");
+            setCompletionPeriod("");
+            setCompletionTags("");
             setResultNote(data.result_note || "");
           }
         }}
@@ -467,27 +470,42 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
             <DialogTitle>팀 공간 종료</DialogTitle>
             <DialogDescription>
               종료하면 모든 쓰기 기능이 차단되고 읽기 전용으로 전환됩니다.
+              입력한 진행 기간, 핵심 태그, 결과 메모는 참여자별 커리어관리 탭의
+              경험 불러오기 후보 생성에 활용되어, 각자 경험 초안으로 바로 가져올 수
+              있습니다.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="resultType">결과 타입 (선택)</Label>
-              <Input
-                id="resultType"
-                value={resultType}
-                onChange={(e) => setResultType(e.target.value)}
-                placeholder="예: 완료, 수상, 중단"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="resultLink">결과 링크 (선택)</Label>
+              <Label htmlFor="resultLink">GitHub 링크 (선택)</Label>
               <Input
                 id="resultLink"
                 value={resultLink}
                 onChange={(e) => setResultLink(e.target.value)}
-                placeholder="https://..."
+                placeholder="https://... (예: GitHub 저장소)"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="completionPeriod">진행 기간 (커리어용, 선택)</Label>
+              <div id="completionPeriod" className="rounded-lg border bg-muted/20 p-3">
+                <MonthRangePicker
+                  value={completionPeriod}
+                  onChange={setCompletionPeriod}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="completionTags">핵심 태그 (커리어용, 선택)</Label>
+              <Input
+                id="completionTags"
+                value={completionTags}
+                onChange={(e) => setCompletionTags(e.target.value)}
+                placeholder="예: React, 협업, 문제해결"
+              />
+              <p className="text-xs text-muted-foreground">
+                쉼표(,)로 구분하면 커리어관리 경험 불러오기 후보 태그로 반영됩니다.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="resultNote">결과 메모 (선택)</Label>
@@ -498,6 +516,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 placeholder="종료 결과를 간단히 남겨주세요."
                 className="resize-none"
               />
+              <p className="text-xs text-muted-foreground">
+                커리어관리에서 경험 불러오기 시 1줄 요약/결과 설명 초안으로 사용됩니다.
+              </p>
             </div>
           </div>
 

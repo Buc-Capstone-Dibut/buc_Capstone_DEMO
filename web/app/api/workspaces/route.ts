@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
 import { normalizeTeamType } from "@/lib/team-types";
+import { getWorkspaceCareerImportCandidates } from "@/lib/server/workspace-career-import";
 import {
   normalizeWorkspaceCategory,
   seedWorkspaceDefaults,
@@ -12,6 +13,7 @@ import {
 
 type WorkspaceMembership = {
   role: string;
+  team_role: string | null;
   joined_at: Date;
   workspace: {
     id: string;
@@ -64,6 +66,7 @@ export async function GET() {
         },
         select: {
           role: true,
+          team_role: true,
           joined_at: true,
           workspace: {
             select: {
@@ -94,6 +97,7 @@ export async function GET() {
         where: { user_id: userId },
         select: {
           role: true,
+          team_role: true,
           joined_at: true,
           workspace: {
             select: {
@@ -127,6 +131,10 @@ export async function GET() {
     }
 
     const workspaceIds = memberships.map((m) => m.workspace.id);
+    const careerImportCandidates = await getWorkspaceCareerImportCandidates(userId);
+    const careerImportByWorkspaceId = new Map(
+      careerImportCandidates.map((candidate) => [candidate.workspaceId, candidate]),
+    );
 
     // 2단계: 워크스페이스별 최근 멤버 4명만 SQL 레벨에서 조회
     type RecentMemberRow = {
@@ -163,6 +171,75 @@ export async function GET() {
         `
       : [];
 
+    type TaskStatRow = {
+      workspace_id: string;
+      assigned_count: number;
+      completed_count: number;
+    };
+    const taskStatsRaw = workspaceIds.length
+      ? await prisma.$queryRaw<TaskStatRow[]>`
+          SELECT
+            kc.workspace_id::text AS workspace_id,
+            COUNT(kt.id)::int AS assigned_count,
+            SUM(
+              CASE
+                WHEN COALESCE(LOWER(TRIM(kc.category)), '') IN ('done', 'completed')
+                  OR LOWER(REGEXP_REPLACE(TRIM(kc.title), '\s+', '-', 'g')) IN ('done', 'completed', 'finished')
+                THEN 1
+                ELSE 0
+              END
+            )::int AS completed_count
+          FROM "public"."kanban_tasks" kt
+          JOIN "public"."kanban_columns" kc
+            ON kc.id = kt.column_id
+          WHERE kt.assignee_id = ${userId}::uuid
+            AND kc.workspace_id IN (${workspaceIdParams})
+          GROUP BY kc.workspace_id
+        `
+      : [];
+
+    type TaskTitleRow = {
+      workspace_id: string;
+      title: string;
+    };
+    const taskTitlesRaw = workspaceIds.length
+      ? await prisma.$queryRaw<TaskTitleRow[]>`
+          SELECT
+            ranked.workspace_id::text AS workspace_id,
+            ranked.title
+          FROM (
+            SELECT
+              kc.workspace_id,
+              kt.title,
+              ROW_NUMBER() OVER (
+                PARTITION BY kc.workspace_id
+                ORDER BY kt.updated_at DESC
+              ) AS rn
+            FROM "public"."kanban_tasks" kt
+            JOIN "public"."kanban_columns" kc
+              ON kc.id = kt.column_id
+            WHERE kt.assignee_id = ${userId}::uuid
+              AND kc.workspace_id IN (${workspaceIdParams})
+          ) ranked
+          WHERE ranked.rn <= 3
+          ORDER BY ranked.workspace_id, ranked.rn
+        `
+      : [];
+
+    const taskStatByWs = new Map<string, TaskStatRow>();
+    for (const row of taskStatsRaw) {
+      taskStatByWs.set(row.workspace_id, row);
+    }
+
+    const taskTitlesByWs = new Map<string, string[]>();
+    for (const row of taskTitlesRaw) {
+      const list = taskTitlesByWs.get(row.workspace_id) ?? [];
+      if (row.title?.trim()) {
+        list.push(row.title.trim());
+      }
+      taskTitlesByWs.set(row.workspace_id, list);
+    }
+
     const recentMembersByWs = new Map<
       string,
       { id: string; nickname: string | null; avatar_url: string | null }[]
@@ -180,8 +257,23 @@ export async function GET() {
     const workspaces = memberships.map((m) => ({
       ...m.workspace,
       my_role: m.role,
+      my_team_role: m.team_role,
       member_count: m.workspace._count.members,
       recent_members: recentMembersByWs.get(m.workspace.id) ?? [],
+      my_task_stats: {
+        assigned_count: taskStatByWs.get(m.workspace.id)?.assigned_count ?? 0,
+        completed_count: taskStatByWs.get(m.workspace.id)?.completed_count ?? 0,
+        in_progress_count: Math.max(
+          0,
+          (taskStatByWs.get(m.workspace.id)?.assigned_count ?? 0) -
+            (taskStatByWs.get(m.workspace.id)?.completed_count ?? 0),
+        ),
+        recent_titles: taskTitlesByWs.get(m.workspace.id) ?? [],
+      },
+      career_import_status:
+        careerImportByWorkspaceId.get(m.workspace.id)?.status ?? "NONE",
+      career_imported_experience_id:
+        careerImportByWorkspaceId.get(m.workspace.id)?.importedExperienceId ?? null,
     }));
 
     return NextResponse.json(workspaces);

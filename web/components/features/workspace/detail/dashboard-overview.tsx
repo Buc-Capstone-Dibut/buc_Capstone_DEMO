@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react";
 import { ProjectHero } from "./overview/project-hero";
 import { WorkspaceResultCard } from "./overview/workspace-result-card";
 import { TeamPulse } from "./overview/team-pulse";
-import { UpcomingEvents } from "./overview/upcoming-events";
 import { DashboardCalendar } from "./overview/dashboard-calendar";
 
 interface DashboardOverviewProps {
@@ -30,9 +29,6 @@ type BoardTask = {
   id: string;
   title: string;
   status?: string;
-  dueDate?: string | null;
-  priority?: string | null;
-  assignee?: string | { name?: string | null } | null;
 };
 
 type BoardData = {
@@ -79,8 +75,11 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
 
       <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-6">
-          <UpcomingEvents projectId={projectId} tasks={tasks} />
-          <TeamPulse members={boardData?.members ?? []} projectId={projectId} />
+          <TeamPulse
+            members={boardData?.members ?? []}
+            projectId={projectId}
+            lifecycleStatus={project?.lifecycle_status}
+          />
           {showResultCard && (
             <WorkspaceResultCard
               lifecycleStatus={project?.lifecycle_status}

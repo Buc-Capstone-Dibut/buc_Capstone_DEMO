@@ -198,6 +198,20 @@ export function NotificationCenter() {
                       읽음 처리
                     </button>
                   )}
+                  {notification.type !== "INVITE" && notification.link && (
+                    <a
+                      href={notification.link}
+                      className="text-[10px] text-primary hover:underline self-start mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleMarkAsRead(notification.id);
+                      }}
+                    >
+                      {notification.link.includes("/career/experiences/new")
+                        ? "새 경험 추가로 이동"
+                        : "바로가기"}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

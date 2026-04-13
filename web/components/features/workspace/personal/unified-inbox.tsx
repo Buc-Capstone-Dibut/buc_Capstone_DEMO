@@ -197,14 +197,27 @@ export function UnifiedInbox() {
 
                   {!isInvite && (
                     <div className="flex items-center gap-2 mt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        asChild
-                      >
-                        <a href={noti.link || "#"}>View context</a>
-                      </Button>
+                      {noti.link ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          asChild
+                        >
+                          <a
+                            href={noti.link}
+                            onClick={() => {
+                              if (!noti.is_read) {
+                                void markAsRead(noti.id);
+                              }
+                            }}
+                          >
+                            {noti.link.includes("/career/experiences/new")
+                              ? "새 경험 추가로 이동"
+                              : "바로가기"}
+                          </a>
+                        </Button>
+                      ) : null}
                       {!noti.is_read && (
                         <Button
                           variant="ghost"

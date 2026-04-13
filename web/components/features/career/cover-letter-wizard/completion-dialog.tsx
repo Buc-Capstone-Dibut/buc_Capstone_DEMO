@@ -1,0 +1,50 @@
+"use client";
+
+import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+type CoverLetterWizardCompletionDialogProps = {
+  onContinue: () => void;
+  onClose: () => void;
+};
+
+export function CoverLetterWizardCompletionDialog({
+  onContinue,
+  onClose,
+}: CoverLetterWizardCompletionDialogProps) {
+  return (
+    <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl border bg-white shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+        <div className="px-6 py-6 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Sparkles className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">저장 완료</h2>
+          <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+            답변이 저장되었습니다.
+            <br />
+            자소서 관리 탭에서 바로 열람하고 이어서 수정할 수 있습니다.
+          </p>
+        </div>
+
+        <div className="border-t px-6 py-4 flex flex-col gap-2">
+          <Button
+            size="lg"
+            onClick={onContinue}
+            className="h-11 rounded-xl bg-primary text-white font-semibold"
+          >
+            자소서 관리에서 열람하기
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={onClose}
+            className="h-10 rounded-xl text-slate-600"
+          >
+            닫기
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

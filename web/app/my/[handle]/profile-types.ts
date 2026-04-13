@@ -89,6 +89,63 @@ export interface ResumePayload {
     content: string;
     createdAt: string;
     sourceExperienceIds: string[];
+    sourceExperienceSnapshot?: Array<{
+      id: string;
+      title: string;
+      tags: string[];
+      period?: string;
+      description?: string;
+      situation?: string;
+      role?: string;
+      solution?: string;
+      difficulty?: string;
+      result?: string;
+      lesson?: string;
+    }>;
+    applicationTarget?: string;
+    company?: string;
+    division?: string;
+    role?: string;
+    deadline?: string;
+    workspaceName?: string;
+    colorTag?: string;
+    questions?: Array<{
+      id: string;
+      title: string;
+      maxChars: number;
+      answer?: string;
+      status?: "draft" | "done";
+      updatedAt?: string;
+    }>;
+    chatHistory?: Array<{
+      role: "user" | "assistant";
+      content: string;
+      createdAt?: string;
+      suggestedAnswer?: string;
+    }>;
+    perQuestionChatHistory?: Record<
+      string,
+      Array<{
+        role: "user" | "assistant";
+        content: string;
+        createdAt?: string;
+        suggestedAnswer?: string;
+      }>
+    >;
+    perQuestionWorkflow?: Record<
+      string,
+      {
+        stage: "direction" | "draft" | "refine" | "confirm";
+        directionAgreedAt?: string;
+        draftRequestedAt?: string;
+        refineCount?: number;
+        confirmedAt?: string;
+        competency?: boolean;
+        tone?: boolean;
+        impact?: boolean;
+        ready?: boolean;
+      }
+    >;
   }>;
 }
 

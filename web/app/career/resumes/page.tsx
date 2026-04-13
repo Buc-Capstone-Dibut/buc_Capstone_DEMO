@@ -10,7 +10,7 @@ export default async function CareerResumesPage() {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    redirect("/login");
+    redirect("/login?next=/career/resumes");
   }
 
   const userId = session.user.id;
@@ -21,9 +21,18 @@ export default async function CareerResumesPage() {
   });
 
   const resumes: ResumeListItem[] = userResumes.map(r => {
-    const payload = (r.resume_payload as any) || {};
-    const skills = payload.skills || [];
-    const techStack = skills.slice(0, 5).map((s: any) => s.name).filter(Boolean);
+    const payload = (r.resume_payload as Record<string, unknown> | null) || {};
+    const rawSkills = Array.isArray(payload.skills) ? payload.skills : [];
+    const techStack = rawSkills
+      .slice(0, 5)
+      .map((s) => {
+        if (typeof s === "object" && s !== null && "name" in s) {
+          const maybeName = (s as { name?: unknown }).name;
+          return typeof maybeName === "string" ? maybeName : "";
+        }
+        return "";
+      })
+      .filter(Boolean);
     
     return {
       id: r.id,
