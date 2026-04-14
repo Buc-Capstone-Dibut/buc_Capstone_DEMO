@@ -170,7 +170,6 @@ export function useCoverLetterWizard({
 }: CoverLetterWizardOverlayProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const chatBottomRef = useRef<HTMLDivElement>(null);
   const introRequestedQuestionIdsRef = useRef<Set<string>>(new Set());
   const [resumePayload] = useState<ResumePayload>(EMPTY_RESUME);
   const [phase, setPhase] = useState<Phase>("intake");
@@ -390,17 +389,6 @@ export function useCoverLetterWizard({
       setPhase("completed");
     }
   }, [persistState, initialCoverLetterId]);
-
-  useEffect(() => {
-    const messagesForScroll =
-      selectedQuestionId && questionMessages[selectedQuestionId]
-        ? questionMessages[selectedQuestionId]
-        : [];
-    if (messagesForScroll.length === 0 && !isStreaming) return;
-    if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: "auto", block: "end" });
-    }
-  }, [questionMessages, selectedQuestionId, isStreaming]);
 
   const questionSummary = useMemo(
     () =>
@@ -1437,7 +1425,6 @@ export function useCoverLetterWizard({
     streamPhaseLabel,
     lastAiError,
     requestBanner,
-    chatBottomRef,
     selectedQuestion,
     selectedQuestionId,
     activeMessages,
