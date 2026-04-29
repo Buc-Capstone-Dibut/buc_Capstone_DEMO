@@ -1,6 +1,6 @@
 import { AnalysisResult } from "@/store/interview-setup-store";
 import { clampScore, getTypeLabels, getTypeName } from "@/lib/interview/report/dibeot-axis";
-import { DibeotAxisScores, MockInterviewReportModel, ReportAxisEvidence, ReportMetric } from "@/lib/interview/report/report-types";
+import { DibeotAxisScores, MockInterviewReportModel, ReportAxisEvidence, ReportMetaItem, ReportMetric } from "@/lib/interview/report/report-types";
 
 interface ReportViewQuestionFinding {
   question?: string;
@@ -169,6 +169,36 @@ function buildHeroMetrics(session?: SessionReportMeta, analysisMode: "full" | "s
   void session;
   void analysisMode;
   return [];
+}
+
+function isGenericInterviewContext(company: string): boolean {
+  const normalized = company.replace(/\s+/g, "").trim();
+  return (
+    !normalized ||
+    normalized === "모의면접" ||
+    normalized.includes("직무기반모의면접") ||
+    normalized.includes("역할기반모의면접")
+  );
+}
+
+function buildInterviewContextLabel(company: string, role: string): string {
+  if (isGenericInterviewContext(company)) {
+    return `${role} 직무 기반 모의면접`;
+  }
+
+  return `${company}의 ${role} 면접`;
+}
+
+function buildCompanyMetaItem(company: string, originalUrl: string): ReportMetaItem {
+  if (originalUrl) {
+    return { label: "채용공고", value: company || "채용공고", href: originalUrl, hrefLabel: "원본 URL" };
+  }
+
+  if (isGenericInterviewContext(company)) {
+    return { label: "면접 유형", value: company || "직무 기반 모의면접" };
+  }
+
+  return { label: "회사", value: company };
 }
 
 function buildSummaryTypeName(
@@ -389,11 +419,12 @@ export function buildSessionInterviewReportModel({
   const primaryImprovement = improvements[0] || "답변 첫 문장의 밀도를 높여보세요.";
   const primaryStrength = strengths[0] || "직무 이해도와 답변 구조가 안정적입니다.";
   const summary = String(reportView?.summary || analysis?.summary || `${primaryStrength} 다만 ${primaryImprovement} 흐름을 보완하면 전체 인상이 더 강해집니다.`).trim();
+  const interviewContextLabel = buildInterviewContextLabel(company, role);
   const fitSummary = String(
     analysis?.fitSummary ||
       (hasDetailedAnalysis
-        ? `${company}의 ${role} 면접 기준으로 보면, 답변의 구조와 직무 연결성은 좋았고 전달 밀도를 조금만 끌어올리면 더 강한 인상을 줄 수 있습니다.`
-        : `${company}의 ${role} 면접 기록을 기준으로 핵심 답변 흐름과 다음 액션을 먼저 요약했습니다.`),
+        ? `${interviewContextLabel} 기준으로 보면, 답변의 구조와 직무 연결성은 좋았고 전달 밀도를 조금만 끌어올리면 더 강한 인상을 줄 수 있습니다.`
+        : `${interviewContextLabel} 기록을 기준으로 핵심 답변 흐름과 다음 액션을 먼저 요약했습니다.`),
   ).trim();
 
   return {
@@ -407,9 +438,7 @@ export function buildSessionInterviewReportModel({
     heroMetrics: buildHeroMetrics(session, analysisMode),
     metaItems: [
       { label: "직무", value: role },
-      originalUrl
-        ? { label: "채용공고", value: company, href: originalUrl, hrefLabel: "원본 URL" }
-        : { label: "회사", value: company },
+      buildCompanyMetaItem(company, originalUrl),
       { label: "일시", value: formatDate(session?.createdAt) },
     ],
     axes,

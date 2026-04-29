@@ -157,6 +157,31 @@ test("session interview adapter builds summary-only report when analysis is miss
   assert.equal(model.axisEvidence[0]?.description.includes("중립값"), true);
 });
 
+test("session interview adapter labels role-based mock context as interview type", () => {
+  const model = buildSessionInterviewReportModel({
+    analysis: null,
+    reportView: {
+      sessionType: "live_interview",
+      analysisMode: "summary",
+      company: "직무 기반 모의면접",
+      role: "Frontend Engineer",
+      summary: "직무 기반 요약 리포트입니다.",
+    },
+    session: {
+      company: "직무 기반 모의면접",
+      role: "Frontend Engineer",
+      createdAt: 1710000000,
+      reportGenerationMeta: {
+        analysisMode: "summary",
+      },
+    },
+  });
+
+  assert.equal(model.metaItems[1]?.label, "면접 유형");
+  assert.equal(model.metaItems[1]?.value, "직무 기반 모의면접");
+  assert.match(model.fitSummary, /^Frontend Engineer 직무 기반 모의면접 기록을 기준으로/);
+});
+
 test("session interview adapter prefers backend profile when report view already has finalized profile", () => {
   const model = buildSessionInterviewReportModel({
     analysis: null,
