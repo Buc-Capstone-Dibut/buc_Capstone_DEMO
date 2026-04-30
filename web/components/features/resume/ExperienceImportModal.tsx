@@ -4,38 +4,39 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, Pickaxe, Briefcase } from "lucide-react";
-import { getAllExperiencesAction, type ExperienceInput } from "@/app/career/experiences/actions";
+import { getAllProjectsAction } from "@/app/career/projects/actions";
+import type { ProjectInput } from "@/app/career/projects/types";
 import { cn } from "@/lib/utils";
 
 interface ExperienceImportModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onImport: (selected: ExperienceInput[]) => void;
+    onImport: (selected: ProjectInput[]) => void;
 }
 
 export function ExperienceImportModal({ open, onOpenChange, onImport }: ExperienceImportModalProps) {
-    const [experiences, setExperiences] = useState<ExperienceInput[]>([]);
+    const [projects, setProjects] = useState<ProjectInput[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [importing, setImporting] = useState(false);
 
     useEffect(() => {
         if (open) {
-            fetchExperiences();
+            fetchProjects();
         } else {
             // Reset state when closed
             setSelectedIds([]);
         }
     }, [open]);
 
-    const fetchExperiences = async () => {
+    const fetchProjects = async () => {
         setLoading(true);
         try {
-            const exps = await getAllExperiencesAction();
+            const nextProjects = await getAllProjectsAction();
             // Sort by period descending ideally, but rely on DB order for now
-            setExperiences(exps);
+            setProjects(nextProjects);
         } catch (error) {
-            console.error("경험 목록을 불러오지 못했습니다.", error);
+            console.error("프로젝트 목록을 불러오지 못했습니다.", error);
         } finally {
             setLoading(false);
         }
@@ -50,7 +51,7 @@ export function ExperienceImportModal({ open, onOpenChange, onImport }: Experien
     const handleImport = () => {
         if (selectedIds.length === 0) return;
         setImporting(true);
-        const selected = experiences.filter(e => selectedIds.includes(e.id!));
+        const selected = projects.filter((project) => selectedIds.includes(project.id!));
         
         // Pass to parent
         onImport(selected);
@@ -65,10 +66,10 @@ export function ExperienceImportModal({ open, onOpenChange, onImport }: Experien
                 <DialogHeader className="px-6 py-5 bg-white border-b border-slate-100 shrink-0">
                     <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-800">
                         <Briefcase className="w-5 h-5 text-primary" />
-                        내 경험 보관함에서 불러오기
+                        프로젝트 보관함에서 불러오기
                     </DialogTitle>
                     <p className="text-sm text-slate-500 mt-1">
-                        이력서의 프로젝트 영역에 추가할 경험을 선택해주세요. 선택한 경험들은 프로젝트 목록으로 쏙 들어갑니다!
+                        이력서의 프로젝트 영역에 추가할 프로젝트를 선택해주세요.
                     </p>
                 </DialogHeader>
 
@@ -76,24 +77,24 @@ export function ExperienceImportModal({ open, onOpenChange, onImport }: Experien
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-20">
                             <Loader2 className="w-8 h-8 animate-spin text-primary/50 mb-4" />
-                            <p className="text-sm text-slate-500 font-medium">경험 데이터를 불러오고 있어요...</p>
+                            <p className="text-sm text-slate-500 font-medium">프로젝트 데이터를 불러오고 있어요...</p>
                         </div>
-                    ) : experiences.length === 0 ? (
+                    ) : projects.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                                 <Pickaxe className="w-8 h-8 text-slate-300" />
                             </div>
-                            <p className="text-slate-600 font-bold text-lg mb-2">아직 보관함에 작성된 경험이 없네요.</p>
-                            <p className="text-slate-400 text-sm">먼저 커리어 타임라인에 가서 나의 경험을 기록해보세요!</p>
+                            <p className="text-slate-600 font-bold text-lg mb-2">아직 보관함에 작성된 프로젝트가 없습니다.</p>
+                            <p className="text-slate-400 text-sm">먼저 프로젝트 보관함에서 프로젝트를 기록해주세요.</p>
                         </div>
                     ) : (
                         <div className="grid gap-4">
-                            {experiences.map((exp) => {
-                                const isSelected = selectedIds.includes(exp.id!);
+                            {projects.map((project) => {
+                                const isSelected = selectedIds.includes(project.id!);
                                 return (
                                     <div
-                                        key={exp.id}
-                                        onClick={() => toggleSelection(exp.id!)}
+                                        key={project.id}
+                                        onClick={() => toggleSelection(project.id!)}
                                         className={cn(
                                             "relative p-5 rounded-2xl border-2 transition-all cursor-pointer group hover:scale-[1.01]",
                                             isSelected 
@@ -113,20 +114,20 @@ export function ExperienceImportModal({ open, onOpenChange, onImport }: Experien
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-4 mb-2">
                                                     <h3 className={cn("font-bold text-base truncate transition-colors", isSelected ? "text-primary" : "text-slate-800")}>
-                                                        {exp.company || "(제목 없는 경험)"}
+                                                        {project.company || "(프로젝트명 없음)"}
                                                     </h3>
                                                     <span className="text-xs font-bold text-slate-400 shrink-0 bg-slate-100 px-2.5 py-1 rounded-md">
-                                                        {exp.period || "기간 미상"}
+                                                        {project.period || "기간 미상"}
                                                     </span>
                                                 </div>
                                                 
                                                 <p className="text-sm text-slate-600 line-clamp-2 mb-3 leading-relaxed">
-                                                    {exp.description || "요약 내용이 작성되지 않았습니다."}
+                                                    {project.description || "요약 내용이 작성되지 않았습니다."}
                                                 </p>
 
-                                                {(exp.tags?.length ?? 0) > 0 && (
+                                                {(project.tags?.length ?? 0) > 0 && (
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {exp.tags!.map(tag => (
+                                                        {project.tags!.map(tag => (
                                                             <span key={tag} className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                                                                 {tag}
                                                             </span>
@@ -144,7 +145,7 @@ export function ExperienceImportModal({ open, onOpenChange, onImport }: Experien
 
                 <div className="px-6 py-5 bg-white border-t border-slate-100 shrink-0 flex items-center justify-between">
                     <p className="text-sm font-medium text-slate-500">
-                        <strong className="text-primary">{selectedIds.length}개</strong>의 경험 선택됨
+                        <strong className="text-primary">{selectedIds.length}개</strong>의 프로젝트 선택됨
                     </p>
                     <div className="flex gap-3">
                         <Button variant="ghost" className="font-bold text-slate-500 hover:bg-slate-100" onClick={() => onOpenChange(false)}>

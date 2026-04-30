@@ -52,10 +52,18 @@ export type WizardForm = {
   questions: CoverLetterQuestion[];
 };
 
+export type CoverLetterQuestionPreset = {
+  id: string;
+  title: string;
+  maxChars: number;
+  description: string;
+};
+
 export type ExperienceSnapshot = {
   id: string;
   title: string;
   tags: string[];
+  techStack?: string[];
   period?: string;
   description?: string;
   situation?: string;
@@ -71,6 +79,69 @@ export const WIZARD_COMPLETED_KEY = "wizard_is_completed";
 export const WIZARD_CONTEXT_KEY = "wizard_context_data";
 export const WIZARD_EXPERIENCE_SNAPSHOT_KEY = "wizard_experience_snapshot";
 export const WIZARD_COVER_LETTER_SEED_KEY = "wizard_cover_letter_seed";
+
+export const COVER_LETTER_QUESTION_PRESETS: CoverLetterQuestionPreset[] = [
+  {
+    id: "self-introduction",
+    title: "자기소개",
+    maxChars: 500,
+    description: "성격, 강점, 가치관을 압축",
+  },
+  {
+    id: "motivation",
+    title: "지원동기",
+    maxChars: 700,
+    description: "회사/직무 적합성과 성장 계획",
+  },
+  {
+    id: "career-goal",
+    title: "입사 후 포부",
+    maxChars: 700,
+    description: "입사 후 포부 단독 문항",
+  },
+  {
+    id: "strength-weakness",
+    title: "장점과 단점",
+    maxChars: 600,
+    description: "강점/약점과 보완 노력",
+  },
+  {
+    id: "growth-background",
+    title: "성장 과정",
+    maxChars: 700,
+    description: "가치관 형성 배경",
+  },
+  {
+    id: "collaboration",
+    title: "협업 경험",
+    maxChars: 700,
+    description: "협업 방식과 기여도",
+  },
+  {
+    id: "challenge",
+    title: "도전 경험",
+    maxChars: 700,
+    description: "문제 해결 과정",
+  },
+  {
+    id: "conflict",
+    title: "갈등 해결",
+    maxChars: 700,
+    description: "커뮤니케이션 역량",
+  },
+  {
+    id: "job-competency",
+    title: "직무 역량",
+    maxChars: 800,
+    description: "직무역량/기술역량",
+  },
+  {
+    id: "representative-project",
+    title: "대표 프로젝트",
+    maxChars: 800,
+    description: "대표 프로젝트",
+  },
+] as const;
 
 export const COLOR_TAGS = [
   "#64748b",

@@ -68,7 +68,7 @@ export function CoverLetterWizardStudioSidebar({
 
       <div className="space-y-2 border-b border-slate-200 py-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-slate-500">기반 경험</h3>
+          <h3 className="text-xs font-semibold text-slate-500">기반 프로젝트</h3>
           <span className="text-[11px] text-slate-500">{experienceSnapshot.length}개</span>
         </div>
         <div className="space-y-2">
@@ -144,14 +144,14 @@ export function CoverLetterWizardStudioSidebar({
                     !experience.solution &&
                     !experience.result &&
                     !experience.lesson ? (
-                      <p className="text-slate-500">상세 경험 데이터가 없습니다.</p>
+                      <p className="text-slate-500">상세 프로젝트 데이터가 없습니다.</p>
                     ) : null}
                   </div>
                 )}
               </div>
             ))
           ) : (
-            <p className="text-[11px] text-slate-500">선택된 경험이 없습니다.</p>
+            <p className="text-[11px] text-slate-500">선택된 프로젝트가 없습니다.</p>
           )}
         </div>
       </div>

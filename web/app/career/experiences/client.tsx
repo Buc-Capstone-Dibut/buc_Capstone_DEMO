@@ -1,12 +1,12 @@
 "use client";
 
 import type { ExperienceInput } from "./actions";
-import { ExperienceTimelineScreen } from "@/components/features/career/experience-timeline/experience-timeline-screen";
+import { ProjectArchiveScreen } from "@/components/features/career/project-archive/project-archive-screen";
 
 export default function CareerTimelineClient({
   initialExperiences,
 }: {
   initialExperiences: ExperienceInput[];
 }) {
-  return <ExperienceTimelineScreen initialExperiences={initialExperiences} />;
+  return <ProjectArchiveScreen initialProjects={initialExperiences} />;
 }

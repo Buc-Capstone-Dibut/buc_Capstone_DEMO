@@ -1,46 +1,28 @@
-import { createClient } from "@/lib/supabase/server";
-import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import CareerTimelineClient from "./client";
-import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 
-export const dynamic = "force-dynamic";
+type RedirectPageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-export default async function CareerExperiencesPage() {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+function buildQuery(searchParams: RedirectPageProps["searchParams"]) {
+  const params = new URLSearchParams();
 
-  if (!session) {
-    redirect("/login?next=/career/experiences");
-  }
-
-  const userId = session.user.id;
-
-  // Retrieve master profile to get consolidated experience
-  const profile = await prisma.user_resume_profiles.findUnique({
-    where: { user_id: userId }
+  Object.entries(searchParams || {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => params.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      params.set(key, value);
+    }
   });
 
-  let experiences: NonNullable<ResumePayload["timeline"]> = [];
-  if (profile && profile.resume_payload) {
-    const payload = profile.resume_payload as unknown as ResumePayload;
-    experiences = payload.timeline || [];
-  } else {
-    // Fallback to active resume if profile doesn't exist yet
-    let activeResume = await prisma.user_resumes.findFirst({
-      where: { user_id: userId, is_active: true }
-    });
-    if (!activeResume) {
-      activeResume = await prisma.user_resumes.findFirst({
-        where: { user_id: userId },
-        orderBy: { created_at: 'desc' }
-      });
-    }
-    if (activeResume && activeResume.resume_payload) {
-      const payload = activeResume.resume_payload as unknown as ResumePayload;
-      experiences = payload.timeline || [];
-    }
-  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
 
-  return <CareerTimelineClient initialExperiences={experiences} />;
+export default function CareerExperiencesRedirect({
+  searchParams,
+}: RedirectPageProps) {
+  redirect(`/career/projects${buildQuery(searchParams)}`);
 }

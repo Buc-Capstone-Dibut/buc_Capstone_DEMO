@@ -207,8 +207,8 @@ export function NotificationCenter() {
                         void handleMarkAsRead(notification.id);
                       }}
                     >
-                      {notification.link.includes("/career/experiences/new")
-                        ? "새 경험 추가로 이동"
+                      {notification.link.includes("/career/projects/new")
+                        ? "새 프로젝트 추가로 이동"
                         : "바로가기"}
                     </a>
                   )}

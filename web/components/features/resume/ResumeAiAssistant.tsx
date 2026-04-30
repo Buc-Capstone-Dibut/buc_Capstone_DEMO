@@ -118,7 +118,7 @@ export function ResumeAiAssistant({
         setMode("chat");
         // 빈 assistant 메시지를 fetch 전에 미리 추가 → 스켈레톤이 바로 표시됨
         setMessages([
-            { role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." },
+            { role: "user", content: "내 프로젝트를 바탕으로 자기소개서를 작성해줘." },
             { role: "assistant", content: "" },
         ]);
         setIsStreaming(true);
@@ -128,7 +128,7 @@ export function ResumeAiAssistant({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    messages: [{ role: "user", content: "내 경험을 바탕으로 자기소개서를 작성해줘." }],
+                    messages: [{ role: "user", content: "내 프로젝트를 바탕으로 자기소개서를 작성해줘." }],
                     targetRole,
                     strengths,
                     backgroundContext,
@@ -321,10 +321,10 @@ export function ResumeAiAssistant({
                         )}
                     >
                         <Sparkles className="w-6 h-6 text-primary" />
-                        {isWizard ? "내 경험으로 맞춤형 자소서 생성하기" : "맞춤형 자소서 생성하기"}
+                        {isWizard ? "내 프로젝트로 맞춤형 자소서 생성하기" : "맞춤형 자소서 생성하기"}
                     </h3>
                     <p className={cn("text-muted-foreground leading-relaxed max-w-xl mx-auto", compactLayout ? "text-[13px]" : "text-[15px]")}>
-                        선택하신 경험 기록들을 바탕으로 압도적인 자기소개서를 작성합니다.<br />
+                        선택하신 프로젝트 기록들을 바탕으로 압도적인 자기소개서를 작성합니다.<br />
                         AI가 글을 잘 쓸 수 있도록 <strong className="text-foreground">지원 직무</strong>만 알려주세요.
                     </p>
                 </div>
@@ -575,7 +575,7 @@ export function ResumeAiAssistant({
                     AI 어시스턴트
                 </h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                    당신의 경험을 가장 빛나게 만들어줄 AI 코치입니다.
+                    당신의 프로젝트를 가장 빛나게 만들어줄 AI 코치입니다.
                 </p>
             </div>
 
@@ -586,7 +586,7 @@ export function ResumeAiAssistant({
                             <Sparkles className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold group-hover:text-primary transition-colors">STADRI 경험 빌더</p>
+                            <p className="text-sm font-bold group-hover:text-primary transition-colors">STADRI 프로젝트 빌더</p>
                             <p className="text-[11px] text-muted-foreground">기억나는 조각들로 전문성 있는 자소서 완성</p>
                         </div>
                     </CardContent>
@@ -650,7 +650,7 @@ export function ResumeAiAssistant({
                 <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full -mr-8 -mt-8" />
                 <p className="text-[10px] font-bold text-primary uppercase tracking-widest bg-primary/10 w-fit px-2 py-0.5 rounded-full">Pro Tip</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed relative z-10">
-                    단순 나열보다는 **배경(S)**과 **난관(D)**, 그리고 **성찰(I)**이 담긴 글이 채용우대 대상이 될 확률이 70% 이상 높습니다. 구체적인 경험을 문장으로 녹여낼 때 STADRI 빌더가 가장 큰 힘이 됩니다.
+                    단순 나열보다는 **배경(S)**과 **난관(D)**, 그리고 **성찰(I)**이 담긴 글이 채용우대 대상이 될 확률이 70% 이상 높습니다. 구체적인 프로젝트를 문장으로 녹여낼 때 STADRI 빌더가 가장 큰 힘이 됩니다.
                 </p>
             </div>
         </div>

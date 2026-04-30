@@ -471,7 +471,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
             <DialogDescription>
               종료하면 모든 쓰기 기능이 차단되고 읽기 전용으로 전환됩니다.
               입력한 진행 기간, 핵심 태그, 결과 메모는 참여자별 커리어관리 탭의
-              경험 불러오기 후보 생성에 활용되어, 각자 경험 초안으로 바로 가져올 수
+              프로젝트 불러오기 후보 생성에 활용되어, 각자 프로젝트 초안으로 바로 가져올 수
               있습니다.
             </DialogDescription>
           </DialogHeader>
@@ -504,7 +504,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 placeholder="예: React, 협업, 문제해결"
               />
               <p className="text-xs text-muted-foreground">
-                쉼표(,)로 구분하면 커리어관리 경험 불러오기 후보 태그로 반영됩니다.
+                쉼표(,)로 구분하면 커리어관리 프로젝트 불러오기 후보 태그로 반영됩니다.
               </p>
             </div>
             <div className="space-y-2">
@@ -517,7 +517,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground">
-                커리어관리에서 경험 불러오기 시 1줄 요약/결과 설명 초안으로 사용됩니다.
+                커리어관리에서 프로젝트 불러오기 시 1줄 요약/결과 설명 초안으로 사용됩니다.
               </p>
             </div>
           </div>

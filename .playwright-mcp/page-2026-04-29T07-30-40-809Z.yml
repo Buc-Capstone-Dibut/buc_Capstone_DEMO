@@ -1,0 +1,68 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Dibut" [ref=e6] [cursor=pointer]:
+          - /url: /
+        - navigation [ref=e7]:
+          - link "인사이트" [ref=e9] [cursor=pointer]:
+            - /url: /insights/tech-blog
+            - button "인사이트" [ref=e10]
+          - link "커뮤니티" [ref=e12] [cursor=pointer]:
+            - /url: /community
+            - button "커뮤니티" [ref=e13]
+          - link "워크스페이스" [ref=e15] [cursor=pointer]:
+            - /url: /workspace
+            - button "워크스페이스" [ref=e16]
+          - link "커리어 관리" [ref=e18] [cursor=pointer]:
+            - /url: /career
+            - button "커리어 관리" [ref=e19]
+          - link "AI 면접" [ref=e21] [cursor=pointer]:
+            - /url: /interview
+            - button "AI 면접" [ref=e22]
+        - generic [ref=e23]:
+          - button [ref=e24] [cursor=pointer]:
+            - img
+          - button [ref=e25] [cursor=pointer]:
+            - img
+    - generic [ref=e28]:
+      - generic [ref=e31]:
+        - link "프로젝트 보관함" [ref=e32] [cursor=pointer]:
+          - /url: /career/projects
+          - img [ref=e33]
+          - text: 프로젝트 보관함
+        - link "경력 보관함" [ref=e35] [cursor=pointer]:
+          - /url: /career/work-experience
+          - img [ref=e36]
+          - text: 경력 보관함
+        - link "자소서 관리" [ref=e40] [cursor=pointer]:
+          - /url: /career/cover-letters
+          - img [ref=e41]
+          - text: 자소서 관리
+        - link "포트폴리오 관리" [ref=e44] [cursor=pointer]:
+          - /url: /career/portfolios
+          - img [ref=e45]
+          - text: 포트폴리오 관리
+        - link "이력서 캐비닛" [ref=e51] [cursor=pointer]:
+          - /url: /career/resumes
+          - img [ref=e52]
+          - text: 이력서 캐비닛
+      - contentinfo [ref=e58]:
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - text: Dibut
+            - paragraph [ref=e62]: 개발자 성장 통합 플랫폼
+          - navigation [ref=e63]:
+            - link "인사이트" [ref=e64] [cursor=pointer]:
+              - /url: /insights/tech-blog
+            - link "커뮤니티" [ref=e65] [cursor=pointer]:
+              - /url: /community
+            - link "워크스페이스" [ref=e66] [cursor=pointer]:
+              - /url: /workspace
+            - link "AI 면접" [ref=e67] [cursor=pointer]:
+              - /url: /interview
+          - paragraph [ref=e68]: © 2026 Dibut. All rights reserved.
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - alert [ref=e69]

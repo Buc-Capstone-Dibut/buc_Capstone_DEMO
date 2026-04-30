@@ -253,8 +253,8 @@ export async function POST(
             user_id: memberUserId,
             type: "SYSTEM",
             title: "워크스페이스 종료",
-            message: `'${workspaceSummary.name}' 워크스페이스가 종료되었습니다. 축하합니다! 새 경험 추가에서 활동을 불러와 커리어에 반영해보세요.`,
-            link: `/career/experiences/new?source=workspace-complete&workspaceId=${workspaceId}`,
+            message: `'${workspaceSummary.name}' 워크스페이스가 종료되었습니다. 새 프로젝트 추가에서 결과물을 불러와 커리어에 반영해보세요.`,
+            link: `/career/projects/new?source=workspace-complete&workspaceId=${workspaceId}`,
             is_read: false,
           })),
         });

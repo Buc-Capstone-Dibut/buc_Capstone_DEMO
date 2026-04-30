@@ -148,7 +148,7 @@ export default function CoverLettersClient({
   ]);
 
   const handleCreateNew = () => {
-    router.push("/career/experiences");
+    router.push("/career/projects");
   };
 
   const handleEditClick = () => {
@@ -429,7 +429,7 @@ export default function CoverLettersClient({
                       </div>
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <h4 className="text-[13px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-                          기반 경험
+                          기반 프로젝트
                         </h4>
                         <span className="text-[12px] font-semibold text-slate-500">
                           {(isEditing ? editingSourceExperiences : selectedSourceExperiences).length}개
@@ -522,7 +522,7 @@ export default function CoverLettersClient({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-500">연결된 경험 정보가 없습니다.</p>
+                          <p className="text-xs text-slate-500">연결된 프로젝트 정보가 없습니다.</p>
                         )}
                       </div>
                     </div>

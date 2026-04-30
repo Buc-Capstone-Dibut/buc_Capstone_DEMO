@@ -539,6 +539,8 @@ model profiles {
   activity_events    user_activity_events[]
   reputation_events  reputation_events[]
   resumes            user_resumes[]
+  portfolios         user_portfolios[]
+  portfolio_assets_created user_portfolio_assets[] @relation("PortfolioAssetCreator")
 
   @@schema("public")
 }
@@ -570,6 +572,63 @@ model user_resume_profiles {
   updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
   profiles         profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@schema("public")
+}
+
+model user_portfolios {
+  id               String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id          String                  @db.Uuid
+  title            String                  @default("새 포트폴리오")
+  slug             String
+  template_id      String                  @default("developer-minimal")
+  format           String                  @default("slide")
+  page_size        String                  @default("16:9")
+  orientation      String                  @default("landscape")
+  generation_preset String                 @default("interview-pitch")
+  source_project_id String?
+  source_project_title String?
+  is_public        Boolean                 @default(false)
+  document_payload Json
+  source_snapshot  Json
+  public_summary   Json
+  generation_plan   Json                    @default("{}")
+  generation_status String                  @default("idle")
+  generation_quality Json                   @default("{}")
+  template_blueprint Json                   @default("{}")
+  thumbnail_url     String?
+  generated_at      DateTime?               @db.Timestamptz(6)
+  canvas_version    Int                     @default(4)
+  published_at     DateTime?               @db.Timestamptz(6)
+  created_at       DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles         profiles                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assets           user_portfolio_assets[]
+
+  @@unique([user_id, slug])
+  @@index([user_id, updated_at(sort: Desc)])
+  @@index([user_id, format, updated_at(sort: Desc)])
+  @@index([user_id, source_project_id, updated_at(sort: Desc)])
+  @@index([user_id, generation_status, updated_at(sort: Desc)])
+  @@index([is_public, published_at(sort: Desc)])
+  @@schema("public")
+}
+
+model user_portfolio_assets {
+  id            String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  portfolio_id  String          @db.Uuid
+  user_id       String          @db.Uuid
+  storage_path  String
+  filename      String
+  mime_type     String
+  size_bytes    Int
+  width         Int?
+  height        Int?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  portfolio     user_portfolios @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator       profiles        @relation("PortfolioAssetCreator", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([portfolio_id, created_at(sort: Desc)])
+  @@index([user_id, created_at(sort: Desc)])
   @@schema("public")
 }
 
