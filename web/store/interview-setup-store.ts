@@ -11,12 +11,15 @@ export type InterviewSetupStep =
   | 'complete';  // Step 7: Completion
 
 export type InterviewLevel = 'auto' | 'new_grad' | 'junior' | 'mid' | 'senior';
+export type InterviewTrack = 'posting' | 'role';
 
 export interface JobData {
   role: string;
   company: string;
   originalText?: string; // For text-based input if implemented later
   interviewLevel?: InterviewLevel;
+  interviewTrack?: InterviewTrack;
+  sourceUrl?: string;
 
   // Enhanced Fields
   companyDescription: string; // 기업/서비스 소개

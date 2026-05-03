@@ -307,7 +307,30 @@ function ReportHeroBand({
 }) {
   return (
     <section className="border-b border-[#dfe5ec] bg-white">
-      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:px-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:py-14">
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:px-10 lg:grid-cols-[260px_minmax(0,1fr)] lg:py-14">
+        <div className="flex flex-col items-start border-b border-[#dfe5ec] pb-7 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-7">
+          <DibeotCharacter typeName={typeName} />
+          <div className="mt-12">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Sparkles className="h-4 w-4" />
+              디벗 유형
+            </div>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">
+              이번 면접에서 답변 흐름과 설명 방식이 남긴 인상을 캐릭터와 유형으로 요약했습니다.
+            </p>
+          </div>
+          {metrics.length > 0 ? (
+            <dl className="mt-5 w-full divide-y divide-[#e7edf3]">
+              {metrics.map((metric) => (
+                <div key={metric.label} className="flex items-baseline justify-between gap-4 py-3">
+                  <dt className="text-sm text-muted-foreground">{metric.label}</dt>
+                  <dd className="text-2xl font-bold">{metric.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="rounded-md border border-primary/10 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10">
@@ -344,29 +367,6 @@ function ReportHeroBand({
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="flex flex-col items-start border-l border-[#dfe5ec] pl-6">
-          <DibeotCharacter typeName={typeName} />
-          <div className="mt-12">
-            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-              <Sparkles className="h-4 w-4" />
-              디벗 유형
-            </div>
-            <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              이번 면접에서 답변 흐름과 근거 제시 방식이 남긴 인상을 캐릭터와 유형으로 요약했습니다.
-            </p>
-          </div>
-          {metrics.length > 0 ? (
-            <dl className="mt-5 divide-y divide-[#e7edf3]">
-              {metrics.map((metric) => (
-                <div key={metric.label} className="flex items-baseline justify-between gap-4 py-3">
-                  <dt className="text-sm text-muted-foreground">{metric.label}</dt>
-                  <dd className="text-2xl font-bold">{metric.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
         </div>
       </div>
     </section>

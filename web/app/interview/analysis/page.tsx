@@ -12,15 +12,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GlobalHeader } from "@/components/layout/global-header";
 import {
   ANALYSIS_HUB_AXES,
   AnalysisHubSourceSession,
   AnalysisHubTabKind,
   AnalysisHubQuadrantKey,
-  collectRecommendedActions,
-  collectRecurringWeaknesses,
   buildAnalysisHubSessions,
   computeAxisTrends,
   computeRepresentativeAxes,
@@ -72,32 +69,30 @@ function AxisCard({
         : `지금 답변 흐름은 ${dominant} 성향이 더 분명하게 드러납니다.`;
 
   return (
-    <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-      <CardContent className="space-y-4 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-foreground">{axis.label}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{axis.description}</p>
-          </div>
-          <div className="shrink-0 whitespace-nowrap rounded-2xl border border-[#e7ebf1] bg-[#fbfcfe] px-3 py-1.5 text-center text-xs font-semibold text-foreground">
-            {axis.left} ↔ {axis.right}
-          </div>
+    <div className="min-w-0 py-5 md:px-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{axis.label}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{axis.description}</p>
         </div>
+        <div className="shrink-0 whitespace-nowrap border border-[#e1e7ef] bg-[#fbfcfe] px-3 py-1.5 text-center text-xs font-semibold text-foreground">
+          {axis.left} ↔ {axis.right}
+        </div>
+      </div>
 
-        <div className="border-t border-[#eef2f6] pt-4">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-primary">{dominant}</span>
-            <span className="text-muted-foreground">쪽에 더 가까움</span>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{leaningText}</p>
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className={cn(isLeftDominant && "font-semibold text-foreground")}>{axis.left}</span>
-            <div className="h-px flex-1 bg-[#dfe5ee]" />
-            <span className={cn(!isLeftDominant && "font-semibold text-foreground")}>{axis.right}</span>
-          </div>
+      <div className="mt-4 border-t border-[#eef2f6] pt-4">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-semibold text-primary">{dominant}</span>
+          <span className="text-muted-foreground">쪽에 더 가까움</span>
         </div>
-      </CardContent>
-    </Card>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">{leaningText}</p>
+        <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className={cn(isLeftDominant && "font-semibold text-foreground")}>{axis.left}</span>
+          <div className="h-px flex-1 bg-[#dfe5ee]" />
+          <span className={cn(!isLeftDominant && "font-semibold text-foreground")}>{axis.right}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -131,84 +126,81 @@ function QuadrantMapCard({
   };
 
   return (
-    <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Sparkles className="h-5 w-5 text-primary" />
-          디벗 성향 맵
-        </CardTitle>
-        <CardDescription>실제 세션 평균을 기준으로 현재 답변 성향이 어디에 모이는지 보여줍니다.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="relative aspect-square rounded-[28px] border border-[#e7ebf1] bg-[#fbfcfe] p-4">
-          <div className="absolute inset-x-1/2 top-6 h-[calc(100%-3rem)] w-px -translate-x-1/2 bg-[#dfe5ee]" />
-          <div className="absolute inset-y-1/2 left-6 h-px w-[calc(100%-3rem)] -translate-y-1/2 bg-[#dfe5ee]" />
+    <div className="border-t border-[#dfe5ec] pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
+      <div className="flex items-center gap-2 text-lg font-bold">
+        <Sparkles className="h-5 w-5 text-primary" />
+        디벗 성향 맵
+      </div>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        실제 세션 평균을 기준으로 현재 답변 성향이 어디에 모이는지 보여줍니다.
+      </p>
 
-          {quadrantLabels.map((quadrant) => (
-            <div
-              key={quadrant.key}
-              className={cn(
-                "absolute text-[11px] leading-4",
-                quadrant.key === "tl" && "left-4 top-4",
-                quadrant.key === "tr" && "right-4 top-4",
-                quadrant.key === "bl" && "bottom-4 left-4",
-                quadrant.key === "br" && "bottom-4 right-4",
-                quadrant.key === quadrantKey ? "text-primary" : "text-muted-foreground/70",
-              )}
-            >
-              <p className="text-xs font-semibold text-foreground">{quadrant.title}</p>
-              <p className={cn("mt-1", quadrant.key === quadrantKey ? "text-primary/80" : "text-muted-foreground/60")}>
-                {quadrant.subtitle}
-              </p>
-            </div>
-          ))}
+      <div className="relative mt-5 aspect-square w-full max-w-[260px] border border-[#e1e7ef] bg-[#fbfcfe] p-3">
+        <div className="absolute inset-x-1/2 top-5 h-[calc(100%-2.5rem)] w-px -translate-x-1/2 bg-[#dfe5ee]" />
+        <div className="absolute inset-y-1/2 left-5 h-px w-[calc(100%-2.5rem)] -translate-y-1/2 bg-[#dfe5ee]" />
 
-          <div className="absolute left-1/2 top-2 -translate-x-1/2 text-[11px] font-medium text-muted-foreground">
-            안정 · 조정
-          </div>
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] font-medium text-muted-foreground">
-            실험 · 구축
-          </div>
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-muted-foreground">
-            구조 · 시스템
-          </div>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-muted-foreground">
-            탐색 · 구현
-          </div>
-
+        {quadrantLabels.map((quadrant) => (
           <div
-            className="absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-background bg-primary shadow-[0_0_0_10px_rgba(132,204,22,0.16)]"
-            style={{ left: `${point.x}%`, top: `${100 - point.y}%` }}
-          />
-          <div
-            className="absolute z-10 -translate-x-1/2 rounded-full bg-foreground px-3 py-1 text-[11px] font-semibold text-background shadow-sm"
-            style={{ left: `${point.x}%`, top: `calc(${100 - point.y}% + 20px)` }}
+            key={quadrant.key}
+            className={cn(
+              "absolute text-[10px] leading-3",
+              quadrant.key === "tl" && "left-3 top-3",
+              quadrant.key === "tr" && "right-3 top-3 text-right",
+              quadrant.key === "bl" && "bottom-3 left-3",
+              quadrant.key === "br" && "bottom-3 right-3 text-right",
+              quadrant.key === quadrantKey ? "text-primary" : "text-muted-foreground/70",
+            )}
           >
-            {typeName}
+            <p className="text-[11px] font-semibold text-foreground">{quadrant.title}</p>
+            <p className={cn("mt-1", quadrant.key === quadrantKey ? "text-primary/80" : "text-muted-foreground/60")}>
+              {quadrant.subtitle}
+            </p>
           </div>
+        ))}
+
+        <div className="absolute left-1/2 top-1.5 -translate-x-1/2 text-[10px] font-medium text-muted-foreground">
+          안정 · 조정
+        </div>
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[10px] font-medium text-muted-foreground">
+          실험 · 구축
+        </div>
+        <div className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">
+          구조 · 시스템
+        </div>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">
+          탐색 · 구현
         </div>
 
-        <div className="rounded-2xl border border-[#e7ebf1] bg-[#f8fafc] px-4 py-3 text-sm">
-          <p className="font-medium">{quadrantSummaryMap[quadrantKey]}</p>
-          <p className="mt-1 text-muted-foreground">
-            현재는 {dominantAxisText} 축의 존재감이 가장 크고, {unstableAxisText} 축에서 최근 변동이 큽니다.
-            다음에는 {growthAxisText} 축을 의식적으로 보완하는 흐름이 적합합니다.
-          </p>
+        <div
+          className="absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-background bg-primary shadow-[0_0_0_7px_rgba(132,204,22,0.16)]"
+          style={{ left: `${point.x}%`, top: `${100 - point.y}%` }}
+        />
+        <div
+          className="absolute z-10 -translate-x-1/2 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background shadow-sm"
+          style={{ left: `${point.x}%`, top: `calc(${100 - point.y}% + 16px)` }}
+        >
+          {typeName}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="mt-4 border-t border-[#eef2f6] pt-4 text-sm">
+        <p className="font-medium">{quadrantSummaryMap[quadrantKey]}</p>
+        <p className="mt-2 leading-6 text-muted-foreground">
+          현재는 {dominantAxisText} 축의 존재감이 가장 크고, {unstableAxisText} 축에서 최근 변동이 큽니다.
+          다음에는 {growthAxisText} 축을 조금 더 의식하는 흐름이 적합합니다.
+        </p>
+      </div>
+    </div>
   );
 }
 
 function LoadingCard() {
   return (
-    <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-      <CardContent className="space-y-3 p-6">
-        <div className="h-4 w-24 rounded-full bg-primary/10" />
-        <div className="h-6 w-2/3 rounded-full bg-muted" />
-        <div className="h-16 rounded-[18px] bg-muted/70" />
-      </CardContent>
-    </Card>
+    <div className="space-y-3 border-t border-[#dfe5ec] py-6">
+      <div className="h-4 w-24 rounded-full bg-primary/10" />
+      <div className="h-6 w-2/3 rounded-full bg-muted" />
+      <div className="h-16 bg-muted/70" />
+    </div>
   );
 }
 
@@ -219,9 +211,7 @@ export default function InterviewAnalysisPage() {
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [sourceSessions, setSourceSessions] = useState<AnalysisHubSourceSession[]>([]);
   const [displayName, setDisplayName] = useState("회원");
-  const [profileTags, setProfileTags] = useState<string[]>([]);
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
-  const [resolvedRecommendationTags, setResolvedRecommendationTags] = useState<string[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
 
   useEffect(() => {
@@ -270,6 +260,7 @@ export default function InterviewAnalysisPage() {
     () => (allSessions.length > 0 ? allSessions.slice(0, 6) : []),
     [allSessions],
   );
+  const recentSessionsPreview = useMemo(() => allSessions.slice(0, 3), [allSessions]);
   const representativeAxes = useMemo(
     () => computeRepresentativeAxes(recentProfileBase),
     [recentProfileBase],
@@ -285,8 +276,6 @@ export default function InterviewAnalysisPage() {
   const totalSessions = allSessions.length;
   const totalMockSessions = allSessions.filter((session) => session.kind === "mock").length;
   const totalDefenseSessions = allSessions.filter((session) => session.kind === "defense").length;
-  const recurringWeaknesses = useMemo(() => collectRecurringWeaknesses(recentProfileBase), [recentProfileBase]);
-  const recommendedActions = useMemo(() => collectRecommendedActions(recentProfileBase), [recentProfileBase]);
 
   const dominantAxis = ANALYSIS_HUB_AXES
     .map((axis) => ({ axis, distance: Math.abs(representativeAxes[axis.key] - 50) }))
@@ -336,7 +325,6 @@ export default function InterviewAnalysisPage() {
 
         if (!cancelled) {
           setDisplayName(nickname);
-          setProfileTags(techStack);
         }
 
         const { data: blogs, error: blogsError } = await supabase
@@ -357,14 +345,12 @@ export default function InterviewAnalysisPage() {
             representativeLabels,
             techStack,
           });
-          setResolvedRecommendationTags(ranked.resolvedRecommendationTags);
           setRecommendedBlogs(ranked.recommendedBlogs);
         }
       } catch (error) {
         console.error("추천 기술 블로그를 불러오지 못했습니다.", error);
         if (!cancelled) {
           setRecommendedBlogs([]);
-          setResolvedRecommendationTags([]);
         }
       } finally {
         if (!cancelled) {
@@ -383,11 +369,11 @@ export default function InterviewAnalysisPage() {
   const hasSessions = allSessions.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-foreground">
+    <div className="min-h-screen bg-white text-foreground">
       <GlobalHeader />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-8 md:px-10">
-        <section className="space-y-2">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-10 px-6 py-8 md:px-10">
+        <section className="border-b border-[#dfe5ec] pb-8">
           <div className="space-y-2">
             <h1 className="flex items-center gap-3 text-4xl font-black tracking-tight">
               <LayoutDashboard className="h-10 w-10 text-primary" />
@@ -404,7 +390,7 @@ export default function InterviewAnalysisPage() {
               ) : null}
             </div>
             <p className="text-lg text-muted-foreground">
-              실제 모의면접과 포트폴리오 디펜스 결과를 바탕으로 내 4축 성향과 최근 보완 포인트를 확인합니다.
+              실제 모의면접과 포트폴리오 디펜스 결과를 바탕으로 내 4축 성향과 최근 면접 흐름을 확인합니다.
             </p>
           </div>
           {sessionsError ? (
@@ -414,121 +400,174 @@ export default function InterviewAnalysisPage() {
           ) : null}
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
+        <section>
           {sessionsLoading ? (
-            <>
-              <LoadingCard />
-              <LoadingCard />
-            </>
+            <LoadingCard />
           ) : (
-            <>
-              <Card className="overflow-hidden rounded-[32px] border border-[#e7ebf1] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-                <CardContent className="space-y-6 p-6">
-                  <div className="grid gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
-                    <DibeotCharacter typeName={representativeTypeName} />
+            <div>
+              <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+                <div className="grid min-w-0 gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
+                  <DibeotCharacter typeName={representativeTypeName} />
 
-                    <div className="space-y-5">
-                      <div className="space-y-2">
-                        <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
-                          대표 디벗 유형
-                        </Badge>
-                        <h2 className="text-3xl font-black tracking-tight">{representativeTypeName}</h2>
-                        <p className="text-base font-medium text-foreground">{representativeLabels.join(" · ")}</p>
-                        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                          {hasSessions
-                            ? `최근 ${Math.min(recentProfileBase.length, 6)}개 세션을 종합하면 ${getDominantAxesText(representativeAxes)} 축이 가장 강하게 드러났습니다.`
-                            : "아직 분석할 세션이 없어 기본 축을 중립값으로 표시합니다."}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#eef2f6] pt-4 text-sm">
-                        {[
-                          { label: "총 분석 세션", value: `${totalSessions}회` },
-                          { label: "모의면접", value: `${totalMockSessions}회` },
-                          { label: "포트폴리오 디펜스", value: `${totalDefenseSessions}회` },
-                        ].map((item, index, array) => (
-                          <div key={item.label} className="flex items-center gap-1.5 text-muted-foreground">
-                            <span className="font-medium">{item.label}</span>
-                            <span>:</span>
-                            <span className="font-semibold text-foreground">{item.value}</span>
-                            {index < array.length - 1 ? <span className="ml-2 text-[#cfd6e2]">|</span> : null}
-                          </div>
-                        ))}
-                      </div>
+                  <div className="space-y-5">
+                    <div className="space-y-2">
+                      <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+                        대표 디벗 유형
+                      </Badge>
+                      <h2 className="text-3xl font-black tracking-tight">{representativeTypeName}</h2>
+                      <p className="text-base font-medium text-foreground">{representativeLabels.join(" · ")}</p>
+                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                        {hasSessions
+                          ? `최근 ${Math.min(recentProfileBase.length, 6)}개 세션을 종합하면 ${getDominantAxesText(representativeAxes)} 축이 가장 강하게 드러났습니다.`
+                          : "아직 분석할 세션이 없어 기본 축을 중립값으로 표시합니다."}
+                      </p>
                     </div>
-                  </div>
 
-                  <div className="rounded-[28px] border border-[#e7ebf1] bg-white px-5 py-4">
-                    <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">기록 허브</p>
-                        <p className="mt-1 text-xs text-muted-foreground">실제 리포트가 생성된 세션만 묶어 보여줍니다.</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <div className="inline-flex items-center rounded-full border border-[#e5eaf1] bg-[#f8fafc] p-1">
-                          {[
-                            { key: "all", label: "전체" },
-                            { key: "mock", label: "모의면접" },
-                            { key: "defense", label: "디펜스" },
-                          ].map((tab) => (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setSelectedTab(tab.key as AnalysisHubTabKind)}
-                              className={cn(
-                                "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                                selectedTab === tab.key
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground",
-                              )}
-                            >
-                              {tab.label}
-                            </button>
-                          ))}
+                    <div className="grid divide-y divide-[#eef2f6] border-y border-[#eef2f6] text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                      {[
+                        { label: "총 분석 세션", value: `${totalSessions}회` },
+                        { label: "모의면접", value: `${totalMockSessions}회` },
+                        { label: "포트폴리오 디펜스", value: `${totalDefenseSessions}회` },
+                      ].map((item) => (
+                        <div key={item.label} className="py-3 sm:px-4 sm:first:pl-0">
+                          <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                          <p className="mt-1 font-semibold text-foreground">{item.value}</p>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-                        <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
-                      </div>
+                <aside className="border-t border-[#dfe5ec] pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">최근 기록</p>
+                      <p className="mt-1 text-xs text-muted-foreground">바로 이어서 확인할 세션</p>
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">{recentSessionsPreview.length}개</span>
+                  </div>
+
+                  {recentSessionsPreview.length > 0 ? (
+                    <div className="mt-4 divide-y divide-[#eef2f6] border-y border-[#eef2f6]">
+                      {recentSessionsPreview.map((session) => (
+                        <button
+                          key={`recent-${session.id}`}
+                          type="button"
+                          onClick={() => router.push(session.href)}
+                          className="group flex w-full items-center justify-between gap-3 py-3 text-left transition-colors hover:bg-primary/[0.03]"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-semibold text-primary">
+                                {session.kind === "mock" ? "모의면접" : "디펜스"}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">{session.date}</span>
+                            </div>
+                            <p className="mt-1 truncate text-sm font-semibold text-foreground">{session.title}</p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{session.typeName}</p>
+                          </div>
+                          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-4 border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-5 text-sm text-muted-foreground">
+                      아직 확인할 기록이 없습니다.
+                    </div>
+                  )}
+                </aside>
+              </div>
+
+              <div className="mt-10 border-t border-[#dfe5ec] pt-6">
+                <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">기록 허브</p>
+                    <p className="mt-1 text-xs text-muted-foreground">실제 리포트가 생성된 세션만 묶어 보여줍니다.</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="inline-flex items-center border border-[#e5eaf1] bg-[#f8fafc] p-1">
+                      {[
+                        { key: "all", label: "전체" },
+                        { key: "mock", label: "모의면접" },
+                        { key: "defense", label: "디펜스" },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setSelectedTab(tab.key as AnalysisHubTabKind)}
+                          className={cn(
+                            "px-3 py-1.5 text-xs font-medium transition-all",
+                            selectedTab === tab.key
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
                     </div>
 
-                    {filteredSessions.length > 0 ? (
-                      <div className="divide-y divide-[#eef2f6]">
-                        {filteredSessions.slice(0, 6).map((session) => (
-                          <button
-                            key={session.id}
-                            type="button"
-                            onClick={() => router.push(session.href)}
-                            className="flex w-full items-center justify-between px-1 py-4 text-left transition-colors hover:bg-primary/[0.03]"
-                          >
-                            <div className="min-w-0 pr-4">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
-                                  {session.kind === "mock" ? "모의면접" : "포트폴리오 디펜스"}
-                                </Badge>
-                                <Badge variant="outline" className="rounded-full border-[#e5eaf1] bg-white text-muted-foreground">
-                                  {session.analysisQualityLabel}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">{session.date}</span>
-                              </div>
-                              <p className="mt-2 truncate text-sm font-semibold text-foreground">{session.title}</p>
-                              <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
-                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{session.summary}</p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-3">
-                              <span className="rounded-full bg-[#f2f4f8] px-3 py-1 text-xs font-medium">{session.typeName}</span>
-                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
-                        아직 분석할 세션이 없습니다. 면접이나 디펜스를 완료하면 여기서 실제 기록 기반 추세를 확인할 수 있습니다.
-                      </div>
-                    )}
+                    <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                {filteredSessions.length > 0 ? (
+                  <div className="divide-y divide-[#eef2f6]">
+                    {filteredSessions.slice(0, 6).map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => router.push(session.href)}
+                        className="grid w-full gap-3 px-1 py-4 text-left transition-colors hover:bg-primary/[0.03] md:grid-cols-[96px_minmax(0,1fr)_112px_150px_24px] md:items-center"
+                      >
+                        <div className="flex flex-wrap gap-1.5 md:block md:space-y-1.5">
+                          <span className="inline-flex text-xs font-semibold text-primary">
+                            {session.kind === "mock" ? "모의면접" : "디펜스"}
+                          </span>
+                          <span className="inline-flex text-xs text-muted-foreground md:block">
+                            {session.analysisQualityLabel}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{session.title}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{session.summary}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground md:text-right">{session.date}</span>
+                        <span className="text-xs font-semibold text-foreground md:text-right">{session.typeName}</span>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground md:justify-self-end" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                    아직 분석할 세션이 없습니다. 면접이나 디펜스를 완료하면 여기서 실제 기록 기반 추세를 확인할 수 있습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {!sessionsLoading ? (
+          <section className="border-t border-[#dfe5ec] pt-8">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+              <div className="min-w-0">
+                <p className="text-lg font-bold">4축 성향</p>
+                <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                  각 축은 최근 세션 답변에서 반복적으로 드러난 설명 방식과 판단 성향을 요약합니다.
+                </p>
+                <div className="mt-5 grid border-l border-t border-[#e7edf3] md:grid-cols-2">
+                  {ANALYSIS_HUB_AXES.map((axis) => (
+                    <div key={axis.key} className="min-w-0 border-b border-r border-[#e7edf3]">
+                      <AxisCard
+                        axis={axis}
+                        value={representativeAxes[axis.key]}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <QuadrantMapCard
                 point={quadrantPoint}
@@ -538,180 +577,77 @@ export default function InterviewAnalysisPage() {
                 unstableAxisText={unstableAxis ? unstableAxis.label : "최근 변화"}
                 growthAxisText={growthAxis ? growthAxis.label : "보완 축"}
               />
-            </>
-          )}
-        </section>
-
-        {!sessionsLoading ? (
-          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {ANALYSIS_HUB_AXES.map((axis) => (
-              <AxisCard
-                key={axis.key}
-                axis={axis}
-                value={representativeAxes[axis.key]}
-              />
-            ))}
+            </div>
           </section>
         ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                최근 반복된 보완 포인트
-              </CardTitle>
-              <CardDescription>최근 실제 세션에서 자주 반복된 약점만 추렸습니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recurringWeaknesses.length > 0 ? recurringWeaknesses.map((item, index) => (
-                <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="shrink-0 whitespace-nowrap border-[#e5eaf1] bg-white text-muted-foreground">
-                      보완 {index + 1}
-                    </Badge>
-                    <p className="text-sm font-semibold text-foreground">{item}</p>
-                  </div>
-                </div>
-              )) : (
-                <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
-                  아직 반복 약점을 집계할 세션이 충분하지 않습니다.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                다음 추천 훈련 액션
-              </CardTitle>
-              <CardDescription>실제 세션 리포트에서 자주 반복된 액션만 모았습니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recommendedActions.length > 0 ? recommendedActions.map((item, index) => (
-                <div key={item} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="shrink-0 whitespace-nowrap border-primary/20 bg-primary/5 text-primary">
-                      액션 {index + 1}
-                    </Badge>
-                    <p className="text-sm font-semibold text-foreground">{item}</p>
-                  </div>
-                </div>
-              )) : (
-                <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
-                  아직 추천 액션을 집계할 세션이 충분하지 않습니다.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
+        <section className="border-t border-[#dfe5ec] pt-8">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-lg font-bold">
                 <Sparkles className="h-5 w-5 text-primary" />
                 {displayName}님이 읽어보면 좋을 기술 블로그
-              </CardTitle>
-              <CardDescription>
-              반복 약점과 다음 액션, 최근 세션 맥락을 바탕으로 바로 도움이 될 글을 골랐습니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isRecommendationsLoading ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
-                    <div className="h-3 w-24 rounded-full bg-primary/10" />
-                    <div className="mt-3 h-5 w-3/4 rounded-full bg-muted" />
-                    <div className="mt-2 h-4 w-full rounded-full bg-muted/70" />
-                  </div>
-                ))
-              ) : recommendedBlogs.length > 0 ? (
-                recommendedBlogs.map((blog) => (
-                  <a
-                    key={blog.id}
-                    href={blog.external_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex w-full items-start justify-between rounded-[22px] border border-[#e7ebf1] bg-white px-4 py-4 text-left transition-all hover:border-primary/20 hover:bg-primary/[0.03]"
-                  >
-                    <div className="min-w-0 pr-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
-                          {blog.author}
-                        </Badge>
-                        {(blog.tags ?? []).slice(0, 2).map((tag) => (
-                          <span
-                            key={`${blog.id}-${tag}`}
-                            className="rounded-full bg-[#f4f6fa] px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{blog.title}</p>
-                      <p className="mt-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
-                    </div>
-                    <span className="mt-1 flex shrink-0 items-center gap-1 rounded-full bg-[#f4f6fa] px-3 py-1 text-xs font-medium text-foreground">
-                      원문 읽기
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </span>
-                  </a>
-                ))
-              ) : (
-                <div className="rounded-[22px] border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
-                  지금 추천할 기술 블로그를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.
+              </div>
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                최근 세션 맥락과 답변 성향을 바탕으로 바로 읽어볼 만한 글을 골랐습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 divide-y divide-[#e7edf3] border-y border-[#e7edf3]">
+            {isRecommendationsLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="py-5">
+                  <div className="h-3 w-24 rounded-full bg-primary/10" />
+                  <div className="mt-3 h-5 w-3/4 rounded-full bg-muted" />
+                  <div className="mt-2 h-4 w-full rounded-full bg-muted/70" />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                추천에 반영한 태그
-              </CardTitle>
-              <CardDescription>
-              반복 약점, 다음 액션, 최근 세션 맥락에서 직접 연결되는 태그를 우선 반영했습니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {resolvedRecommendationTags.length > 0 ? (
-                  resolvedRecommendationTags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary"
-                    >
-                      #{tag}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">기본 추천 태그를 준비 중입니다.</span>
-                )}
+              ))
+            ) : recommendedBlogs.length > 0 ? (
+              recommendedBlogs.map((blog) => (
+                <a
+                  key={blog.id}
+                  href={blog.external_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-start justify-between py-5 text-left transition-colors hover:bg-primary/[0.03]"
+                >
+                  <div className="min-w-0 pr-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
+                        {blog.author}
+                      </Badge>
+                      {(blog.tags ?? []).slice(0, 2).map((tag) => (
+                        <span
+                          key={`${blog.id}-${tag}`}
+                          className="rounded-full bg-[#f4f6fa] px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{blog.title}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
+                  </div>
+                  <span className="mt-1 flex shrink-0 items-center gap-1 bg-[#f4f6fa] px-3 py-1 text-xs font-medium text-foreground">
+                    원문 읽기
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </span>
+                </a>
+              ))
+            ) : (
+              <div className="border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                지금 추천할 기술 블로그를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.
               </div>
-
-              <div className="rounded-[22px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
-                <p className="text-sm font-semibold text-foreground">추천 기준</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  반복 약점과 다음 액션을 가장 먼저 보고,
-                  {profileTags.length > 0
-                    ? ` ${profileTags.slice(0, 3).join(", ")} 같은 기술 스택과 최근 세션 성향이 맞는 글을 함께 반영합니다.`
-                    : " 최근 세션 성향과 직무 맥락이 맞는 글까지 함께 반영합니다."}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </section>
 
-        <footer className="rounded-[30px] border border-[#e7ebf1] bg-white px-6 py-6 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+        <footer className="border-t border-[#dfe5ec] py-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-lg font-semibold">디벗과 다시 연습해볼까요?</p>
-              <p className="mt-1 text-sm text-muted-foreground">최근 약점을 기준으로 새 모의면접이나 포트폴리오 디펜스로 바로 이어갈 수 있습니다.</p>
+              <p className="mt-1 text-sm text-muted-foreground">최근 기록을 기준으로 새 모의면접이나 포트폴리오 디펜스로 바로 이어갈 수 있습니다.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button variant="outline" className="rounded-full px-5" onClick={() => router.push("/interview")}>

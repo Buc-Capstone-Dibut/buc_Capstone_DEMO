@@ -123,6 +123,8 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
         role: result.title || "Unknown Position",
         company: result.company || "Unknown Company",
         interviewLevel: "auto",
+        interviewTrack: "posting",
+        sourceUrl: urlInput.trim(),
         companyDescription: result.description || "",
         teamCulture: result.culture || [],
         techStack: result.techStack || [],

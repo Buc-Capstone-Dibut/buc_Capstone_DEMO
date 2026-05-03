@@ -44,7 +44,7 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
         sessionStartBody: {
           mode: "video",
           personality: "professional",
-          jobData,
+          jobData: jobData ? { ...jobData, interviewTrack: "posting" as const } : jobData,
           resumeData,
           targetDurationSec: 10 * 60,
           closingThresholdSec: 60,

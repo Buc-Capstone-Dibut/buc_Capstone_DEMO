@@ -52,7 +52,9 @@ from app.interview.domain.interview_memory import (
     select_next_question_type,
 )
 from app.interview.domain.interview_level import resolve_interview_level
+from app.interview.domain.question_bank import infer_interview_track
 from app.interview.domain.turn_text import (
+    build_answer_quality_hint,
     build_opening_turn_text,
     compose_ai_question_text,
     looks_like_complete_ai_question,
@@ -232,6 +234,11 @@ def _session_engine_deps(
 
 
 class QuestionTypeTests(unittest.TestCase):
+    def test_infer_interview_track_uses_explicit_job_data(self) -> None:
+        self.assertEqual(infer_interview_track({"interviewTrack": "posting", "company": "Dibut"}), "posting")
+        self.assertEqual(infer_interview_track({"interviewTrack": "role", "company": "Dibut"}), "role")
+        self.assertEqual(infer_interview_track({"company": "직무 기반 모의면접"}), "role")
+
     def test_resolve_interview_level_uses_resume_experience(self) -> None:
         level = resolve_interview_level(
             {"interviewLevel": "auto", "role": "Backend Developer"},
@@ -251,6 +258,26 @@ class QuestionTypeTests(unittest.TestCase):
         state.job_data = {"interviewLevel": "new_grad"}
 
         self.assertEqual(select_opening_question_type(state), "project_context")
+
+    def test_select_opening_question_type_is_self_intro_for_posting_track(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"}
+
+        self.assertEqual(select_opening_question_type(state), "self_intro")
+
+    def test_role_track_rotation_keeps_company_motivation_out_of_first_followup(self) -> None:
+        state = VoiceWsState()
+        state.job_data = {
+            "interviewTrack": "role",
+            "company": "직무 기반 모의면접",
+            "role": "프론트엔드 개발자",
+        }
+        state.recent_question_types = ["project_context"]
+
+        next_type = select_next_question_type(state)
+
+        self.assertNotEqual(next_type, "company_motivation")
+        self.assertIn(next_type, {"role_contribution", "ownership_scope", "implementation_detail"})
 
     def test_select_next_question_type_skips_recent_types(self) -> None:
         state = VoiceWsState()
@@ -409,6 +436,12 @@ class ParallelSttFallbackTests(unittest.TestCase):
 
         self.assertIn("성과를 어떻게 확인", question)
         self.assertNotIn("어떤 수치나 지표", question)
+
+    def test_answer_quality_hint_does_not_force_metric_without_context(self) -> None:
+        hint = build_answer_quality_hint("팀 프로젝트에서 역할을 나누고 일정에 맞춰 기능을 구현했습니다.")
+
+        self.assertNotIn("지표", hint)
+        self.assertNotIn("수치화", hint)
 
     def test_senior_opening_text_mentions_decision_scope(self) -> None:
         text = build_opening_turn_text(
@@ -1062,6 +1095,32 @@ class OpeningTextTests(unittest.TestCase):
         )
 
         self.assertIn("서비스 백엔드 개발자", text)
+
+    def test_posting_opening_asks_real_interview_self_intro(self) -> None:
+        text = build_opening_turn_text(
+            session_type="live_interview",
+            company="Dibut",
+            role="백엔드 개발자",
+            job_data={"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"},
+            seed_text="posting-opening",
+        )
+
+        self.assertIn("Dibut 백엔드 개발자", text)
+        self.assertTrue("자기소개" in text or "소개" in text)
+
+    def test_role_opening_does_not_ask_company_motivation(self) -> None:
+        text = build_opening_turn_text(
+            session_type="live_interview",
+            company="직무 기반 모의면접",
+            role="프론트엔드 개발자",
+            job_data={"interviewTrack": "role", "company": "직무 기반 모의면접", "role": "프론트엔드 개발자"},
+            seed_text="role-opening",
+        )
+
+        self.assertIn("프론트엔드 개발자", text)
+        self.assertIn("프로젝트", text)
+        self.assertNotIn("회사", text)
+        self.assertNotIn("지원하신 이유", text)
 
 
 class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):

@@ -6,6 +6,7 @@ from typing import Awaitable, Callable
 
 from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
 from app.interview.domain.interview_memory import extract_memory_keywords
+from app.interview.domain.question_bank import infer_interview_track, interview_track_label
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.voice_pipeline import float_samples_to_pcm16le_bytes, wav_bytes_to_float_samples
@@ -33,14 +34,25 @@ def build_live_session_instruction(
         state.job_data if isinstance(state.job_data, dict) else {},
         state.resume_data,
     )
+    track = infer_interview_track(state.job_data if isinstance(state.job_data, dict) else {})
     if level == "new_grad":
-        level_guidance = "신입 수준에 맞춰 프로젝트 맥락, 역할, 구현 흐름, 배운 점 중심으로 묻고 과도한 수치/트레이드오프 집착은 피한다."
+        level_guidance = "신입 수준에 맞춰 프로젝트 맥락, 역할, 구현 흐름, 배운 점 중심으로 묻고 과도한 수치 검증이나 기술 선택 딜레마는 피한다."
     elif level == "junior":
-        level_guidance = "주니어 수준에 맞춰 구현 디테일, 문제 해결, 협업 경험을 우선 묻고 수치/트레이드오프 질문은 꼭 필요할 때만 사용한다."
+        level_guidance = "주니어 수준에 맞춰 구현 디테일, 문제 해결, 협업 경험을 우선 묻고 결과 확인 질문은 답변에 단서가 있을 때만 사용한다."
     elif level == "mid":
-        level_guidance = "미들 수준에 맞춰 구현과 설계 판단을 균형 있게 검증하고, 후반부에만 지표와 트레이드오프 질문 강도를 높인다."
+        level_guidance = "미들 수준에 맞춰 구현과 설계 판단을 균형 있게 검증하고, 후반부에만 결과 확인과 선택 기준 질문 강도를 높인다."
     else:
-        level_guidance = "시니어 수준에 맞춰 설계 판단, 우선순위, 트레이드오프를 검증하되 초반부터 과도하게 수치 질문만 반복하지 않는다."
+        level_guidance = "시니어 수준에 맞춰 설계 판단, 우선순위, 선택 기준을 검증하되 초반부터 같은 표현의 검증 질문을 반복하지 않는다."
+    if track == "posting":
+        track_guidance = (
+            "공고 기반 면접이다. 실제 지원 면접처럼 1분 자기소개, 지원 동기, 회사/직무 연결, "
+            "이력서·포트폴리오 검증, 협업 성향, 마무리 어필을 균형 있게 다룬다."
+        )
+    else:
+        track_guidance = (
+            "직무 기반 면접이다. 특정 회사 지원 동기보다 해당 직무의 프로젝트 경험, 담당 범위, "
+            "핵심 역량, 문제 접근 방식, 학습 방향을 중심으로 묻는다."
+        )
     target_min = max(1, int(state.target_duration_sec // 60))
     return (
         "당신은 한국어 AI 면접관 Dibut입니다.\n"
@@ -56,7 +68,10 @@ def build_live_session_instruction(
         "8) 직전 답변의 키워드/기술명/수치 중 최소 1개를 다음 질문 문장에 직접 언급한다.\n"
         "9) 직전 답변을 더 깊게 검증할 필요가 있으면 같은 질문 축을 한 번 더 파고들 수 있다. 질문 유형을 기계적으로 바꾸지 않는다.\n"
         "10) 지원자 방금 답변과 무관한 새 주제로 갑자기 전환하지 않는다.\n"
+        "11) 같은 단어와 질문 구조를 반복하지 않는다. 특히 지표, 병목, 트레이드오프, 근거 같은 표현은 답변에 직접 단서가 있을 때만 사용한다.\n"
         f"면접 스타일: {personality}\n"
+        f"면접 트랙: {interview_track_label(track)}\n"
+        f"트랙 가이드: {track_guidance}\n"
         f"지원자 레벨: {interview_level_label(level)}\n"
         f"난이도 가이드: {level_guidance}\n"
         f"권장 면접 길이: 약 {target_min}분\n"
@@ -82,10 +97,15 @@ def build_live_turn_prompt(
         state.job_data if isinstance(state.job_data, dict) else {},
         state.resume_data,
     )
-    if level in {"new_grad", "junior"}:
-        parts.append("- 초반에는 맥락, 역할, 구현, 문제 해결 과정을 우선 질문하고 수치/트레이드오프 질문을 연속으로 하지 말 것")
+    track = infer_interview_track(state.job_data if isinstance(state.job_data, dict) else {})
+    if track == "posting":
+        parts.append("- 공고 기반 실제 면접 흐름: 자기소개/지원 동기/공고-이력서 연결/프로젝트 검증/협업 성향/마무리 어필을 상황에 맞게 배치할 것")
     else:
-        parts.append("- 초반에는 맥락과 역할을 먼저 확인하고, 설계·수치·트레이드오프는 후반에 깊게 물을 것")
+        parts.append("- 직무 기반 면접 흐름: 회사 지원 동기보다 직무 핵심 역량, 프로젝트 담당 범위, 구현·문제 해결·학습 방향을 우선 확인할 것")
+    if level in {"new_grad", "junior"}:
+        parts.append("- 초반에는 맥락, 역할, 구현, 문제 해결 과정을 우선 질문하고 숫자 검증이나 선택 딜레마 질문을 연속으로 하지 말 것")
+    else:
+        parts.append("- 초반에는 맥락과 역할을 먼저 확인하고, 설계 판단·결과 확인·선택 기준은 후반에 깊게 물을 것")
     if question_type:
         parts.append(f"- 우선 질문 유형: {question_type_label(question_type)}")
     recent_type_labels = ", ".join(question_type_label(item) for item in state.recent_question_types[-3:])
@@ -98,7 +118,7 @@ def build_live_turn_prompt(
     if quality_hint:
         parts.append(f"- 직전 답변 검증 포인트: {quality_hint}")
     else:
-        parts.append("- 직전 답변에서 수치, 근거, 의사결정 기준이 빠졌다면 그 부분을 우선 검증할 것")
+        parts.append("- 직전 답변에서 구체 상황, 본인 행동, 결과 확인 방식이 비어 있다면 그 부분을 자연스럽게 확인할 것")
     if user_text:
         parts.append(f"- 참고 사용자 답변: {compact_context_text(user_text, max_chars=240)}")
         keywords = extract_memory_keywords(user_text, max_items=4)
@@ -110,6 +130,7 @@ def build_live_turn_prompt(
         parts.append(f"- 추가 요청: {extra_instruction}")
     parts.append("- 방금 답변에서 아직 검증되지 않은 핵심 축이 남아 있으면 새 주제로 바꾸지 말고 같은 축을 더 깊게 파고들 것")
     parts.append("- 답변을 요약만 하지 말고, 방금 답변의 구체 디테일을 파고드는 꼬리질문으로 이어갈 것")
+    parts.append("- 최근 질문과 같은 표현을 반복하지 말고, 지표/병목/트레이드오프/근거라는 단어는 필요한 맥락에서만 사용할 것")
     parts.append("- 사용자가 이미 답변했다면 '다시 말씀해 주세요', '이어서 말씀해 주세요' 같은 재청취 문구를 만들지 말 것")
     parts.append("- 위 조건은 내부 참고용이며, 실제 출력은 자연스러운 한국어 음성 문장만 생성할 것")
     return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()

@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from app.interview.domain.interview_level import InterviewLevel, resolve_interview_level
+from app.interview.domain.question_bank import infer_interview_track
 
 COMPLETE_ANSWER_ENDINGS = (
     "습니다",
@@ -72,9 +73,53 @@ QUESTION_ENDINGS = (
     "어떻게 했나요",
 )
 QUESTION_TEXT_TEMPLATES: dict[str, dict[str, str]] = {
+    "self_intro": {
+        "soft": "{company_phrase}{role_target}와 연결해서 본인을 소개한다면 어떤 경험을 먼저 말씀하시겠어요?",
+        "hard": "{company_phrase}{role_target}와 연결되는 핵심 경험과 본인의 강점을 1분 정도로 정리해 주실 수 있을까요?",
+    },
+    "company_motivation": {
+        "soft": "{company_phrase}{role_target}에 관심을 갖게 된 이유와 방금 말씀하신 경험이 어떻게 이어지는지 말씀해 주실 수 있을까요?",
+        "hard": "{company_phrase}{role_target}를 선택한 이유를 지원자님의 경험과 회사의 일하는 방식에 연결해서 설명해 주실 수 있을까요?",
+    },
+    "jd_resume_match": {
+        "soft": "{job_focus} 요구와 {focus_phrase} 경험이 어디에서 가장 잘 맞닿아 있다고 보셨나요?",
+        "hard": "{job_focus} 요구를 기준으로 보면 {focus_phrase}에서 본인의 강점이 가장 잘 드러난 장면은 무엇인가요?",
+    },
+    "portfolio_validation": {
+        "soft": "{focus_phrase}에서 포트폴리오나 이력서에 적힌 내용 중 면접에서 꼭 검증받고 싶은 부분은 무엇인가요?",
+        "hard": "{focus_phrase}에서 실제로 본인이 작성하거나 결정한 범위를 포트폴리오 내용과 연결해서 설명해 주실 수 있을까요?",
+    },
+    "behavioral_fit": {
+        "soft": "{focus_phrase}를 진행하면서 팀과 맞춰 일하는 방식이 드러난 순간을 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 의견이 갈리거나 우선순위를 맞춰야 했던 순간에 본인이 어떻게 행동했는지 설명해 주실 수 있을까요?",
+    },
+    "closing_pitch": {
+        "soft": "마지막으로 {company_phrase}{role_target} 면접관에게 꼭 남기고 싶은 강점이나 경험이 있다면 무엇인가요?",
+        "hard": "마지막으로 {company_phrase}{role_target}에 합류한다면 바로 기여할 수 있다고 보는 지점을 한 가지로 정리해 주실 수 있을까요?",
+    },
+    "ownership_scope": {
+        "soft": "{focus_phrase}에서 본인이 직접 맡은 범위와 다른 팀원이 맡은 범위를 나눠서 설명해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 본인이 책임지고 끝까지 가져간 결정이나 구현 범위는 어디까지였나요?",
+    },
+    "role_core_skill": {
+        "soft": "{role_target}에서 중요하다고 보는 역량 중 {focus_phrase}와 가장 연결되는 부분은 무엇인가요?",
+        "hard": "{role_target} 관점에서 {focus_phrase}를 다시 설명한다면 어떤 기술적 판단이나 작업 방식이 핵심이었다고 보시나요?",
+    },
+    "debugging_process": {
+        "soft": "{focus_phrase}에서 문제가 생겼을 때 원인을 어떤 순서로 좁혀 갔는지 말씀해 주실 수 있을까요?",
+        "hard": "{focus_phrase}에서 재현, 원인 추적, 수정 확인을 어떤 흐름으로 진행했는지 구체적으로 설명해 주실 수 있을까요?",
+    },
+    "testing_process": {
+        "soft": "{focus_phrase}가 의도대로 동작하는지 어떤 방식으로 확인하셨나요?",
+        "hard": "{focus_phrase}를 배포하거나 제출하기 전에 어떤 테스트나 검증 절차로 품질을 확인하셨나요?",
+    },
+    "career_direction": {
+        "soft": "{role_target} 역량을 더 키우기 위해 최근에 보완하고 있는 부분은 무엇인가요?",
+        "hard": "{role_target}로 성장하기 위해 다음 프로젝트에서는 어떤 부분을 더 깊게 가져가고 싶으신가요?",
+    },
     "motivation_validation": {
-        "soft": "{focus_phrase} 경험이 이번 직무와 가장 맞닿아 있다고 판단하신 이유는 무엇인가요?",
-        "hard": "{focus_phrase} 경험이 이번 직무와 직접적으로 이어진다고 보신 근거를 조금 더 분명하게 말씀해 주실 수 있을까요?",
+        "soft": "{focus_phrase} 경험이 이번 직무와 가장 맞닿아 있다고 보신 이유는 무엇인가요?",
+        "hard": "{focus_phrase} 경험이 이번 직무와 직접적으로 이어진다고 보신 지점을 조금 더 분명하게 말씀해 주실 수 있을까요?",
     },
     "project_context": {
         "soft": "{focus_phrase}가 어떤 문제를 풀기 위한 프로젝트였는지 먼저 설명해 주실 수 있을까요?",
@@ -98,7 +143,7 @@ QUESTION_TEXT_TEMPLATES: dict[str, dict[str, str]] = {
     },
     "metric_validation": {
         "soft": "{focus_phrase}의 성과를 어떻게 확인하셨는지 말씀해 주실 수 있을까요?",
-        "hard": "{focus_phrase}에서 어떤 수치나 지표를 기준으로 성과를 검증하셨나요?",
+        "hard": "{focus_phrase}의 개선 결과를 어떤 방식으로 확인했고, 그 판단이 충분하다고 본 이유는 무엇인가요?",
     },
     "tradeoff": {
         "soft": "{focus_phrase}에서 왜 그 방식을 선택하셨는지 설명해 주실 수 있을까요?",
@@ -521,18 +566,19 @@ def build_answer_quality_hint(answer: str) -> str:
 
     length = len(text)
     has_metric = bool(re.search(r"\d+[%건명개번일월년]|\d+\s*(ms|sec|s|배)", text))
+    has_metric_context = bool(re.search(r"(성능|응답|지연|트래픽|처리량|최적화|latency|throughput|p95|p99|scale|확장성)", text, re.IGNORECASE))
     has_structure = bool(re.search(r"(문제|원인|해결|결과|배운 점|회고|기여)", text))
 
     hints: list[str] = []
     if length < 60:
         hints.append("답변이 짧을 수 있습니다. 다음 질문에서 추가 맥락과 구체 사례를 자연스럽게 확인하세요.")
     elif length < 140:
-        hints.append("핵심은 있으나 디테일이 부족할 수 있습니다. 다음 질문에서 근거와 의사결정 기준을 검증하세요.")
+        hints.append("핵심은 있으나 디테일이 부족할 수 있습니다. 다음 질문에서 판단 과정과 본인 행동을 확인하세요.")
     else:
         hints.append("답변 길이는 충분합니다. 깊이와 재현 가능성을 검증하세요.")
 
-    if not has_metric:
-        hints.append("가능하면 다음 질문에서 수치화된 성과나 지표를 확인하세요.")
+    if not has_metric and has_metric_context:
+        hints.append("성과 확인 방식이 비어 있다면 결과를 어떻게 확인했는지 가볍게 물어보되, 모든 질문을 숫자 중심으로 몰지 마세요.")
     if not has_structure:
         hints.append("다음 질문은 문제-행동-결과 구조가 드러나도록 구체 상황을 확인하는 방향으로 이어가세요.")
 
@@ -578,6 +624,38 @@ def _build_focus_phrase(user_text: str, *, session_type: str) -> str:
     if session_type == "portfolio_defense":
         return "방금 설명하신 프로젝트"
     return "방금 말씀하신 경험"
+
+
+def _clean_context_term(value: Any, *, fallback: str = "") -> str:
+    normalized = re.sub(r"\s+", " ", str(value or "").strip())
+    normalized = normalized.strip(" ,.:;/-")
+    return normalized or fallback
+
+
+def _job_context_terms(job_data: dict[str, Any] | None) -> dict[str, str]:
+    normalized_job_data = job_data if isinstance(job_data, dict) else {}
+    company = _clean_context_term(normalized_job_data.get("company"))
+    role = _clean_context_term(normalized_job_data.get("role"), fallback="이번 직무")
+    company_phrase = f"{company} " if company and "직무 기반 모의면접" not in company else ""
+    focus_items: list[str] = []
+    for key in ("requirements", "responsibilities", "techStack", "preferred"):
+        value = normalized_job_data.get(key)
+        if isinstance(value, str):
+            if value.strip():
+                focus_items.append(value.strip())
+        elif isinstance(value, (list, tuple)):
+            for item in value[:2]:
+                item_text = _clean_context_term(item)
+                if item_text:
+                    focus_items.append(item_text)
+        if len(focus_items) >= 2:
+            break
+    job_focus = " / ".join(focus_items[:2]) if focus_items else f"{role} 공고"
+    return {
+        "company_phrase": company_phrase,
+        "role_target": role,
+        "job_focus": job_focus,
+    }
 
 
 def _to_string_list(value: Any) -> list[str]:
@@ -666,15 +744,36 @@ def build_opening_turn_text(
         )
         return variants[_opening_variant_index(variant_seed, len(variants))]
 
+    track = infer_interview_track(job_data, session_type=session_type)
+    if track == "posting":
+        posting_target = context_target or role_target
+        if effective_level in {"mid", "senior"}:
+            variants = [
+                f"안녕하세요. {posting_target} 면접을 시작하겠습니다. 이력서와 포트폴리오에서 이 공고와 맞닿은 핵심 의사결정 경험을 중심으로 1분 정도 자기소개를 해 주실 수 있을까요?",
+                f"안녕하세요. {posting_target}에 지원하신 이유와 본인이 주도한 판단 경험을 연결해서 간단히 소개해 주실 수 있을까요?",
+                f"안녕하세요. 먼저 {posting_target}에서 바로 기여할 수 있다고 보는 경험을 중심으로 본인을 소개해 주실 수 있을까요?",
+            ]
+        else:
+            variants = [
+                f"안녕하세요. {posting_target} 면접을 시작하겠습니다. 이력서와 포트폴리오에서 이 공고와 가장 맞닿아 있는 경험을 중심으로 1분 정도 자기소개를 해 주실 수 있을까요?",
+                f"안녕하세요. {posting_target}에 지원하신 이유와 본인의 강점이 드러나는 경험을 연결해서 간단히 소개해 주실 수 있을까요?",
+                f"안녕하세요. 먼저 {posting_target} 공고와 가장 연결되는 프로젝트나 경험을 중심으로 본인을 소개해 주실 수 있을까요?",
+            ]
+        if focus_term:
+            variants.append(
+                f"안녕하세요. {posting_target} 면접을 시작하겠습니다. 특히 {focus_term} 경험과 연결해서 본인을 1분 정도로 소개해 주실 수 있을까요?"
+            )
+        return variants[_opening_variant_index(variant_seed, len(variants))]
+
     if effective_level == "new_grad":
         variants = [
-            f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+            f"안녕하세요. {role_target} 직무 면접 연습을 시작하겠습니다. 대표 프로젝트 하나를 골라 어떤 문제를 풀었고 본인이 맡은 역할이 무엇이었는지 설명해 주실 수 있을까요?",
             f"안녕하세요. 지금까지 경험 중에서 {role_target}와 가장 맞닿아 있던 프로젝트 하나를 골라, 어떤 문제를 풀었는지와 본인 역할을 함께 설명해 주실 수 있을까요?",
             f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
         ]
     elif effective_level == "junior":
         variants = [
-            f"안녕하세요. {context_target or '이번 직무'}와 가장 직접적으로 연결되는 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
+            f"안녕하세요. {role_target} 직무 면접 연습을 시작하겠습니다. 대표 프로젝트 하나를 골라 본인 기여와 구현 포인트 중심으로 설명해 주실 수 있을까요?",
             f"안녕하세요. {role_target}와 가장 가까웠던 프로젝트 하나를 골라, 본인 기여와 구현 포인트 중심으로 설명해 주실 수 있을까요?",
             f"안녕하세요. {role_target}에 지원하시면서 가장 대표적으로 보여주고 싶은 프로젝트 경험 한 가지를 먼저 말씀해 주실 수 있을까요?",
         ]
@@ -724,10 +823,12 @@ def compose_ai_question_text(
     if normalized_strategy == "retry":
         return build_retry_question_text(user_text)
 
+    context_terms = _job_context_terms(job_data)
+
     if session_type == "portfolio_defense":
         focus_phrase = _build_focus_phrase(user_text, session_type=session_type)
         if normalized_type == "metric_validation":
-            return f"{focus_phrase}에서 어떤 지표나 사용자 반응으로 성과를 검증하셨나요?"
+            return f"{focus_phrase}에서 결과가 좋아졌다고 판단한 방식이나 사용자 반응은 무엇이었나요?"
         if normalized_type == "tradeoff":
             return f"{focus_phrase}를 진행할 때 어떤 선택지를 비교했고 무엇을 기준으로 결정하셨나요?"
         if normalized_type == "failure_recovery":
@@ -747,7 +848,10 @@ def compose_ai_question_text(
         question_type=normalized_type,
         question_index=question_index,
     ) else "soft"
-    question = template.get(variant, template.get("soft", "")).format(focus_phrase=focus_phrase).strip()
+    question = template.get(variant, template.get("soft", "")).format(
+        focus_phrase=focus_phrase,
+        **context_terms,
+    ).strip()
     if question.endswith("?"):
         return question
     if question.endswith(("주세요", "주실 수 있을까요", "주실 수 있나요", "말씀해 주실 수 있을까요")):

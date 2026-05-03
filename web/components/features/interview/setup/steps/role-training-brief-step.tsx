@@ -50,7 +50,7 @@ export function RoleTrainingBriefStep() {
         sessionStartBody: {
           mode: "video",
           personality: "professional",
-          jobData,
+          jobData: { ...jobData, interviewTrack: "role" as const },
           resumeData: {},
           targetDurationSec: 10 * 60,
           closingThresholdSec: 60,

@@ -5,11 +5,23 @@ import re
 from typing import Any
 
 from app.interview.domain.interview_level import InterviewLevel, normalize_interview_level, resolve_interview_level
+from app.interview.domain.question_bank import infer_interview_track, is_explicit_role_track_job
 from app.interview.runtime.state import VoiceWsState
 
 MEMORY_NOTE_LIMIT = 6
 MEMORY_PROMPT_NOTE_LIMIT = 4
 QUESTION_TYPE_LABELS = {
+    "self_intro": "1분 자기소개",
+    "company_motivation": "회사/직무 지원 동기",
+    "jd_resume_match": "공고-이력서 연결 검증",
+    "portfolio_validation": "포트폴리오 검증",
+    "behavioral_fit": "인성 및 협업 성향",
+    "closing_pitch": "마지막 어필",
+    "ownership_scope": "담당 범위 검증",
+    "role_core_skill": "직무 핵심 역량",
+    "debugging_process": "문제 추적 방식",
+    "testing_process": "검증 및 테스트 방식",
+    "career_direction": "성장 방향",
     "motivation_validation": "지원 동기 및 적합성 검증",
     "project_context": "프로젝트 맥락 설명",
     "role_contribution": "역할 및 기여 검증",
@@ -35,7 +47,81 @@ QUESTION_TYPE_ROTATION = (
     "design_decision",
     "collaboration_conflict",
     "priority_judgment",
+    "self_intro",
+    "company_motivation",
+    "jd_resume_match",
+    "portfolio_validation",
+    "behavioral_fit",
+    "closing_pitch",
+    "ownership_scope",
+    "role_core_skill",
+    "debugging_process",
+    "testing_process",
+    "career_direction",
 )
+POSTING_QUESTION_TYPE_ROTATION_BY_STAGE: dict[str, tuple[str, ...]] = {
+    "early": (
+        "company_motivation",
+        "jd_resume_match",
+        "portfolio_validation",
+        "role_contribution",
+        "project_context",
+        "implementation_detail",
+        "collaboration_conflict",
+    ),
+    "middle": (
+        "portfolio_validation",
+        "project_context",
+        "implementation_detail",
+        "problem_solving_process",
+        "jd_resume_match",
+        "collaboration_conflict",
+        "behavioral_fit",
+        "learning_reflection",
+        "metric_validation",
+    ),
+    "late": (
+        "company_motivation",
+        "behavioral_fit",
+        "learning_reflection",
+        "closing_pitch",
+        "implementation_detail",
+        "problem_solving_process",
+        "priority_judgment",
+        "metric_validation",
+    ),
+}
+ROLE_TRACK_QUESTION_TYPE_ROTATION_BY_STAGE: dict[str, tuple[str, ...]] = {
+    "early": (
+        "project_context",
+        "role_contribution",
+        "ownership_scope",
+        "implementation_detail",
+        "problem_solving_process",
+        "learning_reflection",
+        "collaboration_conflict",
+    ),
+    "middle": (
+        "implementation_detail",
+        "role_core_skill",
+        "problem_solving_process",
+        "debugging_process",
+        "testing_process",
+        "collaboration_conflict",
+        "learning_reflection",
+        "design_decision",
+    ),
+    "late": (
+        "role_core_skill",
+        "problem_solving_process",
+        "learning_reflection",
+        "career_direction",
+        "collaboration_conflict",
+        "priority_judgment",
+        "metric_validation",
+        "design_decision",
+    ),
+}
 QUESTION_TYPE_ROTATION_BY_LEVEL: dict[InterviewLevel, dict[str, tuple[str, ...]]] = {
     "new_grad": {
         "early": (
@@ -165,8 +251,21 @@ QUESTION_TYPE_REPEATABLE_TYPES = {
     "implementation_detail",
     "problem_solving_process",
     "failure_recovery",
+    "role_core_skill",
+    "debugging_process",
 }
 QUESTION_TYPE_FAMILIES = {
+    "self_intro": "motivation",
+    "company_motivation": "motivation",
+    "jd_resume_match": "motivation",
+    "portfolio_validation": "experience_detail",
+    "behavioral_fit": "collaboration",
+    "closing_pitch": "reflection",
+    "ownership_scope": "experience_detail",
+    "role_core_skill": "experience_detail",
+    "debugging_process": "experience_detail",
+    "testing_process": "experience_detail",
+    "career_direction": "reflection",
     "motivation_validation": "motivation",
     "project_context": "experience_detail",
     "role_contribution": "experience_detail",
@@ -195,6 +294,9 @@ DESIGN_PATTERN = re.compile(r"(설계|구조|아키텍처|architecture|db|databa
 COLLABORATION_PATTERN = re.compile(r"(협업|팀|갈등|커뮤니케이션|리뷰|stakeholder|동료|조율)", re.IGNORECASE)
 PRIORITY_PATTERN = re.compile(r"(우선|priority|마감|일정|impact|리소스|순서|급한)", re.IGNORECASE)
 TRADEOFF_PATTERN = re.compile(r"(트레이드오프|장단점|비용|속도|안정성|복잡도|선택 기준|비교)", re.IGNORECASE)
+MOTIVATION_PATTERN = re.compile(r"(지원|동기|회사|서비스|공고|직무|관심|선택)", re.IGNORECASE)
+PORTFOLIO_PATTERN = re.compile(r"(포트폴리오|이력서|깃허브|github|블로그|notion|노션|프로젝트)", re.IGNORECASE)
+TESTING_PATTERN = re.compile(r"(테스트|검증|qa|품질|버그|디버깅|재현)", re.IGNORECASE)
 MEMORY_STOPWORDS = {
     "그냥",
     "정도",
@@ -287,6 +389,8 @@ def resolve_state_interview_level(state: VoiceWsState) -> InterviewLevel:
 
 
 def _closing_question_preference(state: VoiceWsState) -> str:
+    if infer_interview_track(state.job_data if isinstance(state.job_data, dict) else {}) == "posting":
+        return "closing_pitch"
     normalized_job_data = state.job_data if isinstance(state.job_data, dict) else {}
     explicit_level = normalize_interview_level(normalized_job_data.get("interviewLevel"), allow_auto=True)
     if explicit_level in {"new_grad", "junior"}:
@@ -297,6 +401,8 @@ def _closing_question_preference(state: VoiceWsState) -> str:
 
 
 def select_opening_question_type(state: VoiceWsState) -> str:
+    if infer_interview_track(state.job_data if isinstance(state.job_data, dict) else {}) == "posting":
+        return "self_intro"
     level = resolve_state_interview_level(state)
     if level == "new_grad":
         return "project_context"
@@ -313,8 +419,14 @@ def _question_stage(state: VoiceWsState) -> str:
 
 
 def _candidate_rotation(state: VoiceWsState) -> tuple[str, ...]:
-    level = resolve_state_interview_level(state)
+    normalized_job_data = state.job_data if isinstance(state.job_data, dict) else {}
+    track = infer_interview_track(normalized_job_data)
     stage = _question_stage(state)
+    if track == "posting":
+        return POSTING_QUESTION_TYPE_ROTATION_BY_STAGE[stage]
+    if is_explicit_role_track_job(normalized_job_data):
+        return ROLE_TRACK_QUESTION_TYPE_ROTATION_BY_STAGE[stage]
+    level = resolve_state_interview_level(state)
     return QUESTION_TYPE_ROTATION_BY_LEVEL[level][stage]
 
 
@@ -374,6 +486,8 @@ def _is_question_type_allowed(state: VoiceWsState, candidate: str, *, preferred:
     allowed = _candidate_rotation(state)
     if candidate not in allowed and candidate not in QUESTION_TYPE_ROTATION:
         return False
+    if candidate == "self_intro" and state.recent_question_types:
+        return False
     if stage == "early" and candidate in {"metric_validation", "tradeoff", "priority_judgment"}:
         return False
     if _cooldown_blocked(state, candidate):
@@ -391,6 +505,9 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
     normalized = re.sub(r"\s+", " ", (answer_text or "")).strip().lower()
     stage = _question_stage(state)
     level = resolve_state_interview_level(state)
+    normalized_job_data = state.job_data if isinstance(state.job_data, dict) else {}
+    track = infer_interview_track(normalized_job_data)
+    explicit_role_track = is_explicit_role_track_job(normalized_job_data)
     scores: dict[str, int] = {question_type: 0 for question_type in QUESTION_TYPE_ROTATION}
 
     has_metric = bool(METRIC_PATTERN.search(normalized))
@@ -400,6 +517,9 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
     has_collaboration = bool(COLLABORATION_PATTERN.search(normalized))
     has_priority = bool(PRIORITY_PATTERN.search(normalized))
     has_tradeoff = bool(TRADEOFF_PATTERN.search(normalized))
+    has_motivation = bool(MOTIVATION_PATTERN.search(normalized))
+    has_portfolio = bool(PORTFOLIO_PATTERN.search(normalized))
+    has_testing = bool(TESTING_PATTERN.search(normalized))
     has_role = bool(ROLE_PATTERN.search(normalized))
     has_project_context = bool(PROJECT_CONTEXT_PATTERN.search(normalized))
     has_implementation = bool(IMPLEMENTATION_PATTERN.search(normalized))
@@ -436,6 +556,34 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
         scores["metric_validation"] += 3
     else:
         scores["metric_validation"] -= 3
+
+    if track == "posting":
+        if stage == "early":
+            scores["company_motivation"] += 4
+            scores["jd_resume_match"] += 3
+        if has_motivation:
+            scores["company_motivation"] += 8
+            scores["jd_resume_match"] += 3
+        if has_portfolio:
+            scores["portfolio_validation"] += 9
+            scores["project_context"] += 2
+        if has_role or has_implementation:
+            scores["jd_resume_match"] += 5
+        if has_collaboration:
+            scores["behavioral_fit"] += 6
+        if stage == "late":
+            scores["closing_pitch"] += 4
+    elif explicit_role_track:
+        if has_role:
+            scores["ownership_scope"] += 7
+        if has_implementation:
+            scores["role_core_skill"] += 6
+        if has_problem_solving:
+            scores["debugging_process"] += 5
+        if has_testing:
+            scores["testing_process"] += 6
+        if has_learning or stage == "late":
+            scores["career_direction"] += 3
 
     if stage == "early":
         scores["project_context"] += 3
