@@ -59,6 +59,18 @@ export interface ResumePayload {
     period: string;
     description: string;
     tags?: string[];
+    techStack?: string[];
+    representativeImage?: {
+      url: string;
+      storagePath?: string;
+      bucket?: string;
+      alt?: string;
+      caption?: string;
+      fileName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+      updatedAt?: string;
+    };
     situation?: string;
     role?: string;
     solution?: string;
@@ -76,6 +88,17 @@ export interface ResumePayload {
     techStack: string[];
     achievements: string[];
     tags?: string[];
+    representativeImage?: {
+      url: string;
+      storagePath?: string;
+      bucket?: string;
+      alt?: string;
+      caption?: string;
+      fileName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+      updatedAt?: string;
+    };
     situation?: string;
     role?: string;
     solution?: string;
@@ -93,6 +116,7 @@ export interface ResumePayload {
       id: string;
       title: string;
       tags: string[];
+      techStack?: string[];
       period?: string;
       description?: string;
       situation?: string;

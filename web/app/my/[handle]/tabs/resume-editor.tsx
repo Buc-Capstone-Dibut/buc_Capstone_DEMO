@@ -14,6 +14,7 @@ import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
 import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
+import type { ProjectInput } from "@/app/career/projects/types";
 import type { WorkExperienceInput } from "@/app/career/work-experience/actions";
 
 interface ResumeEditorProps {
@@ -31,7 +32,6 @@ export function ResumeEditor({
   onChange,
   onSave,
   saving,
-  onGoSetup,
   title = "",
   onTitleChange,
 }: ResumeEditorProps) {
@@ -179,12 +179,12 @@ export function ResumeEditor({
     });
   };
 
-  const handleImportExperiences = (selected: any[]) => {
+  const handleImportProjects = (selected: ProjectInput[]) => {
     const newProjects = selected
         .filter(e => !payload.projects.some(p => p.id === e.id)) // Avoid duplicates
         .map(e => ({
             id: e.id || Math.random().toString(36).substring(2, 11),
-            name: e.company || "경험 기반 프로젝트",
+            name: e.company || "프로젝트명 없음",
             period: e.period || "",
             description: e.description || "",
             techStack: e.tags || [],
@@ -197,13 +197,13 @@ export function ResumeEditor({
             projects: [...payload.projects, ...newProjects]
         });
         toast({
-            title: "경험 불러오기 완료",
-            description: `${newProjects.length}개의 경험이 프로젝트로 추가되었습니다.`,
+            title: "프로젝트 불러오기 완료",
+            description: `${newProjects.length}개의 프로젝트가 추가되었습니다.`,
         });
     } else {
         toast({
-            title: "불러올 경험이 없습니다.",
-            description: "이미 추가된 경험이거나 잘못된 요청입니다.",
+            title: "불러올 프로젝트가 없습니다.",
+            description: "이미 추가된 프로젝트이거나 잘못된 요청입니다.",
             variant: "destructive"
         });
     }
@@ -405,7 +405,7 @@ export function ResumeEditor({
           <Textarea
             value={payload.selfIntroduction}
             onChange={(event) => onChange({ ...payload, selfIntroduction: event.target.value })}
-            placeholder="AI 가이드를 통해 나의 경험을 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
+            placeholder="AI 가이드를 통해 나의 프로젝트를 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
             className="min-h-[200px] text-sm leading-relaxed"
           />
         </CardContent>
@@ -555,7 +555,7 @@ export function ResumeEditor({
               className="h-8 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              내 경험 보관함에서 불러오기
+              프로젝트 보관함에서 불러오기
             </Button>
           </div>
           {payload.projects.map((project, projectIndex) => (
@@ -679,7 +679,7 @@ export function ResumeEditor({
       <ExperienceImportModal 
         open={isImportModalOpen} 
         onOpenChange={setIsImportModalOpen} 
-        onImport={handleImportExperiences} 
+        onImport={handleImportProjects} 
       />
       
       <WorkExperienceImportModal 

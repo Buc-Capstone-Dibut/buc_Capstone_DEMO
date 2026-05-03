@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" role="img" aria-label="Portfolio profile portrait sample">
+  <defs>
+    <linearGradient id="bg" x1="112" y1="72" x2="608" y2="666" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8F7EF"/>
+      <stop offset="0.52" stop-color="#F7FBFF"/>
+      <stop offset="1" stop-color="#DCEBFF"/>
+    </linearGradient>
+    <linearGradient id="shape" x1="235" y1="182" x2="489" y2="552" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F7A4D"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="720" rx="56" fill="url(#bg)"/>
+  <circle cx="608" cy="126" r="76" fill="#84CC16" opacity="0.22"/>
+  <circle cx="135" cy="576" r="96" fill="#2563EB" opacity="0.12"/>
+  <rect x="142" y="134" width="436" height="452" rx="42" fill="#FFFFFF" stroke="#D5E1EF" stroke-width="2"/>
+  <circle cx="360" cy="278" r="86" fill="#DCEBFF"/>
+  <path d="M286 282c14 47 47 70 74 70 28 0 61-23 74-70 9-32-4-86-74-86-69 0-83 54-74 86Z" fill="#F2CDB9"/>
+  <path d="M285 250c12-53 51-86 101-76 48 10 74 51 62 103-21-15-53-22-96-22-25 0-47-2-67-5Z" fill="#0F172A"/>
+  <path d="M215 520c18-80 75-126 145-126s127 46 145 126" fill="url(#shape)"/>
+  <path d="M305 402c18 19 92 19 110 0v118H305V402Z" fill="#F2CDB9"/>
+  <path d="M256 520c28-48 64-72 104-72 41 0 76 24 104 72" fill="#FFFFFF" opacity="0.95"/>
+  <rect x="176" y="614" width="178" height="16" rx="8" fill="#1F7A4D" opacity="0.2"/>
+  <rect x="176" y="642" width="288" height="14" rx="7" fill="#2563EB" opacity="0.16"/>
+</svg>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Edit3, FileText, Plus, Save, Search, Trash2 } from "lucide-react";
+import { ArrowDown, Edit3, FileText, Plus, Save, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useAnchoredScroll } from "@/hooks/use-anchored-scroll";
 import {
   saveCoverLetterAction,
   deleteCoverLetterAction,
@@ -55,6 +56,19 @@ export default function CoverLettersClient({
   const [editForm, setEditForm] = useState<Partial<CoverLetterInput>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"recent" | "deadline">("recent");
+  const previousSelectedIdRef = useRef<string | null>(null);
+  const {
+    bottomRef: detailBottomRef,
+    hasNewContent: hasDetailNewContent,
+    handleScroll: handleDetailScroll,
+    isAtBottom: isDetailAtBottom,
+    requestScrollOnContentChange: requestDetailScrollOnContentChange,
+    scrollContainerRef: detailScrollRef,
+    scrollToBottom: scrollDetailToBottom,
+  } = useAnchoredScroll<HTMLDivElement>({
+    bottomThreshold: 140,
+    defaultBehavior: "smooth",
+  });
 
   const selectedLetter = useMemo(
     () => letters.find((letter) => letter.id === selectedId),
@@ -100,8 +114,41 @@ export default function CoverLettersClient({
     [letters, searchQuery, sortOrder],
   );
 
+  const detailContentSignal = useMemo(() => {
+    if (!selectedLetter) return "";
+    const source = isEditing ? editForm : selectedLetter;
+    return JSON.stringify({
+      id: selectedLetter.id,
+      isEditing,
+      title: source.title,
+      company: source.company,
+      division: source.division,
+      role: source.role,
+      deadline: source.deadline,
+      questions: source.questions || [],
+      content: source.content || "",
+    });
+  }, [editForm, isEditing, selectedLetter]);
+
+  useEffect(() => {
+    if (!selectedLetter) return;
+
+    if (previousSelectedIdRef.current !== selectedLetter.id) {
+      previousSelectedIdRef.current = selectedLetter.id;
+      detailScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+
+    requestDetailScrollOnContentChange({ behavior: "auto" });
+  }, [
+    detailContentSignal,
+    detailScrollRef,
+    requestDetailScrollOnContentChange,
+    selectedLetter,
+  ]);
+
   const handleCreateNew = () => {
-    router.push("/career/experiences");
+    router.push("/career/projects");
   };
 
   const handleEditClick = () => {
@@ -367,7 +414,11 @@ export default function CoverLettersClient({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto no-scrollbar px-8 py-8">
+              <div
+                ref={detailScrollRef}
+                className="flex-1 overflow-y-auto overscroll-contain scroll-smooth no-scrollbar px-8 py-8"
+                onScroll={handleDetailScroll}
+              >
                 <div className="space-y-10">
                   <section className="space-y-4">
                     <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
@@ -378,7 +429,7 @@ export default function CoverLettersClient({
                       </div>
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                         <h4 className="text-[13px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-                          기반 경험
+                          기반 프로젝트
                         </h4>
                         <span className="text-[12px] font-semibold text-slate-500">
                           {(isEditing ? editingSourceExperiences : selectedSourceExperiences).length}개
@@ -471,7 +522,7 @@ export default function CoverLettersClient({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-500">연결된 경험 정보가 없습니다.</p>
+                          <p className="text-xs text-slate-500">연결된 프로젝트 정보가 없습니다.</p>
                         )}
                       </div>
                     </div>
@@ -565,8 +616,23 @@ export default function CoverLettersClient({
                     )}
                   </section>
 
+                  <div ref={detailBottomRef} />
                 </div>
               </div>
+
+              {hasDetailNewContent && !isDetailAtBottom ? (
+                <div className="pointer-events-none absolute bottom-5 right-5 z-10">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="pointer-events-auto h-8 rounded-full bg-slate-900 px-3 text-xs text-white shadow-lg hover:bg-slate-800"
+                    onClick={() => scrollDetailToBottom("smooth")}
+                  >
+                    <ArrowDown className="mr-1.5 h-3.5 w-3.5" />
+                    최신 내용 보기
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center animate-in fade-in">

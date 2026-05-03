@@ -14,6 +14,7 @@ import {
   createDefaultWorkflowState,
   createQuestion,
   type CoverLetterQuestion,
+  type CoverLetterQuestionPreset,
   type ExperienceSnapshot,
   type IntakeStep,
   type Message,
@@ -89,7 +90,7 @@ function buildThinkingSteps(questionTitle: string, workflowStage: WorkflowStage)
       },
       {
         label: "강조 포인트 정리 중...",
-        message: "입력된 경험에서 바로 쓸 수 있는 근거를 추리는 중입니다.",
+        message: "입력된 프로젝트에서 바로 쓸 수 있는 근거를 추리는 중입니다.",
       },
       {
         label: "작성 방향 정리 중...",
@@ -101,8 +102,8 @@ function buildThinkingSteps(questionTitle: string, workflowStage: WorkflowStage)
   if (workflowStage === "draft") {
     return [
       {
-        label: "경험 근거 매칭 중...",
-        message: "문항 요구와 경험 키워드를 연결하는 중입니다.",
+        label: "프로젝트 근거 매칭 중...",
+        message: "문항 요구와 프로젝트 키워드를 연결하는 중입니다.",
       },
       {
         label: "초안 문장 구성 중...",
@@ -150,8 +151,8 @@ const INTRO_THINKING_STEPS = [
     message: "지원 기업과 직무 맥락을 빠르게 정리하고 있습니다.",
   },
   {
-    label: "기반 경험 핵심 키워드 분석 중...",
-    message: "기반 경험에서 우선적으로 꺼낼 키워드를 추리는 중입니다.",
+    label: "기반 프로젝트 핵심 키워드 분석 중...",
+    message: "기반 프로젝트에서 우선적으로 꺼낼 키워드를 추리는 중입니다.",
   },
   {
     label: "맞춤 온보딩 메시지 작성 중...",
@@ -170,7 +171,6 @@ export function useCoverLetterWizard({
 }: CoverLetterWizardOverlayProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const chatBottomRef = useRef<HTMLDivElement>(null);
   const introRequestedQuestionIdsRef = useRef<Set<string>>(new Set());
   const [resumePayload] = useState<ResumePayload>(EMPTY_RESUME);
   const [phase, setPhase] = useState<Phase>("intake");
@@ -274,6 +274,7 @@ export function useCoverLetterWizard({
                 id: item.id,
                 title: item.title,
                 tags: item.tags || [],
+                techStack: item.techStack || [],
                 period: item.period || "",
                 description: item.description || "",
                 situation: item.situation || "",
@@ -390,17 +391,6 @@ export function useCoverLetterWizard({
       setPhase("completed");
     }
   }, [persistState, initialCoverLetterId]);
-
-  useEffect(() => {
-    const messagesForScroll =
-      selectedQuestionId && questionMessages[selectedQuestionId]
-        ? questionMessages[selectedQuestionId]
-        : [];
-    if (messagesForScroll.length === 0 && !isStreaming) return;
-    if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: "auto", block: "end" });
-    }
-  }, [questionMessages, selectedQuestionId, isStreaming]);
 
   const questionSummary = useMemo(
     () =>
@@ -693,6 +683,41 @@ export function useCoverLetterWizard({
         setSelectedQuestionId(next[0].id);
       }
       return { ...prev, questions: next };
+    });
+  };
+
+  const addPresetQuestion = (preset: CoverLetterQuestionPreset) => {
+    setForm((prev) => {
+      const now = new Date().toISOString();
+      const firstEmptyIndex = prev.questions.findIndex(
+        (question) => !question.title.trim() && !question.answer?.trim(),
+      );
+
+      if (firstEmptyIndex !== -1) {
+        const next = prev.questions.map((question, index) =>
+          index === firstEmptyIndex
+            ? {
+                ...question,
+                title: preset.title,
+                maxChars: preset.maxChars,
+                updatedAt: now,
+              }
+            : question,
+        );
+        setSelectedQuestionId(next[firstEmptyIndex]?.id || next[0]?.id || null);
+        return { ...prev, questions: next };
+      }
+
+      if (prev.questions.length >= 6) return prev;
+
+      const nextQuestion: CoverLetterQuestion = {
+        ...createQuestion(),
+        title: preset.title,
+        maxChars: preset.maxChars,
+        updatedAt: now,
+      };
+      setSelectedQuestionId(nextQuestion.id);
+      return { ...prev, questions: [...prev.questions, nextQuestion] };
     });
   };
 
@@ -1084,10 +1109,13 @@ export function useCoverLetterWizard({
             .slice(0, 6)
             .map((exp, idx) => {
               const tags = exp.tags?.length ? ` [${exp.tags.slice(0, 4).join(", ")}]` : "";
-              return `${idx + 1}. ${exp.title}${tags}`;
+              const techStack = exp.techStack?.length
+                ? ` / 기술: ${exp.techStack.slice(0, 5).join(", ")}`
+                : "";
+              return `${idx + 1}. ${exp.title}${tags}${techStack}`;
             })
             .join("\n")
-        : "기반 경험 없음";
+        : "기반 프로젝트 없음";
     const questionLines =
       form.questions.length > 0
         ? form.questions
@@ -1099,7 +1127,7 @@ export function useCoverLetterWizard({
       "아래 정보를 반영해서 자기소개서 코칭 시작 인사 메시지 1개를 작성해줘.",
       "반드시 첫 문장은 '안녕하세요, 디벗 AI 자소서 컨설팅입니다.'로 시작해.",
       "사용자가 입력한 기업명, 직무, 현재 선택 문항을 자연스럽게 언급해.",
-      "기반 경험은 핵심 키워드 중심으로 간단히 요약해.",
+      "기반 프로젝트은 핵심 키워드 중심으로 간단히 요약해.",
       "문항 작성을 위한 간단 질문 2~3개를 마지막에 자연스럽게 던져줘.",
       "불릿/번호 목록 없이 대화체 단락으로 작성해.",
       "응답 마지막에는 아래 프로토콜 블록을 반드시 포함해:",
@@ -1116,7 +1144,7 @@ export function useCoverLetterWizard({
       selectedQuestionSnapshot?.title
         ? `[현재 문항] ${selectedQuestionSnapshot.title} (${selectedQuestionSnapshot.maxChars}자)`
         : "[현재 문항] 미선택",
-      "[기반 경험]",
+      "[기반 프로젝트]",
       experienceLines,
       "",
       "[전체 문항 목록]",
@@ -1340,7 +1368,7 @@ export function useCoverLetterWizard({
       if (resolvedCoverLetterId) {
         params.set("coverLetterId", resolvedCoverLetterId);
       }
-      router.push(`/career/experiences?${params.toString()}`);
+      router.push(`/career/projects?${params.toString()}`);
       return;
     }
     if (typeof window !== "undefined") {
@@ -1437,7 +1465,6 @@ export function useCoverLetterWizard({
     streamPhaseLabel,
     lastAiError,
     requestBanner,
-    chatBottomRef,
     selectedQuestion,
     selectedQuestionId,
     activeMessages,
@@ -1456,6 +1483,7 @@ export function useCoverLetterWizard({
     handleFormChange,
     handleQuestionChange: updateQuestion,
     handleQuestionAdd: addQuestion,
+    handlePresetQuestionAdd: addPresetQuestion,
     handleQuestionRemove: removeQuestion,
     handleChatInputChange: setChatInput,
     handleApplySuggestedAnswer: applySuggestedAnswerToSelectedQuestion,

@@ -1,11 +1,12 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useAnchoredScroll } from "@/hooks/use-anchored-scroll";
 import {
   normalizeWizardMessage,
   type CoverLetterQuestion,
@@ -26,11 +27,74 @@ type CoverLetterWizardStudioChatPanelProps = {
   selectedQuestion: CoverLetterQuestion | null;
   selectedQuestionId: string | null;
   streamPhaseLabel: string;
-  chatBottomRef: RefObject<HTMLDivElement>;
   onChatInputChange: (value: string) => void;
   onApplySuggestedAnswer: (answer: string) => void;
   onSubmit: () => void;
 };
+
+const CHAT_SUGGESTION_LIMIT = 3;
+
+function uniqueSuggestions(suggestions: string[]) {
+  return Array.from(new Set(suggestions.map((suggestion) => suggestion.trim()).filter(Boolean)));
+}
+
+function buildChatSuggestions(
+  activeMessages: Message[],
+  selectedQuestion: CoverLetterQuestion | null,
+) {
+  const normalizedMessages = activeMessages.map(normalizeWizardMessage);
+  const latestMessage = [...normalizedMessages]
+    .reverse()
+    .find((message) => message.content.trim() || message.suggestedAnswer?.trim());
+  const hasDraftAnswer = Boolean(selectedQuestion?.answer?.trim());
+  const maxChars = selectedQuestion?.maxChars || 700;
+
+  if (!selectedQuestion) {
+    return uniqueSuggestions([
+      "작성 방향을 먼저 잡아줘",
+      "필요한 프로젝트를 추천해줘",
+      "초안 작성 전에 확인할 질문을 해줘",
+    ]).slice(0, CHAT_SUGGESTION_LIMIT);
+  }
+
+  if (!latestMessage && !hasDraftAnswer) {
+    return uniqueSuggestions([
+      "이 문항의 작성 방향을 잡아줘",
+      "강조할 핵심 역량을 추천해줘",
+      "어떤 프로젝트를 연결하면 좋을지 골라줘",
+    ]).slice(0, CHAT_SUGGESTION_LIMIT);
+  }
+
+  if (latestMessage?.role === "user") {
+    return uniqueSuggestions([
+      "방금 내용으로 초안을 만들어줘",
+      "핵심 메시지만 먼저 정리해줘",
+      "부족한 정보를 질문해줘",
+    ]).slice(0, CHAT_SUGGESTION_LIMIT);
+  }
+
+  if (latestMessage?.suggestedAnswer?.trim()) {
+    return uniqueSuggestions([
+      "이 답안을 더 구체적으로 다듬어줘",
+      `${maxChars}자 안으로 압축해줘`,
+      "첫 문장을 더 강하게 바꿔줘",
+    ]).slice(0, CHAT_SUGGESTION_LIMIT);
+  }
+
+  if (hasDraftAnswer) {
+    return uniqueSuggestions([
+      "현재 답안을 더 자연스럽게 다듬어줘",
+      "문항 의도에 맞게 근거를 보강해줘",
+      `${maxChars}자 안으로 다시 정리해줘`,
+    ]).slice(0, CHAT_SUGGESTION_LIMIT);
+  }
+
+  return uniqueSuggestions([
+    "방금 답변을 초안으로 이어서 써줘",
+    "더 설득력 있는 근거를 제안해줘",
+    "다음에 답할 내용을 질문해줘",
+  ]).slice(0, CHAT_SUGGESTION_LIMIT);
+}
 
 export function CoverLetterWizardStudioChatPanel({
   activeMessages,
@@ -40,17 +104,59 @@ export function CoverLetterWizardStudioChatPanel({
   selectedQuestion,
   selectedQuestionId,
   streamPhaseLabel,
-  chatBottomRef,
   onChatInputChange,
   onApplySuggestedAnswer,
   onSubmit,
 }: CoverLetterWizardStudioChatPanelProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const {
+    bottomRef: chatBottomRef,
+    hasNewContent,
+    handleScroll,
+    isAtBottom,
+    requestScrollOnContentChange,
+    scrollContainerRef,
+    scrollToBottom,
+  } = useAnchoredScroll<HTMLDivElement>({
+    bottomThreshold: 132,
+    defaultBehavior: "smooth",
+  });
   const hasChatInput = chatInput.trim().length > 0;
+  const chatSuggestions = useMemo(
+    () => buildChatSuggestions(activeMessages, selectedQuestion),
+    [activeMessages, selectedQuestion],
+  );
+  const visibleChatSuggestions = isStreaming ? [] : chatSuggestions;
   const composerHint = requestBanner
     ? `${requestBanner.tone === "error" ? "AI 요청 오류" : "AI 응답 생성 중"} · ${
         requestBanner.message
       }${requestBanner.statusCode ? ` (코드: ${requestBanner.statusCode})` : ""}`
     : streamPhaseLabel || "Enter 전송 · Shift+Enter 줄바꿈";
+
+  useEffect(() => {
+    requestScrollOnContentChange({
+      behavior: isStreaming ? "auto" : "smooth",
+    });
+  }, [activeMessages, isStreaming, requestScrollOnContentChange]);
+
+  useEffect(() => {
+    if (!chatInput) return;
+    requestScrollOnContentChange({ behavior: "auto" });
+  }, [chatInput, requestScrollOnContentChange]);
+
+  useEffect(() => {
+    scrollToBottom("auto");
+  }, [selectedQuestionId, scrollToBottom]);
+
+  const handleSubmit = () => {
+    scrollToBottom("smooth");
+    onSubmit();
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    onChatInputChange(suggestion);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   return (
     <div className="flex min-h-0 flex-col border-r bg-white">
@@ -73,8 +179,12 @@ export function CoverLetterWizardStudioChatPanel({
       </div>
 
       <div className="relative min-h-0 flex-1 bg-slate-50/40">
-        <div className="h-full overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-5 pb-44 pt-5">
+        <div
+          ref={scrollContainerRef}
+          className="h-full overflow-y-auto overscroll-contain scroll-smooth"
+          onScroll={handleScroll}
+        >
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-5 pb-56 pt-5">
             {activeMessages.map((rawMessage, idx) => {
               const message = normalizeWizardMessage(rawMessage);
 
@@ -267,10 +377,41 @@ export function CoverLetterWizardStudioChatPanel({
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white via-white/95 to-white/0 px-4 pb-5 pt-14">
+        {hasNewContent && !isAtBottom ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-44 z-10 flex justify-center px-4">
+            <Button
+              type="button"
+              size="sm"
+              className="pointer-events-auto h-8 rounded-full bg-slate-900 px-3 text-xs text-white shadow-lg hover:bg-slate-800"
+              onClick={() => scrollToBottom("smooth")}
+            >
+              <ArrowDown className="mr-1.5 h-3.5 w-3.5" />새 응답 보기
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white via-white/95 to-white/0 px-4 pb-5 pt-20">
           <div className="pointer-events-auto mx-auto w-full max-w-4xl">
+            {visibleChatSuggestions.length > 0 ? (
+              <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                <span className="shrink-0 text-[10px] font-semibold text-slate-400">
+                  추천 입력
+                </span>
+                {visibleChatSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className="max-w-full rounded-full border border-slate-200/80 bg-white/95 px-3 py-1.5 text-left text-[11px] font-medium leading-none text-slate-600 shadow-sm transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                  >
+                    <span className="block truncate">{suggestion}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_18px_55px_rgba(15,23,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
               <Textarea
+                ref={textareaRef}
                 value={chatInput}
                 onChange={(e) => onChatInputChange(e.target.value)}
                 placeholder={
@@ -282,7 +423,7 @@ export function CoverLetterWizardStudioChatPanel({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    onSubmit();
+                    handleSubmit();
                   }
                 }}
               />
@@ -293,7 +434,7 @@ export function CoverLetterWizardStudioChatPanel({
                 <Button
                   type="button"
                   aria-label="AI에 요청"
-                  onClick={onSubmit}
+                  onClick={handleSubmit}
                   disabled={isStreaming}
                   className={`h-8 w-8 shrink-0 rounded-full p-0 shadow-sm transition-all ${
                     hasChatInput

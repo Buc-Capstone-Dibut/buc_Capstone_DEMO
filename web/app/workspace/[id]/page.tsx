@@ -453,13 +453,13 @@ export default function WorkspaceDetailPage() {
                   <a
                     href={
                       workspaceMeta?.career_import_status === "IMPORTED"
-                        ? "/career/experiences"
-                        : `/career/experiences/new?workspaceId=${projectId}`
+                        ? "/career/projects"
+                        : `/career/projects/new?workspaceId=${projectId}`
                     }
                   >
                     {workspaceMeta?.career_import_status === "IMPORTED"
                       ? "수정하러 가기"
-                      : "내 경험으로 등록하기"}
+                      : "내 프로젝트로 등록하기"}
                   </a>
                 </Button>
               </div>

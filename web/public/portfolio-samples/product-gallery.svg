@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="Portfolio gallery sample">
+  <defs>
+    <linearGradient id="galleryBg" x1="74" y1="44" x2="875" y2="587" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ECFDF5"/>
+      <stop offset="0.5" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EFF6FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="640" rx="42" fill="url(#galleryBg)"/>
+  <rect x="94" y="92" width="772" height="456" rx="38" fill="#FFFFFF" stroke="#D5E1EF" stroke-width="2"/>
+  <rect x="142" y="144" width="230" height="154" rx="28" fill="#E0F2FE"/>
+  <rect x="398" y="144" width="420" height="154" rx="28" fill="#DCFCE7"/>
+  <rect x="142" y="324" width="420" height="172" rx="28" fill="#FEF3C7"/>
+  <rect x="588" y="324" width="230" height="172" rx="28" fill="#FCE7F3"/>
+  <path d="M178 256l66-66 44 42 32-30 52 54" fill="none" stroke="#0284C7" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="309" cy="184" r="24" fill="#0284C7" opacity="0.32"/>
+  <rect x="446" y="194" width="146" height="16" rx="8" fill="#16A34A" opacity="0.5"/>
+  <rect x="446" y="230" width="258" height="12" rx="6" fill="#16A34A" opacity="0.25"/>
+  <rect x="188" y="374" width="104" height="74" rx="18" fill="#F59E0B" opacity="0.44"/>
+  <rect x="318" y="374" width="184" height="18" rx="9" fill="#92400E" opacity="0.36"/>
+  <rect x="318" y="410" width="132" height="12" rx="6" fill="#92400E" opacity="0.24"/>
+  <circle cx="703" cy="410" r="52" fill="#BE123C" opacity="0.26"/>
+  <rect x="648" y="486" width="110" height="12" rx="6" fill="#BE123C" opacity="0.28"/>
+</svg>

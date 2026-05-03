@@ -18,6 +18,8 @@ import {
 
 export type ExperienceInput = NonNullable<ResumePayload["timeline"]>[number];
 export type WorkspaceExperienceImportCandidate = WorkspaceCareerImportCandidate;
+export type ProjectInput = ExperienceInput;
+export type WorkspaceProjectImportCandidate = WorkspaceCareerImportCandidate;
 type MutableResumePayload = Partial<ResumePayload> &
   Record<string, unknown> & {
     timeline?: ExperienceInput[];
@@ -40,6 +42,7 @@ const workspaceDraftSchema = z.object({
   result: z.string().max(2000).optional(),
   lesson: z.string().max(1200).optional(),
   tags: z.array(z.string().max(40)).max(10).optional(),
+  techStack: z.array(z.string().max(40)).max(12).optional(),
 });
 
 function normalizeShortText(value: unknown, maxLength = 500): string | undefined {
@@ -102,8 +105,9 @@ function buildWorkspaceDraftFallback(
     period: baseExperience.period,
     description:
       baseExperience.description ||
-      `${candidate.workspaceName} 워크스페이스 종료 프로젝트 경험입니다.`,
+      `${candidate.workspaceName} 워크스페이스 종료 프로젝트입니다.`,
     tags: baseExperience.tags || [],
+    techStack: baseExperience.techStack || [],
     situation: normalizeShortText(
       `${candidate.workspaceName} 프로젝트를 진행하며 ${
         candidate.workspaceCategory || "팀 활동"
@@ -143,7 +147,7 @@ async function buildWorkspaceDraftWithAi(
 
   const aiPrompt = `
 너는 한국어 커리어 코치다.
-아래 워크스페이스 활동 데이터를 바탕으로 "경험 작성 폼 초안"을 JSON으로만 생성해라.
+아래 워크스페이스 프로젝트 데이터를 바탕으로 "프로젝트 작성 폼 초안"을 JSON으로만 생성해라.
 문장 길이는 각 항목 1~3문장으로 간결하게 작성해라.
 
 [워크스페이스 활동 데이터]
@@ -174,12 +178,14 @@ ${JSON.stringify(
   "difficulty": "string",
   "result": "string",
   "lesson": "string",
-  "tags": ["string"]
+  "tags": ["string"],
+  "techStack": ["string"]
 }
 
 주의:
 - JSON 외 텍스트 금지.
 - "tags"는 3~8개의 짧은 키워드.
+- "techStack"은 실제 사용 기술명만 0~8개로 작성하고, 확인되지 않은 기술은 만들지 마라.
 `;
 
   try {
@@ -206,6 +212,12 @@ ${JSON.stringify(
       .map((tag) => tag.trim())
       .filter(Boolean)
       .slice(0, 10);
+    const nextTechStack = Array.from(
+      new Set([...(aiDraft.techStack || []), ...(fallback.techStack || [])]),
+    )
+      .map((tech) => tech.trim())
+      .filter(Boolean)
+      .slice(0, 12);
 
     return {
       draft: {
@@ -218,6 +230,7 @@ ${JSON.stringify(
         result: normalizeShortText(aiDraft.result, 2000) || fallback.result,
         lesson: normalizeShortText(aiDraft.lesson, 1200) || fallback.lesson,
         tags: normalizeTagArray(nextTags),
+        techStack: normalizeTagArray(nextTechStack),
       },
       usedAi: true,
     };
@@ -375,6 +388,7 @@ export async function saveExperienceAction(data: ExperienceInput) {
   await syncResumeToProfile(userId, payload);
 
   revalidatePath("/career/experiences");
+  revalidatePath("/career/projects");
   return { success: true, experience: data };
 }
 
@@ -423,6 +437,7 @@ export async function deleteExperienceAction(id: string) {
   await syncResumeToProfile(userId, payload);
 
   revalidatePath("/career/experiences");
+  revalidatePath("/career/projects");
   return { success: true };
 }
 
@@ -512,11 +527,11 @@ export async function importWorkspaceExperienceCandidateAction(workspaceId: stri
 
   const candidate = await getWorkspaceCareerImportCandidate(userId, normalizedWorkspaceId);
   if (!candidate) {
-    throw new Error("불러올 수 있는 워크스페이스 경험 후보가 없습니다.");
+    throw new Error("불러올 수 있는 워크스페이스 프로젝트 후보가 없습니다.");
   }
 
   if (candidate.status === "IMPORTED") {
-    throw new Error("이미 불러온 워크스페이스 경험입니다.");
+    throw new Error("이미 불러온 워크스페이스 프로젝트입니다.");
   }
 
   const activeResume = await ensureActiveResume(userId);
@@ -539,6 +554,7 @@ export async function importWorkspaceExperienceCandidateAction(workspaceId: stri
   );
 
   revalidatePath("/career/experiences");
+  revalidatePath("/career/projects");
 
   return {
     success: true,
@@ -562,7 +578,7 @@ export async function prepareWorkspaceExperienceDraftAction(workspaceId: string)
 
   const candidate = await getWorkspaceCareerImportCandidate(userId, normalizedWorkspaceId);
   if (!candidate) {
-    throw new Error("불러올 수 있는 워크스페이스 경험 후보가 없습니다.");
+    throw new Error("불러올 수 있는 워크스페이스 프로젝트 후보가 없습니다.");
   }
 
   const { draft, usedAi } = await buildWorkspaceDraftWithAi(candidate);
@@ -585,6 +601,7 @@ export async function prepareWorkspaceExperienceDraftAction(workspaceId: string)
         normalizeShortText(draft.period, 80) || buildWorkspacePeriodLabel(candidate),
       description: normalizeShortText(draft.description, 500) || "",
       tags: normalizeTagArray(draft.tags),
+      techStack: normalizeTagArray(draft.techStack),
       situation: normalizeShortText(draft.situation, 2000) || "",
       role: normalizeShortText(draft.role, 1200) || "",
       solution: normalizeShortText(draft.solution, 2000) || "",
@@ -610,7 +627,7 @@ export async function markWorkspaceExperienceCandidateImportedAction(
   const normalizedExperienceId = importedExperienceId.trim();
 
   if (!normalizedWorkspaceId || !normalizedExperienceId) {
-    throw new Error("워크스페이스 또는 경험 식별자가 올바르지 않습니다.");
+    throw new Error("워크스페이스 또는 프로젝트 식별자가 올바르지 않습니다.");
   }
 
   const updated = await markWorkspaceCareerImportCandidateImported(
@@ -620,6 +637,45 @@ export async function markWorkspaceExperienceCandidateImportedAction(
   );
 
   revalidatePath("/career/experiences");
+  revalidatePath("/career/projects");
 
   return { success: Boolean(updated) };
+}
+
+export async function saveProjectAction(data: ProjectInput) {
+  return saveExperienceAction(data);
+}
+
+export async function deleteProjectAction(id: string) {
+  return deleteExperienceAction(id);
+}
+
+export async function getProjectsByIdsAction(ids: string[]) {
+  return getExperiencesByIdsAction(ids);
+}
+
+export async function getAllProjectsAction() {
+  return getAllExperiencesAction();
+}
+
+export async function getWorkspaceProjectImportCandidatesAction() {
+  return getWorkspaceExperienceImportCandidatesAction();
+}
+
+export async function importWorkspaceProjectCandidateAction(workspaceId: string) {
+  return importWorkspaceExperienceCandidateAction(workspaceId);
+}
+
+export async function prepareWorkspaceProjectDraftAction(workspaceId: string) {
+  return prepareWorkspaceExperienceDraftAction(workspaceId);
+}
+
+export async function markWorkspaceProjectCandidateImportedAction(
+  workspaceId: string,
+  importedProjectId: string,
+) {
+  return markWorkspaceExperienceCandidateImportedAction(
+    workspaceId,
+    importedProjectId,
+  );
 }

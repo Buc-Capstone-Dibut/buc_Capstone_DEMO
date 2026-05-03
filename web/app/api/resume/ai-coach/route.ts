@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 제시된 키워드를 단순 나열하거나 기계적으로 이어 붙이는 것이 절대 아닙니다!! 
 반드시 전문가의 시각에서 문맥을 이해하여, 자연스러운 흐름과 흡입력 있는 문체로 내용을 기승전결이 있는 완전한 글로 '재작성(Rewrite)'해야 합니다.
 
-${backgroundContext ? `[참고용 배경 지식 (사용자가 선택한 경험 상세)]\n${backgroundContext}\n\n*위 배경 지식을 참고하되, 아래의 [사용자 입력 메모]를 중심으로 작성하세요.*` : ""}
+${backgroundContext ? `[참고용 배경 지식 (사용자가 선택한 프로젝트 상세)]\n${backgroundContext}\n\n*위 배경 지식을 참고하되, 아래의 [사용자 입력 메모]를 중심으로 작성하세요.*` : ""}
 
 [사용자 입력 메모]
 - Situation (상황/배경): ${s}

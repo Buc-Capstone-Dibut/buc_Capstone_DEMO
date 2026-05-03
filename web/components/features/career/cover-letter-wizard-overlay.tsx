@@ -19,7 +19,6 @@ export function CoverLetterWizardOverlay(props: CoverLetterWizardOverlayProps) {
     isStreaming,
     streamPhaseLabel,
     requestBanner,
-    chatBottomRef,
     selectedQuestion,
     selectedQuestionId,
     activeMessages,
@@ -86,7 +85,6 @@ export function CoverLetterWizardOverlay(props: CoverLetterWizardOverlayProps) {
                 selectedQuestion={selectedQuestion}
                 selectedQuestionId={selectedQuestionId}
                 streamPhaseLabel={streamPhaseLabel}
-                chatBottomRef={chatBottomRef}
                 onChatInputChange={handleChatInputChange}
                 onApplySuggestedAnswer={handleApplySuggestedAnswer}
                 onSubmit={handleChatSubmit}
