@@ -10,6 +10,7 @@ import { Suspense } from "react";
 import Script from "next/script";
 import { AppSWRProvider } from "@/components/providers/swr-provider";
 import { VoiceManager } from "@/components/features/workspace/voice/voice-manager";
+import { SiteHelperChat } from "@/components/features/site-helper-chat/site-helper-chat";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dibut.dev";
 
@@ -131,6 +132,7 @@ export default function RootLayout({
                 </Suspense>
                 <div className="flex flex-1 flex-col">{children}</div>
                 <GlobalMobileNav />
+                <SiteHelperChat />
               </div>
             </VoiceManager>
             <Toaster />
