@@ -28,6 +28,7 @@ export function ProjectArchiveScreen({
     handleAddNew,
     handleProjectClick,
     handleDeleteProject,
+    handleLoadSampleData,
     handleIntakeComplete,
     handleSaveProject,
     isSaving,
@@ -40,6 +41,7 @@ export function ProjectArchiveScreen({
     selectionMode,
     portfolioMode,
     isCreatingPortfolio,
+    isSeedingSample,
     setActiveId,
     setFormData,
     showSavedModal,
@@ -71,7 +73,11 @@ export function ProjectArchiveScreen({
         />
 
         {sortedProjects.length === 0 && (
-          <ProjectArchiveEmptyState onAddNew={handleAddNew} />
+          <ProjectArchiveEmptyState
+            onAddNew={handleAddNew}
+            onLoadSampleData={handleLoadSampleData}
+            isLoadingSample={isSeedingSample}
+          />
         )}
 
         {sortedProjects.length > 0 && viewMode === "cards" && (

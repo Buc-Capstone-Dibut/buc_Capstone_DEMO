@@ -7,6 +7,7 @@ import {
   deleteProjectAction,
   saveProjectAction,
 } from "@/app/career/projects/actions";
+import { seedCareerSampleDataAction } from "@/app/career/sample-data/actions";
 import {
   MAX_WIZARD_PROJECTS,
   buildProjectContextString,
@@ -52,6 +53,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
   );
   const [formData, setFormData] = useState<ProjectArchiveFormData>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSeedingSample, setIsSeedingSample] = useState(false);
 
   const sortedProjects = sortProjectsByPeriodDesc(projects);
 
@@ -90,6 +92,33 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
 
   const handleAddNew = () => {
     router.push("/career/projects/new");
+  };
+
+  const handleLoadSampleData = async () => {
+    if (isSeedingSample) return;
+    const confirmed = confirm(
+      "현재 계정에 샘플 프로젝트와 경력 데이터를 추가할까요? 기존 데이터는 유지됩니다.",
+    );
+    if (!confirmed) return;
+
+    setIsSeedingSample(true);
+    try {
+      const result = await seedCareerSampleDataAction();
+      setProjects(result.projects as ProjectInput[]);
+      setSelectedIds([]);
+      setActiveId(null);
+      router.refresh();
+      alert(
+        result.added.projects > 0
+          ? "샘플 프로젝트와 경력 데이터가 추가되었습니다."
+          : "이미 샘플 데이터가 추가되어 있습니다.",
+      );
+    } catch (error) {
+      console.error(error);
+      alert("샘플 데이터를 추가하지 못했습니다.");
+    } finally {
+      setIsSeedingSample(false);
+    }
   };
 
   const handleSaveProject = async (closeFn: () => void) => {
@@ -394,6 +423,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
     handleAddNew,
     handleProjectClick,
     handleDeleteProject,
+    handleLoadSampleData,
     handleIntakeComplete,
     handleSaveProject,
     isSaving,
@@ -406,6 +436,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
     selectionMode,
     portfolioMode,
     isCreatingPortfolio,
+    isSeedingSample,
     setActiveId,
     setFormData,
     showSavedModal,

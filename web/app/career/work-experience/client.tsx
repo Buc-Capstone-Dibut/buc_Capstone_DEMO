@@ -10,18 +10,21 @@ import {
   GitCommitVertical,
   LayoutGrid,
   Plus,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { saveWorkExperienceAction, deleteWorkExperienceAction, type WorkExperienceInput } from "./actions";
+import { seedCareerSampleDataAction } from "../sample-data/actions";
 
 export default function WorkExperienceClient({ initialExperiences }: { initialExperiences: WorkExperienceInput[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [experiences, setExperiences] = useState<WorkExperienceInput[]>(initialExperiences || []);
   const [formData, setFormData] = useState<Partial<WorkExperienceInput>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSeedingSample, setIsSeedingSample] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
 
   // Default sorted experiences
@@ -51,6 +54,31 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
       description: "",
     });
     setActiveId(newId);
+  };
+
+  const handleLoadSampleData = async () => {
+    if (isSeedingSample) return;
+    const confirmed = confirm(
+      "현재 계정에 샘플 프로젝트와 경력 데이터를 추가할까요? 기존 데이터는 유지됩니다.",
+    );
+    if (!confirmed) return;
+
+    setIsSeedingSample(true);
+    try {
+      const result = await seedCareerSampleDataAction();
+      setExperiences(result.workExperiences as WorkExperienceInput[]);
+      setActiveId(null);
+      alert(
+        result.added.workExperiences > 0
+          ? "샘플 경력과 프로젝트 데이터가 추가되었습니다."
+          : "이미 샘플 데이터가 추가되어 있습니다.",
+      );
+    } catch (error) {
+      console.error(error);
+      alert("샘플 데이터를 추가하지 못했습니다.");
+    } finally {
+      setIsSeedingSample(false);
+    }
   };
 
   const handleSave = async () => {
@@ -159,9 +187,19 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
         {sortedExperiences.length === 0 && activeId === null && (
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/50 py-20 dark:border-slate-700 dark:bg-slate-900/50">
             <p className="mb-4 font-medium text-slate-500">아직 등록된 재직 경력이 없습니다.</p>
-            <Button onClick={handleAddNew} variant="outline" className="rounded-full">
-              경력 추가하기
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={handleAddNew} variant="outline" className="rounded-full">
+                경력 추가하기
+              </Button>
+              <Button
+                onClick={handleLoadSampleData}
+                disabled={isSeedingSample}
+                className="gap-2 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isSeedingSample ? "추가 중" : "샘플 데이터 불러오기"}
+              </Button>
+            </div>
           </div>
         )}
 

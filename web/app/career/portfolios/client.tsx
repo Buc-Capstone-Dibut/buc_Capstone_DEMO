@@ -14,6 +14,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   type PortfolioListItem,
 } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
+import { seedCareerSampleDataAction } from "../sample-data/actions";
 
 type PortfoliosClientProps = {
   initialPortfolios: PortfolioListItem[];
@@ -127,6 +129,7 @@ async function copyTextToClipboard(text: string) {
 
 export default function PortfoliosClient({
   initialPortfolios,
+  sourceStats,
 }: PortfoliosClientProps) {
   const router = useRouter();
   const [portfolios, setPortfolios] = useState(initialPortfolios);
@@ -136,6 +139,9 @@ export default function PortfoliosClient({
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
   const [copiedPortfolioId, setCopiedPortfolioId] = useState<string | null>(null);
+  const [isSeedingSample, setIsSeedingSample] = useState(false);
+  const hasSourceData =
+    sourceStats.projects + sourceStats.workExperiences + sourceStats.skills > 0;
 
   const filteredPortfolios = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -164,6 +170,30 @@ export default function PortfoliosClient({
 
   const handleStartCreate = () => {
     router.push("/career/projects?portfolioMode=1");
+  };
+
+  const handleLoadSampleData = async () => {
+    if (isSeedingSample) return;
+    const confirmed = confirm(
+      "현재 계정에 샘플 프로젝트와 경력 데이터를 추가하고 포트폴리오 생성 모드로 이동할까요?",
+    );
+    if (!confirmed) return;
+
+    setIsSeedingSample(true);
+    try {
+      const result = await seedCareerSampleDataAction();
+      alert(
+        result.added.projects > 0 || result.added.workExperiences > 0
+          ? "샘플 데이터가 추가되었습니다. 프로젝트를 선택해 포트폴리오를 생성하세요."
+          : "이미 샘플 데이터가 추가되어 있습니다.",
+      );
+      router.push("/career/projects?portfolioMode=1");
+    } catch (error) {
+      console.error(error);
+      alert("샘플 데이터를 추가하지 못했습니다.");
+    } finally {
+      setIsSeedingSample(false);
+    }
   };
 
   const handleOpenWorkspace = (portfolio: PortfolioListItem) => {
@@ -365,6 +395,26 @@ export default function PortfoliosClient({
               <p className="max-w-md text-[13px] text-slate-500">
                 프로젝트 보관함에서 포트폴리오 작성 모드를 켜고 프로젝트를 선택해 생성하세요.
               </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  onClick={handleStartCreate}
+                  variant="outline"
+                  className="h-10 rounded-lg px-4 text-[13px] font-semibold"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  프로젝트 선택
+                </Button>
+                {!hasSourceData && (
+                  <Button
+                    onClick={handleLoadSampleData}
+                    disabled={isSeedingSample}
+                    className="h-10 gap-2 rounded-lg bg-slate-900 px-4 text-[13px] font-semibold text-white hover:bg-slate-800"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isSeedingSample ? "추가 중" : "샘플 데이터 불러오기"}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </main>
