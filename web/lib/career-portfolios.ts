@@ -5,13 +5,14 @@ export type PortfolioTemplateId =
   | "case-study"
   | "visual-showcase";
 
-export type PortfolioFormat = "slide" | "document";
+export type PortfolioFormat = "slide" | "document" | "site";
 export type PortfolioPageSize = "16:9" | "a4";
 export type PortfolioOrientation = "landscape" | "portrait";
 export type PortfolioGenerationPreset =
   | "interview-pitch"
   | "project-report"
-  | "resume-portfolio";
+  | "resume-portfolio"
+  | "web-slide";
 
 export type PortfolioSectionType =
   | "hero"
@@ -63,6 +64,65 @@ export type PortfolioSection = {
   sourceKind?: "project" | "experience" | "coverLetter" | "manual";
   visible?: boolean;
   canvas?: PortfolioCanvasLayout;
+};
+
+export type PortfolioSitePageType =
+  | "cover"
+  | "profile"
+  | "skills"
+  | "project-index"
+  | "case-study"
+  | "project-detail"
+  | "experience"
+  | "retrospective"
+  | "contact";
+
+export type PortfolioSiteLayout =
+  | "cover-focus"
+  | "profile-summary"
+  | "skills-grid"
+  | "project-index"
+  | "case-study"
+  | "project-detail"
+  | "timeline"
+  | "closing";
+
+export type PortfolioSiteBlockType = "text" | "tags" | "metric" | "image" | "timeline";
+
+export type PortfolioSiteBlockRole =
+  | "headline"
+  | "summary"
+  | "problem"
+  | "role"
+  | "solution"
+  | "result"
+  | "lesson"
+  | "body";
+
+export type PortfolioSiteBlock = {
+  id: string;
+  type: PortfolioSiteBlockType;
+  role?: PortfolioSiteBlockRole;
+  label?: string;
+  value?: string;
+  caption?: string;
+  content?: string;
+  items?: string[];
+  image?: PortfolioImageSlot;
+};
+
+export type PortfolioSitePage = {
+  id: string;
+  type: PortfolioSitePageType;
+  title: string;
+  subtitle?: string;
+  eyebrow?: string;
+  layout: PortfolioSiteLayout;
+  blocks: PortfolioSiteBlock[];
+  image?: PortfolioImageSlot;
+  sourceId?: string;
+  sourceKind?: PortfolioSection["sourceKind"];
+  visible?: boolean;
 };
 
 export type PortfolioCanvasElementKind =
@@ -135,6 +195,8 @@ export type PortfolioDocument = {
   generationPreset: PortfolioGenerationPreset;
   theme: PortfolioTheme;
   sections: PortfolioSection[];
+  mode?: "paged";
+  pages?: PortfolioSitePage[];
 };
 
 export type PortfolioTemplateBlueprint = {
@@ -220,7 +282,7 @@ export type PortfolioListItem = {
     slideTitles?: string[];
     previewPages?: Array<{
       id: string;
-      type: PortfolioSectionType;
+      type: PortfolioSectionType | PortfolioSitePageType;
       title: string;
       subtitle?: string;
       thumbnailUrl?: string;
@@ -288,6 +350,7 @@ export function getDefaultPortfolioPageSize(format: PortfolioFormat): PortfolioP
 }
 
 export function getDefaultPortfolioPreset(format: PortfolioFormat): PortfolioGenerationPreset {
+  if (format === "site") return "web-slide";
   return format === "document" ? "project-report" : "interview-pitch";
 }
 
@@ -1255,6 +1318,20 @@ export function withPortfolioSampleImages(document: PortfolioDocument): Portfoli
     ),
   ];
 
+  if (document.format === "site") {
+    const pages = (document.pages || []).map((page) => ({
+      ...page,
+      image: undefined,
+      blocks: page.blocks.filter((block) => block.type !== "image"),
+    }));
+
+    return {
+      ...document,
+      pages,
+      sections: sitePagesToSections(pages),
+    };
+  }
+
   return {
     ...document,
     sections: document.sections.map((section) => {
@@ -1416,6 +1493,589 @@ export function createCoverLetterSection(
   };
 }
 
+function createSiteBlock(
+  type: PortfolioSiteBlockType,
+  block: Omit<PortfolioSiteBlock, "id" | "type"> & { id?: string },
+): PortfolioSiteBlock {
+  return {
+    ...block,
+    id: block.id || makeId(`site-${type}`),
+    type,
+  };
+}
+
+function createSiteTextBlock(
+  role: PortfolioSiteBlockRole,
+  content: string,
+  label?: string,
+) {
+  return createSiteBlock("text", { role, label, content });
+}
+
+function createSiteTagsBlock(items: string[], label = "핵심 키워드") {
+  return createSiteBlock("tags", {
+    label,
+    items: Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))).slice(0, 12),
+  });
+}
+
+function createSiteMetricBlock(label: string, value: string, caption?: string) {
+  return createSiteBlock("metric", { label, value, caption });
+}
+
+function createSiteTimelineBlock(items: string[], label = "흐름") {
+  return createSiteBlock("timeline", {
+    label,
+    items: items.map((item) => item.trim()).filter(Boolean).slice(0, 8),
+  });
+}
+
+function createSitePage(
+  page: Omit<PortfolioSitePage, "id" | "visible"> &
+    Partial<Pick<PortfolioSitePage, "id" | "visible">>,
+): PortfolioSitePage {
+  return {
+    ...page,
+    id: page.id || makeId("site-page"),
+    visible: page.visible !== false,
+  };
+}
+
+function projectDisplayTitle(project: PortfolioSourceData["projects"][number], index = 0) {
+  return project.company || project.position || `프로젝트 ${index + 1}`;
+}
+
+function projectDisplaySubtitle(project: PortfolioSourceData["projects"][number]) {
+  return [project.position, project.period].filter(Boolean).join(" · ");
+}
+
+function siteText(parts: Array<string | undefined>, fallback: string) {
+  const text = parts
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join("\n");
+  return text || fallback;
+}
+
+function projectStackText(project: PortfolioSourceData["projects"][number]) {
+  const stack = [
+    ...(project.techStack || []),
+    ...(project.tags || []),
+  ]
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return Array.from(new Set(stack)).slice(0, 8).join(", ");
+}
+
+function sitePageTypeToSectionType(type: PortfolioSitePageType): PortfolioSectionType {
+  if (type === "cover") return "hero";
+  if (type === "profile") return "about";
+  if (type === "skills") return "skills";
+  if (type === "project-index") return "index";
+  if (type === "experience") return "experience";
+  if (type === "retrospective") return "retrospective";
+  if (type === "contact") return "contact";
+  return "project";
+}
+
+function sectionTypeToSitePageType(type: PortfolioSectionType): PortfolioSitePageType {
+  if (type === "hero") return "cover";
+  if (type === "about") return "profile";
+  if (type === "skills") return "skills";
+  if (type === "index") return "project-index";
+  if (type === "experience") return "experience";
+  if (type === "retrospective") return "retrospective";
+  if (type === "contact") return "contact";
+  return "case-study";
+}
+
+function getSitePageImage(page: PortfolioSitePage) {
+  return (
+    page.image ||
+    page.blocks.find((block) => block.type === "image" && (block.image?.url || block.image?.assetId))
+      ?.image
+  );
+}
+
+function getSitePageTags(page: PortfolioSitePage) {
+  return (
+    page.blocks.find((block) => block.type === "tags" && block.items?.length)?.items ||
+    page.blocks
+      .filter((block) => block.type === "metric")
+      .map((block) => block.label || "")
+      .filter(Boolean)
+  );
+}
+
+function getSitePageBody(page: PortfolioSitePage) {
+  return page.blocks
+    .flatMap((block) => {
+      if (block.type === "text") return block.content || "";
+      if (block.type === "timeline") return block.items?.join("\n") || "";
+      if (block.type === "metric") {
+        return [block.label, block.value, block.caption].filter(Boolean).join(": ");
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function sitePagesToSections(pages: PortfolioSitePage[]): PortfolioSection[] {
+  return pages.map((page) => ({
+    id: page.id,
+    type: sitePageTypeToSectionType(page.type),
+    title: page.title || "웹 슬라이드",
+    subtitle: page.subtitle,
+    body: compactBody(getSitePageBody(page), 6),
+    tags: getSitePageTags(page),
+    image: getSitePageImage(page),
+    sourceId: page.sourceId,
+    sourceKind: page.sourceKind,
+    visible: page.visible !== false,
+  }));
+}
+
+function sectionsToSitePages(sections: PortfolioSection[]): PortfolioSitePage[] {
+  return sections.map((section) =>
+    createSitePage({
+      type: sectionTypeToSitePageType(section.type),
+      title: section.title || "웹 슬라이드",
+      subtitle: section.subtitle,
+      eyebrow: section.type.toUpperCase(),
+      layout:
+        section.type === "hero"
+          ? "cover-focus"
+          : section.type === "about"
+            ? "profile-summary"
+            : section.type === "skills"
+              ? "skills-grid"
+              : section.type === "index"
+                ? "project-index"
+                : section.type === "contact"
+                  ? "closing"
+                  : section.type === "experience" || section.type === "retrospective"
+                    ? "timeline"
+                    : "case-study",
+      blocks: [
+        createSiteTextBlock("summary", section.body || section.subtitle || section.title),
+        ...(section.tags?.length ? [createSiteTagsBlock(section.tags)] : []),
+      ],
+      sourceId: section.sourceId,
+      sourceKind: section.sourceKind,
+      visible: section.visible,
+    }),
+  );
+}
+
+function normalizeStringItems(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function normalizeSiteImageSlot(value: unknown): PortfolioImageSlot | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Partial<PortfolioImageSlot>;
+  return {
+    ...raw,
+    aspectRatio: raw.aspectRatio || "16:9",
+    objectFit: raw.objectFit || "cover",
+    focalPoint: raw.focalPoint || { x: 50, y: 50 },
+  };
+}
+
+function normalizePortfolioSiteBlock(value: unknown): PortfolioSiteBlock {
+  if (!value || typeof value !== "object") {
+    return createSiteTextBlock("body", "");
+  }
+  const raw = value as Partial<PortfolioSiteBlock>;
+  const type: PortfolioSiteBlockType =
+    raw.type === "tags" ||
+    raw.type === "metric" ||
+    raw.type === "image" ||
+    raw.type === "timeline" ||
+    raw.type === "text"
+      ? raw.type
+      : "text";
+  const role: PortfolioSiteBlockRole | undefined =
+    raw.role === "headline" ||
+    raw.role === "summary" ||
+    raw.role === "problem" ||
+    raw.role === "role" ||
+    raw.role === "solution" ||
+    raw.role === "result" ||
+    raw.role === "lesson" ||
+    raw.role === "body"
+      ? raw.role
+      : type === "text"
+        ? "body"
+        : undefined;
+
+  return {
+    id: raw.id || makeId(`site-${type}`),
+    type,
+    role,
+    label: raw.label || "",
+    value: raw.value || "",
+    caption: raw.caption || "",
+    content: typeof raw.content === "string" ? raw.content : "",
+    items: normalizeStringItems(raw.items),
+    image: normalizeSiteImageSlot(raw.image),
+  };
+}
+
+function normalizePortfolioSitePages(value: unknown): PortfolioSitePage[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Partial<PortfolioSitePage> => Boolean(item && typeof item === "object"))
+    .map((raw) => {
+      const type: PortfolioSitePageType =
+        raw.type === "cover" ||
+        raw.type === "profile" ||
+        raw.type === "skills" ||
+        raw.type === "project-index" ||
+        raw.type === "case-study" ||
+        raw.type === "project-detail" ||
+        raw.type === "experience" ||
+        raw.type === "retrospective" ||
+        raw.type === "contact"
+          ? raw.type
+          : "case-study";
+      const layout: PortfolioSiteLayout =
+        raw.layout === "cover-focus" ||
+        raw.layout === "profile-summary" ||
+        raw.layout === "skills-grid" ||
+        raw.layout === "project-index" ||
+        raw.layout === "case-study" ||
+        raw.layout === "project-detail" ||
+        raw.layout === "timeline" ||
+        raw.layout === "closing"
+          ? raw.layout
+          : type === "cover"
+            ? "cover-focus"
+            : type === "profile"
+              ? "profile-summary"
+              : type === "skills"
+                ? "skills-grid"
+                : type === "project-index"
+                  ? "project-index"
+                  : type === "contact"
+                    ? "closing"
+                    : type === "experience" || type === "retrospective"
+                      ? "timeline"
+                      : "case-study";
+      return {
+        id: raw.id || makeId("site-page"),
+        type,
+        title: raw.title || "웹 슬라이드",
+        subtitle: raw.subtitle || "",
+        eyebrow: raw.eyebrow || "",
+        layout,
+        blocks: Array.isArray(raw.blocks) ? raw.blocks.map(normalizePortfolioSiteBlock) : [],
+        image: normalizeSiteImageSlot(raw.image),
+        sourceId: raw.sourceId,
+        sourceKind: raw.sourceKind,
+        visible: raw.visible !== false,
+      };
+    });
+}
+
+export function createDefaultPortfolioSiteDocument(
+  templateId: PortfolioTemplateId,
+  source: PortfolioSourceData,
+  options: {
+    pageSize?: PortfolioPageSize;
+    orientation?: PortfolioOrientation;
+    generationPreset?: PortfolioGenerationPreset;
+  } = {},
+): PortfolioDocument {
+  const template = getPortfolioTemplate(templateId);
+  const personal = source.personalInfo;
+  const skillNames = collectPortfolioSkillNames(source);
+  const plan = createFallbackPortfolioGenerationPlan(source);
+  const projectTitles = source.projects
+    .slice(0, 6)
+    .map((project, index) => projectDisplayTitle(project, index));
+  const contactText = [personal.email, personal.phone, personal.links?.github, personal.links?.blog]
+    .filter(Boolean)
+    .join("\n");
+  const pages: PortfolioSitePage[] = [
+    createSitePage({
+      type: "cover",
+      title: personal.name ? `${plan.position} ${personal.name}` : `${plan.position} 포트폴리오`,
+      subtitle: personal.intro || plan.strengths.join(" · ") || "프로젝트와 경험을 웹 슬라이드로 정리합니다.",
+      eyebrow: "Portfolio",
+      layout: "cover-focus",
+      blocks: [
+        createSiteTextBlock(
+          "headline",
+          siteText(
+            [
+              personal.intro,
+              plan.strengths.length
+                ? `${plan.strengths.join(", ")}을 중심으로 프로젝트 문제를 정의하고 구현 결과를 검증합니다.`
+                : undefined,
+              source.projects.length
+                ? `${source.projects.length}개의 대표 프로젝트에서 역할, 기술 선택, 결과를 페이지별 근거로 정리했습니다.`
+                : undefined,
+            ],
+            "프로젝트와 경험을 근거 중심의 웹 슬라이드 포트폴리오로 정리합니다.",
+          ),
+        ),
+        createSiteTagsBlock(plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증"]),
+        createSiteMetricBlock("프로젝트", `${source.projects.length}`, "선택한 대표 프로젝트"),
+        createSiteMetricBlock("기술 스택", `${skillNames.length}`, "프로젝트에서 사용한 기술"),
+      ],
+      sourceKind: "manual",
+    }),
+    createSitePage({
+      type: "profile",
+      title: "프로필 요약",
+      subtitle: personal.name || plan.position,
+      eyebrow: "Profile",
+      layout: "profile-summary",
+      blocks: [
+        createSiteTextBlock(
+          "summary",
+          siteText(
+            [
+              personal.intro,
+              plan.strengths.length
+                ? `${plan.strengths.join(", ")}을 기준으로 문제를 작은 단위로 나누고, 구현 후 결과를 다시 검증하는 방식으로 일합니다.`
+                : undefined,
+              projectTitles.length
+                ? `대표 프로젝트는 ${projectTitles.slice(0, 3).join(", ")}이며, 각 페이지에서 맡은 역할과 의사결정을 분리해 보여줍니다.`
+                : undefined,
+            ],
+            "문제를 정의하고 구현하며 결과를 검증하는 과정을 포트폴리오의 주요 근거로 정리합니다.",
+          ),
+        ),
+        createSiteTimelineBlock(
+          plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증", "개선"],
+          "일하는 방식",
+        ),
+      ],
+      sourceKind: "manual",
+    }),
+    createSitePage({
+      type: "skills",
+      title: "핵심 역량과 기술",
+      subtitle: skillNames.slice(0, 5).join(" · ") || "프로젝트 기반 기술 스택",
+      eyebrow: "Stack",
+      layout: "skills-grid",
+      blocks: [
+        createSiteTextBlock(
+          "summary",
+          [
+            plan.strengths.join(" · "),
+            skillNames.length
+              ? `${skillNames.slice(0, 10).join(", ")}를 실제 프로젝트에서 어떻게 사용했는지 프로젝트 페이지와 연결해 보여줍니다.`
+              : "",
+            source.projects.length
+              ? "기술 목록만 나열하지 않고, 문제 해결 과정에서 어떤 역할로 쓰였는지 함께 정리합니다."
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+        createSiteTagsBlock(skillNames.length ? skillNames : plan.strengths, "기술 스택"),
+        createSiteMetricBlock("핵심 기술", `${skillNames.length || plan.strengths.length}`, "선택 데이터 기준"),
+      ],
+      sourceKind: "manual",
+    }),
+    createSitePage({
+      type: "project-index",
+      title: "프로젝트 흐름",
+      subtitle: "대표 프로젝트와 증명할 역량",
+      eyebrow: "Contents",
+      layout: "project-index",
+      blocks: [
+        createSiteTimelineBlock(
+          projectTitles.length ? projectTitles : ["대표 프로젝트", "핵심 역량", "연락처"],
+          "웹 슬라이드 구성",
+        ),
+        createSiteTagsBlock(plan.strengths, "강점"),
+      ],
+      sourceKind: "manual",
+    }),
+  ];
+
+  source.workExperiences.slice(0, 2).forEach((experience) => {
+    pages.push(
+      createSitePage({
+        type: "experience",
+        title: experience.company || "경력",
+        subtitle: [experience.position, experience.period].filter(Boolean).join(" · "),
+        eyebrow: "Experience",
+        layout: "timeline",
+        blocks: [
+          createSiteTextBlock("summary", experience.description || "담당 업무와 성과를 정리합니다."),
+          createSiteTimelineBlock(
+            compactBody(experience.description, 5).split("\n").filter(Boolean),
+            "주요 업무",
+          ),
+        ],
+        sourceId: experience.id,
+        sourceKind: "experience",
+      }),
+    );
+  });
+
+  source.projects.slice(0, 4).forEach((project, index) => {
+    const title = projectDisplayTitle(project, index);
+    const subtitle = projectDisplaySubtitle(project);
+    const tags = project.tags?.length ? project.tags : project.techStack || [];
+    const stackText = projectStackText(project);
+    pages.push(
+      createSitePage({
+        type: "case-study",
+        title,
+        subtitle,
+        eyebrow: `Case ${index + 1}`,
+        layout: "case-study",
+        blocks: [
+          createSiteTextBlock(
+            "summary",
+            siteText(
+              [
+                project.description,
+                subtitle ? `역할/기간: ${subtitle}` : undefined,
+                stackText ? `사용 기술과 키워드: ${stackText}` : undefined,
+              ],
+              "프로젝트 목표와 구현 내용을 채용 담당자가 빠르게 이해할 수 있도록 정리합니다.",
+            ),
+          ),
+          createSiteTextBlock(
+            "problem",
+            siteText(
+              [project.situation, project.difficulty],
+              "해결해야 할 문제와 제약 조건을 먼저 정의했습니다.",
+            ),
+            "문제",
+          ),
+          createSiteTextBlock(
+            "role",
+            siteText(
+              [
+                project.role,
+                project.position ? `${project.position} 역할로 참여했습니다.` : undefined,
+                stackText ? `${stackText}를 사용해 구현 범위를 나눴습니다.` : undefined,
+              ],
+              "담당 역할을 기준으로 구현 범위와 우선순위를 정했습니다.",
+            ),
+            "역할",
+          ),
+          createSiteTextBlock(
+            "solution",
+            siteText(
+              [project.solution, project.description ? `구현 맥락: ${project.description}` : undefined],
+              "담당 역할을 중심으로 해결 방안을 설계하고 구현했습니다.",
+            ),
+            "해결",
+          ),
+          createSiteTextBlock(
+            "result",
+            siteText(
+              [project.result, project.lesson ? `배운 점: ${project.lesson}` : undefined],
+              "구현 결과와 검증 과정에서 얻은 배운 점을 정리했습니다.",
+            ),
+            "결과",
+          ),
+          createSiteTagsBlock(tags, "기술/키워드"),
+        ],
+        sourceId: project.id,
+        sourceKind: "project",
+      }),
+    );
+
+    pages.push(
+      createSitePage({
+        type: "project-detail",
+        title: `${title} 상세 흐름`,
+        subtitle,
+        eyebrow: "Detail",
+        layout: "project-detail",
+        blocks: [
+          createSiteTimelineBlock(
+            [
+              project.situation || project.difficulty || "문제 정의",
+              project.role || "담당 역할",
+              project.solution || "해결 구현",
+              project.result || project.lesson || "결과 검증",
+            ],
+            "문제에서 결과까지",
+          ),
+          createSiteMetricBlock("역할", project.position || "구현", project.period || ""),
+          createSiteTextBlock(
+            "lesson",
+            siteText(
+              [
+                project.lesson,
+                project.result ? `결과: ${project.result}` : undefined,
+                project.solution ? `다시 적용 가능한 방식: ${project.solution}` : undefined,
+              ],
+              "프로젝트를 통해 다음 작업에 재사용할 수 있는 판단 기준과 구현 방식을 정리했습니다.",
+            ),
+            "배운 점",
+          ),
+        ],
+        sourceId: project.id,
+        sourceKind: "project",
+      }),
+    );
+  });
+
+  pages.push(
+    createSitePage({
+      type: "retrospective",
+      title: "성장 포인트",
+      subtitle: "프로젝트를 통해 확장한 역량",
+      eyebrow: "Growth",
+      layout: "timeline",
+      blocks: [
+        createSiteTextBlock(
+          "summary",
+          plan.strengths.length
+            ? `${plan.strengths.join(", ")}을 중심으로 문제를 정의하고 구현 결과를 검증했습니다.`
+            : "문제 정의, 구현, 검증의 흐름을 반복하며 프로젝트 완성도를 높였습니다.",
+        ),
+        createSiteTimelineBlock(plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증", "개선"]),
+      ],
+      sourceKind: "manual",
+    }),
+    createSitePage({
+      type: "contact",
+      title: "연락처",
+      subtitle: personal.name || plan.position,
+      eyebrow: "Contact",
+      layout: "closing",
+      blocks: [
+        createSiteTextBlock("summary", contactText || "email@example.com"),
+        createSiteTagsBlock([personal.links?.github || "", personal.links?.blog || ""].filter(Boolean), "링크"),
+      ],
+      sourceKind: "manual",
+    }),
+  );
+
+  const visiblePages = pages.slice(0, Math.max(8, Math.min(14, pages.length)));
+
+  const document: PortfolioDocument = {
+    version: 1,
+    templateId,
+    format: "site",
+    pageSize: options.pageSize || "16:9",
+    orientation: options.orientation || "landscape",
+    generationPreset: options.generationPreset || "web-slide",
+    theme: template.theme,
+    mode: "paged",
+    pages: visiblePages,
+    sections: sitePagesToSections(visiblePages),
+  };
+
+  return polishPortfolioDocument(withPortfolioSampleImages(document));
+}
+
 export function createDefaultPortfolioDocument(
   templateId: PortfolioTemplateId,
   source: PortfolioSourceData,
@@ -1426,6 +2086,14 @@ export function createDefaultPortfolioDocument(
     generationPreset?: PortfolioGenerationPreset;
   } = {},
 ): PortfolioDocument {
+  if (options.format === "site") {
+    return createDefaultPortfolioSiteDocument(templateId, source, {
+      pageSize: options.pageSize,
+      orientation: options.orientation,
+      generationPreset: options.generationPreset,
+    });
+  }
+
   const template = getPortfolioTemplate(templateId);
   const format = options.format || "slide";
   const pageSize = options.pageSize || getDefaultPortfolioPageSize(format);
@@ -1582,13 +2250,17 @@ export function normalizePortfolioDocument(
 
   const raw = input as Partial<PortfolioDocument>;
   const template = getPortfolioTemplate(raw.templateId || fallbackTemplateId);
-  const format = raw.format === "document" ? "document" : "slide";
+  const format =
+    raw.format === "document" || raw.format === "site" ? raw.format : "slide";
   const pageSize =
     raw.pageSize === "a4" || raw.pageSize === "16:9"
       ? raw.pageSize
       : getDefaultPortfolioPageSize(format);
   const pagePreset = getPortfolioPagePreset(pageSize);
   const sections = Array.isArray(raw.sections) ? raw.sections : [];
+  const pages = normalizePortfolioSitePages(raw.pages);
+  const sitePages =
+    format === "site" ? (pages.length ? pages : sectionsToSitePages(sections)) : [];
 
   const document: PortfolioDocument = {
     version: 1,
@@ -1602,20 +2274,26 @@ export function normalizePortfolioDocument(
     generationPreset:
       raw.generationPreset === "project-report" ||
       raw.generationPreset === "resume-portfolio" ||
-      raw.generationPreset === "interview-pitch"
+      raw.generationPreset === "interview-pitch" ||
+      raw.generationPreset === "web-slide"
         ? raw.generationPreset
         : getDefaultPortfolioPreset(format),
     theme: {
       ...template.theme,
       ...(raw.theme || {}),
     },
-    sections: sections.map((section) => ({
-      ...section,
-      id: section.id || makeId(section.type || "section"),
-      type: section.type || "about",
-      title: section.title || "섹션",
-      visible: section.visible !== false,
-    })),
+    mode: format === "site" ? "paged" : undefined,
+    pages: format === "site" ? sitePages : undefined,
+    sections:
+      format === "site"
+        ? sitePagesToSections(sitePages)
+        : sections.map((section) => ({
+            ...section,
+            id: section.id || makeId(section.type || "section"),
+            type: section.type || "about",
+            title: section.title || "섹션",
+            visible: section.visible !== false,
+          })),
   };
 
   return polishPortfolioDocument(document);
@@ -1676,6 +2354,24 @@ function clampCanvasElement(
 }
 
 export function polishPortfolioDocument(document: PortfolioDocument): PortfolioDocument {
+  if (document.format === "site") {
+    const pages = normalizePortfolioSitePages(document.pages).length
+      ? normalizePortfolioSitePages(document.pages)
+      : sectionsToSitePages(document.sections);
+
+    return {
+      ...document,
+      format: "site",
+      pageSize: "16:9",
+      orientation: "landscape",
+      generationPreset:
+        document.generationPreset === "web-slide" ? document.generationPreset : "web-slide",
+      mode: "paged",
+      pages,
+      sections: sitePagesToSections(pages),
+    };
+  }
+
   const baseDocument = {
     ...document,
     sections: document.sections.map((section) => {
@@ -1708,6 +2404,45 @@ export function polishPortfolioDocument(document: PortfolioDocument): PortfolioD
 }
 
 export function buildPortfolioPublicSummary(document: PortfolioDocument) {
+  if (document.format === "site") {
+    const pages = (document.pages || []).filter((page) => page.visible !== false);
+    const cover = pages.find((page) => page.type === "cover") || pages[0];
+    const projectPages = pages.filter(
+      (page) => page.type === "case-study" || page.type === "project-detail",
+    );
+    const thumbnail =
+      projectPages.map(getSitePageImage).find((image) => image?.url || image?.assetId) ||
+      pages.map(getSitePageImage).find((image) => image?.url || image?.assetId);
+    const uniqueProjectTitles = Array.from(
+      new Map(
+        projectPages
+          .map((page) => [page.sourceId || page.title, page.title] as const)
+          .filter(([, title]) => Boolean(title)),
+      ).values(),
+    );
+
+    return {
+      headline: cover?.subtitle || cover?.title || "",
+      projectCount: uniqueProjectTitles.length || projectPages.length,
+      sectionCount: pages.length,
+      thumbnailUrl: thumbnail?.url || "",
+      projectTitles: uniqueProjectTitles.slice(0, 3),
+      slideTitles: pages
+        .map((page) => page.title)
+        .filter(Boolean)
+        .slice(0, 6),
+      previewPages: pages.slice(0, 12).map((page) => ({
+        id: page.id,
+        type: page.type,
+        title: page.title || "제목 없음",
+        subtitle:
+          page.subtitle ||
+          page.blocks.find((block) => block.type === "text" && block.content)?.content?.slice(0, 72),
+        thumbnailUrl: getSitePageImage(page)?.url || "",
+      })),
+    };
+  }
+
   const hero = document.sections.find((section) => section.type === "hero");
   const visibleSections = document.sections.filter((section) => section.visible !== false);
   const projectSections = visibleSections.filter((section) => section.type === "project");

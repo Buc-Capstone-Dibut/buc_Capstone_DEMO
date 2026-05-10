@@ -50,6 +50,7 @@ import {
   PortfolioSlideThumbnail,
   type PortfolioElementAction,
 } from "./portfolio-renderer";
+import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -500,6 +501,71 @@ export function PortfolioEditorClient({
       setIsPublishing(false);
     }
   };
+
+  if (document.format === "site") {
+    return (
+      <div className="fixed left-0 top-0 z-[80] flex h-[100svh] min-h-0 w-screen flex-col overflow-hidden bg-[#f5f8f1] text-slate-900">
+        <header className="flex h-14 w-full shrink-0 items-center justify-between gap-4 overflow-hidden border-b border-[#d8e4d0]/80 bg-white/90 px-4 shadow-sm backdrop-blur-xl">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-500 hover:bg-primary/10 hover:text-primary"
+              onClick={() => router.push("/career/portfolios")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="h-9 w-72 border-[#d8e4d0] bg-white/75 font-semibold text-slate-900 placeholder:text-slate-400"
+              aria-label="포트폴리오 이름"
+            />
+            <span className="rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              웹 슬라이드
+            </span>
+            <span className="rounded-full border border-[#d8e4d0] bg-white/75 px-3 py-1 text-xs font-bold text-slate-600">
+              {isPublic ? "공개 중" : "비공개"}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {publicUrl ? (
+              <Button
+                variant="outline"
+                className="h-9 gap-2 rounded-lg border-[#d8e4d0] bg-white/75 text-slate-700 hover:bg-white"
+                onClick={() => window.open(publicUrl, "_blank")}
+              >
+                <Eye className="h-4 w-4" />
+                공개 보기
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="h-9 gap-2 rounded-lg border-[#d8e4d0] bg-white/75 text-slate-700 hover:bg-white"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              저장
+            </Button>
+            <Button
+              className="h-9 gap-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+              onClick={() => void handlePublish(!isPublic)}
+              disabled={isPublishing}
+            >
+              {isPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {isPublic ? "비공개 전환" : "공개"}
+            </Button>
+          </div>
+        </header>
+
+        <main className="relative min-h-0 flex-1 overflow-auto">
+          <PortfolioSiteRenderer document={document} />
+          <GenerationStatusOverlay generation={generation} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed left-0 top-0 z-[80] flex h-[100svh] min-h-0 w-screen overflow-hidden flex-col bg-[#f5f8f1] text-slate-800">

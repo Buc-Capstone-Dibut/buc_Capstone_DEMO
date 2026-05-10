@@ -29,6 +29,7 @@ function normalizeTemplateId(value: unknown): PortfolioTemplateId {
 }
 
 function normalizeFormat(value: unknown): PortfolioFormat {
+  if (value === "site") return "site";
   return value === "document" ? "document" : "slide";
 }
 
@@ -49,7 +50,8 @@ function normalizeGenerationPreset(
   if (
     value === "interview-pitch" ||
     value === "project-report" ||
-    value === "resume-portfolio"
+    value === "resume-portfolio" ||
+    value === "web-slide"
   ) {
     return value;
   }

@@ -136,6 +136,7 @@ function toTemplateId(value: unknown): PortfolioTemplateId {
 }
 
 export function toPortfolioFormat(value: unknown): PortfolioFormat {
+  if (value === "site") return "site";
   return value === "document" ? "document" : "slide";
 }
 
@@ -159,7 +160,8 @@ export function toPortfolioGenerationPreset(
   if (
     value === "interview-pitch" ||
     value === "project-report" ||
-    value === "resume-portfolio"
+    value === "resume-portfolio" ||
+    value === "web-slide"
   ) {
     return value;
   }

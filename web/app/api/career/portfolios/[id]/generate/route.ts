@@ -14,6 +14,7 @@ import {
   type PortfolioDocument,
   type PortfolioGenerationPlan,
   type PortfolioSection,
+  type PortfolioSitePage,
   type PortfolioSourceData,
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
@@ -81,6 +82,37 @@ function preserveGeneratedMedia(
       ...section,
       image: section.image || base.image,
       images: section.images?.length ? section.images : base.images,
+    };
+  });
+}
+
+function hasImageSource(image: PortfolioSitePage["image"]) {
+  return Boolean(image?.url || image?.assetId);
+}
+
+function preserveGeneratedPageMedia(
+  basePages: PortfolioSitePage[],
+  generatedPages: PortfolioSitePage[],
+) {
+  return generatedPages.map((page, index) => {
+    const base = basePages.find((candidate) => candidate.id === page.id) || basePages[index];
+    if (!base) return page;
+
+    const baseImageBlocks = base.blocks.filter((block) => block.type === "image");
+    return {
+      ...page,
+      image: hasImageSource(page.image) ? page.image : base.image,
+      blocks: page.blocks.map((block, blockIndex) => {
+        if (block.type !== "image") return block;
+        const baseBlock =
+          base.blocks.find((candidate) => candidate.id === block.id) ||
+          baseImageBlocks[blockIndex] ||
+          baseImageBlocks[0];
+        return {
+          ...block,
+          image: hasImageSource(block.image) ? block.image : baseBlock?.image || base.image,
+        };
+      }),
     };
   });
 }
@@ -159,6 +191,92 @@ JSON 하나만 반환:
   };
 }
 
+async function generatePortfolioSiteDraft(input: {
+  source: PortfolioSourceData;
+  templateId: PortfolioTemplateId;
+  baseDocument: PortfolioDocument;
+  plan: PortfolioGenerationPlan;
+}) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) return input.baseDocument;
+
+  const prompt = `너는 개발자 채용용 웹 슬라이드 포트폴리오를 만드는 커리어 에디터다.
+렌더러는 HTML/CSS 웹 슬라이드로 표현되지만, 너는 안전한 JSON 데이터만 반환한다.
+사용자의 실제 프로젝트/경력/개인정보만 사용한다. 없는 수치, 성과, 회사명, 기술은 절대 만들지 않는다.
+이미지 URL, image 필드, image block은 만들지 않는다. 이 포트폴리오는 텍스트/태그/메트릭/타임라인 중심으로 렌더링된다.
+
+[품질 기준]
+- 각 페이지는 한 화면에 하나의 메시지를 담되, 그 메시지를 뒷받침하는 근거 블록을 2~5개 배치한다.
+- 표지는 포지션과 강점을 즉시 이해할 수 있게 쓴다.
+- 프로젝트 페이지는 summary, problem, role, solution, result 블록을 최대한 유지하고 각각 실제 데이터 기반으로 구체화한다.
+- project-detail 페이지는 작업 흐름, 의사결정, 배운 점을 구체적으로 정리한다.
+- text block content는 2~4문장 또는 2~4개의 짧은 줄바꿈 문장으로 작성한다.
+- metric value는 데이터에 있는 값만 쓰고, 없으면 역할/기간/프로젝트 수처럼 사실형 값만 쓴다.
+- blocks의 type, role, layout, page 수와 순서는 기본 문서를 최대한 유지한다.
+- blocks에 image type을 넣지 않는다.
+
+[소스 데이터]
+${JSON.stringify(input.source, null, 2)}
+
+[생성 플랜]
+${JSON.stringify(input.plan, null, 2)}
+
+[기본 웹 슬라이드 문서]
+${JSON.stringify(input.baseDocument, null, 2)}
+
+JSON 하나만 반환:
+{
+  "document": {
+    "version": 1,
+    "templateId": "${input.templateId}",
+    "format": "site",
+    "pageSize": "16:9",
+    "orientation": "landscape",
+    "generationPreset": "web-slide",
+    "theme": 기존 theme 유지,
+    "pages": 기존 페이지 수와 순서를 유지하되 title/subtitle/eyebrow/blocks의 텍스트, 태그, metric만 고품질 포트폴리오 문장으로 개선
+  }
+}`;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const parsed = extractJsonObject(result.response.text());
+    const normalized = polishPortfolioDocument(
+      withPortfolioSampleImages(
+        normalizePortfolioDocument(
+          parsed?.document
+            ? {
+                ...input.baseDocument,
+                ...parsed.document,
+                format: "site",
+                pageSize: "16:9",
+                orientation: "landscape",
+                generationPreset: "web-slide",
+              }
+            : input.baseDocument,
+          input.templateId,
+        ),
+      ),
+    );
+    const preservedPages = preserveGeneratedPageMedia(
+      input.baseDocument.pages || [],
+      normalized.pages || [],
+    );
+
+    return polishPortfolioDocument(
+      withPortfolioSampleImages({
+        ...normalized,
+        pages: preservedPages,
+      }),
+    );
+  } catch (error) {
+    console.error("Portfolio site draft generation failed", error);
+    return input.baseDocument;
+  }
+}
+
 async function generatePortfolioPlan(input: {
   source: PortfolioSourceData;
   templateId: PortfolioTemplateId;
@@ -171,7 +289,12 @@ async function generatePortfolioPlan(input: {
   if (!apiKey) return fallbackPlan;
 
   const template = getPortfolioTemplate(input.templateId);
-  const formatLabel = input.format === "document" ? "A4 세로 보고서형" : "16:9 PPT형";
+  const formatLabel =
+    input.format === "site"
+      ? "HTML 웹 슬라이드형"
+      : input.format === "document"
+        ? "A4 세로 보고서형"
+        : "16:9 PPT형";
   const prompt = `너는 한국 채용시장용 개발자 포트폴리오 기획자다.
 제공된 데이터만 근거로 ${formatLabel} 생성 플랜을 만든다.
 없는 수치, 없는 성과, 없는 회사명, 없는 수상은 절대 만들지 않는다.
@@ -182,15 +305,17 @@ ${JSON.stringify(template.blueprint, null, 2)}
 
 [출력 포맷]
 ${JSON.stringify(
-  {
-    format: input.format,
-    pageSize: input.pageSize,
-    generationPreset: input.generationPreset,
-    rule:
-      input.format === "document"
-        ? "A4 보고서형은 한 페이지 안에 맥락과 근거를 더 충분히 담고, 표/타임라인/요약 박스를 우선한다."
-        : "PPT형은 한 장당 메시지 하나, 큰 제목, 이미지/인포그래픽 중심으로 구성한다.",
-  },
+      {
+        format: input.format,
+        pageSize: input.pageSize,
+        generationPreset: input.generationPreset,
+        rule:
+          input.format === "site"
+            ? "웹 슬라이드형은 브라우저에서 넘기는 여러 HTML 페이지로, 페이지당 메시지 하나와 명확한 섹션 블록을 우선한다."
+            : input.format === "document"
+              ? "A4 보고서형은 한 페이지 안에 맥락과 근거를 더 충분히 담고, 표/타임라인/요약 박스를 우선한다."
+              : "PPT형은 한 장당 메시지 하나, 큰 제목, 이미지/인포그래픽 중심으로 구성한다.",
+      },
   null,
   2,
 )}
@@ -257,27 +382,41 @@ function buildGenerationQuality(input: {
   document: PortfolioDocument;
   plan: PortfolioGenerationPlan;
 }) {
-  const infographicCount = input.document.sections.reduce(
-    (count, section) =>
-      count +
-      (section.canvas?.elements || []).filter((element) =>
-        ["flow", "metric", "timeline", "techLogo"].includes(element.kind),
-      ).length,
-    0,
-  );
+  const pageCount =
+    input.document.format === "site"
+      ? input.document.pages?.length || input.document.sections.length
+      : input.document.sections.length;
+  const infographicCount =
+    input.document.format === "site"
+      ? (input.document.pages || []).reduce(
+          (count, page) =>
+            count +
+            page.blocks.filter((block) =>
+              ["metric", "timeline", "tags"].includes(block.type),
+            ).length,
+          0,
+        )
+      : input.document.sections.reduce(
+          (count, section) =>
+            count +
+            (section.canvas?.elements || []).filter((element) =>
+              ["flow", "metric", "timeline", "techLogo"].includes(element.kind),
+            ).length,
+          0,
+        );
   const representativeImageCount = input.source.projects.filter(
     (project) => project.representativeImage?.url,
   ).length;
   const score =
     60 +
-    Math.min(15, input.document.sections.length) +
+    Math.min(15, pageCount) +
     Math.min(15, infographicCount) +
     Math.min(10, representativeImageCount * 3);
 
   return {
     score: Math.min(100, score),
-    pageCount: input.document.sections.length,
-    slideCount: input.document.sections.length,
+    pageCount,
+    slideCount: pageCount,
     format: input.document.format,
     pageSize: input.document.pageSize,
     projectCount: input.source.projects.length,
@@ -367,24 +506,38 @@ export async function GET(
         send("document", { document: baseDocument });
 
         send("stage", { label: "대표 이미지 선택 중" });
-        send("stage", { label: "슬라이드 구성 설계 중" });
-        const generatedDocument = await generatePortfolioDraft({
-          source,
-          templateId,
-          baseDocument,
-          plan,
+        send("stage", {
+          label: format === "site" ? "웹 슬라이드 페이지 구성 중" : "슬라이드 구성 설계 중",
         });
+        const generatedDocument =
+          format === "site"
+            ? await generatePortfolioSiteDraft({
+                source,
+                templateId,
+                baseDocument,
+                plan,
+              })
+            : await generatePortfolioDraft({
+                source,
+                templateId,
+                baseDocument,
+                plan,
+              });
         const polishedDocument = polishPortfolioDocument(withPortfolioSampleImages(generatedDocument));
 
-        send("stage", { label: "인포그래픽 배치 중" });
-        send("stage", { label: "디자인 자동 정돈 중" });
-        polishedDocument.sections.forEach((section, index) => {
-          send("section", {
-            index,
-            total: polishedDocument.sections.length,
-            section,
-          });
+        send("stage", {
+          label: format === "site" ? "HTML 렌더링 블록 정돈 중" : "인포그래픽 배치 중",
         });
+        send("stage", { label: "디자인 자동 정돈 중" });
+        if (polishedDocument.format !== "site") {
+          polishedDocument.sections.forEach((section, index) => {
+            send("section", {
+              index,
+              total: polishedDocument.sections.length,
+              section,
+            });
+          });
+        }
 
         send("stage", { label: "저장 중" });
         const publicSummary = buildPortfolioPublicSummary(polishedDocument);

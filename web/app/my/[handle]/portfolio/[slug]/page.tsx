@@ -5,6 +5,7 @@ import {
   portfolioDelegate,
 } from "@/lib/server/career-portfolios";
 import { PortfolioRenderer } from "@/components/features/career/portfolio-editor/portfolio-renderer";
+import { PortfolioSiteRenderer } from "@/components/features/career/portfolio-site/portfolio-site-renderer";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,10 @@ export default async function PublicPortfolioPage({
   if (!portfolio) notFound();
 
   const document = normalizePortfolioRowDocument(portfolio);
+
+  if (document.format === "site") {
+    return <PortfolioSiteRenderer document={document} readonly />;
+  }
 
   return (
     <main className="min-h-screen bg-slate-100">

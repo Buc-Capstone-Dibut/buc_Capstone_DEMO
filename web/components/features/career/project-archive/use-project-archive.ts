@@ -22,6 +22,8 @@ import type {
   ProjectArchiveWizardDraft,
 } from "./project-archive.types";
 
+export type PortfolioCreationFormat = "site" | "slide";
+
 function isProjectSnapshotItem(
   value: unknown,
 ): value is ProjectArchiveSnapshotItem {
@@ -177,7 +179,10 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
     }
   };
 
-  const createPortfolioFromProjects = async (selectedProjects: ProjectInput[]) => {
+  const createPortfolioFromProjects = async (
+    selectedProjects: ProjectInput[],
+    creationFormat: PortfolioCreationFormat,
+  ) => {
     const projectKeys = selectedProjects
       .map((project) => project.id)
       .filter((id): id is string => Boolean(id));
@@ -194,6 +199,9 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
       projectTitles.length > 1
         ? `${projectTitles[0]} 외 ${projectTitles.length - 1}개`
         : projectTitles[0] || "프로젝트";
+    const isSite = creationFormat === "site";
+    const format = isSite ? "site" : "slide";
+    const generationPreset = isSite ? "web-slide" : "interview-pitch";
 
     setIsCreatingPortfolio(true);
     try {
@@ -201,11 +209,11 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${sourceProjectTitle} 포트폴리오`,
-          format: "slide",
+          title: `${sourceProjectTitle} ${isSite ? "웹 포트폴리오" : "포트폴리오"}`,
+          format,
           pageSize: "16:9",
           orientation: "landscape",
-          generationPreset: "interview-pitch",
+          generationPreset,
           sourceProjectId: projectKeys[0],
           sourceProjectTitle,
           sourceSelection: {
@@ -214,10 +222,10 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
             coverLetterKeys: [],
             includePersonalInfo: true,
             includeSkills: true,
-            format: "slide",
+            format,
             pageSize: "16:9",
             orientation: "landscape",
-            generationPreset: "interview-pitch",
+            generationPreset,
           },
         }),
       });
@@ -238,7 +246,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
     }
   };
 
-  const navigateToPortfolioCreate = () => {
+  const navigateToPortfolioCreate = (creationFormat: PortfolioCreationFormat = "site") => {
     const selectedProjects = projects.filter(
       (project) => project.id && selectedIds.includes(project.id),
     );
@@ -246,7 +254,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
       alert("포트폴리오 생성을 위해 최소 1개의 프로젝트를 선택해주세요.");
       return;
     }
-    void createPortfolioFromProjects(selectedProjects);
+    void createPortfolioFromProjects(selectedProjects, creationFormat);
   };
 
   const handleProjectClick = (project: ProjectInput) => {

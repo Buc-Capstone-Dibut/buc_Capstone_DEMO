@@ -50,6 +50,7 @@ function toTemplateId(value: unknown): PortfolioTemplateId {
 }
 
 function toPortfolioFormat(value: unknown): PortfolioFormat {
+  if (value === "site") return "site";
   return value === "document" ? "document" : "slide";
 }
 
@@ -73,7 +74,8 @@ function toPortfolioGenerationPreset(
   if (
     value === "interview-pitch" ||
     value === "project-report" ||
-    value === "resume-portfolio"
+    value === "resume-portfolio" ||
+    value === "web-slide"
   ) {
     return value;
   }
@@ -137,7 +139,12 @@ export async function POST(request: Request) {
         orientation,
         generationPreset,
       });
-      const formatLabel = format === "document" ? "A4 세로 보고서형" : "16:9 PPT형";
+      const formatLabel =
+        format === "site"
+          ? "HTML 웹 슬라이드형"
+          : format === "document"
+            ? "A4 세로 보고서형"
+            : "16:9 PPT형";
       const prompt = `너는 개발자 채용 포트폴리오 아트디렉터이자 커리어 에디터다.
 목표는 사용자의 실제 프로젝트/경력/개인정보만 사용해서 채용 담당자가 빠르게 이해하는 고품질 ${formatLabel} 초안을 만드는 것이다.
 제공되지 않은 수치, 회사명, 성과, 기술은 절대 만들지 않는다.

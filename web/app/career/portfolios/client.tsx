@@ -62,10 +62,12 @@ function formatDateLabel(value?: string | null) {
 }
 
 function getFormatLabel(portfolio: PortfolioListItem) {
+  if (portfolio.format === "site") return "웹 슬라이드";
   return portfolio.format === "document" ? "A4 보고서" : "PPT 16:9";
 }
 
 function getPageUnit(portfolio: PortfolioListItem) {
+  if (portfolio.format === "site") return "page";
   return portfolio.format === "document" ? "page" : "slide";
 }
 
@@ -705,6 +707,7 @@ function PortfolioPagePreview({
   index: number;
 }) {
   const isDocument = portfolio.format === "document";
+  const isSite = portfolio.format === "site";
   const thumbnailUrl =
     page.thumbnailUrl ||
     (index === 0 ? portfolio.publicSummary.thumbnailUrl : "") ||
@@ -762,7 +765,7 @@ function PortfolioPagePreview({
         <div className="mt-3 flex items-center justify-between gap-3 px-1">
           <p className="truncate text-sm font-semibold text-slate-700">{page.title}</p>
           <span className="shrink-0 text-xs text-slate-400">
-            {isDocument ? "A4 page" : "slide"}
+            {isSite ? "web page" : isDocument ? "A4 page" : "slide"}
           </span>
         </div>
       </div>

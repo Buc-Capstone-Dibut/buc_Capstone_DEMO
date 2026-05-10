@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Globe2, Presentation, X } from "lucide-react";
 import { CoverLetterWizardOverlay } from "@/components/features/career/cover-letter-wizard-overlay";
 import { cn } from "@/lib/utils";
 import type { ProjectInput } from "@/app/career/projects/types";
@@ -11,7 +12,7 @@ import { ProjectArchiveSelectionBar } from "./project-archive-selection-bar";
 import { ProjectEditorDrawer } from "./project-editor-drawer";
 import { ProjectGridCard } from "./project-grid-card";
 import { ProjectTimelineCard } from "./project-timeline-card";
-import { useProjectArchive } from "./use-project-archive";
+import { useProjectArchive, type PortfolioCreationFormat } from "./use-project-archive";
 import type { ProjectArchiveViewMode } from "./project-archive.types";
 
 interface ProjectArchiveScreenProps {
@@ -22,6 +23,7 @@ export function ProjectArchiveScreen({
   initialProjects,
 }: ProjectArchiveScreenProps) {
   const [viewMode, setViewMode] = useState<ProjectArchiveViewMode>("cards");
+  const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
   const {
     activeId,
     formData,
@@ -57,6 +59,15 @@ export function ProjectArchiveScreen({
     () => sortedProjects.find((project) => project.id === activeId),
     [activeId, sortedProjects],
   );
+
+  const handlePortfolioGenerate = () => {
+    setIsFormatDialogOpen(true);
+  };
+
+  const handlePortfolioFormatSelect = (format: PortfolioCreationFormat) => {
+    setIsFormatDialogOpen(false);
+    navigateToPortfolioCreate(format);
+  };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden pb-48 pt-12 font-sans md:pt-20">
@@ -155,7 +166,7 @@ export function ProjectArchiveScreen({
       {(selectionMode || portfolioMode) && selectedIds.length > 0 && (
         <ProjectArchiveSelectionBar
           selectedCount={selectedIds.length}
-          onGenerate={portfolioMode ? navigateToPortfolioCreate : navigateToAiSetup}
+          onGenerate={portfolioMode ? handlePortfolioGenerate : navigateToAiSetup}
           actionLabel={
             portfolioMode
               ? "선택한 프로젝트로 포트폴리오 생성"
@@ -163,6 +174,65 @@ export function ProjectArchiveScreen({
           }
           disabled={portfolioMode && isCreatingPortfolio}
         />
+      )}
+
+      {isFormatDialogOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-[0_28px_90px_rgba(15,23,42,0.28)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-lg font-black text-slate-950">포트폴리오 형식 선택</h3>
+                <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
+                  선택한 프로젝트를 어떤 화면 형식으로 생성할지 고르세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFormatDialogOpen(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handlePortfolioFormatSelect("site")}
+                disabled={isCreatingPortfolio}
+                className="rounded-lg border border-primary/25 bg-primary/5 p-4 text-left transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+                  <Globe2 className="h-5 w-5" />
+                </span>
+                <span className="mt-4 block text-base font-black text-slate-950">
+                  웹 슬라이드형
+                </span>
+                <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
+                  브라우저에서 여러 페이지를 넘기는 HTML 기반 포트폴리오
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePortfolioFormatSelect("slide")}
+                disabled={isCreatingPortfolio}
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
+                  <Presentation className="h-5 w-5" />
+                </span>
+                <span className="mt-4 block text-base font-black text-slate-950">
+                  PPT 16:9형
+                </span>
+                <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
+                  기존 슬라이드 편집기로 세부 배치를 조정하는 포트폴리오
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {isWizardSetupOpen && (
