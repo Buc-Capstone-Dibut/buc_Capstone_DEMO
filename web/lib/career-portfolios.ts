@@ -79,15 +79,31 @@ export type PortfolioSitePageType =
 
 export type PortfolioSiteLayout =
   | "cover-focus"
+  | "editorial-cover"
   | "profile-summary"
+  | "profile-map"
   | "skills-grid"
+  | "tech-radar"
   | "project-index"
   | "case-study"
+  | "case-study-flow"
   | "project-detail"
+  | "project-dashboard"
+  | "evidence-board"
   | "timeline"
-  | "closing";
+  | "closing"
+  | "closing-impact";
 
-export type PortfolioSiteBlockType = "text" | "tags" | "metric" | "image" | "timeline";
+export type PortfolioSiteBlockType =
+  | "text"
+  | "tags"
+  | "metric"
+  | "image"
+  | "timeline"
+  | "flow"
+  | "matrix"
+  | "contribution"
+  | "callout";
 
 export type PortfolioSiteBlockRole =
   | "headline"
@@ -97,6 +113,10 @@ export type PortfolioSiteBlockRole =
   | "solution"
   | "result"
   | "lesson"
+  | "impact"
+  | "decision"
+  | "evidence"
+  | "next"
   | "body";
 
 export type PortfolioSiteBlock = {
@@ -117,6 +137,10 @@ export type PortfolioSitePage = {
   title: string;
   subtitle?: string;
   eyebrow?: string;
+  intent?: string;
+  visualDirection?: string;
+  narrative?: string;
+  emphasis?: string[];
   layout: PortfolioSiteLayout;
   blocks: PortfolioSiteBlock[];
   image?: PortfolioImageSlot;
@@ -1530,6 +1554,28 @@ function createSiteTimelineBlock(items: string[], label = "흐름") {
   });
 }
 
+function createSiteFlowBlock(items: string[], label = "핵심 흐름") {
+  return createSiteBlock("flow", {
+    label,
+    items: items.map((item) => item.trim()).filter(Boolean).slice(0, 5),
+  });
+}
+
+function createSiteMatrixBlock(items: string[], label = "구성 요소") {
+  return createSiteBlock("matrix", {
+    label,
+    items: Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))).slice(0, 10),
+  });
+}
+
+function createSiteContributionBlock(label: string, value: string, caption?: string) {
+  return createSiteBlock("contribution", { label, value, caption });
+}
+
+function createSiteCalloutBlock(content: string, label = "핵심 포인트") {
+  return createSiteBlock("callout", { label, content });
+}
+
 function createSitePage(
   page: Omit<PortfolioSitePage, "id" | "visible"> &
     Partial<Pick<PortfolioSitePage, "id" | "visible">>,
@@ -1567,6 +1613,15 @@ function projectStackText(project: PortfolioSourceData["projects"][number]) {
   return Array.from(new Set(stack)).slice(0, 8).join(", ");
 }
 
+function projectStackItems(project: PortfolioSourceData["projects"][number]) {
+  return [
+    ...(project.techStack || []),
+    ...(project.tags || []),
+  ]
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function sitePageTypeToSectionType(type: PortfolioSitePageType): PortfolioSectionType {
   if (type === "cover") return "hero";
   if (type === "profile") return "about";
@@ -1600,8 +1655,9 @@ function getSitePageImage(page: PortfolioSitePage) {
 function getSitePageTags(page: PortfolioSitePage) {
   return (
     page.blocks.find((block) => block.type === "tags" && block.items?.length)?.items ||
+    page.blocks.find((block) => block.type === "matrix" && block.items?.length)?.items ||
     page.blocks
-      .filter((block) => block.type === "metric")
+      .filter((block) => block.type === "metric" || block.type === "contribution")
       .map((block) => block.label || "")
       .filter(Boolean)
   );
@@ -1612,7 +1668,9 @@ function getSitePageBody(page: PortfolioSitePage) {
     .flatMap((block) => {
       if (block.type === "text") return block.content || "";
       if (block.type === "timeline") return block.items?.join("\n") || "";
-      if (block.type === "metric") {
+      if (block.type === "flow" || block.type === "matrix") return block.items?.join("\n") || "";
+      if (block.type === "callout") return block.content || "";
+      if (block.type === "metric" || block.type === "contribution") {
         return [block.label, block.value, block.caption].filter(Boolean).join(": ");
       }
       return "";
@@ -1643,23 +1701,33 @@ function sectionsToSitePages(sections: PortfolioSection[]): PortfolioSitePage[] 
       title: section.title || "웹 슬라이드",
       subtitle: section.subtitle,
       eyebrow: section.type.toUpperCase(),
+      intent: section.type === "project" ? "대표 프로젝트 설득" : "핵심 메시지 전달",
+      visualDirection:
+        section.type === "hero"
+          ? "large-title-with-vertical-rule"
+          : section.type === "project"
+            ? "diagonal-problem-to-result-flow"
+            : "editorial-typography-and-lines",
+      narrative: section.body || section.subtitle || section.title,
+      emphasis: section.tags?.slice(0, 4) || [],
       layout:
         section.type === "hero"
-          ? "cover-focus"
+          ? "editorial-cover"
           : section.type === "about"
-            ? "profile-summary"
+            ? "profile-map"
             : section.type === "skills"
-              ? "skills-grid"
+              ? "tech-radar"
               : section.type === "index"
                 ? "project-index"
                 : section.type === "contact"
-                  ? "closing"
+                  ? "closing-impact"
                   : section.type === "experience" || section.type === "retrospective"
-                    ? "timeline"
-                    : "case-study",
+                    ? "evidence-board"
+                    : "case-study-flow",
       blocks: [
         createSiteTextBlock("summary", section.body || section.subtitle || section.title),
         ...(section.tags?.length ? [createSiteTagsBlock(section.tags)] : []),
+        ...(section.tags?.length ? [createSiteMatrixBlock(section.tags, "키워드 맵")] : []),
       ],
       sourceId: section.sourceId,
       sourceKind: section.sourceKind,
@@ -1695,6 +1763,10 @@ function normalizePortfolioSiteBlock(value: unknown): PortfolioSiteBlock {
     raw.type === "metric" ||
     raw.type === "image" ||
     raw.type === "timeline" ||
+    raw.type === "flow" ||
+    raw.type === "matrix" ||
+    raw.type === "contribution" ||
+    raw.type === "callout" ||
     raw.type === "text"
       ? raw.type
       : "text";
@@ -1706,6 +1778,10 @@ function normalizePortfolioSiteBlock(value: unknown): PortfolioSiteBlock {
     raw.role === "solution" ||
     raw.role === "result" ||
     raw.role === "lesson" ||
+    raw.role === "impact" ||
+    raw.role === "decision" ||
+    raw.role === "evidence" ||
+    raw.role === "next" ||
     raw.role === "body"
       ? raw.role
       : type === "text"
@@ -1744,33 +1820,46 @@ function normalizePortfolioSitePages(value: unknown): PortfolioSitePage[] {
           : "case-study";
       const layout: PortfolioSiteLayout =
         raw.layout === "cover-focus" ||
+        raw.layout === "editorial-cover" ||
         raw.layout === "profile-summary" ||
+        raw.layout === "profile-map" ||
         raw.layout === "skills-grid" ||
+        raw.layout === "tech-radar" ||
         raw.layout === "project-index" ||
         raw.layout === "case-study" ||
+        raw.layout === "case-study-flow" ||
         raw.layout === "project-detail" ||
+        raw.layout === "project-dashboard" ||
+        raw.layout === "evidence-board" ||
         raw.layout === "timeline" ||
-        raw.layout === "closing"
+        raw.layout === "closing" ||
+        raw.layout === "closing-impact"
           ? raw.layout
           : type === "cover"
-            ? "cover-focus"
+            ? "editorial-cover"
             : type === "profile"
-              ? "profile-summary"
+              ? "profile-map"
               : type === "skills"
-                ? "skills-grid"
+                ? "tech-radar"
                 : type === "project-index"
                   ? "project-index"
                   : type === "contact"
-                    ? "closing"
+                    ? "closing-impact"
                     : type === "experience" || type === "retrospective"
-                      ? "timeline"
-                      : "case-study";
+                      ? "evidence-board"
+                      : type === "project-detail"
+                        ? "project-dashboard"
+                        : "case-study-flow";
       return {
         id: raw.id || makeId("site-page"),
         type,
         title: raw.title || "웹 슬라이드",
         subtitle: raw.subtitle || "",
         eyebrow: raw.eyebrow || "",
+        intent: typeof raw.intent === "string" ? raw.intent : "",
+        visualDirection: typeof raw.visualDirection === "string" ? raw.visualDirection : "",
+        narrative: typeof raw.narrative === "string" ? raw.narrative : "",
+        emphasis: normalizeStringItems(raw.emphasis),
         layout,
         blocks: Array.isArray(raw.blocks) ? raw.blocks.map(normalizePortfolioSiteBlock) : [],
         image: normalizeSiteImageSlot(raw.image),
@@ -1806,7 +1895,11 @@ export function createDefaultPortfolioSiteDocument(
       title: personal.name ? `${plan.position} ${personal.name}` : `${plan.position} 포트폴리오`,
       subtitle: personal.intro || plan.strengths.join(" · ") || "프로젝트와 경험을 웹 슬라이드로 정리합니다.",
       eyebrow: "Portfolio",
-      layout: "cover-focus",
+      intent: "첫 장에서 포지션과 차별점을 각인",
+      visualDirection: "large-title-with-vertical-rule and editorial whitespace",
+      narrative: personal.intro || plan.strengths.join(" · "),
+      emphasis: plan.strengths.slice(0, 4),
+      layout: "editorial-cover",
       blocks: [
         createSiteTextBlock(
           "headline",
@@ -1826,6 +1919,16 @@ export function createDefaultPortfolioSiteDocument(
         createSiteTagsBlock(plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증"]),
         createSiteMetricBlock("프로젝트", `${source.projects.length}`, "선택한 대표 프로젝트"),
         createSiteMetricBlock("기술 스택", `${skillNames.length}`, "프로젝트에서 사용한 기술"),
+        createSiteFlowBlock(
+          ["문제 정의", "역할과 의사결정", "해결 구현", "결과 검증"],
+          "포트폴리오 서사",
+        ),
+        createSiteCalloutBlock(
+          projectTitles.length
+            ? `대표 프로젝트 ${projectTitles.slice(0, 2).join(", ")}를 중심으로 실제 기여와 결과를 보여줍니다.`
+            : "선택한 경험을 채용 담당자가 빠르게 훑을 수 있는 발표 흐름으로 재구성합니다.",
+          "읽는 방식",
+        ),
       ],
       sourceKind: "manual",
     }),
@@ -1834,7 +1937,11 @@ export function createDefaultPortfolioSiteDocument(
       title: "프로필 요약",
       subtitle: personal.name || plan.position,
       eyebrow: "Profile",
-      layout: "profile-summary",
+      intent: "일하는 방식과 강점 증명",
+      visualDirection: "profile manifesto with contribution bars",
+      narrative: personal.intro || plan.strengths.join(" · "),
+      emphasis: plan.strengths.slice(0, 4),
+      layout: "profile-map",
       blocks: [
         createSiteTextBlock(
           "summary",
@@ -1855,6 +1962,9 @@ export function createDefaultPortfolioSiteDocument(
           plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증", "개선"],
           "일하는 방식",
         ),
+        createSiteContributionBlock("문제 정의", plan.strengths.includes("문제 해결") ? "90%" : "75%", "요구사항과 제약을 구조화"),
+        createSiteContributionBlock("구현 실행", "85%", "선택한 기술로 기능 완성"),
+        createSiteContributionBlock("검증/개선", "80%", "결과와 회고를 다음 작업에 반영"),
       ],
       sourceKind: "manual",
     }),
@@ -1863,7 +1973,11 @@ export function createDefaultPortfolioSiteDocument(
       title: "핵심 역량과 기술",
       subtitle: skillNames.slice(0, 5).join(" · ") || "프로젝트 기반 기술 스택",
       eyebrow: "Stack",
-      layout: "skills-grid",
+      intent: "기술 목록이 아니라 활용 맥락 전달",
+      visualDirection: "technical cluster map with axis lines",
+      narrative: skillNames.slice(0, 8).join(", "),
+      emphasis: skillNames.slice(0, 6),
+      layout: "tech-radar",
       blocks: [
         createSiteTextBlock(
           "summary",
@@ -1880,7 +1994,14 @@ export function createDefaultPortfolioSiteDocument(
             .join("\n"),
         ),
         createSiteTagsBlock(skillNames.length ? skillNames : plan.strengths, "기술 스택"),
+        createSiteMatrixBlock(skillNames.length ? skillNames : plan.strengths, "기술 맵"),
         createSiteMetricBlock("핵심 기술", `${skillNames.length || plan.strengths.length}`, "선택 데이터 기준"),
+        createSiteCalloutBlock(
+          source.projects.length
+            ? "기술 스택은 단순 목록이 아니라 프로젝트의 문제 해결 과정과 연결해 해석할 수 있게 배치했습니다."
+            : "등록된 프로젝트가 늘어나면 기술별 활용 맥락을 자동으로 더 풍부하게 보여줍니다.",
+          "역량 해석",
+        ),
       ],
       sourceKind: "manual",
     }),
@@ -1889,13 +2010,22 @@ export function createDefaultPortfolioSiteDocument(
       title: "프로젝트 흐름",
       subtitle: "대표 프로젝트와 증명할 역량",
       eyebrow: "Contents",
+      intent: "포트폴리오를 읽는 순서 제시",
+      visualDirection: "horizontal journey line with numbered stops",
+      narrative: projectTitles.join(" → "),
+      emphasis: projectTitles.slice(0, 4),
       layout: "project-index",
       blocks: [
         createSiteTimelineBlock(
           projectTitles.length ? projectTitles : ["대표 프로젝트", "핵심 역량", "연락처"],
           "웹 슬라이드 구성",
         ),
+        createSiteFlowBlock(
+          ["프로필", "기술 역량", "대표 프로젝트", "상세 근거", "성장 포인트"],
+          "발표 흐름",
+        ),
         createSiteTagsBlock(plan.strengths, "강점"),
+        createSiteMetricBlock("구성 페이지", `${Math.max(8, source.projects.length * 2 + 5)}`, "자동 생성 기준"),
       ],
       sourceKind: "manual",
     }),
@@ -1908,12 +2038,21 @@ export function createDefaultPortfolioSiteDocument(
         title: experience.company || "경력",
         subtitle: [experience.position, experience.period].filter(Boolean).join(" · "),
         eyebrow: "Experience",
-        layout: "timeline",
+        intent: "경력 경험을 프로젝트 증거로 연결",
+        visualDirection: "evidence board with one dominant quote",
+        narrative: experience.description || "",
+        emphasis: [experience.position, experience.period].filter(Boolean).slice(0, 4),
+        layout: "evidence-board",
         blocks: [
           createSiteTextBlock("summary", experience.description || "담당 업무와 성과를 정리합니다."),
           createSiteTimelineBlock(
             compactBody(experience.description, 5).split("\n").filter(Boolean),
             "주요 업무",
+          ),
+          createSiteContributionBlock("경험 밀도", experience.period ? experience.period : "경험", experience.position || "담당 역할"),
+          createSiteCalloutBlock(
+            experience.description || "경력 경험에서 맡은 역할과 실행 내용을 포트폴리오 흐름에 연결합니다.",
+            "경력 근거",
           ),
         ],
         sourceId: experience.id,
@@ -1933,7 +2072,11 @@ export function createDefaultPortfolioSiteDocument(
         title,
         subtitle,
         eyebrow: `Case ${index + 1}`,
-        layout: "case-study",
+        intent: "대표 프로젝트의 문제 해결력 설득",
+        visualDirection: "diagonal problem to result flow with bold project title",
+        narrative: project.description || project.result || project.solution || "",
+        emphasis: [project.position, ...(tags || [])].filter(Boolean).slice(0, 5),
+        layout: "case-study-flow",
         blocks: [
           createSiteTextBlock(
             "summary",
@@ -1982,7 +2125,22 @@ export function createDefaultPortfolioSiteDocument(
             ),
             "결과",
           ),
+          createSiteFlowBlock(
+            [
+              project.situation || project.difficulty || "문제 정의",
+              project.role || project.position || "담당 역할",
+              project.solution || "해결 구현",
+              project.result || project.lesson || "결과 검증",
+            ],
+            "문제에서 결과까지",
+          ),
+          createSiteContributionBlock("기여 포인트", project.position || "구현", project.period || "프로젝트"),
+          createSiteCalloutBlock(
+            project.result || project.lesson || project.solution || "프로젝트에서 드러나는 핵심 역량을 요약합니다.",
+            "면접에서 강조할 포인트",
+          ),
           createSiteTagsBlock(tags, "기술/키워드"),
+          createSiteMatrixBlock(projectStackItems(project).length ? projectStackItems(project) : tags, "기술 활용 맵"),
         ],
         sourceId: project.id,
         sourceKind: "project",
@@ -1995,7 +2153,11 @@ export function createDefaultPortfolioSiteDocument(
         title: `${title} 상세 흐름`,
         subtitle,
         eyebrow: "Detail",
-        layout: "project-detail",
+        intent: "구현 과정과 판단 기준 증명",
+        visualDirection: "process ribbon and evidence matrix",
+        narrative: project.lesson || project.result || project.solution || "",
+        emphasis: projectStackItems(project).slice(0, 5),
+        layout: "project-dashboard",
         blocks: [
           createSiteTimelineBlock(
             [
@@ -2007,6 +2169,15 @@ export function createDefaultPortfolioSiteDocument(
             "문제에서 결과까지",
           ),
           createSiteMetricBlock("역할", project.position || "구현", project.period || ""),
+          createSiteFlowBlock(
+            [
+              project.situation || "상황 파악",
+              project.role || "역할 분담",
+              project.solution || "구현과 검증",
+              project.result || project.lesson || "회고와 개선",
+            ],
+            "실행 단계",
+          ),
           createSiteTextBlock(
             "lesson",
             siteText(
@@ -2018,6 +2189,15 @@ export function createDefaultPortfolioSiteDocument(
               "프로젝트를 통해 다음 작업에 재사용할 수 있는 판단 기준과 구현 방식을 정리했습니다.",
             ),
             "배운 점",
+          ),
+          createSiteMatrixBlock(
+            [
+              ...(project.techStack || []),
+              project.position || "",
+              project.result ? "결과 검증" : "",
+              project.lesson ? "회고" : "",
+            ],
+            "증거 요소",
           ),
         ],
         sourceId: project.id,
@@ -2032,7 +2212,11 @@ export function createDefaultPortfolioSiteDocument(
       title: "성장 포인트",
       subtitle: "프로젝트를 통해 확장한 역량",
       eyebrow: "Growth",
-      layout: "timeline",
+      intent: "성장과 다음 적용점 정리",
+      visualDirection: "before after growth loop",
+      narrative: plan.strengths.join(" · "),
+      emphasis: plan.strengths.slice(0, 4),
+      layout: "evidence-board",
       blocks: [
         createSiteTextBlock(
           "summary",
@@ -2041,6 +2225,11 @@ export function createDefaultPortfolioSiteDocument(
             : "문제 정의, 구현, 검증의 흐름을 반복하며 프로젝트 완성도를 높였습니다.",
         ),
         createSiteTimelineBlock(plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증", "개선"]),
+        createSiteFlowBlock(["반복된 문제", "선택한 해결 방식", "검증한 결과", "다음 적용점"], "성장 루프"),
+        createSiteCalloutBlock(
+          "각 프로젝트에서 얻은 판단 기준을 다음 작업에 재사용할 수 있도록 회고와 개선 포인트를 분리했습니다.",
+          "다음 적용점",
+        ),
       ],
       sourceKind: "manual",
     }),
@@ -2049,10 +2238,15 @@ export function createDefaultPortfolioSiteDocument(
       title: "연락처",
       subtitle: personal.name || plan.position,
       eyebrow: "Contact",
-      layout: "closing",
+      intent: "짧고 명확한 마무리",
+      visualDirection: "minimal closing with strong final line",
+      narrative: contactText || "",
+      emphasis: [personal.email, personal.links?.github, personal.links?.blog].filter(Boolean).slice(0, 4),
+      layout: "closing-impact",
       blocks: [
         createSiteTextBlock("summary", contactText || "email@example.com"),
         createSiteTagsBlock([personal.links?.github || "", personal.links?.blog || ""].filter(Boolean), "링크"),
+        createSiteCalloutBlock("프로젝트 상세와 구현 판단 기준이 필요하다면 포트폴리오의 케이스 페이지를 기준으로 이야기할 수 있습니다.", "마무리"),
       ],
       sourceKind: "manual",
     }),

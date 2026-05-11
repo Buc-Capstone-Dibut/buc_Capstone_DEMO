@@ -200,20 +200,33 @@ async function generatePortfolioSiteDraft(input: {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return input.baseDocument;
 
-  const prompt = `너는 개발자 채용용 웹 슬라이드 포트폴리오를 만드는 커리어 에디터다.
+  const prompt = `너는 개발자 채용용 웹 슬라이드 포트폴리오를 만드는 커리어 에디터이자 발표자료 아트디렉터다.
 렌더러는 HTML/CSS 웹 슬라이드로 표현되지만, 너는 안전한 JSON 데이터만 반환한다.
 사용자의 실제 프로젝트/경력/개인정보만 사용한다. 없는 수치, 성과, 회사명, 기술은 절대 만들지 않는다.
-이미지 URL, image 필드, image block은 만들지 않는다. 이 포트폴리오는 텍스트/태그/메트릭/타임라인 중심으로 렌더링된다.
+이미지 URL, image 필드, image block은 만들지 않는다. 이 포트폴리오는 텍스트와 그래픽 블록 중심으로 렌더링된다.
+
+[핵심 방향]
+- 정해진 카드 템플릿을 채우는 방식이 아니다. 먼저 각 프로젝트/경력의 설득 포인트를 읽고, 노베이스로 슬라이드 의도와 발표 흐름을 설계한다.
+- 단, 앱 렌더러가 안전하게 그릴 수 있도록 최종 결과는 아래 JSON 스키마와 허용 block type 안에서만 만든다.
+- 각 page에는 intent, visualDirection, narrative, emphasis를 반드시 채운다.
+- intent는 해당 슬라이드가 면접관에게 남겨야 할 한 문장 목적이다.
+- visualDirection은 렌더러가 참고할 시각 구도다. 예: large-title-with-vertical-rule, diagonal-problem-to-result-flow, technical-cluster-map, process-ribbon-and-evidence-matrix, minimal-closing.
+- narrative는 발표자가 그 장에서 말할 핵심 스토리 1~3문장이다.
+- emphasis는 화면에서 크게 강조할 키워드 3~6개다.
 
 [품질 기준]
-- 각 페이지는 한 화면에 하나의 메시지를 담되, 그 메시지를 뒷받침하는 근거 블록을 2~5개 배치한다.
+- 각 페이지는 실제 발표자료처럼 한 화면에 하나의 메시지를 담고, 그 메시지를 뒷받침하는 근거 블록을 3~6개 배치한다.
 - 표지는 포지션과 강점을 즉시 이해할 수 있게 쓴다.
-- 프로젝트 페이지는 summary, problem, role, solution, result 블록을 최대한 유지하고 각각 실제 데이터 기반으로 구체화한다.
+- 프로젝트 페이지는 summary, problem, role, solution, result, flow, matrix, contribution, callout 블록을 적극 활용한다.
 - project-detail 페이지는 작업 흐름, 의사결정, 배운 점을 구체적으로 정리한다.
 - text block content는 2~4문장 또는 2~4개의 짧은 줄바꿈 문장으로 작성한다.
-- metric value는 데이터에 있는 값만 쓰고, 없으면 역할/기간/프로젝트 수처럼 사실형 값만 쓴다.
-- blocks의 type, role, layout, page 수와 순서는 기본 문서를 최대한 유지한다.
+- flow block은 문제 → 역할 → 해결 → 결과 또는 기획 → 구현 → 검증 → 개선처럼 4단계 흐름을 만든다.
+- matrix block은 기술, 판단 기준, 증거 요소를 짧은 명사형 키워드로 구성한다.
+- contribution block의 value는 데이터에 있는 값만 쓰고, 없으면 역할/기간/프로젝트 수처럼 사실형 값만 쓴다.
+- callout block은 면접에서 강조할 핵심 포인트를 한 문단으로 정리한다.
+- blocks의 type, role, layout, page 수와 순서는 기본 문서를 최대한 유지하되, 기본 문서에 있는 flow/matrix/contribution/callout은 삭제하지 않는다.
 - blocks에 image type을 넣지 않는다.
+- layout은 editorial-cover, profile-map, tech-radar, project-index, case-study-flow, project-dashboard, evidence-board, closing-impact 중 문맥에 맞게 유지한다.
 
 [소스 데이터]
 ${JSON.stringify(input.source, null, 2)}
@@ -234,7 +247,7 @@ JSON 하나만 반환:
     "orientation": "landscape",
     "generationPreset": "web-slide",
     "theme": 기존 theme 유지,
-    "pages": 기존 페이지 수와 순서를 유지하되 title/subtitle/eyebrow/blocks의 텍스트, 태그, metric만 고품질 포트폴리오 문장으로 개선
+    "pages": 기존 페이지 수와 순서를 유지하되 각 page의 intent/visualDirection/narrative/emphasis/title/subtitle/eyebrow/blocks를 고품질 발표자료 구조로 개선
   }
 }`;
 
@@ -392,7 +405,9 @@ function buildGenerationQuality(input: {
           (count, page) =>
             count +
             page.blocks.filter((block) =>
-              ["metric", "timeline", "tags"].includes(block.type),
+              ["metric", "timeline", "tags", "flow", "matrix", "contribution", "callout"].includes(
+                block.type,
+              ),
             ).length,
           0,
         )
