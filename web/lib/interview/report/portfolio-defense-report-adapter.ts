@@ -318,8 +318,8 @@ export function buildPortfolioDefenseReportModel({
     footerActions: [
       { label: "훈련 센터로", href: "/interview/training", variant: "outline" },
       {
-        label: "같은 레포로 다시 디펜스",
-        href: `/interview/training/portfolio?repoUrl=${encodeURIComponent(repoUrl)}&mode=${mode}&duration=${session.durationMinute || 10}`,
+        label: "같은 레포로 다시 셋업",
+        href: `/interview/training/setup?repoUrl=${encodeURIComponent(repoUrl)}`,
       },
     ],
   };

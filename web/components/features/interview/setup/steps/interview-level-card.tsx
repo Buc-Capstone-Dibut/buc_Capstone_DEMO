@@ -28,15 +28,15 @@ export function InterviewLevelCard({
   const effectiveLevel = selectedLevel === "auto" ? recommendedLevel : selectedLevel;
 
   return (
-    <Card className="border-primary/20 bg-primary/5">
+    <Card className="border-[#dfe7ef] bg-[#fbfcfe] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-base">면접 난이도 기준</CardTitle>
-          <Badge variant="secondary" className="font-medium">
+          <CardTitle className="text-base font-black text-[#172033]">면접 난이도 기준</CardTitle>
+          <Badge variant="secondary" className="font-bold">
             추천: {interviewLevelLabel(recommendedLevel)}
           </Badge>
         </div>
-        <CardDescription>
+        <CardDescription className="text-[#6d7888]">
           선택한 레벨에 따라 질문의 깊이, 표현 강도, 수치·트레이드오프 질문 빈도가 달라집니다.
         </CardDescription>
       </CardHeader>
@@ -62,9 +62,9 @@ export function InterviewLevelCard({
           </Select>
         </div>
 
-        <div className="space-y-2 text-sm text-muted-foreground">
+        <div className="space-y-2 text-sm text-[#6d7888]">
           <p>
-            현재 적용 기준: <span className="font-medium text-foreground">{interviewLevelLabel(effectiveLevel)}</span>
+            현재 적용 기준: <span className="font-bold text-[#172033]">{interviewLevelLabel(effectiveLevel)}</span>
           </p>
           <p>
             신입·주니어는 역할, 구현, 문제 해결 흐름 중심으로 질문하고, 미들·시니어로 갈수록 설계 판단과 우선순위, 트레이드오프 질문이 늘어납니다.

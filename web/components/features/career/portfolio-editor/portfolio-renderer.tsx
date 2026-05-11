@@ -11,8 +11,40 @@ import {
 } from "react";
 import { CopyPlus, MoreHorizontal, Move, Trash2, WandSparkles } from "lucide-react";
 import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  BarChart4Outlined,
+  CloudIot2Outlined,
+  Code1Outlined,
+  DashboardSquare1Outlined,
+  Database2Outlined,
+  QuestionMarkCircleOutlined,
+  TargetUserOutlined,
+  VectorNodes6Outlined,
+  type IconData,
+} from "@lineiconshq/free-icons";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import {
   PORTFOLIO_BACKGROUND_IMAGES,
   PORTFOLIO_CANVAS_STYLE_VERSION,
+  buildPortfolioSectionCanvas,
   getPortfolioPagePreset,
   createTechLogoImageSlot,
   isLegacyPortfolioSampleImageUrl,
@@ -189,6 +221,9 @@ function defaultCanvasElements(
   section: PortfolioSection,
   document: PortfolioDocument,
 ): PortfolioCanvasElement[] {
+  const canonicalCanvas = buildPortfolioSectionCanvas(section, document);
+  if (canonicalCanvas?.elements?.length) return canonicalCanvas.elements;
+
   const theme = document.theme;
   const label = section.type === "project" ? "PROJECT" : section.type.toUpperCase();
 
@@ -332,13 +367,323 @@ function defaultCanvasElements(
   ];
 }
 
-function materializeCanvasElements(section: PortfolioSection, document: PortfolioDocument) {
+function visualCanvasElement(
+  id: string,
+  kind: Exclude<PortfolioCanvasElement["kind"], "text" | "tags" | "image">,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  patch: Partial<PortfolioCanvasElement> = {},
+): PortfolioCanvasElement {
+  return {
+    id,
+    kind,
+    role:
+      kind === "techLogo"
+        ? "techLogo"
+        : kind === "shadcnBlock"
+          ? "component"
+          : kind === "metric" || kind === "flow" || kind === "timeline"
+            ? kind
+            : "decorative",
+    x,
+    y,
+    width,
+    height,
+    ...patch,
+  };
+}
+
+function expandedBlockItems(element: PortfolioCanvasElement) {
+  const items = (element.props?.items || []).filter(
+    (item) => item.title || item.label || item.body || item.value || item.image?.url,
+  );
+
+  if (items.length) return items;
+  if (element.variant === "tech-logo-grid") return [{ title: "Stack" }, { title: "API" }, { title: "DB" }];
+  if (element.variant === "kpi-cards") return [{ label: "핵심", value: "1", body: "정리" }];
+  return [{ label: "01", title: "문제 정의", body: "핵심 내용을 입력하세요." }];
+}
+
+function expandShadcnBlockElement(
+  element: PortfolioCanvasElement,
+  theme: PortfolioDocument["theme"],
+): PortfolioCanvasElement[] {
+  if (element.kind !== "shadcnBlock") return [element];
+
+  const accent = element.stroke || theme.primary;
+  const fill = element.fill || "#ffffff";
+  const items = expandedBlockItems(element);
+  const baseId = element.id;
+  const children: PortfolioCanvasElement[] = [
+    visualCanvasElement(`${baseId}-surface`, "shape", element.x, element.y, element.width, element.height, {
+      fill,
+      stroke: `${accent}55`,
+      opacity: element.opacity ?? 1,
+    }),
+  ];
+  const addText = (
+    id: string,
+    content: string | undefined,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    fontSize: number,
+    fontWeight: number,
+    color = theme.text,
+  ) => {
+    if (!content) return;
+    children.push(textElement(`${baseId}-${id}`, "label", content, x, y, width, height, fontSize, fontWeight, color));
+  };
+  const addShape = (
+    id: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    shapeFill = "#ffffff",
+    shapeStroke = "#e2e8f0",
+    opacity = 1,
+  ) => {
+    children.push(visualCanvasElement(`${baseId}-${id}`, "shape", x, y, width, height, {
+      fill: shapeFill,
+      stroke: shapeStroke,
+      opacity,
+    }));
+  };
+
+  if (element.props?.title) {
+    addText("title", element.props.title, element.x + 16, element.y + 12, element.width - 32, 22, 14, 900, accent);
+  }
+
+  if (element.variant === "tech-logo-grid") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const gap = 10;
+    const columns = element.width > 500 ? 4 : 3;
+    const itemWidth = (element.width - 32 - gap * (columns - 1)) / columns;
+    const itemHeight = 66;
+
+    items.slice(0, 12).forEach((item, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = element.x + 16 + col * (itemWidth + gap);
+      const y = top + row * (itemHeight + 10);
+      addShape(`tech-${index}-card`, x, y, itemWidth, itemHeight, "#ffffff", "#e2e8f0", 0.92);
+      if (item.image?.url) {
+        children.push(imageElement(`${baseId}-tech-${index}-image`, item.image, x + 12, y + 12, 28, 28));
+      } else {
+        addShape(`tech-${index}-mark`, x + 12, y + 12, 28, 28, accent, accent, 1);
+        addText(`tech-${index}-initial`, (item.title || item.label || "ST").slice(0, 2).toUpperCase(), x + 12, y + 18, 28, 16, 9, 900, "#ffffff");
+      }
+      addText(`tech-${index}-title`, item.title || item.label || "Stack", x + 48, y + 16, itemWidth - 58, 22, 11, 900, theme.text);
+      addText(`tech-${index}-body`, item.body, x + 48, y + 38, itemWidth - 58, 18, 9, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "project-index-cards") {
+    const top = element.y + (element.props?.title ? 46 : 12);
+    const rowHeight = Math.min(42, Math.max(30, (element.height - (top - element.y) - 12) / Math.max(items.length, 1)));
+    items.slice(0, 8).forEach((item, index) => {
+      const y = top + index * rowHeight;
+      addShape(`row-${index}`, element.x + 14, y, element.width - 28, rowHeight - 6, "#ffffff", "#e2e8f0", 0.86);
+      addText(`row-${index}-label`, item.label || String(index + 1).padStart(2, "0"), element.x + 28, y + 9, 46, 18, 11, 900, accent);
+      addText(`row-${index}-title`, item.title || item.value || "프로젝트", element.x + 82, y + 7, element.width - 118, 18, 12, 900, theme.text);
+      addText(`row-${index}-body`, item.body, element.x + 82, y + 24, element.width - 118, 14, 9, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "timeline-steps") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const stepHeight = Math.min(58, Math.max(42, (element.height - (top - element.y) - 12) / Math.max(items.length, 1)));
+    items.slice(0, 5).forEach((item, index) => {
+      const y = top + index * stepHeight;
+      addShape(`step-${index}-dot`, element.x + 18, y + 7, 28, 28, accent, accent, 1);
+      addText(`step-${index}-number`, item.label || `${index + 1}`, element.x + 18, y + 14, 28, 14, 9, 900, "#ffffff");
+      if (index < items.length - 1) {
+        children.push(visualCanvasElement(`${baseId}-step-${index}-line`, "line", element.x + 32, y + 37, 1, Math.max(8, stepHeight - 26), { stroke: "#dbe5d0" }));
+      }
+      addShape(`step-${index}-card`, element.x + 58, y, element.width - 74, stepHeight - 7, "#ffffff", "#e2e8f0", 0.86);
+      addText(`step-${index}-title`, item.title || "단계", element.x + 72, y + 8, element.width - 104, 17, 12, 900, theme.text);
+      addText(`step-${index}-body`, item.body, element.x + 72, y + 25, element.width - 104, 15, 9, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "metric-trend") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const chartX = element.x + 16;
+    const chartY = top + 4;
+    const chartWidth = Math.max(120, element.width * 0.42);
+    const chartHeight = Math.max(70, element.height - (top - element.y) - 24);
+    const rowX = chartX + chartWidth + 18;
+    const rowWidth = element.x + element.width - rowX - 16;
+    addShape("chart-panel", chartX, chartY, chartWidth, chartHeight, "#ffffff", "#e2e8f0", 0.88);
+    items.slice(0, 4).forEach((item, index) => {
+      const barGap = 10;
+      const barWidth = (chartWidth - 32 - barGap * 3) / 4;
+      const value = clamp(item.progress ?? 42 + index * 16, 18, 96);
+      const barHeight = Math.max(16, (chartHeight - 34) * (value / 100));
+      const x = chartX + 16 + index * (barWidth + barGap);
+      const y = chartY + chartHeight - 18 - barHeight;
+      addShape(`bar-${index}`, x, y, barWidth, barHeight, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 0.92);
+      addText(`bar-${index}-label`, item.label || `${index + 1}`, x - 4, chartY + chartHeight - 16, barWidth + 8, 12, 8, 900, theme.muted);
+    });
+    items.slice(0, 3).forEach((item, index) => {
+      const rowHeight = Math.min(40, Math.max(32, (chartHeight - 6) / 3));
+      const y = chartY + index * (rowHeight + 3);
+      addShape(`metric-row-${index}`, rowX, y, rowWidth, rowHeight, "#ffffff", "#e2e8f0", 0.82);
+      addText(`metric-row-${index}-label`, item.label || item.title, rowX + 10, y + 7, rowWidth * 0.45, 14, 9, 900, theme.muted);
+      addText(`metric-row-${index}-value`, item.value || item.title, rowX + rowWidth * 0.48, y + 7, rowWidth * 0.46, 14, 11, 900, itemToneColor(item.tone, theme, accent));
+      addShape(`metric-row-${index}-track`, rowX + 10, y + rowHeight - 11, rowWidth - 20, 3, "#e2e8f0", "#e2e8f0", 1);
+      addShape(`metric-row-${index}-progress`, rowX + 10, y + rowHeight - 11, (rowWidth - 20) * (clamp(item.progress ?? 50, 0, 100) / 100), 3, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+    });
+    return children;
+  }
+
+  if (element.variant === "system-architecture-map") {
+    const top = element.y + (element.props?.title ? 54 : 24);
+    const nodeCount = Math.min(Math.max(items.length, 1), 4);
+    const gap = 10;
+    const nodeWidth = (element.width - 32 - gap * (nodeCount - 1)) / nodeCount;
+    const nodeHeight = Math.max(74, element.height - (top - element.y) - 24);
+    children.push(visualCanvasElement(`${baseId}-connector`, "line", element.x + 34, top + nodeHeight / 2, element.width - 68, 1, { stroke: "#dbe5d0" }));
+    items.slice(0, nodeCount).forEach((item, index) => {
+      const x = element.x + 16 + index * (nodeWidth + gap);
+      const y = top;
+      addShape(`node-${index}`, x, y, nodeWidth, nodeHeight, "#ffffff", "#e2e8f0", 0.9);
+      addShape(`node-${index}-mark`, x + nodeWidth / 2 - 15, y + 12, 30, 30, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+      addText(`node-${index}-label`, item.label || `${index + 1}`, x + nodeWidth / 2 - 15, y + 20, 30, 13, 8, 900, "#ffffff");
+      addText(`node-${index}-title`, item.title || item.value, x + 10, y + 50, nodeWidth - 20, 17, 10, 900, theme.text);
+      addText(`node-${index}-body`, item.body, x + 10, y + 70, nodeWidth - 20, Math.max(18, nodeHeight - 78), 8, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "impact-matrix") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const gap = 10;
+    const cellWidth = (element.width - 32 - gap) / 2;
+    const cellHeight = (element.height - (top - element.y) - 18 - gap) / 2;
+    items.slice(0, 4).forEach((item, index) => {
+      const x = element.x + 16 + (index % 2) * (cellWidth + gap);
+      const y = top + Math.floor(index / 2) * (cellHeight + gap);
+      addShape(`matrix-${index}`, x, y, cellWidth, cellHeight, "#ffffff", "#e2e8f0", 0.9);
+      addText(`matrix-${index}-label`, item.label || `${index + 1}`, x + 10, y + 8, cellWidth - 32, 13, 9, 900, itemToneColor(item.tone, theme, accent));
+      addShape(`matrix-${index}-dot`, x + cellWidth - 20, y + 11, 7, 7, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+      addText(`matrix-${index}-title`, item.title || item.value, x + 10, y + 27, cellWidth - 20, 16, 11, 900, theme.text);
+      addText(`matrix-${index}-body`, item.body, x + 10, y + 48, cellWidth - 20, Math.max(18, cellHeight - 56), 8, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "decision-tree") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const contentHeight = element.height - (top - element.y) - 18;
+    const colWidth = (element.width - 42) / 3;
+    const centerHeight = (contentHeight - 10) / 2;
+    const positions = [
+      { x: element.x + 16, y: top + contentHeight * 0.16, width: colWidth, height: contentHeight * 0.68 },
+      { x: element.x + 26 + colWidth, y: top, width: colWidth, height: centerHeight },
+      { x: element.x + 26 + colWidth, y: top + centerHeight + 10, width: colWidth, height: centerHeight },
+      { x: element.x + 36 + colWidth * 2, y: top + contentHeight * 0.16, width: colWidth, height: contentHeight * 0.68 },
+    ];
+    children.push(visualCanvasElement(`${baseId}-branch-a`, "line", element.x + 16 + colWidth, top + contentHeight / 2, 20, 1, { stroke: "#dbe5d0" }));
+    children.push(visualCanvasElement(`${baseId}-branch-b`, "line", element.x + 26 + colWidth * 2, top + contentHeight / 2, 20, 1, { stroke: "#dbe5d0" }));
+    items.slice(0, 4).forEach((item, index) => {
+      const position = positions[index];
+      addShape(`tree-${index}`, position.x, position.y, position.width, position.height, "#ffffff", "#e2e8f0", 0.9);
+      addShape(`tree-${index}-mark`, position.x + 10, position.y + 10, 22, 22, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+      addText(`tree-${index}-label`, item.label || `${index + 1}`, position.x + 10, position.y + 16, 22, 12, 8, 900, "#ffffff");
+      addText(`tree-${index}-title`, item.title || item.value, position.x + 40, position.y + 12, position.width - 50, 18, 11, 900, itemToneColor(item.tone, theme, accent));
+      addText(`tree-${index}-body`, item.body, position.x + 12, position.y + 42, position.width - 24, Math.max(12, position.height - 52), 7, 700, theme.muted);
+    });
+    return children;
+  }
+
+  if (element.variant === "competency-radar") {
+    const top = element.y + (element.props?.title ? 44 : 14);
+    const chartSize = Math.min(116, Math.max(86, element.height - (top - element.y) - 18));
+    const chartX = element.x + 20;
+    const chartY = top + Math.max(0, (element.height - (top - element.y) - chartSize) / 2 - 6);
+    const rowX = chartX + chartSize + 22;
+    const rowWidth = element.x + element.width - rowX - 16;
+    addShape("radar-outer", chartX, chartY, chartSize, chartSize, "#ffffff", "#e2e8f0", 0.88);
+    addShape("radar-mid", chartX + chartSize * 0.2, chartY + chartSize * 0.2, chartSize * 0.6, chartSize * 0.6, "#f8fafc", "#e2e8f0", 0.6);
+    items.slice(0, 4).forEach((item, index) => {
+      const value = clamp(item.progress ?? 60, 20, 92) / 100;
+      const angle = (index / 4) * Math.PI * 2 - Math.PI / 2;
+      const x = chartX + chartSize / 2 + Math.cos(angle) * chartSize * 0.38 * value;
+      const y = chartY + chartSize / 2 + Math.sin(angle) * chartSize * 0.38 * value;
+      addShape(`radar-dot-${index}`, x - 5, y - 5, 10, 10, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+    });
+    items.slice(0, 5).forEach((item, index) => {
+      const rowHeight = Math.min(24, Math.max(18, (chartSize - 4) / Math.max(items.length, 1)));
+      const y = chartY + index * (rowHeight + 2);
+      addText(`radar-row-${index}-label`, item.label || item.title, rowX, y + 1, rowWidth * 0.54, 13, 9, 900, theme.muted);
+      addText(`radar-row-${index}-value`, `${Math.round(item.progress ?? 60)}`, rowX + rowWidth - 28, y + 1, 28, 13, 9, 900, itemToneColor(item.tone, theme, accent));
+      addShape(`radar-row-${index}-track`, rowX, y + rowHeight - 6, rowWidth, 3, "#e2e8f0", "#e2e8f0", 1);
+      addShape(`radar-row-${index}-progress`, rowX, y + rowHeight - 6, rowWidth * (clamp(item.progress ?? 60, 0, 100) / 100), 3, itemToneColor(item.tone, theme, accent), itemToneColor(item.tone, theme, accent), 1);
+    });
+    return children;
+  }
+
+  const isKpi = element.variant === "kpi-cards";
+  const isFourStep =
+    element.variant === "star-method" ||
+    element.variant === "architecture-stack" ||
+    element.variant === "role-contribution" ||
+    element.variant === "before-after-impact";
+  const maxItems = isKpi ? 2 : isFourStep ? 4 : 3;
+  const gap = isKpi ? 8 : 10;
+  const top = element.y + (element.props?.title ? 40 : 8);
+  const cardWidth = (element.width - 28 - gap * (maxItems - 1)) / maxItems;
+  const cardHeight = element.height - (top - element.y) - 14;
+
+  items.slice(0, maxItems).forEach((item, index) => {
+    const x = element.x + 14 + index * (cardWidth + gap);
+    const y = top;
+    const title = item.title || item.label || (isKpi ? "핵심" : "항목");
+    addShape(`item-${index}-card`, x, y, cardWidth, cardHeight, "#ffffff", "#e2e8f0", 0.9);
+    if (isKpi) {
+      addText(`item-${index}-label`, item.label || title, x + 12, y + 10, cardWidth - 24, 14, 9, 900, theme.muted);
+      addText(`item-${index}-value`, item.value || title, x + 12, y + 26, cardWidth - 24, 26, 19, 900, accent);
+      addText(`item-${index}-body`, item.body, x + 12, y + 54, cardWidth - 24, 14, 9, 700, theme.muted);
+      return;
+    }
+    addShape(`item-${index}-dot`, x + 12, y + 12, 24, 24, accent, accent, 1);
+    addText(`item-${index}-number`, String(index + 1), x + 12, y + 18, 24, 13, 9, 900, "#ffffff");
+    addText(`item-${index}-title`, title, x + 12, y + 44, cardWidth - 24, 20, 12, 900, accent);
+    addText(`item-${index}-body`, item.body || item.value, x + 12, y + 68, cardWidth - 24, Math.max(22, cardHeight - 78), 10, 650, theme.text);
+  });
+
+  return children;
+}
+
+function expandCanvasElements(
+  elements: PortfolioCanvasElement[],
+  theme: PortfolioDocument["theme"],
+) {
+  return elements.flatMap((element) => expandShadcnBlockElement(element, theme));
+}
+
+function materializeCanvasElements(
+  section: PortfolioSection,
+  document: PortfolioDocument,
+  options: { expandBlocks?: boolean } = {},
+) {
   const defaults = defaultCanvasElements(section, document);
-  if (!section.canvas?.elements?.length) return defaults;
+  const resolveElements = (elements: PortfolioCanvasElement[]) =>
+    options.expandBlocks ? expandCanvasElements(elements, document.theme) : elements;
+
+  if (!section.canvas) return resolveElements(defaults);
 
   if (section.canvas.styleVersion !== PORTFOLIO_CANVAS_STYLE_VERSION) {
     const savedById = new Map(section.canvas.elements.map((element) => [element.id, element]));
-    return defaults.map((element) => {
+    const mergedDefaults = defaults.map((element) => {
       const saved = savedById.get(element.id);
       if (!saved) return element;
       return {
@@ -350,6 +695,7 @@ function materializeCanvasElements(section: PortfolioSection, document: Portfoli
             : element.image,
       };
     });
+    return resolveElements(mergedDefaults);
   }
 
   const defaultById = new Map(defaults.map((element) => [element.id, element]));
@@ -357,11 +703,7 @@ function materializeCanvasElements(section: PortfolioSection, document: Portfoli
     ...defaultById.get(element.id),
     ...element,
   }));
-  const materializedIds = new Set(materialized.map((element) => element.id));
-  return [
-    ...materialized,
-    ...defaults.filter((element) => !materializedIds.has(element.id)),
-  ];
+  return resolveElements(materialized);
 }
 
 function getCanvasSize(section: PortfolioSection | undefined, document: PortfolioDocument) {
@@ -438,8 +780,18 @@ function PortfolioCanvasImage({ element }: { element: PortfolioCanvasElement }) 
 
   if (!src) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs font-semibold text-slate-400">
-        Image
+      <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#f8fafc_0%,#e8f2e1_52%,#f5f1d8_100%)]">
+        <div className="absolute left-[12%] top-[18%] h-[18%] w-[40%] rounded-full bg-white/65" />
+        <div className="absolute bottom-[16%] left-[12%] right-[12%] grid h-[36%] grid-cols-4 items-end gap-2">
+          {[42, 68, 54, 82].map((height, index) => (
+            <span
+              key={height}
+              className="rounded-t-lg bg-primary/45"
+              style={{ height: `${height}%`, opacity: 0.55 + index * 0.08 }}
+            />
+          ))}
+        </div>
+        <div className="absolute right-[14%] top-[18%] h-[34%] w-[34%] rounded-full border border-primary/20 bg-white/35" />
       </div>
     );
   }
@@ -459,6 +811,596 @@ function PortfolioCanvasImage({ element }: { element: PortfolioCanvasElement }) 
   );
 }
 
+function itemToneColor(
+  tone: NonNullable<NonNullable<PortfolioCanvasElement["props"]>["items"]>[number]["tone"] | undefined,
+  theme: PortfolioDocument["theme"],
+  fallback: string,
+) {
+  if (tone === "accent") return theme.accent;
+  if (tone === "muted") return theme.muted;
+  return fallback;
+}
+
+function chartItems(element: PortfolioCanvasElement) {
+  const items = (element.props?.items || []).filter(
+    (item) => item.title || item.label || item.body || item.value || typeof item.progress === "number",
+  );
+  return items.length
+    ? items
+    : [
+        { label: "Before", title: "문제", value: "35", progress: 35, tone: "muted" as const },
+        { label: "Build", title: "구현", value: "68", progress: 68, tone: "accent" as const },
+        { label: "Impact", title: "성과", value: "88", progress: 88, tone: "primary" as const },
+      ];
+}
+
+function chartValue(item: ReturnType<typeof chartItems>[number], fallback: number) {
+  if (typeof item.progress === "number") return clamp(item.progress, 0, 100);
+  const numeric = Number(String(item.value || "").replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) && numeric > 0 ? clamp(numeric, 0, 100) : fallback;
+}
+
+function LineIconMark({
+  icon,
+  color,
+  className,
+  strokeWidth = 1.8,
+}: {
+  icon: IconData;
+  color: string;
+  className?: string;
+  strokeWidth?: number;
+}) {
+  const iconMeta = icon as IconData & { defaultFill?: string };
+  const svg = icon.svg
+    .replace(/fill="\{color\}"/g, `fill="${color}"`)
+    .replace(/stroke="\{color\}"/g, `stroke="${color}"`)
+    .replace(/stroke-width="\{strokeWidth\}"/g, `stroke-width="${strokeWidth}"`);
+
+  return (
+    <svg
+      viewBox={icon.viewBox}
+      className={className}
+      fill={iconMeta.defaultFill || "none"}
+      stroke={icon.hasStroke ? color : "none"}
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
+function PortfolioCanvasShadcnBlock({
+  element,
+  theme,
+}: {
+  element: PortfolioCanvasElement;
+  theme: PortfolioDocument["theme"];
+}) {
+  const props = element.props || {};
+  const items = (props.items || []).filter(
+    (item) => item.title || item.label || item.body || item.value || item.image?.url,
+  );
+  const accent = element.stroke || theme.primary;
+  const softFill = element.fill && element.fill !== "#ffffff" ? element.fill : "rgba(255,255,255,0.9)";
+  const cardStyle = {
+    borderColor: `${accent}55`,
+    backgroundColor: softFill,
+    color: theme.text,
+    opacity: element.opacity ?? 1,
+  };
+
+  if (element.variant === "tech-logo-grid") {
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+            {props.title || "기술 스택"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid h-[calc(100%-44px)] grid-cols-3 gap-2 px-4 pb-4 pt-0">
+          {(items.length ? items : [{ title: "Stack" }, { title: "API" }, { title: "DB" }])
+            .slice(0, 9)
+            .map((item, index) => {
+              const title = item.title || item.label || "Stack";
+              return (
+                <div
+                  key={`${title}-${index}`}
+                  className="flex min-h-0 flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white/82 px-2 py-1.5 text-center"
+                >
+                  {item.image?.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.image.url}
+                      alt={item.image.alt || title}
+                      className="h-7 w-7 object-contain"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black text-white"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {title.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="mt-1 max-w-full truncate text-[10px] font-black text-slate-600">
+                    {title}
+                  </span>
+                </div>
+              );
+            })}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "problem-solution-result") {
+    const flowItems = (items.length ? items : [
+      { label: "문제", body: "문제를 정의합니다." },
+      { label: "해결", body: "해결 방안을 실행합니다." },
+      { label: "결과", body: "결과를 정리합니다." },
+    ]).slice(0, 3);
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="flex-row items-start justify-between gap-3 px-4 pb-2 pt-3">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+              {props.title || "문제 해결 흐름"}
+            </CardTitle>
+            {props.subtitle ? (
+              <p className="mt-1 truncate text-[10px] font-semibold text-slate-500">{props.subtitle}</p>
+            ) : null}
+          </div>
+          {props.badges?.length ? (
+            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+              {props.badges.slice(0, 2).map((badge) => (
+                <Badge
+                  key={badge}
+                  variant="outline"
+                  className="h-5 border-primary/25 bg-primary/5 px-1.5 text-[9px] font-black text-primary"
+                >
+                  {badge}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </CardHeader>
+        <CardContent className="grid h-[calc(100%-46px)] grid-cols-3 gap-2 px-4 pb-4 pt-0">
+          {flowItems.map((item, index) => {
+            const color = itemToneColor(item.tone, theme, accent);
+            return (
+              <div
+                key={`${item.label || item.title}-${index}`}
+                className="min-h-0 rounded-xl border border-slate-200/80 bg-white/80 p-2"
+              >
+                <span
+                  className="mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black text-white"
+                  style={{ backgroundColor: color }}
+                >
+                  {index + 1}
+                </span>
+                <p className="truncate text-[11px] font-black" style={{ color }}>
+                  {item.title || item.label}
+                </p>
+                <p className="mt-1 line-clamp-3 text-[10px] font-semibold leading-4 text-slate-600">
+                  {item.body}
+                </p>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "project-index-cards") {
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+              {props.title || "프로젝트 인덱스"}
+            </CardTitle>
+            <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
+              {items.length} projects
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-0">
+          <Table className="text-[11px]">
+            <TableBody>
+              {(items.length ? items : [{ title: "대표 프로젝트", body: "케이스스터디" }])
+                .slice(0, 6)
+                .map((item, index) => (
+                  <TableRow key={`${item.title || item.label}-${index}`} className="border-slate-100">
+                    <TableCell className="w-12 py-2 pl-0 pr-2 font-black" style={{ color: accent }}>
+                      {item.label || String(index + 1).padStart(2, "0")}
+                    </TableCell>
+                    <TableCell className="min-w-0 py-2 pl-0 pr-2">
+                      <p className="truncate font-black text-slate-900">{item.title}</p>
+                      <p className="truncate text-[10px] font-semibold text-slate-500">{item.body}</p>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "timeline-steps") {
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+            {props.title || "진행 흐름"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="h-[calc(100%-44px)] space-y-2 overflow-hidden px-4 pb-4 pt-0">
+          {(items.length ? items : [{ title: "문제 정의" }, { title: "실행" }, { title: "개선" }])
+            .slice(0, 4)
+            .map((item, index, array) => (
+              <div key={`${item.title || item.label}-${index}`} className="flex min-h-0 gap-2">
+                <div className="flex shrink-0 flex-col items-center">
+                  <span
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black text-white"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {item.label || index + 1}
+                  </span>
+                  {index < array.length - 1 ? <Separator orientation="vertical" className="my-1 flex-1 bg-slate-200" /> : null}
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl bg-white/70 px-2.5 py-1.5">
+                  <p className="truncate text-[11px] font-black text-slate-900">{item.title}</p>
+                  <p className="truncate text-[10px] font-semibold text-slate-500">{item.body}</p>
+                </div>
+              </div>
+            ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "metric-trend") {
+    const trendItems = chartItems(element).slice(0, 4);
+    const data = trendItems.map((item, index) => ({
+      name: item.label || item.title || `Step ${index + 1}`,
+      value: chartValue(item, 40 + index * 16),
+      fill: itemToneColor(item.tone, theme, accent),
+    }));
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+            {props.title || "지표 변화 흐름"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1.25fr_0.75fr] gap-3 px-4 pb-4 pt-0">
+          <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-2 py-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`portfolio-trend-${element.id}`} x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="5%" stopColor={accent} stopOpacity={0.42} />
+                    <stop offset="95%" stopColor={accent} stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: theme.muted }} />
+                <YAxis hide domain={[0, 100]} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={accent}
+                  strokeWidth={3}
+                  fill={`url(#portfolio-trend-${element.id})`}
+                  dot={{ r: 4, strokeWidth: 2, fill: "#ffffff", stroke: accent }}
+                  activeDot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-2 overflow-hidden">
+            {trendItems.slice(0, 3).map((item, index) => (
+              <div key={`${item.label || index}-row`} className="rounded-xl bg-white/72 px-2.5 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[10px] font-black text-slate-500">{item.label}</span>
+                  <strong className="truncate text-[11px] font-black" style={{ color: itemToneColor(item.tone, theme, accent) }}>{item.value || item.title}</strong>
+                </div>
+                <Progress value={chartValue(item, 50)} className="mt-1 h-1.5 bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "system-architecture-map") {
+    const nodes = (items.length ? items : [
+      { label: "Input", title: "사용자/데이터" },
+      { label: "Service", title: "API/업무 로직" },
+      { label: "Data", title: "DB/Storage" },
+      { label: "Output", title: "리포트/화면" },
+    ]).slice(0, 4);
+    const [inputNode, serviceNode, dataNode, outputNode] = nodes;
+    const nodeTone = (item: typeof nodes[number] | undefined, fallback = accent) =>
+      item ? itemToneColor(item.tone, theme, fallback) : fallback;
+    const nodeIcons = [TargetUserOutlined, CloudIot2Outlined, Database2Outlined, DashboardSquare1Outlined];
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardContent className="grid h-full grid-cols-[0.78fr_1.22fr] gap-3 p-4">
+          <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/80 bg-white/82 p-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Architecture</p>
+              <h3 className="mt-1 line-clamp-2 text-sm font-black leading-5" style={{ color: accent }}>
+                {props.title || "시스템 구조 맵"}
+              </h3>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {nodes.map((item, index) => (
+                <div key={`${item.label || index}-chip`} className="min-w-0 rounded-xl bg-slate-50 px-2 py-1.5">
+                  <LineIconMark icon={nodeIcons[index] || VectorNodes6Outlined} color={itemToneColor(item.tone, theme, accent)} className="mb-1 h-4 w-4" />
+                  <span className="block truncate text-[10px] font-black text-slate-800">{item.title || item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-[radial-gradient(circle_at_20%_20%,rgba(23,122,77,0.12),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)] p-3">
+            <div className="grid h-full grid-cols-[0.92fr_1.08fr_0.92fr] grid-rows-2 gap-2">
+              <div className="relative row-span-2 flex min-w-0 flex-col justify-center rounded-2xl border border-slate-200 bg-white/92 p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <LineIconMark icon={TargetUserOutlined} color={nodeTone(inputNode, theme.muted)} className="h-5 w-5" />
+                </span>
+                <p className="mt-2 truncate text-[11px] font-black text-slate-950">{inputNode?.title || inputNode?.label}</p>
+                <p className="mt-1 line-clamp-2 text-[9px] font-semibold leading-3 text-slate-500">{inputNode?.body}</p>
+                <span className="absolute -right-3 top-1/2 h-px w-3 bg-slate-300" />
+              </div>
+
+              <div className="relative min-w-0 rounded-2xl border border-emerald-200 bg-white p-2.5 shadow-[0_14px_28px_rgba(23,122,77,0.12)]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black" style={{ color: nodeTone(serviceNode) }}>
+                  <LineIconMark icon={CloudIot2Outlined} color={nodeTone(serviceNode)} className="h-3.5 w-3.5" />
+                  Core
+                </span>
+                <p className="mt-1 truncate text-[11px] font-black text-slate-950">{serviceNode?.title || serviceNode?.label}</p>
+                <p className="mt-1 line-clamp-1 text-[8px] font-semibold leading-3 text-slate-500">{serviceNode?.body}</p>
+                <span className="absolute -right-3 top-1/2 h-px w-3 bg-slate-300" />
+              </div>
+
+              <div className="relative min-w-0 rounded-2xl border border-slate-200 bg-white/92 p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[8px] font-black" style={{ color: nodeTone(dataNode, theme.accent) }}>
+                  <LineIconMark icon={Database2Outlined} color={nodeTone(dataNode, theme.accent)} className="h-3.5 w-3.5" />
+                  Data
+                </span>
+                <p className="mt-1 truncate text-[11px] font-black text-slate-950">{dataNode?.title || dataNode?.label}</p>
+                <p className="mt-1 line-clamp-1 text-[8px] font-semibold leading-3 text-slate-500">{dataNode?.body}</p>
+                <span className="absolute -right-3 top-1/2 h-px w-3 bg-slate-300" />
+              </div>
+
+              <div className="relative col-start-3 row-span-2 flex min-w-0 flex-col justify-center rounded-2xl border border-slate-200 bg-white/92 p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <LineIconMark icon={DashboardSquare1Outlined} color={nodeTone(outputNode)} className="h-5 w-5" />
+                </span>
+                <p className="mt-2 truncate text-[11px] font-black text-slate-950">{outputNode?.title || outputNode?.label}</p>
+                <p className="mt-1 line-clamp-2 text-[9px] font-semibold leading-3 text-slate-500">{outputNode?.body}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "impact-matrix") {
+    const matrixItems = (items.length ? items : [
+      { label: "Before", title: "문제" },
+      { label: "Action", title: "실행" },
+      { label: "After", title: "성과" },
+      { label: "Next", title: "확장" },
+    ]).slice(0, 4);
+    const data = matrixItems.map((item, index) => ({
+      name: item.label || item.title || `Step ${index + 1}`,
+      value: chartValue(item, 34 + index * 16),
+      fill: itemToneColor(item.tone, theme, accent),
+    }));
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+            {props.title || "임팩트 매트릭스"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1.15fr_0.85fr] gap-3 px-4 pb-4 pt-0">
+          <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-2 py-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} layout="vertical" margin={{ left: 4, right: 10, top: 4, bottom: 4 }}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" hide domain={[0, 100]} />
+                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: theme.muted }} width={46} />
+                <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={14}>
+                  {data.map((item) => (
+                    <Cell key={item.name} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid min-h-0 grid-cols-1 gap-2">
+            {matrixItems.slice(0, 3).map((item, index) => (
+              <div key={`${item.label || index}-cell`} className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-2.5 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[10px] font-black" style={{ color: itemToneColor(item.tone, theme, accent) }}>{item.label || index + 1}</span>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: itemToneColor(item.tone, theme, accent) }} />
+                </div>
+                <p className="mt-0.5 truncate text-[11px] font-black text-slate-900">{item.title || item.value}</p>
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-semibold leading-3 text-slate-500">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "decision-tree") {
+    const treeItems = (items.length ? items : [
+      { label: "기준", title: "문제 정의" },
+      { label: "선택", title: "대안 비교" },
+      { label: "결정", title: "구현 방향" },
+      { label: "검증", title: "성과 확인" },
+    ]).slice(0, 4);
+    const decisionIcons = [QuestionMarkCircleOutlined, VectorNodes6Outlined, Code1Outlined, BarChart4Outlined];
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardContent className="grid h-full grid-cols-[0.72fr_1.28fr] gap-3 p-4">
+          <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-slate-200/80 bg-white/82 p-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Decision</p>
+              <h3 className="mt-1 line-clamp-2 text-sm font-black leading-5" style={{ color: accent }}>
+                {props.title || "의사결정 트리"}
+              </h3>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              {treeItems.slice(0, 4).map((item, index) => (
+                <div key={`${item.label || index}-summary`} className="flex items-center gap-2 rounded-xl bg-slate-50 px-2 py-1.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
+                    <LineIconMark icon={decisionIcons[index] || VectorNodes6Outlined} color={itemToneColor(item.tone, theme, accent)} className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate text-[10px] font-black text-slate-700">{item.title || item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)] p-3">
+            <div className="absolute left-[22%] right-[22%] top-1/2 h-px bg-slate-300" />
+            <div className="absolute left-[49%] top-[27%] h-[46%] w-px bg-slate-300" />
+            <div className="grid h-full grid-cols-[0.95fr_1.05fr_0.95fr] grid-rows-2 gap-2">
+            {treeItems.map((item, index) => (
+              <div
+                key={`${item.label || index}-tree`}
+                className={`relative min-h-0 rounded-2xl border border-slate-200 bg-white/90 p-2.5 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${index === 0 ? "col-start-1 row-span-2 self-center" : index === 3 ? "col-start-3 row-span-2 self-center" : "col-start-2"}`}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <LineIconMark icon={decisionIcons[index] || VectorNodes6Outlined} color={itemToneColor(item.tone, theme, accent)} className="h-5 w-5" />
+                </span>
+                <p className="mt-2 truncate text-[11px] font-black" style={{ color: itemToneColor(item.tone, theme, accent) }}>{item.title || item.value}</p>
+                <p className="mt-1 line-clamp-2 text-[8px] font-semibold leading-3 text-slate-500">{item.body}</p>
+              </div>
+            ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "competency-radar") {
+    const radarItems = (items.length ? items : [
+      { label: "문제정의", progress: 72 },
+      { label: "구현", progress: 84 },
+      { label: "협업", progress: 68 },
+      { label: "성과", progress: 88 },
+    ]).slice(0, 5);
+    const data = radarItems.map((item, index) => ({
+      subject: item.label || item.title || `역량 ${index + 1}`,
+      value: chartValue(item, 62 + index * 6),
+    }));
+
+    return (
+      <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+        <CardHeader className="px-4 pb-2 pt-3">
+          <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+            {props.title || "역량 레이더"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1fr_0.9fr] gap-3 px-4 pb-4 pt-0">
+          <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-1 py-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={data} outerRadius="72%" margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                <PolarGrid stroke="#dbe5d0" />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fill: theme.muted }} />
+                <Radar dataKey="value" stroke={accent} fill={accent} fillOpacity={0.28} strokeWidth={2.5} dot />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-1.5 overflow-hidden">
+            {radarItems.map((item, index) => (
+              <div key={`${item.label || index}-metric`}>
+                <div className="mb-0.5 flex justify-between gap-2 text-[10px] font-black text-slate-500">
+                  <span className="truncate">{item.label || item.title}</span>
+                  <span>{Math.round(chartValue(item, 60))}</span>
+                </div>
+                <Progress value={chartValue(item, 60)} className="h-1.5 bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (element.variant === "kpi-cards") {
+    return (
+      <div
+        className="grid h-full w-full gap-2"
+        style={{
+          gridTemplateColumns: `repeat(${Math.min(Math.max(items.length, 1), 2)}, minmax(0, 1fr))`,
+          opacity: element.opacity ?? 1,
+        }}
+      >
+        {(items.length ? items : [{ label: "핵심", value: "1", body: "정리" }])
+          .slice(0, 2)
+          .map((item, index) => {
+            const color = itemToneColor(item.tone, theme, accent);
+            return (
+              <Card
+                key={`${item.label || item.title}-${index}`}
+                className="flex h-full flex-col justify-center overflow-hidden rounded-2xl border bg-white/90 px-3 py-2 shadow-none"
+                style={{ borderColor: `${color}55` }}
+              >
+                <span className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                  {item.label || item.title}
+                </span>
+                <strong className="mt-0.5 truncate text-xl font-black leading-none" style={{ color }}>
+                  {item.value || item.title || "0"}
+                </strong>
+                {typeof item.progress === "number" ? (
+                  <Progress value={clamp(item.progress, 0, 100)} className="mt-2 h-1.5 bg-slate-100" />
+                ) : (
+                  <span className="mt-1 truncate text-[10px] font-semibold text-slate-500">{item.body}</span>
+                )}
+              </Card>
+            );
+          })}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="h-full w-full overflow-hidden rounded-2xl border shadow-none" style={cardStyle}>
+      <CardHeader className="px-4 pb-2 pt-3">
+        <CardTitle className="truncate text-sm font-black" style={{ color: accent }}>
+          {props.title || "요약"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 px-4 pb-4 pt-0">
+        {props.subtitle ? <p className="text-xs font-semibold text-slate-500">{props.subtitle}</p> : null}
+        {items.slice(0, 3).map((item, index) => (
+          <p key={`${item.title || item.body}-${index}`} className="line-clamp-2 text-[11px] font-semibold leading-4 text-slate-700">
+            {item.title || item.label}: {item.body || item.value}
+          </p>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PortfolioCanvasVisual({
   element,
   theme,
@@ -469,6 +1411,10 @@ function PortfolioCanvasVisual({
   const fill = element.fill || theme.primary;
   const stroke = element.stroke || theme.primary;
   const opacity = element.opacity ?? 1;
+
+  if (element.kind === "shadcnBlock") {
+    return <PortfolioCanvasShadcnBlock element={element} theme={theme} />;
+  }
 
   if (element.kind === "shape") {
     return (
@@ -622,7 +1568,7 @@ function CanvasElementView({
   return (
     <div
       className={`group absolute outline-none ${
-        selected ? "z-30" : editable ? "hover:ring-1 hover:ring-primary/30" : ""
+        selected ? "ring-1 ring-primary/20" : editable ? "hover:ring-1 hover:ring-primary/30" : ""
       } ${isImage ? "rounded-[18px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)]" : ""}`}
       style={elementToCss(element, canvasWidth, canvasHeight)}
       onPointerDown={(event) => {
@@ -651,7 +1597,10 @@ function CanvasElementView({
             fontWeight: element.fontWeight,
             lineHeight: `${element.lineHeight || Math.round((element.fontSize || 16) * 1.35)}px`,
             textAlign: element.textAlign || "left",
+            wordBreak: "keep-all",
+            overflowWrap: "break-word",
           }}
+          spellCheck={false}
           onFocus={() => onSelectElement?.(section.id, element, elements)}
           onBlur={handleBlur}
           onKeyDown={(event) => {

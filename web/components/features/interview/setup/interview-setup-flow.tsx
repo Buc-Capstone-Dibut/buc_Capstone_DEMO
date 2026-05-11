@@ -30,6 +30,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const didImportRef = useRef(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     reset();
@@ -70,6 +71,10 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
 
     runImport();
   }, [searchParams, setResumeData, setResumePrefillSource, toast, track]);
+
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 });
+  }, [currentStep, track]);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -136,7 +141,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollerRef} className="flex-1 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${track}-${currentStep}`}

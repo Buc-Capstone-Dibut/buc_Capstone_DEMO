@@ -138,6 +138,7 @@ async function generatePortfolioDraft(input: {
 [품질 기준]
 - 표지는 한 문장으로 사용자의 포지션/강점을 명확히 보여준다.
 - 각 프로젝트 페이지는 "문제/역할/해결/결과" 흐름이 보이게 제목, 부제, 본문을 재구성한다.
+- 프로젝트 성격에 맞춰 STAR, 기술 구조/구현, 역할/기여도, Before-Action-Impact 중 하나가 자연스럽게 드러나도록 body의 소제목을 구성한다.
 - PPT형은 제목을 발표 자료처럼 짧고 선명하게, A4형은 보고서처럼 소제목과 설명이 연결되게 쓴다.
 - 본문은 PPT형 3~5줄, A4형 5~8줄 안에서 포트폴리오용 요약으로 만든다.
 - tags는 슬라이드 핵심 키워드 3~6개만 남긴다.
@@ -305,17 +306,17 @@ ${JSON.stringify(template.blueprint, null, 2)}
 
 [출력 포맷]
 ${JSON.stringify(
-      {
-        format: input.format,
-        pageSize: input.pageSize,
-        generationPreset: input.generationPreset,
-        rule:
-          input.format === "site"
-            ? "웹 슬라이드형은 브라우저에서 넘기는 여러 HTML 페이지로, 페이지당 메시지 하나와 명확한 섹션 블록을 우선한다."
-            : input.format === "document"
-              ? "A4 보고서형은 한 페이지 안에 맥락과 근거를 더 충분히 담고, 표/타임라인/요약 박스를 우선한다."
-              : "PPT형은 한 장당 메시지 하나, 큰 제목, 이미지/인포그래픽 중심으로 구성한다.",
-      },
+  {
+    format: input.format,
+    pageSize: input.pageSize,
+    generationPreset: input.generationPreset,
+    rule:
+      input.format === "site"
+        ? "웹 슬라이드형은 브라우저에서 넘기는 여러 HTML 페이지로, 페이지당 메시지 하나와 명확한 섹션 블록을 우선한다."
+        : input.format === "document"
+          ? "A4 보고서형은 한 페이지 안에 맥락과 근거를 더 충분히 담고, shadcnBlock 기반 표/타임라인/요약 박스를 우선한다."
+          : "PPT형은 한 장당 메시지 하나, 큰 제목, 이미지/shadcnBlock 인포그래픽 중심으로 구성한다.",
+  },
   null,
   2,
 )}
@@ -338,7 +339,8 @@ JSON 하나만 반환:
       "result": "결과",
       "projectType": "web-service|data-ai|collaboration|backend-api|general",
       "imageHint": "representative|dashboard|workspace|team|studio",
-      "infographicType": "flow|metric|timeline"
+      "componentPattern": "star-method|problem-solution-result|architecture-stack|role-contribution|before-after-impact|system-architecture-map|impact-matrix|metric-trend|decision-tree|competency-radar",
+      "infographicType": "shadcnBlock|flow|metric|timeline"
     }
   ],
   "slidePlan": [
@@ -347,7 +349,7 @@ JSON 하나만 반환:
       "title": "슬라이드 제목",
       "purpose": "슬라이드 목적",
       "sourceId": "선택 사항",
-      "infographicType": "flow|metric|timeline|techLogo"
+      "infographicType": "shadcnBlock|flow|metric|timeline|techLogo"
     }
   ]
 }`;
@@ -400,7 +402,7 @@ function buildGenerationQuality(input: {
           (count, section) =>
             count +
             (section.canvas?.elements || []).filter((element) =>
-              ["flow", "metric", "timeline", "techLogo"].includes(element.kind),
+              ["flow", "metric", "timeline", "techLogo", "shadcnBlock"].includes(element.kind),
             ).length,
           0,
         );
@@ -439,6 +441,10 @@ function encodeSse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } },
@@ -459,8 +465,16 @@ export async function GET(
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let streamClosed = false;
       const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(encodeSse(event, data)));
+        if (streamClosed || request.signal.aborted) return false;
+        try {
+          controller.enqueue(encoder.encode(encodeSse(event, data)));
+          return true;
+        } catch {
+          streamClosed = true;
+          return false;
+        }
       };
 
       try {
@@ -530,13 +544,14 @@ export async function GET(
         });
         send("stage", { label: "디자인 자동 정돈 중" });
         if (polishedDocument.format !== "site") {
-          polishedDocument.sections.forEach((section, index) => {
-            send("section", {
+          for (const [index, section] of polishedDocument.sections.entries()) {
+            if (!send("section", {
               index,
               total: polishedDocument.sections.length,
               section,
-            });
-          });
+            })) break;
+            await sleep(110);
+          }
         }
 
         send("stage", { label: "저장 중" });
@@ -588,7 +603,12 @@ export async function GET(
           error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
         });
       } finally {
-        controller.close();
+        streamClosed = true;
+        try {
+          controller.close();
+        } catch {
+          // The browser may close the SSE connection before generation finishes.
+        }
       }
     },
     cancel() {},

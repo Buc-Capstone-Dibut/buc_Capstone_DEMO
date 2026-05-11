@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -18,7 +19,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalHeader } from "@/components/layout/global-header";
-import { DibeotCharacter } from "@/components/features/interview/report/dibeot-character";
 import {
   buildSessionInterviewDetailModel,
   type CoreResponseEntry,
@@ -42,6 +42,10 @@ import {
   shouldRedirectToPortfolioReport,
 } from "@/lib/interview/interview-session-flow";
 import { AnalysisResult, useInterviewSetupStore } from "@/store/interview-setup-store";
+import {
+  InterviewTypeVisual,
+  resolveInterviewTypeVisual,
+} from "@/lib/interview/interview-type-visuals";
 
 interface SessionDetail {
   analysis?: SessionAnalysisPayload;
@@ -67,6 +71,14 @@ interface SessionDetail {
     url?: string;
     source_url?: string;
     original_url?: string;
+    repoUrl?: string;
+    interviewType?: string;
+    interviewTypeLabel?: string;
+    questionFocus?: string[];
+    reportLens?: string;
+    techStack?: string[];
+    responsibilities?: string[];
+    requirements?: string[];
   };
 }
 
@@ -76,6 +88,10 @@ interface SessionReportView {
   company?: string;
   role?: string;
   repoUrl?: string;
+  interviewType?: string;
+  interviewTypeLabel?: string;
+  questionFocus?: string[];
+  reportLens?: string;
   summary?: string;
   strengths?: string[];
   improvements?: string[];
@@ -296,6 +312,7 @@ function ReportHeroBand({
   fitSummary,
   metrics,
   metaItems,
+  interviewVisual,
 }: {
   badgeLabel: string;
   typeName: string;
@@ -304,19 +321,30 @@ function ReportHeroBand({
   fitSummary?: string;
   metrics: ReportMetric[];
   metaItems: ReportMetaItem[];
+  interviewVisual: InterviewTypeVisual;
 }) {
   return (
     <section className="border-b border-[#dfe5ec] bg-white">
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:px-10 lg:grid-cols-[260px_minmax(0,1fr)] lg:py-14">
         <div className="flex flex-col items-start border-b border-[#dfe5ec] pb-7 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-7">
-          <DibeotCharacter typeName={typeName} />
-          <div className="mt-12">
+          <div className="relative h-44 w-44">
+            <span className="absolute inset-x-6 bottom-2 h-7 rounded-full bg-[#172033]/10 blur-xl" />
+            <Image
+              src={interviewVisual.imagePath}
+              alt={interviewVisual.label}
+              fill
+              sizes="176px"
+              className="object-contain drop-shadow-[0_26px_28px_rgba(23,32,51,0.16)]"
+              priority
+            />
+          </div>
+          <div className="mt-8">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <Sparkles className="h-4 w-4" />
-              디벗 유형
+              {interviewVisual.label}
             </div>
             <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              이번 면접에서 답변 흐름과 설명 방식이 남긴 인상을 캐릭터와 유형으로 요약했습니다.
+              {interviewVisual.reportLens}
             </p>
           </div>
           {metrics.length > 0 ? (
@@ -336,6 +364,9 @@ function ReportHeroBand({
             <Badge className="rounded-md border border-primary/10 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10">
               {badgeLabel}
             </Badge>
+            <Badge variant="outline" className="rounded-md border-[#dfe7ef] bg-white px-3 py-1 text-[11px] font-semibold text-[#4f5b6b]">
+              {interviewVisual.shortLabel}
+            </Badge>
             {typeLabels.map((label) => (
               <span key={label} className="text-xs font-semibold text-muted-foreground">
                 {label}
@@ -347,6 +378,16 @@ function ReportHeroBand({
             <p className="mt-5 max-w-4xl text-lg leading-8 text-foreground">{fitSummary}</p>
           ) : null}
           <p className="mt-4 max-w-4xl text-sm leading-7 text-muted-foreground">{summary}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {interviewVisual.questionFocus.slice(0, 4).map((focus) => (
+              <span
+                key={focus}
+                className="rounded-full bg-[#f4f7fb] px-3 py-1.5 text-xs font-bold text-[#4f5b6b]"
+              >
+                {focus}
+              </span>
+            ))}
+          </div>
 
           <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-t border-[#e7edf3] pt-4 text-sm">
             {metaItems.map((item) => (
@@ -853,6 +894,25 @@ export default function InterviewResultPage() {
     () => hasOfficialInterviewReport(sessionDetail),
     [sessionDetail],
   );
+  const interviewVisual = useMemo(
+    () => resolveInterviewTypeVisual({
+      sessionType: sessionDetail?.session_type,
+      role: sessionDetail?.report_view?.role || sessionDetail?.job_payload?.role,
+      company: sessionDetail?.report_view?.company || sessionDetail?.job_payload?.company,
+      repoUrl: sessionDetail?.report_view?.repoUrl || sessionDetail?.job_payload?.repoUrl,
+      interviewType: sessionDetail?.report_view?.interviewType || sessionDetail?.job_payload?.interviewType,
+      jobData: sessionDetail?.job_payload || null,
+      sourceText: [
+        sessionDetail?.report_view?.summary,
+        sessionDetail?.analysis?.summary,
+        sessionDetail?.analysis?.fitSummary,
+        sessionDetail?.job_payload?.techStack,
+        sessionDetail?.job_payload?.responsibilities,
+        sessionDetail?.job_payload?.requirements,
+      ].join(" "),
+    }),
+    [sessionDetail],
+  );
 
   const recoverInterruptedSession = useCallback(async (detail: SessionDetail): Promise<SessionDetail> => {
     if (!resolvedSessionId) return detail;
@@ -1153,6 +1213,7 @@ export default function InterviewResultPage() {
           fitSummary={reportModel.fitSummary}
           metrics={reportModel.heroMetrics}
           metaItems={reportModel.metaItems}
+          interviewVisual={interviewVisual}
         />
 
         <article className="mx-auto max-w-7xl px-6 md:px-10">

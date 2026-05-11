@@ -350,21 +350,39 @@ Output JSON Format:
         company = job_data.get("company", "이 회사")
         role = job_data.get("role", "해당 직무")
         description = job_data.get("description", "")
+        if not description:
+            description = job_data.get("companyDescription", "")
         culture = job_data.get("culture", [])
+        if not culture:
+            culture = job_data.get("teamCulture", [])
         responsibilities = job_data.get("responsibilities", [])
         tech_stack = job_data.get("techStack", [])
         track = infer_interview_track(job_data)
+        interview_type_label = str(job_data.get("interviewTypeLabel") or "").strip()
+        question_focus = _to_string_list(job_data.get("questionFocus", []))[:4]
+        report_lens = str(job_data.get("reportLens") or "").strip()
 
         culture_text = "\n".join(f"- {c}" for c in (culture or [])[:4]) or "정보 없음"
         resp_text = "\n".join(f"- {r}" for r in (responsibilities or [])[:4]) or "정보 없음"
         tech_text = ", ".join((tech_stack or [])[:6]) or "정보 없음"
         desc_text = (description or "")[:200]
+        visual_context = ""
+        if interview_type_label or question_focus or report_lens:
+            focus_text = ", ".join(question_focus) if question_focus else "정보 없음"
+            visual_context = f"""
+면접 유형 컨텍스트:
+- 유형: {interview_type_label or "일반 기술 면접"}
+- 중점 질문 축: {focus_text}
+- 리포트 관점: {report_lens or "답변 근거와 직무 적합성을 중심으로 평가"}
+
+질문에는 위 중점 질문 축 중 최소 하나가 자연스럽게 녹아들어야 하며, 리포트 관점에서 근거를 남길 수 있는 답변을 끌어내세요."""
 
         if track == "role":
             return f"""당신은 {role} 직무 기반 모의면접을 진행하는 한국어 기술 면접관입니다.
 직무 기준:
 {resp_text}
 기술 스택: {tech_text}
+{visual_context}
 
 특정 회사 지원 동기보다 해당 직무의 프로젝트 경험, 담당 범위, 구현 방식, 문제 해결 과정, 학습 방향을 검증하세요."""
 
@@ -375,6 +393,7 @@ Output JSON Format:
 기술 스택: {tech_text}
 조직 문화:
 {culture_text}
+{visual_context}
 
 이 회사의 실제 업무 맥락과 문화를 반영한 질문을 하세요.
 SJT 시나리오는 {company}에서 실제로 발생할 법한 상황으로 구성하세요."""
@@ -1182,6 +1201,9 @@ detectedTopics는 실제 파일트리/README에서 감지된 항목만 포함하
         tree_summary = repo_context.get("treeSummary", "")
         infra_hypotheses = repo_context.get("infraHypotheses", [])
         detected_topics = repo_context.get("detectedTopics", [])
+        interview_type_label = str(repo_context.get("interviewTypeLabel") or "포트폴리오 디펜스").strip()
+        question_focus = _to_string_list(repo_context.get("questionFocus", []))
+        report_lens = str(repo_context.get("reportLens") or "").strip()
 
         model_count = len([m for m in chat_history if m.get("role") == "model"])
         asked = [m.get("parts", "") for m in chat_history if m.get("role") == "model"]
@@ -1202,6 +1224,9 @@ README 요약: {readme_summary}
 구조 특징: {tree_summary}
 인프라 가설: {json.dumps(infra_hypotheses, ensure_ascii=False)}
 감지된 토픽: {json.dumps(detected_topics, ensure_ascii=False)}
+면접 유형: {interview_type_label}
+중점 질문 축: {json.dumps(question_focus or topic_focus or detected_topics, ensure_ascii=False)}
+리포트 관점: {report_lens or "설계 의도, 개인 기여도, 코드 품질, AI 활용 검증"}
 면접관 톤: {tone}
 
 [현재 질문 번호]

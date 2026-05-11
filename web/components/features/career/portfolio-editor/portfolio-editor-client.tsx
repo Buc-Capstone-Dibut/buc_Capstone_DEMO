@@ -9,7 +9,7 @@ import {
   ArrowLeft,
   Bold,
   Check,
-  Crop,
+  Download,
   Eye,
   FileText,
   Image as ImageIcon,
@@ -28,14 +28,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
-  PORTFOLIO_SAMPLE_IMAGES,
-  createSampleImageSlot,
   getPortfolioPagePreset,
   normalizePortfolioDocument,
   withPortfolioSampleImages,
   type PortfolioAsset,
   type PortfolioCanvasElement,
   type PortfolioCanvasFontFamily,
+  type PortfolioCanvasLayout,
   type PortfolioDocument,
   type PortfolioImageFit,
   type PortfolioImageSlot,
@@ -76,8 +75,20 @@ type GenerationState = {
   active: boolean;
   stage: string;
   sections: GenerationSectionStatus[];
+  total?: number;
   error?: string;
 };
+
+const GENERATION_STAGE_LABELS = [
+  "프로젝트 정보 가져오는 중",
+  "프로젝트 데이터 분석 중",
+  "핵심 경험 정리 중",
+  "대표 이미지 선택 중",
+  "슬라이드 구성 설계 중",
+  "인포그래픽 배치 중",
+  "디자인 자동 정돈 중",
+  "저장 중",
+] as const;
 
 const SECTION_LABEL: Record<PortfolioSectionType, string> = {
   hero: "표지",
@@ -91,14 +102,6 @@ const SECTION_LABEL: Record<PortfolioSectionType, string> = {
   retrospective: "회고",
   contact: "연락처",
 };
-
-const SAMPLE_IMAGE_OPTIONS = [
-  ["프로필", PORTFOLIO_SAMPLE_IMAGES.profilePortrait, "프로필 이미지"],
-  ["대시보드", PORTFOLIO_SAMPLE_IMAGES.projectDashboard, "분석 대시보드 이미지"],
-  ["코드 작업", PORTFOLIO_SAMPLE_IMAGES.workspaceApp, "개발자 코드 작업 이미지"],
-  ["협업", PORTFOLIO_SAMPLE_IMAGES.productGallery, "팀 협업 이미지"],
-  ["오피스", PORTFOLIO_SAMPLE_IMAGES.studioOffice, "모던 오피스 이미지"],
-] as const;
 
 const TEXT_COLOR_PALETTE = [
   "#0f172a",
@@ -166,6 +169,7 @@ export function PortfolioEditorClient({
   const [selectedElement, setSelectedElement] = useState<SelectedCanvasElement | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [isPublic, setIsPublic] = useState(portfolio.isPublic);
   const [publicUrl, setPublicUrl] = useState(initialPublicUrl);
   const [generation, setGeneration] = useState<GenerationState>({
@@ -211,11 +215,17 @@ export function PortfolioEditorClient({
       setDocument(nextDocument);
       setSelectedSectionId(nextDocument.sections[0]?.id || "");
       setSelectedElement(null);
+      setGeneration((current) => ({
+        ...current,
+        active: true,
+        total: nextDocument.sections.length,
+      }));
     });
 
     eventSource.addEventListener("section", (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as {
         index: number;
+        total?: number;
         section?: PortfolioSection;
       };
       if (!payload.section) return;
@@ -227,6 +237,7 @@ export function PortfolioEditorClient({
       setGeneration((current) => ({
         ...current,
         active: true,
+        total: payload.total || current.total,
         sections: [
           ...current.sections.filter((section) => section.index !== payload.index),
           {
@@ -502,6 +513,17 @@ export function PortfolioEditorClient({
     }
   };
 
+  const handleExportPptx = async () => {
+    setIsExporting(true);
+    try {
+      const saved = await handleSave();
+      if (!saved) return;
+      window.location.href = `/api/career/portfolios/${portfolio.id}/export/pptx`;
+    } finally {
+      window.setTimeout(() => setIsExporting(false), 1200);
+    }
+  };
+
   if (document.format === "site") {
     return (
       <div className="fixed left-0 top-0 z-[80] flex h-[100svh] min-h-0 w-screen flex-col overflow-hidden bg-[#f5f8f1] text-slate-900">
@@ -604,15 +626,24 @@ export function PortfolioEditorClient({
             variant="outline"
             className="h-9 gap-2 rounded-xl border-[#d8e4d0] bg-white/72 text-slate-700 hover:bg-white"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isExporting || generation.active}
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             저장
           </Button>
           <Button
+            variant="outline"
+            className="h-9 gap-2 rounded-xl border-[#d8e4d0] bg-white/72 text-slate-700 hover:bg-white"
+            onClick={() => void handleExportPptx()}
+            disabled={isSaving || isExporting || generation.active}
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            PPTX
+          </Button>
+          <Button
             className="h-9 gap-2 rounded-xl"
             onClick={() => void handlePublish(!isPublic)}
-            disabled={isPublishing}
+            disabled={isPublishing || isExporting || generation.active}
           >
             {isPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             {isPublic ? "비공개 전환" : "공개"}
@@ -648,7 +679,7 @@ export function PortfolioEditorClient({
         </aside>
 
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(135deg,#f8faf6_0%,#eef5e8_100%)]">
-          <div className="min-h-0 flex-1 overflow-auto px-8 py-7 pb-44">
+          <div className="min-h-0 flex-1 overflow-auto px-8 py-7 pb-8">
             <div className="flex min-h-full items-center justify-center">
               <PortfolioRenderer
                 document={document}
@@ -656,10 +687,11 @@ export function PortfolioEditorClient({
                 selectedElementId={activeElement?.id || null}
                 onSelectSection={handleSelectSection}
                 onSelectElement={(sectionId, element, seedElements = [element]) => {
+                  if (generation.active) return;
                   setSelectedSectionId(sectionId);
                   setSelectedElement({ sectionId, element, seedElements });
                 }}
-                editable
+                editable={!generation.active}
                 onSectionPatch={updateSectionById}
                 onElementPatch={updateElementById}
                 onElementAction={handleElementAction}
@@ -667,7 +699,7 @@ export function PortfolioEditorClient({
             </div>
           </div>
 
-          <GenerationStatusOverlay generation={generation} />
+          <GenerationStatusOverlay generation={generation} document={document} />
 
           <SlideThumbnailStrip
             document={document}
@@ -682,63 +714,219 @@ export function PortfolioEditorClient({
   );
 }
 
-function GenerationStatusOverlay({ generation }: { generation: GenerationState }) {
-  if (!generation.active && !generation.error && generation.stage !== "AI 생성 완료") return null;
-  const completed = generation.stage === "AI 생성 완료" && !generation.error;
+function getGenerationProgress(generation: GenerationState) {
+  if (generation.stage === "AI 생성 완료" && !generation.error) return 100;
+  if (generation.error) return 100;
+  const stageIndex = GENERATION_STAGE_LABELS.findIndex((stage) => generation.stage.includes(stage));
+  const stageProgress = stageIndex >= 0 ? 10 + stageIndex * 9 : 8;
+  const total = generation.total || 10;
+  const sectionProgress = generation.sections.length > 0
+    ? 28 + Math.min(54, (generation.sections.length / Math.max(total, 1)) * 54)
+    : 0;
+  return Math.min(96, Math.max(stageProgress, sectionProgress));
+}
+
+function GenerationBuildPreview({
+  progress,
+  document,
+  generation,
+}: {
+  progress: number;
+  document: PortfolioDocument;
+  generation: GenerationState;
+}) {
+  const latestSection = generation.sections[generation.sections.length - 1];
+  const fallbackIndex = Math.min(
+    Math.max(generation.sections.length - 1, 0),
+    Math.max(document.sections.length - 1, 0),
+  );
+  const sourceSection =
+    document.sections.find((section, index) => index === latestSection?.index) ||
+    document.sections[fallbackIndex] ||
+    document.sections[0];
+
+  if (!sourceSection) return null;
+
+  const sourceCanvas: PortfolioCanvasLayout = sourceSection.canvas || {
+    ...getSectionCanvasSize(sourceSection, document),
+    elements: [],
+  };
+  const sourceElements = sourceCanvas.elements;
+  const sortedElementIds = sourceElements
+    .map((element, index) => ({ id: element.id, index }))
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.id);
+  const revealRatio = generation.error
+    ? 1
+    : Math.min(1, Math.max(0.12, (progress - 6) / 84));
+  const visibleCount = sourceElements.length
+    ? Math.max(1, Math.min(sourceElements.length, Math.ceil(sourceElements.length * revealRatio)))
+    : 0;
+  const visibleIds = new Set(sortedElementIds.slice(0, visibleCount));
+  const previewSection: PortfolioSection = {
+    ...sourceSection,
+    title: latestSection?.title || sourceSection.title,
+    canvas: {
+      ...sourceCanvas,
+      elements: sourceElements.filter((element) => visibleIds.has(element.id)),
+    },
+  };
+  const previewDocument: PortfolioDocument = {
+    ...document,
+    sections: [previewSection],
+  };
 
   return (
-    <div className="pointer-events-none absolute right-6 top-5 z-40 w-[320px] rounded-3xl border border-[#d8e4d0] bg-white/92 p-4 shadow-[0_22px_60px_rgba(42,72,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
-      <div className="flex items-start gap-3">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-            generation.error
-              ? "bg-red-50 text-red-500"
-              : "bg-primary/12 text-primary"
-          }`}
-        >
-          {generation.error ? (
-            <X className="h-5 w-5" />
-          ) : completed ? (
-            <Check className="h-5 w-5" />
-          ) : (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          )}
+    <div className="rounded-3xl border border-[#d8e4d0] bg-white/96 p-4 shadow-[0_24px_70px_rgba(42,72,42,0.16)] ring-1 ring-white/70">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#8ca67a]">
+            Live Slide Canvas
+          </p>
+          <h3 className="mt-1 truncate text-sm font-black text-slate-900">
+            {previewSection.title || SECTION_LABEL[previewSection.type]}
+          </h3>
+        </div>
+        <span className="shrink-0 rounded-full border border-[#d8e4d0] bg-[#f8faf5] px-3 py-1 text-xs font-black text-primary">
+          {visibleCount}/{Math.max(sourceElements.length, 1)} elements
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8ca67a]">
-            AI Portfolio Builder
-          </p>
-          <h2 className="mt-1 text-sm font-black text-slate-900">
-            {generation.error || generation.stage || "포트폴리오 생성 중"}
-          </h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            프로젝트 대표 이미지와 입력 데이터를 바탕으로 PPT 초안을 워크스페이스에 바로 반영합니다.
-          </p>
+      </div>
+
+      <div className="relative">
+        <PortfolioRenderer
+          document={previewDocument}
+          selectedSectionId={previewSection.id}
+          readonly
+        />
+        <div
+          className="pointer-events-none absolute bottom-5 top-5 w-px bg-primary/50 shadow-[0_0_22px_rgba(132,185,70,0.45)] transition-all duration-700"
+          style={{ left: `${Math.min(96, Math.max(4, progress))}%` }}
+        />
+        <div className="pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-full border border-[#d8e4d0] bg-white/88 px-3 py-1.5 text-[11px] font-black text-primary shadow-sm backdrop-blur">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-55" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+          실제 슬라이드 구성 중
         </div>
       </div>
 
-      {generation.sections.length ? (
-        <div className="mt-4 space-y-2">
-          {generation.sections.slice(-4).map((section) => (
-            <div
-              key={`${section.index}-${section.title}`}
-              className="flex items-center gap-2 rounded-2xl border border-[#e1ead9] bg-[#f8faf5]/88 px-3 py-2"
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {["헤더", "본문", "시각화", "정렬"].map((label, index) => {
+          const threshold = 20 + index * 20;
+          return (
+          <div
+            key={label}
+            className={`min-w-0 rounded-2xl border px-3 py-2 transition-all duration-700 ${
+              progress >= threshold
+                ? "translate-y-0 border-[#d8e4d0] opacity-100"
+                : "translate-y-3 border-transparent opacity-0"
+            }`}
+          >
+            <p className="truncate text-[10px] font-black text-primary">{label}</p>
+            <p className="mt-1 truncate text-[11px] font-black text-slate-800">
+              {index < 2 ? "생성" : "보정"}
+            </p>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GenerationStatusOverlay({
+  generation,
+  document,
+}: {
+  generation: GenerationState;
+  document: PortfolioDocument;
+}) {
+  if (!generation.active && !generation.error && generation.stage !== "AI 생성 완료") return null;
+  const completed = generation.stage === "AI 생성 완료" && !generation.error;
+  const progress = getGenerationProgress(generation);
+  const total = generation.total || document.sections.length || 10;
+  const blocking = generation.active || completed;
+
+  return (
+    <div
+      className={`fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-[#f5f8f1]/76 px-6 py-8 backdrop-blur-[7px] ${
+        blocking ? "pointer-events-auto" : "pointer-events-none"
+      }`}
+    >
+      <div className="grid w-full max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <GenerationBuildPreview progress={progress} document={document} generation={generation} />
+        <div className="rounded-3xl border border-[#d8e4d0] bg-white/94 p-5 shadow-[0_22px_60px_rgba(42,72,42,0.18)] ring-1 ring-white/70">
+          <div className="flex items-start gap-3">
+            <span
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                generation.error
+                  ? "bg-red-50 text-red-500"
+                  : "bg-primary/12 text-primary"
+              }`}
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-black text-primary">
-                {section.index + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-xs font-black text-slate-800">
-                  {section.title || SECTION_LABEL[section.type]}
-                </p>
-                <p className="text-[11px] font-semibold text-slate-400">
-                  {SECTION_LABEL[section.type]} 슬라이스 반영
-                </p>
-              </div>
+              {generation.error ? (
+                <X className="h-5 w-5" />
+              ) : completed ? (
+                <Check className="h-5 w-5" />
+              ) : (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8ca67a]">
+                AI Portfolio Builder
+              </p>
+              <h2 className="mt-1 text-base font-black text-slate-900">
+                {generation.error || generation.stage || "포트폴리오 생성 중"}
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                선택한 프로젝트를 분석해 슬라이스, 이미지, 인포그래픽을 순서대로 배치합니다.
+              </p>
             </div>
-          ))}
+          </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-xs font-black text-slate-500">
+              <span>생성 진행률</span>
+              <span className="text-primary">{progress}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-[#eef6e8]">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-700"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-[#e1ead9] bg-[#f8faf5]/88 px-3 py-2 text-xs font-bold text-slate-600">
+            생성된 슬라이스 {Math.min(generation.sections.length, total)} / {total}
+          </div>
+
+          {generation.sections.length ? (
+            <div className="mt-4 space-y-2">
+              {generation.sections.slice(-4).map((section) => (
+                <div
+                  key={`${section.index}-${section.title}`}
+                  className="flex items-center gap-2 rounded-2xl border border-[#e1ead9] bg-white/88 px-3 py-2"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-black text-primary">
+                    {section.index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-slate-800">
+                      {section.title || SECTION_LABEL[section.type]}
+                    </p>
+                    <p className="text-[11px] font-semibold text-slate-400">
+                      {SECTION_LABEL[section.type]} 슬라이스 구성 완료
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -797,11 +985,8 @@ function SlideThumbnailStrip({
   onSelectSection: (sectionId: string) => void;
 }) {
   return (
-    <div
-      className="border-t border-[#b8cba9]/45 bg-[#eef6e8]/70 px-5 py-2.5 shadow-[0_-18px_42px_rgba(42,72,42,0.08)] backdrop-blur-2xl"
-      style={{ position: "absolute", bottom: "6.25rem", left: 0, right: 0, zIndex: 20 }}
-    >
-      <div className="mx-auto flex max-w-6xl items-end gap-3 overflow-x-auto pb-1">
+    <div className="shrink-0 border-t border-[#b8cba9]/45 bg-[#eef6e8]/70 px-5 py-2.5 shadow-[0_-18px_42px_rgba(42,72,42,0.08)] backdrop-blur-2xl">
+      <div className="mx-auto flex w-full max-w-6xl min-w-0 items-end gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-color:#9bb97c_transparent] [scrollbar-width:thin]">
         {sections.map((section, index) => {
           const selected = section.id === selectedSectionId;
 
@@ -851,20 +1036,18 @@ function ElementInspector({
 }) {
   const isImage = element.kind === "image" || element.kind === "techLogo";
   const isVisual = !isImage && element.kind !== "text" && element.kind !== "tags";
-  const image = element.image || createSampleImageSlot(
-    PORTFOLIO_SAMPLE_IMAGES.projectDashboard,
-    "포트폴리오 이미지",
-  );
+  const isComponent = element.kind === "shadcnBlock";
+  const image: PortfolioImageSlot = element.image || {
+    aspectRatio: "16:9",
+    objectFit: "cover",
+    focalPoint: { x: 50, y: 50 },
+  };
 
   const patchImage = (patch: Partial<typeof image>) => {
     onPatch({
       image: {
         ...image,
         ...patch,
-        focalPoint: {
-          ...image.focalPoint,
-          ...(patch.focalPoint || {}),
-        },
       },
     });
   };
@@ -882,7 +1065,7 @@ function ElementInspector({
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-400">선택 개체</p>
               <h2 className="truncate text-sm font-bold text-slate-900">
-                {isImage ? "이미지" : isVisual ? "요소" : "텍스트"}
+                {isImage ? "이미지" : isComponent ? "인포그래픽" : isVisual ? "요소" : "텍스트"}
               </h2>
             </div>
           </div>
@@ -898,58 +1081,9 @@ function ElementInspector({
       </section>
 
       {isImage ? (
-        <>
-          <PanelBlock icon={<Crop className="h-4 w-4" />} title="사진 자르기">
-            <ImageCropPanel image={image} onPatch={patchImage} />
-            <label className="mt-3 block text-xs font-semibold text-slate-500">
-              캡션
-              <Input
-                value={image.caption || ""}
-                onChange={(event) => patchImage({ caption: event.target.value })}
-                className="mt-1 h-9 border-slate-200 bg-white text-slate-800"
-              />
-            </label>
-            <label className="mt-3 block text-xs font-semibold text-slate-500">
-              대체 텍스트
-              <Input
-                value={image.alt || ""}
-                onChange={(event) => patchImage({ alt: event.target.value })}
-                className="mt-1 h-9 border-slate-200 bg-white text-slate-800"
-              />
-            </label>
-          </PanelBlock>
-
-          <PanelBlock icon={<ImageIcon className="h-4 w-4" />} title="예시 이미지">
-            <div className="grid grid-cols-2 gap-2">
-              {SAMPLE_IMAGE_OPTIONS.map(([label, url, alt]) => (
-                <button
-                  key={url}
-                  type="button"
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left text-[11px] font-bold text-slate-600 transition hover:border-primary hover:text-primary"
-                  onClick={() => {
-                    const nextImage = createSampleImageSlot(
-                      url,
-                      alt,
-                      image.aspectRatio || "16:9",
-                      image.caption || "",
-                    );
-                    onPatch({
-                      image: {
-                        ...nextImage,
-                        objectFit: image.objectFit || "cover",
-                        focalPoint: image.focalPoint || { x: 50, y: 50 },
-                      },
-                    });
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={alt} className="aspect-[16/9] w-full object-cover" draggable={false} />
-                  <span className="block px-2 py-1.5">{label}</span>
-                </button>
-              ))}
-            </div>
-          </PanelBlock>
-        </>
+        <PanelBlock icon={<ImageIcon className="h-4 w-4" />} title="이미지 설정">
+          <ImageCropPanel image={image} onPatch={patchImage} />
+        </PanelBlock>
       ) : isVisual ? (
         <PanelBlock icon={<SlidersHorizontal className="h-4 w-4" />} title="요소 스타일">
           <ColorPalette
@@ -1138,9 +1272,6 @@ function ImageCropPanel({
   image: PortfolioImageSlot;
   onPatch: (patch: Partial<PortfolioImageSlot>) => void;
 }) {
-  const focalX = image.focalPoint?.x ?? 50;
-  const focalY = image.focalPoint?.y ?? 50;
-
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -1153,7 +1284,7 @@ function ImageCropPanel({
               className="h-full w-full"
               style={{
                 objectFit: image.objectFit || "cover",
-                objectPosition: `${focalX}% ${focalY}%`,
+                objectPosition: `${image.focalPoint?.x ?? 50}% ${image.focalPoint?.y ?? 50}%`,
               }}
               draggable={false}
             />
@@ -1162,11 +1293,6 @@ function ImageCropPanel({
               Image
             </div>
           )}
-          <div
-            className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary shadow"
-            style={{ left: `${focalX}%`, top: `${focalY}%` }}
-            aria-hidden
-          />
         </div>
       </div>
 
@@ -1193,17 +1319,6 @@ function ImageCropPanel({
           ]}
         />
       </div>
-
-      <RangeField
-        label="가로 초점"
-        value={focalX}
-        onChange={(x) => onPatch({ focalPoint: { ...image.focalPoint, x: clampNumber(x, 0, 100) } })}
-      />
-      <RangeField
-        label="세로 초점"
-        value={focalY}
-        onChange={(y) => onPatch({ focalPoint: { ...image.focalPoint, y: clampNumber(y, 0, 100) } })}
-      />
     </div>
   );
 }
@@ -1248,33 +1363,6 @@ function NumberField({
         step={step}
         onChange={(event) => onChange(Number(event.target.value) || 0)}
         className="mt-1 h-9 border-slate-200 bg-white text-slate-800"
-      />
-    </label>
-  );
-}
-
-function RangeField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="block text-xs font-semibold text-slate-500">
-      <span className="mb-1 flex items-center justify-between">
-        <span>{label}</span>
-        <span className="font-bold text-slate-700">{Math.round(value)}%</span>
-      </span>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer accent-primary"
       />
     </label>
   );

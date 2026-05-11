@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   Copy,
+  Download,
   ExternalLink,
   FileImage,
   FileText,
@@ -139,6 +140,7 @@ export default function PortfoliosClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"recent" | "title">("recent");
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
+  const [busyExportId, setBusyExportId] = useState<string | null>(null);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
   const [copiedPortfolioId, setCopiedPortfolioId] = useState<string | null>(null);
   const [isSeedingSample, setIsSeedingSample] = useState(false);
@@ -200,6 +202,14 @@ export default function PortfoliosClient({
 
   const handleOpenWorkspace = (portfolio: PortfolioListItem) => {
     window.open(`/career/portfolios/${portfolio.id}/edit`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleExportPptx = (portfolio: PortfolioListItem) => {
+    setBusyExportId(portfolio.id);
+    window.location.href = `/api/career/portfolios/${portfolio.id}/export/pptx`;
+    window.setTimeout(() => {
+      setBusyExportId((current) => (current === portfolio.id ? null : current));
+    }, 1800);
   };
 
   const handleDelete = async (portfolio: PortfolioListItem) => {
@@ -381,7 +391,9 @@ export default function PortfoliosClient({
             <PortfolioDetail
               portfolio={selectedPortfolio}
               busyDeleteId={busyDeleteId}
+              busyExportId={busyExportId}
               busyPublishId={busyPublishId}
+              onExportPptx={handleExportPptx}
               onOpenWorkspace={handleOpenWorkspace}
               onDelete={handleDelete}
               onTogglePublish={handleTogglePublish}
@@ -428,7 +440,9 @@ export default function PortfoliosClient({
 function PortfolioDetail({
   portfolio,
   busyDeleteId,
+  busyExportId,
   busyPublishId,
+  onExportPptx,
   onOpenWorkspace,
   onDelete,
   onTogglePublish,
@@ -437,7 +451,9 @@ function PortfolioDetail({
 }: {
   portfolio: PortfolioListItem;
   busyDeleteId: string | null;
+  busyExportId: string | null;
   busyPublishId: string | null;
+  onExportPptx: (portfolio: PortfolioListItem) => void;
   onOpenWorkspace: (portfolio: PortfolioListItem) => void;
   onDelete: (portfolio: PortfolioListItem) => void;
   onTogglePublish: (portfolio: PortfolioListItem) => void;
@@ -517,6 +533,18 @@ function PortfolioDetail({
         >
           <ExternalLink className="h-3.5 w-3.5" />
           워크스페이스
+        </button>
+        <button
+          onClick={() => onExportPptx(portfolio)}
+          disabled={busyExportId === portfolio.id}
+          className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
+        >
+          {busyExportId === portfolio.id ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          PPTX
         </button>
         <button
           onClick={() => onDelete(portfolio)}
@@ -816,6 +844,69 @@ function PortfolioCanvasElementPreview({
         preserveAspectRatio="xMidYMid slice"
         opacity={element.opacity ?? 1}
       />
+    );
+  }
+
+  if (element.kind === "shadcnBlock") {
+    const items = element.props?.items?.slice(0, element.variant === "project-index-cards" ? 6 : 4) || [];
+    const accent = element.stroke || "#84b946";
+    return (
+      <foreignObject
+        x={element.x}
+        y={element.y}
+        width={element.width}
+        height={element.height}
+        opacity={element.opacity ?? 1}
+      >
+        <div
+          className="h-full w-full overflow-hidden rounded-2xl border bg-white/90 p-3"
+          style={{ borderColor: `${accent}66`, color: "#0f172a" }}
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="truncate text-[13px] font-black" style={{ color: accent }}>
+              {element.props?.title ||
+                (element.variant === "tech-logo-grid"
+                  ? "기술 스택"
+                  : element.variant === "problem-solution-result"
+                    ? "문제 해결 흐름"
+                    : "요약")}
+            </p>
+            {element.props?.badges?.[0] ? (
+              <span className="shrink-0 rounded-full bg-[#eef6e8] px-2 py-0.5 text-[9px] font-black text-[#6f9e34]">
+                {element.props.badges[0]}
+              </span>
+            ) : null}
+          </div>
+          <div
+            className={
+              element.variant === "tech-logo-grid"
+                ? "grid h-[calc(100%-24px)] grid-cols-3 gap-2"
+                : element.variant === "problem-solution-result"
+                  ? "grid h-[calc(100%-24px)] grid-cols-3 gap-2"
+                  : "space-y-1.5"
+            }
+          >
+            {(items.length ? items : [{ title: "포트폴리오", body: "자동 구성" }]).map((item, index) => (
+              <div
+                key={`${item.title || item.label || index}`}
+                className="min-w-0 overflow-hidden rounded-xl border border-slate-200/80 bg-white/82 px-2 py-1.5"
+              >
+                <p className="truncate text-[10px] font-black" style={{ color: accent }}>
+                  {item.label || String(index + 1).padStart(2, "0")}
+                </p>
+                <p className="truncate text-[11px] font-black text-slate-900">
+                  {item.title || item.value || item.label}
+                </p>
+                {item.body ? (
+                  <p className="mt-0.5 line-clamp-2 text-[9px] font-semibold leading-3 text-slate-500">
+                    {item.body}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </foreignObject>
     );
   }
 

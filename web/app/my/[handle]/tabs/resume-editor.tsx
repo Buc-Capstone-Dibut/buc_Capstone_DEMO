@@ -7,13 +7,25 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, Loader2, Upload, Download, Briefcase } from "lucide-react";
+import {
+  Briefcase,
+  Download,
+  Loader2,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
 import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
+import {
+  DEFAULT_RESUME_A4_OPTIONS,
+  KoreanResumePreview,
+  type ResumeA4Options,
+} from "@/components/features/resume/KoreanResumePreview";
 import type { ProjectInput } from "@/app/career/projects/types";
 import type { WorkExperienceInput } from "@/app/career/work-experience/actions";
 
@@ -39,6 +51,7 @@ export function ResumeEditor({
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
+  const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
@@ -274,9 +287,10 @@ export function ResumeEditor({
     }
   };
 
-
   return (
-    <div className="space-y-5">
+    <>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]">
+        <div className="space-y-5">
       {/* File parsing banner */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1">
@@ -675,19 +689,30 @@ export function ResumeEditor({
           이력서 저장
         </Button>
       </div>
+        </div>
 
-      <ExperienceImportModal 
-        open={isImportModalOpen} 
-        onOpenChange={setIsImportModalOpen} 
-        onImport={handleImportProjects} 
+        <div className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+          <KoreanResumePreview
+            payload={payload}
+            title={title}
+            options={a4Options}
+            onOptionsChange={setA4Options}
+          />
+        </div>
+      </div>
+
+      <ExperienceImportModal
+        open={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
+        onImport={handleImportProjects}
       />
-      
-      <WorkExperienceImportModal 
-        open={isWorkExpModalOpen} 
-        onOpenChange={setIsWorkExpModalOpen} 
-        onImport={handleImportWorkExperiences} 
+
+      <WorkExperienceImportModal
+        open={isWorkExpModalOpen}
+        onOpenChange={setIsWorkExpModalOpen}
+        onImport={handleImportWorkExperiences}
         existingIds={payload.experience.map((e) => e.id).filter(Boolean) as string[]}
       />
-    </div>
+    </>
   );
 }

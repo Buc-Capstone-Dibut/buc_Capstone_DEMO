@@ -1,19 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
+import { TalkingHeadInterviewer } from "@/components/features/interview/avatar/talking-head-interviewer";
 import {
   buildInterviewResultPath,
   shouldRouteToSetupOnReconnectTimeout,
 } from "@/lib/interview/interview-session-flow";
 import {
   isLocalInterviewBaseUrl,
-  LOCAL_INTERVIEW_FALLBACK_USER_ID,
   resolveInterviewBaseUrlFromWsUrl,
 } from "@/lib/interview/dev-auth";
 import { isInterviewPlaybackAudioReady } from "@/lib/interview/playback-audio";
@@ -21,6 +20,10 @@ import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from 
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
+import {
+  buildInterviewTypePayload,
+  resolveInterviewTypeVisual,
+} from "@/lib/interview/interview-type-visuals";
 
 type SessionType = "live_interview" | "portfolio_defense";
 
@@ -57,13 +60,6 @@ interface StickyCaption {
 
 const DEFAULT_TARGET_DURATION_SEC = 10 * 60;
 const RECONNECT_GRACE_SEC = 60;
-
-const AVATAR_ASSETS = {
-  idle: "/interview/avatar/dibut-idle.svg",
-  thinking: "/interview/avatar/dibut-thinking.svg",
-  listening: "/interview/avatar/dibut-listening.svg",
-  speaking: "/interview/avatar/dibut-speaking.svg",
-} as const;
 
 const clampDurationMinute = (raw: string | null): 5 | 10 | 15 => {
   const parsed = Number(raw);
@@ -232,8 +228,52 @@ export default function InterviewVideoRoomPage() {
     [requestedRepoUrl, searchParams],
   );
 
+  const interviewTypeVisual = useMemo(
+    () => resolveInterviewTypeVisual({
+      sessionType,
+      role: typeof interviewJobData.role === "string" ? interviewJobData.role : "",
+      company: typeof interviewJobData.company === "string" ? interviewJobData.company : "",
+      repoUrl: requestedRepoUrl,
+      detectedTopics: portfolioJobData.detectedTopics,
+      interviewType: typeof interviewJobData.interviewType === "string" ? interviewJobData.interviewType : "",
+      jobData: sessionType === "portfolio_defense" ? portfolioJobData : interviewJobData,
+      sourceText: [
+        interviewJobData.companyDescription,
+        interviewJobData.originalText,
+        interviewJobData.responsibilities,
+        interviewJobData.requirements,
+        interviewJobData.techStack,
+        portfolioJobData.readmeSummary,
+        portfolioJobData.treeSummary,
+      ].join(" "),
+    }),
+    [interviewJobData, portfolioJobData, requestedRepoUrl, sessionType],
+  );
+  const interviewTypePayload = useMemo(
+    () => buildInterviewTypePayload(interviewTypeVisual),
+    [interviewTypeVisual],
+  );
+  const enhancedInterviewJobData = useMemo(
+    () => ({
+      ...interviewJobData,
+      ...interviewTypePayload,
+    }),
+    [interviewJobData, interviewTypePayload],
+  );
+  const enhancedPortfolioJobData = useMemo(
+    () => ({
+      ...portfolioJobData,
+      ...interviewTypePayload,
+      focus: Array.from(new Set([
+        ...portfolioJobData.focus,
+        ...interviewTypePayload.questionFocus,
+      ])).slice(0, 8),
+    }),
+    [interviewTypePayload, portfolioJobData],
+  );
+
   const runtimeJobData =
-    sessionType === "portfolio_defense" ? portfolioJobData : interviewJobData;
+    sessionType === "portfolio_defense" ? enhancedPortfolioJobData : enhancedInterviewJobData;
 
   const displayCompany =
     sessionType === "portfolio_defense"
@@ -251,7 +291,7 @@ export default function InterviewVideoRoomPage() {
 
   const routeToSetup = useCallback(() => {
     reset();
-    router.replace(sessionType === "portfolio_defense" ? "/interview/training/portfolio" : "/interview");
+    router.replace(sessionType === "portfolio_defense" ? "/interview/training/setup" : "/interview");
   }, [reset, router, sessionType]);
 
   const clearInitRetryTimer = useCallback(() => {
@@ -310,20 +350,25 @@ export default function InterviewVideoRoomPage() {
       const body =
         sessionType === "portfolio_defense"
           ? {
-              repoUrl: portfolioJobData.repoUrl,
+              repoUrl: enhancedPortfolioJobData.repoUrl,
               mode: "video",
               targetDurationSec: requestedTargetDurationSec,
               closingThresholdSec: 60,
-              focus: portfolioJobData.focus,
-              readmeSummary: portfolioJobData.readmeSummary,
-              treeSummary: portfolioJobData.treeSummary,
-              infraHypotheses: portfolioJobData.infraHypotheses,
-              detectedTopics: portfolioJobData.detectedTopics,
+              focus: enhancedPortfolioJobData.focus,
+              interviewType: enhancedPortfolioJobData.interviewType,
+              interviewTypeLabel: enhancedPortfolioJobData.interviewTypeLabel,
+              questionFocus: enhancedPortfolioJobData.questionFocus,
+              reportLens: enhancedPortfolioJobData.reportLens,
+              interviewTypeBlogTags: enhancedPortfolioJobData.interviewTypeBlogTags,
+              readmeSummary: enhancedPortfolioJobData.readmeSummary,
+              treeSummary: enhancedPortfolioJobData.treeSummary,
+              infraHypotheses: enhancedPortfolioJobData.infraHypotheses,
+              detectedTopics: enhancedPortfolioJobData.detectedTopics,
             }
           : {
               mode: "video",
               personality: "professional",
-              jobData: interviewJobData,
+              jobData: enhancedInterviewJobData,
               resumeData,
               targetDurationSec: requestedTargetDurationSec,
               closingThresholdSec: 60,
@@ -358,10 +403,6 @@ export default function InterviewVideoRoomPage() {
       };
 
       const startDirectWithClientAuth = async () => {
-        if (useDirectStartFirst) {
-          return await startDirectWithUserId(LOCAL_INTERVIEW_FALLBACK_USER_ID);
-        }
-
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -419,17 +460,18 @@ export default function InterviewVideoRoomPage() {
         setStatusMessage("세션 생성 응답이 지연되어 로컬 AI 서버 직접 연결로 재시도하는 중...");
         result = await startDirectWithClientAuth();
       }
-      if (!result?.data?.sessionId) return null;
+      const resultData = result?.data;
+      if (!resultData?.sessionId) return null;
 
-      const nextSessionId = String(result.data.sessionId);
+      const nextSessionId = String(resultData.sessionId);
       setActiveSessionId(nextSessionId);
       setInterviewSessionId(nextSessionId);
       setRuntimeMeta((prev) => ({
         ...prev,
-        targetDurationSec: toNumber(result.data.targetDurationSec, prev.targetDurationSec),
-        remainingSec: toNumber(result.data.targetDurationSec, prev.targetDurationSec),
-        closingThresholdSec: toNumber(result.data.closingThresholdSec, prev.closingThresholdSec),
-        estimatedTotalQuestions: toNumber(result.data.estimatedTotalQuestions, prev.estimatedTotalQuestions),
+        targetDurationSec: toNumber(resultData.targetDurationSec, prev.targetDurationSec),
+        remainingSec: toNumber(resultData.targetDurationSec, prev.targetDurationSec),
+        closingThresholdSec: toNumber(resultData.closingThresholdSec, prev.closingThresholdSec),
+        estimatedTotalQuestions: toNumber(resultData.estimatedTotalQuestions, prev.estimatedTotalQuestions),
       }));
       return nextSessionId;
     } catch (error) {
@@ -443,13 +485,8 @@ export default function InterviewVideoRoomPage() {
       sessionStartingRef.current = false;
     }
   }, [
-    interviewJobData,
-    portfolioJobData.detectedTopics,
-    portfolioJobData.focus,
-    portfolioJobData.infraHypotheses,
-    portfolioJobData.readmeSummary,
-    portfolioJobData.repoUrl,
-    portfolioJobData.treeSummary,
+    enhancedInterviewJobData,
+    enhancedPortfolioJobData,
     requestedTargetDurationSec,
     resumeData,
     router,
@@ -864,7 +901,6 @@ export default function InterviewVideoRoomPage() {
         ? "listening"
         : "idle";
 
-  const avatarSrc = AVATAR_ASSETS[avatarState];
   const latestCaption = transcript[transcript.length - 1];
   const previousCaption = transcript[transcript.length - 2];
   const activeAiCaption = formatStreamingTranscriptForDisplay(streamingAiCaption.trim(), "ai");
@@ -1159,26 +1195,17 @@ export default function InterviewVideoRoomPage() {
             <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
             Dibut 면접관
           </div>
-          <div className="flex h-full w-full items-center justify-center bg-muted/20">
-            <Image
-              src={avatarSrc}
-              alt="Dibut interviewer"
-              width={460}
-              height={560}
-              className="h-auto w-full max-w-[340px] lg:max-w-[400px] object-contain drop-shadow-md transition-transform duration-300"
-              priority
+          <div
+            className="relative flex h-full w-full items-center justify-center overflow-hidden bg-cover bg-center"
+            style={{ backgroundImage: "url('/interview/backgrounds/interview-office-room.png')" }}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-white/20 backdrop-blur-[1.5px]" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-white/85 via-white/30 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-[18%] bottom-12 h-20 rounded-full bg-slate-900/12 blur-3xl" />
+            <TalkingHeadInterviewer
+              state={avatarState}
+              className="relative z-10 h-full min-h-[420px] w-full"
             />
-            {isAISpeaking && (
-              <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1">
-                {[4, 8, 12, 8, 4].map((height, index) => (
-                  <span
-                    key={`wave-ai-${index}`}
-                    className="w-1.5 rounded-full bg-primary shadow-sm"
-                    style={{ height: `${height}px`, animation: `pulse-voice 1.2s ease-in-out infinite`, animationDelay: `${index * 0.15}s` }}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         </section>
 
