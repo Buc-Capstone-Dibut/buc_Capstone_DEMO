@@ -199,7 +199,7 @@ export default function PortfoliosClient({
   };
 
   const handleOpenWorkspace = (portfolio: PortfolioListItem) => {
-    window.open(`/career/portfolios/${portfolio.id}/edit`, "_blank", "noopener,noreferrer");
+    router.push(`/career/portfolios/${portfolio.id}/edit`);
   };
 
   const handleDelete = async (portfolio: PortfolioListItem) => {

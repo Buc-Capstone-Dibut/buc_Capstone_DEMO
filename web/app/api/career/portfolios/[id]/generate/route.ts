@@ -6,12 +6,15 @@ import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
   buildPortfolioPublicSummary,
   createDefaultPortfolioDocument,
+  createFallbackPortfolioEvidenceBrief,
   createFallbackPortfolioGenerationPlan,
   getPortfolioTemplate,
+  normalizePortfolioEvidenceBrief,
   normalizePortfolioDocument,
   polishPortfolioDocument,
   withPortfolioSampleImages,
   type PortfolioDocument,
+  type PortfolioEvidenceBrief,
   type PortfolioGenerationPlan,
   type PortfolioSection,
   type PortfolioSitePage,
@@ -117,11 +120,74 @@ function preserveGeneratedPageMedia(
   });
 }
 
+async function generatePortfolioEvidenceBrief(input: {
+  source: PortfolioSourceData;
+  plan: PortfolioGenerationPlan;
+}): Promise<PortfolioEvidenceBrief> {
+  const fallback = createFallbackPortfolioEvidenceBrief(input.source, input.plan);
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) return fallback;
+
+  const prompt = `너는 개발자 채용 포트폴리오를 만들기 전에 프로젝트를 면접용 케이스스터디로 해부하는 커리어 분석가다.
+목표는 빈약한 입력을 가능한 선에서 풍부하게 보강하되, 사용자가 제공하지 않은 사실/수치/성과/기술은 절대 만들지 않는 것이다.
+
+[보강 규칙]
+- confirmed는 소스 데이터에 명시된 사실만 쓴다.
+- inferred는 소스 데이터의 설명, 역할, 기술 스택에서 합리적으로 추론 가능한 내용만 쓴다.
+- 기술 이름, 수치, 회사명, 사용자 수, 성능 개선율, 매출, 합격률은 소스에 없으면 절대 만들지 않는다.
+- 근거가 부족한 성과/수치/어려움/검증 방법은 missingFields에 넣는다.
+- "문제 정의, 구현, 검증" 같은 일반론만 반복하지 말고 프로젝트마다 다른 selling point와 slide angle을 만든다.
+- slideAngles는 실제 슬라이드 제목으로 쓸 수 있게 질문형 또는 주장형으로 쓴다.
+- recommendedSlideCount는 데이터가 부족하면 6~8, 보통이면 9~11, 충분하면 12~16으로 정한다.
+
+[소스 데이터]
+${JSON.stringify(input.source, null, 2)}
+
+[기본 생성 플랜]
+${JSON.stringify(input.plan, null, 2)}
+
+JSON 하나만 반환:
+{
+  "evidenceBrief": {
+    "careerThesis": "전체 포트폴리오를 관통하는 한 문장",
+    "strongestSignals": ["가장 강한 근거"],
+    "weakSignals": ["보강하면 좋은 약한 근거"],
+    "recommendedSlideCount": 11,
+    "projectBriefs": [
+      {
+        "sourceId": "프로젝트 id",
+        "title": "프로젝트명",
+        "confirmed": ["사용자 입력에 있는 사실"],
+        "inferred": ["입력값에서 합리적으로 추론한 내용"],
+        "technicalDecisions": ["기술 선택/구현 판단"],
+        "hardParts": ["어려웠던 점 또는 제약"],
+        "proofPoints": ["결과/검증/근거"],
+        "sellingPoints": ["면접에서 팔 수 있는 포인트"],
+        "missingFields": ["추가 질문이 필요한 내용"],
+        "slideAngles": ["슬라이드 제목으로 쓸 수 있는 각도"]
+      }
+    ]
+  }
+}`;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const parsed = extractJsonObject(result.response.text());
+    return normalizePortfolioEvidenceBrief(parsed?.evidenceBrief || parsed, fallback);
+  } catch (error) {
+    console.error("Portfolio evidence brief generation failed", error);
+    return fallback;
+  }
+}
+
 async function generatePortfolioDraft(input: {
   source: PortfolioSourceData;
   templateId: PortfolioTemplateId;
   baseDocument: PortfolioDocument;
   plan: PortfolioGenerationPlan;
+  evidenceBrief: PortfolioEvidenceBrief;
 }) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return input.baseDocument;
@@ -149,6 +215,9 @@ ${JSON.stringify(input.source, null, 2)}
 
 [생성 플랜]
 ${JSON.stringify(input.plan, null, 2)}
+
+[프로젝트 근거 브리프]
+${JSON.stringify(input.evidenceBrief, null, 2)}
 
 [기본 문서]
 ${JSON.stringify(input.baseDocument, null, 2)}
@@ -196,6 +265,7 @@ async function generatePortfolioSiteDraft(input: {
   templateId: PortfolioTemplateId;
   baseDocument: PortfolioDocument;
   plan: PortfolioGenerationPlan;
+  evidenceBrief: PortfolioEvidenceBrief;
 }) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return input.baseDocument;
@@ -208,14 +278,24 @@ async function generatePortfolioSiteDraft(input: {
 [핵심 방향]
 - 정해진 카드 템플릿을 채우는 방식이 아니다. 먼저 각 프로젝트/경력의 설득 포인트를 읽고, 노베이스로 슬라이드 의도와 발표 흐름을 설계한다.
 - 단, 앱 렌더러가 안전하게 그릴 수 있도록 최종 결과는 아래 JSON 스키마와 허용 block type 안에서만 만든다.
-- 각 page에는 intent, visualDirection, narrative, emphasis를 반드시 채운다.
+- 각 page에는 intent, visualDirection, narrative, emphasis, composition을 반드시 채운다.
 - intent는 해당 슬라이드가 면접관에게 남겨야 할 한 문장 목적이다.
 - visualDirection은 렌더러가 참고할 시각 구도다. 예: large-title-with-vertical-rule, diagonal-problem-to-result-flow, technical-cluster-map, process-ribbon-and-evidence-matrix, minimal-closing.
 - narrative는 발표자가 그 장에서 말할 핵심 스토리 1~3문장이다.
 - emphasis는 화면에서 크게 강조할 키워드 3~6개다.
+- composition은 실제 PPT 구성을 고르는 구조화 설계다.
+  - pattern은 hero-statement, split-proof, diagonal-flow, metric-spotlight, radial-map, timeline-track, evidence-wall, closing-signal 중 하나만 사용한다.
+  - focalPoint는 left, right, center, top, bottom 중 하나다.
+  - density는 calm, balanced, rich 중 하나다.
+  - accentShape는 bar, diagonal, grid, ring, timeline 중 하나다.
+  - visualMetaphor는 "문제에서 결과로 상승하는 사선", "기술 축 지도", "증거 벽"처럼 한글 짧은 구도 설명이다.
+  - primaryBlocks는 headline, summary, problem, role, solution, result, lesson, impact, decision, evidence, next, body 중 2~4개를 고른다.
 
 [품질 기준]
 - 각 페이지는 실제 발표자료처럼 한 화면에 하나의 메시지를 담고, 그 메시지를 뒷받침하는 근거 블록을 3~6개 배치한다.
+- 모든 프로젝트 페이지는 프로젝트 근거 브리프의 confirmed/inferred/technicalDecisions/hardParts/proofPoints/sellingPoints 중 최소 2개 이상을 반영한다.
+- missingFields에 있는 내용은 사실처럼 쓰지 말고, 근거가 없는 수치/성과는 생성하지 않는다.
+- slideAngles를 페이지 제목, intent, visualDirection에 적극 반영해 프로젝트마다 다른 관점이 드러나게 한다.
 - 표지는 포지션과 강점을 즉시 이해할 수 있게 쓴다.
 - 프로젝트 페이지는 summary, problem, role, solution, result, flow, matrix, contribution, callout 블록을 적극 활용한다.
 - project-detail 페이지는 작업 흐름, 의사결정, 배운 점을 구체적으로 정리한다.
@@ -224,6 +304,7 @@ async function generatePortfolioSiteDraft(input: {
 - matrix block은 기술, 판단 기준, 증거 요소를 짧은 명사형 키워드로 구성한다.
 - contribution block의 value는 데이터에 있는 값만 쓰고, 없으면 역할/기간/프로젝트 수처럼 사실형 값만 쓴다.
 - callout block은 면접에서 강조할 핵심 포인트를 한 문단으로 정리한다.
+- 같은 pattern이 3장 이상 연속되지 않게 하고, 프로젝트별로 서로 다른 composition을 섞는다.
 - blocks의 type, role, layout, page 수와 순서는 기본 문서를 최대한 유지하되, 기본 문서에 있는 flow/matrix/contribution/callout은 삭제하지 않는다.
 - blocks에 image type을 넣지 않는다.
 - layout은 editorial-cover, profile-map, tech-radar, project-index, case-study-flow, project-dashboard, evidence-board, closing-impact 중 문맥에 맞게 유지한다.
@@ -233,6 +314,9 @@ ${JSON.stringify(input.source, null, 2)}
 
 [생성 플랜]
 ${JSON.stringify(input.plan, null, 2)}
+
+[프로젝트 근거 브리프]
+${JSON.stringify(input.evidenceBrief, null, 2)}
 
 [기본 웹 슬라이드 문서]
 ${JSON.stringify(input.baseDocument, null, 2)}
@@ -247,7 +331,7 @@ JSON 하나만 반환:
     "orientation": "landscape",
     "generationPreset": "web-slide",
     "theme": 기존 theme 유지,
-    "pages": 기존 페이지 수와 순서를 유지하되 각 page의 intent/visualDirection/narrative/emphasis/title/subtitle/eyebrow/blocks를 고품질 발표자료 구조로 개선
+    "pages": 기존 페이지 수와 순서를 유지하되 각 page의 intent/visualDirection/narrative/emphasis/composition/title/subtitle/eyebrow/blocks를 고품질 발표자료 구조로 개선
   }
 }`;
 
@@ -394,6 +478,7 @@ function buildGenerationQuality(input: {
   source: PortfolioSourceData;
   document: PortfolioDocument;
   plan: PortfolioGenerationPlan;
+  evidenceBrief?: PortfolioEvidenceBrief;
 }) {
   const pageCount =
     input.document.format === "site"
@@ -438,7 +523,21 @@ function buildGenerationQuality(input: {
     representativeImageCount,
     infographicCount,
     strengths: input.plan.strengths,
-    warnings: input.source.projects.length ? [] : ["선택된 프로젝트가 없어 기본 포트폴리오 흐름으로 생성됨"],
+    evidence: input.evidenceBrief
+      ? {
+          careerThesis: input.evidenceBrief.careerThesis,
+          strongestSignals: input.evidenceBrief.strongestSignals,
+          weakSignals: input.evidenceBrief.weakSignals,
+          missingFieldCount: input.evidenceBrief.projectBriefs.reduce(
+            (count, brief) => count + brief.missingFields.length,
+            0,
+          ),
+          recommendedSlideCount: input.evidenceBrief.recommendedSlideCount,
+        }
+      : undefined,
+    warnings: input.source.projects.length
+      ? input.evidenceBrief?.weakSignals.slice(0, 3) || []
+      : ["선택된 프로젝트가 없어 기본 포트폴리오 흐름으로 생성됨"],
   };
 }
 
@@ -497,7 +596,7 @@ export async function GET(
           },
         });
 
-        send("stage", { label: "프로젝트 데이터 분석 중" });
+        send("stage", { label: "프로젝트 데이터 분석 중", progress: 12 });
         const plan = await generatePortfolioPlan({
           source,
           templateId,
@@ -507,7 +606,11 @@ export async function GET(
         });
         send("plan", { plan });
 
-        send("stage", { label: "핵심 경험 정리 중" });
+        send("stage", { label: "프로젝트 근거 보강 중", progress: 28 });
+        const evidenceBrief = await generatePortfolioEvidenceBrief({ source, plan });
+        send("evidence", { evidenceBrief });
+
+        send("stage", { label: "핵심 경험 정리 중", progress: 42 });
         const baseDocument = polishPortfolioDocument(
           withPortfolioSampleImages(
             createDefaultPortfolioDocument(templateId, source, {
@@ -515,14 +618,16 @@ export async function GET(
               pageSize,
               orientation,
               generationPreset,
+              evidenceBrief,
             }),
           ),
         );
         send("document", { document: baseDocument });
 
-        send("stage", { label: "대표 이미지 선택 중" });
+        send("stage", { label: "대표 이미지 선택 중", progress: 52 });
         send("stage", {
           label: format === "site" ? "웹 슬라이드 페이지 구성 중" : "슬라이드 구성 설계 중",
+          progress: 64,
         });
         const generatedDocument =
           format === "site"
@@ -531,19 +636,22 @@ export async function GET(
                 templateId,
                 baseDocument,
                 plan,
+                evidenceBrief,
               })
             : await generatePortfolioDraft({
                 source,
                 templateId,
                 baseDocument,
                 plan,
+                evidenceBrief,
               });
         const polishedDocument = polishPortfolioDocument(withPortfolioSampleImages(generatedDocument));
 
         send("stage", {
           label: format === "site" ? "HTML 렌더링 블록 정돈 중" : "인포그래픽 배치 중",
+          progress: 82,
         });
-        send("stage", { label: "디자인 자동 정돈 중" });
+        send("stage", { label: "디자인 자동 정돈 중", progress: 90 });
         if (polishedDocument.format !== "site") {
           polishedDocument.sections.forEach((section, index) => {
             send("section", {
@@ -554,12 +662,13 @@ export async function GET(
           });
         }
 
-        send("stage", { label: "저장 중" });
+        send("stage", { label: "저장 중", progress: 96 });
         const publicSummary = buildPortfolioPublicSummary(polishedDocument);
         const generationQuality = buildGenerationQuality({
           source,
           document: polishedDocument,
           plan,
+          evidenceBrief,
         });
         const updatedRow = await portfolioDelegate().update({
           where: { id: row.id },

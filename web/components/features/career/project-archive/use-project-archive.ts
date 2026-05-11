@@ -237,8 +237,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
       if (!item?.id) throw new Error("생성된 포트폴리오 정보를 읽지 못했습니다.");
 
       const editUrl = `/career/portfolios/${item.id}/edit?generate=1`;
-      const opened = window.open(editUrl, "_blank", "noopener,noreferrer");
-      if (!opened) router.push(editUrl);
+      router.push(editUrl);
     } catch (error) {
       alert(error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.");
     } finally {

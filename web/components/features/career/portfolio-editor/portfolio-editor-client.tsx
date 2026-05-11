@@ -75,6 +75,7 @@ type GenerationSectionStatus = {
 type GenerationState = {
   active: boolean;
   stage: string;
+  progress: number;
   sections: GenerationSectionStatus[];
   error?: string;
 };
@@ -171,6 +172,7 @@ export function PortfolioEditorClient({
   const [generation, setGeneration] = useState<GenerationState>({
     active: shouldAutoGenerate,
     stage: shouldAutoGenerate ? "워크스페이스 준비 중" : "",
+    progress: shouldAutoGenerate ? 6 : 0,
     sections: [],
   });
 
@@ -192,15 +194,17 @@ export function PortfolioEditorClient({
     setGeneration({
       active: true,
       stage: "프로젝트 정보 가져오는 중",
+      progress: 8,
       sections: [],
     });
 
     eventSource.addEventListener("stage", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as { label?: string };
+      const payload = JSON.parse((event as MessageEvent).data) as { label?: string; progress?: number };
       setGeneration((current) => ({
         ...current,
         active: true,
         stage: payload.label || current.stage,
+        progress: clampNumber(payload.progress ?? current.progress + 6, 8, 96),
       }));
     });
 
@@ -227,6 +231,7 @@ export function PortfolioEditorClient({
       setGeneration((current) => ({
         ...current,
         active: true,
+        progress: Math.max(current.progress, 72),
         sections: [
           ...current.sections.filter((section) => section.index !== payload.index),
           {
@@ -254,10 +259,11 @@ export function PortfolioEditorClient({
         ...current,
         active: false,
         stage: "AI 생성 완료",
+        progress: 100,
         sections: [],
       }));
       window.setTimeout(() => {
-        setGeneration({ active: false, stage: "", sections: [] });
+        setGeneration({ active: false, stage: "", progress: 0, sections: [] });
       }, 2000);
       eventSource.close();
       window.history.replaceState(null, "", window.location.pathname);
@@ -269,6 +275,7 @@ export function PortfolioEditorClient({
         ...current,
         active: false,
         stage: "기본 템플릿으로 열기",
+        progress: current.progress || 0,
         error: payload.error || "포트폴리오 생성에 실패했습니다.",
       }));
       eventSource.close();
@@ -281,6 +288,7 @@ export function PortfolioEditorClient({
           : {
               ...current,
               active: false,
+              progress: current.progress || 0,
               error: current.error || "실시간 생성 연결이 끊어졌습니다.",
             },
       );
@@ -686,11 +694,69 @@ function GenerationStatusOverlay({ generation }: { generation: GenerationState }
   if (!generation.active && !generation.error && generation.stage !== "AI 생성 완료") return null;
   const completed = generation.stage === "AI 생성 완료" && !generation.error;
 
+  if (generation.active || completed) {
+    return (
+      <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#f5f8f1]/72 px-6 backdrop-blur-md">
+        <div className="w-full max-w-[520px] rounded-lg border border-[#d8e4d0] bg-white/94 p-7 text-center shadow-[0_28px_80px_rgba(42,72,42,0.22)] ring-1 ring-white/80">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-primary/12 text-primary">
+            {completed ? (
+              <Check className="h-8 w-8" />
+            ) : (
+              <Loader2 className="h-8 w-8 animate-spin" />
+            )}
+          </div>
+          <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] text-[#8ca67a]">
+            AI Portfolio Builder
+          </p>
+          <h2 className="mt-2 text-xl font-black text-slate-950">
+            {completed ? "포트폴리오 생성 완료" : generation.stage || "포트폴리오 생성 중"}
+          </h2>
+          <p className="mx-auto mt-3 max-w-[420px] text-sm font-semibold leading-6 text-slate-600">
+            프로젝트와 경력 데이터를 분석해 발표용 포트폴리오 페이지를 구성하고 있습니다.
+          </p>
+
+          <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#e5eedf]">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${completed ? 100 : clampNumber(generation.progress, 8, 96)}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[11px] font-black text-[#8ca67a]">
+            {completed ? "100" : Math.round(clampNumber(generation.progress, 8, 96))}%
+          </p>
+
+          {generation.sections.length ? (
+            <div className="mt-5 grid gap-2 text-left">
+              {generation.sections.slice(-3).map((section) => (
+                <div
+                  key={`${section.index}-${section.title}`}
+                  className="flex items-center gap-3 rounded-lg border border-[#e1ead9] bg-[#f8faf5] px-3 py-2"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-xs font-black text-primary">
+                    {section.index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-slate-800">
+                      {section.title || SECTION_LABEL[section.type]}
+                    </p>
+                    <p className="text-[11px] font-semibold text-slate-400">
+                      {SECTION_LABEL[section.type]} 반영 중
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="pointer-events-none absolute right-6 top-5 z-40 w-[320px] rounded-3xl border border-[#d8e4d0] bg-white/92 p-4 shadow-[0_22px_60px_rgba(42,72,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
+    <div className="pointer-events-none absolute right-6 top-5 z-40 w-[320px] rounded-lg border border-[#d8e4d0] bg-white/92 p-4 shadow-[0_22px_60px_rgba(42,72,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
       <div className="flex items-start gap-3">
         <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
             generation.error
               ? "bg-red-50 text-red-500"
               : "bg-primary/12 text-primary"
@@ -722,9 +788,9 @@ function GenerationStatusOverlay({ generation }: { generation: GenerationState }
           {generation.sections.slice(-4).map((section) => (
             <div
               key={`${section.index}-${section.title}`}
-              className="flex items-center gap-2 rounded-2xl border border-[#e1ead9] bg-[#f8faf5]/88 px-3 py-2"
+              className="flex items-center gap-2 rounded-lg border border-[#e1ead9] bg-[#f8faf5]/88 px-3 py-2"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-black text-primary">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-xs font-black text-primary">
                 {section.index + 1}
               </span>
               <div className="min-w-0">

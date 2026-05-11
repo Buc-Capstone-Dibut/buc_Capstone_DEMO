@@ -17,6 +17,8 @@ type PortfolioSiteRendererProps = {
   className?: string;
 };
 
+type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
+
 const PAGE_LABEL: Record<PortfolioSitePageType, string> = {
   cover: "표지",
   profile: "프로필",
@@ -47,8 +49,12 @@ const ROLE_LABEL: Record<string, string> = {
 const ACCENT_COLORS = ["#1f7a4d", "#0f766e", "#b7791f", "#dc6b4a", "#4f46e5"];
 
 function slideVisualMode(page: PortfolioSitePage) {
-  const direction = `${page.visualDirection || ""} ${page.layout || ""}`.toLowerCase();
+  const direction =
+    `${page.composition?.pattern || ""} ${page.composition?.accentShape || ""} ${page.visualDirection || ""} ${page.layout || ""}`.toLowerCase();
   if (direction.includes("matrix") || direction.includes("cluster") || direction.includes("radar")) {
+    return "matrix";
+  }
+  if (direction.includes("ring") || direction.includes("radial")) {
     return "matrix";
   }
   if (direction.includes("journey") || direction.includes("timeline") || direction.includes("ribbon")) {
@@ -61,6 +67,18 @@ function slideVisualMode(page: PortfolioSitePage) {
     return "minimal";
   }
   return "editorial";
+}
+
+function getRenderPattern(page: PortfolioSitePage): RenderPattern {
+  if (page.composition?.pattern) return page.composition.pattern;
+  if (page.type === "cover") return "hero-statement";
+  if (page.type === "profile") return "split-proof";
+  if (page.type === "skills") return "radial-map";
+  if (page.type === "project-index") return "timeline-track";
+  if (page.type === "project-detail") return "evidence-wall";
+  if (page.type === "experience" || page.type === "retrospective") return "metric-spotlight";
+  if (page.type === "contact") return "closing-signal";
+  return "diagonal-flow";
 }
 
 function sectionToSitePage(section: PortfolioSection): PortfolioSitePage {
@@ -469,14 +487,264 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
           {plainText(page.intent, 48)}
         </p>
       ) : null}
-      <h1 className="mt-3 text-[48px] font-black leading-[0.98] tracking-normal text-slate-950">
-        {plainText(page.title, 68)}
+      <h1 className="mt-3 text-[42px] font-black leading-[1.02] tracking-normal text-slate-950">
+        {plainText(page.title, 56)}
       </h1>
       {page.subtitle ? (
-        <p className="mt-5 max-w-[520px] text-[17px] font-bold leading-7 text-slate-600">
-          {plainText(page.subtitle, 112)}
+        <p className="mt-4 max-w-[500px] text-[15px] font-bold leading-6 text-slate-600">
+          {plainText(page.subtitle, 88)}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function CompositionNote({ page }: { page: PortfolioSitePage }) {
+  const metaphor = page.composition?.visualMetaphor || page.visualDirection;
+  if (!metaphor) return null;
+  return (
+    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+      {plainText(metaphor, 54)}
+    </p>
+  );
+}
+
+function EmphasisRail({ page, max = 5 }: { page: PortfolioSitePage; max?: number }) {
+  const items = pageEmphasis(page).slice(0, max);
+  if (!items.length) return null;
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-[#c8dabc] pt-4">
+      {items.map((item, index) => (
+        <span
+          key={`${item}-${index}`}
+          className="text-[12px] font-black uppercase tracking-[0.12em]"
+          style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
+        >
+          {plainText(item, 24)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  return (
+    <div className="grid h-full grid-cols-[1.12fr_0.88fr] gap-12 px-16 pb-16 pt-20">
+      <div className="flex min-w-0 flex-col justify-center">
+        <CompositionNote page={page} />
+        <h1 className="mt-5 text-[56px] font-black leading-[0.96] text-slate-950">
+          {plainText(page.title, 52)}
+        </h1>
+        <p className="mt-7 max-w-[620px] text-[18px] font-black leading-7 text-slate-700">
+          {pageNarrative(page, 130)}
+        </p>
+        <div className="mt-10">
+          <EmphasisRail page={page} />
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-col justify-center border-l-[10px] border-[var(--portfolio-primary)] pl-8">
+        <BigNumber value="01" />
+        <MetricLine page={page} />
+        <div className="mt-10">
+          <CalloutLine page={page} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  const blocks = textBlocks(page);
+  return (
+    <div className="grid h-full grid-cols-[0.82fr_1.18fr] gap-12 px-16 pb-16 pt-20">
+      <div className="flex min-w-0 flex-col justify-center">
+        <CompositionNote page={page} />
+        <TitleBlock page={page} />
+        <p className="mt-6 text-[15px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 125)}
+        </p>
+        <div className="mt-9">
+          <RoleBars page={page} />
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-col justify-center gap-8">
+        <TextList blocks={blocks.length ? blocks : page.blocks} max={4} />
+        <EmphasisRail page={page} max={4} />
+      </div>
+    </div>
+  );
+}
+
+function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  const items = flowItems(page).slice(0, 4);
+  return (
+    <div className="flex h-full flex-col px-14 pb-14 pt-20">
+      <div className="grid grid-cols-[1fr_300px] gap-8">
+        <div className="min-w-0">
+          <CompositionNote page={page} />
+          <TitleBlock page={page} />
+          <p className="mt-5 max-w-[540px] text-[14px] font-bold leading-6 text-slate-700">
+            {pageNarrative(page, 105)}
+          </p>
+        </div>
+        <div className="pt-6">
+          <CalloutLine page={page} />
+        </div>
+      </div>
+      <div className="relative mt-9 flex-1">
+        <div className="absolute left-0 right-0 top-[58px] h-[3px] rotate-[-5deg] bg-[rgba(31,122,77,0.22)]" />
+        <div className="relative grid grid-cols-4 gap-5">
+          {items.map((item, index) => (
+            <div
+              key={`${item}-${index}`}
+              className="min-w-0 border-t-[6px] bg-[#fbfcf8]/85 pt-4"
+              style={{
+                borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length],
+                transform: `translateY(${index % 2 === 0 ? 0 : 28}px)`,
+              }}
+            >
+              <p className="text-[34px] font-black leading-none text-[var(--portfolio-primary)] opacity-80">
+                {String(index + 1).padStart(2, "0")}
+              </p>
+              <p className="mt-3 text-[13px] font-black leading-5 text-slate-800">
+                {plainText(item, 46)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  const metric = metricBlocks(page)[0] || contributionBlocks(page)[0];
+  const value = metric?.value || String(pageEmphasis(page).length || textBlocks(page).length || 1);
+  const label = metric?.label || page.intent || "핵심 근거";
+  return (
+    <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-12 px-16 pb-16 pt-20">
+      <div className="flex min-w-0 flex-col justify-center">
+        <CompositionNote page={page} />
+        <p className="text-[106px] font-black leading-none text-[var(--portfolio-primary)]">
+          {plainText(value, 14)}
+        </p>
+        <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
+          {plainText(label, 48)}
+        </p>
+        <p className="mt-7 text-[16px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 120)}
+        </p>
+      </div>
+      <div className="flex min-w-0 flex-col justify-center gap-8">
+        <TitleBlock page={page} />
+        <TimelineLine page={page} />
+        <CalloutLine page={page} />
+      </div>
+    </div>
+  );
+}
+
+function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  return (
+    <div className="grid h-full grid-cols-[0.72fr_1.28fr] gap-10 px-16 pb-16 pt-20">
+      <div className="flex min-w-0 flex-col justify-center">
+        <CompositionNote page={page} />
+        <TitleBlock page={page} />
+        <p className="mt-6 text-[14px] font-bold leading-6 text-slate-700">
+          {pageNarrative(page, 112)}
+        </p>
+        <div className="mt-8">
+          <MetricLine page={page} />
+        </div>
+      </div>
+      <div className="relative flex min-w-0 flex-col justify-center">
+        <div className="absolute left-1/2 top-[18%] h-[64%] w-px bg-[#c8dabc]" />
+        <div className="absolute left-[8%] right-[8%] top-1/2 h-px bg-[#c8dabc]" />
+        <KeywordCloud page={page} />
+        <div className="mt-4">
+          <EmphasisRail page={page} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  const items = timelineItems(page).slice(0, 6);
+  return (
+    <div className="flex h-full flex-col px-16 pb-16 pt-20">
+      <div className="max-w-[760px]">
+        <CompositionNote page={page} />
+        <TitleBlock page={page} />
+      </div>
+      <div className="relative mt-16 flex-1">
+        <div className="absolute left-0 right-0 top-[92px] h-[3px] bg-[#b9cdae]" />
+        <div className="relative grid grid-cols-6 gap-3">
+          {items.map((item, index) => (
+            <div key={`${item}-${index}`} className="min-w-0">
+              <p
+                className="flex h-[72px] w-[72px] items-center justify-center text-2xl font-black text-white"
+                style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
+              >
+                {index + 1}
+              </p>
+              <p className="mt-4 text-[12px] font-black leading-5 text-slate-800">
+                {plainText(item, 40)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <EmphasisRail page={page} />
+    </div>
+  );
+}
+
+function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  const blocks = textBlocks(page).slice(0, 4);
+  return (
+    <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 px-14 pb-14 pt-20">
+      <div className="flex min-w-0 flex-col justify-center">
+        <CompositionNote page={page} />
+        <TitleBlock page={page} />
+        <div className="mt-8">
+          <CalloutLine page={page} />
+        </div>
+      </div>
+      <div className="grid min-w-0 grid-cols-2 content-center gap-x-7 gap-y-5">
+        {blocks.map((block, index) => (
+          <div key={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
+            <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[var(--portfolio-primary)]">
+              {getBlockLabel(block, `Evidence ${index + 1}`)}
+            </p>
+            <p className="mt-2 text-[12px] font-bold leading-5 text-slate-700">
+              {blockText(block, 82)}
+            </p>
+          </div>
+        ))}
+        <div className="col-span-2 border-t border-[#c8dabc] pt-5">
+          <FlowRibbon page={page} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
+  return (
+    <div className="flex h-full flex-col justify-center px-20 pb-16 pt-20">
+      <div className="max-w-[820px]">
+        <CompositionNote page={page} />
+        <h1 className="mt-6 text-[56px] font-black leading-[0.98] text-slate-950">
+          {plainText(page.title, 52)}
+        </h1>
+        <p className="mt-7 whitespace-pre-line border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-black leading-8 text-slate-700">
+          {pageNarrative(page, 130)}
+        </p>
+        <div className="mt-10">
+          <EmphasisRail page={page} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -645,6 +913,15 @@ function ClosingSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function renderSlide(page: PortfolioSitePage) {
+  const pattern = getRenderPattern(page);
+  if (pattern === "hero-statement") return <HeroStatementCompositionSlide page={page} />;
+  if (pattern === "split-proof") return <SplitProofCompositionSlide page={page} />;
+  if (pattern === "diagonal-flow") return <DiagonalFlowCompositionSlide page={page} />;
+  if (pattern === "metric-spotlight") return <MetricSpotlightCompositionSlide page={page} />;
+  if (pattern === "radial-map") return <RadialMapCompositionSlide page={page} />;
+  if (pattern === "timeline-track") return <TimelineTrackCompositionSlide page={page} />;
+  if (pattern === "evidence-wall") return <EvidenceWallCompositionSlide page={page} />;
+  if (pattern === "closing-signal") return <ClosingSignalCompositionSlide page={page} />;
   if (page.type === "cover") return <CoverSlide page={page} />;
   if (page.type === "profile") return <ProfileSlide page={page} />;
   if (page.type === "skills") return <SkillsSlide page={page} />;

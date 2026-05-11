@@ -131,6 +131,25 @@ export type PortfolioSiteBlock = {
   image?: PortfolioImageSlot;
 };
 
+export type PortfolioSiteCompositionPattern =
+  | "hero-statement"
+  | "split-proof"
+  | "diagonal-flow"
+  | "metric-spotlight"
+  | "radial-map"
+  | "timeline-track"
+  | "evidence-wall"
+  | "closing-signal";
+
+export type PortfolioSiteComposition = {
+  pattern: PortfolioSiteCompositionPattern;
+  focalPoint: "left" | "right" | "center" | "top" | "bottom";
+  density: "calm" | "balanced" | "rich";
+  accentShape: "bar" | "diagonal" | "grid" | "ring" | "timeline";
+  visualMetaphor?: string;
+  primaryBlocks?: PortfolioSiteBlockRole[];
+};
+
 export type PortfolioSitePage = {
   id: string;
   type: PortfolioSitePageType;
@@ -141,6 +160,7 @@ export type PortfolioSitePage = {
   visualDirection?: string;
   narrative?: string;
   emphasis?: string[];
+  composition?: PortfolioSiteComposition;
   layout: PortfolioSiteLayout;
   blocks: PortfolioSiteBlock[];
   image?: PortfolioImageSlot;
@@ -252,6 +272,25 @@ export type PortfolioGenerationPlan = {
     purpose: string;
     sourceId?: string;
     infographicType?: "flow" | "metric" | "timeline" | "techLogo";
+  }>;
+};
+
+export type PortfolioEvidenceBrief = {
+  careerThesis: string;
+  strongestSignals: string[];
+  weakSignals: string[];
+  recommendedSlideCount: number;
+  projectBriefs: Array<{
+    sourceId?: string;
+    title: string;
+    confirmed: string[];
+    inferred: string[];
+    technicalDecisions: string[];
+    hardParts: string[];
+    proofPoints: string[];
+    sellingPoints: string[];
+    missingFields: string[];
+    slideAngles: string[];
   }>;
 };
 
@@ -1051,6 +1090,235 @@ export function createFallbackPortfolioGenerationPlan(
   };
 }
 
+function cleanEvidenceItems(items: Array<string | undefined>, max = 6) {
+  return Array.from(
+    new Set(
+      items
+        .map((item) => item?.replace(/\s+/g, " ").trim())
+        .filter((item): item is string => Boolean(item && item.length > 0)),
+    ),
+  ).slice(0, max);
+}
+
+function projectEvidenceTitle(project: PortfolioSourceData["projects"][number], index = 0) {
+  return projectDisplayTitle(project, index);
+}
+
+function createFallbackProjectEvidenceBrief(
+  project: PortfolioSourceData["projects"][number],
+  index = 0,
+): PortfolioEvidenceBrief["projectBriefs"][number] {
+  const title = projectEvidenceTitle(project, index);
+  const stack = cleanEvidenceItems([...(project.techStack || []), ...(project.tags || [])], 8);
+  const confirmed = cleanEvidenceItems(
+    [
+      project.description,
+      project.position ? `${project.position} 역할로 참여` : undefined,
+      project.period ? `${project.period} 진행` : undefined,
+      stack.length ? `${stack.slice(0, 5).join(", ")} 활용` : undefined,
+      project.situation,
+      project.role,
+      project.solution,
+      project.result,
+      project.lesson,
+    ],
+    7,
+  );
+  const inferred = cleanEvidenceItems(
+    [
+      project.description && project.role
+        ? "프로젝트 설명과 담당 역할을 연결해 실제 기여 범위를 설명할 수 있음"
+        : undefined,
+      stack.length
+        ? "기술 스택을 단순 목록이 아니라 구현 맥락과 연결해 설명할 수 있음"
+        : undefined,
+      project.solution
+        ? "해결 방식 중심으로 기술 선택과 구현 판단을 풀어낼 수 있음"
+        : undefined,
+      project.lesson
+        ? "회고 내용을 다음 프로젝트에 적용 가능한 판단 기준으로 확장할 수 있음"
+        : undefined,
+    ],
+    5,
+  );
+  const technicalDecisions = cleanEvidenceItems(
+    [
+      project.solution,
+      stack.length ? `${stack.slice(0, 4).join(", ")}를 중심으로 구현 범위 구성` : undefined,
+      project.role,
+    ],
+    4,
+  );
+  const hardParts = cleanEvidenceItems(
+    [
+      project.difficulty,
+      project.situation,
+      !project.difficulty && !project.situation ? "문제 상황과 제약 조건을 더 구체화하면 설득력이 커짐" : undefined,
+    ],
+    4,
+  );
+  const proofPoints = cleanEvidenceItems(
+    [
+      project.result,
+      project.lesson,
+      project.period ? `진행 기간: ${project.period}` : undefined,
+      project.position ? `담당 역할: ${project.position}` : undefined,
+    ],
+    5,
+  );
+  const sellingPoints = cleanEvidenceItems(
+    [
+      project.result || project.solution || project.description,
+      technicalDecisions[0],
+      inferred[0],
+    ],
+    4,
+  );
+  const missingFields = cleanEvidenceItems(
+    [
+      project.result ? undefined : "결과/성과",
+      project.difficulty || project.situation ? undefined : "어려웠던 문제 또는 제약",
+      project.solution ? undefined : "해결 방식",
+      project.role || project.position ? undefined : "구체적인 본인 역할",
+      "정량 지표가 있다면 추가",
+    ],
+    5,
+  );
+  const slideAngles = cleanEvidenceItems(
+    [
+      `${title}가 해결한 문제`,
+      "내가 실제로 맡은 역할과 바꾼 구조",
+      stack.length ? `${stack.slice(0, 2).join(" / ")} 선택 이유` : "기술 선택 이유",
+      "어려웠던 지점과 해결 과정",
+      "결과와 다음 적용점",
+    ],
+    5,
+  );
+
+  return {
+    sourceId: project.id,
+    title,
+    confirmed,
+    inferred,
+    technicalDecisions,
+    hardParts,
+    proofPoints,
+    sellingPoints,
+    missingFields,
+    slideAngles,
+  };
+}
+
+export function createFallbackPortfolioEvidenceBrief(
+  source: PortfolioSourceData,
+  plan: PortfolioGenerationPlan = createFallbackPortfolioGenerationPlan(source),
+): PortfolioEvidenceBrief {
+  const projectBriefs = source.projects
+    .slice(0, 4)
+    .map((project, index) => createFallbackProjectEvidenceBrief(project, index));
+  const strongestSignals = cleanEvidenceItems(
+    [
+      ...plan.strengths,
+      ...projectBriefs.flatMap((brief) => brief.sellingPoints.slice(0, 1)),
+      ...source.workExperiences.map((experience) =>
+        [experience.company, experience.position].filter(Boolean).join(" · "),
+      ),
+    ],
+    6,
+  );
+  const weakSignals = cleanEvidenceItems(
+    [
+      ...projectBriefs.flatMap((brief) => brief.missingFields),
+      source.projects.length ? undefined : "대표 프로젝트",
+      source.skills.length ? undefined : "기술 스택",
+    ],
+    6,
+  );
+  const averageSignalCount = projectBriefs.length
+    ? projectBriefs.reduce(
+        (sum, brief) =>
+          sum +
+          brief.confirmed.length +
+          brief.inferred.length +
+          brief.technicalDecisions.length +
+          brief.hardParts.filter((item) => !item.includes("구체화")).length +
+          brief.proofPoints.length +
+          brief.sellingPoints.length -
+          Math.min(3, brief.missingFields.length),
+        0,
+      ) / projectBriefs.length
+    : 0;
+  const recommendedSlideCount =
+    source.projects.length === 0
+      ? 6
+      : averageSignalCount < 8
+        ? 8
+        : averageSignalCount < 13
+          ? 11
+          : Math.min(16, 7 + source.projects.length * 3 + source.workExperiences.length);
+
+  return {
+    careerThesis:
+      strongestSignals[0] ||
+      `${plan.position}로서 프로젝트 경험을 근거 중심으로 설명합니다.`,
+    strongestSignals,
+    weakSignals,
+    recommendedSlideCount,
+    projectBriefs,
+  };
+}
+
+export function normalizePortfolioEvidenceBrief(
+  value: unknown,
+  fallback: PortfolioEvidenceBrief,
+): PortfolioEvidenceBrief {
+  if (!value || typeof value !== "object") return fallback;
+  const raw = value as Partial<PortfolioEvidenceBrief>;
+  const projectBriefs = Array.isArray(raw.projectBriefs)
+    ? raw.projectBriefs.map((brief, index) => {
+        const fallbackBrief = fallback.projectBriefs[index];
+        const rawBrief = brief && typeof brief === "object"
+          ? (brief as Partial<PortfolioEvidenceBrief["projectBriefs"][number]>)
+          : {};
+        return {
+          sourceId: rawBrief.sourceId || fallbackBrief?.sourceId,
+          title: rawBrief.title || fallbackBrief?.title || `프로젝트 ${index + 1}`,
+          confirmed: cleanEvidenceItems(rawBrief.confirmed || fallbackBrief?.confirmed || [], 8),
+          inferred: cleanEvidenceItems(rawBrief.inferred || fallbackBrief?.inferred || [], 8),
+          technicalDecisions: cleanEvidenceItems(
+            rawBrief.technicalDecisions || fallbackBrief?.technicalDecisions || [],
+            6,
+          ),
+          hardParts: cleanEvidenceItems(rawBrief.hardParts || fallbackBrief?.hardParts || [], 6),
+          proofPoints: cleanEvidenceItems(rawBrief.proofPoints || fallbackBrief?.proofPoints || [], 6),
+          sellingPoints: cleanEvidenceItems(
+            rawBrief.sellingPoints || fallbackBrief?.sellingPoints || [],
+            6,
+          ),
+          missingFields: cleanEvidenceItems(
+            rawBrief.missingFields || fallbackBrief?.missingFields || [],
+            8,
+          ),
+          slideAngles: cleanEvidenceItems(rawBrief.slideAngles || fallbackBrief?.slideAngles || [], 6),
+        };
+      })
+    : fallback.projectBriefs;
+
+  return {
+    careerThesis:
+      typeof raw.careerThesis === "string" && raw.careerThesis.trim()
+        ? raw.careerThesis.trim()
+        : fallback.careerThesis,
+    strongestSignals: cleanEvidenceItems(raw.strongestSignals || fallback.strongestSignals, 8),
+    weakSignals: cleanEvidenceItems(raw.weakSignals || fallback.weakSignals, 8),
+    recommendedSlideCount:
+      typeof raw.recommendedSlideCount === "number"
+        ? Math.max(5, Math.min(16, Math.round(raw.recommendedSlideCount)))
+        : fallback.recommendedSlideCount,
+    projectBriefs: projectBriefs.length ? projectBriefs.slice(0, 4) : fallback.projectBriefs,
+  };
+}
+
 function buildHeroCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   return createSectionCanvas([
     canvasVisualElement("cover-soft-shape", "shape", 552, 320, 428, 240, {
@@ -1576,6 +1844,82 @@ function createSiteCalloutBlock(content: string, label = "핵심 포인트") {
   return createSiteBlock("callout", { label, content });
 }
 
+function getDefaultSiteComposition(
+  type: PortfolioSitePageType,
+  layout?: PortfolioSiteLayout,
+): PortfolioSiteComposition {
+  if (type === "cover") {
+    return {
+      pattern: "hero-statement",
+      focalPoint: "left",
+      density: "calm",
+      accentShape: "bar",
+      primaryBlocks: ["headline", "summary"],
+    };
+  }
+  if (type === "profile") {
+    return {
+      pattern: "split-proof",
+      focalPoint: "left",
+      density: "balanced",
+      accentShape: "bar",
+      primaryBlocks: ["summary", "evidence"],
+    };
+  }
+  if (type === "skills") {
+    return {
+      pattern: "radial-map",
+      focalPoint: "center",
+      density: "rich",
+      accentShape: "ring",
+      primaryBlocks: ["summary", "evidence"],
+    };
+  }
+  if (type === "project-index") {
+    return {
+      pattern: "timeline-track",
+      focalPoint: "top",
+      density: "balanced",
+      accentShape: "timeline",
+      primaryBlocks: ["summary", "next"],
+    };
+  }
+  if (type === "project-detail" || layout === "project-dashboard") {
+    return {
+      pattern: "evidence-wall",
+      focalPoint: "right",
+      density: "rich",
+      accentShape: "grid",
+      primaryBlocks: ["decision", "evidence", "lesson"],
+    };
+  }
+  if (type === "experience" || type === "retrospective" || layout === "evidence-board") {
+    return {
+      pattern: "metric-spotlight",
+      focalPoint: "center",
+      density: "balanced",
+      accentShape: "grid",
+      primaryBlocks: ["summary", "impact", "lesson"],
+    };
+  }
+  if (type === "contact") {
+    return {
+      pattern: "closing-signal",
+      focalPoint: "left",
+      density: "calm",
+      accentShape: "bar",
+      primaryBlocks: ["summary", "next"],
+    };
+  }
+  return {
+    pattern: "diagonal-flow",
+    focalPoint: "left",
+    density: "rich",
+    accentShape: "diagonal",
+    primaryBlocks: ["problem", "role", "solution", "result"],
+  };
+}
+
 function createSitePage(
   page: Omit<PortfolioSitePage, "id" | "visible"> &
     Partial<Pick<PortfolioSitePage, "id" | "visible">>,
@@ -1583,6 +1927,8 @@ function createSitePage(
   return {
     ...page,
     id: page.id || makeId("site-page"),
+    composition:
+      page.composition || getDefaultSiteComposition(page.type, page.layout),
     visible: page.visible !== false,
   };
 }
@@ -1620,6 +1966,70 @@ function projectStackItems(project: PortfolioSourceData["projects"][number]) {
   ]
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function findProjectEvidenceBrief(
+  evidenceBrief: PortfolioEvidenceBrief | undefined,
+  project: PortfolioSourceData["projects"][number],
+  title: string,
+) {
+  return evidenceBrief?.projectBriefs.find((brief) =>
+    (project.id && brief.sourceId === project.id) || brief.title === title,
+  );
+}
+
+function briefText(
+  items: string[] | undefined,
+  fallback: string,
+  max = 3,
+) {
+  return siteText((items || []).slice(0, max), fallback);
+}
+
+function mergedBriefItems(...groups: Array<string[] | undefined>) {
+  return Array.from(new Set(groups.flatMap((items) => items || []))).filter(Boolean);
+}
+
+function selectPortfolioSitePagesForLimit(
+  pages: PortfolioSitePage[],
+  limit: number,
+) {
+  if (pages.length <= limit) return pages;
+  const boundedLimit = Math.max(5, Math.min(limit, pages.length));
+  const selected = new Set<string>();
+  const add = (page: PortfolioSitePage | undefined) => {
+    if (page && selected.size < boundedLimit) selected.add(page.id);
+  };
+
+  add(pages.find((page) => page.type === "cover"));
+  add(pages.find((page) => page.type === "profile"));
+  add(pages.find((page) => page.type === "skills"));
+  add(pages.find((page) => page.type === "project-index"));
+
+  const contact = pages.find((page) => page.type === "contact");
+  const retrospective = pages.find((page) => page.type === "retrospective");
+  const reservedSlots = [retrospective, contact].filter(Boolean).length;
+  const primaryCandidates = pages.filter(
+    (page) =>
+      !selected.has(page.id) &&
+      page.type !== "contact" &&
+      page.type !== "retrospective" &&
+      (boundedLimit >= 9 || page.type !== "project-detail"),
+  );
+
+  for (const page of primaryCandidates) {
+    if (selected.size >= boundedLimit - reservedSlots) break;
+    selected.add(page.id);
+  }
+  if (retrospective && selected.size < boundedLimit - (contact ? 1 : 0)) selected.add(retrospective.id);
+  if (contact && selected.size < boundedLimit) selected.add(contact.id);
+
+  for (const page of pages) {
+    if (selected.size >= boundedLimit) break;
+    selected.add(page.id);
+  }
+
+  return pages.filter((page) => selected.has(page.id));
 }
 
 function sitePageTypeToSectionType(type: PortfolioSitePageType): PortfolioSectionType {
@@ -1753,6 +2163,70 @@ function normalizeSiteImageSlot(value: unknown): PortfolioImageSlot | undefined 
   };
 }
 
+function normalizePortfolioSiteComposition(
+  value: unknown,
+  fallback: PortfolioSiteComposition,
+): PortfolioSiteComposition {
+  if (!value || typeof value !== "object") return fallback;
+  const raw = value as Partial<PortfolioSiteComposition>;
+  const pattern: PortfolioSiteCompositionPattern =
+    raw.pattern === "hero-statement" ||
+    raw.pattern === "split-proof" ||
+    raw.pattern === "diagonal-flow" ||
+    raw.pattern === "metric-spotlight" ||
+    raw.pattern === "radial-map" ||
+    raw.pattern === "timeline-track" ||
+    raw.pattern === "evidence-wall" ||
+    raw.pattern === "closing-signal"
+      ? raw.pattern
+      : fallback.pattern;
+  const focalPoint: PortfolioSiteComposition["focalPoint"] =
+    raw.focalPoint === "left" ||
+    raw.focalPoint === "right" ||
+    raw.focalPoint === "center" ||
+    raw.focalPoint === "top" ||
+    raw.focalPoint === "bottom"
+      ? raw.focalPoint
+      : fallback.focalPoint;
+  const density: PortfolioSiteComposition["density"] =
+    raw.density === "calm" || raw.density === "balanced" || raw.density === "rich"
+      ? raw.density
+      : fallback.density;
+  const accentShape: PortfolioSiteComposition["accentShape"] =
+    raw.accentShape === "bar" ||
+    raw.accentShape === "diagonal" ||
+    raw.accentShape === "grid" ||
+    raw.accentShape === "ring" ||
+    raw.accentShape === "timeline"
+      ? raw.accentShape
+      : fallback.accentShape;
+  const primaryBlocks = normalizeStringItems(raw.primaryBlocks).filter(
+    (role): role is PortfolioSiteBlockRole =>
+      role === "headline" ||
+      role === "summary" ||
+      role === "problem" ||
+      role === "role" ||
+      role === "solution" ||
+      role === "result" ||
+      role === "lesson" ||
+      role === "impact" ||
+      role === "decision" ||
+      role === "evidence" ||
+      role === "next" ||
+      role === "body",
+  );
+
+  return {
+    pattern,
+    focalPoint,
+    density,
+    accentShape,
+    visualMetaphor:
+      typeof raw.visualMetaphor === "string" ? raw.visualMetaphor.slice(0, 80) : fallback.visualMetaphor,
+    primaryBlocks: primaryBlocks.length ? primaryBlocks : fallback.primaryBlocks,
+  };
+}
+
 function normalizePortfolioSiteBlock(value: unknown): PortfolioSiteBlock {
   if (!value || typeof value !== "object") {
     return createSiteTextBlock("body", "");
@@ -1860,6 +2334,10 @@ function normalizePortfolioSitePages(value: unknown): PortfolioSitePage[] {
         visualDirection: typeof raw.visualDirection === "string" ? raw.visualDirection : "",
         narrative: typeof raw.narrative === "string" ? raw.narrative : "",
         emphasis: normalizeStringItems(raw.emphasis),
+        composition: normalizePortfolioSiteComposition(
+          raw.composition,
+          getDefaultSiteComposition(type, layout),
+        ),
         layout,
         blocks: Array.isArray(raw.blocks) ? raw.blocks.map(normalizePortfolioSiteBlock) : [],
         image: normalizeSiteImageSlot(raw.image),
@@ -1877,12 +2355,14 @@ export function createDefaultPortfolioSiteDocument(
     pageSize?: PortfolioPageSize;
     orientation?: PortfolioOrientation;
     generationPreset?: PortfolioGenerationPreset;
+    evidenceBrief?: PortfolioEvidenceBrief;
   } = {},
 ): PortfolioDocument {
   const template = getPortfolioTemplate(templateId);
   const personal = source.personalInfo;
   const skillNames = collectPortfolioSkillNames(source);
   const plan = createFallbackPortfolioGenerationPlan(source);
+  const evidenceBrief = options.evidenceBrief || createFallbackPortfolioEvidenceBrief(source, plan);
   const projectTitles = source.projects
     .slice(0, 6)
     .map((project, index) => projectDisplayTitle(project, index));
@@ -1897,14 +2377,17 @@ export function createDefaultPortfolioSiteDocument(
       eyebrow: "Portfolio",
       intent: "첫 장에서 포지션과 차별점을 각인",
       visualDirection: "large-title-with-vertical-rule and editorial whitespace",
-      narrative: personal.intro || plan.strengths.join(" · "),
-      emphasis: plan.strengths.slice(0, 4),
+      narrative: evidenceBrief.careerThesis || personal.intro || plan.strengths.join(" · "),
+      emphasis: evidenceBrief.strongestSignals.slice(0, 4).length
+        ? evidenceBrief.strongestSignals.slice(0, 4)
+        : plan.strengths.slice(0, 4),
       layout: "editorial-cover",
       blocks: [
         createSiteTextBlock(
           "headline",
           siteText(
             [
+              evidenceBrief.careerThesis,
               personal.intro,
               plan.strengths.length
                 ? `${plan.strengths.join(", ")}을 중심으로 프로젝트 문제를 정의하고 구현 결과를 검증합니다.`
@@ -1916,7 +2399,13 @@ export function createDefaultPortfolioSiteDocument(
             "프로젝트와 경험을 근거 중심의 웹 슬라이드 포트폴리오로 정리합니다.",
           ),
         ),
-        createSiteTagsBlock(plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증"]),
+        createSiteTagsBlock(
+          evidenceBrief.strongestSignals.length
+            ? evidenceBrief.strongestSignals
+            : plan.strengths.length
+              ? plan.strengths
+              : ["문제 정의", "구현", "검증"],
+        ),
         createSiteMetricBlock("프로젝트", `${source.projects.length}`, "선택한 대표 프로젝트"),
         createSiteMetricBlock("기술 스택", `${skillNames.length}`, "프로젝트에서 사용한 기술"),
         createSiteFlowBlock(
@@ -1924,9 +2413,10 @@ export function createDefaultPortfolioSiteDocument(
           "포트폴리오 서사",
         ),
         createSiteCalloutBlock(
-          projectTitles.length
+          evidenceBrief.strongestSignals[0] ||
+          (projectTitles.length
             ? `대표 프로젝트 ${projectTitles.slice(0, 2).join(", ")}를 중심으로 실제 기여와 결과를 보여줍니다.`
-            : "선택한 경험을 채용 담당자가 빠르게 훑을 수 있는 발표 흐름으로 재구성합니다.",
+            : "선택한 경험을 채용 담당자가 빠르게 훑을 수 있는 발표 흐름으로 재구성합니다."),
           "읽는 방식",
         ),
       ],
@@ -1939,8 +2429,10 @@ export function createDefaultPortfolioSiteDocument(
       eyebrow: "Profile",
       intent: "일하는 방식과 강점 증명",
       visualDirection: "profile manifesto with contribution bars",
-      narrative: personal.intro || plan.strengths.join(" · "),
-      emphasis: plan.strengths.slice(0, 4),
+      narrative: personal.intro || evidenceBrief.careerThesis || plan.strengths.join(" · "),
+      emphasis: evidenceBrief.strongestSignals.slice(0, 4).length
+        ? evidenceBrief.strongestSignals.slice(0, 4)
+        : plan.strengths.slice(0, 4),
       layout: "profile-map",
       blocks: [
         createSiteTextBlock(
@@ -1948,6 +2440,7 @@ export function createDefaultPortfolioSiteDocument(
           siteText(
             [
               personal.intro,
+              evidenceBrief.careerThesis,
               plan.strengths.length
                 ? `${plan.strengths.join(", ")}을 기준으로 문제를 작은 단위로 나누고, 구현 후 결과를 다시 검증하는 방식으로 일합니다.`
                 : undefined,
@@ -2066,34 +2559,51 @@ export function createDefaultPortfolioSiteDocument(
     const subtitle = projectDisplaySubtitle(project);
     const tags = project.tags?.length ? project.tags : project.techStack || [];
     const stackText = projectStackText(project);
+    const brief = findProjectEvidenceBrief(evidenceBrief, project, title);
+    const confirmed = brief?.confirmed || [];
+    const inferred = brief?.inferred || [];
+    const technicalDecisions = brief?.technicalDecisions || [];
+    const hardParts = brief?.hardParts || [];
+    const proofPoints = brief?.proofPoints || [];
+    const sellingPoints = brief?.sellingPoints || [];
+    const slideAngles = brief?.slideAngles || [];
+    const briefKeywords = mergedBriefItems(sellingPoints, technicalDecisions, proofPoints, tags).slice(0, 6);
     pages.push(
       createSitePage({
         type: "case-study",
-        title,
+        title: slideAngles[0] || `${title} 문제와 역할`,
         subtitle,
         eyebrow: `Case ${index + 1}`,
-        intent: "대표 프로젝트의 문제 해결력 설득",
-        visualDirection: "diagonal problem to result flow with bold project title",
-        narrative: project.description || project.result || project.solution || "",
-        emphasis: [project.position, ...(tags || [])].filter(Boolean).slice(0, 5),
+        intent: hardParts[0] || sellingPoints[0] || "대표 프로젝트의 문제와 본인 역할 설명",
+        visualDirection: slideAngles[0] || "diagonal problem to result flow with bold project title",
+        narrative:
+          hardParts[0] ||
+          inferred[0] ||
+          project.description ||
+          "",
+        emphasis: briefKeywords.length
+          ? briefKeywords.slice(0, 5)
+          : [project.position, ...(tags || [])].filter(Boolean).slice(0, 5),
         layout: "case-study-flow",
         blocks: [
           createSiteTextBlock(
             "summary",
             siteText(
               [
+                briefText(confirmed, "", 2),
+                inferred[0],
                 project.description,
                 subtitle ? `역할/기간: ${subtitle}` : undefined,
-                stackText ? `사용 기술과 키워드: ${stackText}` : undefined,
               ],
               "프로젝트 목표와 구현 내용을 채용 담당자가 빠르게 이해할 수 있도록 정리합니다.",
             ),
           ),
           createSiteTextBlock(
             "problem",
-            siteText(
-              [project.situation, project.difficulty],
+            briefText(
+              hardParts.length ? hardParts : [project.situation, project.difficulty].filter(Boolean),
               "해결해야 할 문제와 제약 조건을 먼저 정의했습니다.",
+              3,
             ),
             "문제",
           ),
@@ -2101,46 +2611,33 @@ export function createDefaultPortfolioSiteDocument(
             "role",
             siteText(
               [
+                confirmed.find((item) => item.includes("역할") || item.includes("참여")),
                 project.role,
                 project.position ? `${project.position} 역할로 참여했습니다.` : undefined,
-                stackText ? `${stackText}를 사용해 구현 범위를 나눴습니다.` : undefined,
               ],
               "담당 역할을 기준으로 구현 범위와 우선순위를 정했습니다.",
             ),
             "역할",
           ),
-          createSiteTextBlock(
-            "solution",
-            siteText(
-              [project.solution, project.description ? `구현 맥락: ${project.description}` : undefined],
-              "담당 역할을 중심으로 해결 방안을 설계하고 구현했습니다.",
-            ),
-            "해결",
-          ),
-          createSiteTextBlock(
-            "result",
-            siteText(
-              [project.result, project.lesson ? `배운 점: ${project.lesson}` : undefined],
-              "구현 결과와 검증 과정에서 얻은 배운 점을 정리했습니다.",
-            ),
-            "결과",
-          ),
           createSiteFlowBlock(
-            [
-              project.situation || project.difficulty || "문제 정의",
-              project.role || project.position || "담당 역할",
-              project.solution || "해결 구현",
-              project.result || project.lesson || "결과 검증",
-            ],
+            slideAngles.length >= 4
+              ? slideAngles.slice(0, 4)
+              : [
+                  hardParts[0] || project.situation || project.difficulty || "문제 정의",
+                  project.role || project.position || "담당 역할",
+                  technicalDecisions[0] || project.solution || "해결 구현",
+                  proofPoints[0] || project.result || project.lesson || "결과 검증",
+                ],
             "문제에서 결과까지",
           ),
           createSiteContributionBlock("기여 포인트", project.position || "구현", project.period || "프로젝트"),
           createSiteCalloutBlock(
-            project.result || project.lesson || project.solution || "프로젝트에서 드러나는 핵심 역량을 요약합니다.",
+            hardParts[0] ||
+              sellingPoints[0] ||
+              "프로젝트에서 드러나는 핵심 역량을 요약합니다.",
             "면접에서 강조할 포인트",
           ),
-          createSiteTagsBlock(tags, "기술/키워드"),
-          createSiteMatrixBlock(projectStackItems(project).length ? projectStackItems(project) : tags, "기술 활용 맵"),
+          createSiteTagsBlock(mergedBriefItems(tags, sellingPoints).slice(0, 6), "핵심 키워드"),
         ],
         sourceId: project.id,
         sourceKind: "project",
@@ -2150,54 +2647,134 @@ export function createDefaultPortfolioSiteDocument(
     pages.push(
       createSitePage({
         type: "project-detail",
-        title: `${title} 상세 흐름`,
+        title: slideAngles[2] || `${title} 기술 판단`,
         subtitle,
-        eyebrow: "Detail",
-        intent: "구현 과정과 판단 기준 증명",
-        visualDirection: "process ribbon and evidence matrix",
-        narrative: project.lesson || project.result || project.solution || "",
-        emphasis: projectStackItems(project).slice(0, 5),
+        eyebrow: "Decision",
+        intent: technicalDecisions[0] || "구현 과정과 판단 기준 증명",
+        visualDirection: slideAngles[1] || "process ribbon and evidence matrix",
+        narrative:
+          technicalDecisions[0] ||
+          proofPoints[0] ||
+          project.lesson ||
+          project.result ||
+          project.solution ||
+          "",
+        emphasis: mergedBriefItems(technicalDecisions, projectStackItems(project)).slice(0, 5),
         layout: "project-dashboard",
+        composition: {
+          pattern: "evidence-wall",
+          focalPoint: "right",
+          density: "balanced",
+          accentShape: "grid",
+          visualMetaphor: "기술 선택과 구현 판단을 증거 벽처럼 분리",
+          primaryBlocks: ["decision", "evidence", "solution"],
+        },
         blocks: [
-          createSiteTimelineBlock(
-            [
-              project.situation || project.difficulty || "문제 정의",
-              project.role || "담당 역할",
-              project.solution || "해결 구현",
-              project.result || project.lesson || "결과 검증",
-            ],
-            "문제에서 결과까지",
+          createSiteTextBlock(
+            "decision",
+            briefText(
+              technicalDecisions.length
+                ? technicalDecisions
+                : [project.solution, stackText ? `${stackText} 기반 구현` : undefined].filter(Boolean),
+              "담당 역할을 중심으로 해결 방안을 설계하고 구현했습니다.",
+              3,
+            ),
+            "기술 판단",
           ),
-          createSiteMetricBlock("역할", project.position || "구현", project.period || ""),
+          createSiteMetricBlock("기술 스택", stackText || "구현", project.position || ""),
           createSiteFlowBlock(
             [
-              project.situation || "상황 파악",
-              project.role || "역할 분담",
-              project.solution || "구현과 검증",
-              project.result || project.lesson || "회고와 개선",
+              hardParts[0] || project.situation || "상황 파악",
+              confirmed.find((item) => item.includes("역할")) || project.role || "역할 분담",
+              technicalDecisions[0] || project.solution || "구현과 검증",
+              proofPoints[0] || project.result || "결과 확인",
             ],
             "실행 단계",
+          ),
+          createSiteMatrixBlock(
+            mergedBriefItems(
+              technicalDecisions,
+              projectStackItems(project),
+              [project.position || ""],
+            ),
+            "판단 요소",
+          ),
+          createSiteCalloutBlock(
+            technicalDecisions[0] || project.solution || "기술 선택 이유와 구현 범위를 분리해 설명합니다.",
+            "핵심 판단",
+          ),
+        ],
+        sourceId: project.id,
+        sourceKind: "project",
+      }),
+    );
+
+    pages.push(
+      createSitePage({
+        type: "project-detail",
+        title: slideAngles[4] || `${title} 결과와 근거`,
+        subtitle,
+        eyebrow: "Proof",
+        intent: proofPoints[0] || sellingPoints[0] || "결과와 검증 근거 정리",
+        visualDirection: slideAngles[4] || "metric spotlight with proof points",
+        narrative:
+          proofPoints[0] ||
+          sellingPoints[0] ||
+          project.lesson ||
+          project.result ||
+          "",
+        emphasis: mergedBriefItems(proofPoints, sellingPoints, projectStackItems(project)).slice(0, 5),
+        layout: "evidence-board",
+        composition: {
+          pattern: "metric-spotlight",
+          focalPoint: "center",
+          density: "balanced",
+          accentShape: "grid",
+          visualMetaphor: "결과와 회고를 큰 근거로 강조",
+          primaryBlocks: ["result", "lesson", "impact"],
+        },
+        blocks: [
+          createSiteTextBlock(
+            "result",
+            briefText(
+              proofPoints.length
+                ? proofPoints
+                : [project.result, project.lesson ? `배운 점: ${project.lesson}` : undefined].filter(Boolean),
+              "구현 결과와 검증 과정에서 얻은 배운 점을 정리했습니다.",
+              3,
+            ),
+            "결과/근거",
           ),
           createSiteTextBlock(
             "lesson",
             siteText(
               [
+                sellingPoints[0],
                 project.lesson,
-                project.result ? `결과: ${project.result}` : undefined,
                 project.solution ? `다시 적용 가능한 방식: ${project.solution}` : undefined,
               ],
               "프로젝트를 통해 다음 작업에 재사용할 수 있는 판단 기준과 구현 방식을 정리했습니다.",
             ),
             "배운 점",
           ),
+          createSiteTimelineBlock(
+            mergedBriefItems(proofPoints, sellingPoints, slideAngles).slice(0, 5),
+            "증거 흐름",
+          ),
           createSiteMatrixBlock(
-            [
-              ...(project.techStack || []),
-              project.position || "",
-              project.result ? "결과 검증" : "",
-              project.lesson ? "회고" : "",
-            ],
+            mergedBriefItems(
+              proofPoints,
+              sellingPoints,
+              [
+                project.result ? "결과 검증" : "",
+                project.lesson ? "회고" : "",
+              ],
+            ),
             "증거 요소",
+          ),
+          createSiteCalloutBlock(
+            sellingPoints[0] || proofPoints[0] || "면접에서 결과와 배운 점을 함께 설명할 수 있습니다.",
+            "면접 포인트",
           ),
         ],
         sourceId: project.id,
@@ -2252,7 +2829,10 @@ export function createDefaultPortfolioSiteDocument(
     }),
   );
 
-  const visiblePages = pages.slice(0, Math.max(8, Math.min(14, pages.length)));
+  const visiblePages = selectPortfolioSitePagesForLimit(
+    pages,
+    Math.max(5, Math.min(16, evidenceBrief.recommendedSlideCount || pages.length)),
+  );
 
   const document: PortfolioDocument = {
     version: 1,
@@ -2278,6 +2858,7 @@ export function createDefaultPortfolioDocument(
     pageSize?: PortfolioPageSize;
     orientation?: PortfolioOrientation;
     generationPreset?: PortfolioGenerationPreset;
+    evidenceBrief?: PortfolioEvidenceBrief;
   } = {},
 ): PortfolioDocument {
   if (options.format === "site") {
@@ -2285,6 +2866,7 @@ export function createDefaultPortfolioDocument(
       pageSize: options.pageSize,
       orientation: options.orientation,
       generationPreset: options.generationPreset,
+      evidenceBrief: options.evidenceBrief,
     });
   }
 
