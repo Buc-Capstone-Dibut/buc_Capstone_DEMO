@@ -69,8 +69,8 @@ curl http://localhost:8001/health
 
 - Root Directory: `ai-interview`
 - Runtime: `Python`
-- Build Command: `pip install -e .`
-- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Build Command: `uv sync --frozen --no-dev`
+- Start Command: `uv run --frozen --no-dev --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 배포 후 확인:
 
