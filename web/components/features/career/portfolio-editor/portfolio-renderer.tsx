@@ -25,17 +25,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  BarChart4Outlined,
-  CloudIot2Outlined,
-  Code1Outlined,
-  DashboardSquare1Outlined,
-  Database2Outlined,
-  QuestionMarkCircleOutlined,
-  TargetUserOutlined,
-  VectorNodes6Outlined,
-  type IconData,
-} from "@lineiconshq/free-icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -115,6 +104,44 @@ type ResizeMode =
   | "resize-sw";
 
 type DragMode = "move" | ResizeMode;
+
+type IconData = {
+  viewBox: string;
+  svg: string;
+  hasStroke?: boolean;
+  defaultFill?: string;
+};
+
+const iconPath = (svg: string): IconData => ({
+  viewBox: "0 0 24 24",
+  hasStroke: true,
+  svg,
+});
+
+const TargetUserOutlined = iconPath(
+  '<circle cx="12" cy="8" r="3.5" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20c1.2-4 3.5-6 7-6s5.8 2 7 6" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>',
+);
+const CloudIot2Outlined = iconPath(
+  '<path d="M7.5 18h9a4 4 0 0 0 .6-7.96A5.8 5.8 0 0 0 6.2 8.4 4.8 4.8 0 0 0 7.5 18Z" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h.01M12 13h.01M15 13h.01" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round"/>',
+);
+const Database2Outlined = iconPath(
+  '<ellipse cx="12" cy="6" rx="7" ry="3" stroke="{color}" stroke-width="{strokeWidth}"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>',
+);
+const DashboardSquare1Outlined = iconPath(
+  '<rect x="4" y="4" width="16" height="16" rx="3" stroke="{color}" stroke-width="{strokeWidth}"/><path d="M8 9h8M8 13h3M14 13h2M8 17h5" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round"/>',
+);
+const VectorNodes6Outlined = iconPath(
+  '<circle cx="6" cy="7" r="2" stroke="{color}" stroke-width="{strokeWidth}"/><circle cx="18" cy="7" r="2" stroke="{color}" stroke-width="{strokeWidth}"/><circle cx="12" cy="17" r="2" stroke="{color}" stroke-width="{strokeWidth}"/><path d="M8 7h8M7.2 8.7l3.6 6.6M16.8 8.7l-3.6 6.6" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round"/>',
+);
+const QuestionMarkCircleOutlined = iconPath(
+  '<circle cx="12" cy="12" r="8" stroke="{color}" stroke-width="{strokeWidth}"/><path d="M9.8 9.4a2.4 2.4 0 0 1 4.55 1.08c0 1.72-1.88 2.1-2.24 3.35M12 17h.01" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>',
+);
+const Code1Outlined = iconPath(
+  '<path d="m9 8-4 4 4 4M15 8l4 4-4 4M13 6l-2 12" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>',
+);
+const BarChart4Outlined = iconPath(
+  '<path d="M5 20V5M5 20h15M9 16v-5M13 16V8M17 16v-8" stroke="{color}" stroke-width="{strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>',
+);
 
 function bodyLines(body?: string, max = 8) {
   return (body || "")
