@@ -3,6 +3,10 @@ import { buildPortfolioDefenseReportModel } from "@/lib/interview/report/portfol
 import { buildSessionInterviewReportModel } from "@/lib/interview/report/session-interview-report-adapter";
 import { DibeotAxisKey, DibeotAxisScores } from "@/lib/interview/report/report-types";
 import { AnalysisResult } from "@/store/interview-setup-store";
+import {
+  InterviewTypeKey,
+  resolveInterviewTypeVisual,
+} from "@/lib/interview/interview-type-visuals";
 
 export type AnalysisHubSessionKind = "mock" | "defense";
 export type AnalysisHubTabKind = "all" | AnalysisHubSessionKind;
@@ -93,6 +97,10 @@ type SessionReportView = {
   company?: string;
   role?: string;
   repoUrl?: string;
+  interviewType?: string;
+  interviewTypeLabel?: string;
+  questionFocus?: string[];
+  reportLens?: string;
   summary?: string;
   strengths?: string[];
   improvements?: string[];
@@ -131,6 +139,11 @@ export interface AnalysisHubSourceSession {
   role?: string;
   repoUrl?: string;
   detectedTopics?: string[];
+  interviewType?: string;
+  questionFocus?: string[];
+  reportLens?: string;
+  jobPayload?: Record<string, unknown>;
+  job_payload?: Record<string, unknown>;
   createdAt?: number;
   analysis?: SessionAnalysisPayload | null;
   reportView?: SessionReportView | null;
@@ -159,6 +172,13 @@ export interface AnalysisHubSession {
   reportStatus: string;
   analysisQualityLabel: string;
   analysisQualityScore: number;
+  interviewTypeKey: InterviewTypeKey;
+  interviewTypeLabel: string;
+  interviewTypeDescription: string;
+  interviewTypeImage: string;
+  questionFocus: string[];
+  reportLens: string;
+  blogTags: string[];
 }
 
 export function resolveDurationMinute(targetDurationSec?: number): 5 | 10 | 15 {
@@ -215,6 +235,7 @@ function buildMockHubSession(session: AnalysisHubSourceSession): AnalysisHubSess
   if (!hasSessionReportData(session)) return null;
 
   const durationMinute = resolveDurationMinute(session.targetDurationSec);
+  const jobPayload = session.jobPayload || session.job_payload || {};
   const reportModel = buildSessionInterviewReportModel({
     analysis: session.analysis || null,
     reportView: session.reportView || null,
@@ -228,6 +249,23 @@ function buildMockHubSession(session: AnalysisHubSourceSession): AnalysisHubSess
       reportGenerationMeta: session.reportGenerationMeta || undefined,
       originalUrl: "",
     },
+  });
+  const visual = resolveInterviewTypeVisual({
+    sessionType: session.sessionType,
+    kind: "mock",
+    role: session.role || session.reportView?.role,
+    company: session.company || session.reportView?.company,
+    title: `${session.company || ""} ${session.role || ""}`,
+    subtitle: reportModel.typeName,
+    interviewType: session.interviewType || session.reportView?.interviewType,
+    jobData: jobPayload,
+    sourceText: [
+      reportModel.summary,
+      reportModel.fitSummary,
+      ...(reportModel.typeLabels || []),
+      ...(reportModel.strengths || []),
+      ...(reportModel.weaknesses || []),
+    ].join(" "),
   });
 
   return {
@@ -255,6 +293,13 @@ function buildMockHubSession(session: AnalysisHubSourceSession): AnalysisHubSess
       session.reportGenerationMeta?.analysisQuality?.score ||
       session.reportView?.analysisQuality?.score ||
       0,
+    interviewTypeKey: visual.key,
+    interviewTypeLabel: session.reportView?.interviewTypeLabel || visual.label,
+    interviewTypeDescription: visual.description,
+    interviewTypeImage: visual.imagePath,
+    questionFocus: session.questionFocus || session.reportView?.questionFocus || visual.questionFocus,
+    reportLens: session.reportLens || session.reportView?.reportLens || visual.reportLens,
+    blogTags: visual.blogTags,
   };
 }
 
@@ -262,9 +307,12 @@ function buildDefenseHubSession(session: AnalysisHubSourceSession): AnalysisHubS
   if (!hasSessionReportData(session)) return null;
 
   const durationMinute = resolveDurationMinute(session.targetDurationSec);
+  const jobPayload = session.jobPayload || session.job_payload || {};
+  const defenseAnalysis = session.analysis as Parameters<typeof buildPortfolioDefenseReportModel>[0]["analysis"];
+  const defenseReportView = session.reportView as Parameters<typeof buildPortfolioDefenseReportModel>[0]["reportView"];
   const reportModel = buildPortfolioDefenseReportModel({
-    analysis: session.analysis || null,
-    reportView: session.reportView || null,
+    analysis: defenseAnalysis || null,
+    reportView: defenseReportView || null,
     timeline: Array.isArray(session.timeline) ? session.timeline : [],
     session: {
       repoUrl: session.repoUrl,
@@ -273,6 +321,20 @@ function buildDefenseHubSession(session: AnalysisHubSourceSession): AnalysisHubS
       createdAt: session.createdAt,
       durationMinute,
     },
+  });
+  const visual = resolveInterviewTypeVisual({
+    sessionType: session.sessionType,
+    kind: "defense",
+    repoUrl: session.repoUrl || session.reportView?.repoUrl,
+    detectedTopics: session.detectedTopics,
+    interviewType: session.interviewType || session.reportView?.interviewType,
+    jobData: jobPayload,
+    sourceText: [
+      reportModel.summary,
+      reportModel.defenseSummary,
+      ...(reportModel.strengths || []),
+      ...(reportModel.weaknesses || []),
+    ].join(" "),
   });
 
   return {
@@ -300,6 +362,13 @@ function buildDefenseHubSession(session: AnalysisHubSourceSession): AnalysisHubS
       session.reportGenerationMeta?.analysisQuality?.score ||
       session.reportView?.analysisQuality?.score ||
       0,
+    interviewTypeKey: visual.key,
+    interviewTypeLabel: session.reportView?.interviewTypeLabel || visual.label,
+    interviewTypeDescription: visual.description,
+    interviewTypeImage: visual.imagePath,
+    questionFocus: session.questionFocus || session.reportView?.questionFocus || visual.questionFocus,
+    reportLens: session.reportLens || session.reportView?.reportLens || visual.reportLens,
+    blogTags: visual.blogTags,
   };
 }
 
@@ -400,6 +469,7 @@ export function deriveSessionTags(sessions: AnalysisHubSession[]) {
 
   sessions.forEach((session) => {
     const source = `${session.title} ${session.subtitle} ${session.summary}`.toLowerCase();
+    tags.push(...session.blogTags);
 
     if (source.includes("frontend")) tags.push("frontend", "react", "typescript", "nextjs");
     if (source.includes("product")) tags.push("product", "ui/ux", "frontend");

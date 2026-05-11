@@ -178,9 +178,43 @@ export type PortfolioCanvasElementKind =
   | "metric"
   | "flow"
   | "timeline"
-  | "techLogo";
+  | "techLogo"
+  | "shadcnBlock";
 export type PortfolioCanvasTextRole = "label" | "title" | "subtitle" | "body" | "tags";
 export type PortfolioCanvasFontFamily = "pretendard" | "system" | "serif" | "mono";
+export type PortfolioShadcnBlockVariant =
+  | "project-index-cards"
+  | "tech-logo-grid"
+  | "problem-solution-result"
+  | "star-method"
+  | "architecture-stack"
+  | "role-contribution"
+  | "before-after-impact"
+  | "system-architecture-map"
+  | "impact-matrix"
+  | "metric-trend"
+  | "decision-tree"
+  | "competency-radar"
+  | "kpi-cards"
+  | "timeline-steps"
+  | "callout";
+
+export type PortfolioShadcnBlockItem = {
+  label?: string;
+  title?: string;
+  body?: string;
+  value?: string;
+  progress?: number;
+  tone?: "primary" | "accent" | "muted";
+  image?: PortfolioImageSlot;
+};
+
+export type PortfolioShadcnBlockProps = {
+  title?: string;
+  subtitle?: string;
+  items?: PortfolioShadcnBlockItem[];
+  badges?: string[];
+};
 
 export type PortfolioCanvasElement = {
   id: string;
@@ -192,7 +226,8 @@ export type PortfolioCanvasElement = {
     | "metric"
     | "flow"
     | "timeline"
-    | "techLogo";
+    | "techLogo"
+    | "component";
   x: number;
   y: number;
   width: number;
@@ -211,6 +246,8 @@ export type PortfolioCanvasElement = {
   opacity?: number;
   textAlign?: "left" | "center" | "right";
   lineHeight?: number;
+  variant?: PortfolioShadcnBlockVariant;
+  props?: PortfolioShadcnBlockProps;
 };
 
 export type PortfolioCanvasLayout = {
@@ -246,7 +283,7 @@ export type PortfolioDocument = {
 export type PortfolioTemplateBlueprint = {
   layoutPreset: "minimal-recruiting" | "case-study-report" | "visual-product";
   imagePolicy: "profile-first" | "project-first" | "visual-first";
-  infographicPolicy: Array<"flow" | "metric" | "timeline" | "techLogo">;
+  infographicPolicy: Array<"flow" | "metric" | "timeline" | "techLogo" | "shadcnBlock">;
   tonePolicy: "concise-korean-hiring" | "case-study-editorial" | "visual-showcase";
   targetSlideCount: number;
 };
@@ -264,14 +301,27 @@ export type PortfolioGenerationPlan = {
     result?: string;
     projectType: "web-service" | "data-ai" | "collaboration" | "backend-api" | "general";
     imageHint: "representative" | "dashboard" | "workspace" | "team" | "studio";
-    infographicType: "flow" | "metric" | "timeline";
+    componentPattern?: Extract<
+      PortfolioShadcnBlockVariant,
+      | "star-method"
+      | "problem-solution-result"
+      | "architecture-stack"
+      | "role-contribution"
+      | "before-after-impact"
+      | "system-architecture-map"
+      | "impact-matrix"
+      | "metric-trend"
+      | "decision-tree"
+      | "competency-radar"
+    >;
+    infographicType: "flow" | "metric" | "timeline" | "shadcnBlock";
   }>;
   slidePlan: Array<{
     type: PortfolioSectionType;
     title: string;
     purpose: string;
     sourceId?: string;
-    infographicType?: "flow" | "metric" | "timeline" | "techLogo";
+    infographicType?: "flow" | "metric" | "timeline" | "techLogo" | "shadcnBlock";
   }>;
 };
 
@@ -376,7 +426,7 @@ export const PORTFOLIO_BACKGROUND_IMAGES = {
   calmGreenCase: "/portfolio-backgrounds/soft-green-03.png",
 } as const;
 
-export const PORTFOLIO_CANVAS_STYLE_VERSION = 4;
+export const PORTFOLIO_CANVAS_STYLE_VERSION = 8;
 
 export const PORTFOLIO_PAGE_PRESETS: Record<
   PortfolioPageSize,
@@ -454,7 +504,7 @@ export const PORTFOLIO_TEMPLATES: Array<{
     blueprint: {
       layoutPreset: "minimal-recruiting",
       imagePolicy: "profile-first",
-      infographicPolicy: ["techLogo", "flow", "metric"],
+      infographicPolicy: ["shadcnBlock", "techLogo", "flow", "metric"],
       tonePolicy: "concise-korean-hiring",
       targetSlideCount: 10,
     },
@@ -477,7 +527,7 @@ export const PORTFOLIO_TEMPLATES: Array<{
     blueprint: {
       layoutPreset: "case-study-report",
       imagePolicy: "project-first",
-      infographicPolicy: ["flow", "metric", "timeline", "techLogo"],
+      infographicPolicy: ["shadcnBlock", "flow", "metric", "timeline", "techLogo"],
       tonePolicy: "case-study-editorial",
       targetSlideCount: 12,
     },
@@ -500,7 +550,7 @@ export const PORTFOLIO_TEMPLATES: Array<{
     blueprint: {
       layoutPreset: "visual-product",
       imagePolicy: "visual-first",
-      infographicPolicy: ["flow", "metric", "techLogo"],
+      infographicPolicy: ["shadcnBlock", "flow", "metric", "techLogo"],
       tonePolicy: "visual-showcase",
       targetSlideCount: 10,
     },
@@ -925,6 +975,157 @@ function compactBody(value: string | undefined, maxLines = 5) {
     .join("\n");
 }
 
+function bodyItem(label: string, body?: string): PortfolioShadcnBlockItem {
+  return {
+    label,
+    title: label,
+    body: body?.replace(/^(문제\/배경|문제|역할|해결|성과|결과|배운 점):\s*/u, "") || "",
+  };
+}
+
+function extractBodyItem(body: string | undefined, label: string, fallback: string) {
+  const line = (body || "")
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${label}:`) || item.startsWith(`${label}/`));
+  return line?.replace(/^[^:]+:\s*/u, "") || fallback;
+}
+
+function pickProjectBlockVariant(section: PortfolioSection): PortfolioShadcnBlockVariant {
+  const text = `${section.title} ${section.subtitle || ""} ${section.body || ""} ${(section.tags || []).join(" ")}`.toLowerCase();
+  if (/의사결정|선택|우선순위|trade.?off|트레이드오프|분기|조건|정책/.test(text)) {
+    return "decision-tree";
+  }
+  if (/역량|평가|강점|skill|competency|성장|학습/.test(text)) {
+    return "competency-radar";
+  }
+  if (/api|backend|백엔드|서버|db|database|아키텍처|architecture|infra|cloud|msa|kafka|queue/.test(text)) {
+    return "system-architecture-map";
+  }
+  if (/데이터|분석|지표|kpi|자동화|etl|dashboard|대시보드|리포트|metric/.test(text)) {
+    return "metric-trend";
+  }
+  if (/비교|개선|전후|before|after|impact|효과/.test(text)) {
+    return "impact-matrix";
+  }
+  if (/infra|cloud/.test(text)) {
+    return "architecture-stack";
+  }
+  if (/pm|협업|기획|리드|조율|우선순위|stakeholder/.test(text)) {
+    return "role-contribution";
+  }
+  if (/상황|과제|행동|star/.test(text)) {
+    return "star-method";
+  }
+  return "problem-solution-result";
+}
+
+function projectBlockItems(section: PortfolioSection, variant: PortfolioShadcnBlockVariant): PortfolioShadcnBlockItem[] {
+  const problem = extractBodyItem(section.body, "문제", extractBodyItem(section.body, "문제/배경", "해결해야 할 문제를 정의했습니다."));
+  const role = extractBodyItem(section.body, "역할", section.subtitle || "담당 역할을 기준으로 기여 범위를 정리했습니다.");
+  const solution = extractBodyItem(section.body, "해결", "해결 방안을 설계하고 구현했습니다.");
+  const result = extractBodyItem(section.body, "성과", extractBodyItem(section.body, "결과", "구현 결과와 배운 점을 정리했습니다."));
+  const lesson = extractBodyItem(section.body, "배운 점", "다음 개선 방향을 도출했습니다.");
+
+  if (variant === "star-method") {
+    return [
+      bodyItem("상황", problem),
+      bodyItem("과제", role),
+      bodyItem("행동", solution),
+      bodyItem("결과", result),
+    ];
+  }
+
+  if (variant === "architecture-stack") {
+    return [
+      bodyItem("요구", problem),
+      bodyItem("구조", role),
+      bodyItem("구현", solution),
+      bodyItem("검증", result),
+    ];
+  }
+
+  if (variant === "system-architecture-map") {
+    return [
+      { ...bodyItem("Input", problem), progress: 35, tone: "muted" },
+      { ...bodyItem("Service", solution), progress: 72, tone: "primary" },
+      { ...bodyItem("Data", role), progress: 58, tone: "accent" },
+      { ...bodyItem("Output", result), progress: 86, tone: "primary" },
+    ];
+  }
+
+  if (variant === "metric-trend") {
+    return [
+      { ...bodyItem("Before", problem), value: "문제", progress: 34, tone: "muted" },
+      { ...bodyItem("Build", solution), value: "구현", progress: 68, tone: "accent" },
+      { ...bodyItem("Impact", result), value: "성과", progress: 88, tone: "primary" },
+    ];
+  }
+
+  if (variant === "decision-tree") {
+    return [
+      { label: "1", title: "판단 기준", body: problem, progress: 40, tone: "muted" },
+      { label: "2", title: "선택지", body: role, progress: 62, tone: "accent" },
+      { label: "3", title: "결정", body: solution, progress: 78, tone: "primary" },
+      { label: "4", title: "검증", body: result, progress: 90, tone: "primary" },
+    ];
+  }
+
+  if (variant === "competency-radar") {
+    return [
+      { ...bodyItem("문제정의", problem), progress: 72, tone: "primary" },
+      { ...bodyItem("구현", solution), progress: 84, tone: "accent" },
+      { ...bodyItem("협업", role), progress: 68, tone: "muted" },
+      { ...bodyItem("성과", result), progress: 88, tone: "primary" },
+    ];
+  }
+
+  if (variant === "impact-matrix") {
+    return [
+      { ...bodyItem("Before", problem), progress: 36, tone: "muted" },
+      { ...bodyItem("Action", solution), progress: 70, tone: "accent" },
+      { ...bodyItem("After", result), progress: 86, tone: "primary" },
+      { ...bodyItem("Next", lesson), progress: 64, tone: "muted" },
+    ];
+  }
+
+  if (variant === "role-contribution") {
+    return [
+      bodyItem("역할", role),
+      bodyItem("협업", problem),
+      bodyItem("기여", solution),
+      bodyItem("성과", result),
+    ];
+  }
+
+  if (variant === "before-after-impact") {
+    return [
+      bodyItem("Before", problem),
+      bodyItem("Action", solution),
+      bodyItem("Impact", result || lesson),
+    ];
+  }
+
+  return [
+    bodyItem("문제", problem),
+    bodyItem("해결", solution),
+    bodyItem("결과", result),
+  ];
+}
+
+function projectBlockTitle(variant: PortfolioShadcnBlockVariant) {
+  if (variant === "star-method") return "STAR 경험 정리";
+  if (variant === "architecture-stack") return "기술 구조와 구현";
+  if (variant === "system-architecture-map") return "시스템 구조 맵";
+  if (variant === "impact-matrix") return "임팩트 매트릭스";
+  if (variant === "metric-trend") return "지표 변화 흐름";
+  if (variant === "decision-tree") return "의사결정 트리";
+  if (variant === "competency-radar") return "역량 레이더";
+  if (variant === "role-contribution") return "역할과 기여도";
+  if (variant === "before-after-impact") return "개선 전후와 성과";
+  return "문제 해결 흐름";
+}
+
 function canvasTextElement(
   id: string,
   role: PortfolioCanvasTextRole,
@@ -989,6 +1190,8 @@ function canvasVisualElement(
     role:
       kind === "techLogo"
         ? "techLogo"
+        : kind === "shadcnBlock"
+          ? "component"
         : kind === "timeline"
           ? "timeline"
           : kind === "flow"
@@ -1004,6 +1207,24 @@ function canvasVisualElement(
   };
 }
 
+function canvasShadcnBlockElement(
+  id: string,
+  variant: PortfolioShadcnBlockVariant,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  props: PortfolioShadcnBlockProps,
+  patch: Partial<PortfolioCanvasElement> = {},
+): PortfolioCanvasElement {
+  return canvasVisualElement(id, "shadcnBlock", x, y, width, height, {
+    role: "component",
+    variant,
+    props,
+    ...patch,
+  });
+}
+
 function createSectionCanvas(
   elements: PortfolioCanvasElement[],
   pageSize: PortfolioPageSize = "16:9",
@@ -1015,6 +1236,29 @@ function createSectionCanvas(
     styleVersion: PORTFOLIO_CANVAS_STYLE_VERSION,
     elements,
   };
+}
+
+function canvasCorporateHeaderElements(
+  label: string,
+  title: string,
+  theme: PortfolioTheme,
+): PortfolioCanvasElement[] {
+  return [
+    canvasVisualElement("header-step-primary", "shape", 50, 34, 122, 28, {
+      fill: theme.primary,
+      opacity: 0.96,
+    }),
+    canvasVisualElement("header-step-accent", "shape", 172, 34, 28, 28, {
+      fill: theme.accent,
+      opacity: 0.92,
+    }),
+    canvasVisualElement("header-step-rule", "line", 200, 48, 690, 1, {
+      stroke: theme.primary,
+      opacity: 0.34,
+    }),
+    canvasTextElement("header-label", "label", label, 66, 41, 96, 14, 10, 900, "#ffffff"),
+    canvasTextElement("title", "title", title, 220, 30, 556, 36, 22, 900, theme.text),
+  ];
 }
 
 function inferPortfolioPosition(source: PortfolioSourceData) {
@@ -1067,7 +1311,7 @@ export function createFallbackPortfolioGenerationPlan(
             : projectType === "backend-api"
               ? "workspace"
               : "representative",
-      infographicType: index % 3 === 0 ? "flow" : index % 3 === 1 ? "metric" : "timeline",
+      infographicType: "shadcnBlock",
     } satisfies PortfolioGenerationPlan["projectMessages"][number];
   });
 
@@ -1078,8 +1322,8 @@ export function createFallbackPortfolioGenerationPlan(
     slidePlan: [
       { type: "hero", title: `${position} 포트폴리오`, purpose: "지원자의 포지션과 강점 제시" },
       { type: "about", title: "한 줄 소개", purpose: "프로필과 일하는 방식 요약" },
-      { type: "skills", title: "핵심 역량", purpose: "채용 직무와 연결되는 기술 스택 제시", infographicType: "techLogo" },
-      { type: "index", title: "프로젝트 인덱스", purpose: "대표 프로젝트 목록과 핵심 키워드 정리" },
+      { type: "skills", title: "핵심 역량", purpose: "채용 직무와 연결되는 기술 스택 제시", infographicType: "shadcnBlock" },
+      { type: "index", title: "프로젝트 인덱스", purpose: "대표 프로젝트 목록과 핵심 키워드 정리", infographicType: "shadcnBlock" },
       ...projectMessages.flatMap((project) => [
         { type: "project" as const, title: project.title, purpose: project.coreMessage, sourceId: project.sourceId, infographicType: project.infographicType },
       ]),
@@ -1321,50 +1565,51 @@ export function normalizePortfolioEvidenceBrief(
 
 function buildHeroCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   return createSectionCanvas([
+    ...canvasCorporateHeaderElements("PORTFOLIO", section.title, theme),
     canvasVisualElement("cover-soft-shape", "shape", 552, 320, 428, 240, {
       fill: theme.accent,
       opacity: 0.2,
     }),
-    canvasTextElement("label", "label", "Portfolio", 74, 60, 160, 28, 16, 700, theme.muted),
-    canvasTextElement("title", "title", section.title, 74, 162, 610, 152, 62, 900, theme.text),
-    canvasTextElement("subtitle", "subtitle", section.subtitle || "", 78, 336, 530, 68, 24, 700, theme.muted),
+    canvasTextElement("hero-display", "subtitle", section.subtitle || section.title, 74, 168, 610, 128, 50, 900, theme.text),
+    canvasTextElement("subtitle", "subtitle", section.body || "", 78, 326, 530, 68, 22, 700, theme.muted),
     canvasImageElement("image", section.image, 678, 130, 182, 182),
   ]);
 }
 
 function buildAboutCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   return createSectionCanvas([
-    canvasVisualElement("profile-panel", "shape", 50, 0, 280, 540, {
+    ...canvasCorporateHeaderElements("PROFILE", section.title, theme),
+    canvasVisualElement("profile-panel", "shape", 50, 100, 280, 384, {
       fill: theme.primary,
       opacity: 0.72,
     }),
-    canvasTextElement("label", "label", "PROFILE", 382, 82, 140, 26, 14, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 382, 122, 460, 52, 34, 900, theme.text),
-    canvasTextElement("body", "body", compactBody(section.body, 4), 382, 202, 500, 116, 18, 500, theme.text),
-    canvasImageElement("image", section.image, 98, 140, 184, 184),
-    canvasTextElement("subtitle", "subtitle", section.subtitle || "프로필", 86, 370, 220, 82, 18, 800, "#ffffff"),
+    canvasTextElement("body", "body", compactBody(section.body, 4), 382, 158, 500, 132, 18, 500, theme.text),
+    canvasImageElement("image", section.image, 98, 156, 184, 184),
+    canvasTextElement("subtitle", "subtitle", section.subtitle || "프로필", 86, 376, 220, 64, 17, 800, "#ffffff"),
   ]);
 }
 
 function buildSkillsCanvas(section: PortfolioSection, theme: PortfolioTheme) {
-  const logoElements = (section.images || []).slice(0, 10).flatMap((image, index) => {
-    const col = index % 5;
-    const row = Math.floor(index / 5);
-    const x = 502 + col * 78;
-    const y = 138 + row * 112;
-    return [
-      { ...canvasImageElement(`tech-logo-${index}`, image, x, y, 56, 56), kind: "techLogo" as const, role: "techLogo" as const },
-      canvasTextElement(`tech-label-${index}`, "label", image.caption || image.alt?.replace(/\s*로고$/, "") || "Stack", x - 10, y + 66, 76, 22, 11, 800, theme.muted),
-    ];
-  });
+  const techItems = (section.images || []).slice(0, 12).map((image) => ({
+    title: image.caption || image.alt?.replace(/\s*로고$/, "") || "Stack",
+    image,
+  }));
 
   return createSectionCanvas([
-    canvasTextElement("label", "label", "STACK", 72, 84, 140, 26, 15, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 72, 140, 330, 58, 40, 900, theme.text),
-    canvasTextElement("body", "body", compactBody(section.body, 4), 74, 230, 330, 112, 17, 600, theme.muted),
-    canvasVisualElement("metric-1", "metric", 74, 382, 126, 58, { label: "주요 기술", value: `${section.tags?.length || 0}`, fill: "#ffffff", stroke: theme.primary }),
-    canvasVisualElement("metric-2", "metric", 216, 382, 146, 58, { label: "활용 영역", value: "서비스", fill: "#ffffff", stroke: theme.accent }),
-    ...logoElements,
+    ...canvasCorporateHeaderElements("STACK", section.title, theme),
+    canvasTextElement("body", "body", compactBody(section.body, 4), 74, 132, 330, 128, 17, 600, theme.muted),
+    canvasShadcnBlockElement("skill-summary", "kpi-cards", 74, 320, 292, 82, {
+      items: [
+        { label: "주요 기술", value: `${section.tags?.length || 0}`, body: "자동 추출" },
+        { label: "활용 영역", value: "서비스", body: "프로젝트 기반" },
+      ],
+    }, { stroke: theme.primary, fill: "#ffffff" }),
+    canvasShadcnBlockElement("tech-stack-grid", "tech-logo-grid", 462, 112, 392, 322, {
+      title: "기술 스택",
+      items: techItems.length
+        ? techItems
+        : (section.tags || []).slice(0, 10).map((title) => ({ title })),
+    }, { stroke: theme.primary, fill: "#ffffff" }),
   ]);
 }
 
@@ -1372,33 +1617,43 @@ function buildProjectCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   const flowItems = section.tags?.slice(0, 3).length
     ? section.tags.slice(0, 3)
     : ["문제 정의", "해결 구현", "결과 검증"];
+  const blockVariant = pickProjectBlockVariant(section);
 
   return createSectionCanvas([
-    canvasVisualElement("left-panel", "shape", 0, 0, 382, 540, { fill: theme.primary, opacity: 0.78 }),
-    canvasTextElement("label", "label", "PROJECT CASE", 58, 58, 170, 26, 14, 900, "#f8fafc"),
-    canvasTextElement("title", "title", section.title, 58, 122, 312, 122, 34, 900, "#ffffff"),
-    canvasTextElement("subtitle", "subtitle", section.subtitle || "", 60, 310, 300, 36, 16, 800, "#f8fafc"),
-    canvasTextElement("tags", "tags", (section.tags || []).slice(0, 5).join("  ·  "), 60, 360, 300, 58, 14, 800, "#f8fafc"),
-    canvasImageElement("image", section.image, 438, 76, 402, 170),
-    canvasVisualElement("flow", "flow", 438, 278, 402, 78, { items: flowItems, fill: theme.accent, stroke: theme.primary }),
-    canvasTextElement("body", "body", compactBody(section.body, 5), 440, 384, 404, 118, 15, 500, theme.text),
+    ...canvasCorporateHeaderElements("PROJECT CASE", section.title, theme),
+    canvasVisualElement("left-panel", "shape", 50, 106, 248, 150, { fill: theme.primary, opacity: 0.74 }),
+    canvasTextElement("subtitle", "subtitle", section.subtitle || "역할과 기간", 72, 132, 202, 24, 13, 900, "#f8fafc"),
+    canvasTextElement("tags", "tags", (section.tags || []).slice(0, 4).join("  ·  "), 72, 166, 204, 46, 11, 800, "#f8fafc"),
+    canvasTextElement("body", "body", compactBody(section.body, 1), 72, 286, 230, 46, 12, 700, theme.muted),
+    canvasImageElement("image", section.image, 342, 92, 544, 148),
+    canvasShadcnBlockElement("case-flow", blockVariant, 342, 270, 544, 212, {
+      title: projectBlockTitle(blockVariant),
+      items: projectBlockItems(section, blockVariant),
+      badges: flowItems,
+    }, { stroke: theme.primary, fill: "#ffffff" }),
   ]);
 }
 
 function buildIndexCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   const items = section.tags?.length ? section.tags.slice(0, 6) : ["대표 프로젝트", "핵심 역량", "기술 스택"];
   return createSectionCanvas([
-    canvasTextElement("label", "label", "INDEX", 72, 70, 140, 26, 15, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 72, 126, 386, 58, 40, 900, theme.text),
-    canvasVisualElement("timeline", "timeline", 118, 220, 724, 210, { items, stroke: theme.primary, fill: "#ffffff" }),
+    ...canvasCorporateHeaderElements("INDEX", section.title, theme),
+    canvasTextElement("subtitle", "subtitle", section.subtitle || "대표 프로젝트와 핵심 키워드", 74, 120, 420, 38, 18, 800, theme.muted),
+    canvasShadcnBlockElement("project-index", "project-index-cards", 104, 196, 752, 250, {
+      title: section.subtitle || "선택한 프로젝트",
+      items: items.map((title, index) => ({
+        label: `0${index + 1}`,
+        title,
+        body: index === 0 ? "대표 케이스스터디" : "연결 프로젝트",
+      })),
+    }, { stroke: theme.primary, fill: "#ffffff" }),
   ]);
 }
 
 function buildGalleryCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   return createSectionCanvas([
-    canvasTextElement("label", "label", "VISUAL PROOF", 72, 70, 170, 26, 14, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 72, 116, 380, 56, 38, 900, theme.text),
-    canvasTextElement("subtitle", "subtitle", section.subtitle || "", 472, 120, 350, 54, 16, 700, theme.muted),
+    ...canvasCorporateHeaderElements("VISUAL PROOF", section.title, theme),
+    canvasTextElement("subtitle", "subtitle", section.subtitle || "", 72, 116, 760, 42, 16, 700, theme.muted),
     canvasImageElement("image-1", section.images?.[0], 72, 220, 248, 184),
     canvasImageElement("image-2", section.images?.[1], 356, 220, 248, 184),
     canvasImageElement("image-3", section.images?.[2], 640, 220, 248, 184),
@@ -1412,28 +1667,26 @@ function buildRetrospectiveCanvas(section: PortfolioSection, theme: PortfolioThe
       : ["문제 정의", "실행", "검증", "개선"];
 
   return createSectionCanvas([
-    canvasTextElement("label", "label", "GROWTH", 72, 70, 160, 26, 14, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 72, 126, 440, 58, 40, 900, theme.text),
-    canvasTextElement("body", "body", compactBody(section.body, 4), 74, 214, 370, 128, 17, 600, theme.muted),
-    canvasVisualElement("timeline", "timeline", 512, 120, 330, 280, {
-      items,
-      fill: "#ffffff",
-      stroke: theme.primary,
-    }),
-    canvasVisualElement("metric", "metric", 74, 386, 168, 64, {
-      label: "정리된 경험",
-      value: `${items.length}`,
-      fill: "#ffffff",
-      stroke: theme.accent,
-    }),
+    ...canvasCorporateHeaderElements("GROWTH", section.title, theme),
+    canvasTextElement("body", "body", compactBody(section.body, 4), 74, 136, 370, 128, 17, 600, theme.muted),
+    canvasShadcnBlockElement("growth-steps", "timeline-steps", 500, 112, 348, 286, {
+      title: "성장 흐름",
+      items: items.map((title, index) => ({
+        label: `${index + 1}`,
+        title,
+        body: index === 0 ? "문제 인식" : index === items.length - 1 ? "다음 개선점" : "실행 경험",
+      })),
+    }, { stroke: theme.primary, fill: "#ffffff" }),
+    canvasShadcnBlockElement("growth-metric", "kpi-cards", 74, 386, 230, 64, {
+      items: [{ label: "정리된 경험", value: `${items.length}`, body: "성장 키워드" }],
+    }, { stroke: theme.primary, fill: "#ffffff" }),
   ]);
 }
 
 function buildContactCanvas(section: PortfolioSection, theme: PortfolioTheme) {
   return createSectionCanvas([
-    canvasTextElement("label", "label", "CONTACT", 386, 126, 188, 28, 16, 900, theme.primary),
-    canvasTextElement("title", "title", section.title, 274, 198, 412, 72, 48, 900, theme.text),
-    canvasTextElement("body", "body", compactBody(section.body, 5), 292, 312, 376, 92, 18, 700, theme.muted),
+    ...canvasCorporateHeaderElements("CONTACT", section.title, theme),
+    canvasTextElement("body", "body", compactBody(section.body, 5), 270, 210, 420, 116, 20, 800, theme.muted),
   ]);
 }
 
@@ -1468,30 +1721,40 @@ function buildA4SectionCanvas(section: PortfolioSection, theme: PortfolioTheme) 
       canvasImageElement("image", section.image, 74, 238, 164, 164),
       canvasTextElement("subtitle", "subtitle", section.subtitle || "프로필", 270, 256, 360, 38, 18, 800, theme.primary),
       canvasTextElement("body", "body", body || "소개 문장을 입력하세요.", 270, 318, 398, 140, 17, 500, theme.text),
-      canvasVisualElement("timeline", "timeline", 74, 548, 610, 216, { items: tags.length ? tags : ["문제 정의", "구현", "검증", "개선"], stroke: theme.primary, fill: "#ffffff" }),
+      canvasShadcnBlockElement("profile-growth", "timeline-steps", 74, 548, 610, 216, {
+        title: "핵심 경험 흐름",
+        items: (tags.length ? tags : ["문제 정의", "구현", "검증", "개선"]).map((item, index) => ({
+          label: `${index + 1}`,
+          title: item,
+          body: index === 0 ? "강점 키워드" : "경험 기반",
+        })),
+      }, { stroke: theme.primary, fill: "#ffffff" }),
       canvasTextElement("footer", "label", "Profile Summary", 74, 1018, 180, 24, 12, 800, theme.muted),
     ], pageSize);
   }
 
   if (section.type === "skills") {
-    const logos = (section.images || []).slice(0, 12).flatMap((image, index) => {
-      const col = index % 4;
-      const row = Math.floor(index / 4);
-      const x = 116 + col * 146;
-      const y = 346 + row * 136;
-      return [
-        { ...canvasImageElement(`tech-logo-${index}`, image, x, y, 54, 54), kind: "techLogo" as const, role: "techLogo" as const },
-        canvasTextElement(`tech-label-${index}`, "label", image.caption || image.alt?.replace(/\s*로고$/, "") || "Stack", x + 64, y + 14, 78, 24, 12, 800, theme.muted),
-      ];
-    });
+    const techItems = (section.images || []).slice(0, 12).map((image) => ({
+      title: image.caption || image.alt?.replace(/\s*로고$/, "") || "Stack",
+      image,
+    }));
 
     return createSectionCanvas([
       canvasTextElement("label", "label", "CAPABILITY", 74, 84, 190, 28, 15, 900, theme.primary),
       canvasTextElement("title", "title", title, 74, 134, 480, 64, 36, 900, theme.text),
       canvasTextElement("body", "body", body || "사용 기술과 업무 강점을 정리합니다.", 76, 224, 580, 88, 17, 600, theme.muted),
-      ...logos,
-      canvasVisualElement("metric-1", "metric", 74, 812, 180, 74, { label: "주요 기술", value: `${section.tags?.length || 0}`, stroke: theme.primary }),
-      canvasVisualElement("metric-2", "metric", 276, 812, 220, 74, { label: "포트폴리오 포맷", value: "A4", stroke: theme.accent }),
+      canvasShadcnBlockElement("tech-stack-grid", "tech-logo-grid", 74, 346, 620, 360, {
+        title: "기술 로고",
+        items: techItems.length
+          ? techItems
+          : tags.slice(0, 12).map((tag) => ({ title: tag })),
+      }, { stroke: theme.primary, fill: "#ffffff" }),
+      canvasShadcnBlockElement("skill-summary", "kpi-cards", 74, 812, 422, 74, {
+        items: [
+          { label: "주요 기술", value: `${section.tags?.length || 0}`, body: "프로젝트 기반" },
+          { label: "포트폴리오 포맷", value: "A4", body: "보고서형" },
+        ],
+      }, { stroke: theme.primary, fill: "#ffffff" }),
     ], pageSize);
   }
 
@@ -1499,20 +1762,32 @@ function buildA4SectionCanvas(section: PortfolioSection, theme: PortfolioTheme) 
     return createSectionCanvas([
       canvasTextElement("label", "label", "CONTENTS", 74, 84, 180, 28, 15, 900, theme.primary),
       canvasTextElement("title", "title", title, 74, 134, 480, 64, 36, 900, theme.text),
-      canvasVisualElement("timeline", "timeline", 74, 250, 620, 360, { items: tags.length ? tags.slice(0, 6) : ["프로필", "기술 스택", "프로젝트"], stroke: theme.primary, fill: "#ffffff" }),
+      canvasShadcnBlockElement("project-index", "project-index-cards", 74, 250, 620, 360, {
+        title: "구성 목차",
+        items: (tags.length ? tags.slice(0, 6) : ["프로필", "기술 스택", "프로젝트"]).map((item, index) => ({
+          label: String(index + 1).padStart(2, "0"),
+          title: item,
+          body: index === 0 ? "대표 흐름" : "포트폴리오 섹션",
+        })),
+      }, { stroke: theme.primary, fill: "#ffffff" }),
       canvasTextElement("body", "body", section.subtitle || "선택한 프로젝트와 경험의 흐름입니다.", 76, 700, 520, 78, 17, 600, theme.muted),
     ], pageSize);
   }
 
   if (section.type === "project") {
     const flowItems = tags.length ? tags.slice(0, 3) : ["문제", "역할", "해결"];
+    const blockVariant = pickProjectBlockVariant(section);
     return createSectionCanvas([
       canvasTextElement("label", "label", "PROJECT CASE", 74, 70, 180, 28, 15, 900, theme.primary),
       canvasTextElement("title", "title", title, 74, 122, 560, 90, 32, 900, theme.text),
       canvasTextElement("subtitle", "subtitle", section.subtitle || "역할과 기간", 76, 222, 540, 34, 16, 800, theme.muted),
-      canvasImageElement("image", section.image, 74, 300, 646, 300),
-      canvasVisualElement("flow", "flow", 96, 646, 602, 78, { items: flowItems, fill: theme.accent, stroke: theme.primary }),
-      canvasTextElement("body", "body", body || "프로젝트 내용을 입력하세요.", 96, 770, 600, 210, 16, 500, theme.text),
+      canvasImageElement("image", section.image, 74, 292, 646, 280),
+      canvasShadcnBlockElement("case-flow", blockVariant, 96, 618, 602, 200, {
+        title: projectBlockTitle(blockVariant),
+        items: projectBlockItems(section, blockVariant),
+        badges: flowItems,
+      }, { stroke: theme.primary, fill: "#ffffff" }),
+      canvasTextElement("body", "body", compactBody(section.body, 3) || "프로젝트 내용을 입력하세요.", 96, 852, 600, 126, 15, 500, theme.text),
       canvasTextElement("footer", "label", "Project Detail", 74, 1030, 180, 24, 12, 800, theme.muted),
     ], pageSize);
   }

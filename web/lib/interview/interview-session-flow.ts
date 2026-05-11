@@ -17,6 +17,7 @@ export function hasRenderableInterviewReport(detail: {
 export function hasStructuredInterviewReport(detail: {
   analysis?: unknown;
   report_view?: unknown;
+  timeline?: unknown[] | null;
 } | null | undefined): boolean {
   return Boolean(detail?.report_view || detail?.analysis);
 }
@@ -34,6 +35,7 @@ export function shouldPollForInterviewReport(detail: {
   reportStatus?: string | null;
   analysis?: unknown;
   report_view?: unknown;
+  timeline?: unknown[] | null;
 } | null | undefined): boolean {
   return isPendingReportStatus(detail?.reportStatus) && !hasStructuredInterviewReport(detail);
 }

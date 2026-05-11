@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -12,7 +13,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { GlobalHeader } from "@/components/layout/global-header";
 import {
   ANALYSIS_HUB_AXES,
   AnalysisHubSourceSession,
@@ -31,24 +31,53 @@ import type { RecommendedBlog } from "@/lib/interview/report/blog-recommendation
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getTypeName } from "@/lib/interview/report/dibeot-axis";
+import {
+  getInterviewTypeVisual,
+  INTERVIEW_TYPE_VISUALS,
+  type InterviewTypeVisual,
+} from "@/lib/interview/interview-type-visuals";
 
-function DibeotCharacter({ typeName }: { typeName: string }) {
+function InterviewTypeArtwork({
+  visual,
+  size = "lg",
+  priority,
+}: {
+  visual: InterviewTypeVisual;
+  size?: "sm" | "md" | "lg";
+  priority?: boolean;
+}) {
+  const sizeClass =
+    size === "sm"
+      ? "h-16 w-16"
+      : size === "md"
+        ? "h-28 w-28"
+        : "h-44 w-44";
+
   return (
-    <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-[36px] bg-primary/10 shadow-inner shadow-primary/5 md:mx-0">
-      <div className="absolute -top-3 left-7 h-8 w-8 rounded-full bg-primary/20" />
-      <div className="absolute -top-3 right-7 h-8 w-8 rounded-full bg-primary/20" />
-      <div className="relative flex h-28 w-28 items-center justify-center rounded-[30px] bg-background shadow-sm">
-        <div className="absolute left-5 top-8 h-3 w-3 rounded-full bg-foreground/80" />
-        <div className="absolute right-5 top-8 h-3 w-3 rounded-full bg-foreground/80" />
-        <div className="absolute top-[52px] h-2 w-7 rounded-full bg-primary/40" />
-        <div className="absolute bottom-5 h-6 w-12 rounded-b-[18px] rounded-t-[8px] bg-primary/20" />
-        <span className="absolute -bottom-10 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-          디벗
-        </span>
-      </div>
-      <span className="sr-only">{typeName} 디벗 캐릭터</span>
+    <div className={cn("relative shrink-0", sizeClass)}>
+      <span className="absolute inset-x-3 bottom-2 h-6 rounded-full bg-[#172033]/10 blur-xl" />
+      <Image
+        src={visual.imagePath}
+        alt={visual.label}
+        fill
+        sizes={size === "sm" ? "64px" : size === "md" ? "112px" : "176px"}
+        className="object-contain drop-shadow-[0_24px_24px_rgba(23,32,51,0.14)]"
+        priority={priority ?? size === "lg"}
+      />
     </div>
   );
+}
+
+function resolveBlogVisual(blog: RecommendedBlog, fallback: InterviewTypeVisual) {
+  const tags = new Set((blog.tags ?? []).map((tag) => tag.toLowerCase()));
+  return INTERVIEW_TYPE_VISUALS.find((visual) => visual.blogTags.some((tag) => tags.has(tag))) || fallback;
+}
+
+function formatPublishedDate(value?: string | Date | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
 function AxisCard({
@@ -204,9 +233,16 @@ function LoadingCard() {
   );
 }
 
+function getSessionStatusLabel(status: string) {
+  if (status === "pending" || status === "running") return "분석 대기";
+  if (status === "failed") return "분석 실패";
+  return "분석 완료";
+}
+
 export default function InterviewAnalysisPage() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<AnalysisHubTabKind>("all");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [sourceSessions, setSourceSessions] = useState<AnalysisHubSourceSession[]>([]);
@@ -256,11 +292,37 @@ export default function InterviewAnalysisPage() {
     () => allSessions.filter((session) => selectedTab === "all" || session.kind === selectedTab),
     [allSessions, selectedTab],
   );
+  const repeatCounts = useMemo(() => {
+    return allSessions.reduce((acc, session) => {
+      const key = `${session.kind}:${session.subtitle || session.title}`;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [allSessions]);
   const recentProfileBase = useMemo(
     () => (allSessions.length > 0 ? allSessions.slice(0, 6) : []),
     [allSessions],
   );
+  const interviewTypeStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    allSessions.forEach((session) => {
+      counts.set(session.interviewTypeKey, (counts.get(session.interviewTypeKey) || 0) + 1);
+    });
+
+    return INTERVIEW_TYPE_VISUALS.map((visual) => ({
+      visual,
+      count: counts.get(visual.key) || 0,
+    })).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return INTERVIEW_TYPE_VISUALS.findIndex((item) => item.key === a.visual.key)
+        - INTERVIEW_TYPE_VISUALS.findIndex((item) => item.key === b.visual.key);
+    });
+  }, [allSessions]);
   const recentSessionsPreview = useMemo(() => allSessions.slice(0, 3), [allSessions]);
+  const representativeInterviewVisual = useMemo(() => {
+    const topType = interviewTypeStats.find((item) => item.count > 0)?.visual;
+    return topType || getInterviewTypeVisual("posting-fit");
+  }, [interviewTypeStats]);
   const representativeAxes = useMemo(
     () => computeRepresentativeAxes(recentProfileBase),
     [recentProfileBase],
@@ -308,11 +370,15 @@ export default function InterviewAnalysisPage() {
             user.email?.split("@")[0] ||
             "회원";
 
-          const { data: profile } = await supabase
+          const { data: profileRow } = await supabase
             .from("profiles")
             .select("nickname, tech_stack")
             .eq("id", user.id)
             .maybeSingle();
+          const profile = profileRow as {
+            nickname?: string | null;
+            tech_stack?: string[] | null;
+          } | null;
 
           if (profile?.nickname) {
             nickname = profile.nickname;
@@ -370,8 +436,6 @@ export default function InterviewAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-white text-foreground">
-      <GlobalHeader />
-
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-10 px-6 py-8 md:px-10">
         <section className="border-b border-[#dfe5ec] pb-8">
           <div className="space-y-2">
@@ -407,19 +471,19 @@ export default function InterviewAnalysisPage() {
             <div>
               <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
                 <div className="grid min-w-0 gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
-                  <DibeotCharacter typeName={representativeTypeName} />
+                  <InterviewTypeArtwork visual={representativeInterviewVisual} />
 
                   <div className="space-y-5">
                     <div className="space-y-2">
                       <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
-                        대표 디벗 유형
+                        대표 면접 유형
                       </Badge>
-                      <h2 className="text-3xl font-black tracking-tight">{representativeTypeName}</h2>
-                      <p className="text-base font-medium text-foreground">{representativeLabels.join(" · ")}</p>
+                      <h2 className="text-3xl font-black tracking-tight">{representativeInterviewVisual.label}</h2>
+                      <p className="text-base font-medium text-foreground">{representativeTypeName} · {representativeLabels.join(" · ")}</p>
                       <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
                         {hasSessions
-                          ? `최근 ${Math.min(recentProfileBase.length, 6)}개 세션을 종합하면 ${getDominantAxesText(representativeAxes)} 축이 가장 강하게 드러났습니다.`
-                          : "아직 분석할 세션이 없어 기본 축을 중립값으로 표시합니다."}
+                          ? `${representativeInterviewVisual.reportLens} 최근 ${Math.min(recentProfileBase.length, 6)}개 세션에서는 ${getDominantAxesText(representativeAxes)} 축이 가장 강하게 드러났습니다.`
+                          : "아직 분석할 세션이 없어 공고 적합도 면접을 기본 기준으로 표시합니다."}
                       </p>
                     </div>
 
@@ -456,10 +520,19 @@ export default function InterviewAnalysisPage() {
                           onClick={() => router.push(session.href)}
                           className="group flex w-full items-center justify-between gap-3 py-3 text-left transition-colors hover:bg-primary/[0.03]"
                         >
+                          <div className="relative h-12 w-12 shrink-0">
+                            <Image
+                              src={session.interviewTypeImage}
+                              alt=""
+                              fill
+                              sizes="48px"
+                              className="object-contain drop-shadow-[0_10px_12px_rgba(23,32,51,0.12)]"
+                            />
+                          </div>
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-[11px] font-semibold text-primary">
-                                {session.kind === "mock" ? "모의면접" : "디펜스"}
+                                {session.interviewTypeLabel}
                               </span>
                               <span className="text-[11px] text-muted-foreground">{session.date}</span>
                             </div>
@@ -478,14 +551,14 @@ export default function InterviewAnalysisPage() {
                 </aside>
               </div>
 
-              <div className="mt-10 border-t border-[#dfe5ec] pt-6">
-                <div className="mb-2 flex items-center justify-between gap-4 border-b border-[#eef2f6] pb-3">
+              <div className="mt-10 rounded-[30px] border border-[#dfe7ef] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 border-b border-[#eef2f6] bg-[#fbfcfe] px-5 py-5 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">기록 허브</p>
-                    <p className="mt-1 text-xs text-muted-foreground">실제 리포트가 생성된 세션만 묶어 보여줍니다.</p>
+                    <p className="text-lg font-black text-foreground">내 면접 기록</p>
+                    <p className="mt-1 text-sm text-muted-foreground">반복 훈련, 분석 상태, 재시도 가능 여부를 한 화면에서 확인합니다.</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="inline-flex items-center border border-[#e5eaf1] bg-[#f8fafc] p-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex items-center rounded-xl border border-[#e5eaf1] bg-white p-1">
                       {[
                         { key: "all", label: "전체" },
                         { key: "mock", label: "모의면접" },
@@ -496,7 +569,7 @@ export default function InterviewAnalysisPage() {
                           type="button"
                           onClick={() => setSelectedTab(tab.key as AnalysisHubTabKind)}
                           className={cn(
-                            "px-3 py-1.5 text-xs font-medium transition-all",
+                            "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
                             selectedTab === tab.key
                               ? "bg-primary text-primary-foreground shadow-sm"
                               : "text-muted-foreground hover:text-foreground",
@@ -506,41 +579,114 @@ export default function InterviewAnalysisPage() {
                         </button>
                       ))}
                     </div>
-
-                    <span className="text-xs font-medium text-muted-foreground">총 {filteredSessions.length}개</span>
+                    <div className="inline-flex items-center rounded-xl border border-[#e5eaf1] bg-white p-1">
+                      {[
+                        { key: "cards", label: "카드" },
+                        { key: "table", label: "테이블" },
+                      ].map((view) => (
+                        <button
+                          key={view.key}
+                          type="button"
+                          onClick={() => setViewMode(view.key as "cards" | "table")}
+                          className={cn(
+                            "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
+                            viewMode === view.key
+                              ? "bg-[#172033] text-white shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {view.label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs font-bold text-muted-foreground">총 {filteredSessions.length}개</span>
                   </div>
                 </div>
 
                 {filteredSessions.length > 0 ? (
-                  <div className="divide-y divide-[#eef2f6]">
-                    {filteredSessions.slice(0, 6).map((session) => (
-                      <button
-                        key={session.id}
-                        type="button"
-                        onClick={() => router.push(session.href)}
-                        className="grid w-full gap-3 px-1 py-4 text-left transition-colors hover:bg-primary/[0.03] md:grid-cols-[96px_minmax(0,1fr)_112px_150px_24px] md:items-center"
-                      >
-                        <div className="flex flex-wrap gap-1.5 md:block md:space-y-1.5">
-                          <span className="inline-flex text-xs font-semibold text-primary">
-                            {session.kind === "mock" ? "모의면접" : "디펜스"}
-                          </span>
-                          <span className="inline-flex text-xs text-muted-foreground md:block">
-                            {session.analysisQualityLabel}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-foreground">{session.title}</p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{session.summary}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground md:text-right">{session.date}</span>
-                        <span className="text-xs font-semibold text-foreground md:text-right">{session.typeName}</span>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground md:justify-self-end" />
-                      </button>
-                    ))}
-                  </div>
+                  viewMode === "cards" ? (
+                    <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+                      {filteredSessions.slice(0, 9).map((session) => {
+                        const repeatKey = `${session.kind}:${session.subtitle || session.title}`;
+                        const repeatCount = repeatCounts[repeatKey] || 1;
+                        return (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => router.push(session.href)}
+                            className="group flex min-h-[220px] flex-col rounded-2xl border border-[#dfe7ef] bg-[#fbfcfe] p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="rounded-full bg-[#edf6e6] px-3 py-1 text-[11px] font-black text-[#6f9f3b]">
+                                {session.interviewTypeLabel}
+                              </span>
+                              <span className="text-xs font-bold text-muted-foreground">{session.date}</span>
+                            </div>
+                            <div className="mt-4 flex items-start gap-3">
+                              <div className="relative h-16 w-16 shrink-0">
+                                <Image
+                                  src={session.interviewTypeImage}
+                                  alt=""
+                                  fill
+                                  sizes="64px"
+                                  className="object-contain drop-shadow-[0_14px_14px_rgba(23,32,51,0.12)]"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="line-clamp-2 text-base font-black text-foreground">{session.title}</p>
+                                <p className="mt-1 truncate text-sm text-muted-foreground">{session.subtitle}</p>
+                              </div>
+                            </div>
+                            <p className="mt-3 line-clamp-3 text-xs leading-5 text-muted-foreground">{session.summary}</p>
+                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#5f6b7a]">{session.reportLens}</p>
+                            <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+                              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#4f5b6b] shadow-sm">
+                                {getSessionStatusLabel(session.reportStatus)}
+                              </span>
+                              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#4f5b6b] shadow-sm">
+                                반복 {repeatCount}회
+                              </span>
+                              <span className="ml-auto inline-flex items-center text-xs font-black text-primary">
+                                리포트 보기
+                                <ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#eef2f6] px-5">
+                      {filteredSessions.slice(0, 9).map((session) => {
+                        const repeatKey = `${session.kind}:${session.subtitle || session.title}`;
+                        const repeatCount = repeatCounts[repeatKey] || 1;
+                        return (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => router.push(session.href)}
+                            className="grid w-full gap-3 py-4 text-left transition-colors hover:bg-primary/[0.03] md:grid-cols-[112px_minmax(0,1fr)_96px_96px_120px_24px] md:items-center"
+                          >
+                            <span className="text-xs font-black text-primary">
+                              {session.kind === "mock" ? "면접" : "디펜스"}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">{session.title}</p>
+                              <p className="mt-1 truncate text-xs text-muted-foreground">{session.subtitle}</p>
+                            </div>
+                            <span className="text-xs text-muted-foreground md:text-right">{session.date}</span>
+                            <span className="text-xs font-bold text-foreground md:text-right">{repeatCount}회</span>
+                            <span className="text-xs font-bold text-muted-foreground md:text-right">
+                              {getSessionStatusLabel(session.reportStatus)}
+                            </span>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground md:justify-self-end" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
                 ) : (
-                  <div className="border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
+                  <div className="m-5 rounded-2xl border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
                     아직 분석할 세션이 없습니다. 면접이나 디펜스를 완료하면 여기서 실제 기록 기반 추세를 확인할 수 있습니다.
                   </div>
                 )}
@@ -548,6 +694,46 @@ export default function InterviewAnalysisPage() {
             </div>
           )}
         </section>
+
+        {!sessionsLoading ? (
+          <section className="border-t border-[#dfe5ec] pt-8">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-lg font-bold">16개 면접 유형 커버리지</p>
+                <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
+                  완료된 세션을 면접 유형별로 다시 분류해 어떤 질문 축이 많이 훈련됐는지 보여줍니다.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-muted-foreground">총 {totalSessions}회 반영</span>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {interviewTypeStats.map(({ visual, count }, index) => {
+                const active = count > 0;
+                return (
+                  <div
+                    key={visual.key}
+                    className={cn(
+                      "group relative min-h-[150px] overflow-hidden border border-[#e3eaf1] bg-[#fbfcfe] p-4 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-sm",
+                      active && "border-primary/30 bg-[#f7fbf3]",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-foreground">{visual.label}</p>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{visual.description}</p>
+                      </div>
+                      <InterviewTypeArtwork visual={visual} size="sm" priority={index === 0} />
+                    </div>
+                    <div className="mt-4 flex items-center justify-between border-t border-[#edf2f7] pt-3">
+                      <span className="text-[11px] font-bold uppercase text-muted-foreground">{visual.shortLabel}</span>
+                      <span className={cn("text-lg font-black", active ? "text-primary" : "text-[#94a3b8]")}>{count}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {!sessionsLoading ? (
           <section className="border-t border-[#dfe5ec] pt-8">
@@ -594,47 +780,72 @@ export default function InterviewAnalysisPage() {
             </div>
           </div>
 
-          <div className="mt-5 divide-y divide-[#e7edf3] border-y border-[#e7edf3]">
+          <div className="mt-5">
             {isRecommendationsLoading ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="py-5">
-                  <div className="h-3 w-24 rounded-full bg-primary/10" />
-                  <div className="mt-3 h-5 w-3/4 rounded-full bg-muted" />
-                  <div className="mt-2 h-4 w-full rounded-full bg-muted/70" />
-                </div>
-              ))
-            ) : recommendedBlogs.length > 0 ? (
-              recommendedBlogs.map((blog) => (
-                <a
-                  key={blog.id}
-                  href={blog.external_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex w-full items-start justify-between py-5 text-left transition-colors hover:bg-primary/[0.03]"
-                >
-                  <div className="min-w-0 pr-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="rounded-full bg-primary/5 text-primary hover:bg-primary/5">
-                        {blog.author}
-                      </Badge>
-                      {(blog.tags ?? []).slice(0, 2).map((tag) => (
-                        <span
-                          key={`${blog.id}-${tag}`}
-                          className="rounded-full bg-[#f4f6fa] px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="mt-3 line-clamp-2 text-sm font-semibold text-foreground">{blog.title}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
+              <div className="grid gap-4 md:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="min-h-[260px] border border-[#e7edf3] bg-[#fbfcfe] p-4">
+                    <div className="h-28 bg-muted/70" />
+                    <div className="mt-4 h-3 w-24 rounded-full bg-primary/10" />
+                    <div className="mt-3 h-5 w-3/4 rounded-full bg-muted" />
+                    <div className="mt-2 h-4 w-full rounded-full bg-muted/70" />
                   </div>
-                  <span className="mt-1 flex shrink-0 items-center gap-1 bg-[#f4f6fa] px-3 py-1 text-xs font-medium text-foreground">
-                    원문 읽기
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </span>
-                </a>
-              ))
+                ))}
+              </div>
+            ) : recommendedBlogs.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                {recommendedBlogs.map((blog) => {
+                  const visual = resolveBlogVisual(blog, representativeInterviewVisual);
+                  return (
+                    <a
+                      key={blog.id}
+                      href={blog.external_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group flex min-h-[300px] flex-col overflow-hidden border border-[#dfe7ef] bg-white text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(15,23,42,0.08)]"
+                    >
+                      <div className="relative flex h-36 items-center justify-center overflow-hidden bg-[#f6f9fc]">
+                        {blog.thumbnail_url ? (
+                          <Image
+                            src={blog.thumbnail_url}
+                            alt=""
+                            fill
+                            unoptimized
+                            sizes="(min-width: 768px) 33vw, 100vw"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                        ) : (
+                          <InterviewTypeArtwork visual={visual} size="md" />
+                        )}
+                        <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-black text-[#172033] shadow-sm">
+                          {blog.author}
+                        </div>
+                      </div>
+                      <div className="flex flex-1 flex-col p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {(blog.tags ?? []).slice(0, 3).map((tag) => (
+                            <span
+                              key={`${blog.id}-${tag}`}
+                              className="rounded-full bg-[#f4f6fa] px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mt-3 line-clamp-2 text-base font-black leading-6 text-foreground">{blog.title}</p>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
+                        <div className="mt-auto flex items-center justify-between border-t border-[#edf2f7] pt-3">
+                          <span className="text-xs font-medium text-muted-foreground">{formatPublishedDate(blog.published_at)}</span>
+                          <span className="flex shrink-0 items-center gap-1 text-xs font-black text-primary">
+                            원문 읽기
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
             ) : (
               <div className="border border-dashed border-[#d9e0ea] bg-[#fbfcfe] px-4 py-6 text-sm text-muted-foreground">
                 지금 추천할 기술 블로그를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.
@@ -654,7 +865,7 @@ export default function InterviewAnalysisPage() {
                 <Briefcase className="mr-2 h-4 w-4" />
                 새 모의면접 시작
               </Button>
-              <Button className="rounded-full px-5" onClick={() => router.push("/interview/training")}>
+              <Button className="rounded-full px-5" onClick={() => router.push("/interview/training/setup")}>
                 <GitBranch className="mr-2 h-4 w-4" />
                 디펜스 시작
               </Button>

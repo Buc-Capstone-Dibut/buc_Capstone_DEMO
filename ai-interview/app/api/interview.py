@@ -366,6 +366,11 @@ async def portfolio_session_start(
     portfolio_job_payload = {
         "repoUrl": payload.repoUrl,
         "focus": payload.focus,
+        "interviewType": payload.interviewType,
+        "interviewTypeLabel": payload.interviewTypeLabel,
+        "questionFocus": payload.questionFocus,
+        "reportLens": payload.reportLens,
+        "interviewTypeBlogTags": payload.interviewTypeBlogTags,
         "readmeSummary": payload.readmeSummary,
         "treeSummary": payload.treeSummary,
         "infraHypotheses": payload.infraHypotheses,

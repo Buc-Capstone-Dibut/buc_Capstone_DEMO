@@ -48,6 +48,11 @@ class PortfolioSessionStartRequest(BaseModel):
     repoUrl: str
     mode: Literal["chat", "voice", "video"] = "voice"
     focus: list[str] = Field(default_factory=lambda: ["architecture", "infra", "ai-usage"])
+    interviewType: str = "portfolio-defense"
+    interviewTypeLabel: str = "포트폴리오 디펜스"
+    questionFocus: list[str] = Field(default_factory=list)
+    reportLens: str = ""
+    interviewTypeBlogTags: list[str] = Field(default_factory=list)
     readmeSummary: str = ""
     treeSummary: str = ""
     infraHypotheses: list[str] = Field(default_factory=list)

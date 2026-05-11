@@ -816,10 +816,14 @@ class InterviewService:
                     "liveProvider": row.get("live_provider", "gemini-live"),
                     "liveModel": row.get("live_model", ""),
                     "questionCount": row.get("question_count", 0),
+                    "jobPayload": job,
                     "company": job.get("company", ""),
                     "role": job.get("role", ""),
                     "repoUrl": job.get("repoUrl", ""),
                     "detectedTopics": job.get("detectedTopics", []),
+                    "interviewType": job.get("interviewType", ""),
+                    "questionFocus": job.get("questionFocus", []),
+                    "reportLens": job.get("reportLens", ""),
                     "createdAt": int(row["created_at"].timestamp())
                     if isinstance(row["created_at"], datetime)
                     else 0,

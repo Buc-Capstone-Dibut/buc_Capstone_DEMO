@@ -39,7 +39,7 @@ export default function MyResumesPage() {
     return (
         <div className="min-h-screen bg-slate-50/30">
             <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-                <div className="max-w-5xl mx-auto px-4 h-16 flex items-center gap-4">
+                <div className="max-w-[1500px] mx-auto px-4 h-16 flex items-center gap-4">
                     <Button
                         variant="ghost"
                         size="icon"
@@ -52,8 +52,8 @@ export default function MyResumesPage() {
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto p-4 sm:p-8">
-                <div className="bg-white rounded-2xl shadow-sm border p-6 min-h-[600px]">
+            <main className="max-w-[1500px] mx-auto p-4 sm:p-8">
+                <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6 min-h-[600px]">
                     <ResumeTab isOwner={true} />
                 </div>
             </main>

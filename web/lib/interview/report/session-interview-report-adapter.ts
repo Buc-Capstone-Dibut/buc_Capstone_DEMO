@@ -1,6 +1,13 @@
 import { AnalysisResult } from "@/store/interview-setup-store";
 import { clampScore, getTypeLabels, getTypeName } from "@/lib/interview/report/dibeot-axis";
-import { DibeotAxisScores, MockInterviewReportModel, ReportAxisEvidence, ReportMetaItem, ReportMetric } from "@/lib/interview/report/report-types";
+import {
+  DibeotAxisScores,
+  MockInterviewReportModel,
+  ReportAxisEvidence,
+  ReportHighlight,
+  ReportMetaItem,
+  ReportMetric,
+} from "@/lib/interview/report/report-types";
 
 interface ReportViewQuestionFinding {
   question?: string;
@@ -165,7 +172,7 @@ function resolveAnalysisMode(
   return analysis || reportView?.profile ? "full" : "summary";
 }
 
-function buildHeroMetrics(session?: SessionReportMeta, analysisMode: "full" | "summary"): ReportMetric[] {
+function buildHeroMetrics(session: SessionReportMeta | undefined, analysisMode: "full" | "summary"): ReportMetric[] {
   void session;
   void analysisMode;
   return [];
@@ -339,10 +346,14 @@ function buildAnalysisAxisEvidence(analysis: AnalysisResult, role: string, typeL
   ];
 }
 
+function resolveHighlightTone(index: number): NonNullable<ReportHighlight["tone"]> {
+  return index === 0 ? "positive" : "caution";
+}
+
 function resolveQuestionFindingHighlights(
   reportView?: SessionReportView | null,
   analysis?: SessionAnalysis | null,
-) {
+): ReportHighlight[] {
   const findingSource = (reportView?.questionFindings || []).filter((item) => String(item?.question || item?.userAnswer || "").trim());
   if (findingSource.length > 0) {
     return findingSource.slice(0, 2).map((item, index) => ({
@@ -354,7 +365,7 @@ function resolveQuestionFindingHighlights(
         sanitizeTextList(item.evidence)[0] ||
         "질문별 분석 데이터가 연결되었습니다.",
       detail: `내 답변: "${String(item.userAnswer || "").trim()}"\n보완 답변: "${String(item.refinedAnswer || "").trim()}"`,
-      tone: index === 0 ? "positive" : "caution" as const,
+      tone: resolveHighlightTone(index),
     }));
   }
 
@@ -365,7 +376,7 @@ function resolveQuestionFindingHighlights(
       title: item.question,
       summary: item.strengths[0] || item.improvements[0] || item.evidence[0] || "질문별 분석 데이터가 연결되었습니다.",
       detail: `내 답변: "${item.userAnswer}"\n보완 답변: "${item.refinedAnswer}"`,
-      tone: index === 0 ? "positive" : "caution" as const,
+      tone: resolveHighlightTone(index),
     }));
   }
 
@@ -374,7 +385,7 @@ function resolveQuestionFindingHighlights(
     title: item.question,
     summary: item.reason,
     detail: `내 답변: "${item.userAnswer}"\n개선 답변: "${item.refinedAnswer}"`,
-    tone: index === 0 ? "positive" : "caution" as const,
+    tone: resolveHighlightTone(index),
   }));
 }
 

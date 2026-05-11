@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import ResumesClient, { type ResumeListItem } from "./client";
+import { normalizeResumePayload } from "@/app/my/[handle]/profile-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +22,10 @@ export default async function CareerResumesPage() {
   });
 
   const resumes: ResumeListItem[] = userResumes.map(r => {
-    const payload = (r.resume_payload as Record<string, unknown> | null) || {};
-    const rawSkills = Array.isArray(payload.skills) ? payload.skills : [];
-    const techStack = rawSkills
+    const payload = normalizeResumePayload(r.resume_payload);
+    const techStack = payload.skills
       .slice(0, 5)
-      .map((s) => {
-        if (typeof s === "object" && s !== null && "name" in s) {
-          const maybeName = (s as { name?: unknown }).name;
-          return typeof maybeName === "string" ? maybeName : "";
-        }
-        return "";
-      })
+      .map((skill) => skill.name)
       .filter(Boolean);
     
     return {
@@ -39,7 +33,8 @@ export default async function CareerResumesPage() {
       title: r.title || "(제목 없음)",
       updatedAt: r.updated_at.toISOString(),
       is_active: r.is_active,
-      techStack
+      techStack,
+      payload,
     };
   });
 

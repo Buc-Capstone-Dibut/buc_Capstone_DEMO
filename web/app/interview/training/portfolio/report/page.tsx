@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
   GitBranch,
   Loader2,
   RefreshCw,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { GlobalHeader } from "@/components/layout/global-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,9 @@ import { ReportFooterActions } from "@/components/features/interview/report/repo
 import { ReportInsightListCard } from "@/components/features/interview/report/report-insight-list-card";
 import { SessionReportHero } from "@/components/features/interview/report/session-report-hero";
 import { StrengthWeaknessPanel } from "@/components/features/interview/report/strength-weakness-panel";
+import { TechLogoChip } from "@/components/features/interview/tech-logo-chip";
+import { getPortfolioTopicLabel } from "@/lib/interview/portfolio-defense";
+import { getInterviewTypeVisual } from "@/lib/interview/interview-type-visuals";
 import { buildPortfolioDefenseReportModel } from "@/lib/interview/report/portfolio-defense-report-adapter";
 
 interface RubricItem {
@@ -78,6 +82,12 @@ function resolveDurationMinute(targetDurationSec?: number): 5 | 10 | 15 {
   if (minute <= 5) return 5;
   if (minute >= 15) return 15;
   return 10;
+}
+
+function getRubricValue(detail: SessionDetail | null, key: "design_intent" | "code_quality" | "ai_usage") {
+  const source = detail?.report_view?.rubric?.[key] || detail?.analysis?.rubricScores?.[key];
+  if (typeof source === "number") return Math.round(source);
+  return Math.round(Number(source?.raw || 0));
 }
 
 export default function PortfolioDefenseReportPage() {
@@ -181,7 +191,6 @@ export default function PortfolioDefenseReportPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
-        <GlobalHeader />
         <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
           <div className="space-y-4 text-center">
             <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
@@ -196,7 +205,6 @@ export default function PortfolioDefenseReportPage() {
   if (error || !detail || !model) {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
-        <GlobalHeader />
         <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
           <Card className="w-full rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
             <CardContent className="space-y-4 p-8 text-center">
@@ -228,9 +236,116 @@ export default function PortfolioDefenseReportPage() {
       detail.analysis?.improvements?.length,
   );
   const reportStatus = detail.reportStatus || "";
+  const portfolioVisual = getInterviewTypeVisual("portfolio-defense");
+  const topAction = model.nextActions[0] || "같은 레포를 다시 방어하기 전에 기술 선택 이유와 버린 대안을 2개 이상 정리하세요.";
+  const rubricCards = [
+    {
+      label: "설계 의도",
+      weight: 60,
+      score: getRubricValue(detail, "design_intent"),
+      description: "구조 선택 이유와 대안 비교",
+    },
+    {
+      label: "코드 품질",
+      weight: 10,
+      score: getRubricValue(detail, "code_quality"),
+      description: "유지보수성·테스트·장애 대응",
+    },
+    {
+      label: "AI 활용",
+      weight: 30,
+      score: getRubricValue(detail, "ai_usage"),
+      description: "검증·롤백·운영 반영 기준",
+    },
+  ];
 
   const summaryContent = (
     <>
+      <section className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-center">
+        <div className="relative h-48 w-48">
+          <span className="absolute inset-x-6 bottom-2 h-7 rounded-full bg-[#172033]/10 blur-xl" />
+          <Image
+            src={portfolioVisual.imagePath}
+            alt={portfolioVisual.label}
+            fill
+            sizes="192px"
+            className="object-contain drop-shadow-[0_26px_28px_rgba(23,32,51,0.16)]"
+            priority
+          />
+        </div>
+        <div className="min-w-0 border-y border-[#dfe5ec] py-6">
+          <Badge className="rounded-full border border-primary/10 bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+            {portfolioVisual.label}
+          </Badge>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-[#172033]">{portfolioVisual.shortLabel} 리포트 관점</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">{portfolioVisual.reportLens}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {portfolioVisual.questionFocus.map((focus) => (
+              <span key={focus} className="rounded-full bg-[#f4f7fb] px-3 py-1.5 text-xs font-bold text-[#4f5b6b]">
+                {focus}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="rounded-[30px] border border-[#dfe7ef] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              핵심 판정
+            </CardTitle>
+            <CardDescription>점수보다 먼저, 다음 디펜스에서 바로 고칠 근거를 보여줍니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-[22px] border border-[#dfe7ef] bg-[#fbfcfe] px-4 py-4">
+              <p className="text-sm font-semibold text-muted-foreground">총평</p>
+              <p className="mt-2 text-base font-semibold leading-8 text-foreground">{model.summary}</p>
+            </div>
+            <div className="rounded-[22px] border border-primary/20 bg-primary/5 px-4 py-4">
+              <p className="text-sm font-semibold text-primary">다음 액션</p>
+              <p className="mt-2 text-sm leading-7 text-foreground">{topAction}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {detectedTopics.map((topic) => (
+                <TechLogoChip
+                  key={topic}
+                  label={getPortfolioTopicLabel(topic)}
+                  className="border-[#cfe1c1] bg-[#f3faef] text-[#5f8f36]"
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[30px] border border-[#dfe7ef] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">평가 비중</CardTitle>
+            <CardDescription>포트폴리오 디펜스는 세 기준을 분리해 봅니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rubricCards.map((item) => (
+              <div key={item.label} className="rounded-[20px] border border-[#dfe7ef] bg-[#fbfcfe] px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-foreground">{item.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-black text-primary">{item.score}점</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">{item.weight}%</p>
+                  </div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, item.score))}%` }} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
       <section className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
         <Card className="rounded-[28px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
           <CardHeader className="pb-3">
@@ -321,23 +436,29 @@ export default function PortfolioDefenseReportPage() {
       <section className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
         <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">대화 하이라이트</CardTitle>
-            <CardDescription>세션 타임라인 기준의 주요 질문과 답변 장면입니다.</CardDescription>
+            <CardTitle className="text-lg">질문별 답변 타임라인</CardTitle>
+            <CardDescription>면접관 질문, 내 답변, 확인해야 할 근거를 같은 줄에서 봅니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {model.transcriptHighlights.length > 0 ? (
-              model.transcriptHighlights.map((turn, index) => (
-                <div key={`${turn.role}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge
-                      variant={turn.role === "model" ? "outline" : "secondary"}
-                      className="border-primary/20 bg-white text-primary"
-                    >
-                      {turn.role === "model" ? "면접관" : "지원자"}
+            {timeline.length > 0 ? (
+              timeline.slice(-5).map((turn, index) => (
+                <div key={`${turn.phaseLabel || "phase"}-${index}`} className="rounded-[18px] border border-[#e7ebf1] bg-[#fbfcfe] px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Badge variant="outline" className="border-primary/20 bg-white text-primary">
+                      {turn.phaseLabel || `질문 ${index + 1}`}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">타임라인 기반</span>
+                    <span className="text-xs font-medium text-muted-foreground">타임라인 기반</span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-foreground">{turn.text}</p>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground">면접관 질문</p>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{turn.prompt || "질문 데이터가 없습니다."}</p>
+                    </div>
+                    <div className="rounded-[14px] bg-white px-3 py-3">
+                      <p className="text-xs font-semibold text-muted-foreground">내 답변</p>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{turn.answer || "답변 데이터가 없습니다."}</p>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
@@ -399,7 +520,6 @@ export default function PortfolioDefenseReportPage() {
   if (!hasRubricReport) {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
-        <GlobalHeader />
         <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-6 md:px-10">
           <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
             <CardContent className="space-y-4 p-8">
@@ -436,7 +556,6 @@ export default function PortfolioDefenseReportPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-foreground">
-      <GlobalHeader />
       <InterviewReportScreen
         leading={(
           <>

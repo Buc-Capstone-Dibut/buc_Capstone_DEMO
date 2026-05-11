@@ -1,5 +1,8 @@
 Sample 3D interviewer avatar: downloaded from the TalkingHead demo repository.
 Source: https://github.com/met4citizen/TalkingHead
 Local file: /interview/avatar/dibut-interviewer.glb
+Local file: /interview/avatar/talkinghead-brunette.glb
+Local file: /interview/avatar/talkinghead-avaturn.glb
+License: MIT, see the upstream TalkingHead repository.
 
 Replace this file or set NEXT_PUBLIC_INTERVIEWER_AVATAR_URL to use your own GLB export.

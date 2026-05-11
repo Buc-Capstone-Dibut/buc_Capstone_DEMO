@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { JobData } from "@/store/interview-setup-store";
+import { TechLogoChip } from "@/components/features/interview/tech-logo-chip";
 
 interface JdCheckFormProps {
     jobData: JobData;
@@ -147,15 +147,11 @@ export function JdCheckForm({ jobData, updateJobData }: JdCheckFormProps) {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.8 }}
                                 >
-                                    <Badge variant="secondary" className="px-3 py-1.5 text-sm gap-2">
-                                        {tech}
-                                        <button
-                                            onClick={() => handleRemoveItem(i, 'techStack')}
-                                            className="text-muted-foreground hover:text-destructive transition-colors"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </Badge>
+                                    <TechLogoChip
+                                        label={tech}
+                                        onRemove={() => handleRemoveItem(i, 'techStack')}
+                                        className="min-h-9 bg-[#fbfcfe] px-3 py-1.5 text-sm"
+                                    />
                                 </motion.div>
                             ))}
                         </AnimatePresence>

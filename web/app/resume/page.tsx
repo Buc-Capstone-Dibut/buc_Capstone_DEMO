@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResumeEditor } from "../my/[handle]/tabs/resume-editor";
 import { ResumeAiAssistant } from "@/components/features/resume/ResumeAiAssistant";
@@ -17,8 +17,10 @@ export default function ResumePage() {
     const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
+    const tailoredGenerationStartedRef = useRef(false);
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
     const isNewModeFromUrl = searchParams.get("mode") === "new";
     const [isWizardMode, setIsWizardMode] = useState(isWizardModeFromUrl);
@@ -105,6 +107,76 @@ export default function ResumePage() {
         fetchResume();
     }, [isNewModeFromUrl, isWizardModeFromUrl, searchParams]);
 
+    useEffect(() => {
+        if (loading || !isNewModeFromUrl || searchParams.get("target") !== "1") return;
+        if (tailoredGenerationStartedRef.current) return;
+        tailoredGenerationStartedRef.current = true;
+
+        const rawTarget = sessionStorage.getItem("resume_creation_target");
+        if (!rawTarget) return;
+
+        const generateTailoredResume = async () => {
+            setGeneratingTailoredResume(true);
+            try {
+                const target = JSON.parse(rawTarget) as {
+                    company?: string;
+                    division?: string;
+                    role?: string;
+                    deadline?: string;
+                    jobDescription?: string;
+                };
+                const company = target.company?.trim() || "";
+                const role = target.role?.trim() || "";
+                const division = target.division?.trim() || "";
+                const deadline = target.deadline?.trim() || "";
+                const titlePrefix = [company, division, role].filter(Boolean).join(" · ");
+                if (titlePrefix) {
+                    setResumeTitle(`${titlePrefix} 맞춤 이력서`);
+                }
+
+                const response = await fetch("/api/career/resumes/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        currentPayload: EMPTY_RESUME,
+                        targetCompany: company,
+                        targetRole: role,
+                        jobDescription: [
+                            target.jobDescription,
+                            deadline ? `마감일정: ${deadline}` : "",
+                            division ? `사업부: ${division}` : "",
+                        ].filter(Boolean).join("\n"),
+                    }),
+                });
+                const json = await response.json().catch(() => null);
+                if (!response.ok || !json?.success) {
+                    throw new Error(json?.error || "맞춤형 이력서 생성에 실패했습니다.");
+                }
+
+                setResumePayload(normalizeResumePayload(json.data.resumePayload));
+                if (typeof json.data.title === "string" && json.data.title.trim()) {
+                    setResumeTitle(json.data.title);
+                }
+                sessionStorage.removeItem("resume_creation_target");
+                toast({
+                    title: "맞춤형 이력서 초안 생성 완료",
+                    description: titlePrefix || "지원 대상 정보를 기준으로 이력서를 구성했습니다.",
+                });
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "맞춤형 이력서 생성 중 오류가 발생했습니다.";
+                toast({
+                    title: "맞춤형 생성 실패",
+                    description: `${message} 빈 이력서로 계속 작성할 수 있습니다.`,
+                    variant: "destructive",
+                });
+            } finally {
+                setGeneratingTailoredResume(false);
+            }
+        };
+
+        void generateTailoredResume();
+    }, [isNewModeFromUrl, loading, searchParams, toast]);
+
     const handleSave = async (silent = false) => {
         setSaving(true);
         try {
@@ -155,14 +227,18 @@ export default function ResumePage() {
         }
     };
 
-    if (loading) {
+    if (loading || generatingTailoredResume) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-slate-50">
                 <div className="relative">
                     <Loader2 className="w-12 h-12 animate-spin text-primary" />
                     <Sparkles className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
-                <p className="text-sm font-medium text-slate-500 animate-pulse">저장된 데이터와 이력서를 불러오는 중입니다...</p>
+                <p className="text-sm font-medium text-slate-500 animate-pulse">
+                    {generatingTailoredResume
+                        ? "프로젝트와 자소서 기록을 참고해 맞춤형 이력서를 생성하는 중입니다..."
+                        : "저장된 데이터와 이력서를 불러오는 중입니다..."}
+                </p>
             </div>
         );
     }
@@ -229,7 +305,7 @@ export default function ResumePage() {
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto p-4 lg:p-10 min-h-[calc(100vh-4rem)] bg-white shadow-sm border-x border-slate-200/60">
+            <main className="max-w-[1500px] mx-auto p-4 lg:p-8 min-h-[calc(100vh-4rem)]">
                 <ResumeEditor
                     payload={resumePayload}
                     onChange={setResumePayload}

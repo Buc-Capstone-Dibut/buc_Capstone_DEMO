@@ -1,20 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Calendar, Clock3, Github, Loader2, Sparkles, Video } from "lucide-react";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  ArrowRight,
-  Calendar,
-  ChevronRight,
-  Loader2,
-  Video,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { GlobalHeader } from "@/components/layout/global-header";
+import { PORTFOLIO_DEFENSE_DURATION_MINUTES, PORTFOLIO_SETUP_STEPS } from "@/lib/interview/portfolio-defense";
 
 const RUBRIC_HELP = [
   {
@@ -27,13 +19,13 @@ const RUBRIC_HELP = [
     label: "코드 품질",
     weight: 10,
     hint: "유지보수성, 테스트, 장애 대응 가능성을 근거로 묻습니다.",
-    sampleQuestion: "이 코드베이스에서 기술부채를 줄이기 위해 가장 먼저 손댈 지점은 어디인가요?",
+    sampleQuestion: "기술부채를 줄이기 위해 가장 먼저 손댈 지점은 어디인가요?",
   },
   {
     label: "AI 활용",
     weight: 30,
     hint: "AI를 어떻게 썼는지보다 검증/롤백 루프를 갖췄는지에 집중합니다.",
-    sampleQuestion: "AI로 만든 결과를 운영에 반영하기 전에 어떤 검증 단계를 거치나요?",
+    sampleQuestion: "AI 결과를 운영에 반영하기 전에 어떤 검증 단계를 거치나요?",
   },
 ];
 
@@ -60,8 +52,6 @@ function formatDate(ts: number): string {
 
 export default function InterviewTrainingPage() {
   const router = useRouter();
-  const [repoUrl, setRepoUrl] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState<5 | 10 | 15>(10);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
 
@@ -74,209 +64,181 @@ export default function InterviewTrainingPage() {
           setSessions(data.data || []);
         }
       } catch {
-        // sessions stay empty — no crash
+        // Empty state is the intended fallback when the local AI backend is unavailable.
       } finally {
         setLoadingSessions(false);
       }
     };
-    fetchSessions();
+    void fetchSessions();
   }, []);
 
-  const startPortfolio = () => {
-    const url = repoUrl.trim();
-    if (!url) return;
-
-    if (!url.startsWith("https://github.com/")) {
-      alert("공개 GitHub 레포 URL만 입력할 수 있습니다.");
-      return;
-    }
-
-    router.push(
-      `/interview/training/portfolio?repoUrl=${encodeURIComponent(url)}&mode=video&duration=${durationMinutes}`,
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <GlobalHeader />
-
-      <main className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full space-y-8">
-        <section className="space-y-4">
-          <Badge variant="outline" className="border-primary/20 text-primary bg-primary/5 px-3 py-1">
-            PORTFOLIO DEFENSE TRAINING CENTER
-          </Badge>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black tracking-tight">포트폴리오 디펜스 훈련 센터</h1>
-            <p className="text-muted-foreground text-lg">
-              공개 레포를 기반으로 화상 면접을 진행하고, 설계 의도 설명 역량을 강화합니다.
+    <div className="flex min-h-screen flex-col bg-[#f5f8fb]">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-8 md:py-10">
+        <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#cfe1c1] bg-[#f3faef] px-3 py-1 text-xs font-bold text-[#5f8f36]">
+              <Github className="h-3.5 w-3.5" />
+              Portfolio Defense
+            </div>
+            <h1 className="mt-6 text-4xl font-black tracking-tight text-[#172033] md:text-5xl">
+              포트폴리오 디펜스 훈련 센터
+            </h1>
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-[#5f6b7a]">
+              공개 레포 기반 디펜스 훈련을 시작하고, 완료한 리포트와 반복 기록을 한 곳에서 확인합니다.
             </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button
+                className="h-12 rounded-xl bg-[#7cad46] px-7 font-bold hover:bg-[#6f9f3b]"
+                onClick={() => router.push("/interview/training/setup")}
+              >
+                새 디펜스 셋업 시작
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-12 rounded-xl border-[#dfe7ef] bg-white px-7 font-bold text-[#4f5b6b]"
+                onClick={() => router.push("/interview/analysis")}
+              >
+                내 면접 기록 보기
+              </Button>
+            </div>
+          </div>
+
+          <div className="relative hidden h-72 lg:block">
+            <div className="absolute inset-x-10 bottom-6 h-16 rounded-full bg-[#172033]/[0.08] blur-2xl" />
+            <Image
+              src="/images/interview/setup/hero/portfolio-training-hero.png"
+              alt="포트폴리오 디펜스 훈련"
+              width={760}
+              height={460}
+              priority
+              className="relative z-10 h-full w-full object-contain drop-shadow-[0_26px_24px_rgba(23,32,51,0.14)]"
+            />
           </div>
         </section>
 
-        <Card className="border-dashed border-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">훈련 안내</CardTitle>
-            <CardDescription>
-              AI 시대 면접의 핵심은 구현량이 아니라 설계 의도를 설명하는 능력입니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-primary/90">
-                  왜 이 구조를 택했는지, 어떤 대안을 버렸는지 설명할 수 있어야 좋은 디펜스로 이어집니다. 훈련센터는 화상 면접 단일 모드로 운영됩니다.
-                </p>
-                <div className="space-y-2">
-                  <p>1. 설계 의사결정은 대안 비교와 트레이드오프까지 함께 설명합니다.</p>
-                  <p>2. 인프라 선택은 비용, 운영성, 장애 대응 관점으로 답합니다.</p>
-                  <p>3. AI 활용은 생성 결과보다 검증과 롤백 루프까지 보여줍니다.</p>
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+          <div className="overflow-hidden rounded-[30px] border border-[#dfe7ef] bg-white shadow-sm">
+            <div className="border-b border-[#e6edf4] bg-[#fbfcfe] px-6 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-[#172033]">셋업 플로우</h2>
+                  <p className="mt-1 text-sm leading-6 text-[#6d7888]">
+                    레포 입력, 구조 분석, 브리프 확인을 단계별로 분리했습니다.
+                  </p>
                 </div>
-              </div>
-
-              <div className="space-y-3 rounded-xl border border-[#eef2f6] bg-[#fbfcfe] px-4 py-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">질문 비중</p>
-                  <Badge variant="outline" className="border-primary/20 bg-white text-primary">
-                    60 / 10 / 30
-                  </Badge>
-                </div>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  {RUBRIC_HELP.map((item) => (
-                    <div key={item.label} className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground">{item.label}</p>
-                        <p className="mt-0.5 text-xs leading-5">{item.hint}</p>
-                      </div>
-                      <span className="shrink-0 text-xs font-semibold text-primary">{item.weight}%</span>
-                    </div>
-                  ))}
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#edf6e6] px-3 py-1 text-xs font-black text-[#6f9f3b]">
+                  <Clock3 className="h-3.5 w-3.5" />
+                  {PORTFOLIO_DEFENSE_DURATION_MINUTES}분 고정
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <section className="grid lg:grid-cols-2 gap-6">
-          <Card className="border-2 shadow-sm">
-            <CardHeader className="space-y-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">포트폴리오 디펜스 시작</CardTitle>
-                <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
-                  Public Repo Only
-                </Badge>
-              </div>
-              <CardDescription>
-                공개 Git 레포를 분석해 아키텍처, 인프라, AI 활용 의사결정을 질문합니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <label className="text-sm font-medium">GitHub Repository URL</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[5, 10, 15].map((minute) => (
-                      <Button
-                        key={minute}
-                        type="button"
-                        variant={durationMinutes === minute ? "default" : "outline"}
-                        size="sm"
-                        className="h-8 rounded-full px-3 text-xs"
-                        onClick={() => setDurationMinutes(minute as 5 | 10 | 15)}
-                      >
-                        {minute}분
-                      </Button>
-                    ))}
+            <div className="space-y-5 px-6 py-6">
+              {PORTFOLIO_SETUP_STEPS.map((step, index) => (
+                <div key={step.id} className="flex items-center gap-4 rounded-2xl border border-[#dfe7ef] bg-[#fbfcfe] px-4 py-4">
+                  <Image src={step.icon} alt="" width={72} height={72} className="h-14 w-14 shrink-0 object-contain" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-[#7cad46]">0{index + 1}</p>
+                    <p className="mt-1 font-black text-[#172033]">{step.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#6d7888]">{step.description}</p>
                   </div>
                 </div>
-                <Input
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  placeholder="https://github.com/{owner}/{repo}"
-                />
-                <p className="text-xs text-muted-foreground">
-                  공개 레포만 지원합니다. 비공개 레포는 분석할 수 없습니다.
-                </p>
-              </div>
+              ))}
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {[
-                  "아키텍처",
-                  "CI/CD",
-                  "배포 전략",
-                  "모니터링",
-                  "장애 대응",
-                  "AI 활용 방식",
-                ].map((topic) => (
-                  <div key={topic} className="rounded-md bg-muted/50 px-2 py-1.5 text-muted-foreground">
-                    #{topic}
-                  </div>
-                ))}
-              </div>
-
-              <Button className="w-full rounded-xl" onClick={startPortfolio} disabled={!repoUrl.trim()}>
-                분석 후 디펜스 면접 시작 <ArrowRight className="ml-2 w-4 h-4" />
+              <Button
+                className="h-12 w-full rounded-xl bg-[#7cad46] text-base font-bold hover:bg-[#6f9f3b]"
+                onClick={() => router.push("/interview/training/setup")}
+              >
+                셋업 화면으로 이동 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="border-2 shadow-sm">
-            <CardHeader className="space-y-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">최근 디펜스 세션</CardTitle>
-                <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
-                  History
-                </Badge>
+          <div className="overflow-hidden rounded-[30px] border border-[#dfe7ef] bg-white shadow-sm">
+            <div className="border-b border-[#e6edf4] bg-[#fbfcfe] px-6 py-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-[#172033]">최근 디펜스 허브</h2>
+                  <p className="mt-1 text-sm text-[#6d7888]">완료한 디펜스 기록과 리포트를 바로 확인합니다.</p>
+                </div>
+                <Sparkles className="h-5 w-5 text-[#7cad46]" />
               </div>
-              <CardDescription>
-                최근 포트폴리오 디펜스 결과를 빠르게 확인할 수 있습니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+            </div>
+            <div className="px-6 py-6">
               {loadingSessions ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-5 w-5 animate-spin text-[#8a96a6]" />
                 </div>
               ) : sessions.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-6 text-center">
+                <div className="rounded-2xl border border-dashed border-[#dfe7ef] bg-[#fbfcfe] py-10 text-center text-sm text-[#6d7888]">
                   아직 포트폴리오 디펜스 세션이 없습니다.
                 </div>
               ) : (
-                sessions.map((session) => (
-                  <div key={session.id} className="rounded-xl border bg-card/60 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold truncate max-w-[70%]">
-                        {session.repoUrl || "Repo 정보 없음"}
+                <div className="space-y-3">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className="w-full rounded-2xl border border-[#dfe7ef] bg-[#fbfcfe] p-4 text-left transition-colors hover:bg-white"
+                      onClick={() => router.push(`/interview/training/portfolio/report?id=${session.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 truncate text-sm font-black text-[#172033]">
+                          {session.repoUrl || "Repo 정보 없음"}
+                        </div>
+                        <div className="inline-flex shrink-0 items-center gap-1 text-xs text-[#8a96a6]">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {formatDate(session.createdAt)}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {formatDate(session.createdAt)}
+                      <div className="mt-3 flex items-center justify-between text-xs text-[#6d7888]">
+                        <span className="inline-flex items-center gap-1 font-bold">
+                          <Video className="h-3.5 w-3.5" />
+                          화상 디펜스
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 font-bold shadow-sm">{session.status}</span>
                       </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Video className="w-3.5 h-3.5" />
-                        화상
-                      </span>
-                      <span>{session.status}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1">
-                      {session.analysis?.improvements?.[0] ?? "리포트를 열어 세부 분석을 확인하세요."}
-                    </p>
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg border-primary/20 text-primary"
-                        onClick={() => router.push(`/interview/training/portfolio/report?id=${session.id}`)}
-                      >
-                        리포트 보기 <ChevronRight className="ml-1 w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                      <p className="mt-3 line-clamp-1 text-sm text-[#6d7888]">
+                        {session.analysis?.improvements?.[0] ?? "리포트를 열어 세부 분석을 확인하세요."}
+                      </p>
+                    </button>
+                  ))}
+                </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[30px] border border-[#dfe7ef] bg-white shadow-sm">
+          <div className="border-b border-[#e6edf4] bg-[#fbfcfe] px-6 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-[#172033]">질문 비중</h2>
+                <p className="mt-1 text-sm text-[#6d7888]">설계 의도 중심으로 평가 기준을 고정합니다.</p>
+              </div>
+              <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#637083] shadow-sm">60 / 10 / 30</div>
+            </div>
+          </div>
+          <div className="grid gap-4 px-6 py-6 md:grid-cols-3">
+            {RUBRIC_HELP.map((item) => (
+              <div key={item.label} className="rounded-2xl border border-[#dfe7ef] bg-[#fbfcfe] px-4 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-black text-[#172033]">{item.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#6d7888]">{item.hint}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#edf6e6] px-3 py-1 text-xs font-black text-[#6f9f3b]">
+                    {item.weight}%
+                  </span>
+                </div>
+                <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-[#637083] shadow-sm">
+                  {item.sampleQuestion}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
       </main>
       <Footer />

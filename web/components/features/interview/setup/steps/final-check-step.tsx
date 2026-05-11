@@ -12,6 +12,10 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { RoleTrainingBriefStep } from "./role-training-brief-step";
 import { InterviewLevelCard } from "./interview-level-card";
+import {
+  buildInterviewTypePayload,
+  resolveInterviewTypeVisual,
+} from "@/lib/interview/interview-type-visuals";
 
 type SetupTrack = "posting" | "role";
 
@@ -39,12 +43,30 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     if (isStartingInterview) return;
     setIsStartingInterview(true);
     try {
+      const baseJobData = jobData ? { ...jobData, interviewTrack: "posting" as const } : jobData;
+      const interviewTypePayload = baseJobData
+        ? buildInterviewTypePayload(resolveInterviewTypeVisual({
+            sessionType: "live_interview",
+            role: baseJobData.role,
+            company: baseJobData.company,
+            jobData: baseJobData,
+            sourceText: [
+              baseJobData.companyDescription,
+              baseJobData.originalText,
+              baseJobData.responsibilities,
+              baseJobData.requirements,
+              baseJobData.techStack,
+            ].join(" "),
+          }))
+        : null;
       const { sessionId } = await startInterviewPreflight({
         sessionStartEndpoint: "/api/interview/session/start",
         sessionStartBody: {
           mode: "video",
           personality: "professional",
-          jobData: jobData ? { ...jobData, interviewTrack: "posting" as const } : jobData,
+          jobData: baseJobData && interviewTypePayload
+            ? { ...baseJobData, ...interviewTypePayload }
+            : baseJobData,
           resumeData,
           targetDurationSec: 10 * 60,
           closingThresholdSec: 60,

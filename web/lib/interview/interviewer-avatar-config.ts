@@ -18,7 +18,7 @@ export const INTERVIEWER_AVATAR_FALLBACKS: Record<InterviewAvatarState, string> 
 const customAvatarUrl = process.env.NEXT_PUBLIC_INTERVIEWER_AVATAR_URL?.trim();
 
 export const DEFAULT_INTERVIEWER_AVATAR: InterviewerAvatarModelConfig = {
-  url: customAvatarUrl || "/interview/avatar/avatarsdk.glb",
+  url: customAvatarUrl || "/interview/avatar/talkinghead-avaturn.glb",
   body: "F",
   avatarMood: "neutral",
   baseline: {
