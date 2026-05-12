@@ -22,6 +22,7 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
+import { TechStackCombobox } from "@/components/features/career/project-archive/tech-stack-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -130,7 +131,6 @@ export default function ProjectWizardClient() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
-  const [techStackInput, setTechStackInput] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [applyingWorkspaceId, setApplyingWorkspaceId] = useState<string | null>(
@@ -220,15 +220,6 @@ export default function ProjectWizardClient() {
     setFormData((prev) => ({ ...prev, tags }));
   };
 
-  const handleTechStackChange = (value: string) => {
-    setTechStackInput(value);
-    const techStack = value
-      .split(",")
-      .map((tech) => tech.trim())
-      .filter(Boolean);
-    setFormData((prev) => ({ ...prev, techStack }));
-  };
-
   const handleNext = () => {
     if (currentStepIndex < STEPS.length - 1) {
       setCurrentStepIndex((prev) => prev + 1);
@@ -301,7 +292,6 @@ export default function ProjectWizardClient() {
         techStack: nextTechStack,
       }));
       setTagsInput(nextTags.join(", "));
-      setTechStackInput(nextTechStack.join(", "));
       setSelectedWorkspaceId(result.workspaceId);
       setSelectedWorkspaceName(result.workspaceName);
       setWorkspaceDraftNotice(result.message);
@@ -431,15 +421,15 @@ export default function ProjectWizardClient() {
                   <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
                     기술 스택 (포트폴리오 로고 자동)
                   </label>
-                  <input
-                    value={techStackInput}
-                    onChange={(event) => handleTechStackChange(event.target.value)}
-                    className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-[14px]"
+                  <TechStackCombobox
+                    value={formData.techStack || []}
+                    onChange={(techStack) =>
+                      setFormData((prev) => ({ ...prev, techStack }))
+                    }
                     placeholder="예: React, Next.js, TypeScript, Supabase"
+                    helperText="검색 목록에서 선택하거나 직접 입력 후 Enter를 누르세요. 포트폴리오 PPT의 기술 스택 슬라이드에 로고로 자동 표시됩니다."
+                    className="bg-transparent"
                   />
-                  <p className="text-[12px] text-slate-500">
-                    포트폴리오 PPT의 기술 스택 슬라이드에 로고로 자동 표시됩니다.
-                  </p>
                 </div>
               </div>
 
