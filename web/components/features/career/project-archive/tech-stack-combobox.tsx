@@ -84,7 +84,6 @@ const TECH_STACK_OPTIONS: TechStackOption[] = [
   { label: "C#", aliases: ["csharp"] },
 ];
 
-const DEFAULT_VISIBLE_COUNT = 10;
 const MAX_VISIBLE_COUNT = 8;
 const EMPTY_TECH_STACK: string[] = [];
 
@@ -144,13 +143,13 @@ export function TechStackCombobox({
 
   const suggestions = useMemo(() => {
     const normalizedQuery = normalizeTech(query);
+    if (!normalizedQuery) {
+      return [];
+    }
+
     const options = TECH_STACK_OPTIONS.filter(
       (option) => !selectedKeys.has(normalizeTech(option.label)),
     );
-
-    if (!normalizedQuery) {
-      return options.slice(0, DEFAULT_VISIBLE_COUNT);
-    }
 
     return options
       .filter((option) => getOptionSearchText(option).includes(normalizedQuery))
@@ -194,7 +193,7 @@ export function TechStackCombobox({
     if (!label) return;
     updateTechStack([...selectedTechStack, label]);
     setQuery("");
-    setIsOpen(true);
+    setIsOpen(false);
   };
 
   const addMultipleTech = (rawValue: string) => {
@@ -205,7 +204,7 @@ export function TechStackCombobox({
     if (nextItems.length === 0) return;
     updateTechStack([...selectedTechStack, ...nextItems]);
     setQuery("");
-    setIsOpen(true);
+    setIsOpen(false);
   };
 
   const removeTech = (target: string) => {
@@ -246,7 +245,7 @@ export function TechStackCombobox({
             <Search className="h-4 w-4 shrink-0 text-slate-300" />
             <input
               value={query}
-              onFocus={() => setIsOpen(true)}
+              onFocus={() => setIsOpen(Boolean(query.trim()))}
               onBlur={() => setIsOpen(false)}
               onChange={(event) => {
                 const nextQuery = event.target.value;
@@ -255,7 +254,7 @@ export function TechStackCombobox({
                   return;
                 }
                 setQuery(nextQuery);
-                setIsOpen(true);
+                setIsOpen(Boolean(nextQuery.trim()));
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {

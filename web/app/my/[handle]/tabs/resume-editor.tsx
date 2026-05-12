@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,13 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
+  Code2,
   Download,
+  FileText,
+  FolderKanban,
   Loader2,
   Plus,
   Trash2,
   Upload,
+  UserRound,
+  type LucideIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
@@ -26,6 +31,7 @@ import {
   KoreanResumePreview,
   type ResumeA4Options,
 } from "@/components/features/resume/KoreanResumePreview";
+import { TechStackCombobox } from "@/components/features/career/project-archive/tech-stack-combobox";
 import type { ProjectInput } from "@/app/career/projects/types";
 import type { WorkExperienceInput } from "@/app/career/work-experience/actions";
 
@@ -39,6 +45,13 @@ interface ResumeEditorProps {
   onTitleChange?: (title: string) => void;
 }
 
+type ResumeEditorSectionKey =
+  | "basic"
+  | "intro"
+  | "skills"
+  | "experience"
+  | "projects";
+
 export function ResumeEditor({
   payload,
   onChange,
@@ -47,15 +60,77 @@ export function ResumeEditor({
   title = "",
   onTitleChange,
 }: ResumeEditorProps) {
-  const [newSkill, setNewSkill] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
+  const [activeSection, setActiveSection] =
+    useState<ResumeEditorSectionKey>("basic");
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
   const pi = payload.personalInfo;
+
+  const sectionItems: Array<{
+    id: ResumeEditorSectionKey;
+    label: string;
+    description: string;
+    status: string;
+    tone: "complete" | "attention" | "neutral";
+    icon: LucideIcon;
+  }> = [
+    {
+      id: "basic",
+      label: "기본정보",
+      description: "이름, 연락처, 링크",
+      status: pi.name?.trim() && pi.email?.trim() ? "완료" : "필수",
+      tone: pi.name?.trim() && pi.email?.trim() ? "complete" : "attention",
+      icon: UserRound,
+    },
+    {
+      id: "intro",
+      label: "자기소개",
+      description: "요약과 소개 문장",
+      status: payload.selfIntroduction?.trim()
+        ? payload.selfIntroduction.trim().length >= 80
+          ? "충분"
+          : "보강"
+        : "미작성",
+      tone: payload.selfIntroduction?.trim()
+        ? payload.selfIntroduction.trim().length >= 80
+          ? "complete"
+          : "attention"
+        : "neutral",
+      icon: FileText,
+    },
+    {
+      id: "skills",
+      label: "기술",
+      description: "스택과 역량",
+      status: `${payload.skills.length}개`,
+      tone: payload.skills.length >= 4 ? "complete" : "attention",
+      icon: Code2,
+    },
+    {
+      id: "experience",
+      label: "경력",
+      description: "회사와 업무",
+      status: `${payload.experience.length}개`,
+      tone: payload.experience.length > 0 ? "complete" : "neutral",
+      icon: Briefcase,
+    },
+    {
+      id: "projects",
+      label: "프로젝트",
+      description: "성과와 기술",
+      status: `${payload.projects.length}개`,
+      tone: payload.projects.length > 0 ? "complete" : "attention",
+      icon: FolderKanban,
+    },
+  ];
+
+  const activeSectionMeta =
+    sectionItems.find((section) => section.id === activeSection) || sectionItems[0];
 
   const setPI = (patch: Partial<ResumePayload["personalInfo"]>) =>
     onChange({ ...payload, personalInfo: { ...pi, ...patch } });
@@ -66,26 +141,30 @@ export function ResumeEditor({
       personalInfo: { ...pi, links: { ...pi.links, ...patch } },
     });
 
-  const addSkill = () => {
-    const name = newSkill.trim();
-    if (!name) return;
-    onChange({
-      ...payload,
-      skills: [...payload.skills, { name, level: "Intermediate" }],
-    });
-    setNewSkill("");
-  };
+  const normalizeSkillName = (value: string) =>
+    value.trim().toLowerCase().replace(/\s+/g, " ");
 
-  const removeSkill = (index: number) => {
-    const item = payload.skills[index];
-    onChange({
-      ...payload,
-      skills: payload.skills.filter((_, i) => i !== index),
-    });
-    toast({
-      title: "기술 스택 삭제됨",
-      description: `${item.name} 항목이 목록에서 제거되었습니다.`,
-    });
+  const updateSkillsFromNames = (nextNames: string[]) => {
+    const existingSkills = new Map(
+      payload.skills.map((skill) => [normalizeSkillName(skill.name), skill]),
+    );
+    const seen = new Set<string>();
+    const skills = nextNames
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .flatMap((name) => {
+        const key = normalizeSkillName(name);
+        if (!key || seen.has(key)) return [];
+        seen.add(key);
+        const existing = existingSkills.get(key);
+        return [
+          existing
+            ? { ...existing, name }
+            : { name, level: "Intermediate" },
+        ];
+      });
+
+    onChange({ ...payload, skills });
   };
 
   const setExp = (
@@ -343,7 +422,62 @@ export function ResumeEditor({
         />
       </div>
 
-      <Card>
+      <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {sectionItems.map((section) => {
+            const Icon = section.icon;
+            const isActive = activeSection === section.id;
+
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                className={cn(
+                  "min-w-0 rounded-lg border px-3 py-3 text-left transition-all",
+                  isActive
+                    ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                    : "border-transparent bg-slate-50 hover:border-slate-200 hover:bg-white dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:bg-slate-900",
+                )}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-white text-slate-500 shadow-sm dark:bg-slate-950 dark:text-slate-300",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black",
+                      section.tone === "complete" &&
+                        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+                      section.tone === "attention" &&
+                        "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+                      section.tone === "neutral" &&
+                        "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300",
+                    )}
+                  >
+                    {section.status}
+                  </span>
+                </span>
+                <span className="mt-2 block truncate text-sm font-black text-slate-900 dark:text-slate-50">
+                  {section.label}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">
+                  {section.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <Card className={activeSection === "basic" ? "" : "hidden"}>
         <CardContent className="p-5 space-y-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             기본 정보
@@ -409,7 +543,7 @@ export function ResumeEditor({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={activeSection === "intro" ? "" : "hidden"}>
         <CardContent className="p-5 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -425,51 +559,21 @@ export function ResumeEditor({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={activeSection === "skills" ? "" : "hidden"}>
         <CardContent className="p-5 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             기술 스택
           </p>
-          <div className="flex flex-wrap gap-1.5 min-h-[32px]">
-            {payload.skills.map((skill, index) => (
-              <Badge
-                key={index}
-                variant="secondary"
-                className="text-xs gap-1 pl-2.5 pr-1 h-7 cursor-default"
-              >
-                {skill.name}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    removeSkill(index);
-                  }}
-                  className="opacity-50 hover:opacity-100 transition px-1 text-[10px] font-bold"
-                >
-                  삭제
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={newSkill}
-              onChange={(event) => setNewSkill(event.target.value)}
-              onKeyDown={(event) =>
-                event.key === "Enter" && (event.preventDefault(), addSkill())
-              }
-              placeholder="기술명 입력 후 Enter"
-              className="flex-1"
-            />
-            <Button variant="outline" size="sm" onClick={addSkill}>
-              추가
-            </Button>
-          </div>
+          <TechStackCombobox
+            value={payload.skills.map((skill) => skill.name)}
+            onChange={updateSkillsFromNames}
+            placeholder="예: React, Next.js, TypeScript, Supabase"
+            helperText="검색 목록에서 선택하거나 직접 입력 후 Enter를 누르세요. 선택한 기술은 오른쪽 이력서 기술 섹션에 반영됩니다."
+          />
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={activeSection === "experience" ? "" : "hidden"}>
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -555,7 +659,7 @@ export function ResumeEditor({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={activeSection === "projects" ? "" : "hidden"}>
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -697,6 +801,7 @@ export function ResumeEditor({
             title={title}
             options={a4Options}
             onOptionsChange={setA4Options}
+            activeEditorSectionLabel={activeSectionMeta.label}
           />
         </div>
       </div>

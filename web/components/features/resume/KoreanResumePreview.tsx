@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Download, FileText, Printer } from "lucide-react";
+import { CheckCircle2, FileText, Printer } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -336,13 +336,6 @@ export function KoreanResumeDocument({
         ) : null}
       </div>
 
-      <footer className="mt-8 flex items-center justify-between border-t border-slate-200 pt-3 text-[10px] font-semibold text-slate-400">
-        <span>{title || `${name} 이력서`}</span>
-        <span className="inline-flex items-center gap-1">
-          <Download className="h-3 w-3" />
-          A4 PDF Ready
-        </span>
-      </footer>
     </article>
   );
 }
@@ -383,6 +376,7 @@ export function KoreanResumePreview({
   title,
   options,
   onOptionsChange,
+  activeEditorSectionLabel,
   formOpen,
   onToggleForm,
 }: {
@@ -390,6 +384,7 @@ export function KoreanResumePreview({
   title?: string;
   options: ResumeA4Options;
   onOptionsChange: (options: ResumeA4Options) => void;
+  activeEditorSectionLabel?: string;
   formOpen?: boolean;
   onToggleForm?: () => void;
 }) {
@@ -404,27 +399,44 @@ export function KoreanResumePreview({
             margin: 0;
           }
 
+          html,
+          body {
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+            background: white !important;
+          }
+
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
           }
 
           #korean-resume-print,
           #korean-resume-print * {
-            visibility: visible;
+            visibility: visible !important;
           }
 
           #korean-resume-print {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 210mm;
-            background: white;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            background: white !important;
+            break-before: avoid !important;
+            break-after: avoid !important;
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            overflow: hidden !important;
           }
 
           .korean-resume-a4-page {
             width: 210mm !important;
             min-height: 297mm !important;
-            height: auto !important;
+            height: 297mm !important;
             margin: 0 !important;
             padding: 15mm !important;
             box-shadow: none !important;
@@ -433,9 +445,16 @@ export function KoreanResumePreview({
             transform: none !important;
           }
 
-          .korean-resume-scale-frame {
-            height: auto !important;
+          .korean-resume-scale-frame,
+          .korean-resume-scale-frame > div {
+            width: 210mm !important;
+            max-width: 210mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             overflow: visible !important;
+            transform: none !important;
           }
         }
       `}</style>
@@ -474,6 +493,11 @@ export function KoreanResumePreview({
                 </span>
               ))}
             </div>
+            {activeEditorSectionLabel ? (
+              <p className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary">
+                현재 편집 중: {activeEditorSectionLabel}
+              </p>
+            ) : null}
           </div>
         </div>
 
