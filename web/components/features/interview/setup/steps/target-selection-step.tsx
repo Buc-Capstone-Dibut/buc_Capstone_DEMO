@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Briefcase, CheckCircle2, ChevronRight, Link as LinkIcon, Search, Sparkles } from "lucide-react";
+import { ArrowRight, Briefcase, CheckCircle2, ChevronRight, Link as LinkIcon, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -18,32 +18,13 @@ import {
   getRoleTrackFocusAreas,
 } from "@/lib/interview/role-track";
 import { getRoleCategoryVisual, getRoleDetailIcon } from "@/lib/interview/role-visuals";
-import { TechLogoChip } from "@/components/features/interview/tech-logo-chip";
 
 type SetupTrack = "posting" | "role";
 
 const ROLE_SETUP_STEPS = [
-  { label: "직무 범주", description: "큰 방향 선택" },
-  { label: "세부 직무", description: "역할 기준 조정" },
-  { label: "면접 기준", description: "질문 흐름 확정" },
-] as const;
-
-const POSTING_FLOW_ITEMS = [
-  {
-    label: "URL 입력",
-    description: "공고 링크 수집",
-    icon: "/images/interview/setup/flow-icons/setup-flow-url-input.png",
-  },
-  {
-    label: "JD 분석",
-    description: "요구사항 추출",
-    icon: "/images/interview/setup/flow-icons/setup-flow-jd-analysis.png",
-  },
-  {
-    label: "이력서 매칭",
-    description: "경험 연결",
-    icon: "/images/interview/setup/flow-icons/setup-flow-resume-match.png",
-  },
+  { label: "직무 범주" },
+  { label: "세부 직무" },
+  { label: "면접 기준" },
 ] as const;
 
 interface TargetSelectionStepProps {
@@ -191,7 +172,11 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
             </div>
           </div>
 
-          <div className="relative hidden h-64 lg:block">
+          <motion.div
+            className="relative hidden h-64 lg:block"
+            animate={{ y: [0, -12, 0] }}
+            transition={{ duration: 4.2, ease: "easeInOut", repeat: Infinity }}
+          >
             <div className="absolute inset-x-8 bottom-6 h-14 rounded-full bg-[#172033]/[0.08] blur-2xl" />
             <Image
               src="/images/interview/setup/hero/posting-setup-hero.png"
@@ -201,47 +186,26 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
               priority
               className="relative z-10 h-full w-full object-contain drop-shadow-[0_24px_24px_rgba(23,32,51,0.12)]"
             />
-          </div>
+          </motion.div>
         </div>
 
-        <div className="mt-8 overflow-hidden rounded-[28px] border border-[#dfe7ef] bg-white shadow-sm">
-          <div className="border-b border-[#e6edf4] px-6 py-5">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-black text-[#172033]">채용 공고 URL</p>
-                <p className="mt-1 text-sm text-[#6d7888]">사람인, 원티드, 점핏 등 공개 공고 링크를 입력하세요.</p>
-              </div>
-              <div className="grid min-w-[300px] grid-cols-3 gap-2">
-                {POSTING_FLOW_ITEMS.map((item, index) => (
-                  <div key={item.label} className="rounded-2xl border border-[#dfe7ef] bg-[#f8fafc] px-3 py-3 text-center">
-                    <Image src={item.icon} alt="" width={72} height={72} className="mx-auto h-12 w-12 object-contain" />
-                    <p className="mt-1 text-[11px] font-black text-[#7cad46]">0{index + 1}</p>
-                    <p className="mt-0.5 text-xs font-black text-[#172033]">{item.label}</p>
-                    <p className="mt-0.5 text-[11px] text-[#8a96a6]">{item.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="space-y-4">
-              <div className="relative">
+        <div className="mt-8 max-w-3xl">
+          <div className="space-y-3">
+            <p className="text-sm font-black text-[#172033]">채용 공고 URL</p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a96a6]" />
                 <Input
                   placeholder="https://..."
-                  className="h-14 rounded-xl border-[#dfe7ef] bg-[#fbfcfe] pl-11 text-base shadow-sm"
+                  className="h-14 rounded-xl border-[#dfe7ef] bg-white pl-11 text-base shadow-sm"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleNext()}
                 />
               </div>
-              <p className="text-sm leading-6 text-[#6d7888]">
-                분석이 끝나면 회사/직무/요구역량을 확인하고, 다음 단계에서 이력서를 연결합니다.
-              </p>
               <Button
                 size="lg"
-                className="h-12 rounded-xl bg-[#7cad46] px-7 text-base font-bold hover:bg-[#6f9f3b]"
+                className="h-14 rounded-xl bg-[#7cad46] px-8 text-base font-bold hover:bg-[#6f9f3b]"
                 onClick={handleNext}
                 disabled={isLoading || !urlInput}
               >
@@ -256,18 +220,6 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
                   </span>
                 )}
               </Button>
-            </div>
-
-            <div className="rounded-2xl border border-[#e6edf4] bg-[#f8fafc] p-4">
-              <div className="flex items-center gap-2 text-sm font-bold text-[#172033]">
-                <Sparkles className="h-4 w-4 text-[#7cad46]" />
-                분석 후 생성되는 기준
-              </div>
-              <div className="mt-4 space-y-3 text-sm text-[#5f6b7a]">
-                <p>지원 직무와 주요 업무</p>
-                <p>필수/우대 역량</p>
-                <p>이력서 매칭 질문 포인트</p>
-              </div>
             </div>
           </div>
         </div>
@@ -291,38 +243,38 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
       </div>
 
       <div className="mt-8 overflow-hidden rounded-[30px] border border-[#dfe7ef] bg-white shadow-sm">
-        <div className="grid gap-6 border-b border-[#e6edf4] bg-[#fbfcfe] px-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-          <div>
-            <div className="grid gap-3 sm:grid-cols-3">
+        <div className="border-b border-[#e6edf4] bg-[#fbfcfe] px-6 py-6">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
               {ROLE_SETUP_STEPS.map((step, index) => (
-                <div key={step.label} className="rounded-2xl border border-[#dfe7ef] bg-white px-4 py-3 shadow-sm">
+                <div key={step.label} className="flex items-center gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7cad46] text-xs font-black text-white">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7cad46] text-sm font-black text-white shadow-sm">
                       {index + 1}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-[#172033]">{step.label}</p>
-                      <p className="mt-0.5 text-xs text-[#6d7888]">{step.description}</p>
-                    </div>
+                    <p className="min-w-0 text-sm font-black text-[#172033]">{step.label}</p>
                   </div>
+                  {index < ROLE_SETUP_STEPS.length - 1 ? (
+                    <span className="hidden h-px w-20 bg-[#cfd9e4] sm:block" aria-hidden="true" />
+                  ) : null}
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-sm leading-6 text-[#6d7888]">
-              세부 직무를 고르지 않으면 범주 공통 기준으로 진행하고, 고르면 해당 역할에서 자주 검증되는 역량으로 질문을 좁힙니다.
+            <p className="mt-3 text-center text-sm leading-6 text-[#6d7888]">
+              세부 직무 선택 여부에 따라 공통 질문 또는 역할별 질문으로 진행합니다.
             </p>
-          </div>
 
-          <div className="relative hidden h-56 lg:block">
-            <div className={cn("absolute inset-x-10 bottom-4 h-12 rounded-full blur-2xl", selectedCategoryVisual.glow)} />
-            <Image
-              src="/images/interview/setup/hero/role-setup-flow.png"
-              alt="직무 기반 면접 흐름"
-              width={700}
-              height={420}
-              priority
-              className="relative z-10 h-full w-full object-contain drop-shadow-[0_24px_24px_rgba(23,32,51,0.12)]"
-            />
+            <div className="relative mx-auto mt-4 h-32 max-w-sm sm:h-36">
+              <div className={cn("absolute inset-x-8 bottom-3 h-10 rounded-full blur-2xl", selectedCategoryVisual.glow)} />
+              <Image
+                src="/images/interview/setup/hero/role-setup-flow.png"
+                alt="직무 기반 면접 흐름"
+                width={700}
+                height={420}
+                priority
+                className="relative z-10 h-full w-full object-contain drop-shadow-[0_18px_18px_rgba(23,32,51,0.10)]"
+              />
+            </div>
           </div>
         </div>
 
@@ -370,37 +322,13 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
           </aside>
 
           <section className="min-w-0">
-            <div className="grid gap-5 border-b border-[#e6edf4] px-6 py-5 md:grid-cols-[minmax(0,1fr)_180px] md:items-center">
+            <div className="border-b border-[#e6edf4] px-6 py-5">
               <div className="flex min-w-0 items-center gap-4">
-                <div className="relative flex h-20 w-20 shrink-0 items-center justify-center">
-                  <span className={cn("absolute inset-2 rounded-full blur-xl", selectedCategoryVisual.glow)} />
-                  <motion.div
-                    key={selectedCategory.id}
-                    initial={{ opacity: 0, y: 8, scale: 0.94 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.22 }}
-                    className="relative"
-                  >
-                    <Image
-                      src={selectedCategoryVisual.icon}
-                      alt=""
-                      width={120}
-                      height={120}
-                      className="h-20 w-20 object-contain drop-shadow-[0_14px_16px_rgba(23,32,51,0.12)]"
-                    />
-                  </motion.div>
-                </div>
                 <div className="min-w-0">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8a96a6]">Selected Role Track</p>
                   <h2 className="mt-2 text-2xl font-black tracking-tight text-[#172033]">{selectedCategory.label}</h2>
                   <p className="mt-1 text-sm leading-6 text-[#5f6b7a]">{selectedCategory.description}</p>
                 </div>
-              </div>
-              <div className="rounded-2xl border border-[#dfe7ef] bg-[#fbfcfe] px-4 py-3 text-sm">
-                <p className="font-black text-[#172033]">{selectedRole ? "세부 직무 선택됨" : "공통 기준"}</p>
-                <p className="mt-1 text-xs leading-5 text-[#6d7888]">
-                  {selectedRole ? "선택한 역할 기준으로 질문 난도를 좁힙니다." : "범주 공통 질문으로 넓게 시작합니다."}
-                </p>
               </div>
             </div>
 
@@ -467,21 +395,6 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
                             >
                               {focusArea}
                             </span>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {role.techStack.slice(0, 4).map((tech) => (
-                            <TechLogoChip
-                              key={tech}
-                              label={tech}
-                              className={cn(
-                                "min-h-7 px-2 py-0.5 text-[11px]",
-                                isSelected
-                                  ? "border-[#cfe1c1] bg-white text-[#5f8f36]"
-                                  : "border-[#dfe7ef] bg-[#fbfcfe] text-[#637083]",
-                              )}
-                              iconClassName="h-4 w-4"
-                            />
                           ))}
                         </div>
                       </div>

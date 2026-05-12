@@ -39,6 +39,7 @@ type ChatMessage = SiteHelperChatMessage & {
   id: string;
   sources?: SiteHelperSource[];
   isError?: boolean;
+  isComplete?: boolean;
 };
 
 const STARTER_QUESTIONS = [
@@ -127,6 +128,7 @@ export function SiteHelperChat() {
       role: "assistant",
       content: "",
       sources,
+      isComplete: false,
     };
 
     const history = toApiHistory(messages);
@@ -179,6 +181,7 @@ export function SiteHelperChat() {
               ? {
                   ...message,
                   content: message.content || "응답을 중지했습니다.",
+                  isComplete: true,
                 }
               : message,
           ),
@@ -190,12 +193,18 @@ export function SiteHelperChat() {
               ? error.message
               : "사이트 도우미 응답 생성 중 오류가 발생했습니다.",
           isError: true,
+          isComplete: true,
         });
       }
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;
       }
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantId ? { ...message, isComplete: true } : message,
+        ),
+      );
       setIsStreaming(false);
     }
   };
@@ -354,16 +363,25 @@ export function SiteHelperChat() {
                         )}
 
                         {message.role === "assistant" &&
+                          message.isComplete &&
+                          message.content.trim().length > 0 &&
                           message.sources &&
                           message.sources.length > 0 && (
-                            <div className="mt-3 space-y-2 border-t border-neutral-200/70 pt-3">
+                            <div
+                              className="mt-3 space-y-2 border-t border-neutral-200/70 pt-3 animate-fade-in-up"
+                              style={{ animationFillMode: "both" }}
+                            >
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
                                 관련 기능
                               </p>
-                              {message.sources.map((source) => (
+                              {message.sources.map((source, sourceIndex) => (
                                 <div
                                   key={source.id}
-                                  className="rounded-md border border-primary/15 bg-white p-2"
+                                  className="rounded-md border border-primary/15 bg-white p-2 animate-fade-in-up"
+                                  style={{
+                                    animationDelay: `${120 + sourceIndex * 120}ms`,
+                                    animationFillMode: "both",
+                                  }}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">

@@ -27,7 +27,6 @@ const INTERVIEW_MODES = [
     subtitle: "실제 지원 공고에 맞춘 질문",
     description: "채용공고와 이력서를 함께 분석해 JD 요구사항 중심의 면접 흐름을 만듭니다.",
     image: "/images/interview/mode-posting.png",
-    flowImage: "/images/interview/flows/flow-posting.png",
     href: "/interview/posting/setup",
     actionLabel: "공고로 시작",
     icon: FileSearch,
@@ -35,15 +34,12 @@ const INTERVIEW_MODES = [
     accent: "from-white to-[#f6fbf2]",
     border: "hover:border-[#9ac56a]",
     badges: ["JD 분석", "이력서 매칭", "맞춤 질문"],
-    steps: ["공고 URL", "이력서", "화상 면접"],
-    flowNote: "공고와 이력서를 함께 읽고, 실제 지원 상황에 맞는 질문으로 이어집니다.",
   },
   {
     title: "직무 기반 모의면접",
     subtitle: "목표 직무 역량 훈련",
     description: "공고 없이도 백엔드, 프론트엔드, AI/데이터 등 직무별 핵심 질문을 연습합니다.",
     image: "/images/interview/mode-role.png",
-    flowImage: "/images/interview/flows/flow-role.png",
     href: "/interview/role/setup",
     actionLabel: "직무 선택",
     icon: BriefcaseBusiness,
@@ -51,15 +47,12 @@ const INTERVIEW_MODES = [
     accent: "from-white to-[#f2faf8]",
     border: "hover:border-[#7fc9c1]",
     badges: ["직무 선택", "역량 질문", "기초-심화"],
-    steps: ["직무 범주", "역할 선택", "화상 면접"],
-    flowNote: "목표 직무를 고르면 해당 역할에서 자주 검증되는 역량 질문을 구성합니다.",
   },
   {
     title: "포트폴리오 디펜스",
     subtitle: "프로젝트 설명력 강화",
     description: "GitHub 레포를 분석해 설계 의도, 기술 선택, 개선 방향을 설명하는 면접을 진행합니다.",
     image: "/images/interview/mode-portfolio.png",
-    flowImage: "/images/interview/flows/flow-portfolio.png",
     href: "/interview/training/setup",
     actionLabel: "디펜스 셋업",
     icon: Github,
@@ -67,8 +60,6 @@ const INTERVIEW_MODES = [
     accent: "from-white to-[#f3f8fc]",
     border: "hover:border-[#83b7d8]",
     badges: ["GitHub 분석", "설계 의도", "기술 설명"],
-    steps: ["레포 URL", "구조 분석", "디펜스"],
-    flowNote: "레포 구조를 바탕으로 기술 선택과 설계 의도를 말로 설명하는 연습을 합니다.",
   },
 ] as const;
 
@@ -115,7 +106,7 @@ export default function InterviewPage() {
                 transition={{ duration: 0.45, delay: index * 0.08 }}
                 whileHover={{ y: -4 }}
                 className={cn(
-                  "group relative flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-[#dfe7ef] bg-white shadow-sm transition-colors duration-200",
+                  "group relative flex min-h-[500px] flex-col overflow-hidden rounded-xl border border-[#dfe7ef] bg-white shadow-sm transition-colors duration-200",
                   mode.border
                 )}
               >
@@ -152,31 +143,6 @@ export default function InterviewPage() {
                         </span>
                       ))}
                     </div>
-                  </div>
-
-                  <div className="mt-6 border-t border-[#eef2f6] pt-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8a96a6]">FLOW</p>
-                      <div className="hidden items-center gap-1.5 text-[11px] font-bold text-[#8a96a6] sm:flex">
-                        {mode.steps.map((step, stepIndex) => (
-                          <span key={step} className="flex items-center gap-1.5">
-                            {step}
-                            {stepIndex < mode.steps.length - 1 ? <span className="text-[#b5bfca]">/</span> : null}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="relative mt-2 h-[118px] overflow-visible">
-                      <div className="absolute inset-x-6 bottom-3 h-8 rounded-full bg-[#172033]/[0.05] blur-xl" />
-                      <Image
-                        src={mode.flowImage}
-                        alt={`${mode.title} 진행 흐름`}
-                        width={520}
-                        height={220}
-                        className="relative z-10 h-full w-full object-contain"
-                      />
-                    </div>
-                    <p className="mt-2 text-xs font-medium leading-5 text-[#6d7888]">{mode.flowNote}</p>
                   </div>
 
                   <div className="mt-auto flex flex-col gap-2 pt-5">
