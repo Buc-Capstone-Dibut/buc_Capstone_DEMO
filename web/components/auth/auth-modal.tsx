@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { signIn, signUp, signInWithGoogle, signInWithGithub } from "@/lib/auth";
 import { Loader2, Mail, Lock, Eye, EyeOff, Github } from "lucide-react";
+import { DibutMascot } from "@/components/auth/dibut-mascot";
 
 interface AuthModalProps {
   open: boolean;
@@ -30,6 +31,7 @@ export function AuthModal({
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<"email" | "password" | null>(null);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -143,6 +145,12 @@ export function AuthModal({
           </TabsList>
 
           <TabsContent value="login" className="space-y-4">
+            {/* 디벗 마스코트 */}
+            <DibutMascot
+              isEmailFocused={focusedField === "email"}
+              emailLength={formData.email.length}
+              isCovering={focusedField === "password"}
+            />
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="login-email">이메일</Label>
@@ -154,6 +162,8 @@ export function AuthModal({
                     placeholder="이메일을 입력하세요"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
+                    onFocus={() => setFocusedField("email")}
+                    onBlur={() => setFocusedField(null)}
                     className="pl-10"
                   />
                 </div>
@@ -171,6 +181,8 @@ export function AuthModal({
                     onChange={(e) =>
                       handleInputChange("password", e.target.value)
                     }
+                    onFocus={() => setFocusedField("password")}
+                    onBlur={() => setFocusedField(null)}
                     className="pl-10 pr-10"
                   />
                   <Button
@@ -251,6 +263,12 @@ export function AuthModal({
           </TabsContent>
 
           <TabsContent value="signup" className="space-y-4">
+            {/* 디벗 마스코트 */}
+            <DibutMascot
+              isEmailFocused={focusedField === "email"}
+              emailLength={formData.email.length}
+              isCovering={focusedField === "password"}
+            />
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-email">이메일</Label>
@@ -262,6 +280,8 @@ export function AuthModal({
                     placeholder="이메일을 입력하세요"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
+                    onFocus={() => setFocusedField("email")}
+                    onBlur={() => setFocusedField(null)}
                     className="pl-10"
                   />
                 </div>
@@ -279,6 +299,8 @@ export function AuthModal({
                     onChange={(e) =>
                       handleInputChange("password", e.target.value)
                     }
+                    onFocus={() => setFocusedField("password")}
+                    onBlur={() => setFocusedField(null)}
                     className="pl-10 pr-10"
                   />
                   <Button
