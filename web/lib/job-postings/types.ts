@@ -41,6 +41,7 @@ export interface JobPostingRecord {
   teamCulture: string[];
   memo: string | null;
   status: JobPostingStatus;
+  isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
   schedules?: ScheduleRecord[];

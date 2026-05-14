@@ -36,6 +36,7 @@ export function toRecord(row: any): JobPostingRecord {
     teamCulture: row.team_culture ?? [],
     memo: row.memo ?? null,
     status: row.status as JobPostingStatus,
+    isFavorite: row.is_favorite ?? false,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
     schedules: (row.schedules ?? []).map(
