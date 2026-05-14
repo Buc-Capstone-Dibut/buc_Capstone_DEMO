@@ -31,6 +31,7 @@ import {
   ResumeImportDialog,
   type ResumeImportSelection,
 } from "@/components/features/resume/resume-import-dialog";
+import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
@@ -72,8 +73,9 @@ export function ResumeEditor({
   const [isResumeImportDialogOpen, setIsResumeImportDialogOpen] = useState(false);
   const hasAutoOpenedImportRef = useRef(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
-  // 미리보기-토글 모드의 좌측 패널 표시 여부. 기본 닫힘.
-  const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
+  // 미리보기-토글 모드의 좌측 패널 표시 여부. 사용자가 편집기를 자주 쓰므로 기본 펼침.
+  // 각 입력 카드는 CollapsibleSection 으로 따로 접고 펼칠 수 있다.
+  const [isEditPanelOpen, setIsEditPanelOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editPanelRef = useRef<HTMLDivElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -526,11 +528,7 @@ export function ResumeEditor({
         />
       </div>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            기본 정보
-          </p>
+      <CollapsibleSection title="기본 정보" badge="필수" defaultOpen>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "이름", key: "name" as const, placeholder: "홍길동" },
@@ -589,30 +587,26 @@ export function ResumeEditor({
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              자기소개서 (포트폴리오)
-            </p>
-          </div>
+      <CollapsibleSection
+        title="자기소개"
+        badge={payload.selfIntroduction?.trim() ? "작성됨" : "비어있음"}
+        defaultOpen={false}
+      >
           <Textarea
             value={payload.selfIntroduction}
             onChange={(event) => onChange({ ...payload, selfIntroduction: event.target.value })}
             placeholder="AI 가이드를 통해 나의 프로젝트를 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
             className="min-h-[200px] text-sm leading-relaxed"
           />
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            기술 스택
-          </p>
+      <CollapsibleSection
+        title="기술 스택"
+        badge={payload.skills.length > 0 ? `${payload.skills.length}개` : undefined}
+        defaultOpen
+      >
           <TechStackCombobox
             value={payload.skills.map((s) => s.name)}
             onChange={(nextNames) => {
@@ -631,25 +625,24 @@ export function ResumeEditor({
           <p className="text-[11px] text-muted-foreground">
             사전 등록된 기술은 로고가 자동 매칭되며, 자유 입력도 함께 저장됩니다. 기존 항목의 숙련도 메타데이터는 유지됩니다.
           </p>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              경력
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-[11px] font-bold gap-1.5 text-primary border-primary/20 bg-primary/5 hover:bg-primary/10"
-              onClick={() => setIsWorkExpModalOpen(true)}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              내 경력 보관함에서 불러오기
-            </Button>
-          </div>
+      <CollapsibleSection
+        title="경력"
+        badge={payload.experience.length > 0 ? `${payload.experience.length}개` : undefined}
+        defaultOpen={false}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-[11px] font-bold gap-1.5 text-primary border-primary/20 bg-primary/5 hover:bg-primary/10"
+            onClick={() => setIsWorkExpModalOpen(true)}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            보관함에서 불러오기
+          </Button>
+        }
+      >
           {payload.experience.map((exp, index) => (
             <div key={exp.id || index} className="relative rounded-lg border p-4 space-y-3 bg-muted/20">
               <Button
@@ -717,26 +710,25 @@ export function ResumeEditor({
           >
             <Plus className="w-4 h-4 mr-2" /> 경력 추가
           </Button>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              프로젝트
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-              className="h-8 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              프로젝트 보관함에서 불러오기
-            </Button>
-          </div>
+      <CollapsibleSection
+        title="프로젝트"
+        badge={payload.projects.length > 0 ? `${payload.projects.length}개` : undefined}
+        defaultOpen={false}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="h-7 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            보관함에서 불러오기
+          </Button>
+        }
+      >
           {payload.projects.map((project, projectIndex) => (
             <div
               key={project.id || projectIndex}
@@ -835,8 +827,7 @@ export function ResumeEditor({
           >
             <Plus className="w-4 h-4 mr-2" /> 새 프로젝트 추가하기
           </Button>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
       <div className="flex items-center justify-between gap-2 pt-2">
         {previewToggleMode ? (
