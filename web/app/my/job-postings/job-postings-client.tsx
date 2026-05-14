@@ -1,94 +1,243 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { JobPostingCalendar, type CalendarEvent } from "@/components/features/job-postings/job-posting-calendar";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  JobPostingCalendar,
+  type CalendarEvent,
+} from "@/components/features/job-postings/job-posting-calendar";
 import { JobPostingList } from "@/components/features/job-postings/job-posting-list";
+import { JobPostingListView } from "@/components/features/job-postings/job-posting-list-view";
 import { JobPostingFormDialog } from "@/components/features/job-postings/job-posting-form-dialog";
-import type { JobPostingInput, JobPostingRecord } from "@/lib/job-postings/types";
+import { JobPostingsHeader } from "@/components/features/job-postings/job-postings-header";
+import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
+import type { JobPostingRecord } from "@/lib/job-postings/types";
+import { useJobPostingsView } from "./use-job-postings-view";
+
+interface ListResponse {
+  success: boolean;
+  data?: {
+    items: JobPostingRecord[];
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    hasMore?: boolean;
+  };
+  error?: string;
+}
 
 export function JobPostingsClient() {
+  const {
+    state,
+    setQuery,
+    toggleStatus,
+    setSort,
+    setView,
+    toggleCalendar,
+    setFavoritesPolicy,
+    setPage,
+  } = useJobPostingsView();
+
   const [postings, setPostings] = useState<JobPostingRecord[]>([]);
+  const [total, setTotal] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const fetchAll = useCallback(async () => {
+  // 검색 디바운스
+  const [debouncedQuery, setDebouncedQuery] = useState(state.query);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(state.query), 300);
+    return () => clearTimeout(id);
+  }, [state.query]);
+
+  const fetchListRef = useRef<AbortController | null>(null);
+  const fetchList = useCallback(async () => {
+    fetchListRef.current?.abort();
+    const ctrl = new AbortController();
+    fetchListRef.current = ctrl;
+
     setLoading(true);
     try {
-      const [postingsRes, calRes] = await Promise.all([
-        fetch("/api/my/job-postings", { cache: "no-store" }),
-        fetch("/api/my/job-postings/calendar", { cache: "no-store" }),
-      ]);
-      const pj = await postingsRes.json();
-      const cj = await calRes.json();
-      if (pj.success) setPostings(pj.data.items);
-      if (cj.success) setEvents(cj.data.events);
+      const params = new URLSearchParams();
+      if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
+      if (state.statusFilters.length > 0) {
+        params.set("status", state.statusFilters.join(","));
+      }
+      if (state.sort) params.set("sort", state.sort);
+      if (state.favoritesPolicy !== "off") {
+        params.set("favorites", state.favoritesPolicy);
+      }
+      params.set("page", String(state.page));
+      params.set("pageSize", String(state.pageSize));
+
+      const res = await fetch(`/api/my/job-postings?${params.toString()}`, {
+        cache: "no-store",
+        signal: ctrl.signal,
+      });
+      const json: ListResponse = await res.json();
+      if (json.success && json.data) {
+        setPostings(json.data.items ?? []);
+        setTotal(json.data.total ?? (json.data.items ?? []).length);
+      }
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name !== "AbortError") {
+        // 무시: 사용자가 빠르게 입력 시 발생 가능
+      }
     } finally {
-      setLoading(false);
+      if (!ctrl.signal.aborted) setLoading(false);
+    }
+  }, [
+    debouncedQuery,
+    state.statusFilters,
+    state.sort,
+    state.favoritesPolicy,
+    state.page,
+    state.pageSize,
+  ]);
+
+  const fetchCalendar = useCallback(async () => {
+    try {
+      const res = await fetch("/api/my/job-postings/calendar", { cache: "no-store" });
+      const json = await res.json();
+      if (json.success) setEvents(json.data.events);
+    } catch {
+      // 무시
     }
   }, []);
 
-  useEffect(() => { void fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
 
-  const active = useMemo(
-    () => postings.filter((p) => p.status !== "archived" && p.status !== "closed"),
-    [postings]
-  );
-  const inactive = useMemo(
-    () => postings.filter((p) => p.status === "archived" || p.status === "closed"),
-    [postings]
+  useEffect(() => {
+    void fetchCalendar();
+  }, [fetchCalendar]);
+
+  const handleDialogCreated = useCallback(async () => {
+    await Promise.all([fetchList(), fetchCalendar()]);
+  }, [fetchList, fetchCalendar]);
+
+  const handleToggleFavorite = useCallback(
+    async (id: string, next: boolean) => {
+      // 낙관적 업데이트
+      setPostings((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isFavorite: next } : p)),
+      );
+      try {
+        const res = await fetch(`/api/my/job-postings/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isFavorite: next }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "즐겨찾기 변경 실패");
+        // 정렬 정책이 즐겨찾기 의존이면 재조회로 순서 반영
+        if (state.favoritesPolicy !== "off") {
+          await fetchList();
+        }
+      } catch {
+        // 롤백
+        setPostings((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, isFavorite: !next } : p)),
+        );
+      }
+    },
+    [state.favoritesPolicy, fetchList],
   );
 
-  const handleCreate = async (payload: JobPostingInput) => {
-    const res = await fetch("/api/my/job-postings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error || "저장 실패");
-    await fetchAll();
-  };
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (typeof window !== "undefined" && !window.confirm("이 채용공고를 삭제하시겠습니까?")) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/my/job-postings/${id}`, { method: "DELETE" });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "삭제 실패");
+        await Promise.all([fetchList(), fetchCalendar()]);
+      } catch (e: unknown) {
+        if (typeof window !== "undefined") {
+          window.alert((e as { message?: string })?.message ?? "삭제에 실패했습니다.");
+        }
+      }
+    },
+    [fetchList, fetchCalendar],
+  );
+
+  const hasFilters = useMemo(
+    () =>
+      state.query.trim().length > 0 ||
+      state.statusFilters.length > 0 ||
+      state.favoritesPolicy === "only",
+    [state.query, state.statusFilters, state.favoritesPolicy],
+  );
+
+  const emptyMessage = hasFilters ? (
+    <>조건에 맞는 채용공고가 없습니다. 검색어나 필터를 조정해 보세요.</>
+  ) : (
+    <>
+      등록된 채용공고가 없습니다. 상단 <b>+ 새 공고 등록</b> 버튼으로 첫 공고를 추가해 보세요.
+    </>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">내 채용공고 관리</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            관심 공고를 등록하고 일정을 캘린더로 관리한 뒤, 바로 모의면접까지 진행하세요.
-          </p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 새 공고 등록
-        </Button>
-      </div>
+      <JobPostingsHeader
+        state={state}
+        total={total}
+        onQueryChange={setQuery}
+        onToggleStatus={toggleStatus}
+        onSetSort={setSort}
+        onSetView={setView}
+        onToggleCalendar={toggleCalendar}
+        onSetFavoritesPolicy={setFavoritesPolicy}
+        onClickCreate={() => setDialogOpen(true)}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-8">
-          <JobPostingCalendar events={events} />
-        </div>
-        <div className="space-y-6 lg:col-span-4">
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-              활성 공고 ({active.length})
-            </h2>
-            {loading ? <div className="text-sm text-muted-foreground">불러오는 중…</div> : <JobPostingList postings={active} />}
-          </section>
-          {inactive.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-                보관/마감 ({inactive.length})
-              </h2>
-              <JobPostingList postings={inactive} />
-            </section>
+      <div className={state.calendarVisible ? "grid gap-6 lg:grid-cols-12" : "grid gap-6"}>
+        {state.calendarVisible && (
+          <div className="lg:col-span-5">
+            <JobPostingCalendar events={events} />
+          </div>
+        )}
+
+        <div className={state.calendarVisible ? "lg:col-span-7" : "w-full"}>
+          {loading && postings.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
+              불러오는 중…
+            </div>
+          ) : postings.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
+              {emptyMessage}
+            </div>
+          ) : state.view === "cards" ? (
+            <JobPostingList
+              postings={postings}
+              onToggleFavorite={handleToggleFavorite}
+              emptyMessage={emptyMessage}
+            />
+          ) : (
+            <JobPostingListView
+              postings={postings}
+              onToggleFavorite={handleToggleFavorite}
+              onDelete={handleDelete}
+            />
           )}
+
+          <JobPostingsPagination
+            page={state.page}
+            pageSize={state.pageSize}
+            total={total}
+            onPageChange={setPage}
+          />
         </div>
       </div>
 
-      <JobPostingFormDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} />
+      <JobPostingFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onCreated={handleDialogCreated}
+      />
     </div>
   );
 }
