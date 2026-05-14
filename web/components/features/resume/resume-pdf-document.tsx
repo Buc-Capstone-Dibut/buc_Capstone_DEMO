@@ -11,19 +11,19 @@ import {
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 
 // 한국어 폰트 등록 (모듈 최상단에서 1회 실행).
-// jsdelivr CDN에서 Noto Sans KR ttf를 직접 받아 한글 글리프를 PDF에 임베드한다.
-// CDN 차단 환경에서는 web/public/fonts 에 ttf를 배치하고 /fonts/... 경로를 사용해도 된다.
+// jsdelivr 의 googlefonts/noto-cjk 미러를 사용해 한글 글리프를 PDF 에 임베드한다.
+// 오프라인/사내망 등 CDN 차단 환경에서는 web/public/fonts/ 에 동일 파일을 두고
+// /fonts/NotoSansKR-Regular.otf 처럼 로컬 경로로 src 를 바꿔도 동일하게 동작한다.
+const NOTO_SANS_KR_REGULAR =
+  "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf";
+const NOTO_SANS_KR_BOLD =
+  "https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Bold.otf";
+
 Font.register({
   family: "Noto Sans KR",
   fonts: [
-    {
-      src: "https://cdn.jsdelivr.net/npm/notosanskr@1.0.0/Noto_Sans_KR/NotoSansKR-Regular.ttf",
-      fontWeight: "normal",
-    },
-    {
-      src: "https://cdn.jsdelivr.net/npm/notosanskr@1.0.0/Noto_Sans_KR/NotoSansKR-Bold.ttf",
-      fontWeight: "bold",
-    },
+    { src: NOTO_SANS_KR_REGULAR, fontWeight: "normal" },
+    { src: NOTO_SANS_KR_BOLD, fontWeight: "bold" },
   ],
 });
 

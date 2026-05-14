@@ -43,3 +43,6 @@ logs/
 # Crawler
 crawler/data/
 crawler/logs/
+
+# 로컬 PDF 폰트 캐시 (필요 시 jsdelivr 폴백용으로 받아두는 자산)
+web/public/fonts/
