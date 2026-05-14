@@ -477,7 +477,158 @@ export function KoreanResumeDocument({
 }
 
 /**
- * 본문을 "고정 규격 A4 페이지" 단위로 분할해서 보여준다.
+ * 측정 기반 다중 페이지 이력서 뷰.
+ *
+ * - 본문 sections 각각을 794px 폭에서 한 번 측정한 뒤, 누적 height 가 페이지
+ *   inner height(1035px = 1123 - 88) 를 넘기 직전에 새 페이지로 분기한다.
+ * - 한 section 이 한 페이지보다 크면 그 section 만 단독 페이지로 보낸다
+ *   (overflow-hidden 으로 나머지는 잘림 — 이력서 1 section 이 A4 1장보다 큰 경우는 드물다).
+ * - 각 페이지는 794×1123 고정 박스. 컨테이너 너비에 맞춰 비례 축소된다.
+ * - 첫 페이지에만 KoreanResumeHeader 가 들어가며 그만큼의 height 를 차감한다.
+ */
+export function PagedResumeDocument({
+  payload,
+  title,
+  options,
+  documentId,
+  className = "",
+}: {
+  payload: ResumePayload;
+  title?: string;
+  options?: ResumeA4Options;
+  documentId?: string;
+  className?: string;
+}) {
+  const sections = buildResumeSectionNodes(payload, options);
+
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [groups, setGroups] = useState<number[][]>([[]]);
+
+  useEffect(() => {
+    sectionRefs.current = sectionRefs.current.slice(0, sections.length);
+  }, [sections.length]);
+
+  useEffect(() => {
+    const PAGE_HEIGHT = 1123;
+    const VERTICAL_PADDING = 88; // px-11 py-11 합산 (44 + 44)
+    const SECTION_GAP = 20; // space-y-5 (5*4=20) 보정
+    const FIRST_PAGE_HEADER_GAP = 20; // mt-5
+
+    const updateGroups = () => {
+      if (sections.length === 0) {
+        setGroups([[]]);
+        return;
+      }
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const heights = sectionRefs.current.map((el) => el?.offsetHeight ?? 0);
+
+      const next: number[][] = [];
+      let current: number[] = [];
+      let acc = 0;
+      let isFirstPage = true;
+      const firstPageLimit =
+        PAGE_HEIGHT - VERTICAL_PADDING - headerHeight - FIRST_PAGE_HEADER_GAP;
+      const restPageLimit = PAGE_HEIGHT - VERTICAL_PADDING;
+
+      sections.forEach((_, idx) => {
+        const limit = isFirstPage ? firstPageLimit : restPageLimit;
+        const cost = heights[idx] + (current.length > 0 ? SECTION_GAP : 0);
+
+        if (acc + cost > limit && current.length > 0) {
+          // 현재 페이지 마감, 새 페이지 시작
+          next.push(current);
+          current = [idx];
+          acc = heights[idx];
+          isFirstPage = false;
+        } else {
+          current.push(idx);
+          acc += cost;
+        }
+      });
+      if (current.length > 0) next.push(current);
+      if (next.length === 0) next.push([]);
+      setGroups(next);
+    };
+
+    updateGroups();
+    // section 안 콘텐츠(텍스트) 변화에 따라 재측정.
+    const observer = new ResizeObserver(updateGroups);
+    sectionRefs.current.forEach((el) => el && observer.observe(el));
+    if (headerRef.current) observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, [sections]);
+
+  return (
+    <div
+      className={`mx-auto w-full max-w-[794px] [container-type:inline-size] space-y-3 ${className}`}
+    >
+      {/* 측정용(보이지 않음). 모든 section 을 한 번씩 794px 폭으로 그려 height 를 잰다. */}
+      <div
+        aria-hidden
+        className="pointer-events-none invisible absolute -z-10 h-0 overflow-hidden"
+      >
+        <div className="w-[794px] px-11">
+          <div ref={headerRef}>
+            <KoreanResumeHeader payload={payload} title={title} />
+          </div>
+          <div className="mt-5 space-y-5">
+            {sections.map((section, i) => (
+              <div
+                key={i}
+                ref={(el) => {
+                  sectionRefs.current[i] = el;
+                }}
+              >
+                {section}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 표시용 페이지들. 각 페이지는 A4(794×1123) 고정 박스. */}
+      {groups.map((group, pageIndex) => (
+        <div
+          key={pageIndex}
+          className="relative overflow-hidden bg-white shadow-sm"
+          style={{ height: `calc(1123px * (100cqw / 794px))` }}
+        >
+          <article
+            id={pageIndex === 0 ? documentId : undefined}
+            className="korean-resume-a4-page print-resume absolute left-0 top-0 w-[794px] origin-top-left bg-white px-11 py-11 text-slate-950 [overflow-wrap:break-word]"
+            style={{ transform: `scale(calc(100cqw / 794px))` }}
+          >
+            {pageIndex === 0 && (
+              <KoreanResumeHeader payload={payload} title={title} />
+            )}
+            <div
+              className={pageIndex === 0 ? "mt-5 space-y-5" : "space-y-5"}
+            >
+              {group.map((sectionIdx) => (
+                <div key={sectionIdx}>{sections[sectionIdx]}</div>
+              ))}
+            </div>
+          </article>
+          {groups.length > 1 && (
+            <span
+              data-print-helper
+              className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
+            >
+              {pageIndex + 1} / {groups.length}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 본문을 "고정 규격 A4 페이지" 단위로 분할해서 보여준다 (이전 단순 시뮬레이션 방식).
+ *
+ * 현재는 PagedResumeDocument 가 측정 기반 정확한 페이지 분할을 제공하므로
+ * 호환을 위해 export 만 유지된다.
  *
  * - 각 페이지는 794×1123 의 고정 박스. 한 페이지가 동적으로 늘어나지 않는다.
  * - 본문이 1페이지를 넘으면 새 A4 박스가 아래에 추가되며 위에서 아래로 쌓인다.
@@ -586,14 +737,8 @@ export function ScaledKoreanResumeDocument({
 }
 
 /**
- * HTML 기반 미리보기 — KoreanResumeDocument 를 컨테이너 폭에 맞게 그대로 보여준다.
- *
- * 본문이 길어지면 동적으로 카드가 함께 늘어나며, 페이지 단위 분할은 측정 기반으로
- * 추가될 예정이다. 현재는 단일 카드(높이 auto) + 인쇄 시 print CSS 의
- * `break-inside: avoid` / `break-after: avoid` 가 페이지 break 자연 분기를 담당한다.
- *
- * PDFViewer(react-pdf) 미리보기 경로는 무거워 사용성을 해쳐 제거했으며, 다운로드는
- * 별도 `ResumePdfDownloadButton` 으로 분리되어 있다.
+ * HTML 기반 미리보기 — 측정 기반 다중 A4 페이지 분할.
+ * 본문이 한 페이지를 넘으면 자연스럽게 새 A4 박스로 분기된다.
  */
 function PagedResumePreview({
   payload,
@@ -607,15 +752,12 @@ function PagedResumePreview({
   documentId?: string;
 }) {
   return (
-    <div className="mx-auto w-full max-w-[794px]">
-      <KoreanResumeDocument
-        payload={payload}
-        title={title}
-        options={options}
-        documentId={documentId}
-        className="w-full"
-      />
-    </div>
+    <PagedResumeDocument
+      payload={payload}
+      title={title}
+      options={options}
+      documentId={documentId}
+    />
   );
 }
 
