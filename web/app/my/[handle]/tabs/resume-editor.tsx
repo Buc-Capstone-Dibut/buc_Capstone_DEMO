@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import {
   Briefcase,
   ChevronLeft,
   Download,
+  Inbox,
   Loader2,
   PencilLine,
   Plus,
@@ -63,9 +65,12 @@ export function ResumeEditor({
   onTitleChange,
   previewToggleMode = false,
 }: ResumeEditorProps) {
+  const searchParams = useSearchParams();
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
+  const [isResumeImportDialogOpen, setIsResumeImportDialogOpen] = useState(false);
+  const hasAutoOpenedImportRef = useRef(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
   // 미리보기-토글 모드의 좌측 패널 표시 여부. 기본 닫힘.
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
@@ -274,6 +279,140 @@ export function ResumeEditor({
     }
   };
 
+  // /resume?mode=new (옵션: &import=ask) 진입 시 가져오기 다이얼로그를 자동으로 연다.
+  // 사용자가 닫거나 항목을 가져온 뒤에는 다시 자동 오픈되지 않도록 ref 로 가드.
+  useEffect(() => {
+    if (!searchParams) return;
+    if (hasAutoOpenedImportRef.current) return;
+    const mode = searchParams.get("mode");
+    const importParam = searchParams.get("import");
+    const id = searchParams.get("id");
+    // mode=new 인데 기존 id 가 없을 때만 자동 오픈한다. (이미 저장된 이력서 편집은 제외)
+    if (mode === "new" && !id && importParam !== "skip") {
+      hasAutoOpenedImportRef.current = true;
+      // 약간의 지연으로 페이지 첫 페인트 직후 다이얼로그가 뜨도록 한다.
+      const handle = window.setTimeout(() => {
+        setIsResumeImportDialogOpen(true);
+      }, 150);
+      return () => window.clearTimeout(handle);
+    }
+  }, [searchParams]);
+
+  const handleApplyResumeImport = (selection: ResumeImportSelection) => {
+    let appliedProjects = 0;
+    let appliedExperiences = 0;
+    let appliedCoverLetters = 0;
+
+    const nextPayload: ResumePayload = { ...payload };
+
+    if (selection.projects.length > 0) {
+      const existingProjectKeys = new Set(
+        payload.projects.map((p) =>
+          p.id
+            ? `id:${p.id}`
+            : `np:${(p.name || "").trim().toLowerCase()}|${(p.period || "").trim()}`,
+        ),
+      );
+      const newProjects = selection.projects
+        .filter((p) => {
+          const key = p.id
+            ? `id:${p.id}`
+            : `np:${(p.name || "").trim().toLowerCase()}|${(p.period || "").trim()}`;
+          return !existingProjectKeys.has(key);
+        })
+        .map((p) => ({
+          id: p.id || Math.random().toString(36).substring(2, 11),
+          name: p.name || "프로젝트명 없음",
+          period: p.period || "",
+          description: p.description || "",
+          techStack: p.techStack || [],
+          achievements: p.achievements || [],
+        }));
+      if (newProjects.length > 0) {
+        nextPayload.projects = [...payload.projects, ...newProjects];
+        appliedProjects = newProjects.length;
+      }
+    }
+
+    if (selection.experiences.length > 0) {
+      const existingExpKeys = new Set(
+        payload.experience.map((e) =>
+          e.id
+            ? `id:${e.id}`
+            : `xp:${(e.company || "").trim().toLowerCase()}|${(e.position || "").trim().toLowerCase()}|${(e.period || "").trim()}`,
+        ),
+      );
+      const newExps = selection.experiences
+        .filter((e) => {
+          const key = e.id
+            ? `id:${e.id}`
+            : `xp:${(e.company || "").trim().toLowerCase()}|${(e.position || "").trim().toLowerCase()}|${(e.period || "").trim()}`;
+          return !existingExpKeys.has(key);
+        })
+        .map((e) => ({
+          id: e.id || Math.random().toString(36).substring(2, 11),
+          company: e.company || "",
+          position: e.position || "",
+          period: e.period || "",
+          description: e.description || "",
+        }));
+      if (newExps.length > 0) {
+        nextPayload.experience = [...nextPayload.experience, ...newExps];
+        appliedExperiences = newExps.length;
+      }
+    }
+
+    if (selection.coverLetters.length > 0) {
+      // payload.coverLetters 배열에 추가 (중복 id 방지)
+      const existingCoverIds = new Set(
+        (payload.coverLetters || []).map((c) => c.id),
+      );
+      const newCovers = selection.coverLetters
+        .filter((c) => !existingCoverIds.has(c.id))
+        .map((c) => ({
+          id: c.id,
+          title: c.title || "(제목 없음)",
+          content: c.content || "",
+          createdAt: new Date().toISOString(),
+          sourceExperienceIds: [] as string[],
+        }));
+      if (newCovers.length > 0) {
+        nextPayload.coverLetters = [
+          ...(payload.coverLetters || []),
+          ...newCovers,
+        ];
+        appliedCoverLetters = newCovers.length;
+      }
+
+      // 호환: 자기소개서 본문을 selfIntroduction 영역에도 append 한다.
+      const contents = newCovers
+        .map((c) => c.content)
+        .filter((s) => s && s.trim().length > 0);
+      if (contents.length > 0) {
+        const existing = payload.selfIntroduction?.trim() || "";
+        const joined = contents.join("\n\n---\n\n");
+        nextPayload.selfIntroduction = existing
+          ? `${existing}\n\n---\n\n${joined}`
+          : joined;
+      }
+    }
+
+    if (appliedProjects + appliedExperiences + appliedCoverLetters === 0) {
+      toast({
+        title: "추가된 항목이 없습니다",
+        description: "선택한 항목이 이미 이력서에 포함되어 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onChange(nextPayload);
+    toast({
+      title: "기존 자료 가져오기 완료",
+      description: `프로젝트 ${appliedProjects}개 · 경력 ${appliedExperiences}개 · 자기소개서 ${appliedCoverLetters}개를 이력서에 반영했습니다.`,
+    });
+  };
+
   const parseResumeFile = async (file: File) => {
     setIsParsingFile(true);
     try {
@@ -326,8 +465,11 @@ export function ResumeEditor({
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1">
           <p className="text-sm font-medium">기존의 이력서를 가져와 내용을 채울 수 있어요</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다.
+          </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <input
             ref={fileInputRef}
             type="file"
@@ -340,6 +482,16 @@ export function ResumeEditor({
               event.target.value = "";
             }}
           />
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => setIsResumeImportDialogOpen(true)}
+            className="shrink-0 gap-1.5 text-xs"
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            기존 자료 가져오기
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -764,6 +916,12 @@ export function ResumeEditor({
         onOpenChange={setIsWorkExpModalOpen}
         onImport={handleImportWorkExperiences}
         existingIds={payload.experience.map((e) => e.id).filter(Boolean) as string[]}
+      />
+
+      <ResumeImportDialog
+        open={isResumeImportDialogOpen}
+        onOpenChange={setIsResumeImportDialogOpen}
+        onApply={handleApplyResumeImport}
       />
     </>
   );
