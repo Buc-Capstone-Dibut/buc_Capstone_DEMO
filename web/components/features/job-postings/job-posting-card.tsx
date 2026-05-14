@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Sparkles, Calendar } from "lucide-react";
+import { Calendar, ExternalLink, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { JobPostingRecord, ScheduleRecord } from "@/lib/job-postings/types";
 
 const STATUS_LABEL: Record<JobPostingRecord["status"], string> = {
@@ -40,17 +41,51 @@ function dDay(iso: string) {
   return `D+${Math.abs(diff)}`;
 }
 
-export function JobPostingCard({ posting }: { posting: JobPostingRecord }) {
+interface JobPostingCardProps {
+  posting: JobPostingRecord;
+  onToggleFavorite?: (id: string, next: boolean) => void;
+}
+
+export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProps) {
   const next = nextSchedule(posting.schedules);
   return (
-    <Card className="transition hover:shadow-md">
+    <Card
+      className={cn(
+        "transition hover:shadow-md",
+        posting.isFavorite && "border-primary/40 ring-1 ring-primary/10",
+      )}
+    >
       <CardContent className="space-y-3 p-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-base font-semibold">{posting.companyName}</div>
             <div className="truncate text-sm text-muted-foreground">{posting.roleTitle}</div>
           </div>
-          <Badge className={STATUS_TONE[posting.status]}>{STATUS_LABEL[posting.status]}</Badge>
+          <div className="flex items-center gap-1.5">
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleFavorite(posting.id, !posting.isFavorite);
+                }}
+                aria-label={posting.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                aria-pressed={posting.isFavorite}
+                className="rounded-md p-1 hover:bg-muted"
+              >
+                <Star
+                  className={cn(
+                    "h-4 w-4",
+                    posting.isFavorite
+                      ? "fill-yellow-400 text-yellow-500"
+                      : "text-muted-foreground",
+                  )}
+                />
+              </button>
+            )}
+            <Badge className={STATUS_TONE[posting.status]}>{STATUS_LABEL[posting.status]}</Badge>
+          </div>
         </div>
 
         {next && (
