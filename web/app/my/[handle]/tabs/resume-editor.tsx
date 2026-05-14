@@ -788,95 +788,102 @@ export function ResumeEditor({
               기업별 자기소개서를 문항·답변 단위로 관리할 수 있습니다. "자소서 추가" 또는 "기존 자료 가져오기"로 시작하세요.
             </p>
           ) : (
-            (payload.coverLetters ?? []).map((cover, coverIdx) => {
-              const hasQuestions =
-                !!cover.questions && cover.questions.length > 0;
-              return (
-                <Card key={cover.id} className="border-muted">
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <Input
+            <div className="divide-y divide-border/70">
+              {(payload.coverLetters ?? []).map((cover, coverIdx) => {
+                const hasQuestions =
+                  !!cover.questions && cover.questions.length > 0;
+                return (
+                  <div key={cover.id} className="space-y-4 py-4 first:pt-0 last:pb-0">
+                    {/* 자소서 제목 — 큰 인풋, 외곽 박스 없음 */}
+                    <div className="flex items-center gap-2">
+                      <input
                         value={cover.title}
                         onChange={(e) =>
                           updateCoverLetter(coverIdx, { title: e.target.value })
                         }
                         placeholder="자기소개서 제목"
-                        className="flex-1 h-9 text-sm font-semibold"
+                        className="flex-1 border-0 border-b border-transparent bg-transparent px-0 py-1 text-sm font-semibold outline-none focus:border-foreground/40 placeholder:text-muted-foreground/50"
                       />
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
                         onClick={() => removeCoverLetter(coverIdx)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive transition"
                         aria-label="자기소개서 삭제"
+                        className="rounded-md p-1.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      </button>
                     </div>
 
                     {hasQuestions ? (
-                      <ul className="space-y-3">
-                        {cover.questions!.map((q, qIdx) => (
-                          <li
-                            key={q.id}
-                            className="rounded-lg border bg-muted/20 p-3 space-y-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={q.title}
+                      <ul className="space-y-5">
+                        {cover.questions!.map((q, qIdx) => {
+                          const answerLength = q.answer?.length ?? 0;
+                          const limitHit = answerLength >= q.maxChars;
+                          return (
+                            <li
+                              key={q.id}
+                              className="space-y-1.5 border-l-2 border-muted pl-3"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  value={q.title}
+                                  onChange={(e) =>
+                                    updateQuestion(coverIdx, qIdx, {
+                                      title: e.target.value,
+                                    })
+                                  }
+                                  placeholder="문항 (예: 지원동기)"
+                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+                                />
+                                <input
+                                  type="number"
+                                  value={q.maxChars}
+                                  onChange={(e) => {
+                                    const next = Number(e.target.value);
+                                    if (Number.isFinite(next) && next > 0) {
+                                      updateQuestion(coverIdx, qIdx, {
+                                        maxChars: Math.floor(next),
+                                      });
+                                    }
+                                  }}
+                                  className="w-14 border-0 bg-transparent px-1 py-0 text-right text-[11px] tabular-nums text-muted-foreground outline-none"
+                                  min={50}
+                                  step={50}
+                                  aria-label="글자 제한"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeQuestion(coverIdx, qIdx)}
+                                  aria-label="문항 삭제"
+                                  className="rounded-md p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <Textarea
+                                value={q.answer ?? ""}
                                 onChange={(e) =>
                                   updateQuestion(coverIdx, qIdx, {
-                                    title: e.target.value,
+                                    answer: e.target.value,
+                                    status: "draft",
                                   })
                                 }
-                                placeholder="문항 (예: 지원동기를 작성해주세요)"
-                                className="flex-1 h-8 text-sm font-medium"
+                                maxLength={q.maxChars}
+                                placeholder="답변을 입력하세요"
+                                className="min-h-[110px] resize-none rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
                               />
-                              <Input
-                                type="number"
-                                value={q.maxChars}
-                                onChange={(e) => {
-                                  const next = Number(e.target.value);
-                                  if (Number.isFinite(next) && next > 0) {
-                                    updateQuestion(coverIdx, qIdx, {
-                                      maxChars: Math.floor(next),
-                                    });
-                                  }
-                                }}
-                                className="h-8 w-20 text-xs tabular-nums"
-                                min={50}
-                                step={50}
-                                aria-label="글자 제한"
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeQuestion(coverIdx, qIdx)}
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive transition"
-                                aria-label="문항 삭제"
+                              <div
+                                className={cn(
+                                  "text-right text-[10.5px] tabular-nums text-muted-foreground/70",
+                                  limitHit && "text-destructive",
+                                )}
                               >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <Textarea
-                              value={q.answer ?? ""}
-                              onChange={(e) =>
-                                updateQuestion(coverIdx, qIdx, {
-                                  answer: e.target.value,
-                                  status: "draft",
-                                })
-                              }
-                              maxLength={q.maxChars}
-                              placeholder="답변"
-                              className="min-h-[120px] text-sm leading-relaxed"
-                            />
-                            <div className="flex justify-end text-[11px] text-muted-foreground tabular-nums">
-                              {(q.answer?.length ?? 0)} / {q.maxChars}자
-                            </div>
-                          </li>
-                        ))}
+                                {answerLength.toLocaleString()} /{" "}
+                                {q.maxChars.toLocaleString()}자
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <Textarea
@@ -886,37 +893,33 @@ export function ResumeEditor({
                             content: e.target.value,
                           })
                         }
-                        placeholder="자기소개서 본문"
-                        className="min-h-[160px] text-sm leading-relaxed"
+                        placeholder="자기소개서 본문 (또는 '문항별 편집 모드로'를 눌러 문항으로 분리)"
+                        className="min-h-[140px] resize-none rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
                       />
                     )}
 
-                    <div className="flex flex-wrap gap-2">
-                      <Button
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
                         type="button"
-                        variant="outline"
-                        size="sm"
                         onClick={() => addQuestion(coverIdx)}
-                        className="h-7 gap-1 text-xs"
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
-                        <Plus className="h-3 w-3" /> 문항 추가
-                      </Button>
+                        <Plus className="h-3 w-3" />문항 추가
+                      </button>
                       {!hasQuestions && (
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => convertToQuestions(coverIdx)}
-                          className="h-7 text-xs text-muted-foreground"
+                          className="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
-                          문항별 편집 모드로
-                        </Button>
+                          문항별로 분리
+                        </button>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+                  </div>
+                );
+              })}
+            </div>
           )}
       </CollapsibleSection>
 
