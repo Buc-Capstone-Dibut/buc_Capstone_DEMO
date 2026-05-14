@@ -12,7 +12,10 @@ import { JobPostingsHeader } from "@/components/features/job-postings/job-postin
 import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
 import { CalendarDayModal } from "@/components/features/job-postings/calendar-day-modal";
 import { EmptyJobPostings } from "@/components/features/job-postings/empty-illustration";
-import type { JobPostingRecord } from "@/lib/job-postings/types";
+import type {
+  JobPostingRecord,
+  JobPostingStatus,
+} from "@/lib/job-postings/types";
 import { useJobPostingsView } from "./use-job-postings-view";
 
 interface ListResponse {
@@ -148,6 +151,35 @@ export function JobPostingsClient() {
     [state.favoritesPolicy, fetchList],
   );
 
+  const handleChangeStatus = useCallback(
+    async (id: string, next: JobPostingStatus) => {
+      const prevStatus = postings.find((p) => p.id === id)?.status;
+      // 낙관적 업데이트
+      setPostings((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: next } : p)),
+      );
+      try {
+        const res = await fetch(`/api/my/job-postings/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: next }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "상태 변경 실패");
+        if (state.statusFilters.length > 0) {
+          await fetchList();
+        }
+      } catch {
+        if (prevStatus) {
+          setPostings((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, status: prevStatus } : p)),
+          );
+        }
+      }
+    },
+    [postings, state.statusFilters, fetchList],
+  );
+
   const handleDelete = useCallback(
     async (id: string) => {
       if (typeof window !== "undefined" && !window.confirm("이 채용공고를 삭제하시겠습니까?")) {
@@ -231,6 +263,7 @@ export function JobPostingsClient() {
             <JobPostingList
               postings={postings}
               onToggleFavorite={handleToggleFavorite}
+              onChangeStatus={handleChangeStatus}
               emptyMessage={emptyMessage}
               compact={state.calendarVisible}
             />
@@ -238,6 +271,7 @@ export function JobPostingsClient() {
             <JobPostingListView
               postings={postings}
               onToggleFavorite={handleToggleFavorite}
+              onChangeStatus={handleChangeStatus}
               onDelete={handleDelete}
             />
           )}

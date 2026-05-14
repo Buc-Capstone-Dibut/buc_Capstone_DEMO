@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useState } from "react";
 import {
+  Check,
+  ChevronDown,
   ExternalLink,
   MoreHorizontal,
   Sparkles,
@@ -25,9 +28,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { JobPostingRecord, ScheduleRecord } from "@/lib/job-postings/types";
+import type {
+  JobPostingRecord,
+  JobPostingStatus,
+  ScheduleRecord,
+} from "@/lib/job-postings/types";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/job-postings/visual-tokens";
+
+const STATUS_OPTIONS: JobPostingStatus[] = [
+  "active",
+  "applied",
+  "interviewing",
+  "closed",
+  "archived",
+];
 
 function nextSchedule(schedules: ScheduleRecord[] | undefined): ScheduleRecord | null {
   if (!schedules?.length) return null;
@@ -57,15 +77,18 @@ function scheduleLabel(s: ScheduleRecord): string {
 interface JobPostingListViewProps {
   postings: JobPostingRecord[];
   onToggleFavorite: (id: string, next: boolean) => void;
+  onChangeStatus?: (id: string, next: JobPostingStatus) => void;
   onDelete: (id: string) => void;
 }
 
 export function JobPostingListView({
   postings,
   onToggleFavorite,
+  onChangeStatus,
   onDelete,
 }: JobPostingListViewProps) {
   const router = useRouter();
+  const [openStatusId, setOpenStatusId] = useState<string | null>(null);
 
   if (postings.length === 0) {
     return null;
@@ -124,15 +147,72 @@ export function JobPostingListView({
                 <TableCell className="text-muted-foreground">
                   <div className="max-w-[220px] truncate">{posting.roleTitle}</div>
                 </TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
-                      STATUS_TONE[posting.status],
-                    )}
-                  >
-                    {STATUS_LABEL[posting.status]}
-                  </span>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {onChangeStatus ? (
+                    <Popover
+                      open={openStatusId === posting.id}
+                      onOpenChange={(o) =>
+                        setOpenStatusId(o ? posting.id : null)
+                      }
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors hover:bg-muted/40",
+                            STATUS_TONE[posting.status],
+                          )}
+                          aria-label="상태 변경"
+                        >
+                          {STATUS_LABEL[posting.status]}
+                          <ChevronDown
+                            className="h-3 w-3 opacity-70"
+                            aria-hidden
+                          />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-36 rounded-sm p-1"
+                        align="start"
+                        sideOffset={4}
+                      >
+                        <ul className="text-sm">
+                          {STATUS_OPTIONS.map((opt) => {
+                            const selected = posting.status === opt;
+                            return (
+                              <li key={opt}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onChangeStatus(posting.id, opt);
+                                    setOpenStatusId(null);
+                                  }}
+                                  className={cn(
+                                    "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted",
+                                    selected && "bg-muted/60 font-medium",
+                                  )}
+                                >
+                                  {STATUS_LABEL[opt]}
+                                  {selected && (
+                                    <Check className="h-3 w-3" aria-hidden />
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                        STATUS_TONE[posting.status],
+                      )}
+                    >
+                      {STATUS_LABEL[posting.status]}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {next ? (

@@ -4,6 +4,7 @@ import { CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -181,17 +182,40 @@ export function JobPostingsHeader({
             </Button>
           </div>
 
-          <Button
-            type="button"
-            variant={state.calendarVisible ? "default" : "outline"}
-            size="sm"
-            onClick={onToggleCalendar}
-            aria-pressed={state.calendarVisible}
-            aria-label="캘린더 토글"
+          <label
+            htmlFor="calendar-toggle"
+            className={cn(
+              "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 transition-colors",
+              state.calendarVisible
+                ? "border-primary/40 bg-primary/5"
+                : "hover:bg-accent",
+            )}
           >
-            <CalendarDays className="h-4 w-4" />
-            <span className="ml-1 hidden sm:inline">캘린더</span>
-          </Button>
+            <CalendarDays
+              className={cn(
+                "h-4 w-4 transition-colors",
+                state.calendarVisible ? "text-primary" : "text-muted-foreground",
+              )}
+              aria-hidden
+            />
+            <span className="hidden text-xs font-medium sm:inline">캘린더</span>
+            <Switch
+              id="calendar-toggle"
+              checked={state.calendarVisible}
+              onCheckedChange={onToggleCalendar}
+              aria-label="캘린더 표시 여부"
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wider",
+                state.calendarVisible
+                  ? "text-primary"
+                  : "text-muted-foreground/70",
+              )}
+            >
+              {state.calendarVisible ? "ON" : "OFF"}
+            </span>
+          </label>
         </div>
       </div>
 
