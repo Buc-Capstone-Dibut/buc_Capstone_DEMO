@@ -3,6 +3,7 @@
 import { CheckCircle2, Download, FileText, Printer } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { ResumePdfLivePreview } from "./resume-pdf-live-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -605,15 +606,12 @@ export function KoreanResumePreview({
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-3">
-        <ScaledKoreanResumeDocument
-          payload={payload}
-          title={title}
-          options={options}
-          documentId="korean-resume-print"
-          className="korean-resume-scale-frame"
-        />
-      </div>
+      {/*
+        실시간 PDF 미리보기. 다운로드 PDF 와 정확히 동일한 ResumePdfDocument 를
+        쓰므로 페이지 분할/break/페이지 번호가 1:1 로 일치한다. 사용자 입력 시
+        600ms 디바운스로 부드럽게 업데이트된다.
+      */}
+      <ResumePdfLivePreview payload={payload} title={title} />
     </aside>
   );
 }
