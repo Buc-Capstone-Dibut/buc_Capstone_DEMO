@@ -704,6 +704,7 @@ model user_cover_letters {
   user_id          String                         @db.Uuid
   title            String                         @default("새 자기소개서")
   body             String                         @default("")
+  questions        Json                           @default("[]")
   source_resume_id String?                        @db.Uuid
   source_index     Int?
   tags             String[]                       @default([])

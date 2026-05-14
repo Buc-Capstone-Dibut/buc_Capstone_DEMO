@@ -61,6 +61,36 @@ export async function POST(req: Request) {
     const tags = Array.isArray(body?.tags)
       ? body.tags.filter((t: unknown): t is string => typeof t === "string")
       : [];
+    // 문항 배열 검증. shape 가 어긋난 항목은 무시한다.
+    const questions = Array.isArray(body?.questions)
+      ? body.questions
+          .map((raw: unknown) => {
+            if (!raw || typeof raw !== "object") return null;
+            const q = raw as Record<string, unknown>;
+            const id =
+              typeof q.id === "string" && q.id.length > 0
+                ? q.id
+                : crypto.randomUUID();
+            const qTitle = typeof q.title === "string" ? q.title : "";
+            if (!qTitle.trim()) return null;
+            const answer = typeof q.answer === "string" ? q.answer : "";
+            const maxChars =
+              typeof q.maxChars === "number" && q.maxChars > 0
+                ? Math.floor(q.maxChars)
+                : 500;
+            const status =
+              q.status === "draft" || q.status === "done" ? q.status : "draft";
+            return {
+              id,
+              title: qTitle,
+              answer,
+              maxChars,
+              status,
+              updatedAt: new Date().toISOString(),
+            };
+          })
+          .filter(Boolean)
+      : [];
 
     if (!prisma || !(prisma as any).user_cover_letters) {
       return NextResponse.json(
@@ -74,6 +104,7 @@ export async function POST(req: Request) {
         user_id: session.user.id,
         title,
         body: bodyText,
+        questions,
         source_resume_id: sourceResumeId,
         source_index: sourceIndex,
         tags,

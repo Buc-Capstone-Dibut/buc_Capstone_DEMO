@@ -69,11 +69,21 @@ export interface AttachmentRecord {
   portfolioId: string | null;
 }
 
+export interface CoverLetterQuestion {
+  id: string;
+  title: string;
+  answer: string;
+  maxChars: number;
+  status: "draft" | "done";
+  updatedAt?: string;
+}
+
 export interface CoverLetterRecord {
   id: string;
   userId: string;
   title: string;
   body: string;
+  questions: CoverLetterQuestion[];
   sourceResumeId: string | null;
   sourceIndex: number | null;
   tags: string[];

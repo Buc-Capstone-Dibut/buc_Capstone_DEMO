@@ -92,6 +92,35 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (typeof body?.isActive === "boolean") {
       data.is_active = body.isActive;
     }
+    if (Array.isArray(body?.questions)) {
+      data.questions = body.questions
+        .map((raw: unknown) => {
+          if (!raw || typeof raw !== "object") return null;
+          const q = raw as Record<string, unknown>;
+          const id =
+            typeof q.id === "string" && q.id.length > 0
+              ? q.id
+              : crypto.randomUUID();
+          const qTitle = typeof q.title === "string" ? q.title : "";
+          if (!qTitle.trim()) return null;
+          const answer = typeof q.answer === "string" ? q.answer : "";
+          const maxChars =
+            typeof q.maxChars === "number" && q.maxChars > 0
+              ? Math.floor(q.maxChars)
+              : 500;
+          const status =
+            q.status === "draft" || q.status === "done" ? q.status : "draft";
+          return {
+            id,
+            title: qTitle,
+            answer,
+            maxChars,
+            status,
+            updatedAt: new Date().toISOString(),
+          };
+        })
+        .filter(Boolean);
+    }
     data.updated_at = new Date();
 
     const updated = await (prisma as any).user_cover_letters.update({

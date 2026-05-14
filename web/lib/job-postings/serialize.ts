@@ -71,6 +71,19 @@ export function serializeCoverLetter(row: any): CoverLetterRecord {
     userId: row.user_id,
     title: row.title ?? "",
     body: row.body ?? "",
+    questions: Array.isArray(row.questions)
+      ? row.questions
+          .filter((q: unknown) => q && typeof q === "object")
+          .map((q: any) => ({
+            id: typeof q.id === "string" ? q.id : "",
+            title: typeof q.title === "string" ? q.title : "",
+            answer: typeof q.answer === "string" ? q.answer : "",
+            maxChars:
+              typeof q.maxChars === "number" && q.maxChars > 0 ? q.maxChars : 500,
+            status: q.status === "done" ? "done" : "draft",
+            updatedAt: typeof q.updatedAt === "string" ? q.updatedAt : undefined,
+          }))
+      : [],
     sourceResumeId: row.source_resume_id ?? null,
     sourceIndex: row.source_index ?? null,
     tags: Array.isArray(row.tags) ? row.tags : [],
