@@ -40,6 +40,7 @@ import {
   Activity,
   ArrowRight,
   Bookmark,
+  CalendarRange,
   FileText,
   Github,
   LayoutDashboard,
@@ -887,6 +888,28 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {isOwner && (
+                    <Link
+                      href="/my/job-postings"
+                      className="group flex items-center justify-between gap-4 rounded-2xl border bg-card px-5 py-4 transition-colors hover:border-primary/40 hover:bg-muted/20"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <CalendarRange className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            내 채용공고 관리
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            캘린더로 일정 관리하고, 곧바로 모의면접까지.
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </Link>
+                  )}
 
                   <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
                     <Card className="min-h-[320px]">
