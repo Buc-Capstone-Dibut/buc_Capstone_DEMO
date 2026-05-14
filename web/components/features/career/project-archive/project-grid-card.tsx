@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, ImageOff, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Trash2 } from "lucide-react";
 import type { ProjectInput } from "@/app/career/projects/types";
 import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
 import { createTechLogoImageSlot } from "@/lib/career-portfolios";
@@ -38,35 +38,31 @@ function pickCoverImage(
   return null;
 }
 
-/** 회사/프로젝트명에서 placeholder용 이니셜 1-2글자 추출. */
-function initialsOf(title: string): string {
-  const trimmed = (title || "프로젝트").trim();
-  // 한글이면 첫 글자 하나만, 영문이면 단어별 첫 글자 2개까지
-  if (/[가-힣]/.test(trimmed.charAt(0))) {
-    return trimmed.slice(0, 2);
-  }
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "PJ";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
 const COVER_GRADIENTS = [
-  "from-amber-100 to-orange-200",
-  "from-sky-100 to-indigo-200",
-  "from-emerald-100 to-teal-200",
-  "from-rose-100 to-pink-200",
-  "from-violet-100 to-purple-200",
-  "from-lime-100 to-green-200",
+  "from-amber-50 to-orange-100",
+  "from-sky-50 to-indigo-100",
+  "from-emerald-50 to-teal-100",
+  "from-rose-50 to-pink-100",
+  "from-violet-50 to-purple-100",
+  "from-lime-50 to-green-100",
+];
+
+const COVER_ACCENT_COLORS = [
+  "text-amber-700",
+  "text-indigo-700",
+  "text-emerald-700",
+  "text-rose-700",
+  "text-violet-700",
+  "text-lime-700",
 ];
 
 /** 안정적인 hash 로 한 카드에는 항상 같은 그라데이션이 매핑되게 한다. */
-function hashGradient(seed: string): string {
+function hashIndex(seed: string, modulo: number): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
-  return COVER_GRADIENTS[hash % COVER_GRADIENTS.length];
+  return hash % modulo;
 }
 
 export function ProjectGridCard({
@@ -84,8 +80,15 @@ export function ProjectGridCard({
   const tags = project.tags || [];
   const techStack = project.techStack || [];
   const cover = pickCoverImage(project.representativeImage, project.attachments);
-  const initials = initialsOf(title);
-  const gradientClass = hashGradient(project.id || project.company || title);
+  const coverSummary =
+    project.description?.trim() ||
+    project.result?.trim() ||
+    project.role?.trim() ||
+    "아직 요약이 작성되지 않았어요.";
+  const seed = project.id || project.company || title;
+  const gradientClass = COVER_GRADIENTS[hashIndex(seed, COVER_GRADIENTS.length)];
+  const accentClass =
+    COVER_ACCENT_COLORS[hashIndex(seed, COVER_ACCENT_COLORS.length)];
 
   return (
     <div
@@ -124,15 +127,26 @@ export function ProjectGridCard({
         ) : (
           <div
             className={cn(
-              "relative flex h-full w-full items-center justify-center bg-gradient-to-br",
+              "relative flex h-full w-full flex-col justify-start bg-gradient-to-br px-4 py-3",
               gradientClass,
             )}
-            aria-hidden
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.6),transparent_55%)]" />
-            <div className="relative flex flex-col items-center gap-1 text-slate-700/80">
-              <ImageOff className="h-5 w-5 opacity-60" aria-hidden />
-              <span className="text-2xl font-black tracking-tight">{initials}</span>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_85%,rgba(255,255,255,0.55),transparent_60%)]"
+            />
+            <div className="relative">
+              <p
+                className={cn(
+                  "line-clamp-2 text-[15px] font-black leading-tight tracking-tight",
+                  accentClass,
+                )}
+              >
+                {title}
+              </p>
+              <p className="mt-1 line-clamp-2 text-[11.5px] font-medium leading-snug text-slate-600/90">
+                {coverSummary}
+              </p>
             </div>
           </div>
         )}
