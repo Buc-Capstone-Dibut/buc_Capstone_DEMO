@@ -9,6 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import type { JobPostingInput, JobPostingStatus, ScheduleKind } from "@/lib/job-postings/types";
+import {
+  ImportFromMyDataPanel,
+  type JobPostingDraft,
+} from "@/components/features/job-postings/import-from-my-data-panel";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
   { value: "active", label: "관심" },
@@ -33,16 +37,28 @@ type ScheduleDraft = {
   memo: string;
 };
 
+type PendingAttachment = { type: "resume" | "cover_letter"; id: string };
+
 export function JobPostingFormDialog({
   open,
   onOpenChange,
   initial,
   onSubmit,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: Partial<JobPostingInput>;
-  onSubmit: (payload: JobPostingInput) => Promise<void>;
+  /**
+   * Legacy 콜백. 부모가 직접 POST 책임을 진다.
+   * 제공되면 다이얼로그는 onSubmit만 호출하고 직접 fetch 하지 않는다.
+   */
+  onSubmit?: (payload: JobPostingInput) => Promise<void>;
+  /**
+   * 신규 경로. 다이얼로그가 직접 POST /api/my/job-postings를 호출하고,
+   * (필요 시) 자동 첨부까지 처리한 뒤 부모에게 갱신 신호를 준다.
+   */
+  onCreated?: () => Promise<void> | void;
 }) {
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
   const [roleTitle, setRoleTitle] = useState(initial?.roleTitle ?? "");
@@ -54,6 +70,31 @@ export function JobPostingFormDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // import 패널에서 받은 자동 첨부 후보 (등록 후 attachments POST에 사용)
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+
+  const handleApplyDraft = (
+    draft: JobPostingDraft,
+    attach?: { type: "resume" | "cover_letter"; id: string },
+  ) => {
+    // 빈 필드만 채움 (사용자가 이미 입력한 값은 덮어쓰지 않음)
+    if (!companyName.trim() && draft.companyName) {
+      setCompanyName(draft.companyName);
+    }
+    if (!roleTitle.trim() && draft.roleTitle) {
+      setRoleTitle(draft.roleTitle);
+    }
+    if (!techStackText.trim() && (draft.techStack ?? []).length > 0) {
+      setTechStackText((draft.techStack ?? []).join(", "));
+    }
+    if (!memo.trim() && draft.memo) {
+      setMemo(draft.memo);
+    }
+    if (attach) {
+      setPendingAttachment(attach);
+    }
+  };
+
   const submit = async () => {
     setError(null);
     if (!companyName.trim() || !roleTitle.trim()) {
@@ -62,7 +103,7 @@ export function JobPostingFormDialog({
     }
     setSubmitting(true);
     try {
-      await onSubmit({
+      const payload: JobPostingInput = {
         companyName: companyName.trim(),
         roleTitle: roleTitle.trim(),
         postingUrl: postingUrl.trim() || null,
@@ -78,10 +119,53 @@ export function JobPostingFormDialog({
             endAt: s.endAt ? new Date(s.endAt).toISOString() : null,
             memo: s.memo || null,
           })),
-      });
+      };
+
+      if (onSubmit) {
+        // legacy 경로: 부모가 직접 처리. 자동 첨부도 부모 책임.
+        await onSubmit(payload);
+      } else {
+        // 신규 경로: dialog가 직접 fetch
+        const res = await fetch("/api/my/job-postings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json().catch(() => null);
+        if (!json || !json.success) {
+          throw new Error(json?.error ?? "저장에 실패했습니다.");
+        }
+        const createdId: string | undefined = json?.data?.id;
+        if (createdId && pendingAttachment) {
+          const attachBody: Record<string, unknown> = {
+            attachmentType: pendingAttachment.type,
+          };
+          if (pendingAttachment.type === "resume") {
+            attachBody.resumeId = pendingAttachment.id;
+          } else {
+            attachBody.coverLetterId = pendingAttachment.id;
+          }
+          // 첨부 실패는 등록 자체를 막지 않는다.
+          try {
+            await fetch(`/api/my/job-postings/${createdId}/attachments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(attachBody),
+            });
+          } catch {
+            // ignore — 사용자가 다이얼로그 닫은 뒤 수동 첨부 가능
+          }
+        }
+        if (onCreated) {
+          await onCreated();
+        }
+      }
+      // 성공 시 패널 상태 초기화 후 닫기
+      setPendingAttachment(null);
       onOpenChange(false);
-    } catch (e: any) {
-      setError(e?.message ?? "저장에 실패했습니다.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "저장에 실패했습니다.";
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -94,6 +178,8 @@ export function JobPostingFormDialog({
           <DialogTitle>채용공고 등록</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-2">
+          <ImportFromMyDataPanel onApply={handleApplyDraft} />
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>회사명 *</Label>
@@ -164,6 +250,19 @@ export function JobPostingFormDialog({
               ))}
             </div>
           </div>
+
+          {pendingAttachment && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              등록 시 {pendingAttachment.type === "resume" ? "이력서" : "자기소개서"}가 자동으로 연결됩니다.
+              <button
+                type="button"
+                className="ml-2 text-primary underline"
+                onClick={() => setPendingAttachment(null)}
+              >
+                해제
+              </button>
+            </div>
+          )}
 
           {error && <div className="text-sm text-red-600">{error}</div>}
         </div>

@@ -69,17 +69,36 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
         const rj = await rRes.json().catch(() => null);
         const clj = await clRes.json().catch(() => null);
         if (cancelled) return;
-        const rItems: ItemOption[] = (rj?.data?.items ?? []).map((r: any) => ({
-          id: r.id,
-          title: r.title ?? r.source_file_name ?? "이력서",
+        const rawResumes = Array.isArray(rj?.data?.items)
+          ? (rj.data.items as Array<Record<string, unknown>>)
+          : [];
+        const rawCovers = Array.isArray(clj?.data?.items)
+          ? (clj.data.items as Array<Record<string, unknown>>)
+          : [];
+        const rItems: ItemOption[] = rawResumes.map((r) => ({
+          id: String(r.id ?? ""),
+          title:
+            (typeof r.title === "string" && r.title) ||
+            (typeof r.source_file_name === "string" && r.source_file_name) ||
+            "이력서",
           isActive: Boolean(r.is_active),
-          updatedAt: r.updated_at ?? r.updatedAt ?? null,
+          updatedAt:
+            typeof r.updated_at === "string"
+              ? r.updated_at
+              : typeof r.updatedAt === "string"
+                ? r.updatedAt
+                : undefined,
         }));
-        const clItems: ItemOption[] = (clj?.data?.items ?? []).map((c: any) => ({
-          id: c.id,
-          title: c.title ?? "자기소개서",
+        const clItems: ItemOption[] = rawCovers.map((c) => ({
+          id: String(c.id ?? ""),
+          title: (typeof c.title === "string" && c.title) || "자기소개서",
           isActive: Boolean(c.isActive ?? c.is_active),
-          updatedAt: c.updatedAt ?? c.updated_at ?? null,
+          updatedAt:
+            typeof c.updatedAt === "string"
+              ? c.updatedAt
+              : typeof c.updated_at === "string"
+                ? c.updated_at
+                : undefined,
         }));
         setResumes(rItems);
         setCoverLetters(clItems);
@@ -160,8 +179,9 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
       setDraft(data.draft ?? null);
       setSourceLabel(data.sourceLabel ?? "");
       setSuggestedAttachment(data.suggestedAttachment ?? null);
-    } catch (e: any) {
-      setError(e?.message ?? "추출에 실패했습니다.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "추출에 실패했습니다.";
+      setError(message);
     } finally {
       setExtracting(false);
     }
