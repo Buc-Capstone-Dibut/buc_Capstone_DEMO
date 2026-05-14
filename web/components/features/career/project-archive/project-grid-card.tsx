@@ -148,6 +148,13 @@ export function ProjectGridCard({
                 {coverSummary}
               </p>
             </div>
+            <span
+              className="pointer-events-none absolute bottom-2 right-3 inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-inset ring-white/60 backdrop-blur-sm"
+              aria-hidden
+            >
+              <span className="inline-block h-1 w-1 rounded-full bg-slate-400" />
+              임시 썸네일 · 보관 파일 추가 시 대표 이미지로 표시돼요
+            </span>
           </div>
         )}
       </div>
