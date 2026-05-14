@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Download, FileText, Printer } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -206,7 +207,7 @@ export function KoreanResumeDocument({
   return (
     <article
       id={documentId}
-      className={`korean-resume-a4-page print-resume bg-white px-11 py-11 text-slate-950 shadow-sm [word-break:keep-all] ${className}`}
+      className={`korean-resume-a4-page print-resume bg-white px-11 py-11 text-slate-950 shadow-sm [overflow-wrap:break-word] ${className}`}
       style={style}
     >
       <header className="border-b-2 border-slate-950 pb-5">
@@ -366,6 +367,11 @@ export function KoreanResumeDocument({
   );
 }
 
+/**
+ * 794px 원본 본문을 컨테이너 너비에 맞춰 비례 축소해 보여준다.
+ * 본문이 A4 한 장(1123px) 넘으면 ResizeObserver 가 측정해 wrapper 도 같이 길어진다.
+ * 1123px 단위로 점선 page boundary 를 표시한다.
+ */
 export function ScaledKoreanResumeDocument({
   payload,
   title,
@@ -381,17 +387,47 @@ export function ScaledKoreanResumeDocument({
   className?: string;
   minHeightClass?: string;
 }) {
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [pageCount, setPageCount] = useState(1);
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[0]?.contentRect.height ?? 1123;
+      const pages = Math.max(1, Math.ceil(next / 1123));
+      setPageCount(pages);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const totalInnerHeight = pageCount * 1123;
+
   return (
     <div className={`mx-auto w-full max-w-[794px] [container-type:inline-size] ${className}`}>
-      <div className={`relative h-[calc(1123px*(100cqw/794px))] overflow-hidden ${minHeightClass}`}>
-        <KoreanResumeDocument
-          payload={payload}
-          title={title}
-          options={options}
-          documentId={documentId}
-          className="absolute left-0 top-0 h-[1123px] min-h-[1123px] w-[794px] origin-top-left"
-          style={{ transform: "scale(calc(100cqw / 794px))" }}
-        />
+      <div
+        className={`relative overflow-hidden ${minHeightClass}`}
+        style={{ height: `calc(${totalInnerHeight}px * (100cqw / 794px))` }}
+      >
+        <div
+          ref={innerRef}
+          className="absolute left-0 top-0 w-[794px] origin-top-left"
+          style={{
+            transform: "scale(calc(100cqw / 794px))",
+            // 1123px 마다 점선 page boundary 를 background 로 표시 (시각적 페이지 구분).
+            backgroundImage:
+              "repeating-linear-gradient(to bottom, transparent 0, transparent calc(1123px - 1px), rgba(148,163,184,0.55) calc(1123px - 1px), rgba(148,163,184,0.55) 1123px)",
+          }}
+        >
+          <KoreanResumeDocument
+            payload={payload}
+            title={title}
+            options={options}
+            documentId={documentId}
+            className="w-full"
+          />
+        </div>
       </div>
     </div>
   );
