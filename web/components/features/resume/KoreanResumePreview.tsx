@@ -171,6 +171,271 @@ function ResumeSection({
   );
 }
 
+/**
+ * 이력서 페이지 헤더 — 이름·연락처·헤드라인.
+ * PagedResumeDocument 에서는 첫 페이지에만 렌더된다.
+ */
+export function KoreanResumeHeader({
+  payload,
+  title,
+}: {
+  payload: ResumePayload;
+  title?: string;
+}) {
+  const info = payload.personalInfo;
+  const name = info.name || "이름";
+  const headline = firstPresent(
+    info.intro,
+    title,
+    "지원 직무와 강점을 요약해 주세요.",
+  );
+  const contactItems = [
+    info.email,
+    info.phone,
+    info.links.github,
+    info.links.blog,
+  ].filter(Boolean);
+
+  return (
+    <header className="border-b-2 border-slate-950 pb-5">
+      <div className="flex items-end justify-between gap-8">
+        <div>
+          <p className="text-[12px] font-black tracking-[0.18em] text-slate-500">
+            DEVELOPER RESUME
+          </p>
+          <h1 className="mt-2 text-[34px] font-black leading-none tracking-normal">
+            {name}
+          </h1>
+        </div>
+        <div className="max-w-[320px] break-all text-right text-[11px] font-semibold leading-5 text-slate-600">
+          {contactItems.map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      </div>
+      <p className="mt-4 text-[14px] font-bold leading-6 text-slate-800">
+        {headline}
+      </p>
+    </header>
+  );
+}
+
+/**
+ * KoreanResumeDocument 의 본문 sections 를 ResumeSection JSX 배열로 빌드한다.
+ * PagedResumeDocument 에서 페이지 단위 그룹핑을 위해 각 section 의 height 를
+ * 측정하려면 sections 가 명확한 React.ReactNode 배열로 분리되어야 한다.
+ */
+export function buildResumeSectionNodes(
+  payload: ResumePayload,
+  options?: ResumeA4Options,
+): React.ReactNode[] {
+  const sectionOptions = options || DEFAULT_RESUME_A4_OPTIONS;
+  const coverLetters = payload.coverLetters ?? [];
+  const nodes: React.ReactNode[] = [];
+
+  if (sectionOptions.summary) {
+    nodes.push(
+      <ResumeSection key="summary" title="PROFILE SUMMARY">
+        <p className="whitespace-pre-line text-[12px] font-medium leading-6 text-slate-800">
+          {(payload.personalInfo.intro || payload.selfIntroduction || "").trim() ||
+            "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
+        </p>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.skills) {
+    nodes.push(
+      <ResumeSection key="skills" title="TECHNICAL SKILLS">
+        <div className="flex flex-wrap gap-1.5">
+          {(payload.skills.length
+            ? payload.skills
+            : [{ name: "기술 스택", level: "Intermediate" }]
+          )
+            .slice(0, 24)
+            .map((skill, index) => (
+              <Badge
+                key={`${skill.name}-${index}`}
+                variant="outline"
+                className="rounded-sm border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-800"
+              >
+                {skill.name}
+              </Badge>
+            ))}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.experience) {
+    nodes.push(
+      <ResumeSection key="experience" title="WORK EXPERIENCE">
+        <div className="space-y-4">
+          {payload.experience.length ? (
+            payload.experience.map((exp, index) => (
+              <div
+                key={exp.id || index}
+                data-print-entry
+                className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+              >
+                <div className="text-[11px] font-bold leading-5 text-slate-500">
+                  <p>{exp.period || "기간"}</p>
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <h4 className="text-[13px] font-black text-slate-950">
+                      {exp.company || "회사명"}
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-500">
+                      {exp.position || "직책"}
+                    </p>
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
+                    {(cleanLines(exp.description, 100).length
+                      ? cleanLines(exp.description, 100)
+                      : ["담당 업무와 성과를 입력하세요."]
+                    ).map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-[11px] font-medium text-slate-500">
+              경력 항목을 추가하세요.
+            </p>
+          )}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.projects) {
+    nodes.push(
+      <ResumeSection key="projects" title="PROJECTS">
+        <div className="space-y-4">
+          {payload.projects.length ? (
+            payload.projects.map((project, index) => (
+              <div
+                key={project.id || index}
+                data-print-entry
+                className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+              >
+                <div className="text-[11px] font-bold leading-5 text-slate-500">
+                  <p>{project.period || "기간"}</p>
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <h4 className="text-[13px] font-black text-slate-950">
+                      {project.name || "프로젝트명"}
+                    </h4>
+                    <p className="text-[10px] font-bold text-slate-500">
+                      {project.techStack.join(" · ")}
+                    </p>
+                  </div>
+                  <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
+                    {firstPresent(
+                      project.description,
+                      project.role,
+                      project.solution,
+                    ) || "프로젝트 개요와 본인 역할을 입력하세요."}
+                  </p>
+                  {project.achievements.length ? (
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
+                      {project.achievements.map((achievement) => (
+                        <li key={achievement}>{achievement}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-[11px] font-medium text-slate-500">
+              프로젝트 항목을 추가하거나 보관함에서 불러오세요.
+            </p>
+          )}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.selfIntroduction && payload.selfIntroduction?.trim()) {
+    nodes.push(
+      <ResumeSection key="selfIntroduction" title="자기소개">
+        <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
+          {payload.selfIntroduction}
+        </p>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.coverLetters) {
+    nodes.push(
+      <ResumeSection key="coverLetters" title="COVER LETTER">
+        {coverLetters.length ? (
+          <div className="space-y-5">
+            {coverLetters.map((letter) => {
+              const meta = [letter.company, letter.role]
+                .filter(Boolean)
+                .join(" · ");
+              const hasQuestions = (letter.questions?.length ?? 0) > 0;
+              return (
+                <div key={letter.id} data-print-entry className="space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <h4 className="text-[12px] font-black text-slate-950">
+                      {letter.title || "지원 자기소개서"}
+                    </h4>
+                    {meta ? (
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {meta}
+                      </span>
+                    ) : null}
+                  </div>
+                  {hasQuestions ? (
+                    <div className="space-y-3">
+                      {letter.questions!.map((question, index) => {
+                        const answer = (question.answer || "").trim();
+                        return (
+                          <div key={question.id} data-print-entry>
+                            <p className="mb-1 text-[11px] font-bold text-slate-950">
+                              Q{index + 1}. {question.title || "문항"}
+                            </p>
+                            {answer ? (
+                              <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                                {answer}
+                              </p>
+                            ) : (
+                              <p className="text-[10.5px] leading-5 text-slate-400">
+                                (답변 미작성)
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                      {(letter.content || "").trim() || "본문이 비어 있습니다."}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[11px] font-medium text-slate-500">
+            연결된 자기소개서가 없습니다.
+          </p>
+        )}
+      </ResumeSection>,
+    );
+  }
+
+  return nodes;
+}
+
 export function KoreanResumeDocument({
   payload,
   title,
@@ -186,17 +451,9 @@ export function KoreanResumeDocument({
   className?: string;
   style?: CSSProperties;
 }) {
-  const sectionOptions = options || DEFAULT_RESUME_A4_OPTIONS;
   const info = payload.personalInfo;
   const name = info.name || "이름";
-  const headline = firstPresent(info.intro, title, "지원 직무와 강점을 요약해 주세요.");
-  const coverLetters = payload.coverLetters ?? [];
-  const contactItems = [
-    info.email,
-    info.phone,
-    info.links.github,
-    info.links.blog,
-  ].filter(Boolean);
+  const sections = buildResumeSectionNodes(payload, options);
 
   return (
     <article
@@ -204,178 +461,9 @@ export function KoreanResumeDocument({
       className={`korean-resume-a4-page print-resume bg-white px-11 py-11 text-slate-950 shadow-sm [overflow-wrap:break-word] ${className}`}
       style={style}
     >
-      <header className="border-b-2 border-slate-950 pb-5">
-        <div className="flex items-end justify-between gap-8">
-          <div>
-            <p className="text-[12px] font-black tracking-[0.18em] text-slate-500">DEVELOPER RESUME</p>
-            <h1 className="mt-2 text-[34px] font-black leading-none tracking-normal">{name}</h1>
-          </div>
-          <div className="max-w-[320px] break-all text-right text-[11px] font-semibold leading-5 text-slate-600">
-            {contactItems.map((item) => (
-              <p key={item}>{item}</p>
-            ))}
-          </div>
-        </div>
-        <p className="mt-4 text-[14px] font-bold leading-6 text-slate-800">{headline}</p>
-      </header>
+      <KoreanResumeHeader payload={payload} title={title} />
 
-      <div className="mt-5 space-y-5">
-        {sectionOptions.summary ? (
-          <ResumeSection title="PROFILE SUMMARY">
-            <p className="whitespace-pre-line text-[12px] font-medium leading-6 text-slate-800">
-              {(info.intro || payload.selfIntroduction || "").trim() || "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
-            </p>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.skills ? (
-          <ResumeSection title="TECHNICAL SKILLS">
-            <div className="flex flex-wrap gap-1.5">
-              {(payload.skills.length ? payload.skills : [{ name: "기술 스택", level: "Intermediate" }]).slice(0, 24).map((skill, index) => (
-                <Badge key={`${skill.name}-${index}`} variant="outline" className="rounded-sm border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-800">
-                  {skill.name}
-                </Badge>
-              ))}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.experience ? (
-          <ResumeSection title="WORK EXPERIENCE">
-            <div className="space-y-4">
-              {payload.experience.length ? payload.experience.map((exp, index) => (
-                <div
-                  key={exp.id || index}
-                  data-print-entry
-                  className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
-                >
-                  <div className="text-[11px] font-bold leading-5 text-slate-500">
-                    <p>{exp.period || "기간"}</p>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <h4 className="text-[13px] font-black text-slate-950">{exp.company || "회사명"}</h4>
-                      <p className="text-[11px] font-bold text-slate-500">{exp.position || "직책"}</p>
-                    </div>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                      {(cleanLines(exp.description, 100).length
-                        ? cleanLines(exp.description, 100)
-                        : ["담당 업무와 성과를 입력하세요."]
-                      ).map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-[11px] font-medium text-slate-500">경력 항목을 추가하세요.</p>
-              )}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.projects ? (
-          <ResumeSection title="PROJECTS">
-            <div className="space-y-4">
-              {payload.projects.length ? payload.projects.map((project, index) => (
-                <div
-                  key={project.id || index}
-                  data-print-entry
-                  className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
-                >
-                  <div className="text-[11px] font-bold leading-5 text-slate-500">
-                    <p>{project.period || "기간"}</p>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <h4 className="text-[13px] font-black text-slate-950">{project.name || "프로젝트명"}</h4>
-                      <p className="text-[10px] font-bold text-slate-500">{project.techStack.join(" · ")}</p>
-                    </div>
-                    <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-                      {firstPresent(project.description, project.role, project.solution) || "프로젝트 개요와 본인 역할을 입력하세요."}
-                    </p>
-                    {project.achievements.length ? (
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                        {project.achievements.map((achievement) => (
-                          <li key={achievement}>{achievement}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </div>
-              )) : (
-                <p className="text-[11px] font-medium text-slate-500">프로젝트 항목을 추가하거나 보관함에서 불러오세요.</p>
-              )}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.selfIntroduction && payload.selfIntroduction?.trim() ? (
-          <ResumeSection title="자기소개">
-            <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-              {payload.selfIntroduction}
-            </p>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.coverLetters ? (
-          <ResumeSection title="COVER LETTER">
-            {coverLetters.length ? (
-              <div className="space-y-5">
-                {coverLetters.map((letter) => {
-                  const meta = [letter.company, letter.role].filter(Boolean).join(" · ");
-                  const hasQuestions = (letter.questions?.length ?? 0) > 0;
-                  return (
-                    <div
-                      key={letter.id}
-                      data-print-entry
-                      className="space-y-2"
-                    >
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <h4 className="text-[12px] font-black text-slate-950">
-                          {letter.title || "지원 자기소개서"}
-                        </h4>
-                        {meta ? (
-                          <span className="text-[10px] font-bold text-slate-500">{meta}</span>
-                        ) : null}
-                      </div>
-                      {hasQuestions ? (
-                        <div className="space-y-3">
-                          {letter.questions!.map((question, index) => {
-                            const answer = (question.answer || "").trim();
-                            return (
-                              <div key={question.id} data-print-entry>
-                                <p className="mb-1 text-[11px] font-bold text-slate-950">
-                                  Q{index + 1}. {question.title || "문항"}
-                                </p>
-                                {answer ? (
-                                  <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
-                                    {answer}
-                                  </p>
-                                ) : (
-                                  <p className="text-[10.5px] leading-5 text-slate-400">
-                                    (답변 미작성)
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
-                          {(letter.content || "").trim() || "본문이 비어 있습니다."}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-[11px] font-medium text-slate-500">연결된 자기소개서가 없습니다.</p>
-            )}
-          </ResumeSection>
-        ) : null}
-      </div>
+      <div className="mt-5 space-y-5">{sections}</div>
 
       <footer className="mt-8 flex items-center justify-between border-t border-slate-200 pt-3 text-[10px] font-semibold text-slate-400">
         <span>{title || `${name} 이력서`}</span>
