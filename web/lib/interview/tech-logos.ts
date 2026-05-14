@@ -120,3 +120,20 @@ function normalizeTechKey(label: string) {
 export function getTechLogo(label: string): TechLogoMeta | null {
   return TECH_LOGO_BY_KEY[normalizeTechKey(label)] ?? null;
 }
+
+/**
+ * 사전(`TECH_LOGO_BY_KEY`)에 등록된 모든 기술의 distinct label 목록을 반환한다.
+ * - 동일 label에 대한 alias 키(예: `next`, `nextjs` → "Next.js")는 한 번만 포함된다.
+ * - 결과는 라벨 알파벳 오름차순으로 정렬된다.
+ */
+export function getAllTechLabels(): TechLogoMeta[] {
+  const seen = new Map<string, TechLogoMeta>();
+  for (const meta of Object.values(TECH_LOGO_BY_KEY)) {
+    if (!seen.has(meta.label)) {
+      seen.set(meta.label, meta);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+  );
+}
