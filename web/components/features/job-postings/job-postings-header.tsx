@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase, CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react";
+import { CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,6 @@ import type {
   ViewState,
 } from "@/app/my/job-postings/use-job-postings-view";
 import { STATUS_LABEL, STATUS_TONE_ACTIVE } from "@/lib/job-postings/visual-tokens";
-import { GlossyIcon } from "./icons/glossy-icon";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = (
   ["active", "applied", "interviewing", "closed", "archived"] as JobPostingStatus[]
@@ -70,20 +69,18 @@ export function JobPostingsHeader({
 }: JobPostingsHeaderProps) {
   return (
     <div className="mb-6 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <GlossyIcon icon={Briefcase} size={48} className="hidden sm:inline-flex" />
-          <div>
-            <h1 className="text-2xl font-bold">내 채용공고 관리</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              관심 공고를 등록하고 일정을 캘린더로 관리한 뒤, 바로 모의면접까지 진행하세요.
-              <span className="ml-2 font-medium text-foreground">총 {total}개</span>
-            </p>
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            내 채용공고 관리
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            관심 공고와 일정을 한 곳에서 관리하고, 바로 모의면접까지 이어가세요.
+            <span className="ml-2 font-medium text-foreground">총 {total.toLocaleString()}개</span>
+          </p>
         </div>
         <Button onClick={onClickCreate} className="shrink-0">
-          <Plus className="mr-1 h-4 w-4" />
-          새 공고 등록
+          <Plus className="mr-1 h-4 w-4" />새 공고 등록
         </Button>
       </div>
 

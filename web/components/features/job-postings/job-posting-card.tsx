@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, ExternalLink, Sparkles, Star } from "lucide-react";
+import { Calendar as CalendarIcon, ExternalLink, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { JobPostingRecord, ScheduleRecord } from "@/lib/job-postings/types";
-import { STATUS_LABEL, STATUS_TONE } from "@/lib/job-postings/visual-tokens";
+import {
+  KIND_LABEL,
+  STATUS_LABEL,
+  STATUS_TONE,
+} from "@/lib/job-postings/visual-tokens";
 
 function nextSchedule(schedules: ScheduleRecord[] | undefined) {
   if (!schedules?.length) return null;
@@ -33,95 +36,110 @@ interface JobPostingCardProps {
 
 export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProps) {
   const next = nextSchedule(posting.schedules);
+  const fav = posting.isFavorite;
+
   return (
     <Card
       className={cn(
-        // 부드러운 hover: 살짝 떠오르는 느낌 + 그림자 강화
-        "group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
-        // 카드 상단의 1px gradient accent (before pseudo)
-        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-[2px]",
-        "before:bg-gradient-to-r before:from-amber-300 before:via-orange-400 before:to-amber-300",
-        "before:opacity-0 before:transition-opacity before:duration-200 group-hover:before:opacity-100",
-        // 즐겨찾기는 좌측 4px border + 부드러운 amber ring으로 강조
-        posting.isFavorite &&
-          "border-l-4 border-l-amber-400 ring-1 ring-amber-200/40 before:opacity-100",
+        "group relative flex h-full flex-col transition-shadow duration-150 hover:shadow-md",
+        fav && "ring-1 ring-amber-200",
       )}
     >
-      <CardContent className="space-y-3 p-5">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="flex flex-1 flex-col gap-3 p-4">
+        <header className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold">{posting.companyName}</div>
-            <div className="truncate text-sm text-muted-foreground">{posting.roleTitle}</div>
+            <h3 className="truncate text-base font-semibold leading-tight text-foreground">
+              {posting.companyName}
+            </h3>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+              {posting.roleTitle}
+            </p>
           </div>
-          <div className="flex items-center gap-1.5">
-            {onToggleFavorite && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggleFavorite(posting.id, !posting.isFavorite);
-                }}
-                aria-label={posting.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                aria-pressed={posting.isFavorite}
-                className="rounded-md p-1 transition-colors hover:bg-muted"
-              >
-                <Star
-                  className={cn(
-                    "h-4 w-4 transition-all",
-                    posting.isFavorite
-                      ? "fill-amber-400 text-amber-500 drop-shadow-[0_2px_4px_rgba(245,158,11,0.4)]"
-                      : "text-muted-foreground hover:text-amber-400",
-                  )}
-                />
-              </button>
-            )}
-            <Badge className={cn("ring-1", STATUS_TONE[posting.status])}>
-              {STATUS_LABEL[posting.status]}
-            </Badge>
-          </div>
-        </div>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleFavorite(posting.id, !fav);
+              }}
+              aria-label={fav ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+              aria-pressed={fav}
+              className="-mr-1 -mt-1 rounded-md p-1.5 transition-colors hover:bg-muted"
+            >
+              <Star
+                className={cn(
+                  "h-4 w-4 transition-colors",
+                  fav
+                    ? "fill-amber-400 text-amber-500"
+                    : "text-muted-foreground/60 hover:text-amber-400",
+                )}
+              />
+            </button>
+          )}
+        </header>
 
-        {next && (
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">
-              {next.title || (next.kind === "interview" ? "면접" : next.kind === "deadline" ? "마감" : "일정")}
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+              STATUS_TONE[posting.status],
+            )}
+          >
+            {STATUS_LABEL[posting.status]}
+          </span>
+          {next && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <CalendarIcon className="h-3 w-3" aria-hidden />
+              <span>{KIND_LABEL[next.kind] ?? "일정"}</span>
+              <span className="font-semibold text-foreground tabular-nums">
+                {dDay(next.startAt)}
+              </span>
             </span>
-            <span className="font-medium">{dDay(next.startAt)}</span>
-          </div>
-        )}
+          )}
+        </div>
 
         {posting.techStack.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {posting.techStack.slice(0, 4).map((t) => (
-              <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+              <span
+                key={t}
+                className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-foreground/70"
+              >
                 {t}
               </span>
             ))}
             {posting.techStack.length > 4 && (
-              <span className="text-xs text-muted-foreground">+{posting.techStack.length - 4}</span>
+              <span className="text-[11px] text-muted-foreground">
+                +{posting.techStack.length - 4}
+              </span>
             )}
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 pt-2">
-          <div className="flex gap-2">
-            <Button asChild size="sm" variant="outline">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-1">
+            <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-xs">
               <Link href={`/my/job-postings/${posting.id}`}>상세</Link>
             </Button>
             {posting.postingUrl && (
-              <Button asChild size="sm" variant="ghost">
-                <a href={posting.postingUrl} target="_blank" rel="noreferrer">
-                  <ExternalLink className="mr-1 h-3.5 w-3.5" />원문
+              <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-xs">
+                <a
+                  href={posting.postingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="원문 공고 열기"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 </a>
               </Button>
             )}
           </div>
-          <Button asChild size="sm">
-            <Link href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}>
-              <Sparkles className="mr-1 h-3.5 w-3.5" />
-              모의면접
+          <Button asChild size="sm" className="h-8 px-2.5 text-xs">
+            <Link
+              href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
+            >
+              <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />면접
             </Link>
           </Button>
         </div>

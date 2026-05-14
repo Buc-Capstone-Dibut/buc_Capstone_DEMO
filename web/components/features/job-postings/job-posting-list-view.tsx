@@ -10,7 +10,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -95,7 +94,7 @@ export function JobPostingListView({
                 key={posting.id}
                 className={cn(
                   "cursor-pointer",
-                  posting.isFavorite && "bg-yellow-50/40 hover:bg-yellow-50",
+                  posting.isFavorite && "bg-amber-50/50 hover:bg-amber-50",
                 )}
                 onClick={() => router.push(detailHref)}
               >
@@ -111,10 +110,10 @@ export function JobPostingListView({
                   >
                     <Star
                       className={cn(
-                        "h-4 w-4 transition-all",
+                        "h-4 w-4 transition-colors",
                         posting.isFavorite
-                          ? "fill-amber-400 text-amber-500 drop-shadow-[0_2px_4px_rgba(245,158,11,0.4)]"
-                          : "text-muted-foreground hover:text-amber-400",
+                          ? "fill-amber-400 text-amber-500"
+                          : "text-muted-foreground/60 hover:text-amber-400",
                       )}
                     />
                   </button>
@@ -126,9 +125,14 @@ export function JobPostingListView({
                   <div className="max-w-[220px] truncate">{posting.roleTitle}</div>
                 </TableCell>
                 <TableCell>
-                  <Badge className={cn("ring-1", STATUS_TONE[posting.status])}>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                      STATUS_TONE[posting.status],
+                    )}
+                  >
                     {STATUS_LABEL[posting.status]}
-                  </Badge>
+                  </span>
                 </TableCell>
                 <TableCell>
                   {next ? (
@@ -147,13 +151,13 @@ export function JobPostingListView({
                     {posting.techStack.slice(0, 3).map((t) => (
                       <span
                         key={t}
-                        className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                        className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-foreground/70"
                       >
                         {t}
                       </span>
                     ))}
                     {posting.techStack.length > 3 && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground">
                         +{posting.techStack.length - 3}
                       </span>
                     )}
