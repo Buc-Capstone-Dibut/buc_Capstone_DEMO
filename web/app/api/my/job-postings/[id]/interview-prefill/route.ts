@@ -44,30 +44,46 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
       resumePrefillSource = attachedResumeId ? "job_posting_attachment" : "active_resume";
     }
 
-    // 자소서 (resume_payload.coverLetters[index])
+    // 자소서: 신규 방식 (user_cover_letters 테이블) 우선, 없으면 legacy (resume_payload.coverLetters[index])
     let suggestedCoverLetter: { title: string; body: string } | null = null;
     const coverAttachment = posting.attachments.find(
       (a) => a.attachment_type === "cover_letter",
     );
-    if (
-      coverAttachment &&
-      coverAttachment.resume_id != null &&
-      coverAttachment.cover_letter_index != null
-    ) {
-      const r = await prisma.user_resumes.findFirst({
-        where: { id: coverAttachment.resume_id, user_id: session.user.id },
-      });
-      const payload = r?.resume_payload as any;
-      const cls = Array.isArray(payload?.coverLetters) ? payload.coverLetters : [];
-      const picked = cls[coverAttachment.cover_letter_index];
-      if (picked) {
-        suggestedCoverLetter = {
-          title:
-            typeof picked.title === "string"
-              ? picked.title
-              : coverAttachment.cover_letter_label ?? "",
-          body: typeof picked.body === "string" ? picked.body : "",
-        };
+    if (coverAttachment) {
+      if (coverAttachment.cover_letter_id != null) {
+        // 신규 방식: 독립 자기소개서 테이블에서 직접 조회
+        const cl = await (prisma as any).user_cover_letters.findFirst({
+          where: { id: coverAttachment.cover_letter_id, user_id: session.user.id },
+        });
+        if (cl) {
+          suggestedCoverLetter = {
+            title:
+              (typeof cl.title === "string" && cl.title.length > 0 ? cl.title : null) ??
+              coverAttachment.cover_letter_label ??
+              "",
+            body: typeof cl.body === "string" ? cl.body : "",
+          };
+        }
+      } else if (
+        coverAttachment.resume_id != null &&
+        coverAttachment.cover_letter_index != null
+      ) {
+        // legacy: resume_payload.coverLetters[index]
+        const r = await prisma.user_resumes.findFirst({
+          where: { id: coverAttachment.resume_id, user_id: session.user.id },
+        });
+        const payload = r?.resume_payload as any;
+        const cls = Array.isArray(payload?.coverLetters) ? payload.coverLetters : [];
+        const picked = cls[coverAttachment.cover_letter_index];
+        if (picked) {
+          suggestedCoverLetter = {
+            title:
+              typeof picked.title === "string"
+                ? picked.title
+                : coverAttachment.cover_letter_label ?? "",
+            body: typeof picked.body === "string" ? picked.body : "",
+          };
+        }
       }
     }
 
