@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Wand2, Loader2 } from "lucide-react";
 import type { JobPostingInput, JobPostingStatus, ScheduleKind } from "@/lib/job-postings/types";
 import {
   ImportFromMyDataPanel,
   type JobPostingDraft,
 } from "@/components/features/job-postings/import-from-my-data-panel";
+import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
   { value: "active", label: "관심" },
@@ -63,12 +64,24 @@ export function JobPostingFormDialog({
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
   const [roleTitle, setRoleTitle] = useState(initial?.roleTitle ?? "");
   const [postingUrl, setPostingUrl] = useState(initial?.postingUrl ?? "");
-  const [techStackText, setTechStackText] = useState((initial?.techStack ?? []).join(", "));
+  const [techStack, setTechStack] = useState<string[]>(initial?.techStack ?? []);
   const [memo, setMemo] = useState(initial?.memo ?? "");
   const [status, setStatus] = useState<JobPostingStatus>((initial?.status as JobPostingStatus) ?? "active");
   const [schedules, setSchedules] = useState<ScheduleDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 상세 정보 (URL 파싱 또는 직접 입력)
+  const [responsibilitiesText, setResponsibilitiesText] = useState((initial?.responsibilities ?? []).join("\n"));
+  const [requirementsText, setRequirementsText] = useState((initial?.requirements ?? []).join("\n"));
+  const [preferredText, setPreferredText] = useState((initial?.preferred ?? []).join("\n"));
+  const [companyDescriptionText, setCompanyDescriptionText] = useState(initial?.companyDescription ?? "");
+  const [teamCultureText, setTeamCultureText] = useState((initial?.teamCulture ?? []).join("\n"));
+
+  // URL 자동 파싱 상태
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parseSuccess, setParseSuccess] = useState(false);
 
   // import 패널에서 받은 자동 첨부 후보 (등록 후 attachments POST에 사용)
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
@@ -84,14 +97,77 @@ export function JobPostingFormDialog({
     if (!roleTitle.trim() && draft.roleTitle) {
       setRoleTitle(draft.roleTitle);
     }
-    if (!techStackText.trim() && (draft.techStack ?? []).length > 0) {
-      setTechStackText((draft.techStack ?? []).join(", "));
+    if (techStack.length === 0 && (draft.techStack ?? []).length > 0) {
+      setTechStack(draft.techStack ?? []);
     }
     if (!memo.trim() && draft.memo) {
       setMemo(draft.memo);
     }
     if (attach) {
       setPendingAttachment(attach);
+    }
+  };
+
+  const parseFromUrl = async () => {
+    const trimmed = postingUrl.trim();
+    if (!trimmed) return;
+    setParseError(null);
+    setParseSuccess(false);
+    setParsing(true);
+    try {
+      const res = await fetch("/api/interview/parse-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json || json.success === false) {
+        throw new Error(json?.error ?? "URL에서 정보를 가져오지 못했습니다.");
+      }
+      const data = json.data ?? {};
+
+      const asString = (v: unknown): string => (typeof v === "string" ? v : "");
+      const asStringArray = (v: unknown): string[] =>
+        Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+
+      // 빈 필드만 채움 (사용자가 이미 입력한 값은 절대 덮어쓰지 않음)
+      if (!companyName.trim() && asString(data.company)) {
+        setCompanyName(asString(data.company));
+      }
+      if (!roleTitle.trim() && asString(data.title)) {
+        setRoleTitle(asString(data.title));
+      }
+      if (techStack.length === 0) {
+        const arr = asStringArray(data.techStack);
+        if (arr.length > 0) {
+          setTechStack(arr);
+        }
+      }
+      if (!companyDescriptionText.trim() && asString(data.description)) {
+        setCompanyDescriptionText(asString(data.description));
+      }
+      if (!responsibilitiesText.trim()) {
+        const arr = asStringArray(data.responsibilities);
+        if (arr.length > 0) setResponsibilitiesText(arr.join("\n"));
+      }
+      if (!requirementsText.trim()) {
+        const arr = asStringArray(data.requirements);
+        if (arr.length > 0) setRequirementsText(arr.join("\n"));
+      }
+      if (!preferredText.trim()) {
+        const arr = asStringArray(data.preferred);
+        if (arr.length > 0) setPreferredText(arr.join("\n"));
+      }
+      if (!teamCultureText.trim()) {
+        const arr = asStringArray(data.culture);
+        if (arr.length > 0) setTeamCultureText(arr.join("\n"));
+      }
+      setParseSuccess(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "URL에서 정보를 가져오지 못했습니다.";
+      setParseError(message);
+    } finally {
+      setParsing(false);
     }
   };
 
@@ -103,11 +179,19 @@ export function JobPostingFormDialog({
     }
     setSubmitting(true);
     try {
+      const splitLines = (text: string): string[] =>
+        text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+
       const payload: JobPostingInput = {
         companyName: companyName.trim(),
         roleTitle: roleTitle.trim(),
         postingUrl: postingUrl.trim() || null,
-        techStack: techStackText.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
+        techStack: techStack.map((s) => s.trim()).filter(Boolean),
+        responsibilities: splitLines(responsibilitiesText),
+        requirements: splitLines(requirementsText),
+        preferred: splitLines(preferredText),
+        companyDescription: companyDescriptionText.trim() || null,
+        teamCulture: splitLines(teamCultureText),
         memo: memo.trim() || null,
         status,
         schedules: schedules
@@ -193,13 +277,92 @@ export function JobPostingFormDialog({
 
           <div className="space-y-1">
             <Label>공고 URL</Label>
-            <Input value={postingUrl} onChange={(e) => setPostingUrl(e.target.value)} placeholder="https://..." />
+            <div className="flex gap-2">
+              <Input
+                value={postingUrl}
+                onChange={(e) => {
+                  setPostingUrl(e.target.value);
+                  setParseError(null);
+                  setParseSuccess(false);
+                }}
+                placeholder="https://..."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={parseFromUrl}
+                disabled={!postingUrl.trim() || parsing}
+              >
+                {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                <span className="ml-1">URL에서 가져오기</span>
+              </Button>
+            </div>
+            {parseError && <p className="text-xs text-red-600">{parseError}</p>}
+            {parseSuccess && (
+              <p className="text-xs text-emerald-600">자동 추출 완료. 비어있는 필드만 채워졌습니다.</p>
+            )}
           </div>
 
           <div className="space-y-1">
-            <Label>요구 기술 (쉼표로 구분)</Label>
-            <Input value={techStackText} onChange={(e) => setTechStackText(e.target.value)} placeholder="React, TypeScript, Node.js" />
+            <Label>요구 기술</Label>
+            <TechStackCombobox
+              value={techStack}
+              onChange={setTechStack}
+              placeholder="기술을 검색하거나 입력 후 Enter (예: React)"
+            />
           </div>
+
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-medium">상세 정보 (선택)</summary>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-1">
+                <Label>주요 업무 (한 줄에 하나)</Label>
+                <Textarea
+                  rows={3}
+                  value={responsibilitiesText}
+                  onChange={(e) => setResponsibilitiesText(e.target.value)}
+                  placeholder="예: 백엔드 API 설계 및 개발"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>자격 요건 (한 줄에 하나)</Label>
+                <Textarea
+                  rows={3}
+                  value={requirementsText}
+                  onChange={(e) => setRequirementsText(e.target.value)}
+                  placeholder="예: 컴퓨터공학 학사 또는 동등 수준"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>우대 사항 (한 줄에 하나)</Label>
+                <Textarea
+                  rows={3}
+                  value={preferredText}
+                  onChange={(e) => setPreferredText(e.target.value)}
+                  placeholder="예: 대규모 트래픽 처리 경험"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>회사 설명</Label>
+                <Textarea
+                  rows={2}
+                  value={companyDescriptionText}
+                  onChange={(e) => setCompanyDescriptionText(e.target.value)}
+                  placeholder="회사 소개 또는 공고 본문 요약"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>팀 문화 (한 줄에 하나)</Label>
+                <Textarea
+                  rows={2}
+                  value={teamCultureText}
+                  onChange={(e) => setTeamCultureText(e.target.value)}
+                  placeholder="예: 자율과 책임"
+                />
+              </div>
+            </div>
+          </details>
 
           <div className="space-y-1">
             <Label>상태</Label>
