@@ -35,6 +35,7 @@ import {
 import { ResumeAiTuneDialog } from "@/components/features/resume/resume-ai-tune-dialog";
 import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
+import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
@@ -108,6 +109,56 @@ export function ResumeEditor({
   }, [previewToggleMode, isEditPanelOpen]);
 
   const showEditPanel = !previewToggleMode || isEditPanelOpen;
+
+  const [isPrefillingProfile, setIsPrefillingProfile] = useState(false);
+  /**
+   * 마이페이지 프로필(`/api/my/me`) 에서 이름·이메일·자기소개·기술 스택을 즉시 가져와
+   * personalInfo 와 skills 의 빈 슬롯을 채운다. 이미 입력된 값은 덮어쓰지 않는다.
+   */
+  const handleImportFromMyPage = async () => {
+    setIsPrefillingProfile(true);
+    try {
+      const res = await fetch("/api/my/me", { cache: "no-store" });
+      if (!res.ok) throw new Error("프로필을 불러오지 못했습니다.");
+      const json = await res.json();
+      if (!json?.success || !json.data) throw new Error("프로필 데이터가 비어 있습니다.");
+      const profile = json.data as {
+        nickname?: string;
+        email?: string;
+        bio?: string;
+        techStack?: string[];
+      };
+      const piPrev = payload.personalInfo;
+      const next: ResumePayload = {
+        ...payload,
+        personalInfo: {
+          ...piPrev,
+          name: piPrev.name?.trim() || profile.nickname || piPrev.name,
+          email: piPrev.email?.trim() || profile.email || piPrev.email,
+          intro: piPrev.intro?.trim() || profile.bio || piPrev.intro,
+        },
+        skills:
+          payload.skills.length > 0
+            ? payload.skills
+            : Array.isArray(profile.techStack)
+              ? profile.techStack.map((name) => ({ name, level: "Intermediate" }))
+              : payload.skills,
+      };
+      onChange(next);
+      toast({
+        title: "마이페이지 정보 불러오기 완료",
+        description: "비어있던 항목만 채워졌습니다. 이미 입력한 값은 그대로 유지됩니다.",
+      });
+    } catch (error) {
+      toast({
+        title: "불러오기 실패",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도해주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrefillingProfile(false);
+    }
+  };
 
   const pi = payload.personalInfo;
 
@@ -688,7 +739,26 @@ export function ResumeEditor({
         />
       </div>
 
-      <CollapsibleSection title="기본 정보" badge="필수" defaultOpen>
+      <CollapsibleSection
+        title="기본 정보"
+        badge="필수"
+        defaultOpen
+        action={
+          <button
+            type="button"
+            onClick={handleImportFromMyPage}
+            disabled={isPrefillingProfile}
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:opacity-60"
+          >
+            {isPrefillingProfile ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-3 w-3" aria-hidden />
+            )}
+            마이페이지에서 불러오기
+          </button>
+        }
+      >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "이름", key: "name" as const, placeholder: "홍길동" },
@@ -750,15 +820,19 @@ export function ResumeEditor({
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="자기소개"
+        title="자기소개 (PROFILE SUMMARY)"
         badge={payload.selfIntroduction?.trim() ? "작성됨" : "비어있음"}
         defaultOpen={false}
       >
-          <Textarea
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            미리보기의 PROFILE SUMMARY 영역에 그대로 들어가는 본문입니다. 입력한 길이만큼 자동으로 늘어납니다.
+          </p>
+          <AutoResizeTextarea
             value={payload.selfIntroduction}
             onChange={(event) => onChange({ ...payload, selfIntroduction: event.target.value })}
-            placeholder="AI 가이드를 통해 나의 프로젝트를 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
-            className="min-h-[200px] text-sm leading-relaxed"
+            placeholder="지원 직무와 관련된 핵심 역량·경험을 2~5문장으로 정리하세요."
+            className="text-sm leading-relaxed"
+            minRows={6}
           />
       </CollapsibleSection>
 
@@ -860,7 +934,7 @@ export function ResumeEditor({
                                   <Trash2 className="h-3 w-3" />
                                 </button>
                               </div>
-                              <Textarea
+                              <AutoResizeTextarea
                                 value={q.answer ?? ""}
                                 onChange={(e) =>
                                   updateQuestion(coverIdx, qIdx, {
@@ -870,7 +944,8 @@ export function ResumeEditor({
                                 }
                                 maxLength={q.maxChars}
                                 placeholder="답변을 입력하세요"
-                                className="min-h-[110px] resize-none rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
+                                minRows={4}
+                                className="rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
                               />
                               <div
                                 className={cn(
@@ -886,15 +961,16 @@ export function ResumeEditor({
                         })}
                       </ul>
                     ) : (
-                      <Textarea
+                      <AutoResizeTextarea
                         value={cover.content ?? ""}
                         onChange={(e) =>
                           updateCoverLetter(coverIdx, {
                             content: e.target.value,
                           })
                         }
-                        placeholder="자기소개서 본문 (또는 '문항별 편집 모드로'를 눌러 문항으로 분리)"
-                        className="min-h-[140px] resize-none rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
+                        placeholder="자기소개서 본문 (또는 '문항별로 분리'를 눌러 문항으로 나눌 수 있어요)"
+                        minRows={5}
+                        className="rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
                       />
                     )}
 

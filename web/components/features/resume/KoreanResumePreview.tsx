@@ -184,11 +184,9 @@ export function KoreanResumeHeader({
 }) {
   const info = payload.personalInfo;
   const name = info.name || "이름";
-  const headline = firstPresent(
-    info.intro,
-    title,
-    "지원 직무와 강점을 요약해 주세요.",
-  );
+  // 헤더의 한 줄 소개는 personalInfo.intro 만 사용한다 (자기소개 본문 selfIntroduction
+  // 은 PROFILE SUMMARY 섹션에서 표시).
+  const headline = info.intro?.trim() || "";
   const contactItems = [
     info.email,
     info.phone,
@@ -199,13 +197,22 @@ export function KoreanResumeHeader({
   return (
     <header className="border-b-2 border-slate-950 pb-5">
       <div className="flex items-end justify-between gap-8">
-        <div>
+        <div className="min-w-0">
           <p className="text-[12px] font-black tracking-[0.18em] text-slate-500">
             DEVELOPER RESUME
           </p>
           <h1 className="mt-2 text-[34px] font-black leading-none tracking-normal">
             {name}
           </h1>
+          {headline ? (
+            <p className="mt-2 text-[12px] font-semibold leading-5 text-slate-600">
+              {headline}
+            </p>
+          ) : title ? (
+            <p className="mt-2 text-[11px] font-medium leading-5 text-slate-400">
+              {title}
+            </p>
+          ) : null}
         </div>
         <div className="max-w-[320px] break-all text-right text-[11px] font-semibold leading-5 text-slate-600">
           {contactItems.map((item) => (
@@ -213,9 +220,6 @@ export function KoreanResumeHeader({
           ))}
         </div>
       </div>
-      <p className="mt-4 text-[14px] font-bold leading-6 text-slate-800">
-        {headline}
-      </p>
     </header>
   );
 }
@@ -234,11 +238,13 @@ export function buildResumeSectionNodes(
   const nodes: React.ReactNode[] = [];
 
   if (sectionOptions.summary) {
+    // PROFILE SUMMARY 는 selfIntroduction 만 사용한다 (personalInfo.intro 는 헤더 한
+    // 줄 소개로 따로 표시됨). 빈 값이면 placeholder 메시지로 안내.
     nodes.push(
       <ResumeSection key="summary" title="PROFILE SUMMARY">
         <p className="whitespace-pre-line text-[12px] font-medium leading-6 text-slate-800">
-          {(payload.personalInfo.intro || payload.selfIntroduction || "").trim() ||
-            "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
+          {payload.selfIntroduction?.trim() ||
+            "지원 직무와 관련된 핵심 역량·경험을 2~5문장으로 정리하세요."}
         </p>
       </ResumeSection>,
     );
@@ -361,15 +367,9 @@ export function buildResumeSectionNodes(
     );
   }
 
-  if (sectionOptions.selfIntroduction && payload.selfIntroduction?.trim()) {
-    nodes.push(
-      <ResumeSection key="selfIntroduction" title="자기소개">
-        <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-          {payload.selfIntroduction}
-        </p>
-      </ResumeSection>,
-    );
-  }
+  // 별도의 자기소개 섹션은 더 이상 노출하지 않는다. PROFILE SUMMARY 가 같은 내용을
+  // 표시하므로 중복 출력 방지. (sectionOptions.selfIntroduction 옵션은 호환을 위해
+  // 남겨두지만 노출하지 않는다.)
 
   if (sectionOptions.coverLetters) {
     nodes.push(
