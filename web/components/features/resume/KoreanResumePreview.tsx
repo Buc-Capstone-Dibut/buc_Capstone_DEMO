@@ -161,8 +161,16 @@ function ResumeSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-t border-slate-900/80 pt-3">
-      <h3 className="mb-2 text-[12px] font-black tracking-[0.16em] text-slate-950">{title}</h3>
+    <section
+      data-print-section
+      className="border-t border-slate-900/80 pt-3"
+    >
+      <h3
+        data-print-title
+        className="mb-2 text-[12px] font-black tracking-[0.16em] text-slate-950"
+      >
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -198,7 +206,7 @@ export function KoreanResumeDocument({
   return (
     <article
       id={documentId}
-      className={`korean-resume-a4-page bg-white px-11 py-11 text-slate-950 shadow-sm [word-break:keep-all] ${className}`}
+      className={`korean-resume-a4-page print-resume bg-white px-11 py-11 text-slate-950 shadow-sm [word-break:keep-all] ${className}`}
       style={style}
     >
       <header className="border-b-2 border-slate-950 pb-5">
@@ -219,8 +227,8 @@ export function KoreanResumeDocument({
       <div className="mt-5 space-y-5">
         {sectionOptions.summary ? (
           <ResumeSection title="PROFILE SUMMARY">
-            <p className="text-[12px] font-medium leading-6 text-slate-800">
-              {compactText(info.intro || payload.selfIntroduction, 260) || "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
+            <p className="whitespace-pre-line text-[12px] font-medium leading-6 text-slate-800">
+              {(info.intro || payload.selfIntroduction || "").trim() || "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
             </p>
           </ResumeSection>
         ) : null}
@@ -240,8 +248,12 @@ export function KoreanResumeDocument({
         {sectionOptions.experience ? (
           <ResumeSection title="WORK EXPERIENCE">
             <div className="space-y-4">
-              {payload.experience.length ? payload.experience.slice(0, 4).map((exp, index) => (
-                <div key={exp.id || index} className="grid grid-cols-[128px_minmax(0,1fr)] gap-5">
+              {payload.experience.length ? payload.experience.map((exp, index) => (
+                <div
+                  key={exp.id || index}
+                  data-print-entry
+                  className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+                >
                   <div className="text-[11px] font-bold leading-5 text-slate-500">
                     <p>{exp.period || "기간"}</p>
                   </div>
@@ -251,7 +263,10 @@ export function KoreanResumeDocument({
                       <p className="text-[11px] font-bold text-slate-500">{exp.position || "직책"}</p>
                     </div>
                     <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                      {(cleanLines(exp.description, 3).length ? cleanLines(exp.description, 3) : ["담당 업무와 성과를 입력하세요."]).map((line) => (
+                      {(cleanLines(exp.description, 100).length
+                        ? cleanLines(exp.description, 100)
+                        : ["담당 업무와 성과를 입력하세요."]
+                      ).map((line) => (
                         <li key={line}>{line}</li>
                       ))}
                     </ul>
@@ -267,22 +282,26 @@ export function KoreanResumeDocument({
         {sectionOptions.projects ? (
           <ResumeSection title="PROJECTS">
             <div className="space-y-4">
-              {payload.projects.length ? payload.projects.slice(0, 5).map((project, index) => (
-                <div key={project.id || index} className="grid grid-cols-[128px_minmax(0,1fr)] gap-5">
+              {payload.projects.length ? payload.projects.map((project, index) => (
+                <div
+                  key={project.id || index}
+                  data-print-entry
+                  className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+                >
                   <div className="text-[11px] font-bold leading-5 text-slate-500">
                     <p>{project.period || "기간"}</p>
                   </div>
                   <div>
                     <div className="flex flex-wrap items-baseline gap-x-2">
                       <h4 className="text-[13px] font-black text-slate-950">{project.name || "프로젝트명"}</h4>
-                      <p className="text-[10px] font-bold text-slate-500">{project.techStack.slice(0, 6).join(" · ")}</p>
+                      <p className="text-[10px] font-bold text-slate-500">{project.techStack.join(" · ")}</p>
                     </div>
-                    <p className="mt-1 text-[11px] font-medium leading-5 text-slate-700">
-                      {compactText(firstPresent(project.description, project.role, project.solution), 190) || "프로젝트 개요와 본인 역할을 입력하세요."}
+                    <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
+                      {firstPresent(project.description, project.role, project.solution) || "프로젝트 개요와 본인 역할을 입력하세요."}
                     </p>
                     {project.achievements.length ? (
                       <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                        {project.achievements.slice(0, 3).map((achievement) => (
+                        {project.achievements.map((achievement) => (
                           <li key={achievement}>{achievement}</li>
                         ))}
                       </ul>
@@ -299,7 +318,7 @@ export function KoreanResumeDocument({
         {sectionOptions.selfIntroduction && payload.selfIntroduction?.trim() ? (
           <ResumeSection title="자기소개">
             <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-              {compactText(payload.selfIntroduction, 520)}
+              {payload.selfIntroduction}
             </p>
           </ResumeSection>
         ) : null}

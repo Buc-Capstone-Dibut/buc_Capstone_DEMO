@@ -437,3 +437,54 @@ body {
   --color-on-primary-container: #B5D58A;
   --color-surface-primary-container: #2A4018;
 }
+
+/*
+ * 이력서 미리보기 인쇄 규칙
+ * 브라우저 인쇄(Cmd+P)나 "PDF로 저장" 시 본문이 길어지면 자연스럽게 다음 페이지로
+ * 분기되게 한다. 1페이지에 강제로 fit 하지 않는다.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  /* /resume 페이지에서 인쇄 시 보이지 말아야 할 보조 UI (헤더 버튼·편집 패널 등). */
+  [data-no-print="true"] {
+    display: none !important;
+  }
+  /* 이력서 본문 컨테이너: 그림자·테두리·max-width 제거, 풀 너비 사용 */
+  .print-resume {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  /* 섹션·entry 의 페이지 분기 보호 — 한 항목이 페이지 경계에서 잘리지 않도록 */
+  .print-resume [data-print-section] {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .print-resume [data-print-title] {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  .print-resume [data-print-entry] {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  /* 미리보기 전용 인터랙션 시각 효과는 인쇄 시 제거 */
+  .print-resume * {
+    cursor: default !important;
+    box-shadow: none !important;
+  }
+  .print-resume [data-print-helper] {
+    display: none !important;
+  }
+}

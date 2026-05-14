@@ -307,7 +307,10 @@ export default function ResumePage() {
                 </div>
             )}
 
-            <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+            <header
+                data-no-print="true"
+                className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md"
+            >
                 <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="icon" onClick={() => router.back()} className="hover:bg-slate-100">
@@ -315,13 +318,20 @@ export default function ResumePage() {
                         </Button>
                         <div>
                             <h1 className="text-lg font-bold flex items-center gap-2">
-                                {/* <Sparkles className="w-4 h-4 text-primary" /> */}
                                 이력서 연구소
                             </h1>
                             <p className="text-[11px] text-muted-foreground font-medium">나만의 고유한 강점을 이력서에 담아보세요</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => window.print()}
+                            className="h-10 rounded-md border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:border-primary/40 hover:text-primary"
+                        >
+                            인쇄 / PDF로 저장
+                        </Button>
                         <ResumePdfDownloadButton
                             resumePayload={resumePayload}
                             title={resumeTitle}
