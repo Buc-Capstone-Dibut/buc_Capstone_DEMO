@@ -2,19 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  Building2,
-  CalendarRange,
-  ExternalLink,
-  FileText,
-  Info,
-  Paperclip,
-  Sparkles,
-  StickyNote,
-  Trash2,
-  Wrench,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentPicker } from "@/components/features/job-postings/attachment-picker";
 import {
@@ -30,10 +18,10 @@ import type {
   ScheduleRecord,
 } from "@/lib/job-postings/types";
 
-const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+const DATE_TIME = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
-  month: "long",
-  day: "numeric",
+  month: "2-digit",
+  day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
 });
@@ -78,226 +66,262 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
   const removePosting = async () => {
     if (
       typeof window !== "undefined" &&
-      !window.confirm("이 공고와 일정, 연결 자료를 모두 삭제할까요?")
+      !window.confirm("이 공고와 등록된 일정, 연결된 자료를 모두 삭제합니다. 진행할까요?")
     )
       return;
     await fetch(`/api/my/job-postings/${postingId}`, { method: "DELETE" });
     window.location.href = "/my/job-postings";
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
+      <div className="mx-auto max-w-4xl px-4 py-16 text-center text-sm text-muted-foreground">
         불러오는 중…
       </div>
     );
-  if (!posting)
+  }
+  if (!posting) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-4xl px-4 py-16 text-center">
         공고를 찾을 수 없습니다.
       </div>
     );
+  }
 
   const sortedSchedules = [...(posting.schedules ?? [])].sort(
     (a, b) => +new Date(a.startAt) - +new Date(b.startAt),
   );
+  const attachments = posting.attachments ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      {/* 상단 네비게이션 (서류 바깥 영역) */}
-      <div className="mb-4 flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8">
+      {/* 상단 네비게이션 */}
+      <div className="mb-3 flex items-center justify-between">
+        <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
           <Link href="/my/job-postings">
             <ArrowLeft className="mr-1 h-4 w-4" aria-hidden />목록으로
           </Link>
         </Button>
-        {posting.postingUrl && (
-          <Button asChild variant="ghost" size="sm">
-            <a href={posting.postingUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-1 h-3.5 w-3.5" aria-hidden />원문 공고
-            </a>
+        <div className="flex items-center gap-2">
+          {posting.postingUrl && (
+            <Button asChild variant="outline" size="sm" className="h-8 rounded-sm">
+              <a href={posting.postingUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-1 h-3.5 w-3.5" aria-hidden />원문 공고
+              </a>
+            </Button>
+          )}
+          <Button
+            asChild
+            size="sm"
+            className="h-8 rounded-sm"
+            disabled={interviewLoading}
+            onClick={() => setInterviewLoading(true)}
+          >
+            <Link
+              href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
+            >
+              {interviewLoading ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
+              )}
+              이 공고로 모의면접
+            </Link>
           </Button>
-        )}
+        </div>
       </div>
 
-      {/* 서류 본체 */}
-      <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        {/* 문서 헤더 — 회사 / 직무 / 상태 */}
-        <header className="border-b bg-muted/30 px-8 py-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <Building2 className="h-3.5 w-3.5" aria-hidden />
-                {posting.companyName}
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold leading-tight tracking-tight text-foreground">
-                {posting.roleTitle}
-              </h1>
-            </div>
+      {/* 문서 표 본체 */}
+      <article className="rounded-md border bg-background">
+        {/* 문서 헤더 */}
+        <header className="border-b bg-muted/40 px-5 py-4">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              채용공고 상세
+            </span>
+            <span className="text-xs text-muted-foreground/70 tabular-nums">
+              · 마지막 수정 {DATE_TIME.format(new Date(posting.updatedAt))}
+            </span>
+          </div>
+          <h1 className="mt-1 text-xl font-semibold leading-snug text-foreground">
+            {posting.companyName}
+            <span className="mx-2 text-muted-foreground">|</span>
+            <span className="text-foreground/90">{posting.roleTitle}</span>
+          </h1>
+        </header>
+
+        {/* 기본 정보 표 */}
+        <SectionHeader
+          title="기본 정보"
+          hint="등록한 채용공고의 기본 메타데이터입니다. 모의면접 질문 생성의 핵심 컨텍스트로 사용됩니다."
+        />
+        <FormTable>
+          <FormRow label="회사명">{posting.companyName}</FormRow>
+          <FormRow label="직무명">{posting.roleTitle}</FormRow>
+          <FormRow label="상태">
             <span
               className={cn(
-                "shrink-0 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset",
+                "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
                 STATUS_TONE[posting.status],
               )}
             >
               {STATUS_LABEL[posting.status]}
             </span>
-          </div>
-
-          {posting.techStack.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {posting.techStack.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-md bg-background px-2 py-0.5 text-xs text-foreground/80 ring-1 ring-inset ring-border"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-        </header>
-
-        {/* 본문 — 세로로 흐르는 섹션들 (각 섹션 사이는 단순 디바이더) */}
-        <div className="divide-y">
-          {/* 면접 시작 안내 + CTA */}
-          <PrimarySection>
-            <SectionTitle icon={Sparkles}>이 공고로 AI 모의면접 시작</SectionTitle>
-            <SectionHint>
-              아래에 연결된 이력서·자기소개서·포트폴리오와 공고 정보가 면접 설정에
-              자동으로 채워집니다. 검토 단계부터 바로 시작할 수 있어요.
-            </SectionHint>
-            <div className="mt-3">
-              <Button
-                asChild
-                disabled={interviewLoading}
-                onClick={() => setInterviewLoading(true)}
+          </FormRow>
+          <FormRow label="공고 URL">
+            {posting.postingUrl ? (
+              <a
+                href={posting.postingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 break-all text-primary underline-offset-2 hover:underline"
               >
-                <Link
-                  href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
-                >
-                  {interviewLoading ? (
-                    <>
-                      <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
-                      준비 중…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-1 h-4 w-4" aria-hidden />이 공고로 모의면접 시작
-                    </>
-                  )}
-                </Link>
-              </Button>
-            </div>
-          </PrimarySection>
-
-          {/* 일정 섹션 */}
-          <Section>
-            <SectionTitle icon={CalendarRange}>일정</SectionTitle>
-            <SectionHint>
-              마감일·서류 제출·면접 일정을 등록하면 마이페이지 캘린더에 자동
-              표시되고, 가장 가까운 일정이 카드의 D-day로 나타납니다.
-            </SectionHint>
-            {sortedSchedules.length > 0 ? (
-              <ul className="mt-3 divide-y rounded-lg border">
-                {sortedSchedules.map((s) => (
-                  <ScheduleRow
-                    key={s.id}
-                    schedule={s}
-                    onRemove={() => removeSchedule(s.id)}
-                  />
-                ))}
-              </ul>
+                {posting.postingUrl}
+                <ExternalLink className="h-3 w-3" aria-hidden />
+              </a>
             ) : (
-              <EmptyHint message="등록된 일정이 없습니다." />
+              <EmptyValue />
             )}
-          </Section>
-
-          {/* 자료 연결 섹션 */}
-          <Section>
-            <SectionTitle icon={Paperclip}>연결된 자료</SectionTitle>
-            <SectionHint>
-              이력서·자기소개서·포트폴리오를 연결하면 모의면접 설정에 자동으로
-              주입되어, 같은 공고로 여러 번 진행할 때마다 다시 고를 필요가 없습니다.
-            </SectionHint>
-            <div className="mt-3">
-              <AttachmentPicker postingId={posting.id} onAdded={load} />
-            </div>
-            {posting.attachments && posting.attachments.length > 0 && (
-              <ul className="mt-3 divide-y rounded-lg border">
-                {posting.attachments.map((a) => (
-                  <AttachmentRow
-                    key={a.id}
-                    attachment={a}
-                    onRemove={() => removeAttachment(a.id)}
-                  />
+          </FormRow>
+          <FormRow label="요구 기술">
+            {posting.techStack.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {posting.techStack.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80"
+                  >
+                    {t}
+                  </span>
                 ))}
-              </ul>
+              </div>
+            ) : (
+              <EmptyValue />
             )}
-          </Section>
+          </FormRow>
+          <FormRow label="메모" hint="개인 노트. 면접 컨텍스트로는 사용되지 않습니다.">
+            {posting.memo ? (
+              <p className="whitespace-pre-line leading-relaxed">{posting.memo}</p>
+            ) : (
+              <EmptyValue />
+            )}
+          </FormRow>
+        </FormTable>
 
-          {/* 메모 섹션 */}
-          {posting.memo && (
-            <Section>
-              <SectionTitle icon={StickyNote}>메모</SectionTitle>
-              <SectionHint>
-                이 메모는 모의면접 진행 중 컨텍스트로 활용되지 않습니다. 본인을
-                위한 개인 노트 영역입니다.
-              </SectionHint>
-              <p className="mt-3 whitespace-pre-line rounded-lg border bg-muted/30 px-4 py-3 text-sm leading-relaxed text-foreground/90">
-                {posting.memo}
-              </p>
-            </Section>
-          )}
+        {/* 일정 섹션 */}
+        <SectionHeader
+          title="일정"
+          hint="등록한 일정은 마이페이지 캘린더에 자동 표시되며, 가장 가까운 일정이 카드의 D-day로 노출됩니다."
+        />
+        {sortedSchedules.length > 0 ? (
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <Th className="w-24">종류</Th>
+                <Th className="w-56">일시</Th>
+                <Th>제목 · 메모</Th>
+                <Th className="w-16 text-right">관리</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedSchedules.map((s) => (
+                <ScheduleTableRow
+                  key={s.id}
+                  schedule={s}
+                  onRemove={() => removeSchedule(s.id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <EmptyBlock message="등록된 일정이 없습니다. 마감일·면접일을 추가해 일정 관리를 시작해 보세요." />
+        )}
 
-          {/* 상세 정보 섹션 (책임·요건·우대·문화) */}
-          {(posting.responsibilities.length > 0 ||
-            posting.requirements.length > 0 ||
-            posting.preferred.length > 0 ||
-            posting.teamCulture.length > 0 ||
-            posting.companyDescription) && (
-            <Section>
-              <SectionTitle icon={Wrench}>채용 상세 정보</SectionTitle>
-              <SectionHint>
-                URL 자동 추출 또는 직접 입력한 채용공고의 본문입니다. 모의면접
-                질문 생성 시 핵심 컨텍스트로 사용됩니다.
-              </SectionHint>
-              <dl className="mt-3 space-y-3 text-sm">
-                {posting.companyDescription && (
-                  <DefinitionRow term="회사 소개">
-                    {posting.companyDescription}
-                  </DefinitionRow>
-                )}
-                {posting.responsibilities.length > 0 && (
-                  <DefinitionList
-                    term="주요 업무"
-                    items={posting.responsibilities}
-                  />
-                )}
-                {posting.requirements.length > 0 && (
-                  <DefinitionList
-                    term="자격 요건"
-                    items={posting.requirements}
-                  />
-                )}
-                {posting.preferred.length > 0 && (
-                  <DefinitionList term="우대 사항" items={posting.preferred} />
-                )}
-                {posting.teamCulture.length > 0 && (
-                  <DefinitionList term="팀 문화" items={posting.teamCulture} />
-                )}
-              </dl>
-            </Section>
-          )}
+        {/* 연결 자료 섹션 */}
+        <SectionHeader
+          title="연결된 자료"
+          hint="이력서·자기소개서·포트폴리오를 연결하면 모의면접 설정에 자동 주입되어, 같은 공고로 여러 번 진행할 때 다시 고를 필요가 없습니다."
+        />
+        <div className="border-t bg-background px-5 py-4">
+          <AttachmentPicker postingId={posting.id} onAdded={load} />
         </div>
+        {attachments.length > 0 ? (
+          <table className="w-full border-collapse border-t text-sm">
+            <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <Th className="w-28">구분</Th>
+                <Th>자료명</Th>
+                <Th className="w-16 text-right">관리</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {attachments.map((a) => (
+                <AttachmentTableRow
+                  key={a.id}
+                  attachment={a}
+                  onRemove={() => removeAttachment(a.id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <EmptyBlock message="아직 연결된 자료가 없습니다. 위에서 이력서·자기소개서·포트폴리오를 선택해 연결하세요." />
+        )}
 
-        {/* 푸터 — 위험 액션 */}
-        <footer className="flex items-center justify-between border-t bg-muted/20 px-8 py-4">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5" aria-hidden />
+        {/* 채용 상세 정보 */}
+        {(posting.responsibilities.length > 0 ||
+          posting.requirements.length > 0 ||
+          posting.preferred.length > 0 ||
+          posting.teamCulture.length > 0 ||
+          posting.companyDescription) && (
+          <>
+            <SectionHeader
+              title="채용 상세 정보"
+              hint="URL 자동 추출 또는 직접 입력한 채용공고 본문입니다. 모의면접 질문 생성 시 핵심 컨텍스트로 사용됩니다."
+            />
+            <FormTable>
+              {posting.companyDescription && (
+                <FormRow label="회사 소개">
+                  <p className="whitespace-pre-line leading-relaxed">
+                    {posting.companyDescription}
+                  </p>
+                </FormRow>
+              )}
+              {posting.responsibilities.length > 0 && (
+                <FormRow label="주요 업무">
+                  <BulletList items={posting.responsibilities} />
+                </FormRow>
+              )}
+              {posting.requirements.length > 0 && (
+                <FormRow label="자격 요건">
+                  <BulletList items={posting.requirements} />
+                </FormRow>
+              )}
+              {posting.preferred.length > 0 && (
+                <FormRow label="우대 사항">
+                  <BulletList items={posting.preferred} />
+                </FormRow>
+              )}
+              {posting.teamCulture.length > 0 && (
+                <FormRow label="팀 문화">
+                  <BulletList items={posting.teamCulture} />
+                </FormRow>
+              )}
+            </FormTable>
+          </>
+        )}
+
+        {/* 푸터 */}
+        <footer className="flex items-center justify-between border-t bg-muted/30 px-5 py-3">
+          <p className="text-xs text-muted-foreground">
             공고를 삭제하면 등록된 일정과 자료 연결도 함께 사라집니다.
           </p>
-          <Button variant="ghost" size="sm" onClick={removePosting} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={removePosting}
+            className="h-8 rounded-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
             <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />공고 삭제
           </Button>
         </footer>
@@ -306,51 +330,94 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
   );
 }
 
-/* ---------- 작은 빌딩블록 ---------- */
+/* ---------- 빌딩블록 ---------- */
 
-function Section({ children }: { children: React.ReactNode }) {
-  return <section className="px-8 py-6">{children}</section>;
-}
-
-function PrimarySection({ children }: { children: React.ReactNode }) {
+function SectionHeader({ title, hint }: { title: string; hint?: string }) {
   return (
-    <section className="bg-primary/5 px-8 py-6">{children}</section>
-  );
-}
-
-function SectionTitle({
-  icon: Icon,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-foreground">
-      <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-      {children}
-    </h2>
-  );
-}
-
-function SectionHint({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mt-1.5 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
-      <span aria-hidden className="mt-1 inline-block h-0.5 w-3 shrink-0 bg-muted-foreground/30" />
-      <span>{children}</span>
-    </p>
-  );
-}
-
-function EmptyHint({ message }: { message: string }) {
-  return (
-    <div className="mt-3 rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
-      {message}
+    <div className="border-t border-b bg-muted/20 px-5 py-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {hint && (
+          <p className="hidden text-[11px] leading-snug text-muted-foreground sm:block sm:max-w-[60%] sm:text-right">
+            {hint}
+          </p>
+        )}
+      </div>
+      {hint && (
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground sm:hidden">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
 
-function ScheduleRow({
+function FormTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="divide-y border-t">
+      {children}
+    </div>
+  );
+}
+
+function FormRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr]">
+      <div className="flex flex-col gap-0.5 border-b bg-muted/30 px-5 py-3 sm:border-b-0 sm:border-r">
+        <span className="text-xs font-medium text-foreground">{label}</span>
+        {hint && (
+          <span className="text-[11px] leading-snug text-muted-foreground">
+            {hint}
+          </span>
+        )}
+      </div>
+      <div className="px-5 py-3 text-sm text-foreground">{children}</div>
+    </div>
+  );
+}
+
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th
+      className={cn(
+        "border-b border-t px-3 py-2 text-left font-semibold",
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <td className={cn("border-b px-3 py-2 align-middle text-sm", className)}>
+      {children}
+    </td>
+  );
+}
+
+function ScheduleTableRow({
   schedule,
   onRemove,
 }: {
@@ -358,125 +425,119 @@ function ScheduleRow({
   onRemove: () => void;
 }) {
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-3">
-      <div className="flex min-w-0 items-start gap-3">
-        <span
-          aria-hidden
-          className="mt-1 h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: KIND_COLOR[schedule.kind] }}
-        />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className="text-xs font-medium"
-              style={{ color: KIND_COLOR[schedule.kind] }}
-            >
-              {KIND_LABEL[schedule.kind]}
-            </span>
-            {schedule.title && (
-              <span className="truncate text-sm text-foreground">
-                · {schedule.title}
-              </span>
-            )}
-          </div>
-          <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            {DATE_TIME_FORMATTER.format(new Date(schedule.startAt))}
-            {schedule.endAt &&
-              ` ~ ${DATE_TIME_FORMATTER.format(new Date(schedule.endAt))}`}
-          </div>
-        </div>
-      </div>
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={onRemove}
-        aria-label="일정 삭제"
-        className="h-8 w-8 shrink-0"
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-      </Button>
-    </li>
+    <tr className="hover:bg-muted/30">
+      <Td>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: KIND_COLOR[schedule.kind] }}
+          />
+          <span className="font-medium" style={{ color: KIND_COLOR[schedule.kind] }}>
+            {KIND_LABEL[schedule.kind]}
+          </span>
+        </span>
+      </Td>
+      <Td className="tabular-nums text-muted-foreground">
+        {DATE_TIME.format(new Date(schedule.startAt))}
+        {schedule.endAt && (
+          <>
+            <span className="mx-1">~</span>
+            {DATE_TIME.format(new Date(schedule.endAt))}
+          </>
+        )}
+      </Td>
+      <Td>
+        {schedule.title ? (
+          <span className="text-foreground">{schedule.title}</span>
+        ) : (
+          <EmptyValue />
+        )}
+        {schedule.memo && (
+          <div className="mt-0.5 text-xs text-muted-foreground">{schedule.memo}</div>
+        )}
+      </Td>
+      <Td className="text-right">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onRemove}
+          aria-label="일정 삭제"
+          className="h-7 w-7"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        </Button>
+      </Td>
+    </tr>
   );
 }
 
-function AttachmentRow({
+function AttachmentTableRow({
   attachment,
   onRemove,
 }: {
   attachment: AttachmentRecord;
   onRemove: () => void;
 }) {
-  const label =
+  const typeLabel =
+    attachment.attachmentType === "resume"
+      ? "이력서"
+      : attachment.attachmentType === "cover_letter"
+        ? "자기소개서"
+        : "포트폴리오";
+  const name =
     attachment.attachmentType === "resume"
       ? "이력서"
       : attachment.attachmentType === "cover_letter"
         ? attachment.coverLetterLabel ?? "자기소개서"
         : "포트폴리오";
-  const typeLabel =
-    attachment.attachmentType === "resume"
-      ? "이력서"
-      : attachment.attachmentType === "cover_letter"
-        ? "자소서"
-        : "포트폴리오";
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-            {typeLabel}
-          </div>
-          <div className="truncate text-sm text-foreground">{label}</div>
-        </div>
-      </div>
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={onRemove}
-        aria-label="연결 해제"
-        className="h-8 w-8 shrink-0"
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-      </Button>
-    </li>
+    <tr className="hover:bg-muted/30">
+      <Td>
+        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
+          {typeLabel}
+        </span>
+      </Td>
+      <Td className="text-foreground">{name}</Td>
+      <Td className="text-right">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onRemove}
+          aria-label="연결 해제"
+          className="h-7 w-7"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        </Button>
+      </Td>
+    </tr>
   );
 }
 
-function DefinitionRow({
-  term,
-  children,
-}: {
-  term: string;
-  children: React.ReactNode;
-}) {
+function BulletList({ items }: { items: string[] }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[7rem_1fr] sm:gap-3">
-      <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:pt-0.5">
-        {term}
-      </dt>
-      <dd className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
-        {children}
-      </dd>
-    </div>
+    <ul className="space-y-1 leading-relaxed">
+      {items.map((item, i) => (
+        <li key={i} className="flex gap-2">
+          <span
+            aria-hidden
+            className="mt-2 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50"
+          />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function DefinitionList({ term, items }: { term: string; items: string[] }) {
+function EmptyValue() {
+  return <span className="text-muted-foreground/60">—</span>;
+}
+
+function EmptyBlock({ message }: { message: string }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[7rem_1fr] sm:gap-3">
-      <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:pt-0.5">
-        {term}
-      </dt>
-      <dd>
-        <ul className="space-y-1 text-sm leading-relaxed text-foreground/90">
-          {items.map((item, i) => (
-            <li key={i} className="flex gap-2">
-              <span aria-hidden className="mt-2 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </dd>
+    <div className="border-t bg-background px-5 py-8 text-center text-xs text-muted-foreground">
+      {message}
     </div>
   );
 }
