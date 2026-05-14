@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../my/[handle]/profile-types";
 import { EMPTY_RESUME, normalizeResumePayload } from "../my/[handle]/profile-utils";
+import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
 
 
 export default function ResumePage() {
@@ -296,6 +297,15 @@ export default function ResumePage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <ResumePdfDownloadButton
+                            resumePayload={resumePayload}
+                            title={resumeTitle}
+                            fileName={resumeTitle || resumePayload.personalInfo?.name || "resume"}
+                            variant="outline"
+                            size="default"
+                            className="h-10 rounded-md border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:border-primary/40 hover:text-primary"
+                            label="PDF 다운로드"
+                        />
                         <Button variant="ghost" onClick={() => router.back()} className="text-slate-500">취소</Button>
                         <Button onClick={() => handleSave()} disabled={saving} className="gap-2 shadow-lg shadow-primary/20 bg-primary px-6">
                             {saving && <Loader2 className="w-4 h-4 animate-spin" />}

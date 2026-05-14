@@ -19,6 +19,7 @@ import {
   DEFAULT_RESUME_A4_OPTIONS,
   ScaledKoreanResumeDocument,
 } from "@/components/features/resume/KoreanResumePreview";
+import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
 
 export type ResumeListItem = {
   id: string;
@@ -271,10 +272,14 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
                 )}
               </div>
 
-                <div className="mt-auto flex items-center justify-between pt-5">
-                  <span className="text-xs font-semibold text-slate-400">
-                    클릭해서 이력서 열기
-                  </span>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-5">
+                  <ResumePdfDownloadButton
+                    resumePayload={resume.payload}
+                    title={resume.title}
+                    fileName={resume.title || "resume"}
+                    stopPropagation
+                    className="h-9 rounded-xl border-slate-200 px-3 text-[12px] font-bold text-slate-600 hover:border-primary/40 hover:text-primary"
+                  />
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 shadow-sm transition-all group-hover:border-primary group-hover:bg-primary group-hover:text-white dark:border-slate-800 dark:bg-slate-900">
                     <ArrowRight className="h-4 w-4" />
                   </div>
