@@ -5,6 +5,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import koLocale from "@fullcalendar/core/locales/ko";
+import { KIND_COLOR, KIND_GRADIENT } from "@/lib/job-postings/visual-tokens";
 
 export type CalendarEvent = {
   id: string;
@@ -17,13 +18,6 @@ export type CalendarEvent = {
   role: string;
 };
 
-const KIND_COLOR: Record<CalendarEvent["kind"], string> = {
-  deadline: "#ef4444",
-  document_due: "#3b82f6",
-  interview: "#f97316",
-  other: "#64748b",
-};
-
 export function JobPostingCalendar({
   events,
   onEventClick,
@@ -34,16 +28,17 @@ export function JobPostingCalendar({
   onDateClick?: (date: Date) => void;
 }) {
   const fcEvents = useMemo(
-    () => events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      start: e.start,
-      end: e.end ?? undefined,
-      backgroundColor: KIND_COLOR[e.kind],
-      borderColor: KIND_COLOR[e.kind],
-      extendedProps: e,
-    })),
-    [events]
+    () =>
+      events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        start: e.start,
+        end: e.end ?? undefined,
+        backgroundColor: KIND_COLOR[e.kind],
+        borderColor: KIND_COLOR[e.kind],
+        extendedProps: e,
+      })),
+    [events],
   );
 
   return (
@@ -63,6 +58,17 @@ export function JobPostingCalendar({
         }}
         dateClick={(info) => onDateClick?.(info.date)}
         eventDisplay="block"
+        // 3D-look: 단색 backgroundColor 위에 그라데이션을 덧입혀 광택 표현
+        eventDidMount={(info) => {
+          const kind = (info.event.extendedProps as CalendarEvent).kind;
+          const gradient = KIND_GRADIENT[kind];
+          if (gradient) {
+            info.el.style.background = gradient;
+            info.el.style.borderColor = "rgba(0,0,0,0.05)";
+            info.el.style.boxShadow =
+              "0 4px 8px -3px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.4)";
+          }
+        }}
       />
     </div>
   );

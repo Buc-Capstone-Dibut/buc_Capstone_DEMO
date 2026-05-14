@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, ExternalLink } from "lucide-react";
 import type { CalendarEvent } from "./job-posting-calendar";
+import { KIND_LABEL } from "@/lib/job-postings/visual-tokens";
 
 export function CalendarDayModal({
   open,
@@ -66,7 +67,7 @@ export function CalendarDayModal({
                         minute: "2-digit",
                       })}
                       <Badge variant="secondary" className="ml-1">
-                        {labelKind(e.kind)}
+                        {KIND_LABEL[e.kind] ?? "기타"}
                       </Badge>
                     </div>
                     {e.title && <div className="mt-1 text-xs">{e.title}</div>}
@@ -104,12 +105,3 @@ export function CalendarDayModal({
   );
 }
 
-function labelKind(k: string) {
-  return k === "deadline"
-    ? "마감"
-    : k === "document_due"
-      ? "서류"
-      : k === "interview"
-        ? "면접"
-        : "기타";
-}

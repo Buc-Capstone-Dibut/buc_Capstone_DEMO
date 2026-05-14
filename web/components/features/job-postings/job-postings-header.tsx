@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react";
+import { Briefcase, CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,22 +19,12 @@ import type {
   View,
   ViewState,
 } from "@/app/my/job-postings/use-job-postings-view";
+import { STATUS_LABEL, STATUS_TONE_ACTIVE } from "@/lib/job-postings/visual-tokens";
+import { GlossyIcon } from "./icons/glossy-icon";
 
-const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
-  { value: "active", label: "관심" },
-  { value: "applied", label: "지원완료" },
-  { value: "interviewing", label: "면접중" },
-  { value: "closed", label: "마감" },
-  { value: "archived", label: "보관" },
-];
-
-const STATUS_TONE_ACTIVE: Record<JobPostingStatus, string> = {
-  active: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
-  applied: "bg-blue-100 text-blue-700 hover:bg-blue-200",
-  interviewing: "bg-orange-100 text-orange-700 hover:bg-orange-200",
-  closed: "bg-slate-200 text-slate-700 hover:bg-slate-300",
-  archived: "bg-slate-100 text-slate-500 hover:bg-slate-200",
-};
+const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = (
+  ["active", "applied", "interviewing", "closed", "archived"] as JobPostingStatus[]
+).map((value) => ({ value, label: STATUS_LABEL[value] }));
 
 const SORT_OPTIONS: Array<{ value: Sort; label: string }> = [
   { value: "created_desc", label: "최신순" },
@@ -81,12 +71,15 @@ export function JobPostingsHeader({
   return (
     <div className="mb-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">내 채용공고 관리</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            관심 공고를 등록하고 일정을 캘린더로 관리한 뒤, 바로 모의면접까지 진행하세요.
-            <span className="ml-2 font-medium text-foreground">총 {total}개</span>
-          </p>
+        <div className="flex items-center gap-3">
+          <GlossyIcon icon={Briefcase} size={48} className="hidden sm:inline-flex" />
+          <div>
+            <h1 className="text-2xl font-bold">내 채용공고 관리</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              관심 공고를 등록하고 일정을 캘린더로 관리한 뒤, 바로 모의면접까지 진행하세요.
+              <span className="ml-2 font-medium text-foreground">총 {total}개</span>
+            </p>
+          </div>
         </div>
         <Button onClick={onClickCreate} className="shrink-0">
           <Plus className="mr-1 h-4 w-4" />
@@ -142,10 +135,10 @@ export function JobPostingsHeader({
           >
             <Star
               className={cn(
-                "h-3.5 w-3.5",
+                "h-3.5 w-3.5 transition-all",
                 state.favoritesPolicy === "off"
                   ? "text-muted-foreground"
-                  : "fill-yellow-400 text-yellow-500",
+                  : "fill-amber-400 text-amber-500 drop-shadow-[0_2px_4px_rgba(245,158,11,0.4)]",
               )}
             />
             {FAVORITES_LABEL[state.favoritesPolicy]}

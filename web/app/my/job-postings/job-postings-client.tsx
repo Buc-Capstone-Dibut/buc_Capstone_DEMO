@@ -11,6 +11,7 @@ import { JobPostingFormDialog } from "@/components/features/job-postings/job-pos
 import { JobPostingsHeader } from "@/components/features/job-postings/job-postings-header";
 import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
 import { CalendarDayModal } from "@/components/features/job-postings/calendar-day-modal";
+import { EmptyJobPostings } from "@/components/features/job-postings/empty-illustration";
 import type { JobPostingRecord } from "@/lib/job-postings/types";
 import { useJobPostingsView } from "./use-job-postings-view";
 
@@ -213,9 +214,13 @@ export function JobPostingsClient() {
               불러오는 중…
             </div>
           ) : postings.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
-              {emptyMessage}
-            </div>
+            hasFilters ? (
+              <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
+                {emptyMessage}
+              </div>
+            ) : (
+              <EmptyJobPostings onCreate={() => setDialogOpen(true)} />
+            )
           ) : state.view === "cards" ? (
             <JobPostingList
               postings={postings}

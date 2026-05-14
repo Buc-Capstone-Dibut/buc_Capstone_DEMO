@@ -7,22 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { JobPostingRecord, ScheduleRecord } from "@/lib/job-postings/types";
-
-const STATUS_LABEL: Record<JobPostingRecord["status"], string> = {
-  active: "관심",
-  applied: "지원완료",
-  interviewing: "면접중",
-  closed: "마감",
-  archived: "보관",
-};
-
-const STATUS_TONE: Record<JobPostingRecord["status"], string> = {
-  active: "bg-emerald-100 text-emerald-700",
-  applied: "bg-blue-100 text-blue-700",
-  interviewing: "bg-orange-100 text-orange-700",
-  closed: "bg-slate-200 text-slate-700",
-  archived: "bg-slate-100 text-slate-500",
-};
+import { STATUS_LABEL, STATUS_TONE } from "@/lib/job-postings/visual-tokens";
 
 function nextSchedule(schedules: ScheduleRecord[] | undefined) {
   if (!schedules?.length) return null;
@@ -51,8 +36,15 @@ export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProp
   return (
     <Card
       className={cn(
-        "transition hover:shadow-md",
-        posting.isFavorite && "border-primary/40 ring-1 ring-primary/10",
+        // 부드러운 hover: 살짝 떠오르는 느낌 + 그림자 강화
+        "group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        // 카드 상단의 1px gradient accent (before pseudo)
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-[2px]",
+        "before:bg-gradient-to-r before:from-amber-300 before:via-orange-400 before:to-amber-300",
+        "before:opacity-0 before:transition-opacity before:duration-200 group-hover:before:opacity-100",
+        // 즐겨찾기는 좌측 4px border + 부드러운 amber ring으로 강조
+        posting.isFavorite &&
+          "border-l-4 border-l-amber-400 ring-1 ring-amber-200/40 before:opacity-100",
       )}
     >
       <CardContent className="space-y-3 p-5">
@@ -72,19 +64,21 @@ export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProp
                 }}
                 aria-label={posting.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
                 aria-pressed={posting.isFavorite}
-                className="rounded-md p-1 hover:bg-muted"
+                className="rounded-md p-1 transition-colors hover:bg-muted"
               >
                 <Star
                   className={cn(
-                    "h-4 w-4",
+                    "h-4 w-4 transition-all",
                     posting.isFavorite
-                      ? "fill-yellow-400 text-yellow-500"
-                      : "text-muted-foreground",
+                      ? "fill-amber-400 text-amber-500 drop-shadow-[0_2px_4px_rgba(245,158,11,0.4)]"
+                      : "text-muted-foreground hover:text-amber-400",
                   )}
                 />
               </button>
             )}
-            <Badge className={STATUS_TONE[posting.status]}>{STATUS_LABEL[posting.status]}</Badge>
+            <Badge className={cn("ring-1", STATUS_TONE[posting.status])}>
+              {STATUS_LABEL[posting.status]}
+            </Badge>
           </div>
         </div>
 
