@@ -467,14 +467,16 @@ export function ResumeEditor({
         {showEditPanel && (
         <div ref={editPanelRef} className="space-y-5">
       {/* File parsing banner */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex-1">
-          <p className="text-sm font-medium">기존의 이력서를 가져와 내용을 채울 수 있어요</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
+        <div className="min-w-0 [word-break:keep-all]">
+          <p className="text-sm font-medium leading-snug">
+            기존의 이력서를 가져와 내용을 채울 수 있어요
+          </p>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
             이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
