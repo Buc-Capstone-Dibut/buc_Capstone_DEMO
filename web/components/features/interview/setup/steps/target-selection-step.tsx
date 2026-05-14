@@ -3,11 +3,15 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Briefcase, CheckCircle2, ChevronRight, Link as LinkIcon, Search } from "lucide-react";
+import { ArrowRight, Briefcase, CheckCircle2, ChevronRight, FolderOpen, Link as LinkIcon, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
+import {
+  MyPostingPickerDialog,
+  type MyPostingPickerResult,
+} from "./my-posting-picker-dialog";
 import {
   findRoleTemplateByLabel,
   getRoleCategoryById,
@@ -38,12 +42,16 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     setTarget,
     setJobData,
     setStep,
+    setResumeData,
+    setResumePrefillSource,
     jobData,
     rolePrepData,
     setRolePrepData,
   } = useInterviewSetupStore();
   const [urlInput, setUrlInput] = useState(targetUrl);
   const [isLoading, setIsLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSubmitting, setPickerSubmitting] = useState(false);
 
   const matchedRole = findRoleTemplateByLabel(jobData?.role);
   const initialCategory =
@@ -94,6 +102,68 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     setTarget("", selectedCategory.id);
     setJobData(buildRoleTrainingJobData(selectedCategory, selectedRole, nextPrep));
     setStep("final-check");
+  };
+
+  const handlePickFromMyPostings = async ({
+    postingId,
+  }: MyPostingPickerResult) => {
+    if (pickerSubmitting) return;
+    setPickerSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/my/job-postings/${postingId}/interview-prefill`,
+        { cache: "no-store" },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "공고 정보를 불러오지 못했습니다.");
+      }
+      const d = json.data ?? {};
+
+      if (typeof d.targetUrl === "string") {
+        setTarget(d.targetUrl, "Custom");
+      } else {
+        setTarget("", "Custom");
+      }
+      if (d.jobData) {
+        setJobData({
+          role: d.jobData.role ?? "",
+          company: d.jobData.company ?? "",
+          interviewLevel: "auto",
+          interviewTrack: "posting",
+          sourceUrl: d.targetUrl ?? "",
+          companyDescription: d.jobData.companyDescription ?? "",
+          teamCulture: Array.isArray(d.jobData.teamCulture)
+            ? d.jobData.teamCulture
+            : [],
+          techStack: Array.isArray(d.jobData.techStack)
+            ? d.jobData.techStack
+            : [],
+          responsibilities: Array.isArray(d.jobData.responsibilities)
+            ? d.jobData.responsibilities
+            : [],
+          requirements: Array.isArray(d.jobData.requirements)
+            ? d.jobData.requirements
+            : [],
+          preferred: Array.isArray(d.jobData.preferred) ? d.jobData.preferred : [],
+        });
+      }
+      if (d.resumeData) {
+        setResumeData(d.resumeData);
+        setResumePrefillSource(d.resumePrefillSource ?? null);
+      }
+      setRolePrepData(null);
+      setPickerOpen(false);
+      setStep("jd-check");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "공고 정보를 불러오지 못했습니다.",
+      );
+    } finally {
+      setPickerSubmitting(false);
+    }
   };
 
   const handleNext = async () => {
@@ -221,8 +291,44 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
                 )}
               </Button>
             </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <span className="h-px flex-1 bg-[#e6edf4]" aria-hidden />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a96a6]">
+                또는
+              </span>
+              <span className="h-px flex-1 bg-[#e6edf4]" aria-hidden />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe7ef] bg-white px-4 py-3 text-left transition-colors hover:border-[#cfe1c1] hover:bg-[#f3faef]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f3faef] text-[#5f8f36] ring-1 ring-inset ring-[#cfe1c1]">
+                <FolderOpen className="h-4 w-4" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-[#172033]">
+                  내 채용공고에서 선택하기
+                </span>
+                <span className="block text-xs text-[#5f6b7a]">
+                  마이페이지에 등록한 공고를 선택하면 회사·직무·기술스택·연결된 이력서까지 한 번에 적용됩니다.
+                </span>
+              </span>
+              <ChevronRight
+                className="h-4 w-4 shrink-0 text-[#a1acba] transition-transform group-hover:translate-x-0.5 group-hover:text-[#7cad46]"
+                aria-hidden
+              />
+            </button>
           </div>
         </div>
+
+        <MyPostingPickerDialog
+          open={pickerOpen}
+          onOpenChange={(o) => !pickerSubmitting && setPickerOpen(o)}
+          onSelect={handlePickFromMyPostings}
+        />
       </div>
     );
   }
