@@ -123,13 +123,14 @@ function extractEducation(value: unknown): Education[] {
     .filter((row): row is Education => row !== null);
 }
 
-function splitDescriptionLines(value: string | undefined, limit = 6): string[] {
+function splitDescriptionLines(value: string | undefined): string[] {
+  // 줄바꿈으로 분리해 빈 줄을 제거한 모든 라인을 반환한다. 자르지 않는다.
+  // 자르면 길이가 긴 이력서에서 내용이 누락된다 (react-pdf 가 알아서 페이지 분기).
   if (!value) return [];
   return value
     .split(/\n+/)
     .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, limit);
+    .filter(Boolean);
 }
 
 function collectLinks(links: ResumePayload["personalInfo"]["links"] | undefined): string[] {
@@ -186,10 +187,12 @@ export function ResumePdfDocument({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>경력</Text>
             {experiences.map((exp, i) => {
-              const lines = splitDescriptionLines(exp.description, 6);
+              const lines = splitDescriptionLines(exp.description);
               return (
-                <View key={exp.id || i} style={styles.entry} wrap={false}>
-                  <View style={styles.entryHeader}>
+                // entry 자체는 wrap 허용 (긴 본문은 자연스럽게 다음 페이지로 흘러간다).
+                // 다만 entryHeader 는 wrap=false 로 한 줄을 보호한다.
+                <View key={exp.id || i} style={styles.entry}>
+                  <View style={styles.entryHeader} wrap={false}>
                     <Text style={styles.entryTitle}>
                       {[exp.company, exp.position].filter(Boolean).join(" · ") || "회사 · 직책"}
                     </Text>
@@ -216,8 +219,8 @@ export function ResumePdfDocument({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>프로젝트</Text>
             {projects.map((project, i) => (
-              <View key={project.id || i} style={styles.entry} wrap={false}>
-                <View style={styles.entryHeader}>
+              <View key={project.id || i} style={styles.entry}>
+                <View style={styles.entryHeader} wrap={false}>
                   <Text style={styles.entryTitle}>{project.name || "프로젝트"}</Text>
                   {project.period ? (
                     <Text style={styles.entryMeta}>{project.period}</Text>
