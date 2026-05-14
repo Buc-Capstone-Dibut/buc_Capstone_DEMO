@@ -368,9 +368,19 @@ export function KoreanResumeDocument({
 }
 
 /**
- * 794px 원본 본문을 컨테이너 너비에 맞춰 비례 축소해 보여준다.
- * 본문이 A4 한 장(1123px) 넘으면 ResizeObserver 가 측정해 wrapper 도 같이 길어진다.
- * 1123px 단위로 점선 page boundary 를 표시한다.
+ * 본문을 "고정 규격 A4 페이지" 단위로 분할해서 보여준다.
+ *
+ * - 각 페이지는 794×1123 의 고정 박스. 한 페이지가 동적으로 늘어나지 않는다.
+ * - 본문이 1페이지를 넘으면 새 A4 박스가 아래에 추가되며 위에서 아래로 쌓인다.
+ * - 컨테이너 너비에 맞춰 각 페이지가 비례 축소(scale) 된다.
+ *
+ * 구현:
+ *   1) 보이지 않는 측정용 컨테이너에 원본 본문을 한 번 그려 ResizeObserver 로
+ *      전체 height 를 잰다.
+ *   2) ceil(height / 1123) 개수만큼 표시용 A4 박스를 생성한다.
+ *   3) 각 박스 내부에는 동일한 본문을 absolute 로 두고, 자기 페이지에 해당하는
+ *      구간만 보이게 `translateY(-pageIndex * 1123px)` 로 끌어올린다.
+ *      overflow-hidden 으로 페이지 박스 바깥 콘텐츠는 자동 마스킹.
  */
 export function ScaledKoreanResumeDocument({
   payload,
@@ -387,48 +397,81 @@ export function ScaledKoreanResumeDocument({
   className?: string;
   minHeightClass?: string;
 }) {
-  const innerRef = useRef<HTMLDivElement | null>(null);
+  const measureRef = useRef<HTMLDivElement | null>(null);
   const [pageCount, setPageCount] = useState(1);
 
   useEffect(() => {
-    const el = innerRef.current;
+    const el = measureRef.current;
     if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const next = entries[0]?.contentRect.height ?? 1123;
-      const pages = Math.max(1, Math.ceil(next / 1123));
+    const update = () => {
+      const height = el.scrollHeight;
+      const pages = Math.max(1, Math.ceil(height / 1123));
       setPageCount(pages);
-    });
+    };
+    update();
+    const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  const totalInnerHeight = pageCount * 1123;
+  }, [payload, options]);
 
   return (
-    <div className={`mx-auto w-full max-w-[794px] [container-type:inline-size] ${className}`}>
+    <div
+      className={`mx-auto w-full max-w-[794px] [container-type:inline-size] space-y-3 ${className}`}
+    >
+      {/* 측정용(보이지 않음) — 794px 원본 폭에서 전체 본문을 한 번 그려 height 를 잰다. */}
       <div
-        className={`relative overflow-hidden ${minHeightClass}`}
-        style={{ height: `calc(${totalInnerHeight}px * (100cqw / 794px))` }}
+        aria-hidden
+        className="pointer-events-none invisible h-0 overflow-hidden"
       >
-        <div
-          ref={innerRef}
-          className="absolute left-0 top-0 w-[794px] origin-top-left"
-          style={{
-            transform: "scale(calc(100cqw / 794px))",
-            // 1123px 마다 점선 page boundary 를 background 로 표시 (시각적 페이지 구분).
-            backgroundImage:
-              "repeating-linear-gradient(to bottom, transparent 0, transparent calc(1123px - 1px), rgba(148,163,184,0.55) calc(1123px - 1px), rgba(148,163,184,0.55) 1123px)",
-          }}
-        >
+        <div ref={measureRef} className="w-[794px]">
           <KoreanResumeDocument
             payload={payload}
             title={title}
             options={options}
-            documentId={documentId}
             className="w-full"
           />
         </div>
       </div>
+
+      {/* 표시용 페이지 박스들. 각 박스는 794×1123 의 고정 A4 규격. */}
+      {Array.from({ length: pageCount }, (_, i) => (
+        <div
+          key={i}
+          className={`relative overflow-hidden bg-white shadow-sm ${
+            i === 0 ? minHeightClass : ""
+          }`}
+          style={{
+            height: `calc(1123px * (100cqw / 794px))`,
+          }}
+        >
+          <div
+            id={i === 0 ? documentId : undefined}
+            className="absolute left-0 top-0 w-[794px] origin-top-left"
+            style={{
+              // scale 먼저 적용 → 그 뒤 translate. 결과적으로 i 번째 페이지의 본문만 박스에 보인다.
+              transform: `scale(calc(100cqw / 794px)) translateY(-${
+                i * 1123
+              }px)`,
+            }}
+          >
+            <KoreanResumeDocument
+              payload={payload}
+              title={title}
+              options={options}
+              className="w-full"
+            />
+          </div>
+          {/* 페이지 번호 표시 (페이지가 2개 이상일 때만) */}
+          {pageCount > 1 && (
+            <span
+              data-print-helper
+              className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
+            >
+              {i + 1} / {pageCount}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
