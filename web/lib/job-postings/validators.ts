@@ -56,3 +56,81 @@ export function validateJobPostingInput(
     },
   };
 }
+
+export type JobPostingPartialInput = Partial<JobPostingInput> & { isFavorite?: boolean };
+
+/**
+ * Partial 업데이트용 validator. 제공된 필드만 검증한다.
+ * isFavorite은 별도 필드로 boolean이면 허용.
+ * 알 수 없는 필드는 무시.
+ */
+export function validateJobPostingPartial(
+  raw: unknown,
+): { ok: true; value: JobPostingPartialInput } | { ok: false; error: string } {
+  if (!raw || typeof raw !== "object") return { ok: false, error: "Invalid payload" };
+  const r = raw as Record<string, unknown>;
+  const value: JobPostingPartialInput = {};
+
+  if ("companyName" in r) {
+    if (typeof r.companyName !== "string") return { ok: false, error: "companyName must be string" };
+    const trimmed = r.companyName.trim();
+    if (!trimmed) return { ok: false, error: "회사명은 비어 있을 수 없습니다" };
+    value.companyName = trimmed;
+  }
+  if ("roleTitle" in r) {
+    if (typeof r.roleTitle !== "string") return { ok: false, error: "roleTitle must be string" };
+    const trimmed = r.roleTitle.trim();
+    if (!trimmed) return { ok: false, error: "직무명은 비어 있을 수 없습니다" };
+    value.roleTitle = trimmed;
+  }
+  if ("postingUrl" in r) {
+    if (r.postingUrl === null) value.postingUrl = null;
+    else if (typeof r.postingUrl === "string") value.postingUrl = r.postingUrl;
+    else return { ok: false, error: "postingUrl must be string or null" };
+  }
+  if ("companyDescription" in r) {
+    if (r.companyDescription === null) value.companyDescription = null;
+    else if (typeof r.companyDescription === "string") value.companyDescription = r.companyDescription;
+    else return { ok: false, error: "companyDescription must be string or null" };
+  }
+  if ("memo" in r) {
+    if (r.memo === null) value.memo = null;
+    else if (typeof r.memo === "string") value.memo = r.memo;
+    else return { ok: false, error: "memo must be string or null" };
+  }
+  if ("status" in r) {
+    if (typeof r.status !== "string" || !STATUS.has(r.status)) {
+      return { ok: false, error: "Invalid status" };
+    }
+    value.status = r.status as JobPostingInput["status"];
+  }
+  for (const key of ["techStack", "responsibilities", "requirements", "preferred", "teamCulture"] as const) {
+    if (key in r) {
+      if (!Array.isArray(r[key])) return { ok: false, error: `${key} must be array` };
+      value[key] = (r[key] as unknown[]).filter((x): x is string => typeof x === "string");
+    }
+  }
+  if ("isFavorite" in r) {
+    if (typeof r.isFavorite !== "boolean") return { ok: false, error: "isFavorite must be boolean" };
+    value.isFavorite = r.isFavorite;
+  }
+  if ("schedules" in r) {
+    if (!Array.isArray(r.schedules)) return { ok: false, error: "schedules must be array" };
+    const schedules: NonNullable<JobPostingInput["schedules"]> = [];
+    for (const s of r.schedules as Array<Record<string, unknown>>) {
+      const kind = s.kind as string;
+      if (!KIND.has(kind)) return { ok: false, error: "Invalid schedule kind" };
+      if (typeof s.startAt !== "string") return { ok: false, error: "schedule.startAt 필수" };
+      schedules.push({
+        kind: kind as NonNullable<JobPostingInput["schedules"]>[number]["kind"],
+        title: typeof s.title === "string" ? s.title : null,
+        startAt: s.startAt,
+        endAt: typeof s.endAt === "string" ? s.endAt : null,
+        memo: typeof s.memo === "string" ? s.memo : null,
+      });
+    }
+    value.schedules = schedules;
+  }
+
+  return { ok: true, value };
+}
