@@ -7,12 +7,15 @@ interface JobPostingListProps {
   postings: JobPostingRecord[];
   onToggleFavorite?: (id: string, next: boolean) => void;
   emptyMessage?: React.ReactNode;
+  /** 캘린더와 나란히 표시될 때처럼 컬럼 너비가 좁은 컨테이너에서는 1열로 강제한다. */
+  compact?: boolean;
 }
 
 export function JobPostingList({
   postings,
   onToggleFavorite,
   emptyMessage,
+  compact = false,
 }: JobPostingListProps) {
   if (!postings.length) {
     return (
@@ -26,7 +29,13 @@ export function JobPostingList({
     );
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div
+      className={
+        compact
+          ? "grid gap-3"
+          : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      }
+    >
       {postings.map((p) => (
         <JobPostingCard key={p.id} posting={p} onToggleFavorite={onToggleFavorite} />
       ))}

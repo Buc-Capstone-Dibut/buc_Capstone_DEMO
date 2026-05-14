@@ -197,16 +197,24 @@ export function JobPostingsClient() {
         onClickCreate={() => setDialogOpen(true)}
       />
 
-      <div className="flex flex-col gap-6">
+      <div
+        className={
+          state.calendarVisible
+            ? "grid gap-6 lg:grid-cols-2"
+            : "flex flex-col gap-6"
+        }
+      >
         {state.calendarVisible && (
-          <JobPostingCalendar
-            events={events}
-            onDateClick={setCalendarModalDate}
-            onEventClick={(ev) => setCalendarModalDate(new Date(ev.start))}
-          />
+          <div className="min-w-0">
+            <JobPostingCalendar
+              events={events}
+              onDateClick={setCalendarModalDate}
+              onEventClick={(ev) => setCalendarModalDate(new Date(ev.start))}
+            />
+          </div>
         )}
 
-        <div className="w-full">
+        <div className="min-w-0">
           {loading && postings.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
               불러오는 중…
@@ -224,6 +232,7 @@ export function JobPostingsClient() {
               postings={postings}
               onToggleFavorite={handleToggleFavorite}
               emptyMessage={emptyMessage}
+              compact={state.calendarVisible}
             />
           ) : (
             <JobPostingListView
