@@ -115,7 +115,10 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
                 <div className="text-sm">
                   <Badge variant="outline" className="mr-2">{labelType(a.attachmentType)}</Badge>
                   {a.attachmentType === "cover_letter"
-                    ? a.coverLetterLabel ?? `자소서 #${(a.coverLetterIndex ?? 0) + 1}`
+                    ? a.coverLetterLabel ??
+                      (a.coverLetterId
+                        ? "자기소개서"
+                        : `자소서 #${(a.coverLetterIndex ?? 0) + 1}`)
                     : a.attachmentType === "resume"
                       ? "이력서"
                       : "포트폴리오"}
