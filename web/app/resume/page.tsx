@@ -324,6 +324,7 @@ export default function ResumePage() {
                     onGoSetup={() => { }}
                     title={resumeTitle}
                     onTitleChange={setResumeTitle}
+                    previewToggleMode
                 />
             </main>
         </div>

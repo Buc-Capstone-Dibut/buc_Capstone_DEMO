@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,18 +9,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
+  ChevronLeft,
   Download,
   Loader2,
+  PencilLine,
   Plus,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
 import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
+import {
+  ResumeImportDialog,
+  type ResumeImportSelection,
+} from "@/components/features/resume/resume-import-dialog";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
@@ -38,6 +46,12 @@ interface ResumeEditorProps {
   onGoSetup: () => void;
   title?: string;
   onTitleChange?: (title: string) => void;
+  /**
+   * true 일 때 미리보기 클릭으로 좌측 편집 패널을 펼치고, 미리보기·편집 패널 바깥을
+   * 클릭하면 다시 접는다. /resume 페이지에서만 사용한다. 마이페이지 탭은 항상 펼친
+   * 상태를 유지하기 위해 기본값(false)을 그대로 둔다.
+   */
+  previewToggleMode?: boolean;
 }
 
 export function ResumeEditor({
@@ -47,13 +61,43 @@ export function ResumeEditor({
   saving,
   title = "",
   onTitleChange,
+  previewToggleMode = false,
 }: ResumeEditorProps) {
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
+  // 미리보기-토글 모드의 좌측 패널 표시 여부. 기본 닫힘.
+  const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editPanelRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
+
+  // previewToggleMode + 편집 패널이 열린 상태에서, 패널과 미리보기 영역 바깥을
+  // 클릭하면 패널을 접는다. shadcn Popover/Dialog 같은 portal 요소는 외부로 보지 않는다.
+  useEffect(() => {
+    if (!previewToggleMode || !isEditPanelOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (editPanelRef.current?.contains(target)) return;
+      if (previewRef.current?.contains(target)) return;
+      // Radix portal (popover, dropdown, dialog) 안에서 일어난 클릭은 무시.
+      if (
+        target.closest(
+          "[data-radix-popper-content-wrapper], [data-radix-portal], [role='dialog'], [role='listbox']",
+        )
+      ) {
+        return;
+      }
+      setIsEditPanelOpen(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [previewToggleMode, isEditPanelOpen]);
+
+  const showEditPanel = !previewToggleMode || isEditPanelOpen;
 
   const pi = payload.personalInfo;
 
@@ -268,8 +312,16 @@ export function ResumeEditor({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]">
-        <div className="space-y-5">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6",
+          showEditPanel
+            ? "xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]"
+            : "max-w-5xl mx-auto",
+        )}
+      >
+        {showEditPanel && (
+        <div ref={editPanelRef} className="space-y-5">
       {/* File parsing banner */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1">
@@ -634,15 +686,64 @@ export function ResumeEditor({
         </CardContent>
       </Card>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex items-center justify-between gap-2 pt-2">
+        {previewToggleMode ? (
+          <Button
+            variant="ghost"
+            onClick={() => setIsEditPanelOpen(false)}
+            className="text-slate-500"
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" /> 미리보기로 돌아가기
+          </Button>
+        ) : (
+          <span />
+        )}
         <Button onClick={onSave} disabled={saving} size="lg" className="gap-2 px-8">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           이력서 저장
         </Button>
       </div>
         </div>
+        )}
 
-        <div className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+        <div
+          ref={previewRef}
+          className={cn(
+            "min-w-0",
+            showEditPanel && "xl:sticky xl:top-24 xl:self-start",
+            previewToggleMode &&
+              !isEditPanelOpen &&
+              "group relative cursor-pointer transition-shadow hover:shadow-lg",
+          )}
+          onClick={() => {
+            if (previewToggleMode && !isEditPanelOpen) setIsEditPanelOpen(true);
+          }}
+          role={previewToggleMode && !isEditPanelOpen ? "button" : undefined}
+          aria-label={
+            previewToggleMode && !isEditPanelOpen
+              ? "미리보기를 클릭해 편집 패널 열기"
+              : undefined
+          }
+        >
+          {previewToggleMode && !isEditPanelOpen && (
+            <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-primary/90 px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md backdrop-blur-sm">
+              <PencilLine className="h-3.5 w-3.5" aria-hidden />
+              클릭하여 편집 패널 열기
+            </div>
+          )}
+          {previewToggleMode && isEditPanelOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditPanelOpen(false);
+              }}
+              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-slate-500 shadow-md ring-1 ring-slate-200 transition hover:bg-slate-100 hover:text-slate-800"
+              aria-label="편집 패널 닫기"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          )}
           <KoreanResumePreview
             payload={payload}
             title={title}
