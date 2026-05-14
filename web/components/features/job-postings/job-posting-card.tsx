@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar as CalendarIcon, ExternalLink, Sparkles, Star } from "lucide-react";
+import { useState } from "react";
+import {
+  Calendar as CalendarIcon,
+  ExternalLink,
+  Loader2,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,6 +44,7 @@ interface JobPostingCardProps {
 export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProps) {
   const next = nextSchedule(posting.schedules);
   const fav = posting.isFavorite;
+  const [interviewLoading, setInterviewLoading] = useState(false);
 
   return (
     <Card
@@ -117,13 +125,13 @@ export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProp
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
           <div className="flex items-center gap-1">
             <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-xs">
               <Link href={`/my/job-postings/${posting.id}`}>상세</Link>
             </Button>
             {posting.postingUrl && (
-              <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-xs">
+              <Button asChild size="sm" variant="ghost" className="h-8 w-8 p-0">
                 <a
                   href={posting.postingUrl}
                   target="_blank"
@@ -135,11 +143,23 @@ export function JobPostingCard({ posting, onToggleFavorite }: JobPostingCardProp
               </Button>
             )}
           </div>
-          <Button asChild size="sm" className="h-8 px-2.5 text-xs">
+          <Button
+            asChild
+            size="sm"
+            className="h-8 px-3 text-xs"
+            disabled={interviewLoading}
+            onClick={() => setInterviewLoading(true)}
+          >
             <Link
               href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
+              aria-label="이 공고로 모의면접 시작"
             >
-              <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />면접
+              {interviewLoading ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
+              )}
+              모의면접
             </Link>
           </Button>
         </div>
