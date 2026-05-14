@@ -243,6 +243,8 @@ const NAV_ITEMS: {
   label: string;
   description: string;
   icon: ElementType;
+  ownerOnly?: boolean;
+  href?: string;
 }[] = [
   {
     key: "overview",
@@ -267,6 +269,14 @@ const NAV_ITEMS: {
     label: "스페이스",
     description: "팀 공간 활동 기록",
     icon: Activity,
+  },
+  {
+    key: "jobs",
+    label: "채용",
+    description: "내 채용공고 일정 관리",
+    icon: CalendarRange,
+    ownerOnly: true,
+    href: "/my/job-postings",
   },
 ];
 
@@ -346,7 +356,10 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     const tab = searchParams.get("tab") as TabKey | null;
     const content = searchParams.get("content") as ContentTabKey | null;
 
-    if (tab && NAV_ITEMS.some((item) => item.key === tab)) {
+    if (
+      tab &&
+      NAV_ITEMS.some((item) => item.key === tab && !item.href)
+    ) {
       setActiveTab(tab);
     }
     if (content && CONTENT_VIEWS.some((item) => item.key === content)) {
@@ -727,39 +740,47 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
         <div className="space-y-6">
           <div className="border-b border-border/70">
             <div className="flex min-w-max items-center gap-6 overflow-x-auto px-1">
-              {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
-                const isActive = activeTab === key;
-                const count =
-                  key === "overview"
-                    ? undefined
-                    : key === "content"
-                      ? contentCount
-                      : key === "bookmarks"
-                        ? displayStats.bookmarkCount
-                        : displayStats.workspaceCount;
+              {NAV_ITEMS.filter((item) => !item.ownerOnly || isOwner).map(
+                ({ key, label, icon: Icon, href }) => {
+                  const isActive = activeTab === key;
+                  const count =
+                    key === "overview" || key === "jobs"
+                      ? undefined
+                      : key === "content"
+                        ? contentCount
+                        : key === "bookmarks"
+                          ? displayStats.bookmarkCount
+                          : displayStats.workspaceCount;
 
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleTabChange(key)}
-                    className={[
-                      "relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-4 text-sm font-semibold transition-colors",
-                      isActive
-                        ? "border-primary text-foreground"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{label}</span>
-                    {typeof count === "number" && (
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        if (href) {
+                          router.push(href);
+                          return;
+                        }
+                        handleTabChange(key);
+                      }}
+                      className={[
+                        "relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-4 text-sm font-semibold transition-colors",
+                        isActive
+                          ? "border-primary text-foreground"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{label}</span>
+                      {typeof count === "number" && (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                },
+              )}
             </div>
           </div>
 

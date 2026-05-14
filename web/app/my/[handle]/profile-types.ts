@@ -1,4 +1,4 @@
-export type TabKey = "overview" | "content" | "bookmarks" | "activity";
+export type TabKey = "overview" | "content" | "bookmarks" | "activity" | "jobs";
 
 export type ContentTabKey = "posts" | "comments";
 
