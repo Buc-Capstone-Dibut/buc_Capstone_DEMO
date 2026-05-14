@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ImagePlus, X } from "lucide-react";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import type { ProjectArchiveFormData } from "./project-archive.types";
+import { ProjectAttachmentsSection } from "./project-attachments-section";
+import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
 
 interface ProjectFormPanelProps {
   formData: ProjectArchiveFormData;
@@ -145,6 +147,11 @@ export function ProjectFormPanel({
             프로젝트 상세 이미지와 별도로 1개만 저장되며, 포트폴리오 PPT 생성 시 우선 사용됩니다.
           </p>
         </div>
+
+        <ProjectAttachmentsSection
+          attachments={(formData.attachments ?? []) as ProjectAttachment[]}
+          onChange={(next) => setFormData({ ...formData, attachments: next })}
+        />
 
         <div className="space-y-2">
           <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">

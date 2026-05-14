@@ -32,6 +32,32 @@ export interface ProfileWorkspaceItem {
   };
 }
 
+/**
+ * 프로젝트 보관함의 단일 첨부 자료. 대표 사진·수료증·활동 사진·문서를 함께 보관한다.
+ *
+ * `kind` 로 미디어 유형을 구분하고 (UI에서 썸네일 vs 파일 아이콘 분기),
+ * `isPrimary` 가 true 인 항목은 카드/리스트의 대표 이미지로 노출된다.
+ * 한 프로젝트당 최대 5장까지 허용된다.
+ */
+export interface ProjectAttachment {
+  id: string;
+  url: string;
+  storagePath: string;
+  bucket: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  /** 미디어 유형. image → 썸네일 표시, document → 파일 아이콘. */
+  kind: "image" | "document";
+  /** 카드의 대표 이미지로 사용할지 여부. */
+  isPrimary?: boolean;
+  /** 사용자 정의 라벨 (예: "수료증", "팀 단체사진"). */
+  label?: string;
+  caption?: string;
+  alt?: string;
+  uploadedAt: string;
+}
+
 export interface ResumePayload {
   personalInfo: {
     name: string;
@@ -71,6 +97,11 @@ export interface ResumePayload {
       sizeBytes?: number;
       updatedAt?: string;
     };
+    /**
+     * 프로젝트 보관 파일. 대표 사진 + 수료증·활동 사진·문서 등을 최대 5장까지 보관한다.
+     * `isPrimary === true` 또는 첫 번째 image 항목이 카드의 대표 이미지로 노출된다.
+     */
+    attachments?: ProjectAttachment[];
     situation?: string;
     role?: string;
     solution?: string;
@@ -99,6 +130,7 @@ export interface ResumePayload {
       sizeBytes?: number;
       updatedAt?: string;
     };
+    attachments?: ProjectAttachment[];
     situation?: string;
     role?: string;
     solution?: string;

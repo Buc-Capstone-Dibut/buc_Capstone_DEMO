@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, ImageOff, Trash2 } from "lucide-react";
 import type { ProjectInput } from "@/app/career/projects/types";
+import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
 import { createTechLogoImageSlot } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,59 @@ interface ProjectGridCardProps {
   portfolioMode: boolean;
   onOpen: (project: ProjectInput) => void;
   onDelete: (id: string) => Promise<void>;
+}
+
+/**
+ * 카드 표지 이미지 선택 우선순위:
+ *   1) representativeImage.url
+ *   2) attachments 중 isPrimary=true 이고 image
+ *   3) attachments 중 첫 image
+ *   4) 없으면 fallback placeholder (gradient + 이니셜)
+ */
+function pickCoverImage(
+  representative: ProjectInput["representativeImage"],
+  attachments: ProjectAttachment[] | undefined,
+): { url: string; alt?: string } | null {
+  if (representative?.url) {
+    return { url: representative.url, alt: representative.alt };
+  }
+  if (!attachments?.length) return null;
+  const primary = attachments.find((a) => a.isPrimary && a.kind === "image");
+  if (primary) return { url: primary.url, alt: primary.alt };
+  const firstImage = attachments.find((a) => a.kind === "image");
+  if (firstImage) return { url: firstImage.url, alt: firstImage.alt };
+  return null;
+}
+
+/** 회사/프로젝트명에서 placeholder용 이니셜 1-2글자 추출. */
+function initialsOf(title: string): string {
+  const trimmed = (title || "프로젝트").trim();
+  // 한글이면 첫 글자 하나만, 영문이면 단어별 첫 글자 2개까지
+  if (/[가-힣]/.test(trimmed.charAt(0))) {
+    return trimmed.slice(0, 2);
+  }
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "PJ";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+const COVER_GRADIENTS = [
+  "from-amber-100 to-orange-200",
+  "from-sky-100 to-indigo-200",
+  "from-emerald-100 to-teal-200",
+  "from-rose-100 to-pink-200",
+  "from-violet-100 to-purple-200",
+  "from-lime-100 to-green-200",
+];
+
+/** 안정적인 hash 로 한 카드에는 항상 같은 그라데이션이 매핑되게 한다. */
+function hashGradient(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return COVER_GRADIENTS[hash % COVER_GRADIENTS.length];
 }
 
 export function ProjectGridCard({
@@ -29,7 +83,9 @@ export function ProjectGridCard({
   const role = project.position || project.role;
   const tags = project.tags || [];
   const techStack = project.techStack || [];
-  const representativeImage = project.representativeImage;
+  const cover = pickCoverImage(project.representativeImage, project.attachments);
+  const initials = initialsOf(title);
+  const gradientClass = hashGradient(project.id || project.company || title);
 
   return (
     <div
@@ -51,19 +107,36 @@ export function ProjectGridCard({
           : "border-slate-200 dark:border-slate-800",
       )}
     >
-      {representativeImage?.url ? (
-        <div className="relative h-36 w-full overflow-hidden bg-slate-100 dark:bg-slate-950">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={representativeImage.url}
-            alt={representativeImage.alt || `${title} 대표 이미지`}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-          />
-          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-primary shadow-sm">
-            대표 이미지
-          </span>
-        </div>
-      ) : null}
+      {/* 카드 표지: 항상 동일한 높이를 차지해 카드 간 정렬을 통일한다. */}
+      <div className="relative h-36 w-full overflow-hidden bg-slate-100 dark:bg-slate-950">
+        {cover ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover.url}
+              alt={cover.alt || `${title} 대표 이미지`}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            />
+            <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-primary shadow-sm">
+              대표 이미지
+            </span>
+          </>
+        ) : (
+          <div
+            className={cn(
+              "relative flex h-full w-full items-center justify-center bg-gradient-to-br",
+              gradientClass,
+            )}
+            aria-hidden
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.6),transparent_55%)]" />
+            <div className="relative flex flex-col items-center gap-1 text-slate-700/80">
+              <ImageOff className="h-5 w-5 opacity-60" aria-hidden />
+              <span className="text-2xl font-black tracking-tight">{initials}</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-1 flex-col p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
