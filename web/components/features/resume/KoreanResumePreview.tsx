@@ -296,10 +296,10 @@ export function KoreanResumeDocument({
           </ResumeSection>
         ) : null}
 
-        {sectionOptions.selfIntroduction ? (
-          <ResumeSection title="SELF INTRODUCTION">
+        {sectionOptions.selfIntroduction && payload.selfIntroduction?.trim() ? (
+          <ResumeSection title="자기소개">
             <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-              {compactText(payload.selfIntroduction, 520) || "지원 동기, 협업 방식, 성장 경험을 정리하세요."}
+              {compactText(payload.selfIntroduction, 520)}
             </p>
           </ResumeSection>
         ) : null}

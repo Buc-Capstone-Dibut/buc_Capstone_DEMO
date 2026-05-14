@@ -34,6 +34,7 @@ export async function GET() {
         id: profile.id,
         handle: profile.handle,
         nickname: profile.nickname,
+        email: seed.email ?? user.email ?? null,
         avatarUrl: profile.avatar_url,
         bio: profile.bio,
         techStack: profile.tech_stack || [],

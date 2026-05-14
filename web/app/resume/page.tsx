@@ -78,8 +78,33 @@ export default function ResumePage() {
             }
 
             // In setup mode or new mode, we start with a clean slate
+            // but prefill 기본 정보 from mypage profile so user doesn't retype.
             if ((isWizardModeFromUrl || isNewModeFromUrl) && !resumeId) {
-                setResumePayload(EMPTY_RESUME);
+                let prefilled: ResumePayload = { ...EMPTY_RESUME };
+                try {
+                    const meRes = await fetch("/api/my/me", { cache: "no-store" });
+                    if (meRes.ok) {
+                        const meJson = await meRes.json();
+                        if (meJson?.success && meJson.data) {
+                            const profile = meJson.data;
+                            prefilled = {
+                                ...prefilled,
+                                personalInfo: {
+                                    ...prefilled.personalInfo,
+                                    name: profile.nickname || prefilled.personalInfo.name,
+                                    email: profile.email || prefilled.personalInfo.email,
+                                    intro: profile.bio || prefilled.personalInfo.intro,
+                                },
+                                skills: Array.isArray(profile.techStack) && profile.techStack.length > 0
+                                    ? profile.techStack.map((name: string) => ({ name, level: "Intermediate" }))
+                                    : prefilled.skills,
+                            };
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to prefill from mypage profile:", error);
+                }
+                setResumePayload(prefilled);
                 setLoading(false);
                 return;
             }

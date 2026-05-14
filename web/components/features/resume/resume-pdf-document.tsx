@@ -285,7 +285,9 @@ export function ResumePdfDocument({
           </View>
         )}
 
-        {/* Self Introduction */}
+        {/* Self Introduction — 한국식 이력서의 자기소개 본문 영역.
+            payload.selfIntroduction 이 비어있으면 섹션 자체를 출력하지 않아 빈
+            페이지 / 헤더만 외로이 남는 현상을 방지한다. */}
         {selfIntroduction ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>자기소개</Text>
