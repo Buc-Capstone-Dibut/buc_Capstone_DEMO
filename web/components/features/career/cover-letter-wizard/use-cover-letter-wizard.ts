@@ -552,6 +552,14 @@ export function useCoverLetterWizard({
           },
         ]),
       );
+      const serializedQuestions = form.questions.map((q) => ({
+        id: q.id,
+        title: q.title.trim(),
+        maxChars: Number(q.maxChars) || 0,
+        answer: q.answer || "",
+        status: (q.answer?.trim() ? "done" : "draft") as "done" | "draft",
+        updatedAt: q.updatedAt || new Date().toISOString(),
+      }));
       const payload = {
         id: coverLetterId,
         title: workspaceTitle,
@@ -566,14 +574,7 @@ export function useCoverLetterWizard({
         deadline: form.deadline.trim(),
         workspaceName: workspaceTitle,
         colorTag: form.colorTag,
-        questions: form.questions.map((q) => ({
-          id: q.id,
-          title: q.title.trim(),
-          maxChars: Number(q.maxChars) || 0,
-          answer: q.answer || "",
-          status: (q.answer?.trim() ? "done" : "draft") as "done" | "draft",
-          updatedAt: q.updatedAt || new Date().toISOString(),
-        })),
+        questions: serializedQuestions,
         chatHistory: flattenedChatHistory,
         perQuestionChatHistory: serializedQuestionChats,
         perQuestionWorkflow: serializedWorkflows,
@@ -587,6 +588,42 @@ export function useCoverLetterWizard({
       if (result.success && result.coverLetter?.id) {
         setCoverLetterId(result.coverLetter.id);
       }
+
+      // user_cover_letters 테이블에도 동기화 (questions 컬럼 포함).
+      // 빈 title 문항은 제외. 실패해도 위저드 save 자체는 성공으로 처리.
+      const persistableQuestions = serializedQuestions.filter((q) => q.title.length > 0);
+      const apiBody = {
+        title: workspaceTitle,
+        body: payload.content,
+        questions: persistableQuestions,
+      };
+      try {
+        if (coverLetterId) {
+          await fetch(`/api/my/cover-letters/${coverLetterId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(apiBody),
+          });
+        } else {
+          const response = await fetch("/api/my/cover-letters", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(apiBody),
+          });
+          if (response.ok) {
+            const json = (await response.json().catch(() => null)) as
+              | { success?: boolean; data?: { id?: string } }
+              | null;
+            if (json?.success && typeof json.data?.id === "string" && json.data.id) {
+              setCoverLetterId(json.data.id);
+            }
+          }
+        }
+      } catch (syncError) {
+        // user_cover_letters 동기화 실패는 위저드 흐름을 막지 않는다.
+        console.warn("user_cover_letters sync failed", syncError);
+      }
+
       setGeneratedContent(payload.content);
       setSaveState("saved");
       if (manual) {
