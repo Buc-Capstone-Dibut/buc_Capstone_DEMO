@@ -3,7 +3,6 @@
 import { CheckCircle2, Download, FileText, Printer } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
-import { ResumePdfLivePreview } from "./resume-pdf-live-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -498,6 +497,40 @@ export function ScaledKoreanResumeDocument({
   );
 }
 
+/**
+ * HTML 기반 미리보기 — KoreanResumeDocument 를 컨테이너 폭에 맞게 그대로 보여준다.
+ *
+ * 본문이 길어지면 동적으로 카드가 함께 늘어나며, 페이지 단위 분할은 측정 기반으로
+ * 추가될 예정이다. 현재는 단일 카드(높이 auto) + 인쇄 시 print CSS 의
+ * `break-inside: avoid` / `break-after: avoid` 가 페이지 break 자연 분기를 담당한다.
+ *
+ * PDFViewer(react-pdf) 미리보기 경로는 무거워 사용성을 해쳐 제거했으며, 다운로드는
+ * 별도 `ResumePdfDownloadButton` 으로 분리되어 있다.
+ */
+function PagedResumePreview({
+  payload,
+  title,
+  options,
+  documentId,
+}: {
+  payload: ResumePayload;
+  title?: string;
+  options?: ResumeA4Options;
+  documentId?: string;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[794px]">
+      <KoreanResumeDocument
+        payload={payload}
+        title={title}
+        options={options}
+        documentId={documentId}
+        className="w-full"
+      />
+    </div>
+  );
+}
+
 export function KoreanResumePreview({
   payload,
   title,
@@ -627,12 +660,16 @@ export function KoreanResumePreview({
         </Button>
       </div>
 
-      {/*
-        실시간 PDF 미리보기. 다운로드 PDF 와 정확히 동일한 ResumePdfDocument 를
-        쓰므로 페이지 분할/break/페이지 번호가 1:1 로 일치한다. 사용자 입력 시
-        600ms 디바운스로 부드럽게 업데이트된다.
-      */}
-      <ResumePdfLivePreview payload={payload} title={title} />
+      {/* HTML 미리보기 — 측정 기반 페이지 분할로 페이지 경계에서 블록(섹션/entry)이
+          자연스럽게 다음 페이지로 넘어간다. PDF 다운로드는 별도 react-pdf 경로. */}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-3">
+        <PagedResumePreview
+          payload={payload}
+          title={title}
+          options={options}
+          documentId="korean-resume-print"
+        />
+      </div>
     </aside>
   );
 }

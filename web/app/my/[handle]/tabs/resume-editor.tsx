@@ -225,6 +225,126 @@ export function ResumeEditor({
     });
   };
 
+  // ========= 자기소개서(문항별) 편집 핸들러 =========
+  // payload.coverLetters 가 undefined 일 때를 일관되게 다루기 위해 helper 로 감싼다.
+  type CoverLetterType = NonNullable<ResumePayload["coverLetters"]>[number];
+  type CoverQuestionType = NonNullable<CoverLetterType["questions"]>[number];
+
+  const getCovers = (): CoverLetterType[] => payload.coverLetters ?? [];
+
+  const setCovers = (next: CoverLetterType[]) =>
+    onChange({ ...payload, coverLetters: next });
+
+  const addCoverLetter = () => {
+    const newCover: CoverLetterType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: "새 자기소개서",
+      content: "",
+      createdAt: new Date().toISOString(),
+      sourceExperienceIds: [],
+      questions: [],
+    };
+    setCovers([...getCovers(), newCover]);
+  };
+
+  const removeCoverLetter = (idx: number) => {
+    const list = getCovers();
+    const removed = list[idx];
+    setCovers(list.filter((_, i) => i !== idx));
+    if (removed) {
+      toast({
+        title: "자기소개서 삭제됨",
+        description: `${removed.title || "항목"}이(가) 제거되었습니다. 저장 시 최종 반영됩니다.`,
+      });
+    }
+  };
+
+  const updateCoverLetter = (idx: number, patch: Partial<CoverLetterType>) => {
+    const list = [...getCovers()];
+    list[idx] = { ...list[idx], ...patch };
+    setCovers(list);
+  };
+
+  const addQuestion = (coverIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover) return;
+    const newQuestion: CoverQuestionType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: "",
+      maxChars: 500,
+      answer: "",
+      status: "draft",
+    };
+    list[coverIdx] = {
+      ...cover,
+      questions: [...(cover.questions ?? []), newQuestion],
+    };
+    setCovers(list);
+  };
+
+  const removeQuestion = (coverIdx: number, qIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover?.questions) return;
+    list[coverIdx] = {
+      ...cover,
+      questions: cover.questions.filter((_, i) => i !== qIdx),
+    };
+    setCovers(list);
+  };
+
+  const updateQuestion = (
+    coverIdx: number,
+    qIdx: number,
+    patch: Partial<CoverQuestionType>,
+  ) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover?.questions) return;
+    const questions = [...cover.questions];
+    questions[qIdx] = {
+      ...questions[qIdx],
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    list[coverIdx] = { ...cover, questions };
+    setCovers(list);
+  };
+
+  /**
+   * 기존 plain content 자소서를 첫 문항의 answer 로 옮기고 문항 모드로 전환한다.
+   * 이미 questions 가 있으면 동작하지 않는다.
+   */
+  const convertToQuestions = (coverIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover) return;
+    if (cover.questions && cover.questions.length > 0) return;
+    const seed: CoverQuestionType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: cover.title || "자기소개",
+      maxChars: 1000,
+      answer: cover.content || "",
+      status: cover.content?.trim() ? "draft" : "draft",
+    };
+    list[coverIdx] = {
+      ...cover,
+      content: "",
+      questions: [seed],
+    };
+    setCovers(list);
+  };
+
   const handleImportProjects = (selected: ProjectInput[]) => {
     const newProjects = selected
         .filter(e => !payload.projects.some(p => p.id === e.id)) // Avoid duplicates
@@ -380,6 +500,18 @@ export function ResumeEditor({
           content: c.content || "",
           createdAt: new Date().toISOString(),
           sourceExperienceIds: [] as string[],
+          // 문항별 답변이 있으면 보존. import dialog 가 status 를 narrow 해 넘긴다.
+          questions:
+            c.questions && c.questions.length > 0
+              ? c.questions.map((q) => ({
+                  id: q.id,
+                  title: q.title,
+                  maxChars: q.maxChars,
+                  answer: q.answer,
+                  status: q.status,
+                  updatedAt: q.updatedAt,
+                }))
+              : undefined,
         }));
       if (newCovers.length > 0) {
         nextPayload.coverLetters = [
@@ -390,8 +522,21 @@ export function ResumeEditor({
       }
 
       // 호환: 자기소개서 본문을 selfIntroduction 영역에도 append 한다.
+      // 문항이 있는 자소서는 답변들을 이어붙여 self-intro 백업본으로 보존한다.
       const contents = newCovers
-        .map((c) => c.content)
+        .map((c) => {
+          if (c.questions && c.questions.length > 0) {
+            return c.questions
+              .map((q) =>
+                q.answer && q.answer.trim().length > 0
+                  ? `${q.title}\n${q.answer}`
+                  : null,
+              )
+              .filter((s): s is string => Boolean(s))
+              .join("\n\n");
+          }
+          return c.content;
+        })
         .filter((s) => s && s.trim().length > 0);
       if (contents.length > 0) {
         const existing = payload.selfIntroduction?.trim() || "";
@@ -615,6 +760,164 @@ export function ResumeEditor({
             placeholder="AI 가이드를 통해 나의 프로젝트를 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
             className="min-h-[200px] text-sm leading-relaxed"
           />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="자기소개서 (문항별)"
+        badge={
+          (payload.coverLetters?.length ?? 0) > 0
+            ? `${payload.coverLetters!.length}개`
+            : undefined
+        }
+        defaultOpen={false}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addCoverLetter}
+            className="h-7 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            자소서 추가
+          </Button>
+        }
+      >
+          {(payload.coverLetters ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              기업별 자기소개서를 문항·답변 단위로 관리할 수 있습니다. "자소서 추가" 또는 "기존 자료 가져오기"로 시작하세요.
+            </p>
+          ) : (
+            (payload.coverLetters ?? []).map((cover, coverIdx) => {
+              const hasQuestions =
+                !!cover.questions && cover.questions.length > 0;
+              return (
+                <Card key={cover.id} className="border-muted">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <Input
+                        value={cover.title}
+                        onChange={(e) =>
+                          updateCoverLetter(coverIdx, { title: e.target.value })
+                        }
+                        placeholder="자기소개서 제목"
+                        className="flex-1 h-9 text-sm font-semibold"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCoverLetter(coverIdx)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive transition"
+                        aria-label="자기소개서 삭제"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {hasQuestions ? (
+                      <ul className="space-y-3">
+                        {cover.questions!.map((q, qIdx) => (
+                          <li
+                            key={q.id}
+                            className="rounded-lg border bg-muted/20 p-3 space-y-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={q.title}
+                                onChange={(e) =>
+                                  updateQuestion(coverIdx, qIdx, {
+                                    title: e.target.value,
+                                  })
+                                }
+                                placeholder="문항 (예: 지원동기를 작성해주세요)"
+                                className="flex-1 h-8 text-sm font-medium"
+                              />
+                              <Input
+                                type="number"
+                                value={q.maxChars}
+                                onChange={(e) => {
+                                  const next = Number(e.target.value);
+                                  if (Number.isFinite(next) && next > 0) {
+                                    updateQuestion(coverIdx, qIdx, {
+                                      maxChars: Math.floor(next),
+                                    });
+                                  }
+                                }}
+                                className="h-8 w-20 text-xs tabular-nums"
+                                min={50}
+                                step={50}
+                                aria-label="글자 제한"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeQuestion(coverIdx, qIdx)}
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive transition"
+                                aria-label="문항 삭제"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={q.answer ?? ""}
+                              onChange={(e) =>
+                                updateQuestion(coverIdx, qIdx, {
+                                  answer: e.target.value,
+                                  status: "draft",
+                                })
+                              }
+                              maxLength={q.maxChars}
+                              placeholder="답변"
+                              className="min-h-[120px] text-sm leading-relaxed"
+                            />
+                            <div className="flex justify-end text-[11px] text-muted-foreground tabular-nums">
+                              {(q.answer?.length ?? 0)} / {q.maxChars}자
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Textarea
+                        value={cover.content ?? ""}
+                        onChange={(e) =>
+                          updateCoverLetter(coverIdx, {
+                            content: e.target.value,
+                          })
+                        }
+                        placeholder="자기소개서 본문"
+                        className="min-h-[160px] text-sm leading-relaxed"
+                      />
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addQuestion(coverIdx)}
+                        className="h-7 gap-1 text-xs"
+                      >
+                        <Plus className="h-3 w-3" /> 문항 추가
+                      </Button>
+                      {!hasQuestions && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => convertToQuestions(coverIdx)}
+                          className="h-7 text-xs text-muted-foreground"
+                        >
+                          문항별 편집 모드로
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
       </CollapsibleSection>
 
       <CollapsibleSection

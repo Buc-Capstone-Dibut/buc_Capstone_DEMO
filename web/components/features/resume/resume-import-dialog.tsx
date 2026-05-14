@@ -26,10 +26,25 @@ import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 type ImportProject = ResumePayload["projects"][number];
 type ImportExperience = ResumePayload["experience"][number];
 
+/**
+ * 자기소개서 import 시 보존하는 개별 문항. `CoverLetterQuestion` 의 부분 형상으로
+ * 답변·상태·갱신시각이 옵셔널이다. ResumeEditor 의 questions[] 형식과 호환된다.
+ */
+interface ImportCoverLetterQuestion {
+  id: string;
+  title: string;
+  maxChars: number;
+  answer?: string;
+  status?: "draft" | "done";
+  updatedAt?: string;
+}
+
 interface ImportCoverLetter {
   id: string;
   title: string;
   content: string;
+  /** 문항별 폼 데이터. 없으면 단일 content 모드. */
+  questions?: ImportCoverLetterQuestion[];
   updatedAt?: string;
 }
 
@@ -119,6 +134,31 @@ function ensureExperienceShape(raw: unknown): ImportExperience | null {
   };
 }
 
+function ensureCoverLetterQuestionShape(
+  raw: unknown,
+): ImportCoverLetterQuestion | null {
+  if (!raw || typeof raw !== "object") return null;
+  const q = raw as Record<string, unknown>;
+  const id = typeof q.id === "string" && q.id ? q.id : "";
+  const title = typeof q.title === "string" ? q.title : "";
+  if (!id && !title.trim()) return null;
+  const maxChars =
+    typeof q.maxChars === "number" && q.maxChars > 0 ? Math.floor(q.maxChars) : 500;
+  const answer = typeof q.answer === "string" ? q.answer : undefined;
+  // status 를 명시적으로 "draft" | "done" 으로 narrow.
+  const status: "draft" | "done" | undefined =
+    q.status === "done" ? "done" : q.status === "draft" ? "draft" : undefined;
+  const updatedAt = typeof q.updatedAt === "string" ? q.updatedAt : undefined;
+  return {
+    id: id || crypto.randomUUID(),
+    title,
+    maxChars,
+    answer,
+    status,
+    updatedAt,
+  };
+}
+
 function ensureCoverLetterShape(raw: unknown): ImportCoverLetter | null {
   const row = asRecord(raw);
   const id = typeof row.id === "string" ? row.id : "";
@@ -136,7 +176,19 @@ function ensureCoverLetterShape(raw: unknown): ImportCoverLetter | null {
       : typeof row.updated_at === "string"
         ? row.updated_at
         : undefined;
-  return { id, title, content, updatedAt };
+  // questions: API 가 CoverLetterQuestion[] 배열로 반환한다고 가정. 비어있을 수도 있음.
+  const questions = Array.isArray(row.questions)
+    ? (row.questions
+        .map(ensureCoverLetterQuestionShape)
+        .filter(Boolean) as ImportCoverLetterQuestion[])
+    : undefined;
+  return {
+    id,
+    title,
+    content,
+    questions: questions && questions.length > 0 ? questions : undefined,
+    updatedAt,
+  };
 }
 
 function dedupeBy<T>(items: T[], keyFn: (item: T) => string): T[] {
@@ -477,9 +529,11 @@ export function ResumeImportDialog({
                           {item.title || "(제목 없음)"}
                         </p>
                         <p className="text-[11px] text-slate-500 truncate">
-                          {item.content
-                            ? item.content.slice(0, 60)
-                            : "내용 없음"}
+                          {item.questions && item.questions.length > 0
+                            ? `문항 ${item.questions.length}개`
+                            : item.content
+                              ? item.content.slice(0, 60)
+                              : "내용 없음"}
                         </p>
                       </div>
                     )}
@@ -683,6 +737,7 @@ function ExperiencePreview({ item }: { item: ImportExperience }) {
 }
 
 function CoverLetterPreview({ item }: { item: ImportCoverLetter }) {
+  const hasQuestions = !!item.questions && item.questions.length > 0;
   return (
     <div className="space-y-3">
       <div>
@@ -693,7 +748,32 @@ function CoverLetterPreview({ item }: { item: ImportCoverLetter }) {
           </p>
         )}
       </div>
-      {item.content ? (
+      {hasQuestions ? (
+        <ul className="space-y-3">
+          {item.questions!.map((q, i) => (
+            <li
+              key={q.id || i}
+              className="rounded-md border border-slate-200 bg-white p-3 space-y-1"
+            >
+              <p className="text-[12px] font-semibold text-slate-800">
+                Q{i + 1}. {q.title || "(문항 미지정)"}
+              </p>
+              {q.answer ? (
+                <p className="text-[12px] leading-relaxed text-slate-700 whitespace-pre-wrap">
+                  {q.answer.length > 240
+                    ? `${q.answer.slice(0, 240)}…`
+                    : q.answer}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400">미작성</p>
+              )}
+              <p className="text-[10px] text-slate-400 tabular-nums">
+                {(q.answer?.length ?? 0)} / {q.maxChars}자
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : item.content ? (
         <p className="text-[13px] leading-relaxed text-slate-700 whitespace-pre-wrap">
           {item.content.length > 600
             ? `${item.content.slice(0, 600)}…`
