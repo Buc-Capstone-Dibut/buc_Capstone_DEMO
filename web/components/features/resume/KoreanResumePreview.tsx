@@ -45,12 +45,6 @@ function cleanLines(value: string | undefined, limit = 4) {
     .slice(0, limit);
 }
 
-function compactText(value: string | undefined, maxLength = 220) {
-  const text = (value || "").replace(/\s+/g, " ").trim();
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 1)}...`;
-}
-
 function firstPresent(...values: Array<string | undefined>) {
   return values.find((value) => value && value.trim())?.trim() || "";
 }
@@ -197,7 +191,7 @@ export function KoreanResumeDocument({
   const info = payload.personalInfo;
   const name = info.name || "이름";
   const headline = firstPresent(info.intro, title, "지원 직무와 강점을 요약해 주세요.");
-  const latestCoverLetter = payload.coverLetters?.[0];
+  const coverLetters = payload.coverLetters ?? [];
   const contactItems = [
     info.email,
     info.phone,
@@ -327,28 +321,55 @@ export function KoreanResumeDocument({
 
         {sectionOptions.coverLetters ? (
           <ResumeSection title="COVER LETTER">
-            {latestCoverLetter ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-4">
-                  <h4 className="text-[12px] font-black text-slate-950">{latestCoverLetter.title}</h4>
-                  <span className="text-[10px] font-bold text-slate-500">
-                    {[latestCoverLetter.company, latestCoverLetter.role].filter(Boolean).join(" · ")}
-                  </span>
-                </div>
-                {latestCoverLetter.questions?.length ? (
-                  latestCoverLetter.questions.slice(0, 2).map((question) => (
-                    <div key={question.id}>
-                      <p className="text-[11px] font-black text-slate-800">{question.title}</p>
-                      <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-                        {compactText(question.answer, 260) || "답변을 입력하세요."}
-                      </p>
+            {coverLetters.length ? (
+              <div className="space-y-5">
+                {coverLetters.map((letter) => {
+                  const meta = [letter.company, letter.role].filter(Boolean).join(" · ");
+                  const hasQuestions = (letter.questions?.length ?? 0) > 0;
+                  return (
+                    <div
+                      key={letter.id}
+                      data-print-entry
+                      className="space-y-2"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <h4 className="text-[12px] font-black text-slate-950">
+                          {letter.title || "지원 자기소개서"}
+                        </h4>
+                        {meta ? (
+                          <span className="text-[10px] font-bold text-slate-500">{meta}</span>
+                        ) : null}
+                      </div>
+                      {hasQuestions ? (
+                        <div className="space-y-3">
+                          {letter.questions!.map((question, index) => {
+                            const answer = (question.answer || "").trim();
+                            return (
+                              <div key={question.id} data-print-entry>
+                                <p className="mb-1 text-[11px] font-bold text-slate-950">
+                                  Q{index + 1}. {question.title || "문항"}
+                                </p>
+                                {answer ? (
+                                  <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                                    {answer}
+                                  </p>
+                                ) : (
+                                  <p className="text-[10.5px] leading-5 text-slate-400">
+                                    (답변 미작성)
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                          {(letter.content || "").trim() || "본문이 비어 있습니다."}
+                        </p>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-                    {compactText(latestCoverLetter.content, 360)}
-                  </p>
-                )}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-[11px] font-medium text-slate-500">연결된 자기소개서가 없습니다.</p>

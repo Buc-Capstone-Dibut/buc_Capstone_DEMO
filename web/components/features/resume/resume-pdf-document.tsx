@@ -89,6 +89,51 @@ const styles = StyleSheet.create({
     lineHeight: 1.6,
     color: "#334155",
   },
+  coverLetterBlock: {
+    marginBottom: 12,
+  },
+  coverLetterHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 4,
+  },
+  coverLetterTitle: {
+    fontSize: 10.5,
+    fontWeight: "bold",
+    color: "#1a202c",
+    flexShrink: 1,
+    paddingRight: 8,
+  },
+  coverLetterMeta: {
+    fontSize: 9,
+    color: "#64748b",
+    flexShrink: 0,
+  },
+  coverLetterQuestion: {
+    marginTop: 6,
+  },
+  coverLetterQuestionTitle: {
+    fontSize: 9.5,
+    fontWeight: "bold",
+    color: "#1a202c",
+    marginBottom: 2,
+  },
+  coverLetterAnswer: {
+    fontSize: 9.5,
+    lineHeight: 1.6,
+    color: "#334155",
+  },
+  coverLetterAnswerEmpty: {
+    fontSize: 9.5,
+    lineHeight: 1.6,
+    color: "#94a3b8",
+  },
+  coverLetterBody: {
+    fontSize: 9.5,
+    lineHeight: 1.6,
+    color: "#334155",
+  },
   footer: {
     position: "absolute",
     bottom: 20,
@@ -163,6 +208,11 @@ export function ResumePdfDocument({
   const projects = resume.projects ?? [];
   const skills = resume.skills ?? [];
   const selfIntroduction = resume.selfIntroduction?.trim();
+  const coverLetters = (resume.coverLetters ?? []).filter((letter) => {
+    const hasQuestions = (letter.questions?.length ?? 0) > 0;
+    const hasBody = Boolean((letter.content || "").trim());
+    return hasQuestions || hasBody;
+  });
 
   const documentTitle = title?.trim() || (pi.name ? `${pi.name} 이력서` : "이력서");
 
@@ -292,6 +342,52 @@ export function ResumePdfDocument({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>자기소개</Text>
             <Text style={styles.selfIntroText}>{selfIntroduction}</Text>
+          </View>
+        ) : null}
+
+        {/* Cover Letters — 문항-답변 구조의 자기소개서. questions 배열이 있으면
+            Q/A 박스로, 없으면 본문 그대로 표시. 긴 답변은 페이지 분기에 자연스럽게
+            맡기기 위해 wrap=false 를 사용하지 않는다. */}
+        {coverLetters.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>자기소개서</Text>
+            {coverLetters.map((letter, idx) => {
+              const meta = [letter.company, letter.role]
+                .filter((value): value is string => Boolean(value && value.trim()))
+                .join(" · ");
+              const questions = letter.questions ?? [];
+              const hasQuestions = questions.length > 0;
+              const body = (letter.content || "").trim();
+              return (
+                <View key={letter.id || idx} style={styles.coverLetterBlock}>
+                  <View style={styles.coverLetterHeader}>
+                    <Text style={styles.coverLetterTitle}>
+                      {letter.title || "지원 자기소개서"}
+                    </Text>
+                    {meta ? <Text style={styles.coverLetterMeta}>{meta}</Text> : null}
+                  </View>
+                  {hasQuestions
+                    ? questions.map((question, qIdx) => {
+                        const answer = (question.answer || "").trim();
+                        return (
+                          <View key={question.id || qIdx} style={styles.coverLetterQuestion}>
+                            <Text style={styles.coverLetterQuestionTitle}>
+                              Q{qIdx + 1}. {question.title || "문항"}
+                            </Text>
+                            {answer ? (
+                              <Text style={styles.coverLetterAnswer}>{answer}</Text>
+                            ) : (
+                              <Text style={styles.coverLetterAnswerEmpty}>(답변 미작성)</Text>
+                            )}
+                          </View>
+                        );
+                      })
+                    : body
+                      ? <Text style={styles.coverLetterBody}>{body}</Text>
+                      : null}
+                </View>
+              );
+            })}
           </View>
         ) : null}
 
