@@ -10,6 +10,7 @@ import { JobPostingListView } from "@/components/features/job-postings/job-posti
 import { JobPostingFormDialog } from "@/components/features/job-postings/job-posting-form-dialog";
 import { JobPostingsHeader } from "@/components/features/job-postings/job-postings-header";
 import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
+import { CalendarDayModal } from "@/components/features/job-postings/calendar-day-modal";
 import type { JobPostingRecord } from "@/lib/job-postings/types";
 import { useJobPostingsView } from "./use-job-postings-view";
 
@@ -42,6 +43,7 @@ export function JobPostingsClient() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [calendarModalDate, setCalendarModalDate] = useState<Date | null>(null);
 
   // 검색 디바운스
   const [debouncedQuery, setDebouncedQuery] = useState(state.query);
@@ -197,7 +199,11 @@ export function JobPostingsClient() {
       <div className={state.calendarVisible ? "grid gap-6 lg:grid-cols-12" : "grid gap-6"}>
         {state.calendarVisible && (
           <div className="lg:col-span-5">
-            <JobPostingCalendar events={events} />
+            <JobPostingCalendar
+              events={events}
+              onDateClick={setCalendarModalDate}
+              onEventClick={(ev) => setCalendarModalDate(new Date(ev.start))}
+            />
           </div>
         )}
 
@@ -237,6 +243,14 @@ export function JobPostingsClient() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={handleDialogCreated}
+      />
+
+      <CalendarDayModal
+        open={calendarModalDate !== null}
+        onOpenChange={(o) => !o && setCalendarModalDate(null)}
+        date={calendarModalDate}
+        events={events}
+        onCreate={() => setDialogOpen(true)}
       />
     </div>
   );
