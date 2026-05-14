@@ -64,5 +64,19 @@ export interface AttachmentRecord {
   resumeId: string | null;
   coverLetterIndex: number | null;
   coverLetterLabel: string | null;
+  coverLetterId: string | null;
   portfolioId: string | null;
+}
+
+export interface CoverLetterRecord {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  sourceResumeId: string | null;
+  sourceIndex: number | null;
+  tags: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

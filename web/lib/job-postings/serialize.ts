@@ -1,5 +1,6 @@
 import type {
   AttachmentRecord,
+  CoverLetterRecord,
   JobPostingRecord,
   JobPostingStatus,
   ScheduleKind,
@@ -56,8 +57,24 @@ export function toRecord(row: any): JobPostingRecord {
         resumeId: a.resume_id ?? null,
         coverLetterIndex: a.cover_letter_index ?? null,
         coverLetterLabel: a.cover_letter_label ?? null,
+        coverLetterId: a.cover_letter_id ?? null,
         portfolioId: a.portfolio_id ?? null,
       }),
     ),
+  };
+}
+
+export function serializeCoverLetter(row: any): CoverLetterRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title ?? "",
+    body: row.body ?? "",
+    sourceResumeId: row.source_resume_id ?? null,
+    sourceIndex: row.source_index ?? null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    isActive: Boolean(row.is_active),
+    createdAt: toIsoString(row.created_at),
+    updatedAt: toIsoString(row.updated_at),
   };
 }
