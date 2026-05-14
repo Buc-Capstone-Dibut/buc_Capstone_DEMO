@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ImagePlus, X } from "lucide-react";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
+import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import type { ProjectArchiveFormData } from "./project-archive.types";
 import { ProjectAttachmentsSection } from "./project-attachments-section";
 import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
@@ -20,16 +21,12 @@ export function ProjectFormPanel({
   setFormData,
 }: ProjectFormPanelProps) {
   const [tagsInput, setTagsInput] = useState(formData.tags?.join(", ") || "");
-  const [techStackInput, setTechStackInput] = useState(
-    formData.techStack?.join(", ") || "",
-  );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isRepresentativeImageProcessing, setIsRepresentativeImageProcessing] = useState(false);
 
   useEffect(() => {
     setTagsInput(formData.tags?.join(", ") || "");
-    setTechStackInput(formData.techStack?.join(", ") || "");
-  }, [formData.id, formData.tags, formData.techStack]);
+  }, [formData.id, formData.tags]);
 
   const splitCommaValues = (value: string) =>
     value
@@ -41,12 +38,6 @@ export function ProjectFormPanel({
     setTagsInput(value);
     const tags = splitCommaValues(value);
     setFormData({ ...formData, tags });
-  };
-
-  const handleTechStackChange = (value: string) => {
-    setTechStackInput(value);
-    const techStack = splitCommaValues(value);
-    setFormData({ ...formData, techStack });
   };
 
   const handleRepresentativeImageChange = async (file: File | undefined) => {
@@ -210,16 +201,15 @@ export function ProjectFormPanel({
 
         <div className="space-y-2">
           <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
-            기술 스택 (로고 자동)
+            기술 스택 (검색 · 로고 자동)
           </label>
-          <input
-            value={techStackInput}
-            onChange={(event) => handleTechStackChange(event.target.value)}
-            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] shadow-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-800 dark:bg-slate-950"
-            placeholder="예: React, Next.js, TypeScript, Supabase"
+          <TechStackCombobox
+            value={formData.techStack || []}
+            onChange={(techStack) => setFormData({ ...formData, techStack })}
+            placeholder="React, Next.js 등을 검색하거나 직접 입력 후 Enter"
           />
           <p className="ml-1 text-[11px] font-medium text-slate-500">
-            입력한 기술명은 포트폴리오 PPT 기술 슬라이드에서 로고로 자동 배치됩니다.
+            사전 등록된 기술은 로고가 자동 매칭되며, 직접 입력한 기술도 함께 저장됩니다.
           </p>
         </div>
       </div>

@@ -21,6 +21,7 @@ import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
 import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
+import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
@@ -47,7 +48,6 @@ export function ResumeEditor({
   title = "",
   onTitleChange,
 }: ResumeEditorProps) {
-  const [newSkill, setNewSkill] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
@@ -66,27 +66,6 @@ export function ResumeEditor({
       personalInfo: { ...pi, links: { ...pi.links, ...patch } },
     });
 
-  const addSkill = () => {
-    const name = newSkill.trim();
-    if (!name) return;
-    onChange({
-      ...payload,
-      skills: [...payload.skills, { name, level: "Intermediate" }],
-    });
-    setNewSkill("");
-  };
-
-  const removeSkill = (index: number) => {
-    const item = payload.skills[index];
-    onChange({
-      ...payload,
-      skills: payload.skills.filter((_, i) => i !== index),
-    });
-    toast({
-      title: "기술 스택 삭제됨",
-      description: `${item.name} 항목이 목록에서 제거되었습니다.`,
-    });
-  };
 
   const setExp = (
     index: number,
@@ -430,42 +409,24 @@ export function ResumeEditor({
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             기술 스택
           </p>
-          <div className="flex flex-wrap gap-1.5 min-h-[32px]">
-            {payload.skills.map((skill, index) => (
-              <Badge
-                key={index}
-                variant="secondary"
-                className="text-xs gap-1 pl-2.5 pr-1 h-7 cursor-default"
-              >
-                {skill.name}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    removeSkill(index);
-                  }}
-                  className="opacity-50 hover:opacity-100 transition px-1 text-[10px] font-bold"
-                >
-                  삭제
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={newSkill}
-              onChange={(event) => setNewSkill(event.target.value)}
-              onKeyDown={(event) =>
-                event.key === "Enter" && (event.preventDefault(), addSkill())
-              }
-              placeholder="기술명 입력 후 Enter"
-              className="flex-1"
-            />
-            <Button variant="outline" size="sm" onClick={addSkill}>
-              추가
-            </Button>
-          </div>
+          <TechStackCombobox
+            value={payload.skills.map((s) => s.name)}
+            onChange={(nextNames) => {
+              // 기존 항목의 level/category 메타데이터는 보존하고,
+              // 신규 항목은 기본 "Intermediate" 로 채운다.
+              const prevByName = new Map(
+                payload.skills.map((s) => [s.name, s]),
+              );
+              const nextSkills = nextNames.map(
+                (name) => prevByName.get(name) ?? { name, level: "Intermediate" },
+              );
+              onChange({ ...payload, skills: nextSkills });
+            }}
+            placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            사전 등록된 기술은 로고가 자동 매칭되며, 자유 입력도 함께 저장됩니다. 기존 항목의 숙련도 메타데이터는 유지됩니다.
+          </p>
         </CardContent>
       </Card>
 
@@ -620,21 +581,11 @@ export function ResumeEditor({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">
-                  기술 스택 (쉼표 구분)
-                </Label>
-                <Input
-                  value={project.techStack.join(", ")}
-                  onChange={(event) =>
-                    setPrj(projectIndex, {
-                      techStack: event.target.value
-                        .split(",")
-                        .map((value) => value.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  placeholder="React, TypeScript, Node.js"
-                  className="h-8 text-sm"
+                <Label className="text-[11px] text-muted-foreground">기술 스택</Label>
+                <TechStackCombobox
+                  value={project.techStack}
+                  onChange={(techStack) => setPrj(projectIndex, { techStack })}
+                  placeholder="React, TypeScript 등 검색"
                 />
               </div>
               <div className="space-y-2">
