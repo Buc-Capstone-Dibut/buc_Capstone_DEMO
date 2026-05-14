@@ -133,7 +133,11 @@ interface InterviewSetupState {
   targetUrl: string;
   targetJobCategory: string; // Fallback if no URL
   interviewSessionId: string | null;
-  resumePrefillSource: "active_resume" | null;
+  resumePrefillSource:
+    | "active_resume"
+    | "user_resume"
+    | "job_posting_attachment"
+    | null;
 
   // JD Data
   jobData: JobData | null;
@@ -152,7 +156,13 @@ interface InterviewSetupState {
   setRolePrepData: (data: RolePrepData | null) => void;
   updateRolePrepData: (data: Partial<RolePrepData>) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
-  setResumePrefillSource: (source: "active_resume" | null) => void;
+  setResumePrefillSource: (
+    source:
+      | "active_resume"
+      | "user_resume"
+      | "job_posting_attachment"
+      | null,
+  ) => void;
   completeSetup: () => void;
   reset: () => void;
 }

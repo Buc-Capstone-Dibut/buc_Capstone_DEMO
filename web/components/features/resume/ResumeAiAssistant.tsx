@@ -17,7 +17,10 @@ import {
     Send,
     ChevronLeft,
     CheckCircle2,
+    ArrowUpRight,
+    PenLine,
 } from "lucide-react";
+import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { cn } from "@/lib/utils";
@@ -294,34 +297,90 @@ export function ResumeAiAssistant({
     };
 
     if (mode === "setup") {
+        // 이력서 마법사(wizard) 진입 시 표시되는 안내 화면.
+        // 자소서 생성은 별도 자소서 위저드(/career/cover-letter-wizard)로 일원화되었다.
+        if (isWizard) {
+            return (
+                <div
+                    className={cn(
+                        "mx-auto w-full animate-in fade-in slide-in-from-right-4 duration-300",
+                        compactLayout ? "max-w-2xl py-4" : "max-w-3xl py-10",
+                    )}
+                >
+                    <div className="rounded-md border bg-background">
+                        <div className="border-b bg-muted/40 px-5 py-3">
+                            <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                                <Wand2 className="h-4 w-4 text-primary" aria-hidden />
+                                AI와 함께 이력서 작성
+                            </h2>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                지금부터는 이력서 본문을 채우는 데 집중합니다. 자기소개서가 필요하면 전용 위저드를 이용하세요.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() => setMode("chat")}
+                                className="group flex flex-col gap-2 rounded-md border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <PenLine className="h-4 w-4 text-primary" aria-hidden />
+                                    <span className="text-sm font-semibold text-foreground">
+                                        이력서 본문 함께 작성
+                                    </span>
+                                </div>
+                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                    경력·프로젝트·기술 스택을 AI 대화로 정리해 이력서 본문에 바로 반영합니다.
+                                </p>
+                                <span className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+                                    바로 시작
+                                    <ArrowUpRight className="h-3 w-3" aria-hidden />
+                                </span>
+                            </button>
+
+                            <Link
+                                href="/career/cover-letter-wizard"
+                                className="group flex flex-col gap-2 rounded-md border bg-background p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+                                    <span className="text-sm font-semibold text-foreground">
+                                        맞춤형 자기소개서 생성
+                                    </span>
+                                </div>
+                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                    프로젝트 기록을 바탕으로 지원 직무에 맞춘 자기소개서를 별도 위저드에서 작성합니다.
+                                </p>
+                                <span className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+                                    자소서 위저드 열기
+                                    <ArrowUpRight className="h-3 w-3" aria-hidden />
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div
                 className={cn(
                     "space-y-4 animate-in fade-in slide-in-from-right-4 duration-300",
-                    isWizard &&
-                        (compactLayout
-                            ? "w-full max-w-3xl mx-auto py-2"
-                            : "w-full max-w-4xl mx-auto py-8"),
                 )}
             >
-                {!isWizard && (
-                    <Button variant="ghost" size="sm" onClick={() => setMode("main")} className="mb-2 p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
-                        <ChevronLeft className="w-4 h-4 mr-1" /> 사이드바 목록
-                    </Button>
-                )}
+                <Button variant="ghost" size="sm" onClick={() => setMode("main")} className="mb-2 p-0 hover:bg-transparent text-muted-foreground hover:text-primary transition-colors">
+                    <ChevronLeft className="w-4 h-4 mr-1" /> 사이드바 목록
+                </Button>
                 <div className={cn("space-y-3 text-center border-b border-border/40", compactLayout ? "pb-4" : "pb-6")}>
                     <h3
                         className={cn(
                             "font-bold flex items-center gap-2 justify-center",
-                            isWizard
-                                ? compactLayout
-                                    ? "text-xl"
-                                    : "text-3xl"
-                                : "text-xl",
+                            "text-xl",
                         )}
                     >
                         <Sparkles className="w-6 h-6 text-primary" />
-                        {isWizard ? "내 프로젝트로 맞춤형 자소서 생성하기" : "맞춤형 자소서 생성하기"}
+                        맞춤형 자소서 생성하기
                     </h3>
                     <p className={cn("text-muted-foreground leading-relaxed max-w-xl mx-auto", compactLayout ? "text-[13px]" : "text-[15px]")}>
                         선택하신 프로젝트 기록들을 바탕으로 압도적인 자기소개서를 작성합니다.<br />
