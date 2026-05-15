@@ -94,7 +94,8 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
   const attachments = posting.attachments ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8">
+    <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950/70">
+      <div className="mx-auto w-full max-w-4xl px-4 py-8">
       {/* 상단 네비게이션 */}
       <div className="mb-3 flex items-center justify-between">
         <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
@@ -131,10 +132,10 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
         </div>
       </div>
 
-      {/* 문서 표 본체 */}
-      <article className="rounded-md border bg-background">
+      {/* 문서 표 본체 — 책상 위 종이 양식 */}
+      <article className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-8px_rgba(15,23,42,0.10)] dark:border-slate-800/80 dark:bg-slate-900">
         {/* 문서 헤더 */}
-        <header className="border-b bg-muted/40 px-5 py-4">
+        <header className="border-b border-slate-200/80 bg-slate-50/60 px-6 py-5 dark:border-slate-800/80 dark:bg-slate-950/40">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               채용공고 상세
@@ -215,7 +216,7 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
         />
         {sortedSchedules.length > 0 ? (
           <table className="w-full border-collapse text-sm">
-            <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="bg-slate-50/60 text-xs uppercase tracking-wider text-muted-foreground dark:bg-slate-950/30">
               <tr>
                 <Th className="w-24">종류</Th>
                 <Th className="w-56">일시</Th>
@@ -242,11 +243,11 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
           title="연결된 자료"
           hint="이력서·자기소개서·포트폴리오를 연결하면 모의면접 설정에 자동 주입되어, 같은 공고로 여러 번 진행할 때 다시 고를 필요가 없습니다."
         />
-        <div className="border-t bg-background px-5 py-4">
+        <div className="border-t border-slate-200/70 bg-white px-6 py-4 dark:border-slate-800/70 dark:bg-slate-900">
           <AttachmentPicker postingId={posting.id} onAdded={load} />
         </div>
         {attachments.length > 0 ? (
-          <table className="w-full border-collapse border-t text-sm">
+          <table className="w-full border-collapse border-t border-slate-200/70 text-sm dark:border-slate-800/70">
             <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <Th className="w-28">구분</Th>
@@ -312,7 +313,7 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
         )}
 
         {/* 푸터 */}
-        <footer className="flex items-center justify-between border-t bg-muted/30 px-5 py-3">
+        <footer className="flex items-center justify-between border-t border-slate-200/80 bg-slate-50/60 px-6 py-3 dark:border-slate-800/80 dark:bg-slate-950/40">
           <p className="text-xs text-muted-foreground">
             공고를 삭제하면 등록된 일정과 자료 연결도 함께 사라집니다.
           </p>
@@ -326,6 +327,7 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
           </Button>
         </footer>
       </article>
+      </div>
     </div>
   );
 }
@@ -334,7 +336,7 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
 
 function SectionHeader({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="border-t border-b bg-muted/20 px-5 py-2.5">
+    <div className="border-t border-b border-slate-200/80 bg-slate-50/40 px-6 py-2.5 dark:border-slate-800/80 dark:bg-slate-950/30">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         {hint && (
@@ -354,7 +356,7 @@ function SectionHeader({ title, hint }: { title: string; hint?: string }) {
 
 function FormTable({ children }: { children: React.ReactNode }) {
   return (
-    <div className="divide-y border-t">
+    <div className="divide-y divide-slate-200/70 border-t border-slate-200/70 dark:divide-slate-800/70 dark:border-slate-800/70">
       {children}
     </div>
   );
@@ -371,7 +373,7 @@ function FormRow({
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr]">
-      <div className="flex flex-col gap-0.5 border-b bg-muted/30 px-5 py-3 sm:border-b-0 sm:border-r">
+      <div className="flex flex-col gap-0.5 border-b border-slate-200/70 bg-slate-50/50 px-6 py-3 sm:border-b-0 sm:border-r dark:border-slate-800/70 dark:bg-slate-950/30">
         <span className="text-xs font-medium text-foreground">{label}</span>
         {hint && (
           <span className="text-[11px] leading-snug text-muted-foreground">
@@ -379,7 +381,7 @@ function FormRow({
           </span>
         )}
       </div>
-      <div className="px-5 py-3 text-sm text-foreground">{children}</div>
+      <div className="px-6 py-3 text-sm text-foreground">{children}</div>
     </div>
   );
 }
@@ -394,7 +396,7 @@ function Th({
   return (
     <th
       className={cn(
-        "border-b border-t px-3 py-2 text-left font-semibold",
+        "border-b border-t border-slate-200/70 px-4 py-2 text-left font-semibold dark:border-slate-800/70",
         className,
       )}
     >
@@ -411,7 +413,12 @@ function Td({
   className?: string;
 }) {
   return (
-    <td className={cn("border-b px-3 py-2 align-middle text-sm", className)}>
+    <td
+      className={cn(
+        "border-b border-slate-200/70 px-4 py-2 align-middle text-sm dark:border-slate-800/70",
+        className,
+      )}
+    >
       {children}
     </td>
   );
@@ -425,7 +432,7 @@ function ScheduleTableRow({
   onRemove: () => void;
 }) {
   return (
-    <tr className="hover:bg-muted/30">
+    <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-950/30">
       <Td>
         <span className="inline-flex items-center gap-1.5">
           <span
@@ -496,7 +503,7 @@ function AttachmentTableRow({
           ? "포트폴리오"
           : attachment.projectLabel ?? "프로젝트";
   return (
-    <tr className="hover:bg-muted/30">
+    <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-950/30">
       <Td>
         <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
           {typeLabel}
@@ -540,7 +547,7 @@ function EmptyValue() {
 
 function EmptyBlock({ message }: { message: string }) {
   return (
-    <div className="border-t bg-background px-5 py-8 text-center text-xs text-muted-foreground">
+    <div className="border-t border-slate-200/70 bg-white px-6 py-8 text-center text-xs text-muted-foreground dark:border-slate-800/70 dark:bg-slate-900">
       {message}
     </div>
   );

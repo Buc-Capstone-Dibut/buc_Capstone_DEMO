@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, LayoutGrid, List, Plus, Search, Star } from "lucide-react";
+import { CalendarDays, Plus, Search, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,6 @@ import type { JobPostingStatus } from "@/lib/job-postings/types";
 import type {
   FavoritesPolicy,
   Sort,
-  View,
   ViewState,
 } from "@/app/my/job-postings/use-job-postings-view";
 import { STATUS_LABEL, STATUS_TONE_ACTIVE } from "@/lib/job-postings/visual-tokens";
@@ -51,7 +50,6 @@ interface JobPostingsHeaderProps {
   onQueryChange: (value: string) => void;
   onToggleStatus: (status: JobPostingStatus) => void;
   onSetSort: (sort: Sort) => void;
-  onSetView: (view: View) => void;
   onToggleCalendar: () => void;
   onSetFavoritesPolicy: (policy: FavoritesPolicy) => void;
   onClickCreate: () => void;
@@ -63,7 +61,6 @@ export function JobPostingsHeader({
   onQueryChange,
   onToggleStatus,
   onSetSort,
-  onSetView,
   onToggleCalendar,
   onSetFavoritesPolicy,
   onClickCreate,
@@ -157,30 +154,6 @@ export function JobPostingsHeader({
             </SelectContent>
           </Select>
 
-          <div className="inline-flex overflow-hidden rounded-md border" role="group" aria-label="뷰 전환">
-            <Button
-              type="button"
-              variant={state.view === "cards" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-none border-0 px-2.5"
-              onClick={() => onSetView("cards")}
-              aria-pressed={state.view === "cards"}
-              aria-label="카드 뷰"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={state.view === "list" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-none border-0 px-2.5"
-              onClick={() => onSetView("list")}
-              aria-pressed={state.view === "list"}
-              aria-label="리스트 뷰"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
 
           <label
             htmlFor="calendar-toggle"

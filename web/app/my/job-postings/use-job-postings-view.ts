@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JobPostingStatus } from "@/lib/job-postings/types";
 
-export type View = "cards" | "list";
 export type Sort = "created_desc" | "created_asc" | "deadline_asc" | "company_asc";
 export type FavoritesPolicy = "off" | "top" | "only";
 
 export interface ViewState {
-  view: View;
   calendarVisible: boolean;
   query: string;
   statusFilters: JobPostingStatus[]; // 빈 배열 = 전체
@@ -22,7 +20,6 @@ const STORAGE_KEY = "dibut.job-postings.view";
 const DEFAULT_PAGE_SIZE = 20;
 
 const DEFAULT_STATE: ViewState = {
-  view: "cards",
   calendarVisible: true,
   query: "",
   statusFilters: [],
@@ -36,7 +33,6 @@ type Action =
   | { type: "SET_QUERY"; payload: string }
   | { type: "TOGGLE_STATUS"; payload: JobPostingStatus }
   | { type: "SET_SORT"; payload: Sort }
-  | { type: "SET_VIEW"; payload: View }
   | { type: "TOGGLE_CALENDAR" }
   | { type: "SET_FAVORITES_POLICY"; payload: FavoritesPolicy }
   | { type: "SET_PAGE"; payload: number }
@@ -56,8 +52,6 @@ function reducer(state: ViewState, action: Action): ViewState {
     }
     case "SET_SORT":
       return { ...state, sort: action.payload, page: 1 };
-    case "SET_VIEW":
-      return { ...state, view: action.payload };
     case "TOGGLE_CALENDAR":
       return { ...state, calendarVisible: !state.calendarVisible };
     case "SET_FAVORITES_POLICY":
@@ -74,7 +68,6 @@ function reducer(state: ViewState, action: Action): ViewState {
 }
 
 interface PersistedState {
-  view?: View;
   calendarVisible?: boolean;
   pageSize?: number;
   sort?: Sort;
@@ -97,7 +90,6 @@ function saveToStorage(state: ViewState) {
   if (typeof window === "undefined") return;
   try {
     const persisted: PersistedState = {
-      view: state.view,
       calendarVisible: state.calendarVisible,
       pageSize: state.pageSize,
       sort: state.sort,
@@ -114,8 +106,6 @@ function loadFromUrl(): Partial<ViewState> {
   try {
     const params = new URLSearchParams(window.location.search);
     const out: Partial<ViewState> = {};
-    const view = params.get("view");
-    if (view === "cards" || view === "list") out.view = view;
     const page = params.get("page");
     if (page) {
       const n = parseInt(page, 10);
@@ -133,8 +123,6 @@ function updateUrl(state: ViewState) {
   if (typeof window === "undefined") return;
   try {
     const params = new URLSearchParams(window.location.search);
-    if (state.view !== DEFAULT_STATE.view) params.set("view", state.view);
-    else params.delete("view");
     if (state.page > 1) params.set("page", String(state.page));
     else params.delete("page");
     if (state.query) params.set("q", state.query);
@@ -172,7 +160,6 @@ export function useJobPostingsView() {
     [],
   );
   const setSort = useCallback((payload: Sort) => dispatch({ type: "SET_SORT", payload }), []);
-  const setView = useCallback((payload: View) => dispatch({ type: "SET_VIEW", payload }), []);
   const toggleCalendar = useCallback(() => dispatch({ type: "TOGGLE_CALENDAR" }), []);
   const setFavoritesPolicy = useCallback(
     (payload: FavoritesPolicy) => dispatch({ type: "SET_FAVORITES_POLICY", payload }),
@@ -189,7 +176,6 @@ export function useJobPostingsView() {
     setQuery,
     toggleStatus,
     setSort,
-    setView,
     toggleCalendar,
     setFavoritesPolicy,
     setPage,

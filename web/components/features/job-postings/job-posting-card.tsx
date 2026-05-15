@@ -81,8 +81,11 @@ export function JobPostingCard({
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-md border border-border/80 bg-background shadow-sm transition-all duration-150",
-        "hover:-translate-y-px hover:border-foreground/20 hover:shadow-md",
+        "group relative flex h-full flex-col overflow-hidden rounded-lg border border-border/60 transition-all duration-200",
+        // 종이 같은 미세 그라디언트 + 이중 음영
+        "bg-gradient-to-br from-white to-slate-50/70 dark:from-slate-900 dark:to-slate-950/60",
+        "shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_-4px_rgba(15,23,42,0.06)]",
+        "hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_10px_20px_-6px_rgba(15,23,42,0.10)]",
       )}
     >
       {/* 좌측 상태 액센트 바: 상태별 색 + 즐겨찾기는 굵고 amber */}

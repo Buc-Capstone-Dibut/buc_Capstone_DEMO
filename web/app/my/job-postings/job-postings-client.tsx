@@ -6,7 +6,6 @@ import {
   type CalendarEvent,
 } from "@/components/features/job-postings/job-posting-calendar";
 import { JobPostingList } from "@/components/features/job-postings/job-posting-list";
-import { JobPostingListView } from "@/components/features/job-postings/job-posting-list-view";
 import { JobPostingFormDialog } from "@/components/features/job-postings/job-posting-form-dialog";
 import { JobPostingsHeader } from "@/components/features/job-postings/job-postings-header";
 import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
@@ -36,7 +35,6 @@ export function JobPostingsClient() {
     setQuery,
     toggleStatus,
     setSort,
-    setView,
     toggleCalendar,
     setFavoritesPolicy,
     setPage,
@@ -180,25 +178,6 @@ export function JobPostingsClient() {
     [postings, state.statusFilters, fetchList],
   );
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      if (typeof window !== "undefined" && !window.confirm("이 채용공고를 삭제하시겠습니까?")) {
-        return;
-      }
-      try {
-        const res = await fetch(`/api/my/job-postings/${id}`, { method: "DELETE" });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || "삭제 실패");
-        await Promise.all([fetchList(), fetchCalendar()]);
-      } catch (e: unknown) {
-        if (typeof window !== "undefined") {
-          window.alert((e as { message?: string })?.message ?? "삭제에 실패했습니다.");
-        }
-      }
-    },
-    [fetchList, fetchCalendar],
-  );
-
   const hasFilters = useMemo(
     () =>
       state.query.trim().length > 0 ||
@@ -223,7 +202,6 @@ export function JobPostingsClient() {
         onQueryChange={setQuery}
         onToggleStatus={toggleStatus}
         onSetSort={setSort}
-        onSetView={setView}
         onToggleCalendar={toggleCalendar}
         onSetFavoritesPolicy={setFavoritesPolicy}
         onClickCreate={() => setDialogOpen(true)}
@@ -259,20 +237,13 @@ export function JobPostingsClient() {
             ) : (
               <EmptyJobPostings onCreate={() => setDialogOpen(true)} />
             )
-          ) : state.view === "cards" ? (
+          ) : (
             <JobPostingList
               postings={postings}
               onToggleFavorite={handleToggleFavorite}
               onChangeStatus={handleChangeStatus}
               emptyMessage={emptyMessage}
               compact={state.calendarVisible}
-            />
-          ) : (
-            <JobPostingListView
-              postings={postings}
-              onToggleFavorite={handleToggleFavorite}
-              onChangeStatus={handleChangeStatus}
-              onDelete={handleDelete}
             />
           )}
 
