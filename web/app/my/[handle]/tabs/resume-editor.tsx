@@ -10,16 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
-  ChevronLeft,
   Download,
   Inbox,
   Loader2,
-  PencilLine,
   Plus,
   Sparkles,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +33,7 @@ import { ResumeAiTuneDialog } from "@/components/features/resume/resume-ai-tune-
 import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
+import { CategorizedSkillPicker } from "@/components/features/resume/categorized-skill-picker";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
@@ -53,9 +51,8 @@ interface ResumeEditorProps {
   title?: string;
   onTitleChange?: (title: string) => void;
   /**
-   * true 일 때 미리보기 클릭으로 좌측 편집 패널을 펼치고, 미리보기·편집 패널 바깥을
-   * 클릭하면 다시 접는다. /resume 페이지에서만 사용한다. 마이페이지 탭은 항상 펼친
-   * 상태를 유지하기 위해 기본값(false)을 그대로 둔다.
+   * @deprecated 더 이상 사용되지 않는다. 편집 패널은 항상 펼쳐진 상태로 유지된다.
+   * 외부 호출 시그니처 호환을 위해 prop 자체는 남겨두지만 내부 동작에는 영향이 없다.
    */
   previewToggleMode?: boolean;
 }
@@ -67,7 +64,6 @@ export function ResumeEditor({
   saving,
   title = "",
   onTitleChange,
-  previewToggleMode = false,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -77,38 +73,12 @@ export function ResumeEditor({
   const [isAiTuneDialogOpen, setIsAiTuneDialogOpen] = useState(false);
   const hasAutoOpenedImportRef = useRef(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
-  // 미리보기-토글 모드의 좌측 패널 표시 여부. 사용자가 편집기를 자주 쓰므로 기본 펼침.
-  // 각 입력 카드는 CollapsibleSection 으로 따로 접고 펼칠 수 있다.
-  const [isEditPanelOpen, setIsEditPanelOpen] = useState(true);
+  // 편집 패널은 항상 켜져있다 (사용자가 "클릭해서 열기" 같은 한 번 더의 조작 없이 즉시
+  // 편집 가능). 과거에 있던 previewToggleMode 의 패널-숨김 기능은 제거됐다.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editPanelRef = useRef<HTMLDivElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
-
-  // previewToggleMode + 편집 패널이 열린 상태에서, 패널과 미리보기 영역 바깥을
-  // 클릭하면 패널을 접는다. shadcn Popover/Dialog 같은 portal 요소는 외부로 보지 않는다.
-  useEffect(() => {
-    if (!previewToggleMode || !isEditPanelOpen) return;
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      if (editPanelRef.current?.contains(target)) return;
-      if (previewRef.current?.contains(target)) return;
-      // Radix portal (popover, dropdown, dialog) 안에서 일어난 클릭은 무시.
-      if (
-        target.closest(
-          "[data-radix-popper-content-wrapper], [data-radix-portal], [role='dialog'], [role='listbox']",
-        )
-      ) {
-        return;
-      }
-      setIsEditPanelOpen(false);
-    };
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [previewToggleMode, isEditPanelOpen]);
-
-  const showEditPanel = !previewToggleMode || isEditPanelOpen;
 
   const [isPrefillingProfile, setIsPrefillingProfile] = useState(false);
   /**
@@ -655,12 +625,10 @@ export function ResumeEditor({
       <div
         className={cn(
           "grid grid-cols-1 gap-6",
-          showEditPanel
-            ? "xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]"
-            : "max-w-5xl mx-auto",
+          // 우측 미리보기에 더 넓은 비중을 줘서 A4 본문이 시원하게 보이도록 비율 조정.
+          "xl:grid-cols-[minmax(320px,0.55fr)_minmax(640px,1.45fr)] 2xl:grid-cols-[minmax(360px,0.50fr)_minmax(780px,1.5fr)]",
         )}
       >
-        {showEditPanel && (
         <div ref={editPanelRef} className="space-y-5">
       {/* File parsing banner */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
@@ -1004,23 +972,14 @@ export function ResumeEditor({
         badge={payload.skills.length > 0 ? `${payload.skills.length}개` : undefined}
         defaultOpen
       >
-          <TechStackCombobox
-            value={payload.skills.map((s) => s.name)}
-            onChange={(nextNames) => {
-              // 기존 항목의 level/category 메타데이터는 보존하고,
-              // 신규 항목은 기본 "Intermediate" 로 채운다.
-              const prevByName = new Map(
-                payload.skills.map((s) => [s.name, s]),
-              );
-              const nextSkills = nextNames.map(
-                (name) => prevByName.get(name) ?? { name, level: "Intermediate" },
-              );
-              onChange({ ...payload, skills: nextSkills });
-            }}
-            placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
+          <CategorizedSkillPicker
+            value={payload.skills}
+            onChange={(nextSkills) => onChange({ ...payload, skills: nextSkills })}
           />
           <p className="text-[11px] text-muted-foreground">
-            사전 등록된 기술은 로고가 자동 매칭되며, 자유 입력도 함께 저장됩니다. 기존 항목의 숙련도 메타데이터는 유지됩니다.
+            추가된 기술은 자동으로 직무별(프론트엔드 · 백엔드 · 모바일 · DevOps 등) 카테고리에 분류돼서
+            이력서에 한눈에 들어오도록 표시됩니다. 자유 입력 항목은 "기타" 로 들어가며 칩의 카테고리 라벨을
+            눌러 원하는 카테고리로 직접 옮길 수 있습니다.
           </p>
       </CollapsibleSection>
 
@@ -1226,64 +1185,24 @@ export function ResumeEditor({
           </Button>
       </CollapsibleSection>
 
-      <div className="flex items-center justify-between gap-2 pt-2">
-        {previewToggleMode ? (
-          <Button
-            variant="ghost"
-            onClick={() => setIsEditPanelOpen(false)}
-            className="text-slate-500"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" /> 미리보기로 돌아가기
-          </Button>
-        ) : (
-          <span />
-        )}
+      <div className="flex items-center justify-end gap-2 pt-2">
         <Button onClick={onSave} disabled={saving} size="lg" className="gap-2 px-8">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           이력서 저장
         </Button>
       </div>
         </div>
-        )}
 
         <div
           ref={previewRef}
           className={cn(
             "min-w-0",
-            showEditPanel && "xl:sticky xl:top-24 xl:self-start",
-            previewToggleMode &&
-              !isEditPanelOpen &&
-              "group relative cursor-pointer transition-shadow hover:shadow-lg",
+            // 좌측 입력 폼이 길어져도 우측 미리보기가 항상 보이도록 sticky 처리.
+            // A4 한 장의 고정 높이를 유지해야 하므로 내부 스크롤은 두지 않는다 —
+            // 페이지가 길어져도 페이지 nav(이전/다음) 로 넘긴다.
+            "xl:sticky xl:top-24 xl:self-start",
           )}
-          onClick={() => {
-            if (previewToggleMode && !isEditPanelOpen) setIsEditPanelOpen(true);
-          }}
-          role={previewToggleMode && !isEditPanelOpen ? "button" : undefined}
-          aria-label={
-            previewToggleMode && !isEditPanelOpen
-              ? "미리보기를 클릭해 편집 패널 열기"
-              : undefined
-          }
         >
-          {previewToggleMode && !isEditPanelOpen && (
-            <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-primary/90 px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md backdrop-blur-sm">
-              <PencilLine className="h-3.5 w-3.5" aria-hidden />
-              클릭하여 편집 패널 열기
-            </div>
-          )}
-          {previewToggleMode && isEditPanelOpen && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditPanelOpen(false);
-              }}
-              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-slate-500 shadow-md ring-1 ring-slate-200 transition hover:bg-slate-100 hover:text-slate-800"
-              aria-label="편집 패널 닫기"
-            >
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-          )}
           <KoreanResumePreview
             payload={payload}
             title={title}
