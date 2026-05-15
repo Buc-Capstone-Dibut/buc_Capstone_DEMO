@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, Sparkles, Wand2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Sparkles, Wand2 } from "lucide-react";
 
 interface JobPostingDraft {
   companyName?: string;
@@ -28,14 +28,14 @@ interface JobPostingDraft {
   memo?: string;
 }
 
-type SourceKind = "resume" | "cover_letter";
+type SourceKind = "resume" | "cover_letter" | "portfolio" | "project";
 
 type ItemOption = { id: string; title: string; isActive?: boolean; updatedAt?: string };
 
 export interface ImportFromMyDataPanelProps {
   onApply: (
     draft: JobPostingDraft,
-    attach?: { type: SourceKind; id: string },
+    attach?: { type: SourceKind; id: string; label?: string },
   ) => void;
 }
 
@@ -44,30 +44,36 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
   const [source, setSource] = useState<SourceKind>("resume");
   const [resumes, setResumes] = useState<ItemOption[]>([]);
   const [coverLetters, setCoverLetters] = useState<ItemOption[]>([]);
+  const [portfolios, setPortfolios] = useState<ItemOption[]>([]);
+  const [projects, setProjects] = useState<ItemOption[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [draft, setDraft] = useState<JobPostingDraft | null>(null);
   const [sourceLabel, setSourceLabel] = useState("");
   const [suggestedAttachment, setSuggestedAttachment] = useState<{
     type: SourceKind;
     id: string;
+    label?: string;
   } | null>(null);
   const [autoAttach, setAutoAttach] = useState(true);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 마운트 시 자료 목록 페치
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const [rRes, clRes] = await Promise.all([
+        const [rRes, clRes, pfRes, pjRes] = await Promise.all([
           fetch("/api/my/resume", { cache: "no-store" }),
           fetch("/api/my/cover-letters", { cache: "no-store" }),
+          fetch("/api/career/portfolios", { cache: "no-store" }).catch(() => null),
+          fetch("/api/my/projects", { cache: "no-store" }).catch(() => null),
         ]);
         const rj = await rRes.json().catch(() => null);
         const clj = await clRes.json().catch(() => null);
+        const pfj = pfRes ? await pfRes.json().catch(() => null) : null;
+        const pjj = pjRes ? await pjRes.json().catch(() => null) : null;
         if (cancelled) return;
         const rawResumes = Array.isArray(rj?.data?.items)
           ? (rj.data.items as Array<Record<string, unknown>>)
@@ -100,10 +106,29 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
                 ? c.updated_at
                 : undefined,
         }));
+
+        const rawPortfolios = Array.isArray(pfj?.items ?? pfj?.data?.items ?? pfj?.data)
+          ? ((pfj?.items ?? pfj?.data?.items ?? pfj?.data) as Array<Record<string, unknown>>)
+          : [];
+        const pfItems: ItemOption[] = rawPortfolios.map((p) => ({
+          id: String(p.id ?? ""),
+          title: (typeof p.title === "string" && p.title) || "포트폴리오",
+        }));
+
+        const rawProjects = Array.isArray(pjj?.data?.items ?? pjj?.data)
+          ? ((pjj?.data?.items ?? pjj?.data) as Array<Record<string, unknown>>)
+          : [];
+        const pjItems: ItemOption[] = rawProjects.map((p) => ({
+          id: String(p.id ?? ""),
+          title: (typeof p.title === "string" && p.title) || "프로젝트",
+        }));
+
         setResumes(rItems);
         setCoverLetters(clItems);
+        setPortfolios(pfItems);
+        setProjects(pjItems);
       } catch {
-        // ignore — 사용자가 다시 시도 가능
+        // ignore
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -114,18 +139,16 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
     };
   }, []);
 
-  // source 변경 시 selectedId를 해당 소스의 첫 항목으로 초기화
   useEffect(() => {
-    const list = source === "resume" ? resumes : coverLetters;
+    const list = source === "resume" ? resumes : source === "cover_letter" ? coverLetters : source === "portfolio" ? portfolios : projects;
     if (list.length === 0) {
       setSelectedId("");
       return;
     }
-    // 이미 유효한 id면 유지
     if (selectedId && list.some((it) => it.id === selectedId)) return;
     const active = list.find((it) => it.isActive);
     setSelectedId(active?.id ?? list[0]?.id ?? "");
-  }, [source, resumes, coverLetters, selectedId]);
+  }, [source, resumes, coverLetters, portfolios, projects, selectedId]);
 
   // 미리보기 초기화: 소스 변경 시 이전 결과 클리어
   useEffect(() => {
@@ -135,27 +158,19 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
     setError(null);
   }, [source]);
 
-  const currentList = source === "resume" ? resumes : coverLetters;
+  const currentList = source === "resume" ? resumes : source === "cover_letter" ? coverLetters : source === "portfolio" ? portfolios : projects;
 
   const pickActive = () => {
-    if (source === "resume") {
-      const active = resumes.find((r) => r.isActive);
-      if (active) {
-        setSelectedId(active.id);
-        return;
-      }
-      // fallback: 가장 최근
-      if (resumes[0]) setSelectedId(resumes[0].id);
-      return;
-    }
-    // cover_letter: is_active 우선, 없으면 첫 항목(API가 updated_at desc로 줌)
-    const active = coverLetters.find((c) => c.isActive);
+    const list = currentList;
+    const active = list.find((it) => it.isActive);
     if (active) {
       setSelectedId(active.id);
       return;
     }
-    if (coverLetters[0]) setSelectedId(coverLetters[0].id);
+    if (list[0]) setSelectedId(list[0].id);
   };
+
+  const isDirectAttach = source === "portfolio" || source === "project";
 
   const extract = async () => {
     setError(null);
@@ -187,11 +202,19 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
     }
   };
 
+  const directAttach = () => {
+    if (!selectedId) return;
+    const item = currentList.find((it) => it.id === selectedId);
+    const label = item?.title ?? "";
+    onApply({}, { type: source, id: selectedId, label });
+    setOpen(false);
+  };
+
   const apply = () => {
     if (!draft) return;
     const attach =
       autoAttach && suggestedAttachment
-        ? { type: suggestedAttachment.type, id: suggestedAttachment.id }
+        ? { type: suggestedAttachment.type, id: suggestedAttachment.id, label: suggestedAttachment.label }
         : undefined;
     onApply(draft, attach);
     setOpen(false);
@@ -235,7 +258,7 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
             <Sparkles className="h-4 w-4 text-primary" />
             내 자료에서 가져오기
             <span className="text-xs font-normal text-muted-foreground">
-              이력서·자기소개서에서 회사/직무/기술 스택을 자동으로 채워요
+              이력서·자소서·포트폴리오·프로젝트를 연결해요
             </span>
           </span>
           {open ? (
@@ -252,7 +275,7 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
           <RadioGroup
             value={source}
             onValueChange={(v) => setSource(v as SourceKind)}
-            className="flex gap-4"
+            className="flex flex-wrap gap-4"
           >
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <RadioGroupItem value="resume" id="import-source-resume" />
@@ -261,6 +284,14 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <RadioGroupItem value="cover_letter" id="import-source-cover-letter" />
               <span>자기소개서</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="portfolio" id="import-source-portfolio" />
+              <span>포트폴리오</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="project" id="import-source-project" />
+              <span>프로젝트</span>
             </label>
           </RadioGroup>
         </div>
@@ -280,9 +311,7 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
                     loading
                       ? "불러오는 중…"
                       : currentList.length === 0
-                        ? source === "resume"
-                          ? "등록된 이력서가 없습니다"
-                          : "등록된 자기소개서가 없습니다"
+                        ? `등록된 ${source === "resume" ? "이력서" : source === "cover_letter" ? "자기소개서" : source === "portfolio" ? "포트폴리오" : "프로젝트"}가 없습니다`
                         : "항목 선택"
                   }
                 />
@@ -309,17 +338,29 @@ export function ImportFromMyDataPanel({ onApply }: ImportFromMyDataPanelProps) {
           </div>
         </div>
 
-        {/* 3. 추출 버튼 */}
+        {/* 3. 추출 또는 직접 연결 버튼 */}
         <div className="flex items-center justify-between gap-2">
-          <Button
-            type="button"
-            size="sm"
-            onClick={extract}
-            disabled={extracting || (!selectedId && currentList.length > 0)}
-          >
-            <Wand2 className="mr-1 h-3.5 w-3.5" />
-            {extracting ? "추출 중…" : "추출하기"}
-          </Button>
+          {isDirectAttach ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={directAttach}
+              disabled={!selectedId}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              공고에 연결
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              onClick={extract}
+              disabled={extracting || (!selectedId && currentList.length > 0)}
+            >
+              <Wand2 className="mr-1 h-3.5 w-3.5" />
+              {extracting ? "추출 중…" : "추출하기"}
+            </Button>
+          )}
           {sourceLabel && (
             <span className="text-xs text-muted-foreground">{sourceLabel}</span>
           )}

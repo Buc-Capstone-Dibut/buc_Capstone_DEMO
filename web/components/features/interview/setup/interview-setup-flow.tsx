@@ -33,6 +33,8 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
     setJobData,
     setTarget,
     setStep,
+    setAttachedPortfolios,
+    setAttachedProjects,
   } = useInterviewSetupStore();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,6 +93,12 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
             });
             setResumePrefillSource(d.resumePrefillSource ?? null);
           }
+          if (Array.isArray(d.attachedPortfolios) && d.attachedPortfolios.length) {
+            setAttachedPortfolios(d.attachedPortfolios);
+          }
+          if (Array.isArray(d.attachedProjects) && d.attachedProjects.length) {
+            setAttachedProjects(d.attachedProjects);
+          }
           setStep("jd-check");
           toast({
             title: "채용공고 자동 채움 완료",
@@ -148,6 +156,8 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
     setJobData,
     setTarget,
     setStep,
+    setAttachedPortfolios,
+    setAttachedProjects,
     toast,
     track,
   ]);

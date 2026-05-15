@@ -3,6 +3,36 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import prisma from "@/lib/prisma";
 
+function dereferenceProjects(
+  attachments: { attachment_type: string; project_id: string | null; project_label: string | null }[],
+  resumePayload: any,
+): { id: string; name: string; period: string; techStack: string[]; description: string }[] {
+  const projectAttachments = attachments.filter(
+    (a) => a.attachment_type === "project" && a.project_id,
+  );
+  if (!projectAttachments.length) return [];
+
+  const projects: any[] = Array.isArray(resumePayload?.projects) ? resumePayload.projects : [];
+  return projectAttachments
+    .map((att) => {
+      const found = projects.find((p: any) => p.id === att.project_id);
+      if (found) {
+        return {
+          id: found.id ?? att.project_id!,
+          name: found.name ?? found.title ?? att.project_label ?? "",
+          period: found.period ?? "",
+          techStack: Array.isArray(found.techStack) ? found.techStack : [],
+          description: found.description ?? "",
+        };
+      }
+      if (att.project_label) {
+        return { id: att.project_id!, name: att.project_label, period: "", techStack: [], description: "" };
+      }
+      return null;
+    })
+    .filter(Boolean) as any[];
+}
+
 export async function GET(_: Request, ctx: { params: { id: string } }) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
@@ -51,7 +81,6 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
     );
     if (coverAttachment) {
       if (coverAttachment.cover_letter_id != null) {
-        // 신규 방식: 독립 자기소개서 테이블에서 직접 조회
         const cl = await (prisma as any).user_cover_letters.findFirst({
           where: { id: coverAttachment.cover_letter_id, user_id: session.user.id },
         });
@@ -68,7 +97,6 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
         coverAttachment.resume_id != null &&
         coverAttachment.cover_letter_index != null
       ) {
-        // legacy: resume_payload.coverLetters[index]
         const r = await prisma.user_resumes.findFirst({
           where: { id: coverAttachment.resume_id, user_id: session.user.id },
         });
@@ -87,6 +115,30 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
       }
     }
 
+    // 포트폴리오: 첨부된 portfolio_id 로 조회
+    const portfolioIds = posting.attachments
+      .filter((a) => a.attachment_type === "portfolio" && a.portfolio_id)
+      .map((a) => a.portfolio_id!);
+
+    const attachedPortfolios = portfolioIds.length
+      ? (
+          await prisma.user_portfolios.findMany({
+            where: { id: { in: portfolioIds }, user_id: session.user.id },
+            select: { id: true, title: true, template_id: true, format: true },
+          })
+        ).map((p) => ({ id: p.id, title: p.title }))
+      : [];
+
+    // 프로젝트: resume_payload.projects[] 에서 dereference
+    const masterProfile = await prisma.user_resume_profiles.findUnique({
+      where: { user_id: session.user.id },
+    });
+    const profilePayload = (masterProfile as any)?.resume_payload ?? (resume?.resume_payload as any);
+    const attachedProjects = dereferenceProjects(
+      posting.attachments as any[],
+      profilePayload,
+    );
+
     return NextResponse.json({
       success: true,
       data: {
@@ -104,6 +156,8 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
         resumeData,
         resumePrefillSource,
         suggestedCoverLetter,
+        attachedPortfolios,
+        attachedProjects,
       },
     });
   } catch (error: any) {

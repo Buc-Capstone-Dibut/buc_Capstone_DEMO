@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentPicker } from "@/components/features/job-postings/attachment-picker";
+import { InterviewLaunchOverlay } from "@/components/features/job-postings/interview-launch-overlay";
 import {
   KIND_COLOR,
   KIND_LABEL,
@@ -29,7 +30,7 @@ const DATE_TIME = new Intl.DateTimeFormat("ko-KR", {
 export function JobPostingDetailClient({ postingId }: { postingId: string }) {
   const [posting, setPosting] = useState<JobPostingRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [launchOpen, setLaunchOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,22 +113,12 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
             </Button>
           )}
           <Button
-            asChild
             size="sm"
             className="h-8 rounded-sm"
-            disabled={interviewLoading}
-            onClick={() => setInterviewLoading(true)}
+            onClick={() => setLaunchOpen(true)}
           >
-            <Link
-              href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
-            >
-              {interviewLoading ? (
-                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : (
-                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
-              )}
-              이 공고로 모의면접
-            </Link>
+            <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
+            이 공고로 모의면접
           </Button>
         </div>
       </div>
@@ -328,6 +319,14 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
         </footer>
       </article>
       </div>
+
+      <InterviewLaunchOverlay
+        postingId={posting.id}
+        companyName={posting.companyName}
+        roleTitle={posting.roleTitle}
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+      />
     </div>
   );
 }

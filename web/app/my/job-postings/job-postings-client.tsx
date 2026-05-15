@@ -44,6 +44,7 @@ export function JobPostingsClient() {
     setSort,
     toggleCalendar,
     setFavoritesPolicy,
+    setAttachFilter,
     setPage,
   } = useJobPostingsView();
 
@@ -84,6 +85,7 @@ export function JobPostingsClient() {
       }
       if (folderFilter.kind === "folder") params.set("folder", folderFilter.id);
       else if (folderFilter.kind === "unfiled") params.set("folder", "unfiled");
+      if (state.attachFilter) params.set("attachFilter", state.attachFilter);
       params.set("page", String(state.page));
       params.set("pageSize", String(state.pageSize));
 
@@ -108,6 +110,7 @@ export function JobPostingsClient() {
     state.statusFilters,
     state.sort,
     state.favoritesPolicy,
+    state.attachFilter,
     state.page,
     state.pageSize,
     folderFilter,
@@ -253,6 +256,7 @@ export function JobPostingsClient() {
         onSetSort={setSort}
         onToggleCalendar={toggleCalendar}
         onSetFavoritesPolicy={setFavoritesPolicy}
+        onSetAttachFilter={setAttachFilter}
         onClickCreate={() => setDialogOpen(true)}
       />
 

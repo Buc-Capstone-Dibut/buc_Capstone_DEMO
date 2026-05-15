@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { JobPostingStatus } from "@/lib/job-postings/types";
 import type {
+  AttachFilter,
   FavoritesPolicy,
   Sort,
   ViewState,
@@ -52,6 +53,7 @@ interface JobPostingsHeaderProps {
   onSetSort: (sort: Sort) => void;
   onToggleCalendar: () => void;
   onSetFavoritesPolicy: (policy: FavoritesPolicy) => void;
+  onSetAttachFilter: (filter: AttachFilter) => void;
   onClickCreate: () => void;
 }
 
@@ -63,6 +65,7 @@ export function JobPostingsHeader({
   onSetSort,
   onToggleCalendar,
   onSetFavoritesPolicy,
+  onSetAttachFilter,
   onClickCreate,
 }: JobPostingsHeaderProps) {
   return (
@@ -138,6 +141,30 @@ export function JobPostingsHeader({
             />
             {FAVORITES_LABEL[state.favoritesPolicy]}
           </button>
+
+          {/* attachment-aware 필터 */}
+          {(["missing_resume", "missing_cover_letter", "ready"] as const).map((f) => {
+            const label = f === "missing_resume" ? "이력서 미연결" : f === "missing_cover_letter" ? "자소서 미작성" : "준비 완료";
+            const active = state.attachFilter === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => onSetAttachFilter(active ? null : f)}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                  active
+                    ? f === "ready"
+                      ? "border-transparent bg-emerald-100 text-emerald-700"
+                      : "border-transparent bg-amber-100 text-amber-700"
+                    : "border-input bg-background text-muted-foreground hover:bg-accent",
+                )}
+                aria-pressed={active}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-2">
@@ -192,7 +219,7 @@ export function JobPostingsHeader({
         </div>
       </div>
 
-      {(state.statusFilters.length > 0 || state.query || state.favoritesPolicy !== "off") && (
+      {(state.statusFilters.length > 0 || state.query || state.favoritesPolicy !== "off" || state.attachFilter) && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span>활성 필터:</span>
           {state.query && <Badge variant="secondary">검색: {state.query}</Badge>}
@@ -206,6 +233,11 @@ export function JobPostingsHeader({
           })}
           {state.favoritesPolicy !== "off" && (
             <Badge variant="secondary">{FAVORITES_LABEL[state.favoritesPolicy]}</Badge>
+          )}
+          {state.attachFilter && (
+            <Badge variant="secondary">
+              {state.attachFilter === "missing_resume" ? "이력서 미연결" : state.attachFilter === "missing_cover_letter" ? "자소서 미작성" : "준비 완료"}
+            </Badge>
           )}
         </div>
       )}

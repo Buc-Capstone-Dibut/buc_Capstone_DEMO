@@ -63,7 +63,8 @@ type ScheduleDraft = {
   memo: string;
 };
 
-type PendingAttachment = { type: "resume" | "cover_letter"; id: string };
+type AttachmentKind = "resume" | "cover_letter" | "portfolio" | "project";
+type PendingAttachment = { type: AttachmentKind; id: string; label?: string };
 
 const URL_PATTERN = /^https?:\/\/[^\s]+$/i;
 
@@ -124,12 +125,22 @@ export function JobPostingFormDialog({
     ),
   );
 
-  const [pendingAttachment, setPendingAttachment] =
-    useState<PendingAttachment | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+
+  const addPendingAttachment = (att: PendingAttachment) => {
+    setPendingAttachments((prev) => {
+      if (prev.some((p) => p.type === att.type && p.id === att.id)) return prev;
+      return [...prev, att];
+    });
+  };
+
+  const removePendingAttachment = (type: AttachmentKind, id: string) => {
+    setPendingAttachments((prev) => prev.filter((p) => !(p.type === type && p.id === id)));
+  };
 
   const handleApplyDraft = (
     draft: JobPostingDraft,
-    attach?: { type: "resume" | "cover_letter"; id: string },
+    attach?: { type: AttachmentKind; id: string; label?: string },
   ) => {
     if (!companyName.trim() && draft.companyName) setCompanyName(draft.companyName);
     if (!roleTitle.trim() && draft.roleTitle) setRoleTitle(draft.roleTitle);
@@ -137,7 +148,7 @@ export function JobPostingFormDialog({
       setTechStack(draft.techStack ?? []);
     }
     if (!memo.trim() && draft.memo) setMemo(draft.memo);
-    if (attach) setPendingAttachment(attach);
+    if (attach) addPendingAttachment(attach);
     setDetailsOpen(true);
   };
 
@@ -296,31 +307,35 @@ export function JobPostingFormDialog({
           throw new Error(json?.error ?? "저장에 실패했습니다.");
         }
         const createdId: string | undefined = json?.data?.id;
-        if (createdId && pendingAttachment) {
-          const attachBody: Record<string, unknown> = {
-            attachmentType: pendingAttachment.type,
-          };
-          if (pendingAttachment.type === "resume") {
-            attachBody.resumeId = pendingAttachment.id;
-          } else {
-            attachBody.coverLetterId = pendingAttachment.id;
-          }
-          try {
-            await fetch(
-              `/api/my/job-postings/${createdId}/attachments`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(attachBody),
-              },
-            );
-          } catch {
-            // ignore
+        if (createdId && pendingAttachments.length > 0) {
+          for (const att of pendingAttachments) {
+            const attachBody: Record<string, unknown> = {
+              attachmentType: att.type,
+            };
+            if (att.type === "resume") attachBody.resumeId = att.id;
+            else if (att.type === "cover_letter") attachBody.coverLetterId = att.id;
+            else if (att.type === "portfolio") attachBody.portfolioId = att.id;
+            else if (att.type === "project") {
+              attachBody.projectId = att.id;
+              attachBody.projectLabel = att.label ?? "";
+            }
+            try {
+              await fetch(
+                `/api/my/job-postings/${createdId}/attachments`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(attachBody),
+                },
+              );
+            } catch {
+              // ignore
+            }
           }
         }
         if (onCreated) await onCreated();
       }
-      setPendingAttachment(null);
+      setPendingAttachments([]);
       onOpenChange(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : "저장에 실패했습니다.";
@@ -615,18 +630,21 @@ export function JobPostingFormDialog({
           </div>
         )}
 
-        {pendingAttachment && (
+        {pendingAttachments.length > 0 && (
           <div className="border-t bg-primary/5 px-6 py-3 text-xs text-muted-foreground">
-            등록 시{" "}
-            {pendingAttachment.type === "resume" ? "이력서" : "자기소개서"}가
-            자동으로 연결됩니다.{" "}
-            <button
-              type="button"
-              className="ml-1 text-primary underline"
-              onClick={() => setPendingAttachment(null)}
-            >
-              해제
-            </button>
+            <span>등록 시 자동 연결: </span>
+            {pendingAttachments.map((att) => (
+              <span key={`${att.type}-${att.id}`} className="mr-2 inline-flex items-center gap-1">
+                {att.type === "resume" ? "이력서" : att.type === "cover_letter" ? "자소서" : att.type === "portfolio" ? "포트폴리오" : "프로젝트"}
+                <button
+                  type="button"
+                  className="text-primary underline"
+                  onClick={() => removePendingAttachment(att.type, att.id)}
+                >
+                  해제
+                </button>
+              </span>
+            ))}
           </div>
         )}
 

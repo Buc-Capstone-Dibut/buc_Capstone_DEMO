@@ -75,6 +75,7 @@ export function toRecord(row: any): JobPostingRecord {
         portfolioId: a.portfolio_id ?? null,
         projectId: a.project_id ?? null,
         projectLabel: a.project_label ?? null,
+        snapshotPayload: a.snapshot_payload ?? null,
       }),
     ),
   };

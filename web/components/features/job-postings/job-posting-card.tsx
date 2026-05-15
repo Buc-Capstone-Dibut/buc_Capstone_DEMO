@@ -11,12 +11,12 @@ import {
   FolderClosed,
   FolderKanban,
   Layers,
-  Loader2,
   Palette,
   PenLine,
   Sparkles,
   Star,
 } from "lucide-react";
+import { InterviewLaunchOverlay } from "./interview-launch-overlay";
 import {
   Popover,
   PopoverContent,
@@ -103,7 +103,7 @@ export function JobPostingCard({
 }: JobPostingCardProps) {
   const next = nextSchedule(posting.schedules);
   const fav = posting.isFavorite;
-  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [launchOpen, setLaunchOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
   const attachCounts = countAttachments(posting.attachments);
@@ -440,25 +440,22 @@ export function JobPostingCard({
           )}
         </div>
         <Button
-          asChild
           size="sm"
           className="h-7 rounded-sm px-2.5 text-[11px]"
-          disabled={interviewLoading}
-          onClick={() => setInterviewLoading(true)}
+          onClick={() => setLaunchOpen(true)}
         >
-          <Link
-            href={`/interview/posting/setup?import=job_posting&postingId=${posting.id}`}
-            aria-label="이 공고로 모의면접 시작"
-          >
-            {interviewLoading ? (
-              <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="mr-1 h-3 w-3" aria-hidden />
-            )}
-            모의면접
-          </Link>
+          <Sparkles className="mr-1 h-3 w-3" aria-hidden />
+          모의면접
         </Button>
       </footer>
+
+      <InterviewLaunchOverlay
+        postingId={posting.id}
+        companyName={posting.companyName}
+        roleTitle={posting.roleTitle}
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+      />
     </article>
   );
 }
