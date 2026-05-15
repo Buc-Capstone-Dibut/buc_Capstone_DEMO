@@ -73,6 +73,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
@@ -138,7 +139,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "5.22.0",
     "@types/node": "^22",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.16.0",
@@ -147,7 +148,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.14",
     "postcss": "^8.5",
-    "prisma": "^5.22.0",
+    "prisma": "5.22.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",
     "typescript": "^5"

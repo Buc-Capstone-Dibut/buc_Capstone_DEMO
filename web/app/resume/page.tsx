@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../my/[handle]/profile-types";
 import { EMPTY_RESUME, normalizeResumePayload } from "../my/[handle]/profile-utils";
+import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
 
 
 export default function ResumePage() {
@@ -77,8 +78,33 @@ export default function ResumePage() {
             }
 
             // In setup mode or new mode, we start with a clean slate
+            // but prefill 기본 정보 from mypage profile so user doesn't retype.
             if ((isWizardModeFromUrl || isNewModeFromUrl) && !resumeId) {
-                setResumePayload(EMPTY_RESUME);
+                let prefilled: ResumePayload = { ...EMPTY_RESUME };
+                try {
+                    const meRes = await fetch("/api/my/me", { cache: "no-store" });
+                    if (meRes.ok) {
+                        const meJson = await meRes.json();
+                        if (meJson?.success && meJson.data) {
+                            const profile = meJson.data;
+                            prefilled = {
+                                ...prefilled,
+                                personalInfo: {
+                                    ...prefilled.personalInfo,
+                                    name: profile.nickname || prefilled.personalInfo.name,
+                                    email: profile.email || prefilled.personalInfo.email,
+                                    intro: profile.bio || prefilled.personalInfo.intro,
+                                },
+                                skills: Array.isArray(profile.techStack) && profile.techStack.length > 0
+                                    ? profile.techStack.map((name: string) => ({ name, level: "Intermediate" }))
+                                    : prefilled.skills,
+                            };
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to prefill from mypage profile:", error);
+                }
+                setResumePayload(prefilled);
                 setLoading(false);
                 return;
             }
@@ -281,7 +307,10 @@ export default function ResumePage() {
                 </div>
             )}
 
-            <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+            <header
+                data-no-print="true"
+                className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md"
+            >
                 <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="icon" onClick={() => router.back()} className="hover:bg-slate-100">
@@ -289,13 +318,29 @@ export default function ResumePage() {
                         </Button>
                         <div>
                             <h1 className="text-lg font-bold flex items-center gap-2">
-                                {/* <Sparkles className="w-4 h-4 text-primary" /> */}
                                 이력서 연구소
                             </h1>
                             <p className="text-[11px] text-muted-foreground font-medium">나만의 고유한 강점을 이력서에 담아보세요</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => window.print()}
+                            className="h-10 rounded-md border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:border-primary/40 hover:text-primary"
+                        >
+                            인쇄 / PDF로 저장
+                        </Button>
+                        <ResumePdfDownloadButton
+                            resumePayload={resumePayload}
+                            title={resumeTitle}
+                            fileName={resumeTitle || resumePayload.personalInfo?.name || "resume"}
+                            variant="outline"
+                            size="default"
+                            className="h-10 rounded-md border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:border-primary/40 hover:text-primary"
+                            label="PDF 다운로드"
+                        />
                         <Button variant="ghost" onClick={() => router.back()} className="text-slate-500">취소</Button>
                         <Button onClick={() => handleSave()} disabled={saving} className="gap-2 shadow-lg shadow-primary/20 bg-primary px-6">
                             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -314,6 +359,7 @@ export default function ResumePage() {
                     onGoSetup={() => { }}
                     title={resumeTitle}
                     onTitleChange={setResumeTitle}
+                    previewToggleMode
                 />
             </main>
         </div>

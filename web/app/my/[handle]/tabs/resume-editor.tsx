@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,30 +10,37 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
-  Code2,
+  ChevronLeft,
   Download,
-  FileText,
-  FolderKanban,
+  Inbox,
   Loader2,
+  PencilLine,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
-  UserRound,
-  type LucideIcon,
+  X,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../profile-types";
 import { normalizeResumePayload } from "../profile-utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { ExperienceImportModal } from "@/components/features/resume/ExperienceImportModal";
 import { WorkExperienceImportModal } from "@/components/features/resume/WorkExperienceImportModal";
 import {
+  ResumeImportDialog,
+  type ResumeImportSelection,
+} from "@/components/features/resume/resume-import-dialog";
+import { ResumeAiTuneDialog } from "@/components/features/resume/resume-ai-tune-dialog";
+import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
+import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
+import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
+import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
   type ResumeA4Options,
 } from "@/components/features/resume/KoreanResumePreview";
-import { TechStackCombobox } from "@/components/features/career/project-archive/tech-stack-combobox";
 import type { ProjectInput } from "@/app/career/projects/types";
 import type { WorkExperienceInput } from "@/app/career/work-experience/actions";
 
@@ -43,14 +52,13 @@ interface ResumeEditorProps {
   onGoSetup: () => void;
   title?: string;
   onTitleChange?: (title: string) => void;
+  /**
+   * true 일 때 미리보기 클릭으로 좌측 편집 패널을 펼치고, 미리보기·편집 패널 바깥을
+   * 클릭하면 다시 접는다. /resume 페이지에서만 사용한다. 마이페이지 탭은 항상 펼친
+   * 상태를 유지하기 위해 기본값(false)을 그대로 둔다.
+   */
+  previewToggleMode?: boolean;
 }
-
-type ResumeEditorSectionKey =
-  | "basic"
-  | "intro"
-  | "skills"
-  | "experience"
-  | "projects";
 
 export function ResumeEditor({
   payload,
@@ -59,78 +67,100 @@ export function ResumeEditor({
   saving,
   title = "",
   onTitleChange,
+  previewToggleMode = false,
 }: ResumeEditorProps) {
+  const searchParams = useSearchParams();
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
-  const [activeSection, setActiveSection] =
-    useState<ResumeEditorSectionKey>("basic");
+  const [isResumeImportDialogOpen, setIsResumeImportDialogOpen] = useState(false);
+  const [isAiTuneDialogOpen, setIsAiTuneDialogOpen] = useState(false);
+  const hasAutoOpenedImportRef = useRef(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
+  // 미리보기-토글 모드의 좌측 패널 표시 여부. 사용자가 편집기를 자주 쓰므로 기본 펼침.
+  // 각 입력 카드는 CollapsibleSection 으로 따로 접고 펼칠 수 있다.
+  const [isEditPanelOpen, setIsEditPanelOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editPanelRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
 
+  // previewToggleMode + 편집 패널이 열린 상태에서, 패널과 미리보기 영역 바깥을
+  // 클릭하면 패널을 접는다. shadcn Popover/Dialog 같은 portal 요소는 외부로 보지 않는다.
+  useEffect(() => {
+    if (!previewToggleMode || !isEditPanelOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (editPanelRef.current?.contains(target)) return;
+      if (previewRef.current?.contains(target)) return;
+      // Radix portal (popover, dropdown, dialog) 안에서 일어난 클릭은 무시.
+      if (
+        target.closest(
+          "[data-radix-popper-content-wrapper], [data-radix-portal], [role='dialog'], [role='listbox']",
+        )
+      ) {
+        return;
+      }
+      setIsEditPanelOpen(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [previewToggleMode, isEditPanelOpen]);
+
+  const showEditPanel = !previewToggleMode || isEditPanelOpen;
+
+  const [isPrefillingProfile, setIsPrefillingProfile] = useState(false);
+  /**
+   * 마이페이지 프로필(`/api/my/me`) 에서 이름·이메일·자기소개·기술 스택을 즉시 가져와
+   * personalInfo 와 skills 의 빈 슬롯을 채운다. 이미 입력된 값은 덮어쓰지 않는다.
+   */
+  const handleImportFromMyPage = async () => {
+    setIsPrefillingProfile(true);
+    try {
+      const res = await fetch("/api/my/me", { cache: "no-store" });
+      if (!res.ok) throw new Error("프로필을 불러오지 못했습니다.");
+      const json = await res.json();
+      if (!json?.success || !json.data) throw new Error("프로필 데이터가 비어 있습니다.");
+      const profile = json.data as {
+        nickname?: string;
+        email?: string;
+        bio?: string;
+        techStack?: string[];
+      };
+      const piPrev = payload.personalInfo;
+      const next: ResumePayload = {
+        ...payload,
+        personalInfo: {
+          ...piPrev,
+          name: piPrev.name?.trim() || profile.nickname || piPrev.name,
+          email: piPrev.email?.trim() || profile.email || piPrev.email,
+          intro: piPrev.intro?.trim() || profile.bio || piPrev.intro,
+        },
+        skills:
+          payload.skills.length > 0
+            ? payload.skills
+            : Array.isArray(profile.techStack)
+              ? profile.techStack.map((name) => ({ name, level: "Intermediate" }))
+              : payload.skills,
+      };
+      onChange(next);
+      toast({
+        title: "마이페이지 정보 불러오기 완료",
+        description: "비어있던 항목만 채워졌습니다. 이미 입력한 값은 그대로 유지됩니다.",
+      });
+    } catch (error) {
+      toast({
+        title: "불러오기 실패",
+        description: error instanceof Error ? error.message : "잠시 후 다시 시도해주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrefillingProfile(false);
+    }
+  };
+
   const pi = payload.personalInfo;
-
-  const sectionItems: Array<{
-    id: ResumeEditorSectionKey;
-    label: string;
-    description: string;
-    status: string;
-    tone: "complete" | "attention" | "neutral";
-    icon: LucideIcon;
-  }> = [
-    {
-      id: "basic",
-      label: "기본정보",
-      description: "이름, 연락처, 링크",
-      status: pi.name?.trim() && pi.email?.trim() ? "완료" : "필수",
-      tone: pi.name?.trim() && pi.email?.trim() ? "complete" : "attention",
-      icon: UserRound,
-    },
-    {
-      id: "intro",
-      label: "자기소개",
-      description: "요약과 소개 문장",
-      status: payload.selfIntroduction?.trim()
-        ? payload.selfIntroduction.trim().length >= 80
-          ? "충분"
-          : "보강"
-        : "미작성",
-      tone: payload.selfIntroduction?.trim()
-        ? payload.selfIntroduction.trim().length >= 80
-          ? "complete"
-          : "attention"
-        : "neutral",
-      icon: FileText,
-    },
-    {
-      id: "skills",
-      label: "기술",
-      description: "스택과 역량",
-      status: `${payload.skills.length}개`,
-      tone: payload.skills.length >= 4 ? "complete" : "attention",
-      icon: Code2,
-    },
-    {
-      id: "experience",
-      label: "경력",
-      description: "회사와 업무",
-      status: `${payload.experience.length}개`,
-      tone: payload.experience.length > 0 ? "complete" : "neutral",
-      icon: Briefcase,
-    },
-    {
-      id: "projects",
-      label: "프로젝트",
-      description: "성과와 기술",
-      status: `${payload.projects.length}개`,
-      tone: payload.projects.length > 0 ? "complete" : "attention",
-      icon: FolderKanban,
-    },
-  ];
-
-  const activeSectionMeta =
-    sectionItems.find((section) => section.id === activeSection) || sectionItems[0];
 
   const setPI = (patch: Partial<ResumePayload["personalInfo"]>) =>
     onChange({ ...payload, personalInfo: { ...pi, ...patch } });
@@ -141,31 +171,6 @@ export function ResumeEditor({
       personalInfo: { ...pi, links: { ...pi.links, ...patch } },
     });
 
-  const normalizeSkillName = (value: string) =>
-    value.trim().toLowerCase().replace(/\s+/g, " ");
-
-  const updateSkillsFromNames = (nextNames: string[]) => {
-    const existingSkills = new Map(
-      payload.skills.map((skill) => [normalizeSkillName(skill.name), skill]),
-    );
-    const seen = new Set<string>();
-    const skills = nextNames
-      .map((name) => name.trim())
-      .filter(Boolean)
-      .flatMap((name) => {
-        const key = normalizeSkillName(name);
-        if (!key || seen.has(key)) return [];
-        seen.add(key);
-        const existing = existingSkills.get(key);
-        return [
-          existing
-            ? { ...existing, name }
-            : { name, level: "Intermediate" },
-        ];
-      });
-
-    onChange({ ...payload, skills });
-  };
 
   const setExp = (
     index: number,
@@ -271,6 +276,126 @@ export function ResumeEditor({
     });
   };
 
+  // ========= 자기소개서(문항별) 편집 핸들러 =========
+  // payload.coverLetters 가 undefined 일 때를 일관되게 다루기 위해 helper 로 감싼다.
+  type CoverLetterType = NonNullable<ResumePayload["coverLetters"]>[number];
+  type CoverQuestionType = NonNullable<CoverLetterType["questions"]>[number];
+
+  const getCovers = (): CoverLetterType[] => payload.coverLetters ?? [];
+
+  const setCovers = (next: CoverLetterType[]) =>
+    onChange({ ...payload, coverLetters: next });
+
+  const addCoverLetter = () => {
+    const newCover: CoverLetterType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: "새 자기소개서",
+      content: "",
+      createdAt: new Date().toISOString(),
+      sourceExperienceIds: [],
+      questions: [],
+    };
+    setCovers([...getCovers(), newCover]);
+  };
+
+  const removeCoverLetter = (idx: number) => {
+    const list = getCovers();
+    const removed = list[idx];
+    setCovers(list.filter((_, i) => i !== idx));
+    if (removed) {
+      toast({
+        title: "자기소개서 삭제됨",
+        description: `${removed.title || "항목"}이(가) 제거되었습니다. 저장 시 최종 반영됩니다.`,
+      });
+    }
+  };
+
+  const updateCoverLetter = (idx: number, patch: Partial<CoverLetterType>) => {
+    const list = [...getCovers()];
+    list[idx] = { ...list[idx], ...patch };
+    setCovers(list);
+  };
+
+  const addQuestion = (coverIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover) return;
+    const newQuestion: CoverQuestionType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: "",
+      maxChars: 500,
+      answer: "",
+      status: "draft",
+    };
+    list[coverIdx] = {
+      ...cover,
+      questions: [...(cover.questions ?? []), newQuestion],
+    };
+    setCovers(list);
+  };
+
+  const removeQuestion = (coverIdx: number, qIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover?.questions) return;
+    list[coverIdx] = {
+      ...cover,
+      questions: cover.questions.filter((_, i) => i !== qIdx),
+    };
+    setCovers(list);
+  };
+
+  const updateQuestion = (
+    coverIdx: number,
+    qIdx: number,
+    patch: Partial<CoverQuestionType>,
+  ) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover?.questions) return;
+    const questions = [...cover.questions];
+    questions[qIdx] = {
+      ...questions[qIdx],
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    list[coverIdx] = { ...cover, questions };
+    setCovers(list);
+  };
+
+  /**
+   * 기존 plain content 자소서를 첫 문항의 answer 로 옮기고 문항 모드로 전환한다.
+   * 이미 questions 가 있으면 동작하지 않는다.
+   */
+  const convertToQuestions = (coverIdx: number) => {
+    const list = [...getCovers()];
+    const cover = list[coverIdx];
+    if (!cover) return;
+    if (cover.questions && cover.questions.length > 0) return;
+    const seed: CoverQuestionType = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11),
+      title: cover.title || "자기소개",
+      maxChars: 1000,
+      answer: cover.content || "",
+      status: cover.content?.trim() ? "draft" : "draft",
+    };
+    list[coverIdx] = {
+      ...cover,
+      content: "",
+      questions: [seed],
+    };
+    setCovers(list);
+  };
+
   const handleImportProjects = (selected: ProjectInput[]) => {
     const newProjects = selected
         .filter(e => !payload.projects.some(p => p.id === e.id)) // Avoid duplicates
@@ -330,6 +455,165 @@ export function ResumeEditor({
     }
   };
 
+  // /resume?mode=new (옵션: &import=ask) 진입 시 가져오기 다이얼로그를 자동으로 연다.
+  // 사용자가 닫거나 항목을 가져온 뒤에는 다시 자동 오픈되지 않도록 ref 로 가드.
+  useEffect(() => {
+    if (!searchParams) return;
+    if (hasAutoOpenedImportRef.current) return;
+    const mode = searchParams.get("mode");
+    const importParam = searchParams.get("import");
+    const id = searchParams.get("id");
+    // mode=new 인데 기존 id 가 없을 때만 자동 오픈한다. (이미 저장된 이력서 편집은 제외)
+    if (mode === "new" && !id && importParam !== "skip") {
+      hasAutoOpenedImportRef.current = true;
+      // 약간의 지연으로 페이지 첫 페인트 직후 다이얼로그가 뜨도록 한다.
+      const handle = window.setTimeout(() => {
+        setIsResumeImportDialogOpen(true);
+      }, 150);
+      return () => window.clearTimeout(handle);
+    }
+  }, [searchParams]);
+
+  const handleApplyResumeImport = (selection: ResumeImportSelection) => {
+    let appliedProjects = 0;
+    let appliedExperiences = 0;
+    let appliedCoverLetters = 0;
+
+    const nextPayload: ResumePayload = { ...payload };
+
+    if (selection.projects.length > 0) {
+      const existingProjectKeys = new Set(
+        payload.projects.map((p) =>
+          p.id
+            ? `id:${p.id}`
+            : `np:${(p.name || "").trim().toLowerCase()}|${(p.period || "").trim()}`,
+        ),
+      );
+      const newProjects = selection.projects
+        .filter((p) => {
+          const key = p.id
+            ? `id:${p.id}`
+            : `np:${(p.name || "").trim().toLowerCase()}|${(p.period || "").trim()}`;
+          return !existingProjectKeys.has(key);
+        })
+        .map((p) => ({
+          id: p.id || Math.random().toString(36).substring(2, 11),
+          name: p.name || "프로젝트명 없음",
+          period: p.period || "",
+          description: p.description || "",
+          techStack: p.techStack || [],
+          achievements: p.achievements || [],
+        }));
+      if (newProjects.length > 0) {
+        nextPayload.projects = [...payload.projects, ...newProjects];
+        appliedProjects = newProjects.length;
+      }
+    }
+
+    if (selection.experiences.length > 0) {
+      const existingExpKeys = new Set(
+        payload.experience.map((e) =>
+          e.id
+            ? `id:${e.id}`
+            : `xp:${(e.company || "").trim().toLowerCase()}|${(e.position || "").trim().toLowerCase()}|${(e.period || "").trim()}`,
+        ),
+      );
+      const newExps = selection.experiences
+        .filter((e) => {
+          const key = e.id
+            ? `id:${e.id}`
+            : `xp:${(e.company || "").trim().toLowerCase()}|${(e.position || "").trim().toLowerCase()}|${(e.period || "").trim()}`;
+          return !existingExpKeys.has(key);
+        })
+        .map((e) => ({
+          id: e.id || Math.random().toString(36).substring(2, 11),
+          company: e.company || "",
+          position: e.position || "",
+          period: e.period || "",
+          description: e.description || "",
+        }));
+      if (newExps.length > 0) {
+        nextPayload.experience = [...nextPayload.experience, ...newExps];
+        appliedExperiences = newExps.length;
+      }
+    }
+
+    if (selection.coverLetters.length > 0) {
+      // payload.coverLetters 배열에 추가 (중복 id 방지)
+      const existingCoverIds = new Set(
+        (payload.coverLetters || []).map((c) => c.id),
+      );
+      const newCovers = selection.coverLetters
+        .filter((c) => !existingCoverIds.has(c.id))
+        .map((c) => ({
+          id: c.id,
+          title: c.title || "(제목 없음)",
+          content: c.content || "",
+          createdAt: new Date().toISOString(),
+          sourceExperienceIds: [] as string[],
+          // 문항별 답변이 있으면 보존. import dialog 가 status 를 narrow 해 넘긴다.
+          questions:
+            c.questions && c.questions.length > 0
+              ? c.questions.map((q) => ({
+                  id: q.id,
+                  title: q.title,
+                  maxChars: q.maxChars,
+                  answer: q.answer,
+                  status: q.status,
+                  updatedAt: q.updatedAt,
+                }))
+              : undefined,
+        }));
+      if (newCovers.length > 0) {
+        nextPayload.coverLetters = [
+          ...(payload.coverLetters || []),
+          ...newCovers,
+        ];
+        appliedCoverLetters = newCovers.length;
+      }
+
+      // 호환: 자기소개서 본문을 selfIntroduction 영역에도 append 한다.
+      // 문항이 있는 자소서는 답변들을 이어붙여 self-intro 백업본으로 보존한다.
+      const contents = newCovers
+        .map((c) => {
+          if (c.questions && c.questions.length > 0) {
+            return c.questions
+              .map((q) =>
+                q.answer && q.answer.trim().length > 0
+                  ? `${q.title}\n${q.answer}`
+                  : null,
+              )
+              .filter((s): s is string => Boolean(s))
+              .join("\n\n");
+          }
+          return c.content;
+        })
+        .filter((s) => s && s.trim().length > 0);
+      if (contents.length > 0) {
+        const existing = payload.selfIntroduction?.trim() || "";
+        const joined = contents.join("\n\n---\n\n");
+        nextPayload.selfIntroduction = existing
+          ? `${existing}\n\n---\n\n${joined}`
+          : joined;
+      }
+    }
+
+    if (appliedProjects + appliedExperiences + appliedCoverLetters === 0) {
+      toast({
+        title: "추가된 항목이 없습니다",
+        description: "선택한 항목이 이미 이력서에 포함되어 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onChange(nextPayload);
+    toast({
+      title: "기존 자료 가져오기 완료",
+      description: `프로젝트 ${appliedProjects}개 · 경력 ${appliedExperiences}개 · 자기소개서 ${appliedCoverLetters}개를 이력서에 반영했습니다.`,
+    });
+  };
+
   const parseResumeFile = async (file: File) => {
     setIsParsingFile(true);
     try {
@@ -368,14 +652,27 @@ export function ResumeEditor({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]">
-        <div className="space-y-5">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6",
+          showEditPanel
+            ? "xl:grid-cols-[minmax(340px,0.72fr)_minmax(560px,1.28fr)] 2xl:grid-cols-[minmax(380px,0.68fr)_minmax(680px,1.32fr)]"
+            : "max-w-5xl mx-auto",
+        )}
+      >
+        {showEditPanel && (
+        <div ref={editPanelRef} className="space-y-5">
       {/* File parsing banner */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex-1">
-          <p className="text-sm font-medium">기존의 이력서를 가져와 내용을 채울 수 있어요</p>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
+        <div className="min-w-0 [word-break:keep-all]">
+          <p className="text-sm font-medium leading-snug">
+            기존의 이력서를 가져와 내용을 채울 수 있어요
+          </p>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다.
+          </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -388,6 +685,26 @@ export function ResumeEditor({
               event.target.value = "";
             }}
           />
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => setIsResumeImportDialogOpen(true)}
+            className="shrink-0 gap-1.5 text-xs"
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            기존 자료 가져오기
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsAiTuneDialogOpen(true)}
+            className="shrink-0 gap-1.5 text-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            AI로 정리하기
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -422,66 +739,26 @@ export function ResumeEditor({
         />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {sectionItems.map((section) => {
-            const Icon = section.icon;
-            const isActive = activeSection === section.id;
-
-            return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "min-w-0 rounded-lg border px-3 py-3 text-left transition-all",
-                  isActive
-                    ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
-                    : "border-transparent bg-slate-50 hover:border-slate-200 hover:bg-white dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:bg-slate-900",
-                )}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-white text-slate-500 shadow-sm dark:bg-slate-950 dark:text-slate-300",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black",
-                      section.tone === "complete" &&
-                        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-                      section.tone === "attention" &&
-                        "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-                      section.tone === "neutral" &&
-                        "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300",
-                    )}
-                  >
-                    {section.status}
-                  </span>
-                </span>
-                <span className="mt-2 block truncate text-sm font-black text-slate-900 dark:text-slate-50">
-                  {section.label}
-                </span>
-                <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">
-                  {section.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <Card className={activeSection === "basic" ? "" : "hidden"}>
-        <CardContent className="p-5 space-y-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            기본 정보
-          </p>
+      <CollapsibleSection
+        title="기본 정보"
+        badge="필수"
+        defaultOpen
+        action={
+          <button
+            type="button"
+            onClick={handleImportFromMyPage}
+            disabled={isPrefillingProfile}
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:opacity-60"
+          >
+            {isPrefillingProfile ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-3 w-3" aria-hidden />
+            )}
+            마이페이지에서 불러오기
+          </button>
+        }
+      >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "이름", key: "name" as const, placeholder: "홍길동" },
@@ -540,55 +817,229 @@ export function ResumeEditor({
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card className={activeSection === "intro" ? "" : "hidden"}>
-        <CardContent className="p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              자기소개서 (포트폴리오)
-            </p>
-          </div>
-          <Textarea
+      <CollapsibleSection
+        title="자기소개 (PROFILE SUMMARY)"
+        badge={payload.selfIntroduction?.trim() ? "작성됨" : "비어있음"}
+        defaultOpen={false}
+      >
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            미리보기의 PROFILE SUMMARY 영역에 그대로 들어가는 본문입니다. 입력한 길이만큼 자동으로 늘어납니다.
+          </p>
+          <AutoResizeTextarea
             value={payload.selfIntroduction}
             onChange={(event) => onChange({ ...payload, selfIntroduction: event.target.value })}
-            placeholder="AI 가이드를 통해 나의 프로젝트를 전문적인 문장으로 구성해보세요. 작성된 내용은 이곳에 자동으로 반영됩니다."
-            className="min-h-[200px] text-sm leading-relaxed"
+            placeholder="지원 직무와 관련된 핵심 역량·경험을 2~5문장으로 정리하세요."
+            className="text-sm leading-relaxed"
+            minRows={6}
           />
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card className={activeSection === "skills" ? "" : "hidden"}>
-        <CardContent className="p-5 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            기술 스택
-          </p>
-          <TechStackCombobox
-            value={payload.skills.map((skill) => skill.name)}
-            onChange={updateSkillsFromNames}
-            placeholder="예: React, Next.js, TypeScript, Supabase"
-            helperText="검색 목록에서 선택하거나 직접 입력 후 Enter를 누르세요. 선택한 기술은 오른쪽 이력서 기술 섹션에 반영됩니다."
-          />
-        </CardContent>
-      </Card>
-
-      <Card className={activeSection === "experience" ? "" : "hidden"}>
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              경력
+      <CollapsibleSection
+        title="자기소개서 (문항별)"
+        badge={
+          (payload.coverLetters?.length ?? 0) > 0
+            ? `${payload.coverLetters!.length}개`
+            : undefined
+        }
+        defaultOpen={false}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addCoverLetter}
+            className="h-7 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            자소서 추가
+          </Button>
+        }
+      >
+          {(payload.coverLetters ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              기업별 자기소개서를 문항·답변 단위로 관리할 수 있습니다. "자소서 추가" 또는 "기존 자료 가져오기"로 시작하세요.
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-[11px] font-bold gap-1.5 text-primary border-primary/20 bg-primary/5 hover:bg-primary/10"
-              onClick={() => setIsWorkExpModalOpen(true)}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              내 경력 보관함에서 불러오기
-            </Button>
-          </div>
+          ) : (
+            <div className="divide-y divide-border/70">
+              {(payload.coverLetters ?? []).map((cover, coverIdx) => {
+                const hasQuestions =
+                  !!cover.questions && cover.questions.length > 0;
+                return (
+                  <div key={cover.id} className="space-y-4 py-4 first:pt-0 last:pb-0">
+                    {/* 자소서 제목 — 큰 인풋, 외곽 박스 없음 */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={cover.title}
+                        onChange={(e) =>
+                          updateCoverLetter(coverIdx, { title: e.target.value })
+                        }
+                        placeholder="자기소개서 제목"
+                        className="flex-1 border-0 border-b border-transparent bg-transparent px-0 py-1 text-sm font-semibold outline-none focus:border-foreground/40 placeholder:text-muted-foreground/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeCoverLetter(coverIdx)}
+                        aria-label="자기소개서 삭제"
+                        className="rounded-md p-1.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {hasQuestions ? (
+                      <ul className="space-y-5">
+                        {cover.questions!.map((q, qIdx) => {
+                          const answerLength = q.answer?.length ?? 0;
+                          const limitHit = answerLength >= q.maxChars;
+                          return (
+                            <li
+                              key={q.id}
+                              className="space-y-1.5 border-l-2 border-muted pl-3"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  value={q.title}
+                                  onChange={(e) =>
+                                    updateQuestion(coverIdx, qIdx, {
+                                      title: e.target.value,
+                                    })
+                                  }
+                                  placeholder="문항 (예: 지원동기)"
+                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+                                />
+                                <input
+                                  type="number"
+                                  value={q.maxChars}
+                                  onChange={(e) => {
+                                    const next = Number(e.target.value);
+                                    if (Number.isFinite(next) && next > 0) {
+                                      updateQuestion(coverIdx, qIdx, {
+                                        maxChars: Math.floor(next),
+                                      });
+                                    }
+                                  }}
+                                  className="w-14 border-0 bg-transparent px-1 py-0 text-right text-[11px] tabular-nums text-muted-foreground outline-none"
+                                  min={50}
+                                  step={50}
+                                  aria-label="글자 제한"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeQuestion(coverIdx, qIdx)}
+                                  aria-label="문항 삭제"
+                                  className="rounded-md p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <AutoResizeTextarea
+                                value={q.answer ?? ""}
+                                onChange={(e) =>
+                                  updateQuestion(coverIdx, qIdx, {
+                                    answer: e.target.value,
+                                    status: "draft",
+                                  })
+                                }
+                                maxLength={q.maxChars}
+                                placeholder="답변을 입력하세요"
+                                minRows={4}
+                                className="rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
+                              />
+                              <div
+                                className={cn(
+                                  "text-right text-[10.5px] tabular-nums text-muted-foreground/70",
+                                  limitHit && "text-destructive",
+                                )}
+                              >
+                                {answerLength.toLocaleString()} /{" "}
+                                {q.maxChars.toLocaleString()}자
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <AutoResizeTextarea
+                        value={cover.content ?? ""}
+                        onChange={(e) =>
+                          updateCoverLetter(coverIdx, {
+                            content: e.target.value,
+                          })
+                        }
+                        placeholder="자기소개서 본문 (또는 '문항별로 분리'를 눌러 문항으로 나눌 수 있어요)"
+                        minRows={5}
+                        className="rounded-md border-transparent bg-muted/30 px-3 py-2 text-sm leading-relaxed shadow-none focus-visible:border-foreground/20 focus-visible:bg-background focus-visible:ring-0"
+                      />
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => addQuestion(coverIdx)}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Plus className="h-3 w-3" />문항 추가
+                      </button>
+                      {!hasQuestions && (
+                        <button
+                          type="button"
+                          onClick={() => convertToQuestions(coverIdx)}
+                          className="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          문항별로 분리
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="기술 스택"
+        badge={payload.skills.length > 0 ? `${payload.skills.length}개` : undefined}
+        defaultOpen
+      >
+          <TechStackCombobox
+            value={payload.skills.map((s) => s.name)}
+            onChange={(nextNames) => {
+              // 기존 항목의 level/category 메타데이터는 보존하고,
+              // 신규 항목은 기본 "Intermediate" 로 채운다.
+              const prevByName = new Map(
+                payload.skills.map((s) => [s.name, s]),
+              );
+              const nextSkills = nextNames.map(
+                (name) => prevByName.get(name) ?? { name, level: "Intermediate" },
+              );
+              onChange({ ...payload, skills: nextSkills });
+            }}
+            placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            사전 등록된 기술은 로고가 자동 매칭되며, 자유 입력도 함께 저장됩니다. 기존 항목의 숙련도 메타데이터는 유지됩니다.
+          </p>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="경력"
+        badge={payload.experience.length > 0 ? `${payload.experience.length}개` : undefined}
+        defaultOpen={false}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-[11px] font-bold gap-1.5 text-primary border-primary/20 bg-primary/5 hover:bg-primary/10"
+            onClick={() => setIsWorkExpModalOpen(true)}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            보관함에서 불러오기
+          </Button>
+        }
+      >
           {payload.experience.map((exp, index) => (
             <div key={exp.id || index} className="relative rounded-lg border p-4 space-y-3 bg-muted/20">
               <Button
@@ -656,26 +1107,25 @@ export function ResumeEditor({
           >
             <Plus className="w-4 h-4 mr-2" /> 경력 추가
           </Button>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <Card className={activeSection === "projects" ? "" : "hidden"}>
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              프로젝트
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-              className="h-8 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              프로젝트 보관함에서 불러오기
-            </Button>
-          </div>
+      <CollapsibleSection
+        title="프로젝트"
+        badge={payload.projects.length > 0 ? `${payload.projects.length}개` : undefined}
+        defaultOpen={false}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="h-7 gap-1.5 text-xs text-primary bg-primary/5 hover:bg-primary/10 border-primary/20 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            보관함에서 불러오기
+          </Button>
+        }
+      >
           {payload.projects.map((project, projectIndex) => (
             <div
               key={project.id || projectIndex}
@@ -724,21 +1174,11 @@ export function ResumeEditor({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">
-                  기술 스택 (쉼표 구분)
-                </Label>
-                <Input
-                  value={project.techStack.join(", ")}
-                  onChange={(event) =>
-                    setPrj(projectIndex, {
-                      techStack: event.target.value
-                        .split(",")
-                        .map((value) => value.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  placeholder="React, TypeScript, Node.js"
-                  className="h-8 text-sm"
+                <Label className="text-[11px] text-muted-foreground">기술 스택</Label>
+                <TechStackCombobox
+                  value={project.techStack}
+                  onChange={(techStack) => setPrj(projectIndex, { techStack })}
+                  placeholder="React, TypeScript 등 검색"
                 />
               </div>
               <div className="space-y-2">
@@ -784,24 +1224,71 @@ export function ResumeEditor({
           >
             <Plus className="w-4 h-4 mr-2" /> 새 프로젝트 추가하기
           </Button>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex items-center justify-between gap-2 pt-2">
+        {previewToggleMode ? (
+          <Button
+            variant="ghost"
+            onClick={() => setIsEditPanelOpen(false)}
+            className="text-slate-500"
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" /> 미리보기로 돌아가기
+          </Button>
+        ) : (
+          <span />
+        )}
         <Button onClick={onSave} disabled={saving} size="lg" className="gap-2 px-8">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           이력서 저장
         </Button>
       </div>
         </div>
+        )}
 
-        <div className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+        <div
+          ref={previewRef}
+          className={cn(
+            "min-w-0",
+            showEditPanel && "xl:sticky xl:top-24 xl:self-start",
+            previewToggleMode &&
+              !isEditPanelOpen &&
+              "group relative cursor-pointer transition-shadow hover:shadow-lg",
+          )}
+          onClick={() => {
+            if (previewToggleMode && !isEditPanelOpen) setIsEditPanelOpen(true);
+          }}
+          role={previewToggleMode && !isEditPanelOpen ? "button" : undefined}
+          aria-label={
+            previewToggleMode && !isEditPanelOpen
+              ? "미리보기를 클릭해 편집 패널 열기"
+              : undefined
+          }
+        >
+          {previewToggleMode && !isEditPanelOpen && (
+            <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-primary/90 px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md backdrop-blur-sm">
+              <PencilLine className="h-3.5 w-3.5" aria-hidden />
+              클릭하여 편집 패널 열기
+            </div>
+          )}
+          {previewToggleMode && isEditPanelOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditPanelOpen(false);
+              }}
+              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-slate-500 shadow-md ring-1 ring-slate-200 transition hover:bg-slate-100 hover:text-slate-800"
+              aria-label="편집 패널 닫기"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          )}
           <KoreanResumePreview
             payload={payload}
             title={title}
             options={a4Options}
             onOptionsChange={setA4Options}
-            activeEditorSectionLabel={activeSectionMeta.label}
           />
         </div>
       </div>
@@ -817,6 +1304,35 @@ export function ResumeEditor({
         onOpenChange={setIsWorkExpModalOpen}
         onImport={handleImportWorkExperiences}
         existingIds={payload.experience.map((e) => e.id).filter(Boolean) as string[]}
+      />
+
+      <ResumeImportDialog
+        open={isResumeImportDialogOpen}
+        onOpenChange={setIsResumeImportDialogOpen}
+        onApply={handleApplyResumeImport}
+      />
+
+      <ResumeAiTuneDialog
+        open={isAiTuneDialogOpen}
+        onOpenChange={setIsAiTuneDialogOpen}
+        currentPayload={payload}
+        onApply={(newPayload, summary) => {
+          const previous = payload;
+          onChange(newPayload);
+          toast({
+            title: "AI 가공 완료",
+            description: summary,
+            action: (
+              <button
+                type="button"
+                onClick={() => onChange(previous)}
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-accent"
+              >
+                원본 복원
+              </button>
+            ),
+          });
+        }}
       />
     </>
   );

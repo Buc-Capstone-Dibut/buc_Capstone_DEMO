@@ -99,16 +99,27 @@ export function ProjectTimelineCard({
             {project.company || "(프로젝트명 없음)"}
           </h3>
 
-          {project.representativeImage?.url ? (
-            <div className="mb-4 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={project.representativeImage.url}
-                alt={project.representativeImage.alt || `${project.company || "프로젝트"} 대표 이미지`}
-                className="aspect-[16/9] w-full object-cover"
-              />
-            </div>
-          ) : null}
+          {(() => {
+            const explicit = project.representativeImage;
+            const attached = (project.attachments ?? []).find(
+              (a) => a.kind === "image" && (a.isPrimary || true),
+            );
+            const cover = explicit?.url
+              ? { url: explicit.url, alt: explicit.alt }
+              : attached
+                ? { url: attached.url, alt: attached.alt }
+                : null;
+            return cover ? (
+              <div className="mb-4 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cover.url}
+                  alt={cover.alt || `${project.company || "프로젝트"} 대표 이미지`}
+                  className="aspect-[16/9] w-full object-cover"
+                />
+              </div>
+            ) : null;
+          })()}
 
           {project.techStack?.length ? (
             <div className="mb-4 flex flex-wrap gap-2">

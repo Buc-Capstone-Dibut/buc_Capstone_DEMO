@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ImagePlus, X } from "lucide-react";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
+import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import type { ProjectArchiveFormData } from "./project-archive.types";
-import { TechStackCombobox } from "./tech-stack-combobox";
+import { ProjectAttachmentsSection } from "./project-attachments-section";
+import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
 
 interface ProjectFormPanelProps {
   formData: ProjectArchiveFormData;
@@ -137,6 +139,11 @@ export function ProjectFormPanel({
           </p>
         </div>
 
+        <ProjectAttachmentsSection
+          attachments={(formData.attachments ?? []) as ProjectAttachment[]}
+          onChange={(next) => setFormData({ ...formData, attachments: next })}
+        />
+
         <div className="space-y-2">
           <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
             프로젝트명 (Title)
@@ -194,14 +201,16 @@ export function ProjectFormPanel({
 
         <div className="space-y-2">
           <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
-            기술 스택 (로고 자동)
+            기술 스택 (검색 · 로고 자동)
           </label>
           <TechStackCombobox
             value={formData.techStack || []}
             onChange={(techStack) => setFormData({ ...formData, techStack })}
-            placeholder="예: React, Next.js, TypeScript, Supabase"
-            helperText="검색 목록에서 선택하거나 직접 입력 후 Enter를 누르세요. 포트폴리오 PPT 기술 슬라이드에 로고로 자동 배치됩니다."
+            placeholder="React, Next.js 등을 검색하거나 직접 입력 후 Enter"
           />
+          <p className="ml-1 text-[11px] font-medium text-slate-500">
+            사전 등록된 기술은 로고가 자동 매칭되며, 직접 입력한 기술도 함께 저장됩니다.
+          </p>
         </div>
       </div>
 

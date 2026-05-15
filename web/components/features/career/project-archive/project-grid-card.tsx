@@ -2,6 +2,7 @@
 
 import { CalendarDays, Check, ChevronRight, Trash2 } from "lucide-react";
 import type { ProjectInput } from "@/app/career/projects/types";
+import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
 import { createTechLogoImageSlot } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,55 @@ interface ProjectGridCardProps {
   portfolioMode: boolean;
   onOpen: (project: ProjectInput) => void;
   onDelete: (id: string) => Promise<void>;
+}
+
+/**
+ * 카드 표지 이미지 선택 우선순위:
+ *   1) representativeImage.url
+ *   2) attachments 중 isPrimary=true 이고 image
+ *   3) attachments 중 첫 image
+ *   4) 없으면 fallback placeholder (gradient + 이니셜)
+ */
+function pickCoverImage(
+  representative: ProjectInput["representativeImage"],
+  attachments: ProjectAttachment[] | undefined,
+): { url: string; alt?: string } | null {
+  if (representative?.url) {
+    return { url: representative.url, alt: representative.alt };
+  }
+  if (!attachments?.length) return null;
+  const primary = attachments.find((a) => a.isPrimary && a.kind === "image");
+  if (primary) return { url: primary.url, alt: primary.alt };
+  const firstImage = attachments.find((a) => a.kind === "image");
+  if (firstImage) return { url: firstImage.url, alt: firstImage.alt };
+  return null;
+}
+
+const COVER_GRADIENTS = [
+  "from-amber-50 to-orange-100",
+  "from-sky-50 to-indigo-100",
+  "from-emerald-50 to-teal-100",
+  "from-rose-50 to-pink-100",
+  "from-violet-50 to-purple-100",
+  "from-lime-50 to-green-100",
+];
+
+const COVER_ACCENT_COLORS = [
+  "text-amber-700",
+  "text-indigo-700",
+  "text-emerald-700",
+  "text-rose-700",
+  "text-violet-700",
+  "text-lime-700",
+];
+
+/** 안정적인 hash 로 한 카드에는 항상 같은 그라데이션이 매핑되게 한다. */
+function hashIndex(seed: string, modulo: number): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash % modulo;
 }
 
 export function ProjectGridCard({
@@ -29,7 +79,16 @@ export function ProjectGridCard({
   const role = project.position || project.role;
   const tags = project.tags || [];
   const techStack = project.techStack || [];
-  const representativeImage = project.representativeImage;
+  const cover = pickCoverImage(project.representativeImage, project.attachments);
+  const coverSummary =
+    project.description?.trim() ||
+    project.result?.trim() ||
+    project.role?.trim() ||
+    "아직 요약이 작성되지 않았어요.";
+  const seed = project.id || project.company || title;
+  const gradientClass = COVER_GRADIENTS[hashIndex(seed, COVER_GRADIENTS.length)];
+  const accentClass =
+    COVER_ACCENT_COLORS[hashIndex(seed, COVER_ACCENT_COLORS.length)];
 
   return (
     <div
@@ -51,19 +110,54 @@ export function ProjectGridCard({
           : "border-slate-200 dark:border-slate-800",
       )}
     >
-      {representativeImage?.url ? (
-        <div className="relative h-36 w-full overflow-hidden bg-slate-100 dark:bg-slate-950">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={representativeImage.url}
-            alt={representativeImage.alt || `${title} 대표 이미지`}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-          />
-          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-primary shadow-sm">
-            대표 이미지
-          </span>
-        </div>
-      ) : null}
+      {/* 카드 표지: 항상 동일한 높이를 차지해 카드 간 정렬을 통일한다. */}
+      <div className="relative h-36 w-full overflow-hidden bg-slate-100 dark:bg-slate-950">
+        {cover ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover.url}
+              alt={cover.alt || `${title} 대표 이미지`}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            />
+            <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-primary shadow-sm">
+              대표 이미지
+            </span>
+          </>
+        ) : (
+          <div
+            className={cn(
+              "relative flex h-full w-full flex-col justify-start bg-gradient-to-br px-4 py-3",
+              gradientClass,
+            )}
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_85%,rgba(255,255,255,0.55),transparent_60%)]"
+            />
+            <div className="relative">
+              <p
+                className={cn(
+                  "line-clamp-2 text-[15px] font-black leading-tight tracking-tight",
+                  accentClass,
+                )}
+              >
+                {title}
+              </p>
+              <p className="mt-1 line-clamp-2 text-[11.5px] font-medium leading-snug text-slate-600/90">
+                {coverSummary}
+              </p>
+            </div>
+            <span
+              className="pointer-events-none absolute bottom-2 right-3 inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-inset ring-white/60 backdrop-blur-sm"
+              aria-hidden
+            >
+              <span className="inline-block h-1 w-1 rounded-full bg-slate-400" />
+              임시 썸네일 · 보관 파일 추가 시 대표 이미지로 표시돼요
+            </span>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-1 flex-col p-5">
       <div className="mb-4 flex items-start justify-between gap-3">

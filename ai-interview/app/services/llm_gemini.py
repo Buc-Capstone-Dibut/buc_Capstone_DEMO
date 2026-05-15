@@ -291,6 +291,195 @@ If specific info is missing, leave the array empty.
             texts.append(page.extract_text() or "")
         return "\n".join(texts).strip()
 
+    # ── Resume normalization (한국식 A4 fit) ──────────────────────────
+
+    _TONE_GUIDE_KO: dict[str, str] = {
+        "formal": "격식체(다/까)를 유지하고, 문장은 간결하고 명료하게 다듬어 주세요. 과한 수사는 피합니다.",
+        "casual": "친근한 경어체로 부드럽게 다듬되, 비속어나 과한 줄임말은 금지합니다.",
+        "impact": "성과 중심으로 강한 동사를 사용해 임팩트 있게 작성하되, 사실 왜곡 없이 표현만 강화합니다.",
+        "custom": "사용자가 별도 메모에서 지정한 톤을 우선 따르고, 기본은 격식체로 유지합니다.",
+    }
+
+    _LENGTH_GUIDE_KO: dict[str, str] = {
+        "concise": "전체가 A4 1페이지 분량(약 800-1000자)을 넘지 않도록 핵심만 추립니다. 경력·프로젝트는 각 항목당 bullet 3개 이내.",
+        "standard": "A4 2페이지 분량(약 1500-2000자)을 목표로 합니다. 경력·프로젝트는 각 항목당 bullet 3-5개.",
+        "detailed": "A4 3페이지 내외(약 2500-3000자)까지 허용합니다. 핵심 프로젝트는 STAR 구조로 풍부하게 풀어쓰되 중복은 피합니다.",
+    }
+
+    _SELF_INTRO_STYLE_GUIDE_KO: dict[str, str] = {
+        "growth": "성장 서사를 중심으로, 학습한 경험과 그 결과 얻은 역량을 한 단락으로 풀어내세요.",
+        "challenge": "도전과 극복을 중심으로, 어려운 상황과 본인의 대응을 STAR 흐름으로 풀어내세요.",
+        "collaboration": "팀 협업과 커뮤니케이션 사례를 중심으로, 역할과 기여를 명확히 드러내세요.",
+        "achievement": "정량적 성과와 핵심 결과 중심으로, 수치/지표가 있다면 자연스럽게 인용하세요.",
+        "custom": "사용자의 기존 자기소개 톤과 사용자 메모를 우선 따르세요.",
+    }
+
+    _STRENGTH_GUIDE_KO: dict[str, str] = {
+        "polish": "오타·문법·띄어쓰기·문장 호응만 가볍게 다듬고, 사용자의 어휘와 문체는 최대한 유지합니다. 구조나 표현은 바꾸지 않습니다.",
+        "enhance": "표현을 보강하고 문장을 매끄럽게 다듬되, 항목 순서와 큰 구조는 유지합니다. 새로운 사실을 추가하지 않습니다.",
+        "rewrite": "톤과 문장 구조까지 전면 재작성합니다. 단, 사용자가 입력한 사실(회사·직책·기간·성과 수치·기술 스택 등)은 반드시 그대로 보존합니다.",
+    }
+
+    _HIGHLIGHT_LABEL_KO: dict[str, str] = {
+        "skills": "기술 스택",
+        "experience": "경력",
+        "projects": "프로젝트",
+        "selfIntro": "자기소개",
+        "education": "학력",
+    }
+
+    def _build_resume_normalize_prompt(
+        self,
+        payload: dict[str, Any],
+        options: dict[str, Any],
+    ) -> str:
+        tone = str(options.get("tone") or "formal")
+        length = str(options.get("length") or "standard")
+        highlights = options.get("highlights") or []
+        target_role = str(options.get("targetRole") or "").strip()
+        self_intro_style = str(options.get("selfIntroStyle") or "growth")
+        strength = str(options.get("strength") or "enhance")
+        notes = str(options.get("notes") or "").strip()
+
+        tone_guide = self._TONE_GUIDE_KO.get(tone, self._TONE_GUIDE_KO["formal"])
+        length_guide = self._LENGTH_GUIDE_KO.get(length, self._LENGTH_GUIDE_KO["standard"])
+        self_intro_guide = self._SELF_INTRO_STYLE_GUIDE_KO.get(
+            self_intro_style, self._SELF_INTRO_STYLE_GUIDE_KO["growth"]
+        )
+        strength_guide = self._STRENGTH_GUIDE_KO.get(strength, self._STRENGTH_GUIDE_KO["enhance"])
+
+        highlight_labels = [
+            self._HIGHLIGHT_LABEL_KO.get(h, str(h)) for h in highlights if h
+        ]
+        highlight_text = ", ".join(highlight_labels) if highlight_labels else "(특별 강조 없음, 균형 있게)"
+        target_role_text = target_role or "(지정 없음 — 입력된 경험에서 자연스럽게 유추)"
+        notes_text = notes or "(없음)"
+
+        payload_json = json.dumps(payload, ensure_ascii=False)
+        if len(payload_json) > 20000:
+            payload_json = payload_json[:20000] + " /* 일부 생략 */"
+
+        return f"""당신은 한국 IT 직군 채용 시장에 정통한 시니어 채용 컨설턴트입니다.
+사용자가 입력한 이력서 payload를 한국식 A4 이력서 양식에 맞게 가공해 반환합니다.
+반드시 **JSON 객체 하나만** 출력하세요. 코드블록·설명·마크다운 없이 순수 JSON.
+
+[한국식 A4 이력서 양식 핵심 규칙]
+- 인적사항: 이름·이메일·전화번호·한 줄 소개·링크(github/blog)
+- 학력: 학교명 · 전공 · 학위 · 기간. 최신 학력부터 최대 2-3개.
+- 경력: 회사명 · 직책 · 기간을 한 줄 헤더로 구분. 설명은 핵심 성과·역할 bullet 형태(개행 또는 ' · '로 구분)로 3-5개로 압축.
+- 프로젝트: 프로젝트명 · 기간 · 한 줄 설명. techStack 배열에 대표 기술 3-7개. achievements 배열에 정량·정성 성과 3-5개.
+- 기술 스택: 카테고리(Frontend/Backend/Infra/DB/Tool 등)로 묶어 분류 가능. level은 Basic/Intermediate/Advanced 중 하나로 정리.
+- 자기소개: 200-400자 한 문단. 한 가지 핵심 메시지(역량 정체성)로 통일하고 STAR 흐름을 자연스럽게 녹입니다.
+- 자기소개서(coverLetters): 입력에 있으면 각 항목의 content 본문을 톤·길이 옵션에 맞춰 다듬습니다. id·title·questions 등 메타데이터는 그대로 유지.
+- 이모지·과한 강조(★, !! 등)·구어체 감탄사 금지. 영어 약어는 표준 표기 유지(예: TypeScript, AWS).
+
+[사용자 옵션 — 반드시 반영]
+- 톤(tone={tone}): {tone_guide}
+- 분량(length={length}): {length_guide}
+- 자기소개 스타일(selfIntroStyle={self_intro_style}): {self_intro_guide}
+- 가공 강도(strength={strength}): {strength_guide}
+- 강조 영역(highlights): {highlight_text} → 해당 영역은 분량을 더 할당하고 표현을 풍부하게.
+- 타겟 직무(targetRole): {target_role_text} → 타겟 직무가 있으면 경력·프로젝트 표현을 해당 직무 키워드와 정합하도록 정리합니다(없는 사실 추가 금지).
+- 사용자 메모(notes): {notes_text}
+
+[강한 제약 — 위반 금지]
+1) 입력 payload에 없는 사실(회사명·기간·수치·자격증·학력 등)은 **절대 새로 만들지 마세요**. 추측·각색·창작은 금지입니다.
+2) 사용자가 입력한 수치/지표/회사명/직책/기간은 표기만 정돈하고 값은 그대로 유지합니다.
+3) 출력은 입력과 동일한 JSON 구조로 반환하며, 다음 키는 빈 값이라도 반드시 포함합니다:
+   - personalInfo, education, experience, projects, skills, selfIntroduction, coverLetters
+   - timeline은 입력에 있으면 동일 형태로 유지(없으면 빈 배열).
+4) 배열 내 객체의 id/createdAt/storagePath 같은 시스템 필드는 입력 값을 그대로 보존합니다.
+5) `strength=polish`인 경우 표현·구조는 바꾸지 말고 오타와 문법만 다듬으세요.
+
+[입력 payload]
+{payload_json}
+
+[출력 JSON 스키마 — 키와 타입을 정확히 지키세요]
+{{
+  "personalInfo": {{
+    "name": "string",
+    "email": "string",
+    "phone": "string",
+    "intro": "한 줄 소개 (있다면 다듬어서, 없으면 빈 문자열)",
+    "links": {{ "github": "string?", "blog": "string?" }}
+  }},
+  "education": [
+    {{ "school": "string", "major": "string", "period": "string", "degree": "string" }}
+  ],
+  "experience": [
+    {{ "id": "string?", "company": "string", "position": "string", "period": "string", "description": "핵심 성과 bullet (개행 또는 ' · '로 구분)" }}
+  ],
+  "timeline": [
+    {{ "id": "string?", "company": "string", "position": "string", "period": "string", "description": "string", "tags": ["string"], "techStack": ["string"] }}
+  ],
+  "projects": [
+    {{
+      "id": "string?",
+      "name": "string",
+      "period": "string",
+      "description": "한 줄 설명 또는 STAR 흐름의 짧은 설명",
+      "techStack": ["string"],
+      "achievements": ["정량/정성 성과 1", "성과 2"],
+      "tags": ["string"]
+    }}
+  ],
+  "skills": [
+    {{ "name": "string", "level": "Basic|Intermediate|Advanced", "category": "string?" }}
+  ],
+  "selfIntroduction": "200-400자 한 문단",
+  "coverLetters": [
+    {{ "id": "string", "title": "string", "content": "다듬은 본문" }}
+  ]
+}}
+
+마크다운 코드블록 없이 순수 JSON만 출력하세요.
+"""
+
+    def normalize_resume_payload(
+        self,
+        payload: dict[str, Any],
+        options: dict[str, Any] | None = None,
+        retries: int = 1,
+    ) -> dict[str, Any]:
+        """이력서 payload를 한국식 A4 양식에 맞춰 Gemini로 가공한다.
+
+        실패 시 ``ValueError``를 발생시키고, 호출 측에서 원본 fallback 여부를 결정한다.
+        """
+        prompt = self._build_resume_normalize_prompt(payload or {}, options or {})
+
+        generation_config = {
+            "response_mime_type": "application/json",
+            "temperature": 0.5,
+        }
+
+        last_error: Exception | None = None
+        for _ in range(max(0, retries) + 1):
+            try:
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                )
+                parsed = _extract_json(self._response_text(response))
+                if not isinstance(parsed, dict):
+                    raise ValueError("Resume normalize response is not a JSON object")
+                return parsed
+            except (ValueError, json.JSONDecodeError) as exc:
+                last_error = exc
+                continue
+            except TypeError:
+                # 일부 SDK 버전이 generation_config 키워드를 지원하지 않을 수 있다.
+                try:
+                    response = self.model.generate_content(prompt)
+                    parsed = _extract_json(self._response_text(response))
+                    if not isinstance(parsed, dict):
+                        raise ValueError("Resume normalize response is not a JSON object")
+                    return parsed
+                except (ValueError, json.JSONDecodeError) as exc:
+                    last_error = exc
+                    continue
+
+        raise ValueError(f"Failed to normalize resume payload: {last_error}")
+
     def parse_resume_from_text(self, resume_text: str) -> dict[str, Any]:
         prompt = f"""
 이력서 정보를 분석하여 아래 JSON 형식에 맞춰 핵심 정보를 추출해주세요.

@@ -2,6 +2,7 @@
 
 import { CheckCircle2, FileText, Printer } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,12 +42,6 @@ function cleanLines(value: string | undefined, limit = 4) {
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, limit);
-}
-
-function compactText(value: string | undefined, maxLength = 220) {
-  const text = (value || "").replace(/\s+/g, " ").trim();
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 1)}...`;
 }
 
 function firstPresent(...values: Array<string | undefined>) {
@@ -161,11 +156,284 @@ function ResumeSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-t border-slate-900/80 pt-3">
-      <h3 className="mb-2 text-[12px] font-black tracking-[0.16em] text-slate-950">{title}</h3>
+    <section
+      data-print-section
+      className="border-t border-slate-900/80 pt-3"
+    >
+      <h3
+        data-print-title
+        className="mb-2 text-[12px] font-black tracking-[0.16em] text-slate-950"
+      >
+        {title}
+      </h3>
       {children}
     </section>
   );
+}
+
+/**
+ * 이력서 페이지 헤더 — 이름·연락처·헤드라인.
+ * PagedResumeDocument 에서는 첫 페이지에만 렌더된다.
+ */
+export function KoreanResumeHeader({
+  payload,
+  title,
+}: {
+  payload: ResumePayload;
+  title?: string;
+}) {
+  const info = payload.personalInfo;
+  const name = info.name || "이름";
+  // 헤더의 한 줄 소개는 personalInfo.intro 만 사용한다 (자기소개 본문 selfIntroduction
+  // 은 PROFILE SUMMARY 섹션에서 표시).
+  const headline = info.intro?.trim() || "";
+  const contactItems = [
+    info.email,
+    info.phone,
+    info.links.github,
+    info.links.blog,
+  ].filter(Boolean);
+
+  return (
+    <header className="border-b-2 border-slate-950 pb-5">
+      <div className="flex items-end justify-between gap-8">
+        <div className="min-w-0">
+          <p className="text-[12px] font-black tracking-[0.18em] text-slate-500">
+            DEVELOPER RESUME
+          </p>
+          <h1 className="mt-2 text-[34px] font-black leading-none tracking-normal">
+            {name}
+          </h1>
+          {headline ? (
+            <p className="mt-2 text-[12px] font-semibold leading-5 text-slate-600">
+              {headline}
+            </p>
+          ) : title ? (
+            <p className="mt-2 text-[11px] font-medium leading-5 text-slate-400">
+              {title}
+            </p>
+          ) : null}
+        </div>
+        <div className="max-w-[320px] break-all text-right text-[11px] font-semibold leading-5 text-slate-600">
+          {contactItems.map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/**
+ * KoreanResumeDocument 의 본문 sections 를 ResumeSection JSX 배열로 빌드한다.
+ * PagedResumeDocument 에서 페이지 단위 그룹핑을 위해 각 section 의 height 를
+ * 측정하려면 sections 가 명확한 React.ReactNode 배열로 분리되어야 한다.
+ */
+export function buildResumeSectionNodes(
+  payload: ResumePayload,
+  options?: ResumeA4Options,
+): React.ReactNode[] {
+  const sectionOptions = options || DEFAULT_RESUME_A4_OPTIONS;
+  const coverLetters = payload.coverLetters ?? [];
+  const nodes: React.ReactNode[] = [];
+
+  if (sectionOptions.summary) {
+    // PROFILE SUMMARY 는 selfIntroduction 만 사용한다 (personalInfo.intro 는 헤더 한
+    // 줄 소개로 따로 표시됨). 빈 값이면 placeholder 메시지로 안내.
+    nodes.push(
+      <ResumeSection key="summary" title="PROFILE SUMMARY">
+        <p className="whitespace-pre-line text-[12px] font-medium leading-6 text-slate-800">
+          {payload.selfIntroduction?.trim() ||
+            "지원 직무와 관련된 핵심 역량·경험을 2~5문장으로 정리하세요."}
+        </p>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.skills) {
+    nodes.push(
+      <ResumeSection key="skills" title="TECHNICAL SKILLS">
+        <div className="flex flex-wrap gap-1.5">
+          {(payload.skills.length
+            ? payload.skills
+            : [{ name: "기술 스택", level: "Intermediate" }]
+          )
+            .slice(0, 24)
+            .map((skill, index) => (
+              <Badge
+                key={`${skill.name}-${index}`}
+                variant="outline"
+                className="rounded-sm border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-800"
+              >
+                {skill.name}
+              </Badge>
+            ))}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.experience) {
+    nodes.push(
+      <ResumeSection key="experience" title="WORK EXPERIENCE">
+        <div className="space-y-4">
+          {payload.experience.length ? (
+            payload.experience.map((exp, index) => (
+              <div
+                key={exp.id || index}
+                data-print-entry
+                className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+              >
+                <div className="text-[11px] font-bold leading-5 text-slate-500">
+                  <p>{exp.period || "기간"}</p>
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <h4 className="text-[13px] font-black text-slate-950">
+                      {exp.company || "회사명"}
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-500">
+                      {exp.position || "직책"}
+                    </p>
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
+                    {(cleanLines(exp.description, 100).length
+                      ? cleanLines(exp.description, 100)
+                      : ["담당 업무와 성과를 입력하세요."]
+                    ).map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-[11px] font-medium text-slate-500">
+              경력 항목을 추가하세요.
+            </p>
+          )}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  if (sectionOptions.projects) {
+    nodes.push(
+      <ResumeSection key="projects" title="PROJECTS">
+        <div className="space-y-4">
+          {payload.projects.length ? (
+            payload.projects.map((project, index) => (
+              <div
+                key={project.id || index}
+                data-print-entry
+                className="grid grid-cols-[128px_minmax(0,1fr)] gap-5"
+              >
+                <div className="text-[11px] font-bold leading-5 text-slate-500">
+                  <p>{project.period || "기간"}</p>
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <h4 className="text-[13px] font-black text-slate-950">
+                      {project.name || "프로젝트명"}
+                    </h4>
+                    <p className="text-[10px] font-bold text-slate-500">
+                      {project.techStack.join(" · ")}
+                    </p>
+                  </div>
+                  <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
+                    {firstPresent(
+                      project.description,
+                      project.role,
+                      project.solution,
+                    ) || "프로젝트 개요와 본인 역할을 입력하세요."}
+                  </p>
+                  {project.achievements.length ? (
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
+                      {project.achievements.map((achievement) => (
+                        <li key={achievement}>{achievement}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-[11px] font-medium text-slate-500">
+              프로젝트 항목을 추가하거나 보관함에서 불러오세요.
+            </p>
+          )}
+        </div>
+      </ResumeSection>,
+    );
+  }
+
+  // 별도의 자기소개 섹션은 더 이상 노출하지 않는다. PROFILE SUMMARY 가 같은 내용을
+  // 표시하므로 중복 출력 방지. (sectionOptions.selfIntroduction 옵션은 호환을 위해
+  // 남겨두지만 노출하지 않는다.)
+
+  if (sectionOptions.coverLetters) {
+    nodes.push(
+      <ResumeSection key="coverLetters" title="COVER LETTER">
+        {coverLetters.length ? (
+          <div className="space-y-5">
+            {coverLetters.map((letter) => {
+              const meta = [letter.company, letter.role]
+                .filter(Boolean)
+                .join(" · ");
+              const hasQuestions = (letter.questions?.length ?? 0) > 0;
+              return (
+                <div key={letter.id} data-print-entry className="space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <h4 className="text-[12px] font-black text-slate-950">
+                      {letter.title || "지원 자기소개서"}
+                    </h4>
+                    {meta ? (
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {meta}
+                      </span>
+                    ) : null}
+                  </div>
+                  {hasQuestions ? (
+                    <div className="space-y-3">
+                      {letter.questions!.map((question, index) => {
+                        const answer = (question.answer || "").trim();
+                        return (
+                          <div key={question.id} data-print-entry>
+                            <p className="mb-1 text-[11px] font-bold text-slate-950">
+                              Q{index + 1}. {question.title || "문항"}
+                            </p>
+                            {answer ? (
+                              <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                                {answer}
+                              </p>
+                            ) : (
+                              <p className="text-[10.5px] leading-5 text-slate-400">
+                                (답변 미작성)
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-line text-[10.5px] leading-5 text-slate-700">
+                      {(letter.content || "").trim() || "본문이 비어 있습니다."}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[11px] font-medium text-slate-500">
+            연결된 자기소개서가 없습니다.
+          </p>
+        )}
+      </ResumeSection>,
+    );
+  }
+
+  return nodes;
 }
 
 export function KoreanResumeDocument({
@@ -183,163 +451,190 @@ export function KoreanResumeDocument({
   className?: string;
   style?: CSSProperties;
 }) {
-  const sectionOptions = options || DEFAULT_RESUME_A4_OPTIONS;
   const info = payload.personalInfo;
   const name = info.name || "이름";
-  const headline = firstPresent(info.intro, title, "지원 직무와 강점을 요약해 주세요.");
-  const latestCoverLetter = payload.coverLetters?.[0];
-  const contactItems = [
-    info.email,
-    info.phone,
-    info.links.github,
-    info.links.blog,
-  ].filter(Boolean);
+  const sections = buildResumeSectionNodes(payload, options);
 
   return (
     <article
       id={documentId}
-      className={`korean-resume-a4-page bg-white px-11 py-11 text-slate-950 shadow-sm [word-break:keep-all] ${className}`}
+      className={`korean-resume-a4-page print-resume bg-white px-11 py-11 text-slate-950 shadow-sm [overflow-wrap:break-word] ${className}`}
       style={style}
     >
-      <header className="border-b-2 border-slate-950 pb-5">
-        <div className="flex items-end justify-between gap-8">
-          <div>
-            <p className="text-[12px] font-black tracking-[0.18em] text-slate-500">DEVELOPER RESUME</p>
-            <h1 className="mt-2 text-[34px] font-black leading-none tracking-normal">{name}</h1>
-          </div>
-          <div className="max-w-[320px] break-all text-right text-[11px] font-semibold leading-5 text-slate-600">
-            {contactItems.map((item) => (
-              <p key={item}>{item}</p>
-            ))}
-          </div>
-        </div>
-        <p className="mt-4 text-[14px] font-bold leading-6 text-slate-800">{headline}</p>
-      </header>
+      <KoreanResumeHeader payload={payload} title={title} />
 
-      <div className="mt-5 space-y-5">
-        {sectionOptions.summary ? (
-          <ResumeSection title="PROFILE SUMMARY">
-            <p className="text-[12px] font-medium leading-6 text-slate-800">
-              {compactText(info.intro || payload.selfIntroduction, 260) || "핵심 역량과 지원 포지션에 맞는 강점을 입력하세요."}
-            </p>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.skills ? (
-          <ResumeSection title="TECHNICAL SKILLS">
-            <div className="flex flex-wrap gap-1.5">
-              {(payload.skills.length ? payload.skills : [{ name: "기술 스택", level: "Intermediate" }]).slice(0, 24).map((skill, index) => (
-                <Badge key={`${skill.name}-${index}`} variant="outline" className="rounded-sm border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-800">
-                  {skill.name}
-                </Badge>
-              ))}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.experience ? (
-          <ResumeSection title="WORK EXPERIENCE">
-            <div className="space-y-4">
-              {payload.experience.length ? payload.experience.slice(0, 4).map((exp, index) => (
-                <div key={exp.id || index} className="grid grid-cols-[128px_minmax(0,1fr)] gap-5">
-                  <div className="text-[11px] font-bold leading-5 text-slate-500">
-                    <p>{exp.period || "기간"}</p>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <h4 className="text-[13px] font-black text-slate-950">{exp.company || "회사명"}</h4>
-                      <p className="text-[11px] font-bold text-slate-500">{exp.position || "직책"}</p>
-                    </div>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                      {(cleanLines(exp.description, 3).length ? cleanLines(exp.description, 3) : ["담당 업무와 성과를 입력하세요."]).map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-[11px] font-medium text-slate-500">경력 항목을 추가하세요.</p>
-              )}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.projects ? (
-          <ResumeSection title="PROJECTS">
-            <div className="space-y-4">
-              {payload.projects.length ? payload.projects.slice(0, 5).map((project, index) => (
-                <div key={project.id || index} className="grid grid-cols-[128px_minmax(0,1fr)] gap-5">
-                  <div className="text-[11px] font-bold leading-5 text-slate-500">
-                    <p>{project.period || "기간"}</p>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <h4 className="text-[13px] font-black text-slate-950">{project.name || "프로젝트명"}</h4>
-                      <p className="text-[10px] font-bold text-slate-500">{project.techStack.slice(0, 6).join(" · ")}</p>
-                    </div>
-                    <p className="mt-1 text-[11px] font-medium leading-5 text-slate-700">
-                      {compactText(firstPresent(project.description, project.role, project.solution), 190) || "프로젝트 개요와 본인 역할을 입력하세요."}
-                    </p>
-                    {project.achievements.length ? (
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] font-medium leading-5 text-slate-700">
-                        {project.achievements.slice(0, 3).map((achievement) => (
-                          <li key={achievement}>{achievement}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </div>
-              )) : (
-                <p className="text-[11px] font-medium text-slate-500">프로젝트 항목을 추가하거나 보관함에서 불러오세요.</p>
-              )}
-            </div>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.selfIntroduction ? (
-          <ResumeSection title="SELF INTRODUCTION">
-            <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-              {compactText(payload.selfIntroduction, 520) || "지원 동기, 협업 방식, 성장 경험을 정리하세요."}
-            </p>
-          </ResumeSection>
-        ) : null}
-
-        {sectionOptions.coverLetters ? (
-          <ResumeSection title="COVER LETTER">
-            {latestCoverLetter ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-4">
-                  <h4 className="text-[12px] font-black text-slate-950">{latestCoverLetter.title}</h4>
-                  <span className="text-[10px] font-bold text-slate-500">
-                    {[latestCoverLetter.company, latestCoverLetter.role].filter(Boolean).join(" · ")}
-                  </span>
-                </div>
-                {latestCoverLetter.questions?.length ? (
-                  latestCoverLetter.questions.slice(0, 2).map((question) => (
-                    <div key={question.id}>
-                      <p className="text-[11px] font-black text-slate-800">{question.title}</p>
-                      <p className="mt-1 whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-                        {compactText(question.answer, 260) || "답변을 입력하세요."}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="whitespace-pre-line text-[11px] font-medium leading-5 text-slate-700">
-                    {compactText(latestCoverLetter.content, 360)}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-[11px] font-medium text-slate-500">연결된 자기소개서가 없습니다.</p>
-            )}
-          </ResumeSection>
-        ) : null}
-      </div>
+      <div className="mt-5 space-y-5">{sections}</div>
 
     </article>
   );
 }
 
+/**
+ * 측정 기반 다중 페이지 이력서 뷰.
+ *
+ * - 본문 sections 각각을 794px 폭에서 한 번 측정한 뒤, 누적 height 가 페이지
+ *   inner height(1035px = 1123 - 88) 를 넘기 직전에 새 페이지로 분기한다.
+ * - 한 section 이 한 페이지보다 크면 그 section 만 단독 페이지로 보낸다
+ *   (overflow-hidden 으로 나머지는 잘림 — 이력서 1 section 이 A4 1장보다 큰 경우는 드물다).
+ * - 각 페이지는 794×1123 고정 박스. 컨테이너 너비에 맞춰 비례 축소된다.
+ * - 첫 페이지에만 KoreanResumeHeader 가 들어가며 그만큼의 height 를 차감한다.
+ */
+export function PagedResumeDocument({
+  payload,
+  title,
+  options,
+  documentId,
+  className = "",
+}: {
+  payload: ResumePayload;
+  title?: string;
+  options?: ResumeA4Options;
+  documentId?: string;
+  className?: string;
+}) {
+  const sections = buildResumeSectionNodes(payload, options);
+
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [groups, setGroups] = useState<number[][]>([[]]);
+
+  useEffect(() => {
+    sectionRefs.current = sectionRefs.current.slice(0, sections.length);
+  }, [sections.length]);
+
+  useEffect(() => {
+    const PAGE_HEIGHT = 1123;
+    const VERTICAL_PADDING = 88; // px-11 py-11 합산 (44 + 44)
+    const SECTION_GAP = 20; // space-y-5 (5*4=20) 보정
+    const FIRST_PAGE_HEADER_GAP = 20; // mt-5
+
+    const updateGroups = () => {
+      if (sections.length === 0) {
+        setGroups([[]]);
+        return;
+      }
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const heights = sectionRefs.current.map((el) => el?.offsetHeight ?? 0);
+
+      const next: number[][] = [];
+      let current: number[] = [];
+      let acc = 0;
+      let isFirstPage = true;
+      const firstPageLimit =
+        PAGE_HEIGHT - VERTICAL_PADDING - headerHeight - FIRST_PAGE_HEADER_GAP;
+      const restPageLimit = PAGE_HEIGHT - VERTICAL_PADDING;
+
+      sections.forEach((_, idx) => {
+        const limit = isFirstPage ? firstPageLimit : restPageLimit;
+        const cost = heights[idx] + (current.length > 0 ? SECTION_GAP : 0);
+
+        if (acc + cost > limit && current.length > 0) {
+          // 현재 페이지 마감, 새 페이지 시작
+          next.push(current);
+          current = [idx];
+          acc = heights[idx];
+          isFirstPage = false;
+        } else {
+          current.push(idx);
+          acc += cost;
+        }
+      });
+      if (current.length > 0) next.push(current);
+      if (next.length === 0) next.push([]);
+      setGroups(next);
+    };
+
+    updateGroups();
+    // section 안 콘텐츠(텍스트) 변화에 따라 재측정.
+    const observer = new ResizeObserver(updateGroups);
+    sectionRefs.current.forEach((el) => el && observer.observe(el));
+    if (headerRef.current) observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, [sections]);
+
+  return (
+    <div
+      className={`mx-auto w-full max-w-[794px] [container-type:inline-size] space-y-3 ${className}`}
+    >
+      {/* 측정용(보이지 않음). 모든 section 을 한 번씩 794px 폭으로 그려 height 를 잰다. */}
+      <div
+        aria-hidden
+        className="pointer-events-none invisible absolute -z-10 h-0 overflow-hidden"
+      >
+        <div className="w-[794px] px-11">
+          <div ref={headerRef}>
+            <KoreanResumeHeader payload={payload} title={title} />
+          </div>
+          <div className="mt-5 space-y-5">
+            {sections.map((section, i) => (
+              <div
+                key={i}
+                ref={(el) => {
+                  sectionRefs.current[i] = el;
+                }}
+              >
+                {section}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 표시용 페이지들. 각 페이지는 A4(794×1123) 고정 박스. */}
+      {groups.map((group, pageIndex) => (
+        <div
+          key={pageIndex}
+          className="relative overflow-hidden bg-white shadow-sm"
+          style={{ height: `calc(1123px * (100cqw / 794px))` }}
+        >
+          <article
+            id={pageIndex === 0 ? documentId : undefined}
+            className="korean-resume-a4-page print-resume absolute left-0 top-0 w-[794px] origin-top-left bg-white px-11 py-11 text-slate-950 [overflow-wrap:break-word]"
+            style={{ transform: `scale(calc(100cqw / 794px))` }}
+          >
+            {pageIndex === 0 && (
+              <KoreanResumeHeader payload={payload} title={title} />
+            )}
+            <div
+              className={pageIndex === 0 ? "mt-5 space-y-5" : "space-y-5"}
+            >
+              {group.map((sectionIdx) => (
+                <div key={sectionIdx}>{sections[sectionIdx]}</div>
+              ))}
+            </div>
+          </article>
+          {groups.length > 1 && (
+            <span
+              data-print-helper
+              className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
+            >
+              {pageIndex + 1} / {groups.length}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 본문을 "고정 규격 A4 페이지" 단위로 분할해서 보여준다 (이전 단순 시뮬레이션 방식).
+ *
+ * 현재는 PagedResumeDocument 가 측정 기반 정확한 페이지 분할을 제공하므로
+ * 호환을 위해 export 만 유지된다.
+ *
+ * - 각 페이지는 794×1123 의 고정 박스. 한 페이지가 동적으로 늘어나지 않는다.
+ * - 본문이 1페이지를 넘으면 새 A4 박스가 아래에 추가되며 위에서 아래로 쌓인다.
+ * - 컨테이너 너비에 맞춰 각 페이지가 비례 축소(scale) 된다.
+ *
+ * 구현:
+ *   1) 보이지 않는 측정용 컨테이너에 원본 본문을 한 번 그려 ResizeObserver 로
+ *      전체 height 를 잰다.
+ *   2) ceil(height / 1123) 개수만큼 표시용 A4 박스를 생성한다.
+ *   3) 각 박스 내부에는 동일한 본문을 absolute 로 두고, 자기 페이지에 해당하는
+ *      구간만 보이게 `translateY(-pageIndex * 1123px)` 로 끌어올린다.
+ *      overflow-hidden 으로 페이지 박스 바깥 콘텐츠는 자동 마스킹.
+ */
 export function ScaledKoreanResumeDocument({
   payload,
   title,
@@ -355,19 +650,107 @@ export function ScaledKoreanResumeDocument({
   className?: string;
   minHeightClass?: string;
 }) {
+  const measureRef = useRef<HTMLDivElement | null>(null);
+  const [pageCount, setPageCount] = useState(1);
+
+  useEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    const update = () => {
+      const height = el.scrollHeight;
+      const pages = Math.max(1, Math.ceil(height / 1123));
+      setPageCount(pages);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [payload, options]);
+
   return (
-    <div className={`mx-auto w-full max-w-[794px] [container-type:inline-size] ${className}`}>
-      <div className={`relative h-[calc(1123px*(100cqw/794px))] overflow-hidden ${minHeightClass}`}>
-        <KoreanResumeDocument
-          payload={payload}
-          title={title}
-          options={options}
-          documentId={documentId}
-          className="absolute left-0 top-0 h-[1123px] min-h-[1123px] w-[794px] origin-top-left"
-          style={{ transform: "scale(calc(100cqw / 794px))" }}
-        />
+    <div
+      className={`mx-auto w-full max-w-[794px] [container-type:inline-size] space-y-3 ${className}`}
+    >
+      {/* 측정용(보이지 않음) — 794px 원본 폭에서 전체 본문을 한 번 그려 height 를 잰다. */}
+      <div
+        aria-hidden
+        className="pointer-events-none invisible h-0 overflow-hidden"
+      >
+        <div ref={measureRef} className="w-[794px]">
+          <KoreanResumeDocument
+            payload={payload}
+            title={title}
+            options={options}
+            className="w-full"
+          />
+        </div>
       </div>
+
+      {/* 표시용 페이지 박스들. 각 박스는 794×1123 의 고정 A4 규격. */}
+      {Array.from({ length: pageCount }, (_, i) => (
+        <div
+          key={i}
+          className={`relative overflow-hidden bg-white shadow-sm ${
+            i === 0 ? minHeightClass : ""
+          }`}
+          style={{
+            height: `calc(1123px * (100cqw / 794px))`,
+          }}
+        >
+          <div
+            id={i === 0 ? documentId : undefined}
+            className="absolute left-0 top-0 w-[794px] origin-top-left"
+            style={{
+              // scale 먼저 적용 → 그 뒤 translate. 결과적으로 i 번째 페이지의 본문만 박스에 보인다.
+              transform: `scale(calc(100cqw / 794px)) translateY(-${
+                i * 1123
+              }px)`,
+            }}
+          >
+            <KoreanResumeDocument
+              payload={payload}
+              title={title}
+              options={options}
+              className="w-full"
+            />
+          </div>
+          {/* 페이지 번호 표시 (페이지가 2개 이상일 때만) */}
+          {pageCount > 1 && (
+            <span
+              data-print-helper
+              className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
+            >
+              {i + 1} / {pageCount}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
+  );
+}
+
+/**
+ * HTML 기반 미리보기 — 측정 기반 다중 A4 페이지 분할.
+ * 본문이 한 페이지를 넘으면 자연스럽게 새 A4 박스로 분기된다.
+ */
+function PagedResumePreview({
+  payload,
+  title,
+  options,
+  documentId,
+}: {
+  payload: ResumePayload;
+  title?: string;
+  options?: ResumeA4Options;
+  documentId?: string;
+}) {
+  return (
+    <PagedResumeDocument
+      payload={payload}
+      title={title}
+      options={options}
+      documentId={documentId}
+    />
   );
 }
 
@@ -531,13 +914,14 @@ export function KoreanResumePreview({
         </Button>
       </div>
 
+      {/* HTML 미리보기 — 측정 기반 페이지 분할로 페이지 경계에서 블록(섹션/entry)이
+          자연스럽게 다음 페이지로 넘어간다. PDF 다운로드는 별도 react-pdf 경로. */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-3">
-        <ScaledKoreanResumeDocument
+        <PagedResumePreview
           payload={payload}
           title={title}
           options={options}
           documentId="korean-resume-print"
-          className="korean-resume-scale-frame"
         />
       </div>
     </aside>

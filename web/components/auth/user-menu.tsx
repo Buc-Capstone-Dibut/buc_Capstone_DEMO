@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, LogOut, Loader2 } from "lucide-react";
+import { User, LogOut, Loader2, CalendarRange } from "lucide-react";
 
 interface UserMenuProps {
   onLoginClick: () => void;
@@ -108,6 +108,12 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
           <Link href={myPageHref}>
             <User className="mr-2 h-4 w-4" />
             <span>프로필</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/my/job-postings">
+            <CalendarRange className="mr-2 h-4 w-4" />
+            <span>내 채용공고 관리</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

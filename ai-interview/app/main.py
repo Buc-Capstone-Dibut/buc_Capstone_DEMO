@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin import router as admin_router
 from app.api.interview import report_agent as interview_report_agent
 from app.api.interview import router as interview_router
+from app.api.resume import router as resume_router
 from app.api.ws import router as ws_router
 from app.config import settings
 from app.db.database import init_db
@@ -81,3 +82,4 @@ def health() -> dict[str, str]:
 app.include_router(interview_router)
 app.include_router(admin_router)
 app.include_router(ws_router)
+app.include_router(resume_router)

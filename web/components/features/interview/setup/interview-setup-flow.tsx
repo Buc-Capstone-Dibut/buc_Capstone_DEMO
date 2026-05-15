@@ -25,7 +25,15 @@ interface InterviewSetupFlowProps {
 }
 
 export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
-  const { currentStep, reset, setResumeData, setResumePrefillSource } = useInterviewSetupStore();
+  const {
+    currentStep,
+    reset,
+    setResumeData,
+    setResumePrefillSource,
+    setJobData,
+    setTarget,
+    setStep,
+  } = useInterviewSetupStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -39,6 +47,69 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
   useEffect(() => {
     if (track === "role") return;
     const importType = searchParams.get("import");
+    const postingId = searchParams.get("postingId");
+
+    // Branch: job_posting import (must run before active_resume — both share didImportRef)
+    if (importType === "job_posting" && postingId && !didImportRef.current) {
+      didImportRef.current = true;
+
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/my/job-postings/${postingId}/interview-prefill`,
+            { cache: "no-store" },
+          );
+          const json = await res.json();
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || "채용공고를 불러오지 못했습니다.");
+          }
+          const d = json.data ?? {};
+
+          if (typeof d.targetUrl === "string" && d.targetUrl) {
+            setTarget(d.targetUrl, "");
+          }
+          if (d.jobData) {
+            setJobData({
+              role: d.jobData.role ?? "",
+              company: d.jobData.company ?? "",
+              techStack: Array.isArray(d.jobData.techStack) ? d.jobData.techStack : [],
+              responsibilities: Array.isArray(d.jobData.responsibilities)
+                ? d.jobData.responsibilities
+                : [],
+              requirements: Array.isArray(d.jobData.requirements)
+                ? d.jobData.requirements
+                : [],
+              preferred: Array.isArray(d.jobData.preferred) ? d.jobData.preferred : [],
+              companyDescription: d.jobData.companyDescription ?? "",
+              teamCulture: Array.isArray(d.jobData.teamCulture) ? d.jobData.teamCulture : [],
+            });
+          }
+          if (d.resumeData) {
+            setResumeData({
+              fileName: d.resumeData.fileName ?? "채용공고 연동 이력서",
+              parsedContent: d.resumeData.parsedContent,
+            });
+            setResumePrefillSource(d.resumePrefillSource ?? null);
+          }
+          setStep("jd-check");
+          toast({
+            title: "채용공고 자동 채움 완료",
+            description: "등록된 채용공고 정보를 setup에 불러왔습니다.",
+          });
+        } catch (error) {
+          toast({
+            title: "채용공고 불러오기 실패",
+            description:
+              error instanceof Error
+                ? error.message
+                : "채용공고 정보를 불러오지 못했습니다.",
+            variant: "destructive",
+          });
+        }
+      })();
+      return;
+    }
+
     if (importType !== "active_resume" || didImportRef.current) return;
     didImportRef.current = true;
 
@@ -70,7 +141,16 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
     };
 
     runImport();
-  }, [searchParams, setResumeData, setResumePrefillSource, toast, track]);
+  }, [
+    searchParams,
+    setResumeData,
+    setResumePrefillSource,
+    setJobData,
+    setTarget,
+    setStep,
+    toast,
+    track,
+  ]);
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({ top: 0 });
