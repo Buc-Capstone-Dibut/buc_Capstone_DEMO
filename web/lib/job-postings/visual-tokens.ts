@@ -99,11 +99,15 @@ export const STATUS_LABEL: Record<JobPostingStatus, string> = {
   archived: "보관",
 };
 
+/**
+ * 캘린더 이벤트 도트 / 강조 컬러. Dibut의 차분한 톤에 맞춰 500 → 400 한 단계 부드럽게.
+ * 막대 배경은 KIND_TONE (bg-*-50)으로 깔고, 이 색은 작은 도트와 호버 액센트에만 사용.
+ */
 export const KIND_COLOR: Record<ScheduleKind, string> = {
-  deadline: "#ef4444",
-  document_due: "#3b82f6",
-  interview: "#f97316",
-  other: "#64748b",
+  deadline: "#f87171",
+  document_due: "#60a5fa",
+  interview: "#fb923c",
+  other: "#94a3b8",
 };
 
 export const KIND_TONE: Record<ScheduleKind, string> = {

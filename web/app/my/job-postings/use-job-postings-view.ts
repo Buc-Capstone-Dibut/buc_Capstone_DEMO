@@ -5,13 +5,15 @@ import type { JobPostingStatus } from "@/lib/job-postings/types";
 
 export type Sort = "created_desc" | "created_asc" | "deadline_asc" | "company_asc";
 export type FavoritesPolicy = "off" | "top" | "only";
+export type AttachFilter = "missing_resume" | "missing_cover_letter" | "ready" | null;
 
 export interface ViewState {
   calendarVisible: boolean;
   query: string;
-  statusFilters: JobPostingStatus[]; // 빈 배열 = 전체
+  statusFilters: JobPostingStatus[];
   sort: Sort;
   favoritesPolicy: FavoritesPolicy;
+  attachFilter: AttachFilter;
   page: number;
   pageSize: number;
 }
@@ -25,6 +27,7 @@ const DEFAULT_STATE: ViewState = {
   statusFilters: [],
   sort: "created_desc",
   favoritesPolicy: "top",
+  attachFilter: null,
   page: 1,
   pageSize: DEFAULT_PAGE_SIZE,
 };
@@ -35,6 +38,7 @@ type Action =
   | { type: "SET_SORT"; payload: Sort }
   | { type: "TOGGLE_CALENDAR" }
   | { type: "SET_FAVORITES_POLICY"; payload: FavoritesPolicy }
+  | { type: "SET_ATTACH_FILTER"; payload: AttachFilter }
   | { type: "SET_PAGE"; payload: number }
   | { type: "SET_PAGE_SIZE"; payload: number }
   | { type: "RESTORE"; payload: Partial<ViewState> };
@@ -56,6 +60,8 @@ function reducer(state: ViewState, action: Action): ViewState {
       return { ...state, calendarVisible: !state.calendarVisible };
     case "SET_FAVORITES_POLICY":
       return { ...state, favoritesPolicy: action.payload, page: 1 };
+    case "SET_ATTACH_FILTER":
+      return { ...state, attachFilter: action.payload, page: 1 };
     case "SET_PAGE":
       return { ...state, page: Math.max(1, action.payload) };
     case "SET_PAGE_SIZE":
@@ -165,6 +171,10 @@ export function useJobPostingsView() {
     (payload: FavoritesPolicy) => dispatch({ type: "SET_FAVORITES_POLICY", payload }),
     [],
   );
+  const setAttachFilter = useCallback(
+    (payload: AttachFilter) => dispatch({ type: "SET_ATTACH_FILTER", payload }),
+    [],
+  );
   const setPage = useCallback((payload: number) => dispatch({ type: "SET_PAGE", payload }), []);
   const setPageSize = useCallback(
     (payload: number) => dispatch({ type: "SET_PAGE_SIZE", payload }),
@@ -178,6 +188,7 @@ export function useJobPostingsView() {
     setSort,
     toggleCalendar,
     setFavoritesPolicy,
+    setAttachFilter,
     setPage,
     setPageSize,
   };

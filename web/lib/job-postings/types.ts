@@ -96,6 +96,7 @@ export interface AttachmentRecord {
   portfolioId: string | null;
   projectId: string | null;
   projectLabel: string | null;
+  snapshotPayload: Record<string, unknown> | null;
 }
 
 export interface CoverLetterQuestion {

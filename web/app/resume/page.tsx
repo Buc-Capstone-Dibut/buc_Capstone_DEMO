@@ -324,14 +324,8 @@ export default function ResumePage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="default"
-                            onClick={() => window.print()}
-                            className="h-10 rounded-md border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:border-primary/40 hover:text-primary"
-                        >
-                            인쇄 / PDF로 저장
-                        </Button>
+                        {/* "인쇄 / PDF로 저장" outline 버튼은 우측 미리보기 패널 내부의 PDF 저장 버튼으로
+                            대체했으므로 제거. PDF 다운로드(react-pdf 경로)는 별도 흐름이라 유지. */}
                         <ResumePdfDownloadButton
                             resumePayload={resumePayload}
                             title={resumeTitle}
@@ -350,7 +344,7 @@ export default function ResumePage() {
                 </div>
             </header>
 
-            <main className="max-w-[1500px] mx-auto p-4 lg:p-8 min-h-[calc(100vh-4rem)]">
+            <main className="max-w-[1800px] mx-auto p-4 lg:p-6 min-h-[calc(100vh-4rem)]">
                 <ResumeEditor
                     payload={resumePayload}
                     onChange={setResumePayload}

@@ -46,3 +46,7 @@ COMMENT ON COLUMN "user_job_postings"."folder_id" IS
   'Optional folder for grouping in the UI.';
 COMMENT ON COLUMN "user_job_postings"."color" IS
   'User-picked accent color preset (e.g. emerald, sky, violet). Overrides status color on the card left bar.';
+
+-- 3. 첨부 시점 자료 snapshot (이력서 제목·경력요약, 자소서 본문, 포트폴리오 제목, 프로젝트 개요)
+ALTER TABLE "user_job_posting_attachments"
+  ADD COLUMN IF NOT EXISTS "snapshot_payload" jsonb;

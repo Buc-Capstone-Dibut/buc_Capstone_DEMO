@@ -97,13 +97,21 @@ export async function POST(request: Request, ctx: { params: { id: string } }) {
         return NextResponse.json({ success: false, error: "포트폴리오 없음" }, { status: 404 });
       }
     } else if (body.attachmentType === "project") {
-      // project 는 별도 테이블이 없고 user_resume_profiles.resume_payload 의
-      // projects[] JSON 안에 있으므로, 클라이언트가 보낸 (projectId, projectLabel)
-      // 을 그대로 신뢰해 저장한다. 사용자 본인의 프로필만 읽도록 RLS 가 막아줌.
       if (typeof body.projectId !== "string" || body.projectId.trim() === "") {
         return NextResponse.json(
           { success: false, error: "projectId 필수" },
           { status: 400 },
+        );
+      }
+      const profile = await prisma.user_resume_profiles.findUnique({
+        where: { user_id: session.user.id },
+        select: { resume_payload: true },
+      });
+      const projects = (profile?.resume_payload as any)?.projects as any[] | undefined;
+      if (!projects?.some((p: any) => p.id === body.projectId)) {
+        return NextResponse.json(
+          { success: false, error: "프로필에 존재하지 않는 프로젝트입니다" },
+          { status: 404 },
         );
       }
     }
@@ -112,6 +120,65 @@ export async function POST(request: Request, ctx: { params: { id: string } }) {
     const coverLetterLabel =
       coverLetterLabelFromRow ??
       (typeof body.coverLetterLabel === "string" ? body.coverLetterLabel : null);
+
+    // snapshot: 첨부 시점의 자료 핵심 필드를 캡처
+    let snapshotPayload: Record<string, unknown> | null = null;
+    try {
+      if (body.attachmentType === "resume" && resumeIdToPersist) {
+        const doc = await prisma.user_resumes.findFirst({
+          where: { id: resumeIdToPersist, user_id: session.user.id },
+          select: { title: true, resume_payload: true },
+        });
+        if (doc) {
+          const p = doc.resume_payload as Record<string, unknown> | null;
+          snapshotPayload = {
+            title: doc.title,
+            name: p?.name,
+            careerSummary: p?.careerSummary,
+            experienceCount: Array.isArray(p?.experiences) ? (p.experiences as unknown[]).length : 0,
+          };
+        }
+      } else if (body.attachmentType === "cover_letter" && coverLetterId) {
+        const doc = await (prisma as any).user_cover_letters.findFirst({
+          where: { id: coverLetterId, user_id: session.user.id },
+          select: { title: true, body: true, questions: true },
+        });
+        if (doc) {
+          snapshotPayload = {
+            title: doc.title,
+            bodyLength: (doc.body as string)?.length ?? 0,
+            questionCount: Array.isArray(doc.questions) ? (doc.questions as unknown[]).length : 0,
+          };
+        }
+      } else if (body.attachmentType === "portfolio" && body.portfolioId) {
+        const doc = await prisma.user_portfolios.findFirst({
+          where: { id: body.portfolioId, user_id: session.user.id },
+          select: { title: true, template_id: true, format: true },
+        });
+        if (doc) {
+          snapshotPayload = { title: doc.title, templateId: doc.template_id, format: doc.format };
+        }
+      } else if (body.attachmentType === "project" && body.projectId) {
+        const profile = await prisma.user_resume_profiles.findUnique({
+          where: { user_id: session.user.id },
+          select: { resume_payload: true },
+        });
+        if (profile) {
+          const projects = (profile.resume_payload as any)?.projects as any[] | undefined;
+          const proj = projects?.find((p: any) => p.id === body.projectId);
+          if (proj) {
+            snapshotPayload = {
+              name: proj.name,
+              period: proj.period,
+              techStack: proj.techStack,
+              description: proj.description,
+            };
+          }
+        }
+      }
+    } catch {
+      // snapshot 실패해도 첨부 자체는 진행
+    }
 
     const created = await prisma.user_job_posting_attachments.create({
       data: {
@@ -131,6 +198,7 @@ export async function POST(request: Request, ctx: { params: { id: string } }) {
           body.attachmentType === "project" && typeof body.projectLabel === "string"
             ? body.projectLabel
             : null,
+        snapshot_payload: snapshotPayload,
       },
     });
     return NextResponse.json({ success: true, data: created }, { status: 201 });

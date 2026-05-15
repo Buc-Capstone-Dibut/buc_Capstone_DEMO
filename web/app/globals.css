@@ -438,6 +438,178 @@ body {
   --color-surface-primary-container: #2A4018;
 }
 
+/* ─────────────────────────────────────────
+   FullCalendar — Dibut 톤 오버라이드
+   채용공고 캘린더(/my/job-postings)의 .fc-* 기본 스타일을 한 톤 부드럽게.
+   ───────────────────────────────────────── */
+.fc {
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* 헤더 (월 타이틀 + 이동 버튼) */
+.fc .fc-toolbar.fc-header-toolbar {
+  margin-bottom: 0.875rem;
+}
+.fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
+}
+
+/* prev / next / today 버튼 — ghost 톤 */
+.fc .fc-button-primary {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  box-shadow: none;
+  text-transform: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.fc .fc-button-primary:hover {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+.fc .fc-button-primary:not(:disabled):active,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+  box-shadow: none;
+}
+.fc .fc-button-primary:focus,
+.fc .fc-button-primary:focus-visible {
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.25);
+  outline: none;
+}
+.fc .fc-button-primary:disabled {
+  background: hsl(var(--muted) / 0.4);
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground) / 0.5);
+  opacity: 1;
+}
+.fc .fc-button-group {
+  gap: 4px;
+}
+.fc .fc-button-group > .fc-button {
+  border-radius: 8px !important;
+  margin: 0;
+}
+
+/* 그리드 라인 옅게 */
+.fc-theme-standard td,
+.fc-theme-standard th,
+.fc-theme-standard .fc-scrollgrid {
+  border-color: hsl(var(--border));
+}
+.fc-theme-standard .fc-scrollgrid {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 요일 헤더 */
+.fc .fc-col-header-cell {
+  background: hsl(var(--muted) / 0.35);
+  padding: 6px 0;
+}
+.fc .fc-col-header-cell-cushion {
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px 6px;
+  text-decoration: none;
+}
+.fc .fc-col-header-cell:first-child .fc-col-header-cell-cushion {
+  color: hsl(0 55% 60%);
+}
+.fc .fc-col-header-cell:last-child .fc-col-header-cell-cushion {
+  color: hsl(214 55% 55%);
+}
+
+/* 날짜 셀 */
+.fc .fc-daygrid-day {
+  transition: background-color 120ms ease;
+}
+.fc .fc-daygrid-day:hover {
+  background: hsl(var(--muted) / 0.4);
+}
+.fc .fc-daygrid-day-number {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  padding: 6px 8px;
+  text-decoration: none;
+}
+.fc .fc-day-other .fc-daygrid-day-number {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+.fc .fc-day-sun:not(.fc-day-today) .fc-daygrid-day-number {
+  color: hsl(0 55% 58%);
+}
+.fc .fc-day-sat:not(.fc-day-today) .fc-daygrid-day-number {
+  color: hsl(214 55% 52%);
+}
+
+/* 오늘 — Dibut 그린 옅은 톤 */
+.fc .fc-day-today {
+  background: hsl(var(--primary) / 0.07) !important;
+}
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: hsl(var(--primary));
+  font-weight: 700;
+}
+
+/* 이벤트 컨테이너 — 기본 배경/보더 제거 (eventContent에서 알약형으로 직접 그림) */
+.fc-daygrid-event {
+  background: transparent !important;
+  border: none !important;
+  margin: 1px 4px;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: none;
+}
+.fc-daygrid-event:hover {
+  filter: brightness(0.96);
+}
+.fc-daygrid-event:focus,
+.fc-daygrid-event:focus-visible {
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.3);
+  outline: none;
+  border-radius: 6px;
+}
+.fc-daygrid-day-events {
+  margin-top: 2px;
+  padding: 0 2px;
+}
+.fc .fc-daygrid-more-link {
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.fc .fc-daygrid-more-link:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+/* 다크 모드 보정 — 일/토 색 채도를 낮춰 너무 튀지 않도록 */
+.dark .fc .fc-col-header-cell:first-child .fc-col-header-cell-cushion,
+.dark .fc .fc-day-sun:not(.fc-day-today) .fc-daygrid-day-number {
+  color: hsl(0 45% 65%);
+}
+.dark .fc .fc-col-header-cell:last-child .fc-col-header-cell-cushion,
+.dark .fc .fc-day-sat:not(.fc-day-today) .fc-daygrid-day-number {
+  color: hsl(214 45% 65%);
+}
+
 /*
  * 이력서 미리보기 인쇄 규칙
  * 브라우저 인쇄(Cmd+P)나 "PDF로 저장" 시 본문이 길어지면 자연스럽게 다음 페이지로

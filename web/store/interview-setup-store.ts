@@ -122,6 +122,19 @@ export interface AnalysisResult {
   }[];
 }
 
+export interface PortfolioPrefill {
+  id: string;
+  title: string;
+}
+
+export interface ProjectPrefill {
+  id: string;
+  name: string;
+  period: string;
+  techStack: string[];
+  description: string;
+}
+
 export interface RolePrepData {
   categoryId: string;
   roleId: string | null;
@@ -131,7 +144,7 @@ export interface RolePrepData {
 interface InterviewSetupState {
   currentStep: InterviewSetupStep;
   targetUrl: string;
-  targetJobCategory: string; // Fallback if no URL
+  targetJobCategory: string;
   interviewSessionId: string | null;
   resumePrefillSource:
     | "active_resume"
@@ -146,6 +159,10 @@ interface InterviewSetupState {
   resumeData: ResumeData | null;
   rolePrepData: RolePrepData | null;
 
+  // Attached assets from job posting
+  attachedPortfolios: PortfolioPrefill[];
+  attachedProjects: ProjectPrefill[];
+
   // Actions
   setStep: (step: InterviewSetupStep) => void;
   setTarget: (url: string, category: string) => void;
@@ -155,6 +172,8 @@ interface InterviewSetupState {
   updateResumeData: (data: Partial<ResumeData>) => void;
   setRolePrepData: (data: RolePrepData | null) => void;
   updateRolePrepData: (data: Partial<RolePrepData>) => void;
+  setAttachedPortfolios: (data: PortfolioPrefill[]) => void;
+  setAttachedProjects: (data: ProjectPrefill[]) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
   setResumePrefillSource: (
     source:
@@ -178,6 +197,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       jobData: null,
       resumeData: null,
       rolePrepData: null,
+      attachedPortfolios: [],
+      attachedProjects: [],
       setStep: (step) => set({ currentStep: step }),
       setTarget: (url, category) => set({ targetUrl: url, targetJobCategory: category }),
       setJobData: (data) => set({ jobData: data }),
@@ -195,6 +216,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         set((state) => ({
           rolePrepData: state.rolePrepData ? { ...state.rolePrepData, ...updates } : null
         })),
+      setAttachedPortfolios: (data) => set({ attachedPortfolios: data }),
+      setAttachedProjects: (data) => set({ attachedProjects: data }),
       setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
       setResumePrefillSource: (source) => set({ resumePrefillSource: source }),
       completeSetup: () => set({ currentStep: 'complete' }),
@@ -207,6 +230,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         jobData: null,
         resumeData: null,
         rolePrepData: null,
+        attachedPortfolios: [],
+        attachedProjects: [],
       }),
     }),
     {
@@ -226,6 +251,8 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
           }
           : null,
         rolePrepData: state.rolePrepData,
+        attachedPortfolios: state.attachedPortfolios,
+        attachedProjects: state.attachedProjects,
       }),
     }
   )

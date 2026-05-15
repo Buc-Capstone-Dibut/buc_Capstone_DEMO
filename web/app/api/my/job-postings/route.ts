@@ -51,7 +51,9 @@ export async function GET(request: Request) {
   const favorites = parseFavorites(url.searchParams.get("favorites"));
   const page = clampPage(url.searchParams.get("page"));
   const pageSize = clampPageSize(url.searchParams.get("pageSize"));
-  const folder = url.searchParams.get("folder"); // 'unfiled' | <uuid> | null
+  const folder = url.searchParams.get("folder");
+  const attached = url.searchParams.get("attached"); // e.g. "resume:<uuid>" | "cover_letter:<uuid>" | "portfolio:<uuid>"
+  const attachFilter = url.searchParams.get("attachFilter"); // "missing_resume" | "missing_cover_letter" | "ready" | null
 
   const where: any = { user_id: session.user.id };
   if (statuses) where.status = { in: statuses };
@@ -62,6 +64,30 @@ export async function GET(request: Request) {
     where.OR = [
       { company_name: { contains: q, mode: "insensitive" } },
       { role_title: { contains: q, mode: "insensitive" } },
+    ];
+  }
+  if (attached) {
+    const [aType, aId] = attached.split(":");
+    if (aType && aId) {
+      where.attachments = {
+        some: { attachment_type: aType, ...(aType === "resume" ? { resume_id: aId } : aType === "cover_letter" ? { cover_letter_id: aId } : aType === "portfolio" ? { portfolio_id: aId } : { project_id: aId }) },
+      };
+    }
+  }
+  if (attachFilter === "missing_resume") {
+    where.NOT = { ...where.NOT, attachments: { some: { attachment_type: "resume" } } };
+  } else if (attachFilter === "missing_cover_letter") {
+    where.NOT = { ...where.NOT, attachments: { some: { attachment_type: "cover_letter" } } };
+  } else if (attachFilter === "ready") {
+    where.attachments = {
+      ...where.attachments,
+      some: { attachment_type: "resume" },
+    };
+    where.AND = [
+      { attachments: { some: { attachment_type: "resume" } } },
+      { attachments: { some: { attachment_type: "cover_letter" } } },
+      { attachments: { some: { attachment_type: "portfolio" } } },
+      { attachments: { some: { attachment_type: "project" } } },
     ];
   }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState, useCallback } from "react";
 import {
   Check,
   FolderClosed,
   FolderPlus,
+  GripVertical,
   Inbox,
   Loader2,
   MoreHorizontal,
@@ -12,6 +13,21 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -66,6 +82,27 @@ export function JobPostingsFolderSidebar({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIdx = folders.findIndex((f) => f.id === active.id);
+      const newIdx = folders.findIndex((f) => f.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return;
+      const reordered = arrayMove(folders, oldIdx, newIdx);
+      setFolders(reordered);
+      await fetch(`/api/my/job-postings/folders/${active.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortOrder: newIdx }),
+      });
+      onFoldersChanged?.();
+    },
+    [folders, onFoldersChanged],
+  );
 
   const load = async () => {
     setLoading(true);
@@ -174,30 +211,34 @@ export function JobPostingsFolderSidebar({
             불러오는 중
           </div>
         ) : (
-          <ul className="space-y-0.5">
-            {folders.map((f) => (
-              <FolderRow
-                key={f.id}
-                folder={f}
-                active={filter.kind === "folder" && filter.id === f.id}
-                onClick={() => onChangeFilter({ kind: "folder", id: f.id })}
-                onRename={(name) => handleRename(f.id, name)}
-                onColor={(c) => handleColor(f.id, c)}
-                onDelete={() => handleDelete(f.id)}
-              />
-            ))}
-            {unfiledCount > 0 && (
-              <li>
-                <NavItem
-                  icon={<FolderClosed className="h-3.5 w-3.5 text-muted-foreground" />}
-                  label="미분류"
-                  count={unfiledCount}
-                  active={filter.kind === "unfiled"}
-                  onClick={() => onChangeFilter({ kind: "unfiled" })}
-                />
-              </li>
-            )}
-          </ul>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-0.5">
+                {folders.map((f) => (
+                  <SortableFolderRow
+                    key={f.id}
+                    folder={f}
+                    active={filter.kind === "folder" && filter.id === f.id}
+                    onClick={() => onChangeFilter({ kind: "folder", id: f.id })}
+                    onRename={(name) => handleRename(f.id, name)}
+                    onColor={(c) => handleColor(f.id, c)}
+                    onDelete={() => handleDelete(f.id)}
+                  />
+                ))}
+                {unfiledCount > 0 && (
+                  <li>
+                    <NavItem
+                      icon={<FolderClosed className="h-3.5 w-3.5 text-muted-foreground" />}
+                      label="미분류"
+                      count={unfiledCount}
+                      active={filter.kind === "unfiled"}
+                      onClick={() => onChangeFilter({ kind: "unfiled" })}
+                    />
+                  </li>
+                )}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
 
         {/* 폴더 추가 */}
@@ -271,14 +312,7 @@ function NavItem({
   );
 }
 
-function FolderRow({
-  folder,
-  active,
-  onClick,
-  onRename,
-  onColor,
-  onDelete,
-}: {
+function SortableFolderRow(props: {
   folder: FolderListItem;
   active: boolean;
   onClick: () => void;
@@ -286,6 +320,43 @@ function FolderRow({
   onColor: (c: ColorPreset | null) => void;
   onDelete: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.folder.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <FolderRow
+      {...props}
+      ref={setNodeRef}
+      style={style}
+      dragHandleProps={{ ...attributes, ...listeners }}
+    />
+  );
+}
+
+const FolderRow = forwardRef<
+  HTMLLIElement,
+  {
+    folder: FolderListItem;
+    active: boolean;
+    onClick: () => void;
+    onRename: (name: string) => void;
+    onColor: (c: ColorPreset | null) => void;
+    onDelete: () => void;
+    style?: React.CSSProperties;
+    dragHandleProps?: Record<string, unknown>;
+  }
+>(function FolderRow(
+  { folder, active, onClick, onRename, onColor, onDelete, style, dragHandleProps },
+  ref,
+) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameVal, setRenameVal] = useState(folder.name);
 
@@ -295,6 +366,8 @@ function FolderRow({
 
   return (
     <li
+      ref={ref}
+      style={style}
       className={cn(
         "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
         active
@@ -302,6 +375,13 @@ function FolderRow({
           : "text-foreground/80 hover:bg-foreground/[0.04]",
       )}
     >
+      <span
+        {...(dragHandleProps as React.HTMLAttributes<HTMLSpanElement>)}
+        className="flex h-5 w-4 shrink-0 cursor-grab items-center justify-center opacity-0 transition-opacity group-hover:opacity-60 active:cursor-grabbing"
+        aria-label="드래그하여 순서 변경"
+      >
+        <GripVertical className="h-3 w-3" />
+      </span>
       <button
         type="button"
         onClick={onClick}
@@ -422,7 +502,7 @@ function FolderRow({
       )}
     </li>
   );
-}
+});
 
 function ColorSwatch({
   color,
