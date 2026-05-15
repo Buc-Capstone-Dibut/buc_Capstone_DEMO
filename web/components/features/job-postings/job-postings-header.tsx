@@ -1,10 +1,8 @@
 "use client";
 
-import { CalendarDays, Plus, Search, Star } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -34,9 +32,9 @@ const SORT_OPTIONS: Array<{ value: Sort; label: string }> = [
 ];
 
 const FAVORITES_LABEL: Record<FavoritesPolicy, string> = {
-  off: "★ 미적용",
-  top: "★ 상단",
-  only: "★ 만 보기",
+  off: "미적용",
+  top: "상단 고정",
+  only: "만 보기",
 };
 
 const NEXT_FAVORITES: Record<FavoritesPolicy, FavoritesPolicy> = {
@@ -44,6 +42,12 @@ const NEXT_FAVORITES: Record<FavoritesPolicy, FavoritesPolicy> = {
   top: "only",
   only: "off",
 };
+
+const ATTACH_FILTER_OPTIONS: Array<{ value: AttachFilter & string; label: string }> = [
+  { value: "missing_resume", label: "이력서 미연결" },
+  { value: "missing_cover_letter", label: "자소서 미작성" },
+  { value: "ready", label: "준비 완료" },
+];
 
 interface JobPostingsHeaderProps {
   state: ViewState;
@@ -69,7 +73,7 @@ export function JobPostingsHeader({
   onClickCreate,
 }: JobPostingsHeaderProps) {
   return (
-    <div className="mb-6 space-y-4">
+    <div className="mb-6 space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -85,91 +89,21 @@ export function JobPostingsHeader({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border bg-card/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="space-y-2 rounded-lg border bg-card/40 px-3 py-2.5">
+        {/* 검색 + 정렬 */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={state.query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="회사·직무 검색"
-              className="pl-8"
+              className="h-8 pl-7 text-sm"
               aria-label="채용공고 검색"
             />
           </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {STATUS_OPTIONS.map((opt) => {
-              const active = state.statusFilters.includes(opt.value);
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => onToggleStatus(opt.value)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                    active
-                      ? STATUS_TONE_ACTIVE[opt.value] + " border-transparent"
-                      : "border-input bg-background text-muted-foreground hover:bg-accent",
-                  )}
-                  aria-pressed={active}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onSetFavoritesPolicy(NEXT_FAVORITES[state.favoritesPolicy])}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-              state.favoritesPolicy === "off"
-                ? "border-input bg-background text-muted-foreground hover:bg-accent"
-                : "border-transparent bg-yellow-100 text-yellow-700 hover:bg-yellow-200",
-            )}
-            aria-label="즐겨찾기 표시 정책"
-          >
-            <Star
-              className={cn(
-                "h-3.5 w-3.5 transition-all",
-                state.favoritesPolicy === "off"
-                  ? "text-muted-foreground"
-                  : "fill-amber-400 text-amber-500 drop-shadow-[0_2px_4px_rgba(245,158,11,0.4)]",
-              )}
-            />
-            {FAVORITES_LABEL[state.favoritesPolicy]}
-          </button>
-
-          {/* attachment-aware 필터 */}
-          {(["missing_resume", "missing_cover_letter", "ready"] as const).map((f) => {
-            const label = f === "missing_resume" ? "이력서 미연결" : f === "missing_cover_letter" ? "자소서 미작성" : "준비 완료";
-            const active = state.attachFilter === f;
-            return (
-              <button
-                key={f}
-                type="button"
-                onClick={() => onSetAttachFilter(active ? null : f)}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                  active
-                    ? f === "ready"
-                      ? "border-transparent bg-emerald-100 text-emerald-700"
-                      : "border-transparent bg-amber-100 text-amber-700"
-                    : "border-input bg-background text-muted-foreground hover:bg-accent",
-                )}
-                aria-pressed={active}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2">
           <Select value={state.sort} onValueChange={(v) => onSetSort(v as Sort)}>
-            <SelectTrigger className="h-9 w-[140px] text-sm">
+            <SelectTrigger className="h-8 w-[130px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -180,67 +114,115 @@ export function JobPostingsHeader({
               ))}
             </SelectContent>
           </Select>
-
-
-          <label
-            htmlFor="calendar-toggle"
+          <button
+            type="button"
+            onClick={onToggleCalendar}
             className={cn(
-              "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 transition-colors",
+              "h-8 shrink-0 rounded-md border px-2.5 text-xs font-medium transition-colors",
               state.calendarVisible
-                ? "border-primary/40 bg-primary/5"
-                : "hover:bg-accent",
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "text-muted-foreground hover:bg-accent",
             )}
           >
-            <CalendarDays
+            캘린더 {state.calendarVisible ? "ON" : "OFF"}
+          </button>
+        </div>
+
+        {/* 필터 행 */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+          <FilterGroup label="상태">
+            {STATUS_OPTIONS.map((opt) => {
+              const active = state.statusFilters.includes(opt.value);
+              return (
+                <Chip
+                  key={opt.value}
+                  active={active}
+                  activeClass={STATUS_TONE_ACTIVE[opt.value]}
+                  onClick={() => onToggleStatus(opt.value)}
+                >
+                  {opt.label}
+                </Chip>
+              );
+            })}
+          </FilterGroup>
+
+          <span className="hidden text-border sm:inline">|</span>
+
+          <FilterGroup label="즐겨찾기">
+            <button
+              type="button"
+              onClick={() => onSetFavoritesPolicy(NEXT_FAVORITES[state.favoritesPolicy])}
               className={cn(
-                "h-4 w-4 transition-colors",
-                state.calendarVisible ? "text-primary" : "text-muted-foreground",
-              )}
-              aria-hidden
-            />
-            <span className="hidden text-xs font-medium sm:inline">캘린더</span>
-            <Switch
-              id="calendar-toggle"
-              checked={state.calendarVisible}
-              onCheckedChange={onToggleCalendar}
-              aria-label="캘린더 표시 여부"
-            />
-            <span
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wider",
-                state.calendarVisible
-                  ? "text-primary"
-                  : "text-muted-foreground/70",
+                "rounded-full border px-2 py-0.5 font-medium transition-colors",
+                state.favoritesPolicy === "off"
+                  ? "border-input text-muted-foreground hover:bg-accent"
+                  : "border-transparent bg-amber-100 text-amber-700",
               )}
             >
-              {state.calendarVisible ? "ON" : "OFF"}
-            </span>
-          </label>
+              {FAVORITES_LABEL[state.favoritesPolicy]}
+            </button>
+          </FilterGroup>
+
+          <span className="hidden text-border sm:inline">|</span>
+
+          <FilterGroup label="준비">
+            {ATTACH_FILTER_OPTIONS.map((opt) => {
+              const active = state.attachFilter === opt.value;
+              return (
+                <Chip
+                  key={opt.value}
+                  active={active}
+                  activeClass={
+                    opt.value === "ready"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }
+                  onClick={() => onSetAttachFilter(active ? null : opt.value)}
+                >
+                  {opt.label}
+                </Chip>
+              );
+            })}
+          </FilterGroup>
         </div>
       </div>
-
-      {(state.statusFilters.length > 0 || state.query || state.favoritesPolicy !== "off" || state.attachFilter) && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>활성 필터:</span>
-          {state.query && <Badge variant="secondary">검색: {state.query}</Badge>}
-          {state.statusFilters.map((s) => {
-            const label = STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s;
-            return (
-              <Badge key={s} variant="secondary">
-                {label}
-              </Badge>
-            );
-          })}
-          {state.favoritesPolicy !== "off" && (
-            <Badge variant="secondary">{FAVORITES_LABEL[state.favoritesPolicy]}</Badge>
-          )}
-          {state.attachFilter && (
-            <Badge variant="secondary">
-              {state.attachFilter === "missing_resume" ? "이력서 미연결" : state.attachFilter === "missing_cover_letter" ? "자소서 미작성" : "준비 완료"}
-            </Badge>
-          )}
-        </div>
-      )}
     </div>
+  );
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Chip({
+  active,
+  activeClass,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  activeClass: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-2 py-0.5 font-medium transition-colors",
+        active
+          ? activeClass + " border-transparent"
+          : "border-input text-muted-foreground hover:bg-accent",
+      )}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
   );
 }
