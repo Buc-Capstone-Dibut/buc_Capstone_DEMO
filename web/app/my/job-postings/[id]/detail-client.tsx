@@ -484,13 +484,17 @@ function AttachmentTableRow({
       ? "이력서"
       : attachment.attachmentType === "cover_letter"
         ? "자기소개서"
-        : "포트폴리오";
+        : attachment.attachmentType === "portfolio"
+          ? "포트폴리오"
+          : "프로젝트";
   const name =
     attachment.attachmentType === "resume"
       ? "이력서"
       : attachment.attachmentType === "cover_letter"
         ? attachment.coverLetterLabel ?? "자기소개서"
-        : "포트폴리오";
+        : attachment.attachmentType === "portfolio"
+          ? "포트폴리오"
+          : attachment.projectLabel ?? "프로젝트";
   return (
     <tr className="hover:bg-muted/30">
       <Td>

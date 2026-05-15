@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import prisma from "@/lib/prisma";
 
-const TYPES = new Set(["resume", "cover_letter", "portfolio"]);
+const TYPES = new Set(["resume", "cover_letter", "portfolio", "project"]);
 
 export async function POST(request: Request, ctx: { params: { id: string } }) {
   const supabase = createRouteHandlerClient({ cookies });
@@ -96,6 +96,16 @@ export async function POST(request: Request, ctx: { params: { id: string } }) {
       if (!p) {
         return NextResponse.json({ success: false, error: "포트폴리오 없음" }, { status: 404 });
       }
+    } else if (body.attachmentType === "project") {
+      // project 는 별도 테이블이 없고 user_resume_profiles.resume_payload 의
+      // projects[] JSON 안에 있으므로, 클라이언트가 보낸 (projectId, projectLabel)
+      // 을 그대로 신뢰해 저장한다. 사용자 본인의 프로필만 읽도록 RLS 가 막아줌.
+      if (typeof body.projectId !== "string" || body.projectId.trim() === "") {
+        return NextResponse.json(
+          { success: false, error: "projectId 필수" },
+          { status: 400 },
+        );
+      }
     }
 
     // label 결정: 신규 방식이면 cover_letter 의 title 우선, 없으면 body.coverLetterLabel
@@ -113,6 +123,14 @@ export async function POST(request: Request, ctx: { params: { id: string } }) {
         cover_letter_label: coverLetterLabel,
         cover_letter_id: coverLetterId,
         portfolio_id: body.portfolioId ?? null,
+        project_id:
+          body.attachmentType === "project" && typeof body.projectId === "string"
+            ? body.projectId
+            : null,
+        project_label:
+          body.attachmentType === "project" && typeof body.projectLabel === "string"
+            ? body.projectLabel
+            : null,
       },
     });
     return NextResponse.json({ success: true, data: created }, { status: 201 });

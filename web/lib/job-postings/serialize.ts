@@ -60,6 +60,8 @@ export function toRecord(row: any): JobPostingRecord {
         coverLetterLabel: a.cover_letter_label ?? null,
         coverLetterId: a.cover_letter_id ?? null,
         portfolioId: a.portfolio_id ?? null,
+        projectId: a.project_id ?? null,
+        projectLabel: a.project_label ?? null,
       }),
     ),
   };

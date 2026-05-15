@@ -12,6 +12,18 @@ export const STATUS_TONE: Record<JobPostingStatus, string> = {
   archived: "bg-slate-50 text-slate-500 ring-slate-200/60",
 };
 
+/**
+ * 카드/리스트의 좌측 상태 액센트 바 색.
+ * 4면 외곽선 대신 한 면(왼쪽)에만 색을 입혀 분류탭(서류 인덱스) 같은 인상을 준다.
+ */
+export const STATUS_BAR: Record<JobPostingStatus, string> = {
+  active: "bg-emerald-300",
+  applied: "bg-blue-300",
+  interviewing: "bg-orange-300",
+  closed: "bg-slate-300",
+  archived: "bg-slate-200",
+};
+
 export const STATUS_TONE_ACTIVE: Record<JobPostingStatus, string> = {
   active: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
   applied: "bg-blue-100 text-blue-700 hover:bg-blue-200",

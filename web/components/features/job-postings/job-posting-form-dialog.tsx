@@ -1,19 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useEffect, useRef, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Wand2, Loader2 } from "lucide-react";
-import type { JobPostingInput, JobPostingStatus, ScheduleKind } from "@/lib/job-postings/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import type {
+  JobPostingInput,
+  JobPostingStatus,
+  ScheduleKind,
+} from "@/lib/job-postings/types";
 import {
   ImportFromMyDataPanel,
   type JobPostingDraft,
 } from "@/components/features/job-postings/import-from-my-data-panel";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
+import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
   { value: "active", label: "관심" },
@@ -40,6 +65,8 @@ type ScheduleDraft = {
 
 type PendingAttachment = { type: "resume" | "cover_letter"; id: string };
 
+const URL_PATTERN = /^https?:\/\/[^\s]+$/i;
+
 export function JobPostingFormDialog({
   open,
   onOpenChange,
@@ -50,15 +77,7 @@ export function JobPostingFormDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: Partial<JobPostingInput>;
-  /**
-   * Legacy 콜백. 부모가 직접 POST 책임을 진다.
-   * 제공되면 다이얼로그는 onSubmit만 호출하고 직접 fetch 하지 않는다.
-   */
   onSubmit?: (payload: JobPostingInput) => Promise<void>;
-  /**
-   * 신규 경로. 다이얼로그가 직접 POST /api/my/job-postings를 호출하고,
-   * (필요 시) 자동 첨부까지 처리한 뒤 부모에게 갱신 신호를 준다.
-   */
   onCreated?: () => Promise<void> | void;
 }) {
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
@@ -66,53 +85,70 @@ export function JobPostingFormDialog({
   const [postingUrl, setPostingUrl] = useState(initial?.postingUrl ?? "");
   const [techStack, setTechStack] = useState<string[]>(initial?.techStack ?? []);
   const [memo, setMemo] = useState(initial?.memo ?? "");
-  const [status, setStatus] = useState<JobPostingStatus>((initial?.status as JobPostingStatus) ?? "active");
+  const [status, setStatus] = useState<JobPostingStatus>(
+    (initial?.status as JobPostingStatus) ?? "active",
+  );
   const [schedules, setSchedules] = useState<ScheduleDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 상세 정보 (URL 파싱 또는 직접 입력)
-  const [responsibilitiesText, setResponsibilitiesText] = useState((initial?.responsibilities ?? []).join("\n"));
-  const [requirementsText, setRequirementsText] = useState((initial?.requirements ?? []).join("\n"));
-  const [preferredText, setPreferredText] = useState((initial?.preferred ?? []).join("\n"));
-  const [companyDescriptionText, setCompanyDescriptionText] = useState(initial?.companyDescription ?? "");
-  const [teamCultureText, setTeamCultureText] = useState((initial?.teamCulture ?? []).join("\n"));
+  const [responsibilitiesText, setResponsibilitiesText] = useState(
+    (initial?.responsibilities ?? []).join("\n"),
+  );
+  const [requirementsText, setRequirementsText] = useState(
+    (initial?.requirements ?? []).join("\n"),
+  );
+  const [preferredText, setPreferredText] = useState(
+    (initial?.preferred ?? []).join("\n"),
+  );
+  const [companyDescriptionText, setCompanyDescriptionText] = useState(
+    initial?.companyDescription ?? "",
+  );
+  const [teamCultureText, setTeamCultureText] = useState(
+    (initial?.teamCulture ?? []).join("\n"),
+  );
 
   // URL 자동 파싱 상태
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [parseSuccess, setParseSuccess] = useState(false);
+  const [parseFilled, setParseFilled] = useState<string[] | null>(null);
+  const lastParsedUrl = useRef<string>("");
 
-  // import 패널에서 받은 자동 첨부 후보 (등록 후 attachments POST에 사용)
-  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  // 상세 입력 토글 (URL만 보이는 게 기본, 자동 파싱 성공 시 자동 펼침)
+  const [detailsOpen, setDetailsOpen] = useState(
+    Boolean(
+      initial?.companyName ||
+        initial?.roleTitle ||
+        initial?.responsibilities?.length ||
+        initial?.requirements?.length,
+    ),
+  );
+
+  const [pendingAttachment, setPendingAttachment] =
+    useState<PendingAttachment | null>(null);
 
   const handleApplyDraft = (
     draft: JobPostingDraft,
     attach?: { type: "resume" | "cover_letter"; id: string },
   ) => {
-    // 빈 필드만 채움 (사용자가 이미 입력한 값은 덮어쓰지 않음)
-    if (!companyName.trim() && draft.companyName) {
-      setCompanyName(draft.companyName);
-    }
-    if (!roleTitle.trim() && draft.roleTitle) {
-      setRoleTitle(draft.roleTitle);
-    }
+    if (!companyName.trim() && draft.companyName) setCompanyName(draft.companyName);
+    if (!roleTitle.trim() && draft.roleTitle) setRoleTitle(draft.roleTitle);
     if (techStack.length === 0 && (draft.techStack ?? []).length > 0) {
       setTechStack(draft.techStack ?? []);
     }
-    if (!memo.trim() && draft.memo) {
-      setMemo(draft.memo);
-    }
-    if (attach) {
-      setPendingAttachment(attach);
-    }
+    if (!memo.trim() && draft.memo) setMemo(draft.memo);
+    if (attach) setPendingAttachment(attach);
+    setDetailsOpen(true);
   };
 
-  const parseFromUrl = async () => {
-    const trimmed = postingUrl.trim();
-    if (!trimmed) return;
+  const parseFromUrl = async (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed || !URL_PATTERN.test(trimmed)) return;
+    if (trimmed === lastParsedUrl.current) return;
+    lastParsedUrl.current = trimmed;
+
     setParseError(null);
-    setParseSuccess(false);
+    setParseFilled(null);
     setParsing(true);
     try {
       const res = await fetch("/api/interview/parse-job", {
@@ -126,61 +162,103 @@ export function JobPostingFormDialog({
       }
       const data = json.data ?? {};
 
-      const asString = (v: unknown): string => (typeof v === "string" ? v : "");
+      const asString = (v: unknown): string =>
+        typeof v === "string" ? v : "";
       const asStringArray = (v: unknown): string[] =>
-        Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+        Array.isArray(v)
+          ? v.filter(
+              (x): x is string => typeof x === "string" && x.trim() !== "",
+            )
+          : [];
 
-      // 빈 필드만 채움 (사용자가 이미 입력한 값은 절대 덮어쓰지 않음)
+      const filled: string[] = [];
+
       if (!companyName.trim() && asString(data.company)) {
         setCompanyName(asString(data.company));
+        filled.push("회사명");
       }
       if (!roleTitle.trim() && asString(data.title)) {
         setRoleTitle(asString(data.title));
+        filled.push("직무명");
       }
       if (techStack.length === 0) {
         const arr = asStringArray(data.techStack);
         if (arr.length > 0) {
           setTechStack(arr);
+          filled.push(`기술 ${arr.length}개`);
         }
       }
       if (!companyDescriptionText.trim() && asString(data.description)) {
         setCompanyDescriptionText(asString(data.description));
+        filled.push("회사 소개");
       }
       if (!responsibilitiesText.trim()) {
         const arr = asStringArray(data.responsibilities);
-        if (arr.length > 0) setResponsibilitiesText(arr.join("\n"));
+        if (arr.length > 0) {
+          setResponsibilitiesText(arr.join("\n"));
+          filled.push("주요 업무");
+        }
       }
       if (!requirementsText.trim()) {
         const arr = asStringArray(data.requirements);
-        if (arr.length > 0) setRequirementsText(arr.join("\n"));
+        if (arr.length > 0) {
+          setRequirementsText(arr.join("\n"));
+          filled.push("자격 요건");
+        }
       }
       if (!preferredText.trim()) {
         const arr = asStringArray(data.preferred);
-        if (arr.length > 0) setPreferredText(arr.join("\n"));
+        if (arr.length > 0) {
+          setPreferredText(arr.join("\n"));
+          filled.push("우대 사항");
+        }
       }
       if (!teamCultureText.trim()) {
         const arr = asStringArray(data.culture);
-        if (arr.length > 0) setTeamCultureText(arr.join("\n"));
+        if (arr.length > 0) {
+          setTeamCultureText(arr.join("\n"));
+          filled.push("팀 문화");
+        }
       }
-      setParseSuccess(true);
+      setParseFilled(filled);
+      // 성공 시 상세 입력 펼치기
+      setDetailsOpen(true);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "URL에서 정보를 가져오지 못했습니다.";
+      const message =
+        e instanceof Error ? e.message : "URL에서 정보를 가져오지 못했습니다.";
       setParseError(message);
+      // 실패 시에도 사용자가 직접 채울 수 있도록 펼치기
+      setDetailsOpen(true);
     } finally {
       setParsing(false);
     }
   };
 
+  // URL 변경 시 디바운스로 자동 파싱
+  useEffect(() => {
+    if (!postingUrl.trim() || !URL_PATTERN.test(postingUrl.trim())) return;
+    if (postingUrl.trim() === lastParsedUrl.current) return;
+    const id = setTimeout(() => {
+      void parseFromUrl(postingUrl);
+    }, 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postingUrl]);
+
   const submit = async () => {
     setError(null);
     if (!companyName.trim() || !roleTitle.trim()) {
-      setError("회사명과 직무명을 입력해주세요.");
+      setError("회사명과 직무명은 필수입니다. 직접 입력하거나 URL에서 다시 가져와 주세요.");
+      setDetailsOpen(true);
       return;
     }
     setSubmitting(true);
     try {
       const splitLines = (text: string): string[] =>
-        text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+        text
+          .split(/\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
 
       const payload: JobPostingInput = {
         companyName: companyName.trim(),
@@ -206,10 +284,8 @@ export function JobPostingFormDialog({
       };
 
       if (onSubmit) {
-        // legacy 경로: 부모가 직접 처리. 자동 첨부도 부모 책임.
         await onSubmit(payload);
       } else {
-        // 신규 경로: dialog가 직접 fetch
         const res = await fetch("/api/my/job-postings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -229,22 +305,21 @@ export function JobPostingFormDialog({
           } else {
             attachBody.coverLetterId = pendingAttachment.id;
           }
-          // 첨부 실패는 등록 자체를 막지 않는다.
           try {
-            await fetch(`/api/my/job-postings/${createdId}/attachments`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(attachBody),
-            });
+            await fetch(
+              `/api/my/job-postings/${createdId}/attachments`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(attachBody),
+              },
+            );
           } catch {
-            // ignore — 사용자가 다이얼로그 닫은 뒤 수동 첨부 가능
+            // ignore
           }
         }
-        if (onCreated) {
-          await onCreated();
-        }
+        if (onCreated) await onCreated();
       }
-      // 성공 시 패널 상태 초기화 후 닫기
       setPendingAttachment(null);
       onOpenChange(false);
     } catch (e) {
@@ -257,183 +332,359 @@ export function JobPostingFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>채용공고 등록</DialogTitle>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto p-0">
+        <DialogHeader className="border-b px-6 py-4">
+          <DialogTitle className="text-base font-semibold">채용공고 등록</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            URL을 붙여넣으면 회사·직무·요건이 자동으로 채워집니다. 필요한 부분만
+            직접 다듬어 저장하세요.
+          </p>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <ImportFromMyDataPanel onApply={handleApplyDraft} />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>회사명 *</Label>
-              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="예: 카카오" />
-            </div>
-            <div className="space-y-1">
-              <Label>직무명 *</Label>
-              <Input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="예: 백엔드 개발자" />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label>공고 URL</Label>
-            <div className="flex gap-2">
+        {/* URL 우선 영역 */}
+        <div className="space-y-3 border-b bg-muted/20 px-6 py-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="posting-url" className="text-xs font-semibold">
+              채용공고 URL
+            </Label>
+            <div className="relative">
               <Input
+                id="posting-url"
                 value={postingUrl}
                 onChange={(e) => {
                   setPostingUrl(e.target.value);
                   setParseError(null);
-                  setParseSuccess(false);
+                  setParseFilled(null);
                 }}
-                placeholder="https://..."
+                placeholder="https://career.example.com/jobs/12345"
+                className="h-11 pr-28 font-medium"
+                inputMode="url"
+                autoFocus
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={parseFromUrl}
-                disabled={!postingUrl.trim() || parsing}
-              >
-                {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                <span className="ml-1">URL에서 가져오기</span>
-              </Button>
-            </div>
-            {parseError && <p className="text-xs text-red-600">{parseError}</p>}
-            {parseSuccess && (
-              <p className="text-xs text-emerald-600">자동 추출 완료. 비어있는 필드만 채워졌습니다.</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>요구 기술</Label>
-            <TechStackCombobox
-              value={techStack}
-              onChange={setTechStack}
-              placeholder="기술을 검색하거나 입력 후 Enter (예: React)"
-            />
-          </div>
-
-          <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-medium">상세 정보 (선택)</summary>
-            <div className="mt-3 space-y-3">
-              <div className="space-y-1">
-                <Label>주요 업무 (한 줄에 하나)</Label>
-                <Textarea
-                  rows={3}
-                  value={responsibilitiesText}
-                  onChange={(e) => setResponsibilitiesText(e.target.value)}
-                  placeholder="예: 백엔드 API 설계 및 개발"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>자격 요건 (한 줄에 하나)</Label>
-                <Textarea
-                  rows={3}
-                  value={requirementsText}
-                  onChange={(e) => setRequirementsText(e.target.value)}
-                  placeholder="예: 컴퓨터공학 학사 또는 동등 수준"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>우대 사항 (한 줄에 하나)</Label>
-                <Textarea
-                  rows={3}
-                  value={preferredText}
-                  onChange={(e) => setPreferredText(e.target.value)}
-                  placeholder="예: 대규모 트래픽 처리 경험"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>회사 설명</Label>
-                <Textarea
-                  rows={2}
-                  value={companyDescriptionText}
-                  onChange={(e) => setCompanyDescriptionText(e.target.value)}
-                  placeholder="회사 소개 또는 공고 본문 요약"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>팀 문화 (한 줄에 하나)</Label>
-                <Textarea
-                  rows={2}
-                  value={teamCultureText}
-                  onChange={(e) => setTeamCultureText(e.target.value)}
-                  placeholder="예: 자율과 책임"
-                />
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
+                {parsing ? (
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    가져오는 중
+                  </span>
+                ) : parseFilled ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    완료
+                  </span>
+                ) : null}
               </div>
             </div>
-          </details>
-
-          <div className="space-y-1">
-            <Label>상태</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as JobPostingStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              사람인·잡코리아·원티드·자사 채용 페이지 등 일반 공개된 URL을
+              지원합니다. URL이 없다면 아래 <b>직접 입력</b>으로 바로
+              작성하세요.
+            </p>
           </div>
 
-          <div className="space-y-1">
-            <Label>메모</Label>
-            <Textarea rows={3} value={memo} onChange={(e) => setMemo(e.target.value)} />
-          </div>
-
-          <div className="space-y-2 rounded-lg border p-3">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">일정</div>
-              <Button type="button" size="sm" variant="outline" onClick={() =>
-                setSchedules((arr) => [...arr, { kind: "deadline", title: "", startAt: "", endAt: "", memo: "" }])
-              }>
-                <Plus className="mr-1 h-3.5 w-3.5" /> 추가
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {schedules.map((s, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2">
-                  <Select value={s.kind} onValueChange={(v) =>
-                    setSchedules((arr) => arr.map((it, i) => i === idx ? { ...it, kind: v as ScheduleKind } : it))
-                  }>
-                    <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {KIND_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Input className="col-span-4" type="datetime-local" value={s.startAt}
-                    onChange={(e) => setSchedules((arr) => arr.map((it, i) => i === idx ? { ...it, startAt: e.target.value } : it))} />
-                  <Input className="col-span-4" placeholder="제목 (선택)" value={s.title}
-                    onChange={(e) => setSchedules((arr) => arr.map((it, i) => i === idx ? { ...it, title: e.target.value } : it))} />
-                  <Button type="button" size="icon" variant="ghost" className="col-span-1"
-                    onClick={() => setSchedules((arr) => arr.filter((_, i) => i !== idx))}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {pendingAttachment && (
-            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              등록 시 {pendingAttachment.type === "resume" ? "이력서" : "자기소개서"}가 자동으로 연결됩니다.
-              <button
-                type="button"
-                className="ml-2 text-primary underline"
-                onClick={() => setPendingAttachment(null)}
-              >
-                해제
-              </button>
+          {parseError && (
+            <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {parseError}{" "}
+              <span className="text-red-600/80">
+                — 아래에서 직접 입력해 주세요.
+              </span>
             </div>
           )}
-
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {parseFilled && parseFilled.length > 0 && (
+            <div className="rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              <span className="font-semibold">자동 추출 완료</span> ·{" "}
+              {parseFilled.join(" · ")} 가 채워졌어요.
+            </div>
+          )}
+          {parseFilled && parseFilled.length === 0 && (
+            <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              URL에서 추가로 추출할 정보가 없었어요. 아래에서 직접 입력해
+              주세요.
+            </div>
+          )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>취소</Button>
-          <Button onClick={submit} disabled={submitting}>{submitting ? "저장 중..." : "저장"}</Button>
+
+        {/* 직접 입력 토글 */}
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((p) => !p)}
+          className={cn(
+            "flex w-full items-center justify-between border-b px-6 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/30",
+            detailsOpen ? "bg-muted/20" : "bg-background",
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+            직접 입력 / 수정하기
+            {(companyName || roleTitle) && (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                · {companyName || "회사 미입력"} {companyName && roleTitle && "/"} {roleTitle}
+              </span>
+            )}
+          </span>
+          {detailsOpen ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+
+        {detailsOpen && (
+          <div className="divide-y">
+            <FormRow label="회사명" required>
+              <Input
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="예: 카카오"
+                className="h-9"
+              />
+            </FormRow>
+            <FormRow label="직무명" required>
+              <Input
+                value={roleTitle}
+                onChange={(e) => setRoleTitle(e.target.value)}
+                placeholder="예: 백엔드 개발자"
+                className="h-9"
+              />
+            </FormRow>
+            <FormRow label="요구 기술">
+              <TechStackCombobox
+                value={techStack}
+                onChange={setTechStack}
+                placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
+              />
+            </FormRow>
+            <FormRow label="회사 소개">
+              <Textarea
+                rows={2}
+                value={companyDescriptionText}
+                onChange={(e) => setCompanyDescriptionText(e.target.value)}
+                placeholder="회사 소개 또는 공고 본문 요약"
+              />
+            </FormRow>
+            <FormRow label="주요 업무" hint="한 줄에 하나">
+              <Textarea
+                rows={3}
+                value={responsibilitiesText}
+                onChange={(e) => setResponsibilitiesText(e.target.value)}
+                placeholder="예: 백엔드 API 설계 및 개발"
+              />
+            </FormRow>
+            <FormRow label="자격 요건" hint="한 줄에 하나">
+              <Textarea
+                rows={3}
+                value={requirementsText}
+                onChange={(e) => setRequirementsText(e.target.value)}
+                placeholder="예: 컴퓨터공학 학사 또는 동등 수준"
+              />
+            </FormRow>
+            <FormRow label="우대 사항" hint="한 줄에 하나">
+              <Textarea
+                rows={3}
+                value={preferredText}
+                onChange={(e) => setPreferredText(e.target.value)}
+                placeholder="예: 대규모 트래픽 처리 경험"
+              />
+            </FormRow>
+            <FormRow label="팀 문화" hint="한 줄에 하나">
+              <Textarea
+                rows={2}
+                value={teamCultureText}
+                onChange={(e) => setTeamCultureText(e.target.value)}
+                placeholder="예: 자율과 책임"
+              />
+            </FormRow>
+            <FormRow label="상태">
+              <Select
+                value={status}
+                onValueChange={(v) => setStatus(v as JobPostingStatus)}
+              >
+                <SelectTrigger className="h-9 w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormRow>
+            <FormRow label="메모">
+              <Textarea
+                rows={2}
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="개인 메모. 면접 컨텍스트로는 사용되지 않습니다."
+              />
+            </FormRow>
+            <FormRow
+              label="일정"
+              hint="마감일·면접일 등을 추가하면 캘린더에 표시됩니다."
+            >
+              <div className="space-y-2">
+                {schedules.map((s, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2">
+                    <Select
+                      value={s.kind}
+                      onValueChange={(v) =>
+                        setSchedules((arr) =>
+                          arr.map((it, i) =>
+                            i === idx ? { ...it, kind: v as ScheduleKind } : it,
+                          ),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="col-span-3 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {KIND_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="col-span-4 h-9"
+                      type="datetime-local"
+                      value={s.startAt}
+                      onChange={(e) =>
+                        setSchedules((arr) =>
+                          arr.map((it, i) =>
+                            i === idx ? { ...it, startAt: e.target.value } : it,
+                          ),
+                        )
+                      }
+                    />
+                    <Input
+                      className="col-span-4 h-9"
+                      placeholder="제목 (선택)"
+                      value={s.title}
+                      onChange={(e) =>
+                        setSchedules((arr) =>
+                          arr.map((it, i) =>
+                            i === idx ? { ...it, title: e.target.value } : it,
+                          ),
+                        )
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="col-span-1 h-9 w-9"
+                      onClick={() =>
+                        setSchedules((arr) => arr.filter((_, i) => i !== idx))
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() =>
+                    setSchedules((arr) => [
+                      ...arr,
+                      {
+                        kind: "deadline",
+                        title: "",
+                        startAt: "",
+                        endAt: "",
+                        memo: "",
+                      },
+                    ])
+                  }
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  일정 추가
+                </Button>
+              </div>
+            </FormRow>
+
+            {/* 내 데이터에서 가져오기 (보조 도구) */}
+            <div className="bg-muted/10 px-6 py-4">
+              <ImportFromMyDataPanel onApply={handleApplyDraft} />
+            </div>
+          </div>
+        )}
+
+        {pendingAttachment && (
+          <div className="border-t bg-primary/5 px-6 py-3 text-xs text-muted-foreground">
+            등록 시{" "}
+            {pendingAttachment.type === "resume" ? "이력서" : "자기소개서"}가
+            자동으로 연결됩니다.{" "}
+            <button
+              type="button"
+              className="ml-1 text-primary underline"
+              onClick={() => setPendingAttachment(null)}
+            >
+              해제
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="border-t bg-red-50 px-6 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <DialogFooter className="border-t bg-muted/30 px-6 py-3 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground">
+            저장 후 상세 페이지에서 이력서·포트폴리오·프로젝트를 연결할 수
+            있어요.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              취소
+            </Button>
+            <Button size="sm" onClick={submit} disabled={submitting}>
+              {submitting ? "저장 중…" : "저장"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FormRow({
+  label,
+  hint,
+  required,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr]">
+      <div className="flex flex-col gap-0.5 border-b bg-muted/20 px-6 py-3 sm:border-b-0 sm:border-r">
+        <span className="text-xs font-semibold text-foreground">
+          {label}
+          {required && <span className="ml-0.5 text-red-500">*</span>}
+        </span>
+        {hint && (
+          <span className="text-[11px] leading-snug text-muted-foreground">
+            {hint}
+          </span>
+        )}
+      </div>
+      <div className="px-6 py-3">{children}</div>
+    </div>
   );
 }

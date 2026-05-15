@@ -4,7 +4,7 @@ export type JobPostingStatus =
 export type ScheduleKind =
   | "deadline" | "document_due" | "interview" | "other";
 
-export type AttachmentType = "resume" | "cover_letter" | "portfolio";
+export type AttachmentType = "resume" | "cover_letter" | "portfolio" | "project";
 
 export interface JobPostingInput {
   companyName: string;
@@ -67,6 +67,8 @@ export interface AttachmentRecord {
   coverLetterLabel: string | null;
   coverLetterId: string | null;
   portfolioId: string | null;
+  projectId: string | null;
+  projectLabel: string | null;
 }
 
 export interface CoverLetterQuestion {

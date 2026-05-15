@@ -7,7 +7,11 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FileText,
+  FolderKanban,
+  Layers,
   MoreHorizontal,
+  PenLine,
   Sparkles,
   Star,
   Trash2,
@@ -39,7 +43,11 @@ import type {
   JobPostingStatus,
   ScheduleRecord,
 } from "@/lib/job-postings/types";
-import { STATUS_LABEL, STATUS_TONE } from "@/lib/job-postings/visual-tokens";
+import {
+  STATUS_BAR,
+  STATUS_LABEL,
+  STATUS_TONE,
+} from "@/lib/job-postings/visual-tokens";
 
 const STATUS_OPTIONS: JobPostingStatus[] = [
   "active",
@@ -99,12 +107,14 @@ export function JobPostingListView({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-1.5 p-0"></TableHead>
             <TableHead className="w-10 px-2"></TableHead>
             <TableHead>회사</TableHead>
             <TableHead>직무</TableHead>
             <TableHead className="w-24">상태</TableHead>
             <TableHead className="w-32">다음 일정</TableHead>
             <TableHead>기술스택</TableHead>
+            <TableHead className="w-32">연결</TableHead>
             <TableHead className="w-40 text-right">액션</TableHead>
           </TableRow>
         </TableHeader>
@@ -115,12 +125,21 @@ export function JobPostingListView({
             return (
               <TableRow
                 key={posting.id}
-                className={cn(
-                  "cursor-pointer",
-                  posting.isFavorite && "bg-amber-50/50 hover:bg-amber-50",
-                )}
+                className="group cursor-pointer"
                 onClick={() => router.push(detailHref)}
               >
+                {/* 좌측 상태 액센트 바 */}
+                <TableCell className="p-0">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "block h-full",
+                      posting.isFavorite
+                        ? "w-[5px] bg-amber-400"
+                        : cn("w-[3px]", STATUS_BAR[posting.status]),
+                    )}
+                  />
+                </TableCell>
                 <TableCell className="px-2">
                   <button
                     type="button"
@@ -145,7 +164,15 @@ export function JobPostingListView({
                   <div className="max-w-[200px] truncate">{posting.companyName}</div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  <div className="max-w-[220px] truncate">{posting.roleTitle}</div>
+                  <div
+                    className={cn(
+                      "max-w-[220px] truncate",
+                      posting.isFavorite &&
+                        "text-foreground underline decoration-amber-400 decoration-2 underline-offset-4",
+                    )}
+                  >
+                    {posting.roleTitle}
+                  </div>
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   {onChangeStatus ? (
@@ -243,6 +270,9 @@ export function JobPostingListView({
                     )}
                   </div>
                 </TableCell>
+                <TableCell>
+                  <AttachmentChips attachments={posting.attachments} />
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button asChild size="sm" variant="ghost" className="h-8">
@@ -292,6 +322,48 @@ export function JobPostingListView({
           })}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+function AttachmentChips({
+  attachments,
+}: {
+  attachments: JobPostingRecord["attachments"];
+}) {
+  const counts = { resume: 0, cover_letter: 0, portfolio: 0, project: 0 };
+  (attachments ?? []).forEach((a) => {
+    if (a.attachmentType in counts) {
+      counts[a.attachmentType as keyof typeof counts] += 1;
+    }
+  });
+  const items = [
+    { key: "resume" as const, label: "이력서", icon: <FileText className="h-3 w-3" /> },
+    { key: "cover_letter" as const, label: "자소서", icon: <PenLine className="h-3 w-3" /> },
+    { key: "portfolio" as const, label: "포트폴리오", icon: <Layers className="h-3 w-3" /> },
+    { key: "project" as const, label: "프로젝트", icon: <FolderKanban className="h-3 w-3" /> },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-[10.5px]">
+      {items.map(({ key, label, icon }) => {
+        const c = counts[key];
+        const has = c > 0;
+        return (
+          <span
+            key={key}
+            title={has ? `${label} ${c}` : `${label} 없음`}
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5",
+              has ? "bg-muted text-foreground/90" : "text-muted-foreground/40",
+            )}
+          >
+            {icon}
+            {has && c > 1 && (
+              <span className="font-semibold tabular-nums">{c}</span>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }

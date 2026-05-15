@@ -7,7 +7,11 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FileText,
+  FolderKanban,
+  Layers,
   Loader2,
+  PenLine,
   Sparkles,
   Star,
 } from "lucide-react";
@@ -25,6 +29,7 @@ import type {
 } from "@/lib/job-postings/types";
 import {
   KIND_LABEL,
+  STATUS_BAR,
   STATUS_LABEL,
   STATUS_TONE,
 } from "@/lib/job-postings/visual-tokens";
@@ -70,21 +75,38 @@ export function JobPostingCard({
   const [interviewLoading, setInterviewLoading] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
+  // 첨부 자료 카운트 (이력서/자소서/포트폴리오/프로젝트)
+  const attachCounts = countAttachments(posting.attachments);
+
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col rounded-sm border bg-background transition-colors",
-        "hover:border-foreground/20",
-        fav && "border-amber-300/80",
+        "group relative flex h-full flex-col overflow-hidden rounded-md border border-border/80 bg-background shadow-sm transition-all duration-150",
+        "hover:-translate-y-px hover:border-foreground/20 hover:shadow-md",
       )}
     >
+      {/* 좌측 상태 액센트 바: 상태별 색 + 즐겨찾기는 굵고 amber */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 transition-all",
+          fav ? "w-[5px] bg-amber-400" : cn("w-[3px]", STATUS_BAR[posting.status]),
+        )}
+      />
+
       {/* 헤더: 회사 · 직무 · 즐겨찾기 */}
-      <header className="flex items-start gap-2 border-b border-dashed border-border/70 px-4 py-3">
+      <header className="flex items-start gap-2 border-b border-dashed border-border/70 pl-5 pr-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             {posting.companyName}
           </p>
-          <h3 className="mt-0.5 truncate text-sm font-semibold leading-snug text-foreground">
+          <h3
+            className={cn(
+              "mt-0.5 truncate text-sm font-semibold leading-snug text-foreground",
+              fav &&
+                "underline decoration-amber-400 decoration-2 underline-offset-4",
+            )}
+          >
             {posting.roleTitle}
           </h3>
         </div>
@@ -115,7 +137,7 @@ export function JobPostingCard({
 
       {/* 메타 표: 상태 · 다음 일정 */}
       <dl className="divide-y divide-dashed divide-border/70 text-xs">
-        <div className="grid grid-cols-[3.5rem_1fr]">
+        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
           <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
             상태
           </dt>
@@ -179,7 +201,7 @@ export function JobPostingCard({
             )}
           </dd>
         </div>
-        <div className="grid grid-cols-[3.5rem_1fr]">
+        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
           <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
             일정
           </dt>
@@ -226,8 +248,35 @@ export function JobPostingCard({
         )}
       </dl>
 
+      {/* 연결 자료 인디케이터 (이력서/자소서/포트폴리오/프로젝트) */}
+      <div className="flex items-center gap-1.5 border-t border-dashed border-border/70 pl-5 pr-3 py-1.5 text-[10.5px] text-muted-foreground">
+        <span className="text-[10px] font-medium uppercase tracking-wider">
+          연결
+        </span>
+        <AttachIndicator
+          icon={<FileText className="h-3 w-3" aria-hidden />}
+          label="이력서"
+          count={attachCounts.resume}
+        />
+        <AttachIndicator
+          icon={<PenLine className="h-3 w-3" aria-hidden />}
+          label="자소서"
+          count={attachCounts.cover_letter}
+        />
+        <AttachIndicator
+          icon={<Layers className="h-3 w-3" aria-hidden />}
+          label="포트폴리오"
+          count={attachCounts.portfolio}
+        />
+        <AttachIndicator
+          icon={<FolderKanban className="h-3 w-3" aria-hidden />}
+          label="프로젝트"
+          count={attachCounts.project}
+        />
+      </div>
+
       {/* 액션 푸터 */}
-      <footer className="mt-auto flex items-center justify-between gap-1.5 border-t bg-muted/20 px-3 py-2">
+      <footer className="mt-auto flex items-center justify-between gap-1.5 border-t bg-muted/20 pl-5 pr-3 py-2">
         <div className="flex items-center gap-1">
           <Button
             asChild
@@ -279,5 +328,43 @@ export function JobPostingCard({
         </Button>
       </footer>
     </article>
+  );
+}
+
+function countAttachments(
+  attachments: JobPostingRecord["attachments"],
+): { resume: number; cover_letter: number; portfolio: number; project: number } {
+  const acc = { resume: 0, cover_letter: 0, portfolio: 0, project: 0 };
+  (attachments ?? []).forEach((a) => {
+    if (a.attachmentType in acc) {
+      acc[a.attachmentType as keyof typeof acc] += 1;
+    }
+  });
+  return acc;
+}
+
+function AttachIndicator({
+  icon,
+  label,
+  count,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+}) {
+  const has = count > 0;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 transition-colors",
+        has ? "bg-muted text-foreground/90" : "text-muted-foreground/40",
+      )}
+      title={has ? `${label} ${count}` : `${label} 없음`}
+    >
+      {icon}
+      {has && count > 1 && (
+        <span className="font-semibold tabular-nums">{count}</span>
+      )}
+    </span>
   );
 }
