@@ -2,6 +2,7 @@
 
 import { JobPostingCard } from "./job-posting-card";
 import type {
+  ColorPreset,
   JobPostingRecord,
   JobPostingStatus,
 } from "@/lib/job-postings/types";
@@ -10,6 +11,10 @@ interface JobPostingListProps {
   postings: JobPostingRecord[];
   onToggleFavorite?: (id: string, next: boolean) => void;
   onChangeStatus?: (id: string, next: JobPostingStatus) => void;
+  onPatch?: (
+    id: string,
+    body: { folderId?: string | null; color?: ColorPreset | null },
+  ) => void | Promise<void>;
   emptyMessage?: React.ReactNode;
   /** 캘린더와 나란히 표시될 때처럼 컬럼 너비가 좁은 컨테이너에서는 1열로 강제한다. */
   compact?: boolean;
@@ -19,6 +24,7 @@ export function JobPostingList({
   postings,
   onToggleFavorite,
   onChangeStatus,
+  onPatch,
   emptyMessage,
   compact = false,
 }: JobPostingListProps) {
@@ -47,6 +53,7 @@ export function JobPostingList({
           posting={p}
           onToggleFavorite={onToggleFavorite}
           onChangeStatus={onChangeStatus}
+          onPatch={onPatch}
         />
       ))}
     </div>

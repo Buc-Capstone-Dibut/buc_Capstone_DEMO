@@ -11,7 +11,14 @@ import { JobPostingsHeader } from "@/components/features/job-postings/job-postin
 import { JobPostingsPagination } from "@/components/features/job-postings/job-postings-pagination";
 import { CalendarDayModal } from "@/components/features/job-postings/calendar-day-modal";
 import { EmptyJobPostings } from "@/components/features/job-postings/empty-illustration";
+import {
+  JobPostingsFolderSidebar,
+  type FolderFilter,
+} from "@/components/features/job-postings/job-postings-folder-sidebar";
+import { invalidateFolderCache } from "@/components/features/job-postings/job-posting-card";
+import { UpcomingSchedulePanel } from "@/components/features/job-postings/upcoming-schedule-panel";
 import type {
+  ColorPreset,
   JobPostingRecord,
   JobPostingStatus,
 } from "@/lib/job-postings/types";
@@ -46,6 +53,8 @@ export function JobPostingsClient() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [calendarModalDate, setCalendarModalDate] = useState<Date | null>(null);
+  const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: "all" });
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
 
   // 검색 디바운스
   const [debouncedQuery, setDebouncedQuery] = useState(state.query);
@@ -68,9 +77,13 @@ export function JobPostingsClient() {
         params.set("status", state.statusFilters.join(","));
       }
       if (state.sort) params.set("sort", state.sort);
-      if (state.favoritesPolicy !== "off") {
+      if (folderFilter.kind === "favorites") {
+        params.set("favorites", "only");
+      } else if (state.favoritesPolicy !== "off") {
         params.set("favorites", state.favoritesPolicy);
       }
+      if (folderFilter.kind === "folder") params.set("folder", folderFilter.id);
+      else if (folderFilter.kind === "unfiled") params.set("folder", "unfiled");
       params.set("page", String(state.page));
       params.set("pageSize", String(state.pageSize));
 
@@ -97,6 +110,7 @@ export function JobPostingsClient() {
     state.favoritesPolicy,
     state.page,
     state.pageSize,
+    folderFilter,
   ]);
 
   const fetchCalendar = useCallback(async () => {
@@ -118,8 +132,43 @@ export function JobPostingsClient() {
   }, [fetchCalendar]);
 
   const handleDialogCreated = useCallback(async () => {
+    setSidebarRefresh((n) => n + 1);
     await Promise.all([fetchList(), fetchCalendar()]);
   }, [fetchList, fetchCalendar]);
+
+  /** 카드에서 폴더 이동/색 변경 등 무엇이든 sidebar 카운트가 바뀔 동작 */
+  const handlePostingMutated = useCallback(async () => {
+    setSidebarRefresh((n) => n + 1);
+    await fetchList();
+  }, [fetchList]);
+
+  /** 카드 단위 mutation: PATCH /api/my/job-postings/[id] */
+  const patchPosting = useCallback(
+    async (id: string, body: { folderId?: string | null; color?: ColorPreset | null }) => {
+      // 낙관적 업데이트
+      setPostings((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                folderId: body.folderId !== undefined ? body.folderId : p.folderId,
+                color: body.color !== undefined ? body.color : p.color,
+              }
+            : p,
+        ),
+      );
+      try {
+        await fetch(`/api/my/job-postings/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } finally {
+        await handlePostingMutated();
+      }
+    },
+    [handlePostingMutated],
+  );
 
   const handleToggleFavorite = useCallback(
     async (id: string, next: boolean) => {
@@ -207,30 +256,49 @@ export function JobPostingsClient() {
         onClickCreate={() => setDialogOpen(true)}
       />
 
-      <div
-        className={
-          state.calendarVisible
-            ? "grid gap-6 lg:grid-cols-2"
-            : "flex flex-col gap-6"
-        }
-      >
-        {state.calendarVisible && (
-          <div className="min-w-0">
-            <JobPostingCalendar
-              events={events}
-              onDateClick={setCalendarModalDate}
-              onEventClick={(ev) => setCalendarModalDate(new Date(ev.start))}
-            />
-          </div>
-        )}
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        {/* 좌측 폴더 사이드바 */}
+        <div className="lg:sticky lg:top-4 lg:self-start">
+          <JobPostingsFolderSidebar
+            filter={folderFilter}
+            onChangeFilter={(f) => {
+              setFolderFilter(f);
+              setPage(1);
+            }}
+            onFoldersChanged={() => {
+              invalidateFolderCache();
+              void fetchList();
+            }}
+            refreshKey={sidebarRefresh}
+          />
+          <UpcomingSchedulePanel events={events} />
+        </div>
 
-        <div className="min-w-0">
+        {/* 우측: 캘린더 + 카드 그리드 */}
+        <div
+          className={
+            state.calendarVisible
+              ? "grid min-w-0 gap-6 xl:grid-cols-2"
+              : "flex min-w-0 flex-col gap-6"
+          }
+        >
+          {state.calendarVisible && (
+            <div className="min-w-0">
+              <JobPostingCalendar
+                events={events}
+                onDateClick={setCalendarModalDate}
+                onEventClick={(ev) => setCalendarModalDate(new Date(ev.start))}
+              />
+            </div>
+          )}
+
+          <div className="min-w-0">
           {loading && postings.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
               불러오는 중…
             </div>
           ) : postings.length === 0 ? (
-            hasFilters ? (
+            hasFilters || folderFilter.kind !== "all" ? (
               <div className="rounded-xl border border-dashed bg-card/40 p-10 text-center text-sm text-muted-foreground">
                 {emptyMessage}
               </div>
@@ -242,6 +310,7 @@ export function JobPostingsClient() {
               postings={postings}
               onToggleFavorite={handleToggleFavorite}
               onChangeStatus={handleChangeStatus}
+              onPatch={patchPosting}
               emptyMessage={emptyMessage}
               compact={state.calendarVisible}
             />
@@ -253,6 +322,7 @@ export function JobPostingsClient() {
             total={total}
             onPageChange={setPage}
           />
+          </div>
         </div>
       </div>
 

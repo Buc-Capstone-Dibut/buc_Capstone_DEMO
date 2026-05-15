@@ -1,7 +1,24 @@
-import type { JobPostingInput } from "./types";
+import type { ColorPreset, JobPostingInput } from "./types";
 
 const STATUS = new Set(["active", "applied", "interviewing", "closed", "archived"]);
 const KIND = new Set(["deadline", "document_due", "interview", "other"]);
+const COLOR_PRESETS = new Set<ColorPreset>([
+  "slate", "red", "orange", "amber", "emerald", "sky", "violet", "pink",
+]);
+
+function asUuidOrNull(v: unknown): string | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== "string") return undefined;
+  // 매우 가벼운 UUID 형태 검증
+  const ok = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  return ok ? v : undefined;
+}
+
+function asColorOrNull(v: unknown): ColorPreset | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== "string") return undefined;
+  return COLOR_PRESETS.has(v as ColorPreset) ? (v as ColorPreset) : undefined;
+}
 
 export function validateJobPostingInput(
   raw: unknown,
@@ -52,6 +69,8 @@ export function validateJobPostingInput(
       teamCulture: arrField("teamCulture"),
       memo: typeof r.memo === "string" ? r.memo : null,
       status: status as JobPostingInput["status"],
+      folderId: "folderId" in r ? asUuidOrNull(r.folderId) ?? null : null,
+      color: "color" in r ? asColorOrNull(r.color) ?? null : null,
       schedules,
     },
   };
@@ -113,6 +132,16 @@ export function validateJobPostingPartial(
   if ("isFavorite" in r) {
     if (typeof r.isFavorite !== "boolean") return { ok: false, error: "isFavorite must be boolean" };
     value.isFavorite = r.isFavorite;
+  }
+  if ("folderId" in r) {
+    const f = asUuidOrNull(r.folderId);
+    if (f === undefined) return { ok: false, error: "folderId must be uuid or null" };
+    value.folderId = f;
+  }
+  if ("color" in r) {
+    const c = asColorOrNull(r.color);
+    if (c === undefined) return { ok: false, error: "color must be one of presets or null" };
+    value.color = c;
   }
   if ("schedules" in r) {
     if (!Array.isArray(r.schedules)) return { ok: false, error: "schedules must be array" };

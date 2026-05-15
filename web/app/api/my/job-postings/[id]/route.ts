@@ -60,6 +60,8 @@ export async function PATCH(request: Request, ctx: { params: { id: string } }) {
   if (v.memo !== undefined) data.memo = v.memo;
   if (v.status !== undefined) data.status = v.status;
   if (v.isFavorite !== undefined) data.is_favorite = v.isFavorite;
+  if (v.folderId !== undefined) data.folder_id = v.folderId;
+  if (v.color !== undefined) data.color = v.color;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ success: false, error: "No fields to update" }, { status: 400 });

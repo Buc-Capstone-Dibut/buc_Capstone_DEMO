@@ -51,10 +51,13 @@ export async function GET(request: Request) {
   const favorites = parseFavorites(url.searchParams.get("favorites"));
   const page = clampPage(url.searchParams.get("page"));
   const pageSize = clampPageSize(url.searchParams.get("pageSize"));
+  const folder = url.searchParams.get("folder"); // 'unfiled' | <uuid> | null
 
   const where: any = { user_id: session.user.id };
   if (statuses) where.status = { in: statuses };
   if (favorites === "only") where.is_favorite = true;
+  if (folder === "unfiled") where.folder_id = null;
+  else if (folder) where.folder_id = folder;
   if (q) {
     where.OR = [
       { company_name: { contains: q, mode: "insensitive" } },
@@ -164,6 +167,8 @@ export async function POST(request: Request) {
         team_culture: v.teamCulture ?? [],
         memo: v.memo ?? null,
         status: v.status ?? "active",
+        folder_id: v.folderId ?? null,
+        color: v.color ?? null,
         schedules:
           v.schedules && v.schedules.length > 0
             ? {

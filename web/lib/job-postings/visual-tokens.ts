@@ -2,7 +2,66 @@
  * 채용공고 페이지의 공통 비주얼 토큰.
  * 상태/일정 종류별 색상과 라벨을 한 곳에서 관리하여 카드·리스트·캘린더·모달의 표현을 일치시킨다.
  */
-import type { JobPostingStatus, ScheduleKind } from "@/lib/job-postings/types";
+import type {
+  ColorPreset,
+  JobPostingStatus,
+  ScheduleKind,
+} from "@/lib/job-postings/types";
+
+/**
+ * 사용자가 카드/폴더에 지정 가능한 8개 프리셋. 자유 hex 대신 토큰으로
+ * 일관된 톤을 보장하고, 라이트/다크 모드 모두에서 가독성을 챙긴다.
+ */
+export const COLOR_PRESET_LIST: ColorPreset[] = [
+  "slate", "red", "orange", "amber", "emerald", "sky", "violet", "pink",
+];
+
+export const COLOR_PRESET_LABEL: Record<ColorPreset, string> = {
+  slate: "회색",
+  red: "빨강",
+  orange: "주황",
+  amber: "노랑",
+  emerald: "초록",
+  sky: "파랑",
+  violet: "보라",
+  pink: "분홍",
+};
+
+/** 카드 좌측 액센트 바 색 (사용자 지정 색이 있으면 STATUS_BAR 위에 우선 적용). */
+export const COLOR_PRESET_BAR: Record<ColorPreset, string> = {
+  slate: "bg-slate-400",
+  red: "bg-red-400",
+  orange: "bg-orange-400",
+  amber: "bg-amber-400",
+  emerald: "bg-emerald-400",
+  sky: "bg-sky-400",
+  violet: "bg-violet-400",
+  pink: "bg-pink-400",
+};
+
+/** 작은 도트(예: 우상단 보조 신호 / 사이드바 폴더 옆). */
+export const COLOR_PRESET_DOT: Record<ColorPreset, string> = {
+  slate: "bg-slate-400",
+  red: "bg-red-400",
+  orange: "bg-orange-400",
+  amber: "bg-amber-400",
+  emerald: "bg-emerald-400",
+  sky: "bg-sky-400",
+  violet: "bg-violet-400",
+  pink: "bg-pink-400",
+};
+
+/** 폴더 행 / 칩의 옅은 배경 톤. */
+export const COLOR_PRESET_SOFT: Record<ColorPreset, string> = {
+  slate: "bg-slate-100 text-slate-700",
+  red: "bg-red-50 text-red-700",
+  orange: "bg-orange-50 text-orange-700",
+  amber: "bg-amber-50 text-amber-700",
+  emerald: "bg-emerald-50 text-emerald-700",
+  sky: "bg-sky-50 text-sky-700",
+  violet: "bg-violet-50 text-violet-700",
+  pink: "bg-pink-50 text-pink-700",
+};
 
 export const STATUS_TONE: Record<JobPostingStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 ring-emerald-200/60",

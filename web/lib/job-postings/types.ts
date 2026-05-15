@@ -6,6 +6,29 @@ export type ScheduleKind =
 
 export type AttachmentType = "resume" | "cover_letter" | "portfolio" | "project";
 
+/**
+ * 사용자가 카드/폴더에 지정 가능한 색 프리셋. 자유 hex 대신 8개 토큰으로
+ * 일관된 톤을 보장한다. visual-tokens.ts 의 COLOR_PRESET_BAR / DOT 와 매칭.
+ */
+export type ColorPreset =
+  | "slate" | "red" | "orange" | "amber"
+  | "emerald" | "sky" | "violet" | "pink";
+
+export interface FolderInput {
+  name: string;
+  color?: ColorPreset | null;
+  sortOrder?: number;
+}
+
+export interface FolderRecord {
+  id: string;
+  userId: string;
+  name: string;
+  color: ColorPreset | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface JobPostingInput {
   companyName: string;
   roleTitle: string;
@@ -18,6 +41,8 @@ export interface JobPostingInput {
   teamCulture?: string[];
   memo?: string | null;
   status?: JobPostingStatus;
+  folderId?: string | null;
+  color?: ColorPreset | null;
   schedules?: Array<{
     kind: ScheduleKind;
     title?: string | null;
@@ -42,6 +67,8 @@ export interface JobPostingRecord {
   memo: string | null;
   status: JobPostingStatus;
   isFavorite: boolean;
+  folderId: string | null;
+  color: ColorPreset | null;
   createdAt: string;
   updatedAt: string;
   schedules?: ScheduleRecord[];

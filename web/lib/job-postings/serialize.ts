@@ -1,12 +1,23 @@
 import type {
   AttachmentRecord,
+  AttachmentType,
+  ColorPreset,
   CoverLetterRecord,
+  FolderRecord,
   JobPostingRecord,
   JobPostingStatus,
   ScheduleKind,
   ScheduleRecord,
-  AttachmentType,
 } from "./types";
+
+const COLOR_PRESETS = new Set<ColorPreset>([
+  "slate", "red", "orange", "amber", "emerald", "sky", "violet", "pink",
+]);
+
+function asColorPreset(value: unknown): ColorPreset | null {
+  if (typeof value !== "string") return null;
+  return COLOR_PRESETS.has(value as ColorPreset) ? (value as ColorPreset) : null;
+}
 
 function toIsoString(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
@@ -37,6 +48,8 @@ export function toRecord(row: any): JobPostingRecord {
     memo: row.memo ?? null,
     status: row.status as JobPostingStatus,
     isFavorite: row.is_favorite ?? false,
+    folderId: row.folder_id ?? null,
+    color: asColorPreset(row.color),
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
     schedules: (row.schedules ?? []).map(
@@ -64,6 +77,17 @@ export function toRecord(row: any): JobPostingRecord {
         projectLabel: a.project_label ?? null,
       }),
     ),
+  };
+}
+
+export function serializeFolder(row: any): FolderRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name ?? "",
+    color: asColorPreset(row.color),
+    sortOrder: typeof row.sort_order === "number" ? row.sort_order : 0,
+    createdAt: toIsoString(row.created_at),
   };
 }
 
