@@ -471,25 +471,27 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
 
               {/* 우측: 정보 (얇게) */}
               <div className="flex min-w-0 flex-col p-4">
-                <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <FileBadge className="h-3.5 w-3.5" />
-                </div>
-
-                {resume.is_active && (
-                  <span
-                    className="mb-2 inline-flex w-fit items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary"
-                    title="새 채용공고에 이력서 첨부 시 자동으로 추천되는 기본 이력서"
-                  >
-                    <CheckCircle2 className="h-3 w-3" />
-                    기본 이력서
+                {/* 한 줄: 파일 아이콘 + "기본 이력서" 배지 */}
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <FileBadge className="h-3 w-3" />
                   </span>
-                )}
+                  {resume.is_active && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                      title="새 채용공고에 이력서 첨부 시 자동 추천"
+                    >
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      기본
+                    </span>
+                  )}
+                </div>
 
                 <h3 className="line-clamp-3 pr-7 text-[15px] font-bold leading-snug text-slate-900 transition-colors group-hover:text-primary dark:text-slate-100">
                   {resume.title}
                 </h3>
 
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400">
                   <CalendarDays className="h-3 w-3" />
                   {new Date(resume.updatedAt).toLocaleDateString("ko-KR")}
                 </div>
