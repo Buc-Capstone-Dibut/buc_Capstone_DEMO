@@ -68,6 +68,36 @@ export async function saveCoverLetterAction(data: CoverLetterInput) {
   // --- 전역 프로필 동기화 ---
   await syncResumeToProfile(userId, payload);
 
+  // --- user_cover_letters 테이블에 같은 id로 upsert ---
+  // 이게 있어야 자소서 카드의 "지원 대상" + "기반 이력서" chip이 자동 활성화됨.
+  // jsonb 측엔 없는 source_resume_id는 활성 이력서로 기본 매핑 (사용자가 카드 액션으로 변경 가능).
+  // target_job_posting_id는 모르므로 null. 사용자가 카드의 "공고 연결" 액션으로 사후 매칭.
+  if (data.id) {
+    try {
+      await prisma.user_cover_letters.upsert({
+        where: { id: data.id },
+        create: {
+          id: data.id,
+          user_id: userId,
+          title: data.title || "새 자기소개서",
+          body: data.content || "",
+          source_resume_id: activeResume.id,
+        },
+        update: {
+          title: data.title || "새 자기소개서",
+          body: data.content || "",
+          updated_at: new Date(),
+          // source_resume_id, target_job_posting_id 등은 사용자가 카드에서
+          // 명시적으로 바꾼 값을 덮어쓰지 않도록 update에서 건드리지 않음
+        },
+      });
+    } catch (err) {
+      // jsonb 측 저장이 성공했으니 동기화 실패해도 전체 실패로 보지 않음.
+      // 로그만 남기고 진행 (자소서 카드에서 target/source chip이 비어 보일 수는 있음)
+      console.error("user_cover_letters upsert 실패 (jsonb 저장은 성공):", err);
+    }
+  }
+
   revalidatePath("/career/cover-letters");
   return { success: true, coverLetter: data };
 }
@@ -111,6 +141,15 @@ export async function deleteCoverLetterAction(id: string) {
       where: { user_id: userId },
       data: { resume_payload: masterPayload as any, updated_at: new Date() }
     });
+  }
+
+  // 3. 동기화: user_cover_letters 테이블에서도 같은 id row 제거 (있다면)
+  try {
+    await prisma.user_cover_letters.deleteMany({
+      where: { id, user_id: userId },
+    });
+  } catch (err) {
+    console.error("user_cover_letters delete 실패:", err);
   }
 
   revalidatePath("/career/cover-letters");

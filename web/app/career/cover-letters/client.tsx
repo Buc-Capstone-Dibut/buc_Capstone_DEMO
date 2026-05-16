@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, Edit3, FileText, Plus, Save, Search, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  Briefcase,
+  Edit3,
+  FileText,
+  Loader2,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAnchoredScroll } from "@/hooks/use-anchored-scroll";
@@ -11,6 +21,36 @@ import {
   deleteCoverLetterAction,
   type CoverLetterInput,
 } from "./actions";
+
+interface JobPostingOption {
+  id: string;
+  companyName: string;
+  roleTitle: string;
+  status: string;
+}
+
+/**
+ * 자소서 카드/리스트 항목.
+ * jsonb 측 CoverLetterInput 에 user_cover_letters 테이블 메타데이터를 보강.
+ * - tableRowExists: 해당 id 로 user_cover_letters row 가 존재하면 true
+ *   → target 변경/연결 액션은 row 가 있어야 호출 가능
+ */
+export type CoverLetterListItem = CoverLetterInput & {
+  tableRowExists: boolean;
+  targetPosting: {
+    id: string;
+    companyName: string;
+    roleTitle: string;
+    status: string;
+  } | null;
+  targetMeta: {
+    company: string;
+    division: string;
+    role: string;
+    deadline: string;
+  } | null;
+  sourceResume: { id: string; title: string } | null;
+};
 
 function buildContentFromQuestions(
   questions: NonNullable<CoverLetterInput["questions"]> = [],
@@ -45,10 +85,10 @@ function sourceSnapshots(letter?: Partial<CoverLetterInput>) {
 export default function CoverLettersClient({
   initialLetters,
 }: {
-  initialLetters: CoverLetterInput[];
+  initialLetters: CoverLetterListItem[];
 }) {
   const router = useRouter();
-  const [letters, setLetters] = useState<CoverLetterInput[]>(initialLetters || []);
+  const [letters, setLetters] = useState<CoverLetterListItem[]>(initialLetters || []);
   const [selectedId, setSelectedId] = useState<string | null>(
     letters.length > 0 ? letters[0].id : null,
   );
@@ -190,8 +230,16 @@ export default function CoverLettersClient({
 
       const res = await saveCoverLetterAction(payload);
       if (res.success && res.coverLetter) {
+        // saveCoverLetterAction 은 jsonb 측만 갱신하므로 enrichment(target, sourceResume) 는 보존.
         setLetters((prev) =>
-          prev.map((letter) => (letter.id === res.coverLetter!.id ? res.coverLetter! : letter)),
+          prev.map((letter) =>
+            letter.id === res.coverLetter!.id
+              ? {
+                  ...letter,
+                  ...res.coverLetter!,
+                }
+              : letter,
+          ),
         );
         setSelectedId(res.coverLetter.id);
         setIsEditing(false);
@@ -340,6 +388,28 @@ export default function CoverLettersClient({
                     <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
                       {(letter.company || "").trim()} {letter.role ? `· ${letter.role}` : ""}
                     </p>
+                    {(letter.targetPosting || letter.sourceResume) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {letter.targetPosting && (
+                          <span
+                            className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold text-primary"
+                            title={`지원 대상: ${letter.targetPosting.companyName} · ${letter.targetPosting.roleTitle}`}
+                          >
+                            <Briefcase className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">{letter.targetPosting.companyName}</span>
+                          </span>
+                        )}
+                        {letter.sourceResume && (
+                          <span
+                            className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+                            title={`기반 이력서: ${letter.sourceResume.title}`}
+                          >
+                            <FileText className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">{letter.sourceResume.title}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
                       <span className="truncate">
                         생성 {formatDateLabel(letter.createdAt)}
@@ -411,6 +481,41 @@ export default function CoverLettersClient({
                   <span>기업: {selectedLetter.company || "미입력"}</span>
                   <span>•</span>
                   <span>직무: {selectedLetter.role || "미입력"}</span>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-start gap-x-4 gap-y-3">
+                  <CoverLetterTargetSection
+                    coverLetterId={selectedLetter.id}
+                    canEditTarget={selectedLetter.tableRowExists}
+                    targetPosting={selectedLetter.targetPosting}
+                    targetMeta={selectedLetter.targetMeta}
+                    onChanged={(next) => {
+                      setLetters((prev) =>
+                        prev.map((l) =>
+                          l.id === selectedLetter.id
+                            ? {
+                                ...l,
+                                targetPosting: next.targetPosting,
+                                targetMeta: next.targetMeta,
+                              }
+                            : l,
+                        ),
+                      );
+                    }}
+                  />
+                  {selectedLetter.sourceResume && (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/career/resumes")}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                      title={`기반 이력서: ${selectedLetter.sourceResume.title}`}
+                    >
+                      <FileText className="h-3 w-3" />
+                      <span className="max-w-[200px] truncate">
+                        기반 이력서: {selectedLetter.sourceResume.title}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -647,6 +752,182 @@ export default function CoverLettersClient({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 자소서 디테일의 "지원 대상" 섹션.
+ * - target_posting(FK) 있으면 정규화된 공고 정보 표시 + 클릭 시 공고 페이지 이동
+ * - 없고 target_meta 있으면 free-form 정보 표시
+ * - 둘 다 없으면 "공고 연결" 버튼만
+ *
+ * 변경 액션은 PATCH /api/my/cover-letters/{id} 호출. user_cover_letters 테이블에
+ * 해당 row 가 있어야 함 (canEditTarget=true). jsonb 전용 자소서는 표시만.
+ */
+function CoverLetterTargetSection({
+  coverLetterId,
+  canEditTarget,
+  targetPosting,
+  targetMeta,
+  onChanged,
+}: {
+  coverLetterId: string;
+  canEditTarget: boolean;
+  targetPosting: CoverLetterListItem["targetPosting"];
+  targetMeta: CoverLetterListItem["targetMeta"];
+  onChanged: (next: {
+    targetPosting: CoverLetterListItem["targetPosting"];
+    targetMeta: CoverLetterListItem["targetMeta"];
+  }) => void;
+}) {
+  const router = useRouter();
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkPostings, setLinkPostings] = useState<JobPostingOption[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  const openLinkPicker = async () => {
+    setLinkOpen((prev) => !prev);
+    if (linkPostings.length > 0) return;
+    setLinkLoading(true);
+    try {
+      const res = await fetch("/api/my/job-postings?pageSize=50&sort=newest", {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (json?.success) {
+        setLinkPostings((json.data?.items ?? []) as JobPostingOption[]);
+      }
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const linkToPosting = async (postingId: string | null) => {
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/my/cover-letters/${coverLetterId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetJobPostingId: postingId }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "연결 실패");
+      const selected = postingId
+        ? linkPostings.find((p) => p.id === postingId) ?? null
+        : null;
+      onChanged({
+        targetPosting: selected
+          ? {
+              id: selected.id,
+              companyName: selected.companyName,
+              roleTitle: selected.roleTitle,
+              status: selected.status,
+            }
+          : null,
+        targetMeta: postingId ? null : targetMeta,
+      });
+      setLinkOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert("공고 연결에 실패했습니다.");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const hasAny = Boolean(targetPosting || (targetMeta && (targetMeta.company || targetMeta.role)));
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2">
+        {targetPosting ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/my/job-postings/${targetPosting.id}`)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
+            title={`지원 대상: ${targetPosting.companyName} · ${targetPosting.roleTitle}`}
+          >
+            <Briefcase className="h-3 w-3" />
+            <span className="max-w-[160px] truncate">{targetPosting.companyName}</span>
+            <span className="text-primary/60">·</span>
+            <span className="max-w-[120px] truncate text-primary/80">{targetPosting.roleTitle}</span>
+          </button>
+        ) : targetMeta && (targetMeta.company || targetMeta.role) ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-300 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600"
+            title="직접 입력된 정보. 공고에 연결하면 동기화됩니다."
+          >
+            <Briefcase className="h-3 w-3" />
+            <span className="max-w-[160px] truncate">{targetMeta.company || "기업 미입력"}</span>
+            {targetMeta.role && (
+              <>
+                <span className="text-slate-400">·</span>
+                <span className="max-w-[120px] truncate text-slate-500">{targetMeta.role}</span>
+              </>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-300 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-400">
+            <Briefcase className="h-3 w-3" />
+            지원 대상 없음
+          </span>
+        )}
+
+        {canEditTarget && (
+          <button
+            type="button"
+            onClick={openLinkPicker}
+            className="text-[11px] font-semibold text-slate-400 transition-colors hover:text-primary"
+          >
+            {hasAny ? "변경" : "공고 연결"}
+          </button>
+        )}
+      </div>
+
+      {linkOpen && (
+        <div className="absolute left-0 top-full z-20 mt-2 max-h-60 w-72 overflow-y-auto rounded-md border bg-white p-1 shadow-md">
+          {linkLoading ? (
+            <div className="flex items-center gap-1.5 px-2 py-2 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> 불러오는 중…
+            </div>
+          ) : linkPostings.length === 0 ? (
+            <p className="px-2 py-2 text-[11px] text-muted-foreground">
+              등록된 공고가 없습니다.
+            </p>
+          ) : (
+            <>
+              {hasAny && (
+                <button
+                  type="button"
+                  onClick={() => void linkToPosting(null)}
+                  disabled={linking}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[11px] text-slate-500 transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  연결 해제
+                </button>
+              )}
+              {linkPostings.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => void linkToPosting(p.id)}
+                  disabled={linking || p.id === targetPosting?.id}
+                  className="flex w-full flex-col items-start gap-0 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  <span className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {p.companyName}
+                  </span>
+                  <span className="truncate text-[12px] font-bold text-foreground">
+                    {p.roleTitle}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

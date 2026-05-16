@@ -38,7 +38,14 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { title, resumePayload, sourceType, sourceFileName } = body;
+        const {
+            title,
+            resumePayload,
+            sourceType,
+            sourceFileName,
+            targetJobPostingId,
+            targetMeta,
+        } = body;
 
         if (!prisma || !(prisma as any).user_resumes) {
             throw new Error("데이터베이스 연결 설정 중입니다. 잠시 후 다시 시도해 주세요.");
@@ -46,6 +53,16 @@ export async function POST(req: Request) {
 
         const { buildResumePublicSummary } = await import("@/lib/my-profile");
         const publicSummary = buildResumePublicSummary(resumePayload || {}, title);
+
+        // 본인 소유 공고만 target으로 허용 (다른 사용자 공고 ID 주입 방지)
+        let safeTargetPostingId: string | null = null;
+        if (typeof targetJobPostingId === "string" && targetJobPostingId.length > 0) {
+            const owned = await (prisma as any).user_job_postings.findFirst({
+                where: { id: targetJobPostingId, user_id: session.user.id },
+                select: { id: true },
+            });
+            if (owned) safeTargetPostingId = owned.id;
+        }
 
         const newResume = await (prisma as any).user_resumes.create({
             data: {
@@ -55,6 +72,8 @@ export async function POST(req: Request) {
                 public_summary: publicSummary || {},
                 source_type: sourceType || "manual",
                 source_file_name: sourceFileName || null,
+                target_job_posting_id: safeTargetPostingId,
+                target_meta: targetMeta && typeof targetMeta === "object" ? targetMeta : null,
             },
         });
 
