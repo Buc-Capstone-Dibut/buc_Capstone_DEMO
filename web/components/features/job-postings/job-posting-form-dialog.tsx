@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -113,7 +113,6 @@ export function JobPostingFormDialog({
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseFilled, setParseFilled] = useState<string[] | null>(null);
-  const lastParsedUrl = useRef<string>("");
 
   // 상세 입력 토글 (URL만 보이는 게 기본, 자동 파싱 성공 시 자동 펼침)
   const [detailsOpen, setDetailsOpen] = useState(
@@ -155,8 +154,6 @@ export function JobPostingFormDialog({
   const parseFromUrl = async (url: string) => {
     const trimmed = url.trim();
     if (!trimmed || !URL_PATTERN.test(trimmed)) return;
-    if (trimmed === lastParsedUrl.current) return;
-    lastParsedUrl.current = trimmed;
 
     setParseError(null);
     setParseFilled(null);
@@ -245,16 +242,8 @@ export function JobPostingFormDialog({
     }
   };
 
-  // URL 변경 시 디바운스로 자동 파싱
-  useEffect(() => {
-    if (!postingUrl.trim() || !URL_PATTERN.test(postingUrl.trim())) return;
-    if (postingUrl.trim() === lastParsedUrl.current) return;
-    const id = setTimeout(() => {
-      void parseFromUrl(postingUrl);
-    }, 600);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postingUrl]);
+  const canParseUrl =
+    !parsing && URL_PATTERN.test(postingUrl.trim());
 
   const submit = async () => {
     setError(null);
@@ -351,8 +340,8 @@ export function JobPostingFormDialog({
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">채용공고 등록</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            URL을 붙여넣으면 회사·직무·요건이 자동으로 채워집니다. 필요한 부분만
-            직접 다듬어 저장하세요.
+            URL을 입력하고 <b>가져오기</b>를 누르면 회사·직무·요건이 자동으로
+            채워집니다. 필요한 부분만 직접 다듬어 저장하세요.
           </p>
         </DialogHeader>
 
@@ -362,7 +351,7 @@ export function JobPostingFormDialog({
             <Label htmlFor="posting-url" className="text-xs font-semibold">
               채용공고 URL
             </Label>
-            <div className="relative">
+            <div className="flex gap-2">
               <Input
                 id="posting-url"
                 value={postingUrl}
@@ -371,24 +360,38 @@ export function JobPostingFormDialog({
                   setParseError(null);
                   setParseFilled(null);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canParseUrl) {
+                    e.preventDefault();
+                    void parseFromUrl(postingUrl);
+                  }
+                }}
                 placeholder="https://career.example.com/jobs/12345"
-                className="h-11 pr-28 font-medium"
+                className="h-11 flex-1 font-medium"
                 inputMode="url"
                 autoFocus
               />
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
+              <Button
+                type="button"
+                size="sm"
+                className="h-11 shrink-0 px-4"
+                onClick={() => void parseFromUrl(postingUrl)}
+                disabled={!canParseUrl}
+              >
                 {parsing ? (
-                  <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     가져오는 중
-                  </span>
+                  </>
                 ) : parseFilled ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-600">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    완료
-                  </span>
-                ) : null}
-              </div>
+                  <>
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                    다시 가져오기
+                  </>
+                ) : (
+                  "가져오기"
+                )}
+              </Button>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               사람인·잡코리아·원티드·자사 채용 페이지 등 일반 공개된 URL을
