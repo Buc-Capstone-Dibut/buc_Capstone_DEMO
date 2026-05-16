@@ -27,6 +27,9 @@ export default function ResumePage() {
     const [isWizardMode, setIsWizardMode] = useState(isWizardModeFromUrl);
 
     useEffect(() => {
+        const controller = new AbortController();
+        const { signal } = controller;
+
         const fetchResume = async () => {
             const isPrefill = searchParams.get("prefill") === "true";
             const resumeId = searchParams.get("id");
@@ -37,7 +40,7 @@ export default function ResumePage() {
             let currentTitle = "";
 
             try {
-                const res = await fetch(fetchUrl, { cache: "no-store" });
+                const res = await fetch(fetchUrl, { cache: "no-store", signal });
                 if (res.ok) {
                     const json = await res.json();
                     if (json.success) {
@@ -47,8 +50,11 @@ export default function ResumePage() {
                     }
                 }
             } catch (error) {
+                if ((error as Error)?.name === "AbortError") return;
                 console.error("Failed to fetch current resume:", error);
             }
+
+            if (signal.aborted) return;
 
             // 2. Handle prefill from Career Wizard
             if (isPrefill) {
@@ -112,7 +118,7 @@ export default function ResumePage() {
             try {
                 // Determine fetch URL: Specific ID or Active
                 const url = resumeId ? `/api/my/resume/${resumeId}` : "/api/my/resume/active";
-                const res = await fetch(url, { cache: "no-store" });
+                const res = await fetch(url, { cache: "no-store", signal });
 
                 if (res.status === 404) {
                     setResumePayload(EMPTY_RESUME);
@@ -125,12 +131,15 @@ export default function ResumePage() {
                     }
                 }
             } catch (error) {
+                if ((error as Error)?.name === "AbortError") return;
                 console.error("Failed to fetch resume:", error);
             } finally {
-                setLoading(false);
+                if (!signal.aborted) setLoading(false);
             }
         };
         fetchResume();
+
+        return () => controller.abort();
     }, [isNewModeFromUrl, isWizardModeFromUrl, searchParams]);
 
     useEffect(() => {
@@ -140,6 +149,9 @@ export default function ResumePage() {
 
         const rawTarget = sessionStorage.getItem("resume_creation_target");
         if (!rawTarget) return;
+
+        const controller = new AbortController();
+        const { signal } = controller;
 
         const generateTailoredResume = async () => {
             setGeneratingTailoredResume(true);
@@ -173,8 +185,10 @@ export default function ResumePage() {
                             division ? `사업부: ${division}` : "",
                         ].filter(Boolean).join("\n"),
                     }),
+                    signal,
                 });
                 const json = await response.json().catch(() => null);
+                if (signal.aborted) return;
                 if (!response.ok || !json?.success) {
                     throw new Error(json?.error || "맞춤형 이력서 생성에 실패했습니다.");
                 }
@@ -189,6 +203,7 @@ export default function ResumePage() {
                     description: titlePrefix || "지원 대상 정보를 기준으로 이력서를 구성했습니다.",
                 });
             } catch (error: unknown) {
+                if ((error as Error)?.name === "AbortError") return;
                 const message = error instanceof Error ? error.message : "맞춤형 이력서 생성 중 오류가 발생했습니다.";
                 toast({
                     title: "맞춤형 생성 실패",
@@ -196,11 +211,13 @@ export default function ResumePage() {
                     variant: "destructive",
                 });
             } finally {
-                setGeneratingTailoredResume(false);
+                if (!signal.aborted) setGeneratingTailoredResume(false);
             }
         };
 
         void generateTailoredResume();
+
+        return () => controller.abort();
     }, [isNewModeFromUrl, loading, searchParams, toast]);
 
     const handleSave = async (silent = false) => {

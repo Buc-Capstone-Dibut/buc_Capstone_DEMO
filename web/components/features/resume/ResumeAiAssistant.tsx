@@ -82,6 +82,15 @@ export function ResumeAiAssistant({
     const [chatInput, setChatInput] = useState("");
     const bottomRef = useRef<HTMLDivElement>(null);
     const generationLockRef = useRef(false);
+    const abortRef = useRef<AbortController | null>(null);
+
+    // Cleanup: abort any in-flight streaming fetch on unmount to prevent
+    // orphaned readers (CLOSE_WAIT pile-up, memory/CPU leak).
+    useEffect(() => {
+        return () => {
+            abortRef.current?.abort();
+        };
+    }, []);
 
     // Auto-scroll to bottom whenever messages or streaming content changes
     useEffect(() => {
@@ -126,6 +135,11 @@ export function ResumeAiAssistant({
         ]);
         setIsStreaming(true);
 
+        // Abort any prior in-flight stream and create a fresh controller for this call.
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         try {
             const response = await fetch("/api/career/cover-letters/generate", {
                 method: "POST",
@@ -137,6 +151,7 @@ export function ResumeAiAssistant({
                     backgroundContext,
                     personalInfo: currentPayload,
                 }),
+                signal: controller.signal,
             });
 
             if (!response.ok) {
@@ -155,28 +170,37 @@ export function ResumeAiAssistant({
 
             let fullText = "";
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                fullText += chunk;
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (controller.signal.aborted) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullText += chunk;
 
-                // Update the last message (the assistant's response)
-                setMessages(prev => {
-                    const next = [...prev];
-                    if (next.length > 0) {
-                        next[next.length - 1] = { ...next[next.length - 1], content: fullText };
-                    }
-                    return next;
-                });
+                    // Update the last message (the assistant's response)
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1] = { ...next[next.length - 1], content: fullText };
+                        }
+                        return next;
+                    });
+                }
+            } finally {
+                // Ensure the underlying TCP connection is released even on abort.
+                reader.cancel().catch(() => { });
             }
         } catch (err: unknown) {
+            // Silent on user-initiated abort (unmount/route change).
+            if (err instanceof DOMException && err.name === "AbortError") return;
             const message = err instanceof Error ? err.message : "알 수 없는 오류";
             toast({ title: "생성 실패", description: message, variant: "destructive" });
         } finally {
             setIsStreaming(false);
             setIsStartingGeneration(false);
             generationLockRef.current = false;
+            if (abortRef.current === controller) abortRef.current = null;
         }
     };
 
@@ -198,6 +222,11 @@ export function ResumeAiAssistant({
             .filter(m => m.role === "assistant")
             .pop()?.content || "";
 
+        // Abort any prior in-flight stream and create a fresh controller for this call.
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         try {
             const response = await fetch("/api/resume/ai-coach", {
                 method: "POST",
@@ -208,6 +237,7 @@ export function ResumeAiAssistant({
                     payload: currentPayload,
                     previousContent: lastAssistantMessage, // Pass previous context
                 }),
+                signal: controller.signal,
             });
 
             if (!response.ok) throw new Error("API 요청 실패");
@@ -218,26 +248,33 @@ export function ResumeAiAssistant({
             if (!reader) return;
 
             let fullText = "";
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                fullText += chunk;
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (controller.signal.aborted) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullText += chunk;
 
-                // Update the last message
-                setMessages(prev => {
-                    const next = [...prev];
-                    if (next.length > 0) {
-                        next[next.length - 1] = { ...next[next.length - 1], content: fullText };
-                    }
-                    return next;
-                });
+                    // Update the last message
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1] = { ...next[next.length - 1], content: fullText };
+                        }
+                        return next;
+                    });
+                }
+            } finally {
+                reader.cancel().catch(() => { });
             }
         } catch (err: unknown) {
+            if (err instanceof DOMException && err.name === "AbortError") return;
             const message = err instanceof Error ? err.message : "알 수 없는 오류";
             toast({ title: "수정 실패", description: message, variant: "destructive" });
         } finally {
             setIsStreaming(false);
+            if (abortRef.current === controller) abortRef.current = null;
         }
     };
 
