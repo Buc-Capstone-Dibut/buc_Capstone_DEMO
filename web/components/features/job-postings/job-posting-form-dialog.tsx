@@ -38,6 +38,7 @@ import {
   type JobPostingDraft,
 } from "@/components/features/job-postings/import-from-my-data-panel";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
@@ -565,18 +566,19 @@ export function JobPostingFormDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input
-                      className="col-span-4 h-9"
-                      type="datetime-local"
-                      value={s.startAt}
-                      onChange={(e) =>
-                        setSchedules((arr) =>
-                          arr.map((it, i) =>
-                            i === idx ? { ...it, startAt: e.target.value } : it,
-                          ),
-                        )
-                      }
-                    />
+                    <div className="col-span-4">
+                      <DateTimePicker
+                        value={s.startAt}
+                        onChange={(next) =>
+                          setSchedules((arr) =>
+                            arr.map((it, i) =>
+                              i === idx ? { ...it, startAt: next } : it,
+                            ),
+                          )
+                        }
+                        placeholder="날짜·시간 선택"
+                      />
+                    </div>
                     <Input
                       className="col-span-4 h-9"
                       placeholder="제목 (선택)"
