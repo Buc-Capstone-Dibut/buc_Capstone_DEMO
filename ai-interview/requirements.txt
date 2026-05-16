@@ -43,12 +43,14 @@ google-ai-generativelanguage==0.6.15
     # via google-generativeai
 google-api-core==2.25.2 ; python_full_version >= '3.14'
     # via
+    #   dibut-ai-interview
     #   google-ai-generativelanguage
     #   google-api-python-client
     #   google-cloud-speech
     #   google-generativeai
 google-api-core==2.30.0 ; python_full_version < '3.14'
     # via
+    #   dibut-ai-interview
     #   google-ai-generativelanguage
     #   google-api-python-client
     #   google-cloud-speech
@@ -57,6 +59,7 @@ google-api-python-client==2.190.0
     # via google-generativeai
 google-auth==2.48.0
     # via
+    #   dibut-ai-interview
     #   google-ai-generativelanguage
     #   google-api-core
     #   google-api-python-client
@@ -74,10 +77,12 @@ google-generativeai==0.8.6
     # via dibut-ai-interview
 googleapis-common-protos==1.72.0
     # via
+    #   dibut-ai-interview
     #   google-api-core
     #   grpcio-status
 grpcio==1.78.1
     # via
+    #   dibut-ai-interview
     #   google-api-core
     #   google-cloud-speech
     #   grpcio-status
@@ -116,6 +121,7 @@ proto-plus==1.27.1
     #   google-cloud-speech
 protobuf==5.29.6
     # via
+    #   dibut-ai-interview
     #   google-ai-generativelanguage
     #   google-api-core
     #   google-cloud-speech
