@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentPicker } from "@/components/features/job-postings/attachment-picker";
 import { InterviewLaunchOverlay } from "@/components/features/job-postings/interview-launch-overlay";
@@ -27,7 +27,28 @@ const DATE_TIME = new Intl.DateTimeFormat("ko-KR", {
   minute: "2-digit",
 });
 
-export function JobPostingDetailClient({ postingId }: { postingId: string }) {
+export interface TargetResumeRef {
+  id: string;
+  title: string;
+  updatedAt: string;
+  isActive: boolean;
+}
+
+export interface TargetCoverLetterRef {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export function JobPostingDetailClient({
+  postingId,
+  targetResumes,
+  targetCoverLetters,
+}: {
+  postingId: string;
+  targetResumes: TargetResumeRef[];
+  targetCoverLetters: TargetCoverLetterRef[];
+}) {
   const [posting, setPosting] = useState<JobPostingRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [launchOpen, setLaunchOpen] = useState(false);
@@ -259,6 +280,16 @@ export function JobPostingDetailClient({ postingId }: { postingId: string }) {
         ) : (
           <EmptyBlock message="아직 연결된 자료가 없습니다. 위에서 이력서·자기소개서·포트폴리오를 선택해 연결하세요." />
         )}
+
+        {/* 이 공고로 만든 자료 (target_job_posting_id 역방향) */}
+        <SectionHeader
+          title="이 공고로 만든 자료"
+          hint="이력서·자기소개서를 작성할 때 ‘지원 대상’으로 이 공고를 선택하면 여기에 자동으로 모입니다. 위의 ‘연결된 자료’는 사용자가 직접 첨부한 것, 아래는 작성 시점에 기록된 출처입니다."
+        />
+        <TargetDocumentsBlock
+          resumes={targetResumes}
+          coverLetters={targetCoverLetters}
+        />
 
         {/* 채용 상세 정보 */}
         {(posting.responsibilities.length > 0 ||
@@ -542,6 +573,126 @@ function BulletList({ items }: { items: string[] }) {
 
 function EmptyValue() {
   return <span className="text-muted-foreground/60">—</span>;
+}
+
+function TargetDocumentsBlock({
+  resumes,
+  coverLetters,
+}: {
+  resumes: TargetResumeRef[];
+  coverLetters: TargetCoverLetterRef[];
+}) {
+  const isEmpty = resumes.length === 0 && coverLetters.length === 0;
+
+  return (
+    <div className="border-t border-slate-200/70 bg-white px-6 py-4 dark:border-slate-800/70 dark:bg-slate-900">
+      {isEmpty ? (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            이 공고를 대상으로 작성된 자료가 아직 없습니다. 새 이력서·자기소개서를
+            만들 때 우측 패널에서 이 공고를 선택하면 자동으로 이곳에 모입니다.
+          </p>
+          <TargetCreateLinks />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {resumes.length > 0 && (
+            <TargetGroup
+              label="이력서"
+              count={resumes.length}
+              items={resumes.map((r) => ({
+                id: r.id,
+                title: r.title || "(제목 없음)",
+                href: "/career/resumes",
+                updatedAt: r.updatedAt,
+                badge: r.isActive ? "기본" : null,
+              }))}
+            />
+          )}
+          {coverLetters.length > 0 && (
+            <TargetGroup
+              label="자기소개서"
+              count={coverLetters.length}
+              items={coverLetters.map((c) => ({
+                id: c.id,
+                title: c.title || "(제목 없음)",
+                href: "/career/cover-letters",
+                updatedAt: c.updatedAt,
+                badge: null,
+              }))}
+            />
+          )}
+          <TargetCreateLinks />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TargetGroup({
+  label,
+  count,
+  items,
+}: {
+  label: string;
+  count: number;
+  items: Array<{
+    id: string;
+    title: string;
+    href: string;
+    updatedAt: string;
+    badge: string | null;
+  }>;
+}) {
+  return (
+    <div>
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label} ({count})
+      </h3>
+      <ul className="mt-1.5 divide-y divide-slate-200/60 rounded-sm border border-slate-200/70 dark:divide-slate-800/60 dark:border-slate-800/70">
+        {items.map((item) => (
+          <li key={item.id}>
+            <Link
+              href={item.href}
+              className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-foreground hover:bg-slate-50/70 dark:hover:bg-slate-950/40"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <FileText
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="truncate">{item.title}</span>
+                {item.badge && (
+                  <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    {item.badge}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                {DATE_TIME.format(new Date(item.updatedAt))}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TargetCreateLinks() {
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <Button asChild size="sm" variant="outline" className="h-7 rounded-sm text-xs">
+        <Link href="/career/resumes">이력서 만들기</Link>
+      </Button>
+      <Button asChild size="sm" variant="outline" className="h-7 rounded-sm text-xs">
+        <Link href="/career/cover-letters">자기소개서 만들기</Link>
+      </Button>
+      <p className="text-[11px] text-muted-foreground">
+        작성 화면에서 ‘지원 대상 공고’로 이 공고를 선택하세요.
+      </p>
+    </div>
+  );
 }
 
 function EmptyBlock({ message }: { message: string }) {

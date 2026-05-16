@@ -9,8 +9,6 @@ import {
   ExternalLink,
   FileText,
   FolderClosed,
-  FolderKanban,
-  Layers,
   Palette,
   PenLine,
   Sparkles,
@@ -243,148 +241,114 @@ export function JobPostingCard({
         )}
       </header>
 
-      {/* 메타 표 */}
-      <dl className="divide-y divide-dashed divide-border/70 text-xs">
-        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-          <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-            상태
-          </dt>
-          <dd className="flex items-center px-3 py-1.5">
-            {onChangeStatus ? (
-              <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition-colors hover:bg-muted/40",
-                      STATUS_TONE[posting.status],
-                    )}
-                    aria-label="상태 변경"
-                  >
-                    {STATUS_LABEL[posting.status]}
-                    <ChevronDown className="h-3 w-3 opacity-70" aria-hidden />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-36 rounded-sm p-1"
-                  align="start"
-                  sideOffset={4}
-                >
-                  <ul className="text-sm">
-                    {STATUS_OPTIONS.map((opt) => {
-                      const selected = posting.status === opt;
-                      return (
-                        <li key={opt}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onChangeStatus(posting.id, opt);
-                              setStatusOpen(false);
-                            }}
-                            className={cn(
-                              "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted",
-                              selected && "bg-muted/60 font-medium",
-                            )}
-                          >
-                            {STATUS_LABEL[opt]}
-                            {selected && <Check className="h-3 w-3" aria-hidden />}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <span
+      {/* 단일 메타 행: 상태 chip + 일정 + 기술 */}
+      <div className="flex flex-wrap items-center gap-1.5 pl-5 pr-3 py-2 text-[11px]">
+        {/* 상태 — 호버 전에는 읽기 전용 chip, 호버 시 ChevronDown 노출 → 클릭 변경 */}
+        {onChangeStatus ? (
+          <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
                 className={cn(
-                  "inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
+                  "inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset transition-colors hover:bg-muted/40",
                   STATUS_TONE[posting.status],
                 )}
+                aria-label="상태 변경"
               >
                 {STATUS_LABEL[posting.status]}
+                <ChevronDown
+                  className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-70"
+                  aria-hidden
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-36 rounded-sm p-1"
+              align="start"
+              sideOffset={4}
+            >
+              <ul className="text-sm">
+                {STATUS_OPTIONS.map((opt) => {
+                  const selected = posting.status === opt;
+                  return (
+                    <li key={opt}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeStatus(posting.id, opt);
+                          setStatusOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted",
+                          selected && "bg-muted/60 font-medium",
+                        )}
+                      >
+                        {STATUS_LABEL[opt]}
+                        {selected && <Check className="h-3 w-3" aria-hidden />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <span
+            className={cn(
+              "inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset",
+              STATUS_TONE[posting.status],
+            )}
+          >
+            {STATUS_LABEL[posting.status]}
+          </span>
+        )}
+
+        {/* 일정 한 줄 — 다음 일정 있을 때만 */}
+        {dInfo && next && (
+          <span
+            className="inline-flex items-center gap-1 text-muted-foreground"
+            title={`${KIND_LABEL[next.kind] ?? "일정"} ${dInfo.label}`}
+          >
+            <CalendarIcon className="h-3 w-3" aria-hidden />
+            <span className="text-foreground/70">
+              {KIND_LABEL[next.kind] ?? "일정"}
+            </span>
+            <span
+              className={cn(
+                "font-semibold tabular-nums",
+                isUrgent ? "text-red-600" : "text-foreground/80",
+              )}
+            >
+              {dInfo.label}
+            </span>
+          </span>
+        )}
+
+        {/* 기술 칩 — 최대 3개 */}
+        {posting.techStack.length > 0 && (
+          <span className="inline-flex flex-wrap items-center gap-1">
+            {posting.techStack.slice(0, 3).map((t) => (
+              <span
+                key={t}
+                className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-foreground/70"
+              >
+                {t}
+              </span>
+            ))}
+            {posting.techStack.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{posting.techStack.length - 3}
               </span>
             )}
-          </dd>
-        </div>
-        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-          <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-            일정
-          </dt>
-          <dd className="flex items-center gap-1.5 px-3 py-1.5">
-            <CalendarIcon className="h-3 w-3 text-muted-foreground" aria-hidden />
-            {dInfo && next ? (
-              <>
-                <span className="text-foreground/80">
-                  {KIND_LABEL[next.kind] ?? "일정"}
-                </span>
-                <span
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    isUrgent ? "text-red-600" : "text-foreground",
-                  )}
-                >
-                  {dInfo.label}
-                </span>
-              </>
-            ) : (
-              <span className="text-muted-foreground/70">예정 없음</span>
-            )}
-          </dd>
-        </div>
-        {posting.techStack.length > 0 && (
-          <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-            <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              기술
-            </dt>
-            <dd className="flex flex-wrap items-center gap-1 px-3 py-1.5">
-              {posting.techStack.slice(0, 4).map((t) => (
-                <span
-                  key={t}
-                  className="rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] text-foreground/80"
-                >
-                  {t}
-                </span>
-              ))}
-              {posting.techStack.length > 4 && (
-                <span className="text-[10.5px] text-muted-foreground">
-                  +{posting.techStack.length - 4}
-                </span>
-              )}
-            </dd>
-          </div>
+          </span>
         )}
-      </dl>
 
-      {/* 연결 자료 인디케이터 */}
-      <div className="flex items-center gap-1.5 border-t border-dashed border-border/70 pl-5 pr-3 py-1.5 text-[10.5px] text-muted-foreground">
-        <span className="text-[10px] font-medium uppercase tracking-wider">
-          연결
-        </span>
-        <AttachIndicator
-          icon={<FileText className="h-3 w-3" aria-hidden />}
-          label="이력서"
-          count={attachCounts.resume}
-        />
-        <AttachIndicator
-          icon={<PenLine className="h-3 w-3" aria-hidden />}
-          label="자소서"
-          count={attachCounts.cover_letter}
-        />
-        <AttachIndicator
-          icon={<Layers className="h-3 w-3" aria-hidden />}
-          label="포트폴리오"
-          count={attachCounts.portfolio}
-        />
-        <AttachIndicator
-          icon={<FolderKanban className="h-3 w-3" aria-hidden />}
-          label="프로젝트"
-          count={attachCounts.project}
-        />
+        {/* 준비 상태 — 작은 dot 우측 정렬, 호버 시 풀 indicator */}
         <span className="ml-auto inline-flex items-center gap-1">
+          {/* 평소: 1개 dot/배지로 압축 */}
           {missingCount === 0 ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-sm bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
+              className="inline-flex h-4 items-center gap-0.5 rounded-sm bg-emerald-50 px-1 text-[9.5px] font-bold text-emerald-700"
               title="이력서·자소서·포트폴리오·프로젝트 모두 연결됨"
             >
               <Check className="h-2.5 w-2.5" />
@@ -392,23 +356,52 @@ export function JobPostingCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center gap-0.5 rounded-sm bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
-              title={`자료 ${missingCount}종 미연결`}
+              className="inline-flex h-4 items-center gap-0.5 rounded-sm bg-amber-50 px-1 text-[9.5px] font-semibold text-amber-700"
+              title={`첨부 ${missingCount}종 미연결`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-              {missingCount}종 비움
+              {missingCount}
             </span>
           )}
         </span>
       </div>
 
-      {/* 폴더 행 */}
-      {onPatch && (
-        <FolderRow
-          currentFolderId={posting.folderId}
-          onMove={(folderId) => void onPatch(posting.id, { folderId })}
-        />
-      )}
+      {/* 호버 시 노출 — 첨부 상세 + 폴더 (정보 밀도 감축) */}
+      <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-150 group-hover:max-h-32 group-hover:opacity-100">
+        <div className="flex items-center gap-1 border-t border-dashed border-border/70 pl-5 pr-3 py-1 text-[10px] text-muted-foreground">
+          <span className="text-[9.5px] font-medium uppercase tracking-wider">
+            첨부
+          </span>
+          <AttachIndicator
+            icon={<FileText className="h-3 w-3" aria-hidden />}
+            label="이력서"
+            count={attachCounts.resume}
+          />
+          <AttachIndicator
+            icon={<PenLine className="h-3 w-3" aria-hidden />}
+            label="자소서"
+            count={attachCounts.cover_letter}
+          />
+          <span
+            className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5"
+            title={`포트폴리오 ${attachCounts.portfolio}`}
+          >
+            <span className="text-[9.5px]">P {attachCounts.portfolio}</span>
+          </span>
+          <span
+            className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5"
+            title={`프로젝트 ${attachCounts.project}`}
+          >
+            <span className="text-[9.5px]">Pr {attachCounts.project}</span>
+          </span>
+        </div>
+        {onPatch && (
+          <FolderRow
+            currentFolderId={posting.folderId}
+            onMove={(folderId) => void onPatch(posting.id, { folderId })}
+          />
+        )}
+      </div>
 
       {/* 액션 푸터 */}
       <footer className="mt-auto flex items-center justify-between gap-1.5 border-t bg-muted/20 pl-5 pr-3 py-2">
@@ -438,6 +431,18 @@ export function JobPostingCard({
               </a>
             </Button>
           )}
+
+          {/* 역방향 파생 자료: 이 공고로 작성된 이력서/자소서 */}
+          <DerivedChip
+            kind="resume"
+            count={posting.derivedResumeCount ?? 0}
+            first={posting.derivedResumes?.[0]}
+          />
+          <DerivedChip
+            kind="cover_letter"
+            count={posting.derivedCoverLetterCount ?? 0}
+            first={posting.derivedCoverLetters?.[0]}
+          />
         </div>
         <Button
           size="sm"
@@ -654,6 +659,45 @@ function AttachIndicator({
         <span className="font-semibold tabular-nums">{count}</span>
       )}
     </span>
+  );
+}
+
+/**
+ * 역방향 파생 자료 chip — 이 공고를 target 으로 한 이력서/자소서.
+ * count 0 이면 표시 안 함. 1 이면 해당 항목 단건으로(`#id`) 점프, 2+ 이면 리스트 페이지로.
+ */
+function DerivedChip({
+  kind,
+  count,
+  first,
+}: {
+  kind: "resume" | "cover_letter";
+  count: number;
+  first: { id: string; title: string } | undefined;
+}) {
+  if (!count) return null;
+  const isResume = kind === "resume";
+  const label = isResume ? "이력서" : "자소서";
+  const Icon = isResume ? FileText : PenLine;
+  // 1 건이면 단건 hash 점프, 2+ 면 리스트 페이지로 (career 페이지에 단건 라우트 없음)
+  const basePath = isResume ? "/career/resumes" : "/career/cover-letters";
+  const href = count === 1 && first ? `${basePath}#${first.id}` : basePath;
+  const tooltip =
+    count === 1 && first ? `${label}: ${first.title || "(제목 없음)"}` : `${label} ${count}건`;
+  return (
+    <Link
+      href={href}
+      onClick={(e) => e.stopPropagation()}
+      title={tooltip}
+      className={cn(
+        "inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-[10.5px] font-medium",
+        "text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground",
+      )}
+      aria-label={tooltip}
+    >
+      <Icon className="h-3 w-3" aria-hidden />
+      <span className="tabular-nums">{count}</span>
+    </Link>
   );
 }
 
