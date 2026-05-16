@@ -2,7 +2,7 @@ services:
   - type: web
     name: dibut-ai-interview
     runtime: python
-    buildCommand: uv sync --frozen --no-dev
+    buildCommand: pip install uv && uv sync --frozen --no-dev
     startCommand: uv run --frozen --no-dev --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
