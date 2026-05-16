@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -137,7 +138,14 @@ export function InterviewLaunchOverlay({
     return () => abortRef.current?.abort();
   }, [open, run]);
 
-  return (
+  // SSR-safe portal: window 확인 후에만 body에 mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+
+  const overlay = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -229,6 +237,8 @@ export function InterviewLaunchOverlay({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(overlay, document.body);
 }
 
 function AttachDot({

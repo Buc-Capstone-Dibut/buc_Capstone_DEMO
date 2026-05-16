@@ -328,18 +328,42 @@ export function ResumeInputStep({ track = "posting" }: ResumeInputStepProps) {
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 rounded-sm text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
-                    }}
-                  >
-                    파일 변경
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-sm text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                      }}
+                    >
+                      파일 변경
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 rounded-sm text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleAnalyzeUpload();
+                      }}
+                      disabled={isAnalyzing}
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
+                          분석 중…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          이 파일로 분석 시작
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>

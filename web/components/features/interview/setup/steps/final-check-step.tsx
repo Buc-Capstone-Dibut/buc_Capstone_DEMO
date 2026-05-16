@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { JdCheckForm } from "./jd-check-form";
 import { ResumeCheckForm } from "./resume-check-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { startInterviewPreflight } from "@/lib/interview/start-interview-preflight";
 import { RoleTrainingBriefStep } from "./role-training-brief-step";
 import { InterviewLevelCard } from "./interview-level-card";
@@ -104,43 +103,34 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
       </div>
 
       <Tabs defaultValue={hasResumeData ? "resume" : "jd"} className="w-full">
-        <TabsList className={`grid w-full mb-8 ${hasResumeData ? "grid-cols-2" : "grid-cols-1"}`}>
+        <TabsList className={`grid w-full mb-4 ${hasResumeData ? "grid-cols-2" : "grid-cols-1"}`}>
           {hasResumeData && <TabsTrigger value="resume">이력서 정보 확인</TabsTrigger>}
           <TabsTrigger value="jd">{track === "posting" ? "JD / 채용 공고 확인" : "직무 설정 확인"}</TabsTrigger>
         </TabsList>
 
         {hasResumeData && (
-          <TabsContent value="resume" className="space-y-6">
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <CheckCircle2 className="w-5 h-5" /> 이력서 최종 확인
-                </CardTitle>
-                <CardDescription>
-                  AI 면접관이 이 정보를 바탕으로 질문합니다. 빠진 내용이 없는지 확인하세요.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <TabsContent value="resume" className="space-y-4">
+            <div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <p className="text-foreground/90">
+                AI 면접관이 <b>이 정보 그대로</b> 질문합니다. 비어있거나 잘못된 부분은 셀을 클릭해 바로 수정하세요.
+              </p>
+            </div>
             <ResumeCheckForm resumeData={resumeData!} updateResumeData={updateResumeData} />
           </TabsContent>
         )}
 
-        <TabsContent value="jd" className="space-y-6">
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <CheckCircle2 className="w-5 h-5" />
-                  {track === "posting" ? "채용 공고(JD) 최종 확인" : "직무 설정 최종 확인"}
-                </CardTitle>
-                <CardDescription>
-                  {track === "posting"
-                    ? "이 포지션의 요구사항을 기반으로 면접이 진행됩니다."
-                    : hasResumeData
-                      ? "설정한 목표 직무와 입력한 이력서를 기반으로 면접이 진행됩니다."
-                      : "설정한 목표 직무를 기준으로 이력서 없이 면접이 진행됩니다."}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+        <TabsContent value="jd" className="space-y-4">
+          <div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <p className="text-foreground/90">
+              {track === "posting"
+                ? "이 포지션의 요구사항을 기반으로 면접이 진행됩니다."
+                : hasResumeData
+                  ? "설정한 목표 직무와 입력한 이력서를 기반으로 면접이 진행됩니다."
+                  : "설정한 목표 직무를 기준으로 이력서 없이 면접이 진행됩니다."}
+            </p>
+          </div>
           <JdCheckForm jobData={jobData} updateJobData={updateJobData} />
         </TabsContent>
       </Tabs>

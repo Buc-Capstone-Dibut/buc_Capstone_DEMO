@@ -5,13 +5,22 @@ import { cn } from "@/lib/utils";
 import { getTechLogo } from "@/lib/interview/tech-logos";
 
 interface TechLogoChipProps {
+  /** 기술명 (예: "React"). 로고 매칭에 사용되므로 순수 이름만 전달할 것. */
   label: string;
+  /** 보조 표시 (예: 숙련도 "Intermediate"). 선택. */
+  sublabel?: string;
   onRemove?: () => void;
   className?: string;
   iconClassName?: string;
 }
 
-export function TechLogoChip({ label, onRemove, className, iconClassName }: TechLogoChipProps) {
+export function TechLogoChip({
+  label,
+  sublabel,
+  onRemove,
+  className,
+  iconClassName,
+}: TechLogoChipProps) {
   const logo = getTechLogo(label);
   const fallback = label
     .split(/[\s./-]+/)
@@ -38,7 +47,12 @@ export function TechLogoChip({ label, onRemove, className, iconClassName }: Tech
       >
         {logo ? null : fallback || "#"}
       </span>
-      <span>{label}</span>
+      <span>{logo ? logo.label : label}</span>
+      {sublabel ? (
+        <span className="ml-0.5 rounded-sm bg-[#f3f6f9] px-1.5 py-0.5 text-[10px] font-medium text-[#7c8898]">
+          {sublabel}
+        </span>
+      ) : null}
       {onRemove ? (
         <button
           type="button"
