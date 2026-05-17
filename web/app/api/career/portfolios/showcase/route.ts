@@ -62,6 +62,16 @@ export async function POST(request: Request) {
   const defaultContent = template.createDefaultContent({ name: displayName, projects: snapshots });
   defaultContent.contact.email = source.personalInfo?.email ?? "";
 
+  // AI fill — best-effort, returns input unchanged on error or no projects.
+  const { aiFillNeonEditorialContent } = await import(
+    "@/components/features/career/portfolio-showcase/server/ai-fill"
+  );
+  const filledContent = await aiFillNeonEditorialContent({
+    content: defaultContent,
+    source,
+    snapshots,
+  });
+
   const tokens = template.createDefaultTokens();
   const slug = await createUniqueShowcaseSlug(user.id, title);
 
@@ -71,7 +81,7 @@ export async function POST(request: Request) {
       slug,
       title,
       template_id: templateKey,
-      content_payload: defaultContent,
+      content_payload: filledContent,
       tokens_payload: tokens,
       is_public: false,
     },

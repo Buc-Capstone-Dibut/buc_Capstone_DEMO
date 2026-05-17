@@ -47,6 +47,15 @@ export default async function NewShowcasePage({
   const content = template.createDefaultContent({ name: displayName, projects: snapshots });
   content.contact.email = source.personalInfo?.email ?? "";
 
+  const { aiFillNeonEditorialContent } = await import(
+    "@/components/features/career/portfolio-showcase/server/ai-fill"
+  );
+  const filledContent = await aiFillNeonEditorialContent({
+    content,
+    source,
+    snapshots,
+  });
+
   const slug = await createUniqueShowcaseSlug(session.user.id, title);
   const row = await showcasePortfolioDelegate().create({
     data: {
@@ -54,7 +63,7 @@ export default async function NewShowcasePage({
       slug,
       title,
       template_id: templateKey,
-      content_payload: content,
+      content_payload: filledContent,
       tokens_payload: template.createDefaultTokens(),
       is_public: false,
     },
