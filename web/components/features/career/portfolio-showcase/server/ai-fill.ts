@@ -4,6 +4,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { NeonEditorialContent } from "../templates/neon-editorial/types";
 import type { ProjectSnapshot } from "../shared/project-snapshot-types";
 
+type WorkExperience = {
+  id?: string;
+  company?: string;
+  position?: string;
+  period?: string;
+  description?: string;
+};
+
 type SeedSource = {
   personalInfo?: {
     name?: string;
@@ -11,6 +19,7 @@ type SeedSource = {
     email?: string;
   };
   skills?: Array<{ name?: string }>;
+  workExperiences?: WorkExperience[];
 };
 
 /**
@@ -65,6 +74,21 @@ function buildPrompt(input: {
     })
     .join("\n");
 
+  const experiences = (input.source.workExperiences ?? []).filter(
+    (e): e is WorkExperience => !!e && (!!e.company || !!e.position),
+  );
+  const experienceSummaries = experiences.length
+    ? experiences
+        .map((e, i) => {
+          const company = String(e.company ?? "");
+          const position = String(e.position ?? "");
+          const period = String(e.period ?? "");
+          const description = String(e.description ?? "");
+          return `${i + 1}. ${company} · ${position} (${period})\n   ${description}`;
+        })
+        .join("\n")
+    : "(없음)";
+
   return `너는 한국 개발자 채용 시장의 포트폴리오 카피라이터다.
 아래 사용자 정보와 프로젝트 요약을 바탕으로 "Neon Editorial" 디자인 포트폴리오의 핵심 카피를 채워라.
 사용자가 제공하지 않은 수치, 회사명, 성과, 기술은 절대 만들지 마라. 데이터에 없는 정량 성과는 KPI에 넣지 마라.
@@ -76,6 +100,9 @@ function buildPrompt(input: {
 [선택된 프로젝트 ${input.snapshots.length}개]
 ${projectSummaries}
 
+[Work 경력 ${experiences.length}건]
+${experienceSummaries}
+
 [출력 규칙 — 글자 수 제한: NeonEditorial 템플릿이 깨지지 않게 반드시 준수]
 - bio: 사용자의 직무 정체성을 한 줄로 (한국어, **최대 80자**). 과장 없이.
 - aboutQuote: 일하는 태도를 보여주는 인용구 (한국어, **최대 60자**).
@@ -83,6 +110,9 @@ ${projectSummaries}
 - strengths: 정확히 4개. 각각 { num: "01"~"04", title: 영문 대문자 키워드 **최대 30자** (예: "PERFORMANCE OBSESSION"), body: 한국어 한두 문장 **최대 80자** }.
 - kpis: 정확한 정량 성과가 프로젝트 결과에 명시되어 있으면 그것만 추출 (최대 3개). { num: number, suffix: **최대 6자** ("%"|"K+"|"ms"|"개" 등), label: 한국어 짧은 설명 **최대 30자** }. 명시된 수치 없으면 빈 배열로.
 - marqueeKeywords: 프로젝트들의 techStack을 종합해 핵심 키워드 6~8개 (영문 대문자, 한 단어 또는 짧은 구, 각 **최대 30자**). 중복 제거.
+${experiences.length === 0
+  ? "- experience: 빈 배열 [] 반환 (사용자가 직접 입력).\n"
+  : `- experience: Work 경력을 정확히 ${experiences.length}건 변환. 각 항목 { date: 한국어 기간 (예: "2024 — 현재", **최대 30자**), title: 직무명 (**최대 50자**), org: 회사명 (**최대 50자**), bullets: 1~3개 (각 한국어, **최대 120자**) }. bullets는 description을 의미 단위로 압축해 핵심 임팩트만. 없는 사실 추가 금지.\n`}- education: 출력 안 함 (사용자가 직접 입력).
 
 ⚠️ 모든 글자수 제한을 반드시 준수. 길어지면 템플릿이 깨진다.
 
@@ -93,7 +123,8 @@ JSON 하나만 반환:
   "aboutParagraphs": ["...", "..."],
   "strengths": [{ "num": "01", "title": "...", "body": "..." }, ...],
   "kpis": [...],
-  "marqueeKeywords": ["...", ...]
+  "marqueeKeywords": ["...", ...],
+  "experience": [{ "date": "...", "title": "...", "org": "...", "bullets": ["..."] }, ...]
 }`;
 }
 
@@ -163,6 +194,20 @@ function mergeIntoContent(
       .map((s) => s.trim().toUpperCase())
       .slice(0, 8);
     if (arr.length) next.marqueeKeywords = arr;
+  }
+  if (Array.isArray(ai.experience)) {
+    const arr = ai.experience
+      .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+      .map((r) => ({
+        date: String(r.date ?? "").trim(),
+        title: String(r.title ?? "").trim(),
+        org: String(r.org ?? "").trim(),
+        bullets: Array.isArray(r.bullets)
+          ? r.bullets.filter((b): b is string => typeof b === "string" && b.trim().length > 0)
+          : [],
+      }))
+      .filter((r) => r.title || r.org);
+    if (arr.length) next.experience = arr;
   }
 
   return next;

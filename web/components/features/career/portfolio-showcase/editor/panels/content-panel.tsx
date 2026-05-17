@@ -195,6 +195,26 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
         </div>
       </Section>
 
+      <Section title="Experience">
+        <TimelineEditor
+          rows={value.experience}
+          onChangeRows={(updater) =>
+            onChange((p) => ({ ...p, experience: updater(p.experience) }))
+          }
+          addLabel="＋ Experience 추가"
+        />
+      </Section>
+
+      <Section title="Education">
+        <TimelineEditor
+          rows={value.education}
+          onChangeRows={(updater) =>
+            onChange((p) => ({ ...p, education: updater(p.education) }))
+          }
+          addLabel="＋ Education 추가"
+        />
+      </Section>
+
       <Section title="Contact">
         <Field label="이메일" max={80} value={value.contact.email}>
           <input
@@ -204,6 +224,101 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
           />
         </Field>
       </Section>
+    </div>
+  );
+}
+
+type TimelineRow = NeonEditorialContent["experience"][number];
+
+function TimelineEditor({
+  rows,
+  onChangeRows,
+  addLabel,
+}: {
+  rows: TimelineRow[];
+  onChangeRows: (updater: (prev: TimelineRow[]) => TimelineRow[]) => void;
+  addLabel: string;
+}) {
+  return (
+    <div className="space-y-3">
+      {rows.map((row, i) => (
+        <div key={i} className="space-y-1.5 rounded border border-slate-200 bg-slate-50 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              #{i + 1}
+            </span>
+            <button
+              type="button"
+              onClick={() => onChangeRows((prev) => prev.filter((_, idx) => idx !== i))}
+              className="text-xs text-slate-400 hover:text-red-600"
+              aria-label="제거"
+            >
+              ×
+            </button>
+          </div>
+          <CountedInput
+            value={row.date}
+            max={30}
+            placeholder="기간 (예: 2024 — 현재)"
+            onChange={(e) =>
+              onChangeRows((prev) => {
+                const next = [...prev];
+                next[i] = { ...next[i], date: e.target.value };
+                return next;
+              })
+            }
+          />
+          <CountedInput
+            value={row.title}
+            max={50}
+            placeholder="직무 (예: Senior Engineer)"
+            onChange={(e) =>
+              onChangeRows((prev) => {
+                const next = [...prev];
+                next[i] = { ...next[i], title: e.target.value };
+                return next;
+              })
+            }
+          />
+          <CountedInput
+            value={row.org}
+            max={50}
+            placeholder="조직 (회사명)"
+            onChange={(e) =>
+              onChangeRows((prev) => {
+                const next = [...prev];
+                next[i] = { ...next[i], org: e.target.value };
+                return next;
+              })
+            }
+          />
+          <CountedTextarea
+            value={row.bullets.join("\n")}
+            max={360}
+            placeholder="bullet 1줄당 하나 (엔터로 구분)"
+            className={`${inputCls} h-20`}
+            onChange={(e) =>
+              onChangeRows((prev) => {
+                const next = [...prev];
+                next[i] = {
+                  ...next[i],
+                  bullets: e.target.value.split("\n").filter((s) => s.length > 0),
+                };
+                return next;
+              })
+            }
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className={btnCls}
+        onClick={() =>
+          onChangeRows((prev) => [...prev, { date: "", title: "", org: "", bullets: [] }])
+        }
+      >
+        {addLabel}
+      </button>
     </div>
   );
 }
