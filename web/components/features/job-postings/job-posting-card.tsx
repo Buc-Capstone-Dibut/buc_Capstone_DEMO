@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Briefcase,
+  Boxes,
   Calendar as CalendarIcon,
   Check,
   ChevronDown,
@@ -15,6 +17,7 @@ import {
   Star,
 } from "lucide-react";
 import { InterviewLaunchOverlay } from "./interview-launch-overlay";
+import { AttachmentPreviewDialog } from "./attachment-preview-dialog";
 import {
   Popover,
   PopoverContent,
@@ -23,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
+  AttachmentRecord,
   ColorPreset,
   JobPostingRecord,
   JobPostingStatus,
@@ -103,8 +107,24 @@ export function JobPostingCard({
   const fav = posting.isFavorite;
   const [launchOpen, setLaunchOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<AttachmentRecord | null>(null);
 
-  const attachCounts = countAttachments(posting.attachments);
+  const attachmentsByType = useMemo(() => {
+    const all = posting.attachments ?? [];
+    return {
+      resume: all.filter((a) => a.attachmentType === "resume"),
+      cover_letter: all.filter((a) => a.attachmentType === "cover_letter"),
+      portfolio: all.filter((a) => a.attachmentType === "portfolio"),
+      project: all.filter((a) => a.attachmentType === "project"),
+    };
+  }, [posting.attachments]);
+  const attachCounts = {
+    resume: attachmentsByType.resume.length,
+    cover_letter: attachmentsByType.cover_letter.length,
+    portfolio: attachmentsByType.portfolio.length,
+    project: attachmentsByType.project.length,
+  };
   // 4종 중 0개인 항목 수 — 0이면 "준비 완료", 1+ 면 "미연결" 경고 점
   const missingCount = (Object.keys(attachCounts) as Array<
     keyof typeof attachCounts
@@ -358,42 +378,42 @@ export function JobPostingCard({
         </span>
       </div>
 
-      {/* 호버 시 노출 — 첨부 상세 + 폴더 (정보 밀도 감축) */}
-      <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-150 group-hover:max-h-32 group-hover:opacity-100">
-        <div className="flex items-center gap-1 border-t border-dashed border-border/70 pl-5 pr-3 py-1 text-[10px] text-muted-foreground">
-          <span className="text-[9.5px] font-medium uppercase tracking-wider">
-            첨부
-          </span>
-          <AttachIndicator
-            icon={<FileText className="h-3 w-3" aria-hidden />}
-            label="이력서"
-            count={attachCounts.resume}
-          />
-          <AttachIndicator
-            icon={<PenLine className="h-3 w-3" aria-hidden />}
-            label="자소서"
-            count={attachCounts.cover_letter}
-          />
-          <span
-            className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5"
-            title={`포트폴리오 ${attachCounts.portfolio}`}
-          >
-            <span className="text-[9.5px]">P {attachCounts.portfolio}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5"
-            title={`프로젝트 ${attachCounts.project}`}
-          >
-            <span className="text-[9.5px]">Pr {attachCounts.project}</span>
-          </span>
-        </div>
-        {onPatch && (
-          <FolderRow
-            currentFolderId={posting.folderId}
-            onMove={(folderId) => void onPatch(posting.id, { folderId })}
-          />
-        )}
+      {/* 첨부 상세 + 폴더 — 항상 표시, 첨부 아이콘 클릭 시 미리보기 */}
+      <div className="flex items-center gap-1 border-t border-dashed border-border/70 pl-5 pr-3 py-1 text-[10px] text-muted-foreground">
+        <span className="text-[9.5px] font-medium uppercase tracking-wider">
+          첨부
+        </span>
+        <AttachIndicatorButton
+          icon={<FileText className="h-3 w-3" aria-hidden />}
+          label="이력서"
+          items={attachmentsByType.resume}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<PenLine className="h-3 w-3" aria-hidden />}
+          label="자기소개서"
+          items={attachmentsByType.cover_letter}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<Briefcase className="h-3 w-3" aria-hidden />}
+          label="포트폴리오"
+          items={attachmentsByType.portfolio}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<Boxes className="h-3 w-3" aria-hidden />}
+          label="프로젝트"
+          items={attachmentsByType.project}
+          onPreview={setPreviewAttachment}
+        />
       </div>
+      {onPatch && (
+        <FolderRow
+          currentFolderId={posting.folderId}
+          onMove={(folderId) => void onPatch(posting.id, { folderId })}
+        />
+      )}
 
       {/* 액션 푸터 */}
       <footer className="mt-auto flex items-center justify-between gap-1.5 border-t bg-muted/20 pl-5 pr-3 py-2">
@@ -453,7 +473,108 @@ export function JobPostingCard({
         open={launchOpen}
         onClose={() => setLaunchOpen(false)}
       />
+
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        open={previewAttachment !== null}
+        onClose={() => setPreviewAttachment(null)}
+      />
     </article>
+  );
+}
+
+function attachmentTitle(a: AttachmentRecord): string {
+  const snap = a.snapshotPayload as { title?: string; name?: string } | null;
+  if (a.attachmentType === "cover_letter")
+    return a.coverLetterLabel || snap?.title || "자기소개서";
+  if (a.attachmentType === "project")
+    return a.projectLabel || snap?.name || "프로젝트";
+  if (a.attachmentType === "portfolio") return snap?.title || "포트폴리오";
+  return snap?.title || "이력서";
+}
+
+function AttachIndicatorButton({
+  icon,
+  label,
+  items,
+  onPreview,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: AttachmentRecord[];
+  onPreview: (att: AttachmentRecord) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = items.length;
+
+  if (count === 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-muted-foreground/40"
+        title={`${label} 없음`}
+      >
+        {icon}
+      </span>
+    );
+  }
+
+  if (count === 1) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview(items[0]);
+        }}
+        className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 py-0.5 text-foreground/90 transition-colors hover:bg-muted-foreground/15"
+        title={`${label}: ${attachmentTitle(items[0])} (클릭 미리보기)`}
+        aria-label={`${label} 미리보기`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 py-0.5 text-foreground/90 transition-colors hover:bg-muted-foreground/15"
+          title={`${label} ${count}개 — 미리볼 항목 선택`}
+          aria-label={`${label} ${count}개 미리보기 선택`}
+        >
+          {icon}
+          <span className="font-semibold tabular-nums">{count}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-56 p-1"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <ul className="space-y-0.5">
+          {items.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onPreview(a);
+                  setOpen(false);
+                }}
+                className="block w-full truncate rounded-sm px-2 py-1.5 text-left text-xs text-foreground/90 transition-colors hover:bg-muted"
+              >
+                {attachmentTitle(a)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -613,44 +734,6 @@ function ColorSwatch({
         />
       )}
     </button>
-  );
-}
-
-function countAttachments(
-  attachments: JobPostingRecord["attachments"],
-): { resume: number; cover_letter: number; portfolio: number; project: number } {
-  const acc = { resume: 0, cover_letter: 0, portfolio: 0, project: 0 };
-  (attachments ?? []).forEach((a) => {
-    if (a.attachmentType in acc) {
-      acc[a.attachmentType as keyof typeof acc] += 1;
-    }
-  });
-  return acc;
-}
-
-function AttachIndicator({
-  icon,
-  label,
-  count,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count: number;
-}) {
-  const has = count > 0;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 transition-colors",
-        has ? "bg-muted text-foreground/90" : "text-muted-foreground/40",
-      )}
-      title={has ? `${label} ${count}` : `${label} 없음`}
-    >
-      {icon}
-      {has && count > 1 && (
-        <span className="font-semibold tabular-nums">{count}</span>
-      )}
-    </span>
   );
 }
 
