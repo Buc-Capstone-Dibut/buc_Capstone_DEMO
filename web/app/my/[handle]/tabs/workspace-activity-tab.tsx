@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
+  ChevronRight,
   ClipboardList,
   FileText,
   Loader2,
@@ -166,11 +168,13 @@ export function WorkspaceActivityTab({
             const isCompleted = workspace.lifecycleStatus === "COMPLETED";
             const stats = workspace.stats;
             return (
-              <li
-                key={workspace.id}
-                className="px-4 py-3 transition-colors hover:bg-accent/30"
-              >
-                <div className="flex items-center gap-3">
+              <li key={workspace.id} className="group">
+                <Link
+                  href={`/workspace/${workspace.id}`}
+                  className="block px-4 py-3 transition-colors hover:bg-accent/30"
+                  aria-label={`${workspace.name} 워크스페이스로 이동`}
+                >
+                  <div className="flex items-center gap-3">
                   {/* 아바타 */}
                   <Avatar className="h-9 w-9 shrink-0 border">
                     <AvatarImage src={workspace.iconUrl || undefined} />
@@ -230,6 +234,10 @@ export function WorkspaceActivityTab({
                     <span className="font-semibold text-foreground">
                       총 {numberLabel(stats.totalActivities)}
                     </span>
+                    <ChevronRight
+                      className="ml-1 h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary"
+                      aria-hidden
+                    />
                   </div>
                 </div>
 
@@ -270,6 +278,7 @@ export function WorkspaceActivityTab({
                           href={workspace.resultLink}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-0.5 text-primary hover:underline"
                         >
                           <Link2 className="h-3 w-3" />
@@ -278,6 +287,7 @@ export function WorkspaceActivityTab({
                       )}
                     </div>
                   )}
+                </Link>
               </li>
             );
           })}
