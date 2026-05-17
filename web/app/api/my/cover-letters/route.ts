@@ -99,6 +99,28 @@ export async function POST(req: Request) {
       );
     }
 
+    // target 처리: 공고 FK는 본인 소유만 허용 + 직접 입력 메타는 그대로
+    let safeTargetPostingId: string | null = null;
+    const rawTargetPostingId =
+      typeof body?.targetJobPostingId === "string" ? body.targetJobPostingId : "";
+    if (rawTargetPostingId.length > 0) {
+      const owned = await (prisma as any).user_job_postings.findFirst({
+        where: { id: rawTargetPostingId, user_id: session.user.id },
+        select: { id: true },
+      });
+      if (owned) safeTargetPostingId = owned.id;
+    }
+    // 자소서가 어떤 이력서 기반이라면 그 이력서의 target을 자동 상속 (명시적 target이 없을 때만)
+    if (!safeTargetPostingId && sourceResumeId) {
+      const base = await (prisma as any).user_resumes.findFirst({
+        where: { id: sourceResumeId, user_id: session.user.id },
+        select: { target_job_posting_id: true },
+      });
+      if (base?.target_job_posting_id) safeTargetPostingId = base.target_job_posting_id;
+    }
+    const targetMeta =
+      body?.targetMeta && typeof body.targetMeta === "object" ? body.targetMeta : null;
+
     const created = await (prisma as any).user_cover_letters.create({
       data: {
         user_id: session.user.id,
@@ -109,6 +131,8 @@ export async function POST(req: Request) {
         source_index: sourceIndex,
         tags,
         is_active: false,
+        target_job_posting_id: safeTargetPostingId,
+        target_meta: targetMeta,
       },
     });
 

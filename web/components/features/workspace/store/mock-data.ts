@@ -168,107 +168,18 @@ export interface Doc {
   updatedAt: string;
 }
 
-// --- Mock Data ---
+// --- Initial Store State ---
+//
+// 워크스페이스 detail 화면은 마운트 직후 `syncProjectData(projectId, dbData)` 로
+// 서버 데이터를 store 에 채운다. 그 전 mount 순간에 mock 프로젝트/태스크/문서/태그가
+// 보이지 않도록 모든 초기값을 빈 배열로 둔다. (이전엔 "Dibut 사이드 프로젝트" 등
+// 데모 데이터가 모든 사용자에게 동일하게 노출되는 버그가 있었다.)
 
-export const MOCK_PROJECTS: Project[] = [
-  {
-    id: "p-2",
-    title: "Dibut 사이드 프로젝트",
-    description: "개발자 커리어 플랫폼 클론 코딩",
-    type: "side-project",
-    status: "live",
-    lastActive: "방금 전",
-    members: [
-      { id: "u1", name: "Junghwan", avatar: "J", role: "leader", online: true },
-      { id: "u2", name: "Frontend", avatar: "F", role: "member", online: false },
-    ],
-    customFields: [],
-    views: [
-      {
-        id: "v-2",
-        projectId: "p-2",
-        name: "Task Board",
-        type: "kanban",
-        groupBy: "status",
-        columns: [
-          { id: "col-1", title: "To Do", statusId: "todo", category: "todo" },
-          { id: "col-2", title: "In Progress", statusId: "in-progress", category: "in-progress" },
-          { id: "col-3", title: "Done", statusId: "done", category: "done" },
-        ],
-        isSystem: true,
-      },
-      {
-        id: "v-2-team",
-        projectId: "p-2",
-        name: "Team View",
-        type: "kanban",
-        groupBy: "assignee",
-        columns: [],
-        isSystem: true,
-      },
-      {
-        id: "v-2-priority",
-        projectId: "p-2",
-        name: "Priority View",
-        type: "kanban",
-        groupBy: "priority",
-        columns: [],
-        isSystem: true,
-      },
-      {
-        id: "v-2-tag",
-        projectId: "p-2",
-        name: "Tag View",
-        type: "kanban",
-        groupBy: "tag",
-        columns: [],
-        isSystem: true,
-      },
-    ],
-  },
-];
+export const MOCK_PROJECTS: Project[] = [];
 
-export const INITIAL_TASKS: Task[] = [
-  {
-    id: "t-demo-1",
-    projectId: "p-2",
-    title: "프로젝트 구조 정리",
-    status: "in-progress",
-    assignee: "Junghwan",
-    dueDate: "2026-03-01",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-2"],
-    priorityId: "high",
-  },
-  {
-    id: "t-demo-2",
-    projectId: "p-2",
-    title: "워크스페이스 대시보드 개선",
-    status: "todo",
-    assignee: "Frontend",
-    dueDate: "2026-03-05",
-    customFieldValues: [],
-    comments: [],
-    history: [],
-    tags: ["tag-3"],
-    priorityId: "medium",
-  },
-];
+export const INITIAL_TASKS: Task[] = [];
 
-export const INITIAL_DOCS: Doc[] = [
-  {
-    id: "d-demo-1",
-    projectId: "p-2",
-    title: "프로젝트 개요",
-    updatedAt: "2026-02-26",
-    content: [
-      { type: "heading", content: "Dibut Workspace" },
-      { type: "paragraph", content: "실시간 협업 문서입니다." },
-    ],
-  },
-];
+export const INITIAL_DOCS: Doc[] = [];
 
 export const INITIAL_NOTIFICATIONS: Notification[] = [];
 
@@ -309,12 +220,9 @@ export interface Tag {
   color: string; // Hex or Tailwind class
 }
 
-// Base colors for tags
-export const INITIAL_TAGS: Tag[] = [
-  { id: "tag-1", name: "긴급", color: "red" },
-  { id: "tag-2", name: "디자인", color: "purple" },
-  { id: "tag-3", name: "버그", color: "orange" },
-];
+// 사용자가 직접 만든 태그만 보이도록 초기값은 비워둠.
+// (이전에는 "긴급/디자인/버그" 3 태그가 모든 사용자에게 노출됐음.)
+export const INITIAL_TAGS: Tag[] = [];
 
 export const INITIAL_PRIORITIES: Priority[] = [
   {

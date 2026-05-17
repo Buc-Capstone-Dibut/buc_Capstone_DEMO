@@ -102,7 +102,7 @@ export async function snapshotReactTreeToPdf(
     });
 
     // 폰트 로딩이 끝날 때까지 추가 대기 (한글 폰트가 늦게 들어오면 캡쳐가 비어 보임)
-    if (typeof document !== "undefined" && (document as Document).fonts?.ready) {
+    if (typeof document !== "undefined" && (document as Document).fonts) {
       try {
         await (document as Document).fonts.ready;
       } catch {

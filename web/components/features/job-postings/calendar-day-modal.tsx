@@ -16,7 +16,6 @@ import {
   ExternalLink,
   Sparkles,
   Star,
-  ArrowUpRight,
   FileText,
   Calendar as CalendarIcon,
   ChevronRight,
@@ -278,14 +277,13 @@ function PostingDetailPane({
       <footer className="flex flex-wrap items-center justify-end gap-2 px-6 py-4">
         <Button asChild variant="ghost" size="sm">
           <Link href={`/my/job-postings/${posting.id}`}>
-            전체 상세 페이지
-            <ArrowUpRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+            <FileText className="mr-1 h-3.5 w-3.5" aria-hidden />공고 상세 보기
           </Link>
         </Button>
         {posting.postingUrl && (
           <Button asChild variant="outline" size="sm">
             <a href={posting.postingUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-1 h-3.5 w-3.5" aria-hidden />원문
+              <ExternalLink className="mr-1 h-3.5 w-3.5" aria-hidden />원본 채용 페이지
             </a>
           </Button>
         )}

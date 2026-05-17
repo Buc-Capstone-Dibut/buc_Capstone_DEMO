@@ -50,12 +50,31 @@ export async function PUT(
 
     try {
         const body = await req.json();
-        const { title, resumePayload, publicSummary, isActive } = body;
+        const {
+            title,
+            resumePayload,
+            publicSummary,
+            isActive,
+            targetJobPostingId,
+            targetMeta,
+        } = body;
 
         const { buildResumePublicSummary } = await import("@/lib/my-profile");
         const finalPublicSummary = (title !== undefined || resumePayload !== undefined)
             ? buildResumePublicSummary(resumePayload || {}, title)
             : publicSummary;
+
+        // target 변경 시 본인 소유 공고만 허용 (null로 명시적 해제도 허용)
+        let safeTargetPostingId: string | null | undefined = undefined;
+        if (targetJobPostingId === null) {
+            safeTargetPostingId = null;
+        } else if (typeof targetJobPostingId === "string" && targetJobPostingId.length > 0) {
+            const owned = await (prisma as any).user_job_postings.findFirst({
+                where: { id: targetJobPostingId, user_id: session.user.id },
+                select: { id: true },
+            });
+            safeTargetPostingId = owned ? owned.id : undefined;
+        }
 
         const updatedResume = await (prisma as any).user_resumes.update({
             where: {
@@ -67,6 +86,8 @@ export async function PUT(
                 resume_payload: resumePayload !== undefined ? resumePayload : undefined,
                 public_summary: finalPublicSummary !== undefined ? finalPublicSummary : undefined,
                 is_active: isActive !== undefined ? isActive : undefined,
+                target_job_posting_id: safeTargetPostingId,
+                target_meta: targetMeta !== undefined ? targetMeta : undefined,
             },
         });
 

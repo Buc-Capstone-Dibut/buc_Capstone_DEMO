@@ -118,6 +118,23 @@ export async function GET(request: Request) {
       include: {
         schedules: { orderBy: { start_at: "asc" } },
         attachments: true,
+        _count: {
+          select: {
+            target_resumes: true,
+            target_cover_letters: true,
+          },
+        },
+        // 점프용 첫 2개씩만. count 가 1 이면 직접 그 항목으로 이동 가능.
+        target_resumes: {
+          orderBy: { updated_at: "desc" },
+          take: 2,
+          select: { id: true, title: true },
+        },
+        target_cover_letters: {
+          orderBy: { updated_at: "desc" },
+          take: 2,
+          select: { id: true, title: true },
+        },
       },
       ...(sort === "deadline_asc"
         ? {}

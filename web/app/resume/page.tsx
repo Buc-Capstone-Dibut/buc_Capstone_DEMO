@@ -21,12 +21,20 @@ export default function ResumePage() {
     const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
+    // 새 이력서 작성 시 1단계 입력 또는 선택한 공고를 저장 시점에 함께 DB로 보내기 위한 보관소
+    const [pendingTarget, setPendingTarget] = useState<{
+        jobPostingId: string | null;
+        meta: { company: string; division: string; role: string; deadline: string; jobDescription: string } | null;
+    } | null>(null);
     const tailoredGenerationStartedRef = useRef(false);
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
     const isNewModeFromUrl = searchParams.get("mode") === "new";
     const [isWizardMode, setIsWizardMode] = useState(isWizardModeFromUrl);
 
     useEffect(() => {
+        const controller = new AbortController();
+        const { signal } = controller;
+
         const fetchResume = async () => {
             const isPrefill = searchParams.get("prefill") === "true";
             const resumeId = searchParams.get("id");
@@ -37,7 +45,7 @@ export default function ResumePage() {
             let currentTitle = "";
 
             try {
-                const res = await fetch(fetchUrl, { cache: "no-store" });
+                const res = await fetch(fetchUrl, { cache: "no-store", signal });
                 if (res.ok) {
                     const json = await res.json();
                     if (json.success) {
@@ -47,8 +55,11 @@ export default function ResumePage() {
                     }
                 }
             } catch (error) {
+                if ((error as Error)?.name === "AbortError") return;
                 console.error("Failed to fetch current resume:", error);
             }
+
+            if (signal.aborted) return;
 
             // 2. Handle prefill from Career Wizard
             if (isPrefill) {
@@ -112,7 +123,7 @@ export default function ResumePage() {
             try {
                 // Determine fetch URL: Specific ID or Active
                 const url = resumeId ? `/api/my/resume/${resumeId}` : "/api/my/resume/active";
-                const res = await fetch(url, { cache: "no-store" });
+                const res = await fetch(url, { cache: "no-store", signal });
 
                 if (res.status === 404) {
                     setResumePayload(EMPTY_RESUME);
@@ -125,12 +136,15 @@ export default function ResumePage() {
                     }
                 }
             } catch (error) {
+                if ((error as Error)?.name === "AbortError") return;
                 console.error("Failed to fetch resume:", error);
             } finally {
-                setLoading(false);
+                if (!signal.aborted) setLoading(false);
             }
         };
         fetchResume();
+
+        return () => controller.abort();
     }, [isNewModeFromUrl, isWizardModeFromUrl, searchParams]);
 
     useEffect(() => {
@@ -141,6 +155,9 @@ export default function ResumePage() {
         const rawTarget = sessionStorage.getItem("resume_creation_target");
         if (!rawTarget) return;
 
+        const controller = new AbortController();
+        const { signal } = controller;
+
         const generateTailoredResume = async () => {
             setGeneratingTailoredResume(true);
             try {
@@ -150,15 +167,26 @@ export default function ResumePage() {
                     role?: string;
                     deadline?: string;
                     jobDescription?: string;
+                    jobPostingId?: string | null;
                 };
                 const company = target.company?.trim() || "";
                 const role = target.role?.trim() || "";
                 const division = target.division?.trim() || "";
                 const deadline = target.deadline?.trim() || "";
+                const jobDescription = target.jobDescription?.trim() || "";
                 const titlePrefix = [company, division, role].filter(Boolean).join(" · ");
                 if (titlePrefix) {
                     setResumeTitle(`${titlePrefix} 맞춤 이력서`);
                 }
+
+                // 저장 시점에 함께 보낼 target 정보 보관 (정규화 FK 또는 free-form)
+                const hasAnyMeta = Boolean(company || division || role || deadline || jobDescription);
+                setPendingTarget({
+                    jobPostingId: target.jobPostingId ?? null,
+                    meta: hasAnyMeta
+                        ? { company, division, role, deadline, jobDescription }
+                        : null,
+                });
 
                 const response = await fetch("/api/career/resumes/generate", {
                     method: "POST",
@@ -173,8 +201,10 @@ export default function ResumePage() {
                             division ? `사업부: ${division}` : "",
                         ].filter(Boolean).join("\n"),
                     }),
+                    signal,
                 });
                 const json = await response.json().catch(() => null);
+                if (signal.aborted) return;
                 if (!response.ok || !json?.success) {
                     throw new Error(json?.error || "맞춤형 이력서 생성에 실패했습니다.");
                 }
@@ -189,6 +219,7 @@ export default function ResumePage() {
                     description: titlePrefix || "지원 대상 정보를 기준으로 이력서를 구성했습니다.",
                 });
             } catch (error: unknown) {
+                if ((error as Error)?.name === "AbortError") return;
                 const message = error instanceof Error ? error.message : "맞춤형 이력서 생성 중 오류가 발생했습니다.";
                 toast({
                     title: "맞춤형 생성 실패",
@@ -196,11 +227,13 @@ export default function ResumePage() {
                     variant: "destructive",
                 });
             } finally {
-                setGeneratingTailoredResume(false);
+                if (!signal.aborted) setGeneratingTailoredResume(false);
             }
         };
 
         void generateTailoredResume();
+
+        return () => controller.abort();
     }, [isNewModeFromUrl, loading, searchParams, toast]);
 
     const handleSave = async (silent = false) => {
@@ -221,15 +254,22 @@ export default function ResumePage() {
                 method = "PUT";
             }
 
+            const baseBody: Record<string, unknown> = {
+                title: resumeTitle.trim() || (resumePayload.personalInfo.name ? `${resumePayload.personalInfo.name}의 이력서` : "AI 연구소 작성 이력서"),
+                resumePayload,
+                sourceType: "manual",
+                sourceFileName: "AI 통합 에디터",
+            };
+            // 새 이력서 POST 시점에만 target 정보를 함께 보냄 (수정 시점엔 별도 액션)
+            if (isNew && !resumeId && pendingTarget) {
+                baseBody.targetJobPostingId = pendingTarget.jobPostingId;
+                baseBody.targetMeta = pendingTarget.meta;
+            }
+
             const res = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    title: resumeTitle.trim() || (resumePayload.personalInfo.name ? `${resumePayload.personalInfo.name}의 이력서` : "AI 연구소 작성 이력서"),
-                    resumePayload,
-                    sourceType: "manual",
-                    sourceFileName: "AI 통합 에디터",
-                }),
+                body: JSON.stringify(baseBody),
             });
             const json = await res.json();
             if (!res.ok || !json.success) throw new Error(json.error || "저장 실패");

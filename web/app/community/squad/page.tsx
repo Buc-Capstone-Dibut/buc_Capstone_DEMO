@@ -29,27 +29,6 @@ export default async function SquadListPage({ searchParams }: PageProps) {
     activityId,
   });
   const squadItems = squads as ComponentProps<typeof SquadCard>["squad"][];
-  const demoSquad = {
-    id: "squad-demo-1",
-    title: "Dibut 개발자 플랫폼 클론 코딩 프로젝트 팀 찾기 (데모)",
-    content: "데모용 팀 페이지입니다. 클릭하여 팀 허브를 확인하세요.",
-    type: "project",
-    status: "recruiting",
-    capacity: 4,
-    recruited_count: 3,
-    leader_id: "demo-leader",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    tech_stack: ["Next.js", "Tailwind CSS", "Supabase", "TypeScript"],
-    place_type: "online",
-    location: null,
-    activity_id: null,
-    workspace_id: "p-2",
-    leader: {
-      nickname: "Junghwan",
-      avatar_url: null,
-    },
-  } as ComponentProps<typeof SquadCard>["squad"];
 
   const categories = [
     { id: "all", label: "전체" },
@@ -117,11 +96,6 @@ export default async function SquadListPage({ searchParams }: PageProps) {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* 데모용 가짜 데이터 - 필터링 중이 아닐 때만 표시 */}
-        {!activityId && page === 1 && (type === "all" || type === "project") && (
-          <SquadCard squad={demoSquad} />
-        )}
-
         {squadItems.map((squad) => (
           <SquadCard key={squad.id} squad={squad} />
         ))}

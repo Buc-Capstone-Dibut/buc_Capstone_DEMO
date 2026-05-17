@@ -29,9 +29,13 @@ async function getUserId() {
 
   if (session?.user.id) return session.user.id;
 
-  // Dev Bypass (Mock ID)
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    // Return the specific Mock ID used in seeds
+  // Dev Bypass (Mock ID) — 명시적으로 켰을 때만 동작. 이전엔
+  // `SUPABASE_SERVICE_ROLE_KEY` 존재만으로 발동돼 prod 에서도 비로그인 게시글이
+  // seed 의 가짜 UUID 로 작성되는 문제가 있었다.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.SUPABASE_DEV_BYPASS === "true"
+  ) {
     return "00000000-0000-0000-0000-000000000001";
   }
 

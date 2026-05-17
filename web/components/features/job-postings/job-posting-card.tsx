@@ -1,22 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Briefcase,
+  Boxes,
   Calendar as CalendarIcon,
   Check,
   ChevronDown,
   ExternalLink,
   FileText,
   FolderClosed,
-  FolderKanban,
-  Layers,
   Palette,
   PenLine,
   Sparkles,
   Star,
 } from "lucide-react";
 import { InterviewLaunchOverlay } from "./interview-launch-overlay";
+import { AttachmentPreviewDialog } from "./attachment-preview-dialog";
 import {
   Popover,
   PopoverContent,
@@ -25,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
+  AttachmentRecord,
   ColorPreset,
   JobPostingRecord,
   JobPostingStatus,
@@ -105,8 +107,24 @@ export function JobPostingCard({
   const fav = posting.isFavorite;
   const [launchOpen, setLaunchOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<AttachmentRecord | null>(null);
 
-  const attachCounts = countAttachments(posting.attachments);
+  const attachmentsByType = useMemo(() => {
+    const all = posting.attachments ?? [];
+    return {
+      resume: all.filter((a) => a.attachmentType === "resume"),
+      cover_letter: all.filter((a) => a.attachmentType === "cover_letter"),
+      portfolio: all.filter((a) => a.attachmentType === "portfolio"),
+      project: all.filter((a) => a.attachmentType === "project"),
+    };
+  }, [posting.attachments]);
+  const attachCounts = {
+    resume: attachmentsByType.resume.length,
+    cover_letter: attachmentsByType.cover_letter.length,
+    portfolio: attachmentsByType.portfolio.length,
+    project: attachmentsByType.project.length,
+  };
   // 4종 중 0개인 항목 수 — 0이면 "준비 완료", 1+ 면 "미연결" 경고 점
   const missingCount = (Object.keys(attachCounts) as Array<
     keyof typeof attachCounts
@@ -115,12 +133,10 @@ export function JobPostingCard({
   const dInfo = next ? dDayInfo(next.startAt) : null;
   const isUrgent = dInfo && dInfo.days >= 0 && dInfo.days <= 3;
 
-  // 좌측 액센트 바: 사용자 색 > 즐겨찾기 amber > 상태색
-  const barClass = fav
-    ? "w-[5px] bg-amber-400"
-    : posting.color
-      ? cn("w-[4px]", COLOR_PRESET_BAR[posting.color])
-      : cn("w-[3px]", STATUS_BAR[posting.status]);
+  // 좌측 액센트 바: 사용자 색 > 상태색 (즐겨찾기는 우측 별 아이콘으로만 표시)
+  const barClass = posting.color
+    ? cn("w-[4px]", COLOR_PRESET_BAR[posting.color])
+    : cn("w-[3px]", STATUS_BAR[posting.status]);
 
   return (
     <article
@@ -146,13 +162,7 @@ export function JobPostingCard({
           <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             {posting.companyName}
           </p>
-          <h3
-            className={cn(
-              "mt-0.5 truncate text-sm font-semibold leading-snug text-foreground",
-              fav &&
-                "underline decoration-amber-400 decoration-2 underline-offset-4",
-            )}
-          >
+          <h3 className="mt-0.5 truncate text-sm font-semibold leading-snug text-foreground">
             {posting.roleTitle}
           </h3>
         </div>
@@ -243,148 +253,114 @@ export function JobPostingCard({
         )}
       </header>
 
-      {/* 메타 표 */}
-      <dl className="divide-y divide-dashed divide-border/70 text-xs">
-        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-          <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-            상태
-          </dt>
-          <dd className="flex items-center px-3 py-1.5">
-            {onChangeStatus ? (
-              <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition-colors hover:bg-muted/40",
-                      STATUS_TONE[posting.status],
-                    )}
-                    aria-label="상태 변경"
-                  >
-                    {STATUS_LABEL[posting.status]}
-                    <ChevronDown className="h-3 w-3 opacity-70" aria-hidden />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-36 rounded-sm p-1"
-                  align="start"
-                  sideOffset={4}
-                >
-                  <ul className="text-sm">
-                    {STATUS_OPTIONS.map((opt) => {
-                      const selected = posting.status === opt;
-                      return (
-                        <li key={opt}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onChangeStatus(posting.id, opt);
-                              setStatusOpen(false);
-                            }}
-                            className={cn(
-                              "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted",
-                              selected && "bg-muted/60 font-medium",
-                            )}
-                          >
-                            {STATUS_LABEL[opt]}
-                            {selected && <Check className="h-3 w-3" aria-hidden />}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <span
+      {/* 단일 메타 행: 상태 chip + 일정 + 기술 */}
+      <div className="flex flex-wrap items-center gap-1.5 pl-5 pr-3 py-2 text-[11px]">
+        {/* 상태 — 호버 전에는 읽기 전용 chip, 호버 시 ChevronDown 노출 → 클릭 변경 */}
+        {onChangeStatus ? (
+          <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
                 className={cn(
-                  "inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
+                  "inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset transition-colors hover:bg-muted/40",
                   STATUS_TONE[posting.status],
                 )}
+                aria-label="상태 변경"
               >
                 {STATUS_LABEL[posting.status]}
+                <ChevronDown
+                  className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-70"
+                  aria-hidden
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-36 rounded-sm p-1"
+              align="start"
+              sideOffset={4}
+            >
+              <ul className="text-sm">
+                {STATUS_OPTIONS.map((opt) => {
+                  const selected = posting.status === opt;
+                  return (
+                    <li key={opt}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangeStatus(posting.id, opt);
+                          setStatusOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted",
+                          selected && "bg-muted/60 font-medium",
+                        )}
+                      >
+                        {STATUS_LABEL[opt]}
+                        {selected && <Check className="h-3 w-3" aria-hidden />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <span
+            className={cn(
+              "inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset",
+              STATUS_TONE[posting.status],
+            )}
+          >
+            {STATUS_LABEL[posting.status]}
+          </span>
+        )}
+
+        {/* 일정 한 줄 — 다음 일정 있을 때만 */}
+        {dInfo && next && (
+          <span
+            className="inline-flex items-center gap-1 text-muted-foreground"
+            title={`${KIND_LABEL[next.kind] ?? "일정"} ${dInfo.label}`}
+          >
+            <CalendarIcon className="h-3 w-3" aria-hidden />
+            <span className="text-foreground/70">
+              {KIND_LABEL[next.kind] ?? "일정"}
+            </span>
+            <span
+              className={cn(
+                "font-semibold tabular-nums",
+                isUrgent ? "text-red-600" : "text-foreground/80",
+              )}
+            >
+              {dInfo.label}
+            </span>
+          </span>
+        )}
+
+        {/* 기술 칩 — 최대 3개 */}
+        {posting.techStack.length > 0 && (
+          <span className="inline-flex flex-wrap items-center gap-1">
+            {posting.techStack.slice(0, 3).map((t) => (
+              <span
+                key={t}
+                className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-foreground/70"
+              >
+                {t}
+              </span>
+            ))}
+            {posting.techStack.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{posting.techStack.length - 3}
               </span>
             )}
-          </dd>
-        </div>
-        <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-          <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-            일정
-          </dt>
-          <dd className="flex items-center gap-1.5 px-3 py-1.5">
-            <CalendarIcon className="h-3 w-3 text-muted-foreground" aria-hidden />
-            {dInfo && next ? (
-              <>
-                <span className="text-foreground/80">
-                  {KIND_LABEL[next.kind] ?? "일정"}
-                </span>
-                <span
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    isUrgent ? "text-red-600" : "text-foreground",
-                  )}
-                >
-                  {dInfo.label}
-                </span>
-              </>
-            ) : (
-              <span className="text-muted-foreground/70">예정 없음</span>
-            )}
-          </dd>
-        </div>
-        {posting.techStack.length > 0 && (
-          <div className="grid grid-cols-[3.5rem_1fr] pl-2">
-            <dt className="bg-muted/30 px-3 py-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              기술
-            </dt>
-            <dd className="flex flex-wrap items-center gap-1 px-3 py-1.5">
-              {posting.techStack.slice(0, 4).map((t) => (
-                <span
-                  key={t}
-                  className="rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] text-foreground/80"
-                >
-                  {t}
-                </span>
-              ))}
-              {posting.techStack.length > 4 && (
-                <span className="text-[10.5px] text-muted-foreground">
-                  +{posting.techStack.length - 4}
-                </span>
-              )}
-            </dd>
-          </div>
+          </span>
         )}
-      </dl>
 
-      {/* 연결 자료 인디케이터 */}
-      <div className="flex items-center gap-1.5 border-t border-dashed border-border/70 pl-5 pr-3 py-1.5 text-[10.5px] text-muted-foreground">
-        <span className="text-[10px] font-medium uppercase tracking-wider">
-          연결
-        </span>
-        <AttachIndicator
-          icon={<FileText className="h-3 w-3" aria-hidden />}
-          label="이력서"
-          count={attachCounts.resume}
-        />
-        <AttachIndicator
-          icon={<PenLine className="h-3 w-3" aria-hidden />}
-          label="자소서"
-          count={attachCounts.cover_letter}
-        />
-        <AttachIndicator
-          icon={<Layers className="h-3 w-3" aria-hidden />}
-          label="포트폴리오"
-          count={attachCounts.portfolio}
-        />
-        <AttachIndicator
-          icon={<FolderKanban className="h-3 w-3" aria-hidden />}
-          label="프로젝트"
-          count={attachCounts.project}
-        />
+        {/* 준비 상태 — 작은 dot 우측 정렬, 호버 시 풀 indicator */}
         <span className="ml-auto inline-flex items-center gap-1">
+          {/* 평소: 1개 dot/배지로 압축 */}
           {missingCount === 0 ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-sm bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
+              className="inline-flex h-4 items-center gap-0.5 rounded-sm bg-emerald-50 px-1 text-[9.5px] font-bold text-emerald-700"
               title="이력서·자소서·포트폴리오·프로젝트 모두 연결됨"
             >
               <Check className="h-2.5 w-2.5" />
@@ -392,17 +368,46 @@ export function JobPostingCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center gap-0.5 rounded-sm bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
-              title={`자료 ${missingCount}종 미연결`}
+              className="inline-flex h-4 items-center gap-0.5 rounded-sm bg-amber-50 px-1 text-[9.5px] font-semibold text-amber-700"
+              title={`첨부 ${missingCount}종 미연결`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-              {missingCount}종 비움
+              {missingCount}
             </span>
           )}
         </span>
       </div>
 
-      {/* 폴더 행 */}
+      {/* 첨부 상세 + 폴더 — 항상 표시, 첨부 아이콘 클릭 시 미리보기 */}
+      <div className="flex items-center gap-1 border-t border-dashed border-border/70 pl-5 pr-3 py-1 text-[10px] text-muted-foreground">
+        <span className="text-[9.5px] font-medium uppercase tracking-wider">
+          첨부
+        </span>
+        <AttachIndicatorButton
+          icon={<FileText className="h-3 w-3" aria-hidden />}
+          label="이력서"
+          items={attachmentsByType.resume}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<PenLine className="h-3 w-3" aria-hidden />}
+          label="자기소개서"
+          items={attachmentsByType.cover_letter}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<Briefcase className="h-3 w-3" aria-hidden />}
+          label="포트폴리오"
+          items={attachmentsByType.portfolio}
+          onPreview={setPreviewAttachment}
+        />
+        <AttachIndicatorButton
+          icon={<Boxes className="h-3 w-3" aria-hidden />}
+          label="프로젝트"
+          items={attachmentsByType.project}
+          onPreview={setPreviewAttachment}
+        />
+      </div>
       {onPatch && (
         <FolderRow
           currentFolderId={posting.folderId}
@@ -438,6 +443,18 @@ export function JobPostingCard({
               </a>
             </Button>
           )}
+
+          {/* 역방향 파생 자료: 이 공고로 작성된 이력서/자소서 */}
+          <DerivedChip
+            kind="resume"
+            count={posting.derivedResumeCount ?? 0}
+            first={posting.derivedResumes?.[0]}
+          />
+          <DerivedChip
+            kind="cover_letter"
+            count={posting.derivedCoverLetterCount ?? 0}
+            first={posting.derivedCoverLetters?.[0]}
+          />
         </div>
         <Button
           size="sm"
@@ -456,7 +473,108 @@ export function JobPostingCard({
         open={launchOpen}
         onClose={() => setLaunchOpen(false)}
       />
+
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        open={previewAttachment !== null}
+        onClose={() => setPreviewAttachment(null)}
+      />
     </article>
+  );
+}
+
+function attachmentTitle(a: AttachmentRecord): string {
+  const snap = a.snapshotPayload as { title?: string; name?: string } | null;
+  if (a.attachmentType === "cover_letter")
+    return a.coverLetterLabel || snap?.title || "자기소개서";
+  if (a.attachmentType === "project")
+    return a.projectLabel || snap?.name || "프로젝트";
+  if (a.attachmentType === "portfolio") return snap?.title || "포트폴리오";
+  return snap?.title || "이력서";
+}
+
+function AttachIndicatorButton({
+  icon,
+  label,
+  items,
+  onPreview,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: AttachmentRecord[];
+  onPreview: (att: AttachmentRecord) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = items.length;
+
+  if (count === 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-muted-foreground/40"
+        title={`${label} 없음`}
+      >
+        {icon}
+      </span>
+    );
+  }
+
+  if (count === 1) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview(items[0]);
+        }}
+        className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 py-0.5 text-foreground/90 transition-colors hover:bg-muted-foreground/15"
+        title={`${label}: ${attachmentTitle(items[0])} (클릭 미리보기)`}
+        aria-label={`${label} 미리보기`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-0.5 rounded-sm bg-muted px-1 py-0.5 text-foreground/90 transition-colors hover:bg-muted-foreground/15"
+          title={`${label} ${count}개 — 미리볼 항목 선택`}
+          aria-label={`${label} ${count}개 미리보기 선택`}
+        >
+          {icon}
+          <span className="font-semibold tabular-nums">{count}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-56 p-1"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <ul className="space-y-0.5">
+          {items.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onPreview(a);
+                  setOpen(false);
+                }}
+                className="block w-full truncate rounded-sm px-2 py-1.5 text-left text-xs text-foreground/90 transition-colors hover:bg-muted"
+              >
+                {attachmentTitle(a)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -619,41 +737,42 @@ function ColorSwatch({
   );
 }
 
-function countAttachments(
-  attachments: JobPostingRecord["attachments"],
-): { resume: number; cover_letter: number; portfolio: number; project: number } {
-  const acc = { resume: 0, cover_letter: 0, portfolio: 0, project: 0 };
-  (attachments ?? []).forEach((a) => {
-    if (a.attachmentType in acc) {
-      acc[a.attachmentType as keyof typeof acc] += 1;
-    }
-  });
-  return acc;
-}
-
-function AttachIndicator({
-  icon,
-  label,
+/**
+ * 역방향 파생 자료 chip — 이 공고를 target 으로 한 이력서/자소서.
+ * count 0 이면 표시 안 함. 1 이면 해당 항목 단건으로(`#id`) 점프, 2+ 이면 리스트 페이지로.
+ */
+function DerivedChip({
+  kind,
   count,
+  first,
 }: {
-  icon: React.ReactNode;
-  label: string;
+  kind: "resume" | "cover_letter";
   count: number;
+  first: { id: string; title: string } | undefined;
 }) {
-  const has = count > 0;
+  if (!count) return null;
+  const isResume = kind === "resume";
+  const label = isResume ? "이력서" : "자소서";
+  const Icon = isResume ? FileText : PenLine;
+  // 1 건이면 단건 hash 점프, 2+ 면 리스트 페이지로 (career 페이지에 단건 라우트 없음)
+  const basePath = isResume ? "/career/resumes" : "/career/cover-letters";
+  const href = count === 1 && first ? `${basePath}#${first.id}` : basePath;
+  const tooltip =
+    count === 1 && first ? `${label}: ${first.title || "(제목 없음)"}` : `${label} ${count}건`;
   return (
-    <span
+    <Link
+      href={href}
+      onClick={(e) => e.stopPropagation()}
+      title={tooltip}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 transition-colors",
-        has ? "bg-muted text-foreground/90" : "text-muted-foreground/40",
+        "inline-flex h-7 items-center gap-1 rounded-sm px-1.5 text-[10.5px] font-medium",
+        "text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground",
       )}
-      title={has ? `${label} ${count}` : `${label} 없음`}
+      aria-label={tooltip}
     >
-      {icon}
-      {has && count > 1 && (
-        <span className="font-semibold tabular-nums">{count}</span>
-      )}
-    </span>
+      <Icon className="h-3 w-3" aria-hidden />
+      <span className="tabular-nums">{count}</span>
+    </Link>
   );
 }
 

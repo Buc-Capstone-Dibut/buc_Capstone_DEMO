@@ -46,7 +46,7 @@ export function JobPostingCalendar({
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         locale={koLocale}
-        firstDay={0}
+        firstDay={1}
         height="auto"
         headerToolbar={{ start: "prev,next today", center: "title", end: "" }}
         buttonText={{ today: "오늘" }}

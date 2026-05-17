@@ -3,6 +3,7 @@ import type {
   AttachmentType,
   ColorPreset,
   CoverLetterRecord,
+  DerivedDocumentRef,
   FolderRecord,
   JobPostingRecord,
   JobPostingStatus,
@@ -78,6 +79,25 @@ export function toRecord(row: any): JobPostingRecord {
         snapshotPayload: a.snapshot_payload ?? null,
       }),
     ),
+    // 역방향: 이 공고를 target 으로 한 이력서/자소서. list API 에서만 채워진다.
+    derivedResumeCount:
+      typeof row._count?.target_resumes === "number"
+        ? row._count.target_resumes
+        : undefined,
+    derivedCoverLetterCount:
+      typeof row._count?.target_cover_letters === "number"
+        ? row._count.target_cover_letters
+        : undefined,
+    derivedResumes: Array.isArray(row.target_resumes)
+      ? row.target_resumes.map(
+          (r: any): DerivedDocumentRef => ({ id: r.id, title: r.title ?? "" }),
+        )
+      : undefined,
+    derivedCoverLetters: Array.isArray(row.target_cover_letters)
+      ? row.target_cover_letters.map(
+          (c: any): DerivedDocumentRef => ({ id: c.id, title: c.title ?? "" }),
+        )
+      : undefined,
   };
 }
 

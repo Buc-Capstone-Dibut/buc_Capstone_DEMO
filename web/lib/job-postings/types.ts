@@ -52,6 +52,11 @@ export interface JobPostingInput {
   }>;
 }
 
+export interface DerivedDocumentRef {
+  id: string;
+  title: string;
+}
+
 export interface JobPostingRecord {
   id: string;
   userId: string;
@@ -73,6 +78,15 @@ export interface JobPostingRecord {
   updatedAt: string;
   schedules?: ScheduleRecord[];
   attachments?: AttachmentRecord[];
+  /**
+   * 역방향 카운트: 이 공고를 target_job_posting_id 로 가진 이력서/자소서 수.
+   * list API 에서만 채워지며, 다른 사용처에서는 undefined 일 수 있다.
+   */
+  derivedResumeCount?: number;
+  derivedCoverLetterCount?: number;
+  /** 단건 점프용 첫 1-2개 항목 (id + title). */
+  derivedResumes?: DerivedDocumentRef[];
+  derivedCoverLetters?: DerivedDocumentRef[];
 }
 
 export interface ScheduleRecord {

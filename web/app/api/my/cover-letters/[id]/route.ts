@@ -92,6 +92,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (typeof body?.isActive === "boolean") {
       data.is_active = body.isActive;
     }
+    // target 변경: 본인 소유 공고만 허용, null 명시 해제 가능
+    if (body?.targetJobPostingId === null) {
+      data.target_job_posting_id = null;
+    } else if (typeof body?.targetJobPostingId === "string" && body.targetJobPostingId.length > 0) {
+      const owned = await (prisma as any).user_job_postings.findFirst({
+        where: { id: body.targetJobPostingId, user_id: session.user.id },
+        select: { id: true },
+      });
+      if (owned) data.target_job_posting_id = owned.id;
+    }
+    if (body?.targetMeta !== undefined) {
+      data.target_meta = body.targetMeta;
+    }
     if (Array.isArray(body?.questions)) {
       data.questions = body.questions
         .map((raw: unknown) => {
