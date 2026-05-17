@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getShowcaseTemplate } from "../templates/registry";
 import type { NeonEditorialContent, NeonEditorialTokens } from "../templates/neon-editorial/types";
 import { ContentPanel } from "./panels/content-panel";
@@ -30,6 +30,39 @@ export function ShowcaseEditorClient({ portfolio, initialContent, initialTokens 
   const [activeTab, setActiveTab] = useState<"content" | "tokens" | "projects">("content");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(portfolio.isPublic);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Best-effort: derive public URL on mount if already public
+    if (isPublic) {
+      fetch(`/api/career/portfolios/showcase/${portfolio.id}/publish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ isPublic: true }),
+      })
+        .then((r) => r.json())
+        .then((d) => setPublicUrl(d.publicUrl ?? null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolio.id]);
+
+  async function togglePublish() {
+    const next = !isPublic;
+    setIsPublic(next);
+    const res = await fetch(`/api/career/portfolios/showcase/${portfolio.id}/publish`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isPublic: next }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setPublicUrl(data.publicUrl ?? null);
+  }
+
+  function copyPublicUrl() {
+    if (!publicUrl) return;
+    navigator.clipboard.writeText(`${window.location.origin}${publicUrl}`);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -101,6 +134,34 @@ export function ShowcaseEditorClient({ portfolio, initialContent, initialTokens 
 
       {/* Right preview pane */}
       <main className="relative flex-1 overflow-y-auto bg-slate-50">
+        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <input type="checkbox" checked={isPublic} onChange={togglePublish} />
+            공개
+          </label>
+          {publicUrl && (
+            <>
+              <button
+                type="button"
+                onClick={copyPublicUrl}
+                className="rounded border border-slate-300 px-2 py-1 text-xs font-bold hover:bg-slate-50"
+              >
+                URL 복사
+              </button>
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded border border-slate-300 px-2 py-1 text-xs font-bold hover:bg-slate-50"
+              >
+                새 탭으로 열기 ↗
+              </a>
+              <span className="ml-auto truncate text-xs text-slate-500" title={publicUrl}>
+                {publicUrl}
+              </span>
+            </>
+          )}
+        </div>
         <div className="origin-top">
           <Template content={content} tokens={tokens} />
         </div>
