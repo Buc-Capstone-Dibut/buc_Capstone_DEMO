@@ -5,6 +5,7 @@ import { getShowcaseTemplate } from "../templates/registry";
 import type { NeonEditorialContent, NeonEditorialTokens } from "../templates/neon-editorial/types";
 import { ContentPanel } from "./panels/content-panel";
 import { TokensPanel } from "./panels/tokens-panel";
+import { ProjectsPanel } from "./panels/projects-panel";
 
 export type ShowcaseEditorClientProps = {
   portfolio: {
@@ -93,7 +94,7 @@ export function ShowcaseEditorClient({ portfolio, initialContent, initialTokens 
             <TokensPanel value={tokens} onChange={(updater) => setTokens((p) => updater(p))} />
           )}
           {activeTab === "projects" && (
-            <div data-testid="projects-panel-placeholder" className="text-xs text-slate-400">프로젝트 패널 — Task 15에서 작성</div>
+            <ProjectsPanel value={content} onChange={(updater) => setContent((p) => updater(p))} />
           )}
         </div>
       </aside>
