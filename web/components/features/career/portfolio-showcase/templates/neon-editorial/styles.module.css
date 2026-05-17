@@ -537,6 +537,98 @@
   flex-wrap: wrap;
 }
 
+/* ============= T31 visual safety ============= */
+/* Sustain layout when users exceed T26 char-limit guides. */
+
+/* Works row: work-info now competes with 300px tags column + 88px thumb. */
+.root :global(.work-info h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+.root :global(.work-info .work-meta) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.root :global(.work-tags) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Strength cards: title 2 lines, body 5 lines. */
+.root :global(.strength-card h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+.root :global(.strength-card p) {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+
+/* KPI label one-line ellipsis. */
+.root :global(.kpi-label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Timeline row: title ellipsis, bullet content breaks gracefully. */
+.root :global(.t-info h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+}
+.root :global(.t-info li) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Hero name: prevent long words from blowing out viewport. */
+.root :global(.hero-line) {
+  width: 100%;
+  max-width: 100%;
+}
+.root :global(.hero-line .word) {
+  max-width: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* About block: natural Korean line-breaking. */
+.root :global(.about-quote blockquote) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.root :global(.about-body p) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Contact display: keep word boundaries for Korean. */
+.root :global(.contact-display) {
+  word-break: keep-all;
+}
+
+/* Marquee: defensive nowrap on items (animation depends on it). */
+.root :global(.marquee-track span) {
+  white-space: nowrap;
+}
+/* ============= /T31 ============= */
+
 /* --- Responsive --- */
 @media (max-width: 900px) {
   .root :global(.hero) { padding: 28px 24px; }
