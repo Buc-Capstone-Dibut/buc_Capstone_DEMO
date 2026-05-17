@@ -160,42 +160,44 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
         clipPath: "inset(0 0 100% 0)",
         yPercent: 8,
       });
-      gsap.to(root.querySelectorAll(".hero-line .word"), {
-        clipPath: "inset(0 0 0% 0)",
-        yPercent: 0,
-        duration: 1.2,
-        stagger: 0.18,
-        ease: "power4.out",
-        delay: 0.25,
-      });
-      gsap.from(root.querySelectorAll(".hero-top .label.accent"), {
-        y: 20,
-        opacity: 0,
-        duration: 0.8,
-        delay: 0.5,
-        ease: "power3.out",
-      });
-      gsap.from(root.querySelectorAll(".hero-top .label:not(.accent)"), {
-        y: 20,
-        opacity: 0,
-        duration: 0.8,
-        delay: 0.65,
-        ease: "power3.out",
-      });
-      gsap.from(root.querySelectorAll(".hero-bottom .bio"), {
-        y: 20,
-        opacity: 0,
-        duration: 0.8,
-        delay: 1.35,
-        ease: "power3.out",
-      });
-      gsap.from(root.querySelectorAll(".hero-bottom .scroll-hint"), {
-        y: 20,
-        opacity: 0,
-        duration: 0.8,
-        delay: 1.5,
-        ease: "power3.out",
-      });
+      scopedTriggers.push(
+        gsap.to(root.querySelectorAll(".hero-line .word"), {
+          clipPath: "inset(0 0 0% 0)",
+          yPercent: 0,
+          duration: 1.2,
+          stagger: 0.18,
+          ease: "power4.out",
+          delay: 0.25,
+        }),
+        gsap.from(root.querySelectorAll(".hero-top .label.accent"), {
+          y: 20,
+          opacity: 0,
+          duration: 0.8,
+          delay: 0.5,
+          ease: "power3.out",
+        }),
+        gsap.from(root.querySelectorAll(".hero-top .label:not(.accent)"), {
+          y: 20,
+          opacity: 0,
+          duration: 0.8,
+          delay: 0.65,
+          ease: "power3.out",
+        }),
+        gsap.from(root.querySelectorAll(".hero-bottom .bio"), {
+          y: 20,
+          opacity: 0,
+          duration: 0.8,
+          delay: 1.35,
+          ease: "power3.out",
+        }),
+        gsap.from(root.querySelectorAll(".hero-bottom .scroll-hint"), {
+          y: 20,
+          opacity: 0,
+          duration: 0.8,
+          delay: 1.5,
+          ease: "power3.out",
+        }),
+      );
 
       // -------- Section displays --------
       root.querySelectorAll<HTMLElement>(".section-display").forEach((el) => {
@@ -207,6 +209,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
           scrollTrigger: { trigger: el, start: "top 85%" },
         });
         scopedTriggers.push(t.scrollTrigger);
+        scopedTriggers.push(t);
       });
 
       // -------- About body / quote --------
@@ -221,6 +224,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
             scrollTrigger: { trigger: el, start: "top 88%" },
           });
           scopedTriggers.push(t.scrollTrigger);
+          scopedTriggers.push(t);
         });
 
       // -------- Strength cards --------
@@ -235,6 +239,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
           scrollTrigger: { trigger: strength, start: "top 85%" },
         });
         scopedTriggers.push(t.scrollTrigger);
+        scopedTriggers.push(t);
       }
 
       // -------- Works rows --------
@@ -249,6 +254,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
           scrollTrigger: { trigger: works, start: "top 85%" },
         });
         scopedTriggers.push(t.scrollTrigger);
+        scopedTriggers.push(t);
       }
 
       // -------- Experience rows --------
@@ -261,6 +267,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
           scrollTrigger: { trigger: el, start: "top 88%" },
         });
         scopedTriggers.push(t.scrollTrigger);
+        scopedTriggers.push(t);
       });
 
       // -------- KPI count-up --------

@@ -1071,7 +1071,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
 
 - [ ] **Step 2.5: Mount visual smoke harness (temp test page)**
 
-Create `web/app/_test/neon-editorial/page.tsx` (temporary, deleted in Task 19):
+Create `web/app/dev-test/neon-editorial/page.tsx` (temporary, deleted in Task 19):
 
 ```tsx
 import { NeonEditorialTemplate } from "@/components/features/career/portfolio-showcase/templates/neon-editorial";
@@ -1106,7 +1106,7 @@ export default function NeonEditorialTestPage() {
 Run via the dev server (already on port 3000):
 
 ```
-preview_eval: window.location.assign('http://localhost:3000/_test/neon-editorial?v=' + Date.now()); 'navigating'
+preview_eval: window.location.assign('http://localhost:3000/dev-test/neon-editorial?v=' + Date.now()); 'navigating'
 [wait 3500ms]
 preview_eval: ({ url: location.href, headlineCount: document.querySelectorAll('.hero-line .word').length, kpiCount: document.querySelectorAll('.kpi-num').length, gsap: typeof window.gsap, scrollProgress: !!document.querySelector('.scroll-progress') })
 ```
@@ -1117,11 +1117,11 @@ Expected: `headlineCount >= 2`, `kpiCount === 3`, `gsap === "object"`, `scrollPr
 - [ ] **Step 4: Commit**
 
 ```bash
-git add web/components/features/career/portfolio-showcase/templates/neon-editorial/index.tsx web/app/_test/neon-editorial/page.tsx
+git add web/components/features/career/portfolio-showcase/templates/neon-editorial/index.tsx web/app/dev-test/neon-editorial/page.tsx
 git commit -m "feat(showcase): integrate GSAP for NeonEditorial + visual smoke page"
 ```
 
-**Success criteria:** `/_test/neon-editorial` renders the hero with animated entrance + count-up + cursor visible (per preview_screenshot, preview_eval checks).
+**Success criteria:** `/dev-test/neon-editorial` renders the hero with animated entrance + count-up + cursor visible (per preview_screenshot, preview_eval checks).
 
 ---
 
@@ -2786,7 +2786,7 @@ git commit -m "feat(showcase): wire third option into project-archive format mod
 **Goal:** Walk through the full happy path end-to-end and clean up the temp test page.
 
 **Files:**
-- Delete: `web/app/_test/neon-editorial/` (created in Task 5)
+- Delete: `web/app/dev-test/neon-editorial/` (created in Task 5)
 
 **Dependencies:** Tasks 1–18.
 
@@ -2828,7 +2828,7 @@ Expected: `404`.
 - [ ] **Step 3: Delete temp test page**
 
 ```bash
-rm -rf /Users/junghwan/buc_Capstone_DEMO/web/app/_test
+rm -rf /Users/junghwan/buc_Capstone_DEMO/web/app/dev-test
 ```
 
 - [ ] **Step 4: Confirm 갈래 A still works**
