@@ -69,5 +69,5 @@ export default async function NewShowcasePage({
     },
   });
 
-  redirect(`/career/portfolios/showcase/${row.id}/edit`);
+  redirect(`/career/portfolios/showcase-wizard?id=${row.id}`);
 }
