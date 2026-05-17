@@ -8,6 +8,7 @@ import {
   AttachmentPicker,
   type AttachedIds,
 } from "@/components/features/job-postings/attachment-picker";
+import { AttachmentPreviewDialog } from "@/components/features/job-postings/attachment-preview-dialog";
 import { InterviewLaunchOverlay } from "@/components/features/job-postings/interview-launch-overlay";
 import {
   KIND_COLOR,
@@ -55,6 +56,8 @@ export function JobPostingDetailClient({
   const [posting, setPosting] = useState<JobPostingRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [launchOpen, setLaunchOpen] = useState(false);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<AttachmentRecord | null>(null);
 
   const fetchPosting = useCallback(async () => {
     const res = await fetch(`/api/my/job-postings/${postingId}`, {
@@ -303,6 +306,7 @@ export function JobPostingDetailClient({
                 <AttachmentTableRow
                   key={a.id}
                   attachment={a}
+                  onPreview={() => setPreviewAttachment(a)}
                   onRemove={() => removeAttachment(a.id)}
                 />
               ))}
@@ -388,6 +392,12 @@ export function JobPostingDetailClient({
         roleTitle={posting.roleTitle}
         open={launchOpen}
         onClose={() => setLaunchOpen(false)}
+      />
+
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        open={previewAttachment !== null}
+        onClose={() => setPreviewAttachment(null)}
       />
     </div>
   );
@@ -542,9 +552,11 @@ function ScheduleTableRow({
 
 function AttachmentTableRow({
   attachment,
+  onPreview,
   onRemove,
 }: {
   attachment: AttachmentRecord;
+  onPreview: () => void;
   onRemove: () => void;
 }) {
   const typeLabel =
@@ -555,27 +567,36 @@ function AttachmentTableRow({
         : attachment.attachmentType === "portfolio"
           ? "포트폴리오"
           : "프로젝트";
+  const snap = attachment.snapshotPayload as
+    | { title?: string; name?: string }
+    | null;
   const name =
-    attachment.attachmentType === "resume"
-      ? "이력서"
-      : attachment.attachmentType === "cover_letter"
-        ? attachment.coverLetterLabel ?? "자기소개서"
-        : attachment.attachmentType === "portfolio"
-          ? "포트폴리오"
-          : attachment.projectLabel ?? "프로젝트";
+    attachment.attachmentType === "cover_letter"
+      ? attachment.coverLetterLabel || snap?.title || "자기소개서"
+      : attachment.attachmentType === "project"
+        ? attachment.projectLabel || snap?.name || "프로젝트"
+        : snap?.title || typeLabel;
   return (
-    <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-950/30">
+    <tr
+      className="cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-950/30"
+      onClick={onPreview}
+    >
       <Td>
         <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">
           {typeLabel}
         </span>
       </Td>
-      <Td className="text-foreground">{name}</Td>
+      <Td className="text-foreground">
+        <span className="underline-offset-2 hover:underline">{name}</span>
+      </Td>
       <Td className="text-right">
         <Button
           size="icon"
           variant="ghost"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
           aria-label="연결 해제"
           className="h-7 w-7"
         >
