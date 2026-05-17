@@ -478,8 +478,8 @@ function PortfolioDetail({
 
   return (
     <div className="flex h-full flex-col animate-in fade-in">
-      <div className="absolute right-4 top-4 flex items-center gap-2">
-        <div className="group relative">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 px-6 py-3">
+        <div className="group relative shrink-0">
           <button
             type="button"
             onClick={() => onTogglePublish(portfolio)}
@@ -529,38 +529,44 @@ function PortfolioDetail({
         </div>
         <button
           onClick={() => onOpenWorkspace(portfolio)}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-100"
+          title="워크스페이스 열기"
+          aria-label="워크스페이스 열기"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-100"
         >
           <ExternalLink className="h-3.5 w-3.5" />
-          워크스페이스
+          <span className="hidden xl:inline">워크스페이스</span>
         </button>
         <button
           onClick={() => onExportPptx(portfolio)}
           disabled={busyExportId === portfolio.id}
-          className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
+          title="PPTX 다운로드"
+          aria-label="PPTX 다운로드"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
         >
           {busyExportId === portfolio.id ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Download className="h-3.5 w-3.5" />
           )}
-          PPTX
+          <span className="hidden md:inline">PPTX</span>
         </button>
         <button
           onClick={() => onDelete(portfolio)}
           disabled={busyDeleteId === portfolio.id}
-          className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60"
+          title="포트폴리오 삭제"
+          aria-label="포트폴리오 삭제"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60"
         >
           {busyDeleteId === portfolio.id ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Trash2 className="h-3.5 w-3.5" />
           )}
-          삭제
+          <span className="hidden xl:inline">삭제</span>
         </button>
       </div>
 
-      <div className="mt-2 border-b border-slate-100 px-8 pb-6 pt-10">
+      <div className="border-b border-slate-100 px-8 pb-6 pt-6">
         <div className="flex max-w-3xl flex-wrap items-center gap-2">
           {[portfolio.isPublic ? "공개" : "비공개", getFormatLabel(portfolio), `${pageCount} ${pageUnit}`].map(
             (label) => (

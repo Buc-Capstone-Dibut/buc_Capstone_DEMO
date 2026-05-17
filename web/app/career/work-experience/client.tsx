@@ -130,12 +130,12 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
   return (
     <div className="relative min-h-screen overflow-x-hidden pb-48 pt-12 font-sans md:pt-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-8">
-        <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 lg:flex-row lg:items-end">
+        <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 xl:flex-row xl:items-end">
           <div className="min-w-0">
             <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               {sortedExperiences.length}개 경력
             </div>
-            <h1 className="mb-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               경력 보관함
             </h1>
             <p className="max-w-2xl text-[14px] leading-6 text-slate-500">
@@ -143,7 +143,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
             </p>
           </div>
 
-          <div className="-mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 pb-1 lg:shrink-0 lg:flex-wrap lg:overflow-visible">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 xl:shrink-0">
             <div className="flex shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <button
                 type="button"

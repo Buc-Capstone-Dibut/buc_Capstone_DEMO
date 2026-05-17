@@ -412,7 +412,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
           <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             {localResumes.length}개 이력서
           </div>
-          <h1 className="mb-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             이력서 캐비닛
           </h1>
           <p className="max-w-2xl text-[14px] leading-6 text-slate-500">

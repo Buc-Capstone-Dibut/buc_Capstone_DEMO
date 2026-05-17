@@ -312,9 +312,9 @@ export default function CoverLettersClient({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-10 md:pt-16 pb-24 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+      <div className="mb-8 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             자기소개서 관리
           </h1>
           <p className="text-[14px] text-slate-500 mt-1.5">
@@ -323,7 +323,7 @@ export default function CoverLettersClient({
         </div>
         <Button
           onClick={handleCreateNew}
-          className="h-10 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-sm gap-2 text-[13px]"
+          className="h-10 shrink-0 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-sm gap-2 text-[13px]"
         >
           <Plus className="w-4 h-4" />
           새 자소서 작성
