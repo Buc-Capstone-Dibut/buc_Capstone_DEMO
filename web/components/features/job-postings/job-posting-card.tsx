@@ -113,12 +113,10 @@ export function JobPostingCard({
   const dInfo = next ? dDayInfo(next.startAt) : null;
   const isUrgent = dInfo && dInfo.days >= 0 && dInfo.days <= 3;
 
-  // 좌측 액센트 바: 사용자 색 > 즐겨찾기 amber > 상태색
-  const barClass = fav
-    ? "w-[5px] bg-amber-400"
-    : posting.color
-      ? cn("w-[4px]", COLOR_PRESET_BAR[posting.color])
-      : cn("w-[3px]", STATUS_BAR[posting.status]);
+  // 좌측 액센트 바: 사용자 색 > 상태색 (즐겨찾기는 우측 별 아이콘으로만 표시)
+  const barClass = posting.color
+    ? cn("w-[4px]", COLOR_PRESET_BAR[posting.color])
+    : cn("w-[3px]", STATUS_BAR[posting.status]);
 
   return (
     <article
@@ -144,13 +142,7 @@ export function JobPostingCard({
           <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             {posting.companyName}
           </p>
-          <h3
-            className={cn(
-              "mt-0.5 truncate text-sm font-semibold leading-snug text-foreground",
-              fav &&
-                "underline decoration-amber-400 decoration-2 underline-offset-4",
-            )}
-          >
+          <h3 className="mt-0.5 truncate text-sm font-semibold leading-snug text-foreground">
             {posting.roleTitle}
           </h3>
         </div>
