@@ -215,73 +215,94 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           </div>
         )}
 
-        {sortedExperiences.length > 0 && viewMode === "cards" && (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {sortedExperiences.map((exp) => {
-              const isActive = activeId === exp.id;
-              return (
-                <article
-                  key={exp.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleCardClick(exp)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    handleCardClick(exp);
-                  }}
-                  className={cn(
-                    "group relative flex min-h-[220px] cursor-pointer flex-col rounded-lg border bg-white p-6 text-left shadow-sm transition-all duration-200 dark:bg-slate-900/70",
-                    "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30",
-                    isActive
-                      ? "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
-                      : "border-slate-200 dark:border-slate-800",
-                  )}
-                >
-                  <button
-                    onClick={(event) => handleDelete(exp.id!, event)}
-                    className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+        {sortedExperiences.length > 0 && viewMode === "cards" && (() => {
+          const hasOpenDetail = Boolean(activeExperience) && !activeId?.startsWith("new_");
+          return (
+            <div
+              className={cn(
+                "grid gap-6 transition-all duration-300",
+                hasOpenDetail
+                  ? "md:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]"
+                  : "grid-cols-1",
+              )}
+            >
+              {/* 좌측: 카드 그리드 (상세 패널 열리면 컬럼 수 자동 축소) */}
+              <div
+                className={cn(
+                  "grid gap-4 content-start transition-all duration-300",
+                  hasOpenDetail
+                    ? "sm:grid-cols-1 xl:grid-cols-2"
+                    : "sm:grid-cols-2 xl:grid-cols-3",
+                )}
+              >
+                {sortedExperiences.map((exp) => {
+                  const isActive = activeId === exp.id;
+                  return (
+                    <article
+                      key={exp.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleCardClick(exp)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        handleCardClick(exp);
+                      }}
+                      className={cn(
+                        "group relative flex min-h-[220px] cursor-pointer flex-col rounded-lg border bg-white p-6 text-left shadow-sm transition-all duration-200 dark:bg-slate-900/70",
+                        "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30",
+                        isActive
+                          ? "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
+                          : "border-slate-200 dark:border-slate-800",
+                      )}
+                    >
+                      <button
+                        onClick={(event) => handleDelete(exp.id!, event)}
+                        className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
 
-                  <div className="mb-4 flex items-center gap-2 text-xs font-bold text-slate-500">
-                    <CalendarDays className="h-4 w-4" />
-                    {exp.period || "---"}
-                  </div>
-                  <h3 className="line-clamp-2 text-[17px] font-bold leading-snug text-slate-900 transition-colors group-hover:text-primary dark:text-slate-100">
-                    {exp.company || "(회사명 미입력)"}
-                  </h3>
-                  <p className="mt-2 text-sm font-semibold text-slate-500">
-                    {exp.position || "(직책 미입력)"}
-                  </p>
-                  <p className="mt-5 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {exp.description || "주요 업무와 성과가 아직 작성되지 않았습니다."}
-                  </p>
-                  <div className="mt-auto flex items-center justify-between pt-5">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
-                      <Building2 className="h-3.5 w-3.5" />
-                      경력
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-primary" />
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
+                      <div className="mb-4 flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <CalendarDays className="h-4 w-4" />
+                        {exp.period || "---"}
+                      </div>
+                      <h3 className="line-clamp-2 text-[17px] font-bold leading-snug text-slate-900 transition-colors group-hover:text-primary dark:text-slate-100">
+                        {exp.company || "(회사명 미입력)"}
+                      </h3>
+                      <p className="mt-2 text-sm font-semibold text-slate-500">
+                        {exp.position || "(직책 미입력)"}
+                      </p>
+                      <p className="mt-5 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        {exp.description || "주요 업무와 성과가 아직 작성되지 않았습니다."}
+                      </p>
+                      <div className="mt-auto flex items-center justify-between pt-5">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
+                          <Building2 className="h-3.5 w-3.5" />
+                          경력
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-primary" />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
 
-        {viewMode === "cards" && activeExperience && !activeId?.startsWith("new_") && (
-          <div className="mt-8 max-w-2xl">
-            <ExperienceFormCard
-              formData={formData}
-              setFormData={setFormData}
-              onClose={() => setActiveId(null)}
-              onSave={handleSave}
-              isSaving={isSaving}
-            />
-          </div>
-        )}
+              {/* 우측: 선택한 경력의 상세/편집 폼 (sticky) */}
+              {hasOpenDetail && (
+                <aside className="md:sticky md:top-4 md:self-start animate-in fade-in slide-in-from-right-4 duration-300">
+                  <ExperienceFormCard
+                    formData={formData}
+                    setFormData={setFormData}
+                    onClose={() => setActiveId(null)}
+                    onSave={handleSave}
+                    isSaving={isSaving}
+                  />
+                </aside>
+              )}
+            </div>
+          );
+        })()}
 
         {sortedExperiences.length > 0 && viewMode === "timeline" && (
           <div
