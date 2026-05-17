@@ -19,7 +19,7 @@ export interface ViewState {
 }
 
 const STORAGE_KEY = "dibut.job-postings.view";
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 6;
 
 const DEFAULT_STATE: ViewState = {
   calendarVisible: true,
