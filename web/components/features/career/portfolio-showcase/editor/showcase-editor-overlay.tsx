@@ -180,7 +180,7 @@ export function ShowcaseEditorOverlay({
           </button>
         </div>
         <div className="origin-top">
-          <Template content={content} tokens={tokens} />
+          <Template content={content} tokens={tokens} animate={false} />
         </div>
       </main>
 

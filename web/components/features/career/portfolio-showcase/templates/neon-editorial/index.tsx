@@ -54,9 +54,19 @@ function ensureGsap(): Promise<void> {
 export type NeonEditorialTemplateProps = {
   content: NeonEditorialContent;
   tokens: NeonEditorialTokens;
+  /**
+   * GSAP entrance animation + custom cursor + scroll progress 활성화 여부.
+   * wizard preview처럼 자체 scroll 컨테이너 안에서는 false로 두면 clip-path
+   * starting state로 stuck 되는 문제를 회피하고 정적 preview를 보여준다.
+   */
+  animate?: boolean;
 };
 
-export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplateProps) {
+export function NeonEditorialTemplate({
+  content,
+  tokens,
+  animate = true,
+}: NeonEditorialTemplateProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const styleVars = {
@@ -76,6 +86,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
   const hasExperienceSection = content.experience.length > 0 || content.education.length > 0;
 
   useEffect(() => {
+    if (!animate) return; // wizard preview 등 정적 렌더에서는 entrance/cursor/scroll-progress 모두 skip
     let cancelled = false;
     const scopedTriggers: any[] = [];
     let stopCursor: (() => void) | null = null;
@@ -342,7 +353,7 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
         } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [animate]);
 
   return (
     <div ref={rootRef} className={styles.root} style={styleVars} data-density={tokens.density}>
@@ -351,9 +362,13 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
       />
 
-      <div className="cursor-ring" aria-hidden="true" />
-      <div className="cursor-dot" aria-hidden="true" />
-      <div className="scroll-progress" aria-hidden="true" />
+      {animate && (
+        <>
+          <div className="cursor-ring" aria-hidden="true" />
+          <div className="cursor-dot" aria-hidden="true" />
+          <div className="scroll-progress" aria-hidden="true" />
+        </>
+      )}
 
       {/* HERO */}
       <section className="hero">
