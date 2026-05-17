@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getShowcaseTemplate } from "../templates/registry";
 import type { NeonEditorialContent, NeonEditorialTokens } from "../templates/neon-editorial/types";
+import { ContentPanel } from "./panels/content-panel";
 
 export type ShowcaseEditorClientProps = {
   portfolio: {
@@ -85,7 +86,7 @@ export function ShowcaseEditorClient({ portfolio, initialContent, initialTokens 
           {error && <p className="mb-3 rounded bg-red-50 p-2 text-xs text-red-600">{error}</p>}
           {/* Panels mounted in Tasks 13/14/15 */}
           {activeTab === "content" && (
-            <div data-testid="content-panel-placeholder" className="text-xs text-slate-400">콘텐츠 패널 — Task 13에서 작성</div>
+            <ContentPanel value={content} onChange={(updater) => setContent((p) => updater(p))} />
           )}
           {activeTab === "tokens" && (
             <div data-testid="tokens-panel-placeholder" className="text-xs text-slate-400">디자인 토큰 패널 — Task 14에서 작성</div>
