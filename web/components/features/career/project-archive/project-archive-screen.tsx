@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Globe2, Presentation, Sparkles, X } from "lucide-react";
+import { Globe2, Loader2, Presentation, Sparkles, X } from "lucide-react";
 import { CoverLetterWizardOverlay } from "@/components/features/career/cover-letter-wizard-overlay";
 import { cn } from "@/lib/utils";
 import type { ProjectInput } from "@/app/career/projects/types";
@@ -71,11 +71,16 @@ export function ProjectArchiveScreen({
   };
 
   const router = useRouter();
+  const [isShowcasePending, startShowcaseTransition] = useTransition();
 
   const handleShowcaseSelect = () => {
-    setIsFormatDialogOpen(false);
     const csv = selectedIds.filter(Boolean).join(",");
-    router.push(`/career/portfolios/showcase/new?projectIds=${encodeURIComponent(csv)}`);
+    // Do NOT close the dialog immediately — keep it open with the spinner
+    // while the navigation transitions to /showcase/new (whose loading.tsx
+    // then takes over).
+    startShowcaseTransition(() => {
+      router.push(`/career/portfolios/showcase/new?projectIds=${encodeURIComponent(csv)}`);
+    });
   };
 
   return (
@@ -243,17 +248,23 @@ export function ProjectArchiveScreen({
               <button
                 type="button"
                 onClick={handleShowcaseSelect}
-                disabled={isCreatingPortfolio}
+                disabled={isCreatingPortfolio || isShowcasePending}
                 className="rounded-lg border border-emerald-400/40 bg-emerald-50 p-4 text-left transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500 text-white">
-                  <Sparkles className="h-5 w-5" />
+                  {isShowcasePending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
                 </span>
                 <span className="mt-4 block text-base font-black text-slate-950">
-                  디자인 템플릿 (베타)
+                  {isShowcasePending ? "준비 중…" : "디자인 템플릿 (베타)"}
                 </span>
                 <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
-                  GSAP 인터랙션이 살아 있는 단일 페이지 포트폴리오 + 공개 URL
+                  {isShowcasePending
+                    ? "AI가 포트폴리오 초안을 만들고 있습니다"
+                    : "GSAP 인터랙션이 살아 있는 단일 페이지 포트폴리오 + 공개 URL"}
                 </span>
               </button>
             </div>
