@@ -26,9 +26,10 @@ import {
 } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
 import { seedCareerSampleDataAction } from "../sample-data/actions";
+import type { UnifiedPortfolioItem } from "./types";
 
 type PortfoliosClientProps = {
-  initialPortfolios: PortfolioListItem[];
+  initialPortfolios: UnifiedPortfolioItem[];
   sourceStats: {
     projects: number;
     workExperiences: number;
@@ -36,6 +37,50 @@ type PortfoliosClientProps = {
     skills: number;
   };
 };
+
+type TypeFilter = "all" | "site" | "slide" | "showcase";
+
+function matchesTypeFilter(item: UnifiedPortfolioItem, filter: TypeFilter) {
+  if (filter === "all") return true;
+  if (filter === "showcase") return item.kind === "showcase";
+  return item.kind === "legacy" && item.legacy?.format === filter;
+}
+
+function getUnifiedTypeLabel(item: UnifiedPortfolioItem) {
+  if (item.kind === "showcase") return "디자인 템플릿";
+  if (item.legacy?.format === "site") return "웹 슬라이드";
+  if (item.legacy?.format === "document") return "A4 보고서";
+  return "PPT 16:9";
+}
+
+function PortfolioTypeBadge({ item }: { item: UnifiedPortfolioItem }) {
+  if (item.kind === "showcase") {
+    return (
+      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+        디자인 템플릿
+      </span>
+    );
+  }
+  if (item.legacy?.format === "site") {
+    return (
+      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+        웹 슬라이드
+      </span>
+    );
+  }
+  if (item.legacy?.format === "document") {
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+        A4 보고서
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+      PPT 16:9
+    </span>
+  );
+}
 
 async function readJsonResponse(response: Response) {
   const text = await response.text();
@@ -139,6 +184,7 @@ export default function PortfoliosClient({
   const [selectedId, setSelectedId] = useState(initialPortfolios[0]?.id || "");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"recent" | "title">("recent");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [busyExportId, setBusyExportId] = useState<string | null>(null);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
@@ -150,9 +196,17 @@ export default function PortfoliosClient({
   const filteredPortfolios = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const next = portfolios.filter((portfolio) => {
+      if (!matchesTypeFilter(portfolio, typeFilter)) return false;
       if (!query) return true;
-      const sourceText = getProjectTitles(portfolio).join(" ");
-      return `${portfolio.title} ${portfolio.publicSummary.headline || ""} ${sourceText}`
+      if (portfolio.kind === "showcase") {
+        return `${portfolio.title} ${portfolio.showcase?.templateLabel || ""}`
+          .toLowerCase()
+          .includes(query);
+      }
+      const legacy = portfolio.legacy;
+      if (!legacy) return false;
+      const sourceText = getProjectTitles(legacy).join(" ");
+      return `${legacy.title} ${legacy.publicSummary.headline || ""} ${sourceText}`
         .toLowerCase()
         .includes(query);
     });
@@ -161,7 +215,7 @@ export default function PortfoliosClient({
       if (sortOrder === "title") return a.title.localeCompare(b.title, "ko");
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
-  }, [portfolios, searchQuery, sortOrder]);
+  }, [portfolios, searchQuery, sortOrder, typeFilter]);
 
   const selectedPortfolio =
     portfolios.find((portfolio) => portfolio.id === selectedId) || filteredPortfolios[0] || null;
@@ -255,12 +309,25 @@ export default function PortfoliosClient({
       if (!response.ok || !payload.item) {
         throw new Error(payload.error || "공개 상태 변경에 실패했습니다.");
       }
-      const nextItem = {
+      const nextLegacy: PortfolioListItem = {
         ...payload.item,
         publicUrl: payload.publicUrl || null,
       };
       setPortfolios((prev) =>
-        prev.map((item) => (item.id === portfolio.id ? nextItem : item)),
+        prev.map((item) =>
+          item.id === portfolio.id && item.kind === "legacy"
+            ? {
+                ...item,
+                title: nextLegacy.title,
+                slug: nextLegacy.slug,
+                updatedAt: nextLegacy.updatedAt,
+                publishedAt: nextLegacy.publishedAt ?? null,
+                isPublic: nextLegacy.isPublic,
+                publicUrl: nextLegacy.publicUrl ?? null,
+                legacy: nextLegacy,
+              }
+            : item,
+        ),
       );
     } catch (error) {
       alert(error instanceof Error ? error.message : "공개 상태 변경에 실패했습니다.");
@@ -283,6 +350,29 @@ export default function PortfoliosClient({
     } catch {
       alert("공개 링크 복사에 실패했습니다.");
     }
+  };
+
+  const handleCopyShowcaseUrl = async (item: UnifiedPortfolioItem) => {
+    if (!item.publicUrl) return;
+    const url = item.publicUrl.startsWith("http")
+      ? item.publicUrl
+      : typeof window === "undefined"
+        ? item.publicUrl
+        : `${window.location.origin}${item.publicUrl}`;
+    try {
+      const copied = await copyTextToClipboard(url);
+      if (!copied) throw new Error("copy failed");
+      setCopiedPortfolioId(item.id);
+      window.setTimeout(() => {
+        setCopiedPortfolioId((current) => (current === item.id ? null : current));
+      }, 1500);
+    } catch {
+      alert("공개 링크 복사에 실패했습니다.");
+    }
+  };
+
+  const handleOpenShowcaseEditor = (item: UnifiedPortfolioItem) => {
+    router.push(`/career/portfolios/showcase-wizard?id=${encodeURIComponent(item.id)}`);
   };
 
   return (
@@ -318,6 +408,30 @@ export default function PortfoliosClient({
                 className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-[13px] text-slate-700 outline-none focus:border-primary"
               />
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["all", "전체"],
+                  ["site", "웹 슬라이드"],
+                  ["slide", "PPT 16:9"],
+                  ["showcase", "디자인 템플릿"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTypeFilter(key)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] font-bold transition-colors",
+                    typeFilter === key
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-[11px] font-medium text-slate-500">정렬</span>
               <select
@@ -341,7 +455,15 @@ export default function PortfoliosClient({
             ) : (
               filteredPortfolios.map((portfolio) => {
                 const isActive = selectedPortfolio?.id === portfolio.id;
-                const sourceTitles = getProjectTitles(portfolio);
+                const subtitleText =
+                  portfolio.kind === "showcase"
+                    ? portfolio.showcase?.templateLabel || "디자인 템플릿"
+                    : (() => {
+                        const titles = portfolio.legacy ? getProjectTitles(portfolio.legacy) : [];
+                        return titles.length > 0
+                          ? titles.slice(0, 2).join(" · ")
+                          : "기반 프로젝트 미지정";
+                      })();
                 return (
                   <button
                     key={portfolio.id}
@@ -370,13 +492,14 @@ export default function PortfoliosClient({
                         {portfolio.isPublic ? "공개" : "비공개"}
                       </Badge>
                     </div>
-                    <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">
-                      {sourceTitles.length > 0
-                        ? sourceTitles.slice(0, 2).join(" · ")
-                        : "기반 프로젝트 미지정"}
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <PortfolioTypeBadge item={portfolio} />
+                    </div>
+                    <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-500">
+                      {subtitleText}
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
-                      <span>{getFormatLabel(portfolio)}</span>
+                      <span>{getUnifiedTypeLabel(portfolio)}</span>
                       <span className="shrink-0">{formatDateLabel(portfolio.updatedAt)}</span>
                     </div>
                   </button>
@@ -388,18 +511,27 @@ export default function PortfoliosClient({
 
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {selectedPortfolio ? (
-            <PortfolioDetail
-              portfolio={selectedPortfolio}
-              busyDeleteId={busyDeleteId}
-              busyExportId={busyExportId}
-              busyPublishId={busyPublishId}
-              onExportPptx={handleExportPptx}
-              onOpenWorkspace={handleOpenWorkspace}
-              onDelete={handleDelete}
-              onTogglePublish={handleTogglePublish}
-              onCopyPublicUrl={handleCopyPublicUrl}
-              copiedPortfolioId={copiedPortfolioId}
-            />
+            selectedPortfolio.kind === "showcase" ? (
+              <ShowcaseDetail
+                item={selectedPortfolio}
+                copiedPortfolioId={copiedPortfolioId}
+                onOpenEditor={handleOpenShowcaseEditor}
+                onCopyPublicUrl={handleCopyShowcaseUrl}
+              />
+            ) : selectedPortfolio.legacy ? (
+              <PortfolioDetail
+                portfolio={selectedPortfolio.legacy}
+                busyDeleteId={busyDeleteId}
+                busyExportId={busyExportId}
+                busyPublishId={busyPublishId}
+                onExportPptx={handleExportPptx}
+                onOpenWorkspace={handleOpenWorkspace}
+                onDelete={handleDelete}
+                onTogglePublish={handleTogglePublish}
+                onCopyPublicUrl={handleCopyPublicUrl}
+                copiedPortfolioId={copiedPortfolioId}
+              />
+            ) : null
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-400">
               <FileImage className="mb-4 h-12 w-12 opacity-30" />
@@ -432,6 +564,116 @@ export default function PortfoliosClient({
             </div>
           )}
         </main>
+      </div>
+    </div>
+  );
+}
+
+function ShowcaseDetail({
+  item,
+  copiedPortfolioId,
+  onOpenEditor,
+  onCopyPublicUrl,
+}: {
+  item: UnifiedPortfolioItem;
+  copiedPortfolioId: string | null;
+  onOpenEditor: (item: UnifiedPortfolioItem) => void;
+  onCopyPublicUrl: (item: UnifiedPortfolioItem) => void;
+}) {
+  const isUrlCopied = copiedPortfolioId === item.id;
+  const publicHref = item.publicUrl || "";
+  return (
+    <div className="flex h-full flex-col animate-in fade-in">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 px-6 py-3">
+        <button
+          type="button"
+          onClick={() => onOpenEditor(item)}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[12px] font-semibold text-white hover:bg-slate-800"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          에디터 열기
+        </button>
+      </div>
+
+      <div className="border-b border-slate-100 px-8 pb-6 pt-6">
+        <div className="flex max-w-3xl flex-wrap items-center gap-2">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+            {item.isPublic ? "공개" : "비공개"}
+          </span>
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+            디자인 템플릿
+          </span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+            {item.showcase?.templateLabel || "템플릿"}
+          </span>
+        </div>
+        <h2 className="mt-4 max-w-3xl text-xl font-bold leading-tight text-slate-900">
+          {item.title || "(제목 없음)"}
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+          디자인 템플릿 기반 포트폴리오는 에디터에서 자유롭게 텍스트를 편집하고 공개할 수 있습니다.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px] text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            수정일: {formatDateLabel(item.updatedAt)}
+          </span>
+          <span>•</span>
+          <span className="flex items-center gap-1.5">
+            <Layers3 className="h-3.5 w-3.5" />
+            템플릿: {item.showcase?.templateLabel || item.showcase?.templateId || "---"}
+          </span>
+        </div>
+        {item.isPublic && publicHref ? (
+          <div className="mt-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-primary">공개 링크</p>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                읽기 전용 포트폴리오를 바로 열거나 링크를 복사할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <a
+                href={publicHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-white px-3 text-[12px] font-semibold text-primary hover:bg-primary/5"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                바로가기
+              </a>
+              <button
+                type="button"
+                onClick={() => onCopyPublicUrl(item)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-[12px] font-semibold text-white hover:bg-primary/90"
+              >
+                {isUrlCopied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {isUrlCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-8 py-8 no-scrollbar">
+        <section className="space-y-4">
+          <div className="border-b border-slate-200 pb-2">
+            <h4 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              안내
+            </h4>
+          </div>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm leading-6 text-slate-600">
+            <p className="font-semibold text-slate-800">디자인 템플릿 포트폴리오</p>
+            <p className="mt-2 text-slate-500">
+              상단의 “에디터 열기”를 눌러 텍스트와 공개 상태를 편집할 수 있습니다.
+              템플릿 미리보기는 에디터 안에서 실시간으로 확인됩니다.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );
