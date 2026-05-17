@@ -194,6 +194,94 @@ export function PortfolioEditorClient({
     if (!shouldAutoGenerate || generationStartedRef.current) return;
     generationStartedRef.current = true;
 
+    // SSE 연결이 끊겨도 DB에는 결과가 저장될 수 있으므로, complete 미수신 상태에서는
+    // /api/career/portfolios/[id] 를 짧은 주기로 폴링해 최종본을 따라잡는다.
+    let completed = false;
+    let pollTimer: number | null = null;
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 36; // 5s * 36 = 180s
+    const POLL_INTERVAL_MS = 5000;
+
+    const stopPolling = () => {
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    const applyFinalDocument = (
+      nextDocument: PortfolioDocument,
+      templateOverride?: string,
+      titleOverride?: string,
+    ) => {
+      const prepared = prepareDocument(
+        nextDocument,
+        (templateOverride as typeof portfolio.templateId) || portfolio.templateId,
+      );
+      setDocument(prepared);
+      setSelectedSectionId(prepared.sections[0]?.id || "");
+      setSelectedElement(null);
+      if (titleOverride) setTitle(titleOverride);
+      setGeneration({
+        active: false,
+        stage: "AI 생성 완료",
+        progress: 100,
+        sections: [],
+      });
+      window.setTimeout(() => {
+        setGeneration({ active: false, stage: "", progress: 0, sections: [] });
+      }, 2000);
+      window.history.replaceState(null, "", window.location.pathname);
+    };
+
+    const pollOnce = async () => {
+      if (completed) return;
+      pollAttempts += 1;
+      try {
+        const response = await fetch(`/api/career/portfolios/${portfolio.id}`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data = (await response.json()) as {
+            item?: PortfolioListItem;
+            document?: PortfolioDocument;
+          };
+          const status = data.item?.generationStatus;
+          if (status === "completed" && data.document) {
+            completed = true;
+            stopPolling();
+            applyFinalDocument(
+              data.document,
+              data.item?.templateId,
+              data.item?.title,
+            );
+            return;
+          }
+          if (status === "failed") {
+            completed = true;
+            stopPolling();
+            setGeneration((current) => ({
+              ...current,
+              active: false,
+              stage: "생성 실패",
+              error: current.error || "포트폴리오 생성에 실패했습니다.",
+            }));
+            return;
+          }
+        }
+      } catch {
+        // network blip — retry on next tick
+      }
+      if (!completed && pollAttempts < MAX_POLL_ATTEMPTS) {
+        pollTimer = window.setTimeout(pollOnce, POLL_INTERVAL_MS);
+      }
+    };
+
+    const ensurePolling = () => {
+      if (completed || pollTimer !== null) return;
+      pollTimer = window.setTimeout(pollOnce, POLL_INTERVAL_MS);
+    };
+
     const eventSource = new EventSource(`/api/career/portfolios/${portfolio.id}/generate`);
     setGeneration({
       active: true,
@@ -259,29 +347,30 @@ export function PortfolioEditorClient({
         item?: PortfolioListItem;
         document?: PortfolioDocument;
       };
-      if (payload.item?.title) setTitle(payload.item.title);
+      completed = true;
+      stopPolling();
       if (payload.document) {
-        const nextDocument = prepareDocument(payload.document, payload.item?.templateId || portfolio.templateId);
-        setDocument(nextDocument);
-        setSelectedSectionId(nextDocument.sections[0]?.id || "");
-        setSelectedElement(null);
+        applyFinalDocument(
+          payload.document,
+          payload.item?.templateId,
+          payload.item?.title,
+        );
+      } else {
+        setGeneration((current) => ({
+          ...current,
+          active: false,
+          stage: "AI 생성 완료",
+          progress: 100,
+          sections: [],
+        }));
       }
-      setGeneration((current) => ({
-        ...current,
-        active: false,
-        stage: "AI 생성 완료",
-        progress: 100,
-        sections: [],
-      }));
-      window.setTimeout(() => {
-        setGeneration({ active: false, stage: "", progress: 0, sections: [] });
-      }, 2000);
       eventSource.close();
-      window.history.replaceState(null, "", window.location.pathname);
     });
 
     eventSource.addEventListener("portfolio-error", (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as { error?: string };
+      completed = true;
+      stopPolling();
       setGeneration((current) => ({
         ...current,
         active: false,
@@ -293,20 +382,21 @@ export function PortfolioEditorClient({
     });
 
     eventSource.onerror = () => {
-      setGeneration((current) =>
-        current.stage === "완료"
-          ? current
-          : {
-              ...current,
-              active: false,
-              progress: current.progress || 0,
-              error: current.error || "실시간 생성 연결이 끊어졌습니다.",
-            },
-      );
+      // SSE 가 끊겼지만 서버 생성은 계속될 수 있으므로 폴링으로 결과를 받아온다.
       eventSource.close();
+      if (completed) return;
+      setGeneration((current) => ({
+        ...current,
+        stage: current.stage || "결과 확인 중",
+        progress: current.progress || 0,
+      }));
+      ensurePolling();
     };
 
-    return () => eventSource.close();
+    return () => {
+      stopPolling();
+      eventSource.close();
+    };
   }, [portfolio.id, portfolio.templateId, shouldAutoGenerate]);
 
   const updateDocument = (updater: (current: PortfolioDocument) => PortfolioDocument) => {

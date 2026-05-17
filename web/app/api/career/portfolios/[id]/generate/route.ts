@@ -591,6 +591,21 @@ export async function GET(
         }
       };
 
+      // 긴 AI 호출 동안 SSE 연결이 idle로 끊기지 않도록 주기 신호 송신.
+      // SSE comment(`:`로 시작)는 클라이언트 이벤트로 노출되지 않으면서 연결만 유지한다.
+      const heartbeat = setInterval(() => {
+        if (streamClosed || request.signal.aborted) {
+          clearInterval(heartbeat);
+          return;
+        }
+        try {
+          controller.enqueue(encoder.encode(": keep-alive\n\n"));
+        } catch {
+          streamClosed = true;
+          clearInterval(heartbeat);
+        }
+      }, 7000);
+
       try {
         if (request.signal.aborted) return;
         const templateId = toTemplateId(row.template_id);
@@ -727,6 +742,7 @@ export async function GET(
           error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
         });
       } finally {
+        clearInterval(heartbeat);
         streamClosed = true;
         try {
           controller.close();
