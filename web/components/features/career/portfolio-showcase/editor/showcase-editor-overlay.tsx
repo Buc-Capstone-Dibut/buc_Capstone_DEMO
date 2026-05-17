@@ -141,7 +141,11 @@ export function ShowcaseEditorOverlay({
             <TokensPanel value={tokens} onChange={(updater) => setTokens((p) => updater(p))} />
           )}
           {activeTab === "projects" && (
-            <ProjectsPanel value={content} onChange={(updater) => setContent((p) => updater(p))} />
+            <ProjectsPanel
+              value={content}
+              onChange={(updater) => setContent((p) => updater(p))}
+              portfolioId={portfolio.id}
+            />
           )}
         </div>
       </aside>
