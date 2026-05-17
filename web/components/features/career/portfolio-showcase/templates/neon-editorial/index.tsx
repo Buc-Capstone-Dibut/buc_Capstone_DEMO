@@ -449,17 +449,19 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
               const imageUrl = repImage?.url;
               return (
                 <a className="work-row" href={`#work-${i}`} key={i}>
-                  <span className="work-num">{num}</span>
                   <span
                     className={`work-thumb${imageUrl ? "" : " is-empty"}`}
-                    aria-hidden={imageUrl ? undefined : "true"}
+                    aria-hidden={imageUrl ? "true" : undefined}
                   >
                     {imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageUrl} alt={repImage?.alt || title} loading="lazy" />
-                    ) : null}
+                    ) : (
+                      <span className="work-thumb-number">{num}</span>
+                    )}
                   </span>
                   <div className="work-info">
+                    <span className="work-num">{num}</span>
                     <h3>{title}</h3>
                     <span className="work-meta">
                       {[period, role].filter(Boolean).join(" — ")}

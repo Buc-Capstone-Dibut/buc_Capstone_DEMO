@@ -254,10 +254,10 @@
 .root :global(.work-row) {
   position: relative;
   display: grid;
-  grid-template-columns: 60px 100px 1fr 300px 32px;
+  grid-template-columns: 220px 1fr 240px 32px;
   align-items: center;
-  gap: 32px;
-  padding: 40px 28px;
+  gap: 40px;
+  padding: 32px 28px;
   border-bottom: 1px solid var(--border);
   text-decoration: none;
   color: var(--text-primary);
@@ -268,44 +268,56 @@
 .root :global(.work-thumb) {
   position: relative;
   display: block;
-  width: 88px;
-  height: 56px;
-  border-radius: 6px;
+  width: 220px;
+  height: 140px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  transition: border-color 0.4s ease, transform 0.4s ease;
 }
 .root :global(.work-thumb img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.5s ease;
+  transition: transform 0.5s cubic-bezier(0.2, 0, 0.2, 1);
 }
 .root :global(.work-row:hover .work-thumb img) {
   transform: scale(1.06);
 }
+
+/* Empty placeholder: large outline number */
 .root :global(.work-thumb.is-empty) {
-  background: linear-gradient(135deg, var(--bg-card), var(--bg-alt));
-  position: relative;
+  background:
+    linear-gradient(135deg, rgba(57,255,20,0.05), transparent),
+    var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.root :global(.work-thumb.is-empty)::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 12px;
-  height: 12px;
-  background: var(--accent);
-  opacity: 0.4;
-  border-radius: 2px;
+.root :global(.work-thumb-number) {
+  font-size: 64px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--accent);
+  text-stroke: 1.5px var(--accent);
+  opacity: 0.7;
+  transition: opacity 0.4s ease, -webkit-text-stroke-color 0.4s ease;
 }
 .root :global(.work-row:hover .work-thumb) {
   border-color: rgba(0, 0, 0, 0.2);
 }
 .root :global(.work-row:hover .work-thumb.is-empty) {
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.1));
+  background:
+    linear-gradient(135deg, rgba(0,0,0,0.04), transparent),
+    rgba(255,255,255,0.5);
+}
+.root :global(.work-row:hover .work-thumb-number) {
+  -webkit-text-stroke-color: rgba(0, 0, 0, 0.7);
+  opacity: 1;
 }
 .root :global(.work-row::before) {
   content: '';
@@ -321,14 +333,20 @@
 .root :global(.work-row:hover) { color: #000; }
 .root :global(.work-row:hover::before) { transform: scaleX(1); }
 
-.root :global(.work-num) {
-  font-size: 13px;
+.root :global(.work-info) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.root :global(.work-info .work-num) {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.2em;
   color: var(--accent);
   transition: color 0.3s ease;
 }
-.root :global(.work-row:hover .work-num) { color: #000; }
+.root :global(.work-row:hover .work-info .work-num) { color: rgba(0, 0, 0, 0.7); }
 
 .root :global(.work-info h3) {
   font-size: clamp(26px, 3.4vw, 40px);
@@ -540,7 +558,7 @@
 /* ============= T31 visual safety ============= */
 /* Sustain layout when users exceed T26 char-limit guides. */
 
-/* Works row: work-info now competes with 300px tags column + 88px thumb. */
+/* Works row: work-info now competes with 240px tags column + 220px thumb. */
 .root :global(.work-info h3) {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -652,16 +670,21 @@
   .root :global(.strength-card) { padding: 36px 28px; }
 
   .root :global(.work-row) {
-    grid-template-columns: 40px 72px 1fr 28px;
-    gap: 12px;
-    padding: 24px 16px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    padding: 20px 16px;
   }
   .root :global(.work-thumb) {
-    width: 72px;
-    height: 48px;
+    width: 100%;
+    height: 200px;
+  }
+  .root :global(.work-thumb-number) {
+    font-size: 96px;
   }
   .root :global(.work-info h3) { font-size: 22px; }
   .root :global(.work-tags) { display: none; }
+  .root :global(.work-arrow) { display: none; }
 
   .root :global(.kpi-spotlight) { grid-template-columns: 1fr; }
   .root :global(.kpi) { padding: 48px 24px; }
