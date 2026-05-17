@@ -334,7 +334,8 @@ export function NeonEditorialTemplate({ content, tokens }: NeonEditorialTemplate
           t?.kill?.();
         } catch {}
     };
-  }, [content, tokens]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div ref={rootRef} className={styles.root} style={styleVars} data-density={tokens.density}>
