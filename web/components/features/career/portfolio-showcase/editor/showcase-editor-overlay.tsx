@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, Share2 } from "lucide-react";
 import { getShowcaseTemplate } from "../templates/registry";
 import type { NeonEditorialContent, NeonEditorialTokens } from "../templates/neon-editorial/types";
 import { ContentPanel } from "./panels/content-panel";
 import { TokensPanel } from "./panels/tokens-panel";
 import { ProjectsPanel } from "./panels/projects-panel";
+import { ShareModal } from "./share-modal";
 
 export type ShowcaseEditorOverlayProps = {
   portfolio: {
@@ -39,6 +40,7 @@ export function ShowcaseEditorOverlay({
   const [error, setError] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(portfolio.isPublic);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (isPublic) {
@@ -81,11 +83,6 @@ export function ShowcaseEditorOverlay({
     });
     const data = await res.json().catch(() => ({}));
     setPublicUrl(data.publicUrl ?? null);
-  }
-
-  function copyPublicUrl() {
-    if (!publicUrl) return;
-    navigator.clipboard.writeText(`${window.location.origin}${publicUrl}`);
   }
 
   const Template = template.Component;
@@ -153,37 +150,47 @@ export function ShowcaseEditorOverlay({
       {/* Right preview pane */}
       <main className="relative flex-1 overflow-y-auto bg-slate-50">
         <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <input type="checkbox" checked={isPublic} onChange={togglePublish} />
-            공개
-          </label>
+          <span className={`flex items-center gap-1.5 text-xs font-bold ${isPublic ? "text-emerald-600" : "text-slate-500"}`}>
+            {isPublic ? (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                공개됨
+              </>
+            ) : (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-slate-400" />
+                비공개
+              </>
+            )}
+          </span>
+
           {publicUrl && (
-            <>
-              <button
-                type="button"
-                onClick={copyPublicUrl}
-                className="rounded border border-slate-300 px-2 py-1 text-xs font-bold hover:bg-slate-50"
-              >
-                URL 복사
-              </button>
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded border border-slate-300 px-2 py-1 text-xs font-bold hover:bg-slate-50"
-              >
-                새 탭으로 열기 ↗
-              </a>
-              <span className="ml-auto truncate text-xs text-slate-500" title={publicUrl}>
-                {publicUrl}
-              </span>
-            </>
+            <span className="ml-2 hidden truncate font-mono text-[10px] text-slate-400 lg:block" title={publicUrl}>
+              {publicUrl}
+            </span>
           )}
+
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-600"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            공유
+          </button>
         </div>
         <div className="origin-top">
           <Template content={content} tokens={tokens} />
         </div>
       </main>
+
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        isPublic={isPublic}
+        onTogglePublic={togglePublish}
+        publicUrl={publicUrl}
+      />
     </div>
   );
 }
