@@ -76,13 +76,15 @@ function buildPrompt(input: {
 [선택된 프로젝트 ${input.snapshots.length}개]
 ${projectSummaries}
 
-[출력 규칙]
-- bio: 사용자의 직무 정체성을 한 줄로 (~40자, 한국어). 과장 없이.
-- aboutQuote: 일하는 태도를 보여주는 짧은 인용구 (한국어, 50자 이내).
-- aboutParagraphs: 2개 문단. 1) 어떤 종류 개발자인지 + 강점, 2) 최근 프로젝트 흐름·기여.
-- strengths: 정확히 4개. 각각 { num: "01"~"04", title: 영문 대문자 키워드 (예: "PERFORMANCE OBSESSION"), body: 한국어 한두 문장 }.
-- kpis: 정확한 정량 성과가 프로젝트 결과에 명시되어 있으면 그것만 추출 (최대 3개). { num: number, suffix: "%"|"K+"|"ms"|"개" 등, label: 한국어 짧은 설명 }. 명시된 수치 없으면 빈 배열로.
-- marqueeKeywords: 프로젝트들의 techStack을 종합해 핵심 키워드 6~8개 (영문 대문자, 한 단어 또는 짧은 구). 중복 제거.
+[출력 규칙 — 글자 수 제한: NeonEditorial 템플릿이 깨지지 않게 반드시 준수]
+- bio: 사용자의 직무 정체성을 한 줄로 (한국어, **최대 80자**). 과장 없이.
+- aboutQuote: 일하는 태도를 보여주는 인용구 (한국어, **최대 60자**).
+- aboutParagraphs: 정확히 2개 문단. 각 문단 **최대 200자**. 1) 어떤 종류 개발자인지 + 강점, 2) 최근 프로젝트 흐름·기여.
+- strengths: 정확히 4개. 각각 { num: "01"~"04", title: 영문 대문자 키워드 **최대 30자** (예: "PERFORMANCE OBSESSION"), body: 한국어 한두 문장 **최대 80자** }.
+- kpis: 정확한 정량 성과가 프로젝트 결과에 명시되어 있으면 그것만 추출 (최대 3개). { num: number, suffix: **최대 6자** ("%"|"K+"|"ms"|"개" 등), label: 한국어 짧은 설명 **최대 30자** }. 명시된 수치 없으면 빈 배열로.
+- marqueeKeywords: 프로젝트들의 techStack을 종합해 핵심 키워드 6~8개 (영문 대문자, 한 단어 또는 짧은 구, 각 **최대 30자**). 중복 제거.
+
+⚠️ 모든 글자수 제한을 반드시 준수. 길어지면 템플릿이 깨진다.
 
 JSON 하나만 반환:
 {

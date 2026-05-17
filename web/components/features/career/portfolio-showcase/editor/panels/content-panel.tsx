@@ -8,30 +8,30 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
   return (
     <div className="space-y-6 text-xs">
       <Section title="Hero">
-        <Field label="직무 (Job title)">
+        <Field label="직무 (Job title)" max={30} value={value.hero.jobTitle}>
           <input
-            className={inputCls}
+            className={`${inputCls} pr-14`}
             value={value.hero.jobTitle}
             onChange={(e) => onChange((p) => ({ ...p, hero: { ...p.hero, jobTitle: e.target.value } }))}
           />
         </Field>
-        <Field label="연도">
+        <Field label="연도" max={20} value={value.hero.year}>
           <input
-            className={inputCls}
+            className={`${inputCls} pr-14`}
             value={value.hero.year}
             onChange={(e) => onChange((p) => ({ ...p, hero: { ...p.hero, year: e.target.value } }))}
           />
         </Field>
-        <Field label="헤드라인 줄 (한 줄마다 엔터)">
+        <Field label="헤드라인 줄 (한 줄마다 엔터)" max={56} value={value.hero.headlineLines.join("\n")}>
           <textarea
-            className={`${inputCls} h-24`}
+            className={`${inputCls} h-24 pr-14`}
             value={value.hero.headlineLines.join("\n")}
             onChange={(e) => onChange((p) => ({ ...p, hero: { ...p.hero, headlineLines: e.target.value.split("\n") } }))}
           />
         </Field>
-        <Field label="한 줄 소개">
+        <Field label="한 줄 소개" max={80} value={value.hero.bio}>
           <textarea
-            className={`${inputCls} h-20`}
+            className={`${inputCls} h-20 pr-14`}
             value={value.hero.bio}
             onChange={(e) => onChange((p) => ({ ...p, hero: { ...p.hero, bio: e.target.value } }))}
           />
@@ -39,27 +39,30 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
       </Section>
 
       <Section title="Marquee 키워드 (콤마 구분)">
-        <input
-          className={inputCls}
-          value={value.marqueeKeywords.join(", ")}
-          onChange={(e) => onChange((p) => ({
-            ...p,
-            marqueeKeywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-          }))}
-        />
+        <div className="relative">
+          <input
+            className={`${inputCls} pr-14`}
+            value={value.marqueeKeywords.join(", ")}
+            onChange={(e) => onChange((p) => ({
+              ...p,
+              marqueeKeywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+            }))}
+          />
+          <CharCounter value={value.marqueeKeywords.join(", ")} max={240} />
+        </div>
       </Section>
 
       <Section title="About">
-        <Field label="인용구">
+        <Field label="인용구" max={60} value={value.about.quote}>
           <textarea
-            className={`${inputCls} h-20`}
+            className={`${inputCls} h-20 pr-14`}
             value={value.about.quote}
             onChange={(e) => onChange((p) => ({ ...p, about: { ...p.about, quote: e.target.value } }))}
           />
         </Field>
-        <Field label="문단 (한 줄마다 엔터)">
+        <Field label="문단 (한 줄마다 엔터)" max={400} value={value.about.paragraphs.join("\n")}>
           <textarea
-            className={`${inputCls} h-28`}
+            className={`${inputCls} h-28 pr-14`}
             value={value.about.paragraphs.join("\n")}
             onChange={(e) => onChange((p) => ({
               ...p,
@@ -81,9 +84,9 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
                   })}
                 />
                 <div className="space-y-1">
-                  <input
-                    className={inputCls}
+                  <CountedInput
                     placeholder="제목"
+                    max={30}
                     value={s.title}
                     onChange={(e) => onChange((p) => {
                       const next = [...p.about.strengths];
@@ -91,9 +94,10 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
                       return { ...p, about: { ...p.about, strengths: next } };
                     })}
                   />
-                  <textarea
-                    className={`${inputCls} h-14`}
+                  <CountedTextarea
                     placeholder="설명"
+                    max={80}
+                    className={`${inputCls} h-14`}
                     value={s.body}
                     onChange={(e) => onChange((p) => {
                       const next = [...p.about.strengths];
@@ -139,7 +143,7 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
       <Section title="KPI (최대 3개)">
         <div className="space-y-2">
           {value.kpis.map((k, i) => (
-            <div key={i} className="grid grid-cols-[80px_60px_1fr] gap-2">
+            <div key={i} className="grid grid-cols-[80px_80px_1fr] gap-2">
               <input
                 type="number"
                 className={inputCls}
@@ -150,9 +154,9 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
                   return { ...p, kpis: next };
                 })}
               />
-              <input
-                className={inputCls}
+              <CountedInput
                 placeholder="단위"
+                max={6}
                 value={k.suffix}
                 onChange={(e) => onChange((p) => {
                   const next = [...p.kpis];
@@ -160,9 +164,9 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
                   return { ...p, kpis: next };
                 })}
               />
-              <input
-                className={inputCls}
+              <CountedInput
                 placeholder="라벨"
+                max={30}
                 value={k.label}
                 onChange={(e) => onChange((p) => {
                   const next = [...p.kpis];
@@ -192,9 +196,9 @@ export function ContentPanel({ value, onChange }: { value: NeonEditorialContent;
       </Section>
 
       <Section title="Contact">
-        <Field label="이메일">
+        <Field label="이메일" max={80} value={value.contact.email}>
           <input
-            className={inputCls}
+            className={`${inputCls} pr-14`}
             value={value.contact.email}
             onChange={(e) => onChange((p) => ({ ...p, contact: { ...p.contact, email: e.target.value } }))}
           />
@@ -216,11 +220,77 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  max,
+  value,
+  children,
+}: {
+  label: string;
+  max?: number;
+  value?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</span>
-      {children}
+      <div className="relative">
+        {children}
+        {max !== undefined && value !== undefined && <CharCounter value={value} max={max} />}
+      </div>
     </label>
+  );
+}
+
+function CharCounter({ value, max }: { value: string; max: number }) {
+  const len = value.length;
+  const over = len > max;
+  return (
+    <span
+      className={`pointer-events-none absolute right-2 top-2 text-[10px] font-mono tabular-nums ${
+        over ? "font-bold text-red-600" : "text-slate-400"
+      }`}
+      aria-live="polite"
+    >
+      {len}/{max}
+    </span>
+  );
+}
+
+function CountedInput({
+  value,
+  onChange,
+  max,
+  className,
+  ...rest
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> & {
+  value: string;
+  max: number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="relative">
+      <input {...rest} value={value} onChange={onChange} className={`${className ?? inputCls} pr-14`} />
+      <CharCounter value={value} max={max} />
+    </div>
+  );
+}
+
+function CountedTextarea({
+  value,
+  onChange,
+  max,
+  className,
+  ...rest
+}: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "value"> & {
+  value: string;
+  max: number;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="relative">
+      <textarea {...rest} value={value} onChange={onChange} className={`${className ?? inputCls} pr-14`} />
+      <CharCounter value={value} max={max} />
+    </div>
   );
 }
