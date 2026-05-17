@@ -43,7 +43,7 @@ export function JobPostingList({
     <div
       className={
         compact
-          ? "grid gap-2 max-w-[460px]"
+          ? "grid gap-2"
           : "grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
       }
     >

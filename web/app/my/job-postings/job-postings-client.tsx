@@ -57,6 +57,30 @@ export function JobPostingsClient() {
   const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: "all" });
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
 
+  // 캘린더 표시 모드에서는 viewport 높이에 맞춰 자동 pageSize 결정
+  // (카드 컴팩트 1장 ~200px + gap 8px 기준, 헤더/필터/페이지네이션 chrome 240px 제외)
+  const [autoPageSize, setAutoPageSize] = useState<number | null>(null);
+  useEffect(() => {
+    if (!state.calendarVisible) {
+      setAutoPageSize(null);
+      return;
+    }
+    const CARD_WITH_GAP = 208;
+    const CHROME = 240;
+    const measure = () => {
+      const next = Math.max(
+        2,
+        Math.floor((window.innerHeight - CHROME) / CARD_WITH_GAP),
+      );
+      setAutoPageSize(next);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [state.calendarVisible]);
+
+  const effectivePageSize = autoPageSize ?? state.pageSize;
+
   // 검색 디바운스
   const [debouncedQuery, setDebouncedQuery] = useState(state.query);
   useEffect(() => {
@@ -87,7 +111,7 @@ export function JobPostingsClient() {
       else if (folderFilter.kind === "unfiled") params.set("folder", "unfiled");
       if (state.attachFilter) params.set("attachFilter", state.attachFilter);
       params.set("page", String(state.page));
-      params.set("pageSize", String(state.pageSize));
+      params.set("pageSize", String(effectivePageSize));
 
       const res = await fetch(`/api/my/job-postings?${params.toString()}`, {
         cache: "no-store",
@@ -112,7 +136,7 @@ export function JobPostingsClient() {
     state.favoritesPolicy,
     state.attachFilter,
     state.page,
-    state.pageSize,
+    effectivePageSize,
     folderFilter,
   ]);
 
@@ -278,11 +302,11 @@ export function JobPostingsClient() {
           <UpcomingSchedulePanel events={events} />
         </div>
 
-        {/* 우측: 캘린더 + 카드 그리드 */}
+        {/* 우측: 캘린더 + 카드 그리드 (캘린더는 가용 너비 가득, 카드는 420px 고정) */}
         <div
           className={
             state.calendarVisible
-              ? "grid min-w-0 gap-6 xl:grid-cols-2"
+              ? "grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"
               : "flex min-w-0 flex-col gap-6"
           }
         >
@@ -322,7 +346,7 @@ export function JobPostingsClient() {
 
           <JobPostingsPagination
             page={state.page}
-            pageSize={state.pageSize}
+            pageSize={effectivePageSize}
             total={total}
             onPageChange={setPage}
           />
