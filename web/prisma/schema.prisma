@@ -540,6 +540,7 @@ model profiles {
   reputation_events  reputation_events[]
   resumes            user_resumes[]
   portfolios         user_portfolios[]
+  showcase_portfolios showcase_portfolios[]
   portfolio_assets_created user_portfolio_assets[] @relation("PortfolioAssetCreator")
   job_postings       user_job_postings[]
   job_posting_folders user_job_posting_folders[]
@@ -618,6 +619,26 @@ model user_portfolios {
   @@index([user_id, format, updated_at(sort: Desc)])
   @@index([user_id, source_project_id, updated_at(sort: Desc)])
   @@index([user_id, generation_status, updated_at(sort: Desc)])
+  @@index([is_public, published_at(sort: Desc)])
+  @@schema("public")
+}
+
+model showcase_portfolios {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id         String   @db.Uuid
+  slug            String
+  title           String   @default("새 포트폴리오")
+  template_id     String   @default("neon-editorial")
+  content_payload Json     @default("{}")
+  tokens_payload  Json     @default("{}")
+  is_public       Boolean  @default(false)
+  published_at    DateTime? @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles        profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, slug])
+  @@index([user_id, updated_at(sort: Desc)])
   @@index([is_public, published_at(sort: Desc)])
   @@schema("public")
 }
