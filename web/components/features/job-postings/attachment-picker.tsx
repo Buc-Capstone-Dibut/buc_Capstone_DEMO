@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -9,21 +8,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 type Option = { id: string; title: string };
 type ProjectOption = { id: string; title: string; period: string };
+type Kind = "resume" | "cover_letter" | "portfolio" | "project";
+
+/** 이미 첨부된 자료의 id 모음 — 옵션에서 제외용 */
+export interface AttachedIds {
+  resume: Set<string>;
+  cover_letter: Set<string>;
+  portfolio: Set<string>;
+  project: Set<string>;
+}
 
 /**
  * 채용공고 상세 페이지의 "연결된 자료" 섹션에서 사용.
- * 4가지 자료 타입(이력서·자기소개서·포트폴리오·프로젝트)을 한 줄씩 inline 폼으로
- * 보여주고, 카드 중첩 없이 detail 표 안에 자연스럽게 녹아든다.
+ * 4가지 자료 타입을 한 줄씩 inline select로 보여주고,
+ * 선택 즉시 자동으로 attach API 호출 (별도 "연결" 버튼 불필요).
+ * 이미 연결된 자료는 옵션에서 제외되어 중복 연결 방지.
  */
 export function AttachmentPicker({
   postingId,
+  attachedIds,
   onAdded,
 }: {
   postingId: string;
+  attachedIds?: AttachedIds;
   onAdded: () => void;
 }) {
   const [resumes, setResumes] = useState<Option[]>([]);
@@ -31,14 +42,8 @@ export function AttachmentPicker({
   const [portfolios, setPortfolios] = useState<Option[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
 
-  const [resumeId, setResumeId] = useState("");
-  const [coverLetterId, setCoverLetterId] = useState("");
-  const [portfolioId, setPortfolioId] = useState("");
-  const [projectId, setProjectId] = useState("");
-
-  const [busy, setBusy] = useState<
-    "resume" | "cover_letter" | "portfolio" | "project" | null
-  >(null);
+  const [busy, setBusy] = useState<Kind | null>(null);
+  const [recent, setRecent] = useState<Kind | null>(null);
 
   const loadOptions = async () => {
     const [rRes, clRes, pRes, prjRes] = await Promise.all([
@@ -84,10 +89,7 @@ export function AttachmentPicker({
     void loadOptions();
   }, []);
 
-  const post = async (
-    kind: "resume" | "cover_letter" | "portfolio" | "project",
-    payload: Record<string, unknown>,
-  ) => {
+  const attach = async (kind: Kind, payload: Record<string, unknown>) => {
     setBusy(kind);
     try {
       const res = await fetch(
@@ -99,78 +101,103 @@ export function AttachmentPicker({
         },
       );
       if ((await res.json()).success) {
+        setRecent(kind);
         onAdded();
-        if (kind === "resume") setResumeId("");
-        if (kind === "cover_letter") setCoverLetterId("");
-        if (kind === "portfolio") setPortfolioId("");
-        if (kind === "project") setProjectId("");
+        // 짧은 success 표시 후 reset
+        setTimeout(() => setRecent((curr) => (curr === kind ? null : curr)), 1500);
       }
     } finally {
       setBusy(null);
     }
   };
 
+  // 이미 첨부된 자료는 옵션에서 제외
+  const filteredResumes = useMemo(
+    () => resumes.filter((o) => !attachedIds?.resume.has(o.id)),
+    [resumes, attachedIds],
+  );
+  const filteredCoverLetters = useMemo(
+    () => coverLetters.filter((o) => !attachedIds?.cover_letter.has(o.id)),
+    [coverLetters, attachedIds],
+  );
+  const filteredPortfolios = useMemo(
+    () => portfolios.filter((o) => !attachedIds?.portfolio.has(o.id)),
+    [portfolios, attachedIds],
+  );
+  const filteredProjects = useMemo(
+    () => projects.filter((o) => !attachedIds?.project.has(o.id)),
+    [projects, attachedIds],
+  );
+
   return (
     <div className="grid gap-2">
       <PickerRow
         label="이력서"
-        value={resumeId}
-        onValueChange={setResumeId}
-        options={resumes}
-        emptyText="등록된 이력서가 없습니다"
+        options={filteredResumes}
+        emptyText={
+          resumes.length === 0
+            ? "등록된 이력서가 없습니다"
+            : "모두 연결됨"
+        }
         disabled={busy !== null}
         loading={busy === "resume"}
-        onSubmit={() =>
-          resumeId &&
-          post("resume", { attachmentType: "resume", resumeId })
+        success={recent === "resume"}
+        onPick={(id) =>
+          attach("resume", { attachmentType: "resume", resumeId: id })
         }
       />
       <PickerRow
         label="자기소개서"
-        value={coverLetterId}
-        onValueChange={setCoverLetterId}
-        options={coverLetters}
-        emptyText="등록된 자기소개서가 없습니다"
+        options={filteredCoverLetters}
+        emptyText={
+          coverLetters.length === 0
+            ? "등록된 자기소개서가 없습니다"
+            : "모두 연결됨"
+        }
         disabled={busy !== null}
         loading={busy === "cover_letter"}
-        onSubmit={() =>
-          coverLetterId &&
-          post("cover_letter", {
+        success={recent === "cover_letter"}
+        onPick={(id) =>
+          attach("cover_letter", {
             attachmentType: "cover_letter",
-            coverLetterId,
+            coverLetterId: id,
           })
         }
       />
       <PickerRow
         label="포트폴리오"
-        value={portfolioId}
-        onValueChange={setPortfolioId}
-        options={portfolios}
-        emptyText="등록된 포트폴리오가 없습니다"
+        options={filteredPortfolios}
+        emptyText={
+          portfolios.length === 0
+            ? "등록된 포트폴리오가 없습니다"
+            : "모두 연결됨"
+        }
         disabled={busy !== null}
         loading={busy === "portfolio"}
-        onSubmit={() =>
-          portfolioId &&
-          post("portfolio", { attachmentType: "portfolio", portfolioId })
+        success={recent === "portfolio"}
+        onPick={(id) =>
+          attach("portfolio", { attachmentType: "portfolio", portfolioId: id })
         }
       />
       <PickerRow
         label="프로젝트"
-        value={projectId}
-        onValueChange={setProjectId}
-        options={projects.map((p) => ({
+        options={filteredProjects.map((p) => ({
           id: p.id,
           title: p.period ? `${p.title} · ${p.period}` : p.title,
         }))}
-        emptyText="이력서에 등록된 프로젝트가 없습니다"
+        emptyText={
+          projects.length === 0
+            ? "이력서에 등록된 프로젝트가 없습니다"
+            : "모두 연결됨"
+        }
         disabled={busy !== null}
         loading={busy === "project"}
-        onSubmit={() => {
-          if (!projectId) return;
-          const target = projects.find((p) => p.id === projectId);
-          void post("project", {
+        success={recent === "project"}
+        onPick={(id) => {
+          const target = projects.find((p) => p.id === id);
+          void attach("project", {
             attachmentType: "project",
-            projectId,
+            projectId: id,
             projectLabel: target
               ? target.period
                 ? `${target.title} · ${target.period}`
@@ -185,35 +212,35 @@ export function AttachmentPicker({
 
 function PickerRow({
   label,
-  value,
-  onValueChange,
   options,
   emptyText,
   disabled,
   loading,
-  onSubmit,
+  success,
+  onPick,
 }: {
   label: string;
-  value: string;
-  onValueChange: (v: string) => void;
   options: Option[];
   emptyText: string;
   disabled: boolean;
   loading: boolean;
-  onSubmit: () => void;
+  success: boolean;
+  onPick: (id: string) => void;
 }) {
   const isEmpty = options.length === 0;
   return (
     <div className="grid grid-cols-[6rem_1fr_auto] items-center gap-2">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <Select
-        value={value}
-        onValueChange={onValueChange}
+        value=""
+        onValueChange={(v) => {
+          if (v) onPick(v);
+        }}
         disabled={disabled || isEmpty}
       >
         <SelectTrigger className="h-8 text-sm">
           <SelectValue
-            placeholder={isEmpty ? emptyText : `${label} 선택`}
+            placeholder={isEmpty ? emptyText : `${label} 선택 후 자동 연결`}
           />
         </SelectTrigger>
         <SelectContent>
@@ -224,17 +251,16 @@ function PickerRow({
           ))}
         </SelectContent>
       </Select>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="h-8 px-3"
-        disabled={!value || disabled}
-        onClick={onSubmit}
-      >
-        <Plus className="mr-1 h-3.5 w-3.5" />
-        {loading ? "연결 중…" : "연결"}
-      </Button>
+      <span className="flex h-8 w-16 items-center justify-center text-[11px] text-muted-foreground">
+        {loading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : success ? (
+          <span className="inline-flex items-center gap-0.5 text-emerald-600">
+            <Check className="h-3 w-3" aria-hidden />
+            연결됨
+          </span>
+        ) : null}
+      </span>
     </div>
   );
 }

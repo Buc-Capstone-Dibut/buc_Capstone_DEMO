@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ExternalLink, FileText, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AttachmentPicker } from "@/components/features/job-postings/attachment-picker";
+import {
+  AttachmentPicker,
+  type AttachedIds,
+} from "@/components/features/job-postings/attachment-picker";
 import { InterviewLaunchOverlay } from "@/components/features/job-postings/interview-launch-overlay";
 import {
   KIND_COLOR,
@@ -53,36 +56,40 @@ export function JobPostingDetailClient({
   const [loading, setLoading] = useState(true);
   const [launchOpen, setLaunchOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const fetchPosting = useCallback(async () => {
+    const res = await fetch(`/api/my/job-postings/${postingId}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (json.success) setPosting(json.data);
+  }, [postingId]);
+
+  const initialLoad = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/my/job-postings/${postingId}`, {
-        cache: "no-store",
-      });
-      const json = await res.json();
-      if (json.success) setPosting(json.data);
+      await fetchPosting();
     } finally {
       setLoading(false);
     }
-  }, [postingId]);
+  }, [fetchPosting]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void initialLoad();
+  }, [initialLoad]);
 
   const removeAttachment = async (attachmentId: string) => {
     await fetch(
       `/api/my/job-postings/${postingId}/attachments/${attachmentId}`,
       { method: "DELETE" },
     );
-    void load();
+    void fetchPosting();
   };
 
   const removeSchedule = async (scheduleId: string) => {
     await fetch(`/api/my/job-postings/${postingId}/schedules/${scheduleId}`, {
       method: "DELETE",
     });
-    void load();
+    void fetchPosting();
   };
 
   const removePosting = async () => {
@@ -94,6 +101,26 @@ export function JobPostingDetailClient({
     await fetch(`/api/my/job-postings/${postingId}`, { method: "DELETE" });
     window.location.href = "/my/job-postings";
   };
+
+  const attachedIds: AttachedIds = useMemo(() => {
+    const ids: AttachedIds = {
+      resume: new Set<string>(),
+      cover_letter: new Set<string>(),
+      portfolio: new Set<string>(),
+      project: new Set<string>(),
+    };
+    for (const a of posting?.attachments ?? []) {
+      if (a.attachmentType === "resume" && a.resumeId)
+        ids.resume.add(a.resumeId);
+      else if (a.attachmentType === "cover_letter" && a.coverLetterId)
+        ids.cover_letter.add(a.coverLetterId);
+      else if (a.attachmentType === "portfolio" && a.portfolioId)
+        ids.portfolio.add(a.portfolioId);
+      else if (a.attachmentType === "project" && a.projectId)
+        ids.project.add(a.projectId);
+    }
+    return ids;
+  }, [posting]);
 
   if (loading) {
     return (
@@ -256,7 +283,11 @@ export function JobPostingDetailClient({
           hint="이력서·자기소개서·포트폴리오를 연결하면 모의면접 설정에 자동 주입되어, 같은 공고로 여러 번 진행할 때 다시 고를 필요가 없습니다."
         />
         <div className="border-t border-slate-200/70 bg-white px-6 py-4 dark:border-slate-800/70 dark:bg-slate-900">
-          <AttachmentPicker postingId={posting.id} onAdded={load} />
+          <AttachmentPicker
+            postingId={posting.id}
+            attachedIds={attachedIds}
+            onAdded={fetchPosting}
+          />
         </div>
         {attachments.length > 0 ? (
           <table className="w-full border-collapse border-t border-slate-200/70 text-sm dark:border-slate-800/70">
