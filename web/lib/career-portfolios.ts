@@ -278,6 +278,113 @@ export type PortfolioDocument = {
   sections: PortfolioSection[];
   mode?: "paged";
   pages?: PortfolioSitePage[];
+  /**
+   * AI 자율 슬라이드. site 포맷에서 generate 시 AI 가 매번 다른 JSON 트리로
+   * 자유 디자인한 슬라이드들. 이 필드가 채워져 있으면 site renderer 는 기존
+   * pages/sections 대신 이 트리를 직접 렌더한다.
+   */
+  freeSlides?: PortfolioFreeSlide[];
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// AI 자율 슬라이드 (옵션 A) — AI 가 직접 JSON 트리로 슬라이드를 자유 디자인한다.
+// 안전을 위해 tag 화이트리스트 + className 자유 (Tailwind) + style 일부만 허용.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** 렌더러가 허용하는 HTML 태그 */
+export type FreeSlideTag =
+  | "div"
+  | "section"
+  | "header"
+  | "footer"
+  | "article"
+  | "main"
+  | "aside"
+  | "p"
+  | "h1"
+  | "h2"
+  | "h3"
+  | "h4"
+  | "h5"
+  | "h6"
+  | "span"
+  | "strong"
+  | "em"
+  | "ul"
+  | "ol"
+  | "li"
+  | "blockquote"
+  | "figure"
+  | "figcaption"
+  | "hr"
+  | "br";
+
+/** 허용되는 inline style 키 (CSSProperties 의 안전 subset) */
+export type FreeSlideStyle = {
+  color?: string;
+  backgroundColor?: string;
+  background?: string;
+  padding?: string;
+  margin?: string;
+  borderRadius?: string;
+  borderColor?: string;
+  borderWidth?: string;
+  borderStyle?: string;
+  border?: string;
+  fontFamily?: string;
+  fontSize?: string;
+  fontWeight?: string | number;
+  lineHeight?: string | number;
+  letterSpacing?: string;
+  textAlign?: "left" | "center" | "right" | "justify";
+  textTransform?: "uppercase" | "lowercase" | "capitalize" | "none";
+  opacity?: number;
+  width?: string;
+  height?: string;
+  maxWidth?: string;
+  maxHeight?: string;
+  minWidth?: string;
+  minHeight?: string;
+  display?: string;
+  gridTemplateColumns?: string;
+  gridTemplateRows?: string;
+  gridColumn?: string;
+  gridRow?: string;
+  gap?: string;
+  rowGap?: string;
+  columnGap?: string;
+  position?: "relative" | "absolute";
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+  overflow?: string;
+  whiteSpace?: string;
+  wordBreak?: string;
+  boxShadow?: string;
+};
+
+/** AI 가 만든 슬라이드 트리의 노드 */
+export type FreeSlideNode = {
+  tag: FreeSlideTag;
+  className?: string;
+  style?: FreeSlideStyle;
+  /** 평문 텍스트 (HTML 안 허용) — children 과 동시 사용 가능 */
+  text?: string;
+  children?: FreeSlideNode[];
+};
+
+/** AI 자율 슬라이드 한 장 */
+export type PortfolioFreeSlide = {
+  id: string;
+  /** 슬라이드 의도 한 줄 (썸네일/네비게이션 표기용) */
+  intent: string;
+  /** 원본 데이터 추적용 — 어떤 프로젝트/경력에서 나온 슬라이드인지 */
+  sourceId?: string;
+  sourceKind?: "project" | "experience" | "manual";
+  visible?: boolean;
+  /** 슬라이드 루트 노드. 16:9 컨테이너 안에서 자유 디자인 */
+  root: FreeSlideNode;
 };
 
 export type PortfolioTemplateBlueprint = {
@@ -3531,9 +3638,177 @@ export function normalizePortfolioDocument(
             title: section.title || "섹션",
             visible: section.visible !== false,
           })),
+    freeSlides: format === "site" ? normalizePortfolioFreeSlides(raw.freeSlides) : undefined,
   };
 
   return polishPortfolioDocument(document);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FreeSlide normalize / validate — AI 가 만든 JSON 트리를 안전한 형태로 정리.
+// 알려진 tag/style 외엔 모두 제거. 너무 깊거나 노드가 너무 많으면 가지치기.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const FREE_SLIDE_ALLOWED_TAGS: ReadonlySet<FreeSlideTag> = new Set([
+  "div",
+  "section",
+  "header",
+  "footer",
+  "article",
+  "main",
+  "aside",
+  "p",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "span",
+  "strong",
+  "em",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "figure",
+  "figcaption",
+  "hr",
+  "br",
+]);
+
+const FREE_SLIDE_ALLOWED_STYLE_KEYS: ReadonlySet<keyof FreeSlideStyle> = new Set([
+  "color",
+  "backgroundColor",
+  "background",
+  "padding",
+  "margin",
+  "borderRadius",
+  "borderColor",
+  "borderWidth",
+  "borderStyle",
+  "border",
+  "fontFamily",
+  "fontSize",
+  "fontWeight",
+  "lineHeight",
+  "letterSpacing",
+  "textAlign",
+  "textTransform",
+  "opacity",
+  "width",
+  "height",
+  "maxWidth",
+  "maxHeight",
+  "minWidth",
+  "minHeight",
+  "display",
+  "gridTemplateColumns",
+  "gridTemplateRows",
+  "gridColumn",
+  "gridRow",
+  "gap",
+  "rowGap",
+  "columnGap",
+  "position",
+  "top",
+  "bottom",
+  "left",
+  "right",
+  "overflow",
+  "whiteSpace",
+  "wordBreak",
+  "boxShadow",
+]);
+
+const MAX_FREE_SLIDE_DEPTH = 8;
+const MAX_FREE_SLIDE_NODE_COUNT = 200;
+const MAX_FREE_SLIDE_CLASSNAME_LENGTH = 600;
+const MAX_FREE_SLIDE_TEXT_LENGTH = 1200;
+
+function normalizeFreeSlideStyle(value: unknown): FreeSlideStyle | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const result: FreeSlideStyle = {};
+  let touched = false;
+  for (const key of FREE_SLIDE_ALLOWED_STYLE_KEYS) {
+    const candidate = raw[key as string];
+    if (candidate === undefined || candidate === null) continue;
+    if (typeof candidate !== "string" && typeof candidate !== "number") continue;
+    // url() 같은 식별자는 제거 (안전상). 단순한 색·길이·키워드만 허용.
+    if (typeof candidate === "string" && /url\s*\(|expression\s*\(|javascript:/i.test(candidate)) {
+      continue;
+    }
+    (result as Record<string, unknown>)[key as string] = candidate;
+    touched = true;
+  }
+  return touched ? result : undefined;
+}
+
+function sanitizeClassName(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  // Tailwind class 만 허용 — 영숫자·괄호·콜론·점·하이픈·슬래시·% 까지.
+  // 그 외 문자는 모두 제거.
+  const safe = trimmed.replace(/[^a-zA-Z0-9_:\-./\[\]()%@&,#?+ ]/g, " ").replace(/\s+/g, " ").trim();
+  if (!safe) return undefined;
+  return safe.slice(0, MAX_FREE_SLIDE_CLASSNAME_LENGTH);
+}
+
+function normalizeFreeSlideNode(
+  value: unknown,
+  depth = 0,
+  counter: { count: number } = { count: 0 },
+): FreeSlideNode | null {
+  if (!value || typeof value !== "object") return null;
+  if (depth > MAX_FREE_SLIDE_DEPTH) return null;
+  if (counter.count >= MAX_FREE_SLIDE_NODE_COUNT) return null;
+  counter.count += 1;
+
+  const raw = value as { tag?: unknown; className?: unknown; style?: unknown; text?: unknown; children?: unknown };
+  const tagCandidate = typeof raw.tag === "string" ? (raw.tag.toLowerCase() as FreeSlideTag) : "div";
+  const tag: FreeSlideTag = FREE_SLIDE_ALLOWED_TAGS.has(tagCandidate) ? tagCandidate : "div";
+
+  const className = sanitizeClassName(raw.className);
+  const style = normalizeFreeSlideStyle(raw.style);
+  const text =
+    typeof raw.text === "string" && raw.text.trim()
+      ? raw.text.slice(0, MAX_FREE_SLIDE_TEXT_LENGTH)
+      : undefined;
+
+  let children: FreeSlideNode[] | undefined;
+  if (Array.isArray(raw.children)) {
+    const normalized = raw.children
+      .map((child) => normalizeFreeSlideNode(child, depth + 1, counter))
+      .filter((child): child is FreeSlideNode => Boolean(child));
+    if (normalized.length) children = normalized;
+  }
+
+  return { tag, className, style, text, children };
+}
+
+export function normalizePortfolioFreeSlides(value: unknown): PortfolioFreeSlide[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result: PortfolioFreeSlide[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<PortfolioFreeSlide>;
+    const root = normalizeFreeSlideNode(item.root);
+    if (!root) continue;
+    result.push({
+      id: typeof item.id === "string" && item.id ? item.id : makeId("free-slide"),
+      intent: typeof item.intent === "string" ? item.intent.slice(0, 240) : "",
+      sourceId: typeof item.sourceId === "string" ? item.sourceId : undefined,
+      sourceKind:
+        item.sourceKind === "project" || item.sourceKind === "experience" || item.sourceKind === "manual"
+          ? item.sourceKind
+          : undefined,
+      visible: item.visible !== false,
+      root,
+    });
+  }
+  return result.length ? result : undefined;
 }
 
 function shrinkTextElement(element: PortfolioCanvasElement): PortfolioCanvasElement {

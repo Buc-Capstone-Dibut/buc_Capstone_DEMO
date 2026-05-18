@@ -5,12 +5,14 @@ import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import {
   getPortfolioTemplate,
   type PortfolioDocument,
+  type PortfolioFreeSlide,
   type PortfolioSection,
   type PortfolioSiteBlock,
   type PortfolioSitePage,
   type PortfolioSitePageType,
   type PortfolioTemplateVisualStyle,
 } from "@/lib/career-portfolios";
+import { FreeSlideRenderer } from "./free-slide-renderer";
 import { cn } from "@/lib/utils";
 
 type PortfolioSiteRendererProps = {
@@ -978,6 +980,11 @@ function renderSlide(page: PortfolioSitePage) {
 }
 
 export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRendererProps) {
+  // AI 자율 슬라이드(freeSlides)가 있으면 그쪽으로 위임.
+  if (document.freeSlides && document.freeSlides.length > 0) {
+    return <FreeSiteDeck slides={document.freeSlides} document={document} className={className} />;
+  }
+
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
@@ -1142,6 +1149,157 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
             >
               <span className="text-[10px] opacity-65">{String(index + 1).padStart(2, "0")}</span>
               <span className="max-w-[160px] truncate">{item.title}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * AI 자율 슬라이드(freeSlides) 전용 뷰. 외곽 헤더 + 슬라이드 + 썸네일 네비를
+ * 동일하게 제공하되, 슬라이드 내용은 FreeSlideRenderer 가 직접 그린다.
+ */
+function FreeSiteDeck({
+  slides,
+  document,
+  className,
+}: {
+  slides: PortfolioFreeSlide[];
+  document: PortfolioDocument;
+  className?: string;
+}) {
+  const visibleSlides = useMemo(
+    () => slides.filter((slide) => slide.visible !== false),
+    [slides],
+  );
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const slide = visibleSlides[Math.min(currentIndex, Math.max(0, visibleSlides.length - 1))];
+  const canGoPrev = currentIndex > 0;
+  const canGoNext = currentIndex < visibleSlides.length - 1;
+
+  useEffect(() => {
+    if (currentIndex <= visibleSlides.length - 1) return;
+    setCurrentIndex(Math.max(0, visibleSlides.length - 1));
+  }, [currentIndex, visibleSlides.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") setCurrentIndex((current) => Math.max(0, current - 1));
+      if (event.key === "ArrowRight") {
+        setCurrentIndex((current) => Math.min(visibleSlides.length - 1, current + 1));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [visibleSlides.length]);
+
+  // 어두운 배경 템플릿(visual-showcase 등)일 때 외곽도 다크
+  const isDark = ["visual-showcase"].includes(document.templateId);
+  const shellBg = isDark ? "bg-[#0f172a]" : "bg-[#f5f8f1]";
+  const shellText = isDark ? "text-slate-100" : "text-slate-900";
+
+  const themeStyle = {
+    "--portfolio-primary": document.theme.primary,
+    "--portfolio-accent": document.theme.accent,
+    "--portfolio-background": document.theme.background,
+    "--portfolio-surface": document.theme.surface,
+    "--portfolio-text": document.theme.text,
+    "--portfolio-muted": document.theme.muted,
+  } as CSSProperties;
+
+  if (!slide) {
+    return (
+      <div
+        className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)}
+        style={themeStyle}
+      >
+        AI 슬라이드가 생성되지 않았습니다.
+      </div>
+    );
+  }
+
+  return (
+    <section className={cn(`min-h-screen ${shellBg} ${shellText}`, className)} style={themeStyle}>
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
+        <div className="flex min-h-12 items-center justify-between gap-3 pb-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-[var(--portfolio-primary)] text-white shadow-sm">
+              <Layers3 className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className={cn("truncate text-sm font-bold", isDark ? "text-slate-100" : "text-slate-800")}>
+                {document.sections[0]?.title || slide.intent || "포트폴리오"}
+              </p>
+              <p className={cn("text-xs font-semibold", isDark ? "text-slate-400" : "text-slate-500")}>
+                {currentIndex + 1} / {visibleSlides.length}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentIndex((current) => Math.max(0, current - 1))}
+              disabled={!canGoPrev}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
+                isDark
+                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
+              )}
+              aria-label="이전 페이지"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentIndex((current) => Math.min(visibleSlides.length - 1, current + 1))}
+              disabled={!canGoNext}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
+                isDark
+                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
+              )}
+              aria-label="다음 페이지"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <div
+            className={cn(
+              "relative w-full overflow-hidden border shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
+              isDark ? "border-slate-700" : "border-[#d8e4d0]",
+            )}
+            style={{ maxWidth: "min(1120px, calc(177.78vh - 300px))" }}
+          >
+            <div className="aspect-[16/9] w-full">
+              <FreeSlideRenderer slide={slide} theme={document.theme} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex min-h-14 items-center gap-2 overflow-x-auto pt-4">
+          {visibleSlides.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setCurrentIndex(index)}
+              className={cn(
+                "flex h-10 shrink-0 items-center gap-2 border px-3 text-xs font-bold transition",
+                index === currentIndex
+                  ? "border-[var(--portfolio-primary)] bg-white text-[var(--portfolio-primary)] shadow-sm"
+                  : isDark
+                    ? "border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800"
+                    : "border-[#d8e4d0] bg-white/75 text-slate-600 hover:bg-white hover:text-slate-900",
+              )}
+            >
+              <span className="text-[10px] opacity-65">{String(index + 1).padStart(2, "0")}</span>
+              <span className="max-w-[180px] truncate">{item.intent || `슬라이드 ${index + 1}`}</span>
             </button>
           ))}
         </div>
