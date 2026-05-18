@@ -50,6 +50,7 @@ import {
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
+import { DesignTokenPicker } from "./design-token-picker";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -649,6 +650,11 @@ export function PortfolioEditorClient({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <DesignTokenPicker
+              theme={document.theme}
+              onChange={(nextTheme) => setDocument((current) => ({ ...current, theme: nextTheme }))}
+            />
+            <span className="h-6 w-px bg-[#d8e4d0]" />
             {publicUrl ? (
               <Button
                 variant="outline"

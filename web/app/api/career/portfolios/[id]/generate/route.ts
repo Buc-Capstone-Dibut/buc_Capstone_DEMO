@@ -276,14 +276,20 @@ async function generatePortfolioSiteDraft(input: {
 사용자의 실제 프로젝트/경력/개인정보만 사용한다. 없는 수치, 성과, 회사명, 기술은 절대 만들지 않는다.
 이미지 URL, image 필드, image block은 만들지 않는다. 이 포트폴리오는 텍스트와 그래픽 블록 중심으로 렌더링된다.
 
+[절대 금지]
+- "프로젝트와 경험을 근거 중심의 웹 슬라이드 포트폴리오로 정리합니다", "구현 결과와 배운 점을 정리했습니다", "해결해야 할 문제를 정의했습니다" 같은 추상적·메타적 자기소개 문장을 본문/intent/narrative/callout에 그대로 쓰지 않는다.
+- 사용자가 제공한 description/situation/role/solution/result/lesson/techStack 중 하나도 활용하지 않는 fallback 문장은 만들지 않는다.
+- 데이터가 비어 있으면 사용자에게 입력을 권하는 안내 문장으로 대체한다(예: "프로젝트 결과를 추가하면 이 자리에 표시됩니다").
+- 같은 단어/표현을 슬라이드 여러 장에 반복하지 않는다(예: "구현했습니다", "정리했습니다" 같은 동사 마무리를 반복 금지).
+
 [핵심 방향]
 - 정해진 카드 템플릿을 채우는 방식이 아니다. 먼저 각 프로젝트/경력의 설득 포인트를 읽고, 노베이스로 슬라이드 의도와 발표 흐름을 설계한다.
 - 단, 앱 렌더러가 안전하게 그릴 수 있도록 최종 결과는 아래 JSON 스키마와 허용 block type 안에서만 만든다.
 - 각 page에는 intent, visualDirection, narrative, emphasis, composition을 반드시 채운다.
-- intent는 해당 슬라이드가 면접관에게 남겨야 할 한 문장 목적이다.
+- intent는 해당 슬라이드가 면접관에게 남겨야 할 한 문장 목적이다. 슬라이드마다 *서로 다른* 관점(문제 정의 / 협업 / 기술 선택 / 임팩트 / 회고)을 골라 작성한다.
 - visualDirection은 렌더러가 참고할 시각 구도다. 예: large-title-with-vertical-rule, diagonal-problem-to-result-flow, technical-cluster-map, process-ribbon-and-evidence-matrix, minimal-closing.
-- narrative는 발표자가 그 장에서 말할 핵심 스토리 1~3문장이다.
-- emphasis는 화면에서 크게 강조할 키워드 3~6개다.
+- narrative는 그 장에서 말할 핵심 스토리. 줄바꿈 포함 3~5문장(약 180~300자)로 작성하고 사용자 데이터(역할/문제/해결/결과)를 구체적으로 인용한다.
+- emphasis는 화면에서 크게 강조할 키워드 4~6개. 기술 이름과 도메인 키워드를 섞는다.
 - composition은 실제 PPT 구성을 고르는 구조화 설계다.
   - pattern은 hero-statement, split-proof, diagonal-flow, metric-spotlight, radial-map, timeline-track, evidence-wall, closing-signal 중 하나만 사용한다.
   - focalPoint는 left, right, center, top, bottom 중 하나다.
@@ -292,23 +298,33 @@ async function generatePortfolioSiteDraft(input: {
   - visualMetaphor는 "문제에서 결과로 상승하는 사선", "기술 축 지도", "증거 벽"처럼 한글 짧은 구도 설명이다.
   - primaryBlocks는 headline, summary, problem, role, solution, result, lesson, impact, decision, evidence, next, body 중 2~4개를 고른다.
 
+[다양성 강제 룰 — 매우 중요]
+- 전체 슬라이드 N장에서 같은 composition.pattern을 *연속으로 2장 이상* 사용하지 않는다. 서로 다른 pattern으로 의도적으로 변주한다.
+- 같은 프로젝트의 case-study / project-detail 슬라이드들도 *서로 다른 pattern + 다른 focalPoint + 다른 accentShape*를 골라 시각적으로 구분되게 한다.
+- 표지(cover)와 마감(contact) 슬라이드는 hero-statement / closing-signal로 임팩트 있는 단순 구도. 중간 슬라이드는 split-proof, diagonal-flow, metric-spotlight, evidence-wall 등으로 다양화.
+- density도 계속 balanced만 쓰지 않고 슬라이드마다 calm, balanced, rich를 섞는다. 핵심 슬라이드 1~2장은 rich, 마감/표지는 calm.
+- 같은 사용자 데이터로 두 번 생성할 때 결과가 *분명히 다르게* 나오도록 매번 다른 각도를 선택한다(매 호출에 약간의 무작위성 부여).
+
 [품질 기준]
-- 각 페이지는 실제 발표자료처럼 한 화면에 하나의 메시지를 담고, 그 메시지를 뒷받침하는 근거 블록을 3~6개 배치한다.
-- 모든 프로젝트 페이지는 프로젝트 근거 브리프의 confirmed/inferred/technicalDecisions/hardParts/proofPoints/sellingPoints 중 최소 2개 이상을 반영한다.
+- 각 페이지는 실제 발표자료처럼 한 화면에 하나의 메시지를 담고, 그 메시지를 뒷받침하는 근거 블록을 4~7개 배치한다.
+- 모든 프로젝트 페이지는 사용자의 description/situation/role/solution/result/lesson/techStack 중 최소 3개 이상을 본문에 인용한다.
+- 프로젝트 근거 브리프의 confirmed/technicalDecisions/hardParts/proofPoints/sellingPoints도 적극 활용하되, 사용자 raw 데이터를 우선한다.
 - missingFields에 있는 내용은 사실처럼 쓰지 말고, 근거가 없는 수치/성과는 생성하지 않는다.
 - slideAngles를 페이지 제목, intent, visualDirection에 적극 반영해 프로젝트마다 다른 관점이 드러나게 한다.
-- 표지는 포지션과 강점을 즉시 이해할 수 있게 쓴다.
-- 프로젝트 페이지는 summary, problem, role, solution, result, flow, matrix, contribution, callout 블록을 적극 활용한다.
-- project-detail 페이지는 작업 흐름, 의사결정, 배운 점을 구체적으로 정리한다.
-- text block content는 2~4문장 또는 2~4개의 짧은 줄바꿈 문장으로 작성한다.
-- flow block은 문제 → 역할 → 해결 → 결과 또는 기획 → 구현 → 검증 → 개선처럼 4단계 흐름을 만든다.
-- matrix block은 기술, 판단 기준, 증거 요소를 짧은 명사형 키워드로 구성한다.
+- 표지는 사용자의 personalInfo.intro와 plan.strengths를 직접 인용해 포지션과 강점을 즉시 이해할 수 있게 쓴다.
+- 프로젝트 페이지는 summary, problem, role, solution, result, lesson, flow, matrix, contribution, callout 블록을 적극 활용한다.
+- summary block content는 사용자의 description을 그대로 사용한 한 문장으로 시작하고, 그 뒤에 "문제 상황: ...", "담당 역할: ...", "해결 방식: ...", "결과/성과: ..." 형태로 줄바꿈된 라인을 4~6줄 추가한다.
+- problem/role/solution/result/lesson block은 각각 사용자가 제공한 그 필드를 우선 사용하고, 없으면 evidence brief에서 가져온다.
+- flow block은 4단계 흐름을 만들되, "문제 정의", "해결 구현", "결과 검증" 같은 일반 단어 대신 사용자 데이터에서 추출한 구체 단어를 쓴다(예: "1만 동시 접속 대응", "Redis 캐시 도입", "P99 70% 단축").
+- matrix block은 기술 스택, 판단 기준, 증거 요소를 짧은 명사형 키워드로 구성한다. project.techStack을 적극 반영한다.
 - contribution block의 value는 데이터에 있는 값만 쓰고, 없으면 역할/기간/프로젝트 수처럼 사실형 값만 쓴다.
-- callout block은 면접에서 강조할 핵심 포인트를 한 문단으로 정리한다.
-- 같은 pattern이 3장 이상 연속되지 않게 하고, 프로젝트별로 서로 다른 composition을 섞는다.
+- callout block은 면접에서 강조할 핵심 포인트를 사용자 데이터를 인용해서 한 문단으로 정리한다(2~3문장).
 - blocks의 type, role, layout, page 수와 순서는 기본 문서를 최대한 유지하되, 기본 문서에 있는 flow/matrix/contribution/callout은 삭제하지 않는다.
 - blocks에 image type을 넣지 않는다.
 - layout은 editorial-cover, profile-map, tech-radar, project-index, case-study-flow, project-dashboard, evidence-board, closing-impact 중 문맥에 맞게 유지한다.
+
+[생성 시그니처]
+- generationSeed: ${Math.random().toString(36).slice(2, 10)} — 이 값에 따라 같은 데이터라도 다른 composition/intent/narrative 조합을 선택하라.
 
 [소스 데이터]
 ${JSON.stringify(input.source, null, 2)}
@@ -338,7 +354,10 @@ JSON 하나만 반환:
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { temperature: 0.95, topP: 0.95 },
+    });
     const result = await model.generateContent(prompt);
     const parsed = extractJsonObject(result.response.text());
     const normalized = polishPortfolioDocument(

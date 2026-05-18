@@ -265,6 +265,47 @@ export type PortfolioTheme = {
   text: string;
   muted: string;
   radius: number;
+  /** 선택된 팔레트 ID (없으면 templateId 기본 팔레트 사용) */
+  paletteId?: PortfolioPaletteId;
+  /** 선택된 폰트 페어링 ID (없으면 기본 pretendard) */
+  fontPairId?: PortfolioFontPairId;
+};
+
+export type PortfolioPaletteId =
+  | "calm-green"
+  | "midnight-navy"
+  | "mono-graphite"
+  | "warm-clay"
+  | "violet-ink"
+  | "sunrise-coral";
+
+export type PortfolioFontPairId =
+  | "pretendard-only"
+  | "pretendard-inter"
+  | "pretendard-space-grotesk"
+  | "pretendard-playfair"
+  | "pretendard-dm-serif";
+
+export type PortfolioPaletteDefinition = {
+  id: PortfolioPaletteId;
+  name: string;
+  description: string;
+  preview: string;
+  theme: Omit<PortfolioTheme, "paletteId" | "fontPairId">;
+};
+
+export type PortfolioFontPairDefinition = {
+  id: PortfolioFontPairId;
+  name: string;
+  description: string;
+  /** CSS font-family value for headings (Tailwind 클래스로 옮길 수도 있음) */
+  heading: string;
+  /** CSS font-family value for body text */
+  body: string;
+  /** Google Fonts CSS import URL (없으면 시스템 폰트만 사용) */
+  googleFontsHref?: string;
+  /** Heading-only이라 한국어 본문에 영향 안 주는지 */
+  asciiOnly?: boolean;
 };
 
 export type PortfolioDocument = {
@@ -475,6 +516,200 @@ const LEGACY_PORTFOLIO_SAMPLE_IMAGE_URLS = new Set([
 
 export function isLegacyPortfolioSampleImageUrl(url?: string) {
   return Boolean(url && LEGACY_PORTFOLIO_SAMPLE_IMAGE_URLS.has(url));
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Color palettes — 사용자가 자유롭게 고를 수 있는 컬러 톤. 템플릿과 독립적이라
+// "케이스스터디 템플릿 + 미드나잇 네이비 팔레트" 같은 자유 조합이 가능하다.
+// ──────────────────────────────────────────────────────────────────────────────
+export const PORTFOLIO_PALETTES: PortfolioPaletteDefinition[] = [
+  {
+    id: "calm-green",
+    name: "Calm Green",
+    description: "차분한 녹색 톤. 기본 Dibut 분위기.",
+    preview: "#1f7a4d",
+    theme: {
+      primary: "#1f7a4d",
+      accent: "#84cc16",
+      background: "#f8fafc",
+      surface: "#ffffff",
+      text: "#0f172a",
+      muted: "#64748b",
+      radius: 8,
+    },
+  },
+  {
+    id: "midnight-navy",
+    name: "Midnight Navy",
+    description: "묵직한 네이비 + 차가운 강조색. 백엔드/시스템 인상.",
+    preview: "#1e3a8a",
+    theme: {
+      primary: "#1e3a8a",
+      accent: "#38bdf8",
+      background: "#f1f5f9",
+      surface: "#ffffff",
+      text: "#0f172a",
+      muted: "#64748b",
+      radius: 6,
+    },
+  },
+  {
+    id: "mono-graphite",
+    name: "Mono Graphite",
+    description: "흑백 위주의 절제된 모노톤. 미니멀 타이포 강조.",
+    preview: "#111827",
+    theme: {
+      primary: "#111827",
+      accent: "#6b7280",
+      background: "#f5f5f4",
+      surface: "#ffffff",
+      text: "#0a0a0a",
+      muted: "#737373",
+      radius: 2,
+    },
+  },
+  {
+    id: "warm-clay",
+    name: "Warm Clay",
+    description: "따뜻한 테라코타 + 크림. 디자이너/PM 인상.",
+    preview: "#b45309",
+    theme: {
+      primary: "#b45309",
+      accent: "#f59e0b",
+      background: "#fdf6e3",
+      surface: "#ffffff",
+      text: "#1c1917",
+      muted: "#78716c",
+      radius: 10,
+    },
+  },
+  {
+    id: "violet-ink",
+    name: "Violet Ink",
+    description: "차분한 보라 + 부드러운 회보라. 연구/AI/리서치 인상.",
+    preview: "#6d28d9",
+    theme: {
+      primary: "#6d28d9",
+      accent: "#a78bfa",
+      background: "#faf5ff",
+      surface: "#ffffff",
+      text: "#1e1b4b",
+      muted: "#6b7280",
+      radius: 8,
+    },
+  },
+  {
+    id: "sunrise-coral",
+    name: "Sunrise Coral",
+    description: "코랄 + 따뜻한 오렌지. 서비스/마케팅 인상.",
+    preview: "#e11d48",
+    theme: {
+      primary: "#e11d48",
+      accent: "#fb923c",
+      background: "#fff7ed",
+      surface: "#ffffff",
+      text: "#1c1917",
+      muted: "#78716c",
+      radius: 12,
+    },
+  },
+];
+
+export function getPortfolioPalette(id?: PortfolioPaletteId): PortfolioPaletteDefinition {
+  return PORTFOLIO_PALETTES.find((p) => p.id === id) || PORTFOLIO_PALETTES[0];
+}
+
+export function applyPalette(
+  theme: PortfolioTheme,
+  paletteId?: PortfolioPaletteId,
+): PortfolioTheme {
+  if (!paletteId) return theme;
+  const palette = PORTFOLIO_PALETTES.find((p) => p.id === paletteId);
+  if (!palette) return theme;
+  return {
+    ...theme,
+    ...palette.theme,
+    paletteId,
+    fontPairId: theme.fontPairId,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Font pairings — 헤딩/본문 폰트 조합. asciiOnly=true 인 헤딩 폰트는 영문에만
+// 적용되고 한국어는 Pretendard로 fallback 처리한다.
+// ──────────────────────────────────────────────────────────────────────────────
+export const PORTFOLIO_FONT_PAIRS: PortfolioFontPairDefinition[] = [
+  {
+    id: "pretendard-only",
+    name: "Pretendard",
+    description: "기본 한글 가독성. 모든 텍스트가 통일된 인상.",
+    heading: "Pretendard, system-ui, sans-serif",
+    body: "Pretendard, system-ui, sans-serif",
+  },
+  {
+    id: "pretendard-inter",
+    name: "Pretendard + Inter",
+    description: "본문 한글 + 영문 강조 Inter. 깔끔한 테크 인상.",
+    heading: "'Inter', Pretendard, system-ui, sans-serif",
+    body: "Pretendard, 'Inter', system-ui, sans-serif",
+    googleFontsHref:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap",
+  },
+  {
+    id: "pretendard-space-grotesk",
+    name: "Pretendard + Space Grotesk",
+    description: "헤딩에 기하학적 sans. 차가운 프로덕트 인상.",
+    heading: "'Space Grotesk', Pretendard, system-ui, sans-serif",
+    body: "Pretendard, 'Space Grotesk', system-ui, sans-serif",
+    googleFontsHref:
+      "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap",
+    asciiOnly: true,
+  },
+  {
+    id: "pretendard-playfair",
+    name: "Pretendard + Playfair Display",
+    description: "헤딩에 클래식 serif. 매거진/리뷰 인상.",
+    heading: "'Playfair Display', Pretendard, Georgia, serif",
+    body: "Pretendard, system-ui, sans-serif",
+    googleFontsHref:
+      "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&display=swap",
+    asciiOnly: true,
+  },
+  {
+    id: "pretendard-dm-serif",
+    name: "Pretendard + DM Serif Display",
+    description: "헤딩에 굵은 디스플레이 serif. 임팩트 강한 표지.",
+    heading: "'DM Serif Display', Pretendard, Georgia, serif",
+    body: "Pretendard, system-ui, sans-serif",
+    googleFontsHref:
+      "https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap",
+    asciiOnly: true,
+  },
+];
+
+export function getPortfolioFontPair(
+  id?: PortfolioFontPairId,
+): PortfolioFontPairDefinition {
+  return PORTFOLIO_FONT_PAIRS.find((p) => p.id === id) || PORTFOLIO_FONT_PAIRS[0];
+}
+
+/**
+ * 템플릿 기본 theme 위에 사용자가 저장한 theme 을 머지하면서, paletteId 가 지정된
+ * 경우 그 팔레트 색을 강제로 적용한다. fontPairId 도 함께 보존된다.
+ */
+export function normalizePortfolioThemeWithPalette(
+  templateTheme: PortfolioTheme,
+  rawTheme?: Partial<PortfolioTheme>,
+): PortfolioTheme {
+  const base: PortfolioTheme = { ...templateTheme, ...(rawTheme || {}) };
+  const paletteId = rawTheme?.paletteId;
+  const fontPairId = rawTheme?.fontPairId;
+  const withPalette = paletteId ? applyPalette(base, paletteId) : base;
+  return {
+    ...withPalette,
+    paletteId,
+    fontPairId,
+  };
 }
 
 export const PORTFOLIO_TEMPLATES: Array<{
@@ -2662,16 +2897,21 @@ export function createDefaultPortfolioSiteDocument(
           "headline",
           siteText(
             [
-              evidenceBrief.careerThesis,
               personal.intro,
+              evidenceBrief.careerThesis,
               plan.strengths.length
                 ? `${plan.strengths.join(", ")}을 중심으로 프로젝트 문제를 정의하고 구현 결과를 검증합니다.`
                 : undefined,
               source.projects.length
-                ? `${source.projects.length}개의 대표 프로젝트에서 역할, 기술 선택, 결과를 페이지별 근거로 정리했습니다.`
+                ? `대표 프로젝트 ${projectTitles.slice(0, 3).join(", ")}에서 맡은 역할과 결과를 페이지별로 정리했습니다.`
+                : undefined,
+              skillNames.length
+                ? `주요 기술: ${skillNames.slice(0, 6).join(", ")}`
                 : undefined,
             ],
-            "프로젝트와 경험을 근거 중심의 웹 슬라이드 포트폴리오로 정리합니다.",
+            personal.name
+              ? `${personal.name}님의 작업과 경험을 정리한 웹 슬라이드 포트폴리오입니다.`
+              : "내 프로젝트와 경험을 한 곳에서 보여줍니다.",
           ),
         ),
         createSiteTagsBlock(
@@ -2691,7 +2931,7 @@ export function createDefaultPortfolioSiteDocument(
           evidenceBrief.strongestSignals[0] ||
           (projectTitles.length
             ? `대표 프로젝트 ${projectTitles.slice(0, 2).join(", ")}를 중심으로 실제 기여와 결과를 보여줍니다.`
-            : "선택한 경험을 채용 담당자가 빠르게 훑을 수 있는 발표 흐름으로 재구성합니다."),
+            : "프로젝트가 등록되면 이 자리에 대표 케이스가 자동으로 표시됩니다."),
           "읽는 방식",
         ),
       ],
@@ -2730,9 +2970,23 @@ export function createDefaultPortfolioSiteDocument(
           plan.strengths.length ? plan.strengths : ["문제 정의", "구현", "검증", "개선"],
           "일하는 방식",
         ),
-        createSiteContributionBlock("문제 정의", plan.strengths.includes("문제 해결") ? "90%" : "75%", "요구사항과 제약을 구조화"),
-        createSiteContributionBlock("구현 실행", "85%", "선택한 기술로 기능 완성"),
-        createSiteContributionBlock("검증/개선", "80%", "결과와 회고를 다음 작업에 반영"),
+        createSiteContributionBlock(
+          plan.strengths[0] || "문제 정의",
+          plan.strengths.includes("문제 해결") ? "90%" : "78%",
+          "요구사항과 제약을 구조화하고 우선순위 정의",
+        ),
+        createSiteContributionBlock(
+          plan.strengths[1] || "구현 실행",
+          "85%",
+          source.projects.length
+            ? `${source.projects.length}개 프로젝트에서 구현 책임`
+            : "선택한 기술로 기능 완성",
+        ),
+        createSiteContributionBlock(
+          plan.strengths[2] || "검증/개선",
+          "80%",
+          "결과를 검증하고 회고로 다음 작업에 반영",
+        ),
       ],
       sourceKind: "manual",
     }),
@@ -2766,8 +3020,8 @@ export function createDefaultPortfolioSiteDocument(
         createSiteMetricBlock("핵심 기술", `${skillNames.length || plan.strengths.length}`, "선택 데이터 기준"),
         createSiteCalloutBlock(
           source.projects.length
-            ? "기술 스택은 단순 목록이 아니라 프로젝트의 문제 해결 과정과 연결해 해석할 수 있게 배치했습니다."
-            : "등록된 프로젝트가 늘어나면 기술별 활용 맥락을 자동으로 더 풍부하게 보여줍니다.",
+            ? `${skillNames.slice(0, 5).join(", ") || "주요 기술"}을 프로젝트 문제 해결 과정과 연결해 보여줍니다.`
+            : "프로젝트를 등록하면 기술별 활용 맥락이 함께 표시됩니다.",
           "역량 해석",
         ),
       ],
@@ -2834,6 +3088,7 @@ export function createDefaultPortfolioSiteDocument(
     const subtitle = projectDisplaySubtitle(project);
     const tags = project.tags?.length ? project.tags : project.techStack || [];
     const stackText = projectStackText(project);
+    const techStackItems = (project.techStack || []).filter(Boolean);
     const brief = findProjectEvidenceBrief(evidenceBrief, project, title);
     const confirmed = brief?.confirmed || [];
     const inferred = brief?.inferred || [];
@@ -2843,6 +3098,20 @@ export function createDefaultPortfolioSiteDocument(
     const sellingPoints = brief?.sellingPoints || [];
     const slideAngles = brief?.slideAngles || [];
     const briefKeywords = mergedBriefItems(sellingPoints, technicalDecisions, proofPoints, tags).slice(0, 6);
+    const projectSummaryLines = [
+      project.description,
+      project.situation ? `문제 상황: ${project.situation}` : undefined,
+      project.role ? `담당 역할: ${project.role}` : project.position ? `담당 역할: ${project.position}` : undefined,
+      project.solution ? `해결 방식: ${project.solution}` : undefined,
+      project.result ? `결과/성과: ${project.result}` : undefined,
+      project.lesson ? `배운 점: ${project.lesson}` : undefined,
+    ].filter(Boolean) as string[];
+    const summaryText = projectSummaryLines.length
+      ? projectSummaryLines.join("\n")
+      : siteText(
+          [briefText(confirmed, "", 3), inferred[0], project.description],
+          "프로젝트 데이터를 추가하면 이 자리에 자동으로 요약이 표시됩니다.",
+        );
     pages.push(
       createSitePage({
         type: "case-study",
@@ -2851,90 +3120,89 @@ export function createDefaultPortfolioSiteDocument(
         eyebrow: `Case ${index + 1}`,
         intent: hardParts[0] || sellingPoints[0] || "대표 프로젝트의 문제와 본인 역할 설명",
         visualDirection: slideAngles[0] || "diagonal problem to result flow with bold project title",
-        narrative:
-          hardParts[0] ||
-          inferred[0] ||
-          project.description ||
-          "",
+        narrative: summaryText,
         emphasis: briefKeywords.length
           ? briefKeywords.slice(0, 5)
           : [project.position, ...(tags || [])].filter(Boolean).slice(0, 5),
         layout: "case-study-flow",
         blocks: [
-          createSiteTextBlock(
-            "summary",
-            siteText(
-              [
-                briefText(confirmed, "", 2),
-                inferred[0],
-                project.description,
-                subtitle ? `역할/기간: ${subtitle}` : undefined,
-              ],
-              "프로젝트 목표와 구현 내용을 채용 담당자가 빠르게 이해할 수 있도록 정리합니다.",
-            ),
-          ),
+          createSiteTextBlock("summary", summaryText),
           createSiteTextBlock(
             "problem",
-            briefText(
-              hardParts.length ? hardParts : [project.situation, project.difficulty].filter(Boolean),
-              "해결해야 할 문제와 제약 조건을 먼저 정의했습니다.",
-              3,
-            ),
+            project.situation
+              ? `${project.situation}${project.difficulty ? `\n어려웠던 점: ${project.difficulty}` : ""}`
+              : briefText(
+                  hardParts.length
+                    ? hardParts
+                    : ([project.difficulty].filter(Boolean) as string[]),
+                  "해결해야 할 문제와 제약 조건을 먼저 정의했습니다.",
+                  4,
+                ),
             "문제",
           ),
           createSiteTextBlock(
             "role",
-            siteText(
-              [
-                confirmed.find((item) => item.includes("역할") || item.includes("참여")),
-                project.role,
-                project.position ? `${project.position} 역할로 참여했습니다.` : undefined,
-              ],
+            project.role ||
+              project.position ||
+              confirmed.find((item) => item.includes("역할") || item.includes("참여")) ||
               "담당 역할을 기준으로 구현 범위와 우선순위를 정했습니다.",
-            ),
             "역할",
           ),
           createSiteFlowBlock(
-            slideAngles.length >= 4
-              ? slideAngles.slice(0, 4)
-              : [
-                  hardParts[0] || project.situation || project.difficulty || "문제 정의",
-                  project.role || project.position || "담당 역할",
-                  technicalDecisions[0] || project.solution || "해결 구현",
-                  proofPoints[0] || project.result || project.lesson || "결과 검증",
-                ],
-            "문제에서 결과까지",
+            [
+              project.situation || hardParts[0] || "문제 정의",
+              project.role || project.position || "담당 역할",
+              project.solution || technicalDecisions[0] || "해결 구현",
+              project.result || proofPoints[0] || project.lesson || "결과 검증",
+            ],
+            "문제 → 역할 → 해결 → 결과",
           ),
-          createSiteContributionBlock("기여 포인트", project.position || "구현", project.period || "프로젝트"),
+          createSiteContributionBlock(
+            "담당 역할",
+            project.position || project.role || "구현",
+            project.period || "프로젝트 기간",
+          ),
+          ...(techStackItems.length
+            ? [createSiteTagsBlock(techStackItems.slice(0, 10), "사용한 기술")]
+            : []),
           createSiteCalloutBlock(
-            hardParts[0] ||
+            project.result ||
+              project.solution ||
               sellingPoints[0] ||
+              hardParts[0] ||
               "프로젝트에서 드러나는 핵심 역량을 요약합니다.",
             "면접에서 강조할 포인트",
           ),
-          createSiteTagsBlock(mergedBriefItems(tags, sellingPoints).slice(0, 6), "핵심 키워드"),
+          createSiteTagsBlock(
+            mergedBriefItems(tags, sellingPoints, techStackItems.slice(0, 4)).slice(0, 6),
+            "핵심 키워드",
+          ),
         ],
         sourceId: project.id,
         sourceKind: "project",
       }),
     );
 
+    const decisionText =
+      project.solution ||
+      technicalDecisions[0] ||
+      "담당 역할을 중심으로 해결 방안을 설계하고 구현했습니다.";
     pages.push(
       createSitePage({
         type: "project-detail",
         title: slideAngles[2] || `${title} 기술 판단`,
         subtitle,
         eyebrow: "Decision",
-        intent: technicalDecisions[0] || "구현 과정과 판단 기준 증명",
+        intent: technicalDecisions[0] || project.solution || "구현 과정과 판단 기준 증명",
         visualDirection: slideAngles[1] || "process ribbon and evidence matrix",
-        narrative:
-          technicalDecisions[0] ||
-          proofPoints[0] ||
-          project.lesson ||
-          project.result ||
-          project.solution ||
-          "",
-        emphasis: mergedBriefItems(technicalDecisions, projectStackItems(project)).slice(0, 5),
+        narrative: [
+          decisionText,
+          stackText ? `사용 기술: ${stackText}` : undefined,
+          project.role ? `담당 역할: ${project.role}` : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        emphasis: mergedBriefItems(technicalDecisions, projectStackItems(project)).slice(0, 6),
         layout: "project-dashboard",
         composition: {
           pattern: "evidence-wall",
@@ -2947,35 +3215,48 @@ export function createDefaultPortfolioSiteDocument(
         blocks: [
           createSiteTextBlock(
             "decision",
-            briefText(
-              technicalDecisions.length
-                ? technicalDecisions
-                : [project.solution, stackText ? `${stackText} 기반 구현` : undefined].filter(Boolean),
-              "담당 역할을 중심으로 해결 방안을 설계하고 구현했습니다.",
-              3,
-            ),
+            [
+              decisionText,
+              project.role ? `담당 역할: ${project.role}` : undefined,
+              stackText ? `사용 기술: ${stackText}` : undefined,
+            ]
+              .filter(Boolean)
+              .join("\n"),
             "기술 판단",
           ),
-          createSiteMetricBlock("기술 스택", stackText || "구현", project.position || ""),
+          ...(techStackItems.length
+            ? [
+                createSiteMetricBlock(
+                  "기술 스택",
+                  String(techStackItems.length),
+                  techStackItems.slice(0, 6).join(", "),
+                ),
+              ]
+            : []),
+          ...(project.period
+            ? [createSiteMetricBlock("진행 기간", project.period, project.position || "담당 영역")]
+            : []),
           createSiteFlowBlock(
             [
-              hardParts[0] || project.situation || "상황 파악",
-              confirmed.find((item) => item.includes("역할")) || project.role || "역할 분담",
-              technicalDecisions[0] || project.solution || "구현과 검증",
-              proofPoints[0] || project.result || "결과 확인",
+              project.situation || hardParts[0] || "상황 파악",
+              project.role || project.position || "역할 분담",
+              project.solution || technicalDecisions[0] || "구현과 검증",
+              project.result || proofPoints[0] || "결과 확인",
             ],
             "실행 단계",
           ),
           createSiteMatrixBlock(
             mergedBriefItems(
+              techStackItems.slice(0, 8),
               technicalDecisions,
-              projectStackItems(project),
-              [project.position || ""],
+              [project.position || project.role || ""],
             ),
             "판단 요소",
           ),
           createSiteCalloutBlock(
-            technicalDecisions[0] || project.solution || "기술 선택 이유와 구현 범위를 분리해 설명합니다.",
+            project.solution ||
+              technicalDecisions[0] ||
+              "기술 선택 이유와 구현 범위를 분리해 설명합니다.",
             "핵심 판단",
           ),
         ],
@@ -2984,21 +3265,27 @@ export function createDefaultPortfolioSiteDocument(
       }),
     );
 
+    const resultText =
+      project.result ||
+      proofPoints[0] ||
+      sellingPoints[0] ||
+      "구현 결과와 검증 과정에서 얻은 배운 점을 정리했습니다.";
+    const lessonText =
+      project.lesson ||
+      sellingPoints[0] ||
+      "프로젝트를 통해 다음 작업에 재사용할 수 있는 판단 기준과 구현 방식을 정리했습니다.";
     pages.push(
       createSitePage({
         type: "project-detail",
-        title: slideAngles[4] || `${title} 결과와 근거`,
+        title: slideAngles[4] || `${title} 결과와 회고`,
         subtitle,
         eyebrow: "Proof",
-        intent: proofPoints[0] || sellingPoints[0] || "결과와 검증 근거 정리",
+        intent: project.result || proofPoints[0] || sellingPoints[0] || "결과와 검증 근거 정리",
         visualDirection: slideAngles[4] || "metric spotlight with proof points",
-        narrative:
-          proofPoints[0] ||
-          sellingPoints[0] ||
-          project.lesson ||
-          project.result ||
-          "",
-        emphasis: mergedBriefItems(proofPoints, sellingPoints, projectStackItems(project)).slice(0, 5),
+        narrative: [resultText, project.lesson ? `배운 점: ${project.lesson}` : undefined]
+          .filter(Boolean)
+          .join("\n"),
+        emphasis: mergedBriefItems(proofPoints, sellingPoints, projectStackItems(project)).slice(0, 6),
         layout: "evidence-board",
         composition: {
           pattern: "metric-spotlight",
@@ -3009,46 +3296,34 @@ export function createDefaultPortfolioSiteDocument(
           primaryBlocks: ["result", "lesson", "impact"],
         },
         blocks: [
-          createSiteTextBlock(
-            "result",
-            briefText(
-              proofPoints.length
-                ? proofPoints
-                : [project.result, project.lesson ? `배운 점: ${project.lesson}` : undefined].filter(Boolean),
-              "구현 결과와 검증 과정에서 얻은 배운 점을 정리했습니다.",
-              3,
-            ),
-            "결과/근거",
-          ),
-          createSiteTextBlock(
-            "lesson",
-            siteText(
-              [
-                sellingPoints[0],
-                project.lesson,
-                project.solution ? `다시 적용 가능한 방식: ${project.solution}` : undefined,
-              ],
-              "프로젝트를 통해 다음 작업에 재사용할 수 있는 판단 기준과 구현 방식을 정리했습니다.",
-            ),
-            "배운 점",
-          ),
+          createSiteTextBlock("result", resultText, "결과/근거"),
+          createSiteTextBlock("lesson", lessonText, "배운 점"),
           createSiteTimelineBlock(
-            mergedBriefItems(proofPoints, sellingPoints, slideAngles).slice(0, 5),
+            mergedBriefItems(
+              [project.result, project.lesson, project.solution].filter(Boolean) as string[],
+              proofPoints,
+              sellingPoints,
+              slideAngles,
+            ).slice(0, 5),
             "증거 흐름",
           ),
           createSiteMatrixBlock(
             mergedBriefItems(
-              proofPoints,
-              sellingPoints,
               [
                 project.result ? "결과 검증" : "",
                 project.lesson ? "회고" : "",
-              ],
+                project.solution ? "해결 접근" : "",
+              ].filter(Boolean) as string[],
+              proofPoints,
+              sellingPoints,
             ),
             "증거 요소",
           ),
           createSiteCalloutBlock(
-            sellingPoints[0] || proofPoints[0] || "면접에서 결과와 배운 점을 함께 설명할 수 있습니다.",
+            project.lesson ||
+              sellingPoints[0] ||
+              proofPoints[0] ||
+              "면접에서 결과와 배운 점을 함께 설명할 수 있습니다.",
             "면접 포인트",
           ),
         ],
@@ -3329,10 +3604,7 @@ export function normalizePortfolioDocument(
       raw.generationPreset === "web-slide"
         ? raw.generationPreset
         : getDefaultPortfolioPreset(format),
-    theme: {
-      ...template.theme,
-      ...(raw.theme || {}),
-    },
+    theme: normalizePortfolioThemeWithPalette(template.theme, raw.theme),
     mode: format === "site" ? "paged" : undefined,
     pages: format === "site" ? sitePages : undefined,
     sections:

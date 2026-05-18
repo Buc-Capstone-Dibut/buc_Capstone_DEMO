@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import {
+  getPortfolioFontPair,
   type PortfolioDocument,
   type PortfolioSection,
   type PortfolioSiteBlock,
@@ -181,18 +182,27 @@ function getBlockLabel(block: PortfolioSiteBlock, fallback = "") {
   return block.label || (block.role ? ROLE_LABEL[block.role] : "") || fallback;
 }
 
-function plainText(value?: string, max = 150) {
-  const normalized = (value || "").replace(/\s+/g, " ").trim();
+function plainText(value?: string, max = 280) {
+  const normalized = (value || "").replace(/[ \t]+/g, " ").trim();
   if (normalized.length <= max) return normalized;
   return `${normalized.slice(0, max).trim()}...`;
 }
 
-function blockText(block: PortfolioSiteBlock, max = 140) {
-  return plainText(block.content || block.caption || block.value, max);
+function multilineText(value?: string, max = 360) {
+  const normalized = (value || "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max).trim()}...`;
 }
 
-function pageNarrative(page: PortfolioSitePage, max = 150) {
-  return plainText(
+function blockText(block: PortfolioSiteBlock, max = 240) {
+  return multilineText(block.content || block.caption || block.value, max);
+}
+
+function pageNarrative(page: PortfolioSitePage, max = 260) {
+  return multilineText(
     page.narrative ||
       textBlocks(page)[0]?.content ||
       page.subtitle ||
@@ -299,7 +309,7 @@ function BigNumber({ value }: { value: string }) {
   );
 }
 
-function TextList({ blocks, max = 4 }: { blocks: PortfolioSiteBlock[]; max?: number }) {
+function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: number }) {
   return (
     <div className="space-y-3">
       {blocks.slice(0, max).map((block, index) => (
@@ -314,8 +324,8 @@ function TextList({ blocks, max = 4 }: { blocks: PortfolioSiteBlock[]; max?: num
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--portfolio-primary)]">
               {getBlockLabel(block, `Point ${index + 1}`)}
             </p>
-            <p className="mt-1 text-[13px] font-semibold leading-5 text-slate-700">
-              {blockText(block, 115)}
+            <p className="mt-1 whitespace-pre-line text-[13px] font-semibold leading-6 text-slate-700">
+              {blockText(block, 220)}
             </p>
           </div>
         </div>
@@ -329,18 +339,18 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
   if (!metrics.length) return null;
 
   return (
-    <div className="flex gap-7">
+    <div className="flex flex-wrap gap-x-7 gap-y-4">
       {metrics.slice(0, 4).map((metric) => (
         <div key={metric.id} className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
-            {metric.label || "Metric"}
+            {plainText(metric.label, 30) || "Metric"}
           </p>
-          <p className="mt-1 text-3xl font-black leading-none text-[var(--portfolio-primary)]">
-            {metric.value || "-"}
+          <p className="mt-1 break-keep text-3xl font-black leading-tight text-[var(--portfolio-primary)]">
+            {plainText(metric.value, 24) || "-"}
           </p>
           {metric.caption ? (
-            <p className="mt-1 max-w-[130px] text-[11px] font-semibold leading-4 text-slate-500">
-              {plainText(metric.caption, 44)}
+            <p className="mt-1 max-w-[170px] break-keep text-[11px] font-semibold leading-5 text-slate-500">
+              {plainText(metric.caption, 90)}
             </p>
           ) : null}
         </div>
@@ -363,8 +373,8 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
             >
               {index + 1}
             </div>
-            <p className="mt-3 text-[13px] font-black leading-5 text-slate-800">
-              {plainText(item, 42)}
+            <p className="mt-3 break-keep text-[13px] font-black leading-5 text-slate-800">
+              {plainText(item, 90)}
             </p>
           </div>
         ))}
@@ -396,7 +406,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
           <span
             key={`${item}-${index}`}
             className={cn(
-              "absolute max-w-[150px] px-2 py-1 text-sm font-black leading-5",
+              "absolute max-w-[180px] break-keep px-2 py-1 text-sm font-black leading-5",
               positions[index % positions.length],
             )}
             style={{
@@ -404,7 +414,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
               borderBottom: `3px solid ${ACCENT_COLORS[index % ACCENT_COLORS.length]}`,
             }}
           >
-            {plainText(item, 30)}
+            {plainText(item, 50)}
           </span>
         );
       })}
@@ -422,12 +432,16 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
         return (
           <div key={item.id}>
             <div className="flex items-end justify-between gap-4">
-              <p className="text-[13px] font-black text-slate-800">{item.label || "기여"}</p>
-              <p className="text-[12px] font-black text-slate-500">{item.value || `${percent}%`}</p>
+              <p className="break-keep text-[13px] font-black text-slate-800">
+                {plainText(item.label, 40) || "기여"}
+              </p>
+              <p className="shrink-0 text-[12px] font-black text-slate-500">
+                {plainText(item.value, 60) || `${percent}%`}
+              </p>
             </div>
-            <div className="mt-2 h-[5px] bg-[#dfeada]">
+            <div className="mt-2 h-[6px] overflow-hidden rounded-full bg-[#dfeada]">
               <div
-                className="h-full"
+                className="h-full rounded-full"
                 style={{
                   width: `${percent}%`,
                   backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length],
@@ -435,8 +449,8 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
               />
             </div>
             {item.caption ? (
-              <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
-                {plainText(item.caption, 54)}
+              <p className="mt-1 break-keep text-[11px] font-semibold leading-5 text-slate-500">
+                {plainText(item.caption, 110)}
               </p>
             ) : null}
           </div>
@@ -455,8 +469,8 @@ function TimelineLine({ page }: { page: PortfolioSitePage }) {
           <span className="text-3xl font-black leading-none text-[var(--portfolio-primary)] opacity-80">
             {String(index + 1).padStart(2, "0")}
           </span>
-          <p className="border-l-2 border-[#c8dabc] pl-4 text-[13px] font-bold leading-5 text-slate-700">
-            {plainText(item, 76)}
+          <p className="break-keep border-l-2 border-[#c8dabc] pl-4 text-[13px] font-bold leading-6 text-slate-700">
+            {plainText(item, 140)}
           </p>
         </div>
       ))}
@@ -472,8 +486,8 @@ function CalloutLine({ page }: { page: PortfolioSitePage }) {
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--portfolio-primary)]">
         {callout.label || "Key Point"}
       </p>
-      <p className="mt-2 text-[15px] font-black leading-6 text-slate-800">
-        {plainText(callout.content, 120)}
+      <p className="mt-2 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-800">
+        {multilineText(callout.content, 240)}
       </p>
     </div>
   );
@@ -484,15 +498,15 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
     <div>
       {page.intent ? (
         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-          {plainText(page.intent, 48)}
+          {plainText(page.intent, 88)}
         </p>
       ) : null}
-      <h1 className="mt-3 text-[42px] font-black leading-[1.02] tracking-normal text-slate-950">
-        {plainText(page.title, 56)}
+      <h1 className="mt-3 break-keep text-[40px] font-black leading-[1.06] tracking-tight text-slate-950">
+        {plainText(page.title, 90)}
       </h1>
       {page.subtitle ? (
-        <p className="mt-4 max-w-[500px] text-[15px] font-bold leading-6 text-slate-600">
-          {plainText(page.subtitle, 88)}
+        <p className="mt-4 max-w-[560px] break-keep text-[15px] font-bold leading-7 text-slate-600">
+          {plainText(page.subtitle, 140)}
         </p>
       ) : null}
     </div>
@@ -532,11 +546,11 @@ function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1.12fr_0.88fr] gap-12 px-16 pb-16 pt-20">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
-        <h1 className="mt-5 text-[56px] font-black leading-[0.96] text-slate-950">
-          {plainText(page.title, 52)}
+        <h1 className="mt-5 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
+          {plainText(page.title, 86)}
         </h1>
-        <p className="mt-7 max-w-[620px] text-[18px] font-black leading-7 text-slate-700">
-          {pageNarrative(page, 130)}
+        <p className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
+          {pageNarrative(page, 320)}
         </p>
         <div className="mt-10">
           <EmphasisRail page={page} />
@@ -560,16 +574,16 @@ function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p className="mt-6 text-[15px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 125)}
+        <p className="mt-6 whitespace-pre-line break-keep text-[15px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 260)}
         </p>
         <div className="mt-9">
           <RoleBars page={page} />
         </div>
       </div>
       <div className="flex min-w-0 flex-col justify-center gap-8">
-        <TextList blocks={blocks.length ? blocks : page.blocks} max={4} />
-        <EmphasisRail page={page} max={4} />
+        <TextList blocks={blocks.length ? blocks : page.blocks} max={5} />
+        <EmphasisRail page={page} max={6} />
       </div>
     </div>
   );
@@ -583,8 +597,8 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <div className="min-w-0">
           <CompositionNote page={page} />
           <TitleBlock page={page} />
-          <p className="mt-5 max-w-[540px] text-[14px] font-bold leading-6 text-slate-700">
-            {pageNarrative(page, 105)}
+          <p className="mt-5 max-w-[540px] whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+            {pageNarrative(page, 240)}
           </p>
         </div>
         <div className="pt-6">
@@ -631,8 +645,8 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
         <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
           {plainText(label, 48)}
         </p>
-        <p className="mt-7 text-[16px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 120)}
+        <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
+          {pageNarrative(page, 260)}
         </p>
       </div>
       <div className="flex min-w-0 flex-col justify-center gap-8">
@@ -650,8 +664,8 @@ function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p className="mt-6 text-[14px] font-bold leading-6 text-slate-700">
-          {pageNarrative(page, 112)}
+        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+          {pageNarrative(page, 240)}
         </p>
         <div className="mt-8">
           <MetricLine page={page} />
@@ -717,8 +731,8 @@ function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
             <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[var(--portfolio-primary)]">
               {getBlockLabel(block, `Evidence ${index + 1}`)}
             </p>
-            <p className="mt-2 text-[12px] font-bold leading-5 text-slate-700">
-              {blockText(block, 82)}
+            <p className="mt-2 whitespace-pre-line break-keep text-[12px] font-bold leading-6 text-slate-700">
+              {blockText(block, 180)}
             </p>
           </div>
         ))}
@@ -735,11 +749,11 @@ function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
     <div className="flex h-full flex-col justify-center px-20 pb-16 pt-20">
       <div className="max-w-[820px]">
         <CompositionNote page={page} />
-        <h1 className="mt-6 text-[56px] font-black leading-[0.98] text-slate-950">
-          {plainText(page.title, 52)}
+        <h1 className="mt-6 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
+          {plainText(page.title, 90)}
         </h1>
-        <p className="mt-7 whitespace-pre-line border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-black leading-8 text-slate-700">
-          {pageNarrative(page, 130)}
+        <p className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
+          {pageNarrative(page, 280)}
         </p>
         <div className="mt-10">
           <EmphasisRail page={page} />
@@ -754,8 +768,8 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1fr_340px] gap-10 px-16 pb-16 pt-20">
       <div className="flex min-w-0 flex-col justify-center border-l-[10px] border-[var(--portfolio-primary)] pl-9">
         <TitleBlock page={page} />
-        <p className="mt-8 max-w-[620px] text-[18px] font-bold leading-8 text-slate-700">
-          {pageNarrative(page, 170)}
+        <p className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
+          {pageNarrative(page, 320)}
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
           {pageEmphasis(page).slice(0, 4).map((item, index) => (
@@ -787,8 +801,8 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.92fr_1.08fr] gap-10 px-16 pb-16 pt-20">
       <div className="flex min-w-0 flex-col justify-center">
         <TitleBlock page={page} />
-        <p className="mt-8 text-[17px] font-bold leading-8 text-slate-700">
-          {pageNarrative(page, 180)}
+        <p className="mt-8 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
+          {pageNarrative(page, 320)}
         </p>
       </div>
       <div className="flex min-w-0 flex-col justify-center gap-10">
@@ -804,8 +818,8 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.78fr_1.22fr] gap-10 px-16 pb-16 pt-20">
       <div className="flex min-w-0 flex-col justify-center">
         <TitleBlock page={page} />
-        <p className="mt-7 text-[16px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 160)}
+        <p className="mt-7 whitespace-pre-line break-keep text-[15px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 280)}
         </p>
         <div className="mt-8">
           <MetricLine page={page} />
@@ -855,8 +869,8 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 px-14 pb-14 pt-20">
       <div className="flex min-w-0 flex-col justify-center">
         <TitleBlock page={page} />
-        <p className="mt-6 text-[15px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 140)}
+        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 260)}
         </p>
         <div className="mt-8">
           <RoleBars page={page} />
@@ -864,7 +878,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
       </div>
       <div className="flex min-w-0 flex-col justify-center gap-8">
         <FlowRibbon page={page} />
-        <TextList blocks={blocks} max={4} />
+        <TextList blocks={blocks} max={5} />
         <CalloutLine page={page} />
       </div>
     </div>
@@ -898,11 +912,11 @@ function ClosingSlide({ page }: { page: PortfolioSitePage }) {
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
           {page.eyebrow || "Contact"}
         </p>
-        <h1 className="mt-6 text-[56px] font-black leading-none text-slate-950">
-          {plainText(page.title, 62)}
+        <h1 className="mt-6 break-keep text-[48px] font-black leading-[1.04] text-slate-950">
+          {plainText(page.title, 90)}
         </h1>
-        <p className="mt-8 whitespace-pre-line text-[20px] font-bold leading-9 text-slate-700">
-          {pageNarrative(page, 160)}
+        <p className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
+          {pageNarrative(page, 300)}
         </p>
         <div className="mt-10">
           <CalloutLine page={page} />
@@ -960,21 +974,53 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pages.length]);
 
+  const fontPair = getPortfolioFontPair(document.theme.fontPairId);
+
+  useEffect(() => {
+    if (!fontPair.googleFontsHref || typeof document === "undefined") return;
+    const id = `dibut-fontpair-${fontPair.id}`;
+    if (window.document.getElementById(id)) return;
+    const link = window.document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = fontPair.googleFontsHref;
+    window.document.head.appendChild(link);
+  }, [fontPair.googleFontsHref, fontPair.id]);
+
   const themeStyle = {
     "--portfolio-primary": document.theme.primary,
     "--portfolio-accent": document.theme.accent,
+    "--portfolio-background": document.theme.background,
+    "--portfolio-surface": document.theme.surface,
+    "--portfolio-text": document.theme.text,
+    "--portfolio-muted": document.theme.muted,
+    "--portfolio-radius": `${document.theme.radius}px`,
+    "--portfolio-font-heading": fontPair.heading,
+    "--portfolio-font-body": fontPair.body,
+    fontFamily: fontPair.body,
+    color: document.theme.text,
   } as CSSProperties;
 
   if (!page) {
     return (
-      <div className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)}>
+      <div className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)} style={themeStyle}>
         웹 슬라이드 페이지가 없습니다.
       </div>
     );
   }
 
   return (
-    <section className={cn("min-h-screen bg-[#f5f8f1] text-slate-900", className)} style={themeStyle}>
+    <section
+      className={cn("portfolio-site-deck min-h-screen text-[var(--portfolio-text)]", className)}
+      style={{ ...themeStyle, backgroundColor: document.theme.background }}
+    >
+      <style jsx global>{`
+        .portfolio-site-deck h1,
+        .portfolio-site-deck h2,
+        .portfolio-site-deck h3 {
+          font-family: var(--portfolio-font-heading);
+        }
+      `}</style>
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
         <div className="flex min-h-12 items-center justify-between gap-3 pb-4">
           <div className="flex min-w-0 items-center gap-3">
