@@ -57,7 +57,7 @@ export function DesignTokenPicker({ theme, onChange }: DesignTokenPickerProps) {
             <span className="text-xs font-bold">{currentPalette.name}</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuContent align="end" className="z-[120] w-72">
           <DropdownMenuLabel className="text-xs font-bold text-slate-500">
             색 팔레트
           </DropdownMenuLabel>
@@ -100,7 +100,7 @@ export function DesignTokenPicker({ theme, onChange }: DesignTokenPickerProps) {
             <span className="text-xs font-bold">{currentFontPair.name}</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuContent align="end" className="z-[120] w-80">
           <DropdownMenuLabel className="text-xs font-bold text-slate-500">
             폰트 페어링
           </DropdownMenuLabel>
