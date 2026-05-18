@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
   getPortfolioPagePreset,
+  getPortfolioTemplate,
   normalizePortfolioDocument,
   withPortfolioSampleImages,
   type PortfolioAsset,
@@ -50,7 +51,7 @@ import {
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
-import { DesignTokenPicker } from "./design-token-picker";
+import { TemplatePicker } from "./template-picker";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -650,9 +651,16 @@ export function PortfolioEditorClient({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <DesignTokenPicker
-              theme={document.theme}
-              onChange={(nextTheme) => setDocument((current) => ({ ...current, theme: nextTheme }))}
+            <TemplatePicker
+              templateId={document.templateId}
+              onChange={(nextId) => {
+                const nextTemplate = getPortfolioTemplate(nextId);
+                setDocument((current) => ({
+                  ...current,
+                  templateId: nextId,
+                  theme: nextTemplate.theme,
+                }));
+              }}
             />
             <span className="h-6 w-px bg-[#d8e4d0]" />
             {publicUrl ? (

@@ -271,10 +271,35 @@ async function generatePortfolioSiteDraft(input: {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return input.baseDocument;
 
+  // 템플릿별 가이드 — 같은 데이터라도 템플릿이 바뀌면 슬라이드 톤/구도가 달라야 한다.
+  const templateGuide =
+    input.templateId === "developer-minimal"
+      ? `[선택된 템플릿: Minimal Tech]
+- 페이지 8~9장으로 압축. 본문 어절 길이는 짧게, 메트릭과 키워드 중심.
+- 표지(cover)는 minimal-statement — 짧고 강한 한 줄 + 큰 숫자/메트릭 한두 개.
+- 프로젝트당 1장만. 케이스 흐름은 4단 flow + 1개 callout 정도.
+- 화려한 매거진/그라데이션 톤 금지. 차분한 sans-serif·여백·정렬.
+- composition.density 는 calm 또는 balanced 위주. accentShape 는 bar/grid 위주.`
+      : input.templateId === "case-study"
+        ? `[선택된 템플릿: Editorial Magazine]
+- 페이지 12~14장. 매거진 톤 — 깊은 about + 프로젝트당 3장(문제·과정·결과 분리) + 회고.
+- 표지(cover)는 editorial-headline — 부제와 emphasis 키워드를 매거진 표지처럼.
+- 프로젝트 페이지는 case-study-flow + project-dashboard + evidence-board 3장 시리즈.
+- narrative 길이를 길게(3~5문장). 인용구 같은 callout 적극 활용.
+- composition.pattern 은 evidence-wall / split-proof / timeline-track 우선. density rich.`
+        : `[선택된 템플릿: Bold Showcase]
+- 페이지 10~11장. 결과 임팩트 중심. 어두운 배경 / 큰 숫자 / 컬러 블록 톤.
+- 표지(cover)는 bold-impact — 한 단어급 헤드라인 + 거대한 BigNumber/ImpactDelta.
+- 프로젝트당 2장(케이스 + 결과). project-detail 은 항상 metric-spotlight 위주.
+- narrative 는 짧고 굵게(2~3문장). 키워드는 강한 명사형.
+- composition.pattern 은 hero-statement / metric-spotlight / closing-signal 우선. density rich.`;
+
   const prompt = `너는 개발자 채용용 웹 슬라이드 포트폴리오를 만드는 커리어 에디터이자 발표자료 아트디렉터다.
 렌더러는 HTML/CSS 웹 슬라이드로 표현되지만, 너는 안전한 JSON 데이터만 반환한다.
 사용자의 실제 프로젝트/경력/개인정보만 사용한다. 없는 수치, 성과, 회사명, 기술은 절대 만들지 않는다.
 이미지 URL, image 필드, image block은 만들지 않는다. 이 포트폴리오는 텍스트와 그래픽 블록 중심으로 렌더링된다.
+
+${templateGuide}
 
 [절대 금지]
 - "프로젝트와 경험을 근거 중심의 웹 슬라이드 포트폴리오로 정리합니다", "구현 결과와 배운 점을 정리했습니다", "해결해야 할 문제를 정의했습니다" 같은 추상적·메타적 자기소개 문장을 본문/intent/narrative/callout에 그대로 쓰지 않는다.

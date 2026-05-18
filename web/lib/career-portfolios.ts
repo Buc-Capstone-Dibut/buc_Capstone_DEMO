@@ -265,47 +265,6 @@ export type PortfolioTheme = {
   text: string;
   muted: string;
   radius: number;
-  /** 선택된 팔레트 ID (없으면 templateId 기본 팔레트 사용) */
-  paletteId?: PortfolioPaletteId;
-  /** 선택된 폰트 페어링 ID (없으면 기본 pretendard) */
-  fontPairId?: PortfolioFontPairId;
-};
-
-export type PortfolioPaletteId =
-  | "calm-green"
-  | "midnight-navy"
-  | "mono-graphite"
-  | "warm-clay"
-  | "violet-ink"
-  | "sunrise-coral";
-
-export type PortfolioFontPairId =
-  | "pretendard-only"
-  | "pretendard-inter"
-  | "pretendard-space-grotesk"
-  | "pretendard-playfair"
-  | "pretendard-dm-serif";
-
-export type PortfolioPaletteDefinition = {
-  id: PortfolioPaletteId;
-  name: string;
-  description: string;
-  preview: string;
-  theme: Omit<PortfolioTheme, "paletteId" | "fontPairId">;
-};
-
-export type PortfolioFontPairDefinition = {
-  id: PortfolioFontPairId;
-  name: string;
-  description: string;
-  /** CSS font-family value for headings (Tailwind 클래스로 옮길 수도 있음) */
-  heading: string;
-  /** CSS font-family value for body text */
-  body: string;
-  /** Google Fonts CSS import URL (없으면 시스템 폰트만 사용) */
-  googleFontsHref?: string;
-  /** Heading-only이라 한국어 본문에 영향 안 주는지 */
-  asciiOnly?: boolean;
 };
 
 export type PortfolioDocument = {
@@ -327,6 +286,51 @@ export type PortfolioTemplateBlueprint = {
   infographicPolicy: Array<"flow" | "metric" | "timeline" | "techLogo" | "shadcnBlock">;
   tonePolicy: "concise-korean-hiring" | "case-study-editorial" | "visual-showcase";
   targetSlideCount: number;
+  /** 같은 데이터를 다른 페이지 흐름으로 풀어내기 위한 시드 명세 */
+  pageFlow?: PortfolioTemplatePageFlow;
+  /** 사이트 렌더러가 슬라이드별 시각 톤을 분기하는 데 쓰는 힌트 */
+  visualStyle?: PortfolioTemplateVisualStyle;
+};
+
+/**
+ * 템플릿마다 어떤 페이지를 어떤 순서로 만들지 결정. createDefaultPortfolioSiteDocument
+ * 가 이 값을 보고 슬라이드 시퀀스를 만든다.
+ */
+export type PortfolioTemplatePageFlow = {
+  /** 표지 강조 방식 */
+  cover: "minimal-statement" | "editorial-headline" | "bold-impact";
+  /** 프로필 페이지 포함 여부 + 형태 */
+  profile: "skip" | "compact-row" | "deep-manifesto";
+  /** 기술 스택 페이지 형태 */
+  skills: "chip-grid" | "axis-map" | "logo-wall";
+  /** 인덱스 페이지(목차) 포함 여부 */
+  index: boolean;
+  /** 프로젝트 한 건당 몇 장으로 풀지 */
+  projectSlidesEach: 1 | 2 | 3;
+  /** 회고 페이지 포함 여부 */
+  retrospective: boolean;
+  /** 마감 페이지 형태 */
+  closing: "minimal-contact" | "magazine-end" | "bold-cta";
+};
+
+/** 사이트 렌더러가 슬라이드별 톤을 분기하는 데 쓰는 힌트 */
+export type PortfolioTemplateVisualStyle = {
+  /** 헤딩 폰트 family (CSS font-family) */
+  headingFamily: string;
+  /** 본문 폰트 family (CSS font-family) */
+  bodyFamily: string;
+  /** 헤딩 weight */
+  headingWeight: 600 | 700 | 800 | 900;
+  /** 헤딩 tracking */
+  headingTracking: "tight" | "normal" | "wide";
+  /** 슬라이드 정렬 */
+  align: "left" | "center";
+  /** density (slide 안 콘텐츠 밀도) */
+  density: "calm" | "balanced" | "rich";
+  /** 강조 방식 — bar(좌측 막대) / underline / block(컬러 블록) / serif-emphasis */
+  emphasis: "bar" | "underline" | "block" | "serif-emphasis";
+  /** 호출 font 들이 외부 webfont 인지 (Google Fonts 동적 로드) */
+  googleFontsHref?: string;
 };
 
 export type PortfolioGenerationPlan = {
@@ -518,200 +522,6 @@ export function isLegacyPortfolioSampleImageUrl(url?: string) {
   return Boolean(url && LEGACY_PORTFOLIO_SAMPLE_IMAGE_URLS.has(url));
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Color palettes — 사용자가 자유롭게 고를 수 있는 컬러 톤. 템플릿과 독립적이라
-// "케이스스터디 템플릿 + 미드나잇 네이비 팔레트" 같은 자유 조합이 가능하다.
-// ──────────────────────────────────────────────────────────────────────────────
-export const PORTFOLIO_PALETTES: PortfolioPaletteDefinition[] = [
-  {
-    id: "calm-green",
-    name: "Calm Green",
-    description: "차분한 녹색 톤. 기본 Dibut 분위기.",
-    preview: "#1f7a4d",
-    theme: {
-      primary: "#1f7a4d",
-      accent: "#84cc16",
-      background: "#f8fafc",
-      surface: "#ffffff",
-      text: "#0f172a",
-      muted: "#64748b",
-      radius: 8,
-    },
-  },
-  {
-    id: "midnight-navy",
-    name: "Midnight Navy",
-    description: "묵직한 네이비 + 차가운 강조색. 백엔드/시스템 인상.",
-    preview: "#1e3a8a",
-    theme: {
-      primary: "#1e3a8a",
-      accent: "#38bdf8",
-      background: "#f1f5f9",
-      surface: "#ffffff",
-      text: "#0f172a",
-      muted: "#64748b",
-      radius: 6,
-    },
-  },
-  {
-    id: "mono-graphite",
-    name: "Mono Graphite",
-    description: "흑백 위주의 절제된 모노톤. 미니멀 타이포 강조.",
-    preview: "#111827",
-    theme: {
-      primary: "#111827",
-      accent: "#6b7280",
-      background: "#f5f5f4",
-      surface: "#ffffff",
-      text: "#0a0a0a",
-      muted: "#737373",
-      radius: 2,
-    },
-  },
-  {
-    id: "warm-clay",
-    name: "Warm Clay",
-    description: "따뜻한 테라코타 + 크림. 디자이너/PM 인상.",
-    preview: "#b45309",
-    theme: {
-      primary: "#b45309",
-      accent: "#f59e0b",
-      background: "#fdf6e3",
-      surface: "#ffffff",
-      text: "#1c1917",
-      muted: "#78716c",
-      radius: 10,
-    },
-  },
-  {
-    id: "violet-ink",
-    name: "Violet Ink",
-    description: "차분한 보라 + 부드러운 회보라. 연구/AI/리서치 인상.",
-    preview: "#6d28d9",
-    theme: {
-      primary: "#6d28d9",
-      accent: "#a78bfa",
-      background: "#faf5ff",
-      surface: "#ffffff",
-      text: "#1e1b4b",
-      muted: "#6b7280",
-      radius: 8,
-    },
-  },
-  {
-    id: "sunrise-coral",
-    name: "Sunrise Coral",
-    description: "코랄 + 따뜻한 오렌지. 서비스/마케팅 인상.",
-    preview: "#e11d48",
-    theme: {
-      primary: "#e11d48",
-      accent: "#fb923c",
-      background: "#fff7ed",
-      surface: "#ffffff",
-      text: "#1c1917",
-      muted: "#78716c",
-      radius: 12,
-    },
-  },
-];
-
-export function getPortfolioPalette(id?: PortfolioPaletteId): PortfolioPaletteDefinition {
-  return PORTFOLIO_PALETTES.find((p) => p.id === id) || PORTFOLIO_PALETTES[0];
-}
-
-export function applyPalette(
-  theme: PortfolioTheme,
-  paletteId?: PortfolioPaletteId,
-): PortfolioTheme {
-  if (!paletteId) return theme;
-  const palette = PORTFOLIO_PALETTES.find((p) => p.id === paletteId);
-  if (!palette) return theme;
-  return {
-    ...theme,
-    ...palette.theme,
-    paletteId,
-    fontPairId: theme.fontPairId,
-  };
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Font pairings — 헤딩/본문 폰트 조합. asciiOnly=true 인 헤딩 폰트는 영문에만
-// 적용되고 한국어는 Pretendard로 fallback 처리한다.
-// ──────────────────────────────────────────────────────────────────────────────
-export const PORTFOLIO_FONT_PAIRS: PortfolioFontPairDefinition[] = [
-  {
-    id: "pretendard-only",
-    name: "Pretendard",
-    description: "기본 한글 가독성. 모든 텍스트가 통일된 인상.",
-    heading: "Pretendard, system-ui, sans-serif",
-    body: "Pretendard, system-ui, sans-serif",
-  },
-  {
-    id: "pretendard-inter",
-    name: "Pretendard + Inter",
-    description: "본문 한글 + 영문 강조 Inter. 깔끔한 테크 인상.",
-    heading: "'Inter', Pretendard, system-ui, sans-serif",
-    body: "Pretendard, 'Inter', system-ui, sans-serif",
-    googleFontsHref:
-      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap",
-  },
-  {
-    id: "pretendard-space-grotesk",
-    name: "Pretendard + Space Grotesk",
-    description: "헤딩에 기하학적 sans. 차가운 프로덕트 인상.",
-    heading: "'Space Grotesk', Pretendard, system-ui, sans-serif",
-    body: "Pretendard, 'Space Grotesk', system-ui, sans-serif",
-    googleFontsHref:
-      "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap",
-    asciiOnly: true,
-  },
-  {
-    id: "pretendard-playfair",
-    name: "Pretendard + Playfair Display",
-    description: "헤딩에 클래식 serif. 매거진/리뷰 인상.",
-    heading: "'Playfair Display', Pretendard, Georgia, serif",
-    body: "Pretendard, system-ui, sans-serif",
-    googleFontsHref:
-      "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&display=swap",
-    asciiOnly: true,
-  },
-  {
-    id: "pretendard-dm-serif",
-    name: "Pretendard + DM Serif Display",
-    description: "헤딩에 굵은 디스플레이 serif. 임팩트 강한 표지.",
-    heading: "'DM Serif Display', Pretendard, Georgia, serif",
-    body: "Pretendard, system-ui, sans-serif",
-    googleFontsHref:
-      "https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap",
-    asciiOnly: true,
-  },
-];
-
-export function getPortfolioFontPair(
-  id?: PortfolioFontPairId,
-): PortfolioFontPairDefinition {
-  return PORTFOLIO_FONT_PAIRS.find((p) => p.id === id) || PORTFOLIO_FONT_PAIRS[0];
-}
-
-/**
- * 템플릿 기본 theme 위에 사용자가 저장한 theme 을 머지하면서, paletteId 가 지정된
- * 경우 그 팔레트 색을 강제로 적용한다. fontPairId 도 함께 보존된다.
- */
-export function normalizePortfolioThemeWithPalette(
-  templateTheme: PortfolioTheme,
-  rawTheme?: Partial<PortfolioTheme>,
-): PortfolioTheme {
-  const base: PortfolioTheme = { ...templateTheme, ...(rawTheme || {}) };
-  const paletteId = rawTheme?.paletteId;
-  const fontPairId = rawTheme?.fontPairId;
-  const withPalette = paletteId ? applyPalette(base, paletteId) : base;
-  return {
-    ...withPalette,
-    paletteId,
-    fontPairId,
-  };
-}
-
 export const PORTFOLIO_TEMPLATES: Array<{
   id: PortfolioTemplateId;
   name: string;
@@ -722,72 +532,138 @@ export const PORTFOLIO_TEMPLATES: Array<{
   blueprint: PortfolioTemplateBlueprint;
 }> = [
   {
+    // Minimal Tech — 백엔드/시스템 엔지니어용. 큰 타이포 + 넓은 여백 + 메트릭 강조.
+    // 페이지 수가 짧고(8~9장) 정보 밀도가 calm. 같은 데이터를 가장 압축적으로 풀어냄.
     id: "developer-minimal",
-    name: "개발자 미니멀",
-    description: "텍스트 가독성과 작은 프로필 이미지를 중심으로 정리합니다.",
-    imagePolicy: "프로필 사진과 프로젝트 대표 이미지를 작게 배치",
+    name: "Minimal Tech",
+    description: "큰 타이포·넓은 여백·메트릭 강조. 백엔드/시스템 인상에 적합한 압축형(8~9장).",
+    imagePolicy: "이미지 없이 텍스트와 메트릭 중심",
     previewImage: PORTFOLIO_BACKGROUND_IMAGES.calmGreenCover,
     theme: {
-      primary: "#1f7a4d",
-      accent: "#84cc16",
-      background: "#f8fafc",
+      primary: "#111827",
+      accent: "#0ea5e9",
+      background: "#fafafa",
       surface: "#ffffff",
-      text: "#0f172a",
-      muted: "#64748b",
-      radius: 8,
+      text: "#0a0a0a",
+      muted: "#737373",
+      radius: 2,
     },
     blueprint: {
       layoutPreset: "minimal-recruiting",
       imagePolicy: "profile-first",
-      infographicPolicy: ["shadcnBlock", "techLogo", "flow", "metric"],
+      infographicPolicy: ["metric", "shadcnBlock", "techLogo"],
       tonePolicy: "concise-korean-hiring",
-      targetSlideCount: 10,
+      targetSlideCount: 9,
+      pageFlow: {
+        cover: "minimal-statement",
+        profile: "compact-row",
+        skills: "chip-grid",
+        index: false,
+        projectSlidesEach: 1,
+        retrospective: false,
+        closing: "minimal-contact",
+      },
+      visualStyle: {
+        headingFamily: "'Inter', Pretendard, system-ui, sans-serif",
+        bodyFamily: "Pretendard, 'Inter', system-ui, sans-serif",
+        headingWeight: 800,
+        headingTracking: "tight",
+        align: "left",
+        density: "calm",
+        emphasis: "bar",
+        googleFontsHref:
+          "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap",
+      },
     },
   },
   {
+    // Editorial Magazine — PM/디자이너/기획 성향. 깊은 about + 케이스마다 3장으로
+    // 문제·과정·결과를 분리. serif 헤딩 + 가운데 정렬 + 인용구 강조. 페이지 12~14장.
     id: "case-study",
-    name: "프로젝트 케이스스터디",
-    description: "문제, 해결, 성과 흐름과 대표 작업 이미지를 강조합니다.",
+    name: "Editorial Magazine",
+    description: "매거진 톤. serif 헤딩·가운데 정렬·인용구·프로젝트당 3장 분리(12~14장).",
     imagePolicy: "프로젝트 스크린샷과 작업물 이미지를 큰 카드에 배치",
     previewImage: PORTFOLIO_BACKGROUND_IMAGES.calmGreenCase,
     theme: {
-      primary: "#55783f",
-      accent: "#9fbe83",
-      background: "#f5f8f1",
+      primary: "#1c1917",
+      accent: "#b45309",
+      background: "#fdf6e3",
       surface: "#ffffff",
       text: "#111827",
-      muted: "#657566",
-      radius: 6,
+      muted: "#78716c",
+      radius: 0,
     },
     blueprint: {
       layoutPreset: "case-study-report",
       imagePolicy: "project-first",
       infographicPolicy: ["shadcnBlock", "flow", "metric", "timeline", "techLogo"],
       tonePolicy: "case-study-editorial",
-      targetSlideCount: 12,
+      targetSlideCount: 14,
+      pageFlow: {
+        cover: "editorial-headline",
+        profile: "deep-manifesto",
+        skills: "axis-map",
+        index: true,
+        projectSlidesEach: 3,
+        retrospective: true,
+        closing: "magazine-end",
+      },
+      visualStyle: {
+        headingFamily: "'Playfair Display', Pretendard, Georgia, serif",
+        bodyFamily: "Pretendard, system-ui, sans-serif",
+        headingWeight: 700,
+        headingTracking: "normal",
+        align: "center",
+        density: "rich",
+        emphasis: "serif-emphasis",
+        googleFontsHref:
+          "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&display=swap",
+      },
     },
   },
   {
+    // Bold Showcase — 결과 중심·시니어 발표용. 큰 BigNumber + 컬러 블록 + 대비.
+    // 임팩트 cover + 프로젝트별 풀블리드 + 회고 마감. 10~11장.
     id: "visual-showcase",
-    name: "비주얼 포트폴리오",
-    description: "큰 히어로 이미지와 작업물 갤러리로 첫인상을 만듭니다.",
+    name: "Bold Showcase",
+    description: "컬러 블록·큰 숫자·풀블리드 카드. 결과 임팩트·시니어 발표용(10~11장).",
     imagePolicy: "본인 얼굴, 대표 작업물, 갤러리 이미지를 전면 배치",
     previewImage: PORTFOLIO_BACKGROUND_IMAGES.calmGreenProfile,
     theme: {
-      primary: "#6e8f55",
-      accent: "#bfd5aa",
-      background: "#f6f8f2",
-      surface: "#ffffff",
-      text: "#18181b",
-      muted: "#6f7d66",
-      radius: 4,
+      primary: "#0f172a",
+      accent: "#e11d48",
+      background: "#0f172a",
+      surface: "#1e293b",
+      text: "#f8fafc",
+      muted: "#cbd5e1",
+      radius: 12,
     },
     blueprint: {
       layoutPreset: "visual-product",
       imagePolicy: "visual-first",
-      infographicPolicy: ["shadcnBlock", "flow", "metric", "techLogo"],
+      infographicPolicy: ["metric", "shadcnBlock", "flow", "techLogo"],
       tonePolicy: "visual-showcase",
-      targetSlideCount: 10,
+      targetSlideCount: 11,
+      pageFlow: {
+        cover: "bold-impact",
+        profile: "compact-row",
+        skills: "logo-wall",
+        index: false,
+        projectSlidesEach: 2,
+        retrospective: true,
+        closing: "bold-cta",
+      },
+      visualStyle: {
+        headingFamily: "'Space Grotesk', Pretendard, system-ui, sans-serif",
+        bodyFamily: "Pretendard, 'Space Grotesk', system-ui, sans-serif",
+        headingWeight: 900,
+        headingTracking: "tight",
+        align: "left",
+        density: "rich",
+        emphasis: "block",
+        googleFontsHref:
+          "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap",
+      },
     },
   },
 ];
@@ -2858,6 +2734,16 @@ function normalizePortfolioSitePages(value: unknown): PortfolioSitePage[] {
     });
 }
 
+const DEFAULT_TEMPLATE_PAGE_FLOW: PortfolioTemplatePageFlow = {
+  cover: "minimal-statement",
+  profile: "compact-row",
+  skills: "chip-grid",
+  index: true,
+  projectSlidesEach: 3,
+  retrospective: true,
+  closing: "minimal-contact",
+};
+
 export function createDefaultPortfolioSiteDocument(
   templateId: PortfolioTemplateId,
   source: PortfolioSourceData,
@@ -2869,6 +2755,7 @@ export function createDefaultPortfolioSiteDocument(
   } = {},
 ): PortfolioDocument {
   const template = getPortfolioTemplate(templateId);
+  const flow: PortfolioTemplatePageFlow = template.blueprint.pageFlow || DEFAULT_TEMPLATE_PAGE_FLOW;
   const personal = source.personalInfo;
   const skillNames = collectPortfolioSkillNames(source);
   const plan = createFallbackPortfolioGenerationPlan(source);
@@ -3379,9 +3266,36 @@ export function createDefaultPortfolioSiteDocument(
     }),
   );
 
+  // ── 템플릿의 pageFlow 에 맞춰 페이지 시퀀스 재편 ──
+  //   - profile: skip 이면 프로필 페이지 제외
+  //   - index: false 이면 project-index 페이지 제외
+  //   - retrospective: false 이면 retrospective 페이지 제외
+  //   - projectSlidesEach: 1 → 프로젝트당 case-study 1장만, 2 → case-study + detail 1장,
+  //     3 → 현재(case-study + detail 2장) 전부.
+  const sourceIdSeen: Record<string, number> = {};
+  const filteredByFlow = pages.filter((page) => {
+    if (page.type === "profile" && flow.profile === "skip") return false;
+    if (page.type === "project-index" && !flow.index) return false;
+    if (page.type === "retrospective" && !flow.retrospective) return false;
+    if ((page.type === "case-study" || page.type === "project-detail") && page.sourceId) {
+      const seen = sourceIdSeen[page.sourceId] || 0;
+      sourceIdSeen[page.sourceId] = seen + 1;
+      if (seen >= flow.projectSlidesEach) return false;
+    }
+    return true;
+  });
+
   const visiblePages = selectPortfolioSitePagesForLimit(
-    pages,
-    Math.max(5, Math.min(16, evidenceBrief.recommendedSlideCount || pages.length)),
+    filteredByFlow,
+    Math.max(
+      5,
+      Math.min(
+        16,
+        template.blueprint.targetSlideCount ||
+          evidenceBrief.recommendedSlideCount ||
+          filteredByFlow.length,
+      ),
+    ),
   );
 
   const document: PortfolioDocument = {
@@ -3604,7 +3518,7 @@ export function normalizePortfolioDocument(
       raw.generationPreset === "web-slide"
         ? raw.generationPreset
         : getDefaultPortfolioPreset(format),
-    theme: normalizePortfolioThemeWithPalette(template.theme, raw.theme),
+    theme: { ...template.theme, ...(raw.theme || {}) },
     mode: format === "site" ? "paged" : undefined,
     pages: format === "site" ? sitePages : undefined,
     sections:

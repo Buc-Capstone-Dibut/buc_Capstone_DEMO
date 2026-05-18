@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import {
-  getPortfolioFontPair,
+  getPortfolioTemplate,
   type PortfolioDocument,
   type PortfolioSection,
   type PortfolioSiteBlock,
   type PortfolioSitePage,
   type PortfolioSitePageType,
+  type PortfolioTemplateVisualStyle,
 } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
 
@@ -255,34 +256,60 @@ function DeckShell({
   page,
   index,
   total,
+  templateId,
   children,
 }: {
   page: PortfolioSitePage;
   index: number;
   total: number;
+  templateId: string;
   children: ReactNode;
 }) {
   const visualMode = slideVisualMode(page);
+  const isDark = templateId === "visual-showcase";
+  const isEditorial = templateId === "case-study";
+  const isMinimal = templateId === "developer-minimal";
 
   return (
-    <article className="relative h-full w-full overflow-hidden bg-[#fbfcf8] text-slate-950">
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,#ffffff_0%,#f8faf6_54%,#eef6e8_100%)]" />
-      <div className="absolute inset-0 opacity-45 [background-image:linear-gradient(rgba(85,120,63,0.075)_1px,transparent_1px),linear-gradient(90deg,rgba(85,120,63,0.075)_1px,transparent_1px)] [background-size:46px_46px]" />
-      <div
-        className={cn(
-          "absolute top-0 h-full bg-[linear-gradient(180deg,rgba(31,122,77,0.12),rgba(246,212,107,0.16))]",
-          visualMode === "diagonal" && "-right-16 w-[38%] skew-x-[-13deg]",
-          visualMode === "matrix" && "right-0 w-[27%]",
-          visualMode === "journey" && "-right-24 w-[44%] skew-x-[-18deg]",
-          visualMode === "minimal" && "-right-20 w-[26%] skew-x-[-10deg] opacity-65",
-          visualMode === "editorial" && "-right-16 w-[33%] skew-x-[-13deg]",
-        )}
-      />
-      {visualMode === "matrix" ? (
-        <div className="absolute bottom-16 right-16 h-[240px] w-[240px] border-[18px] border-[rgba(31,122,77,0.08)]" />
+    <article
+      className={cn(
+        "relative h-full w-full overflow-hidden",
+        isDark ? "bg-[#0f172a] text-slate-100" : "bg-[var(--portfolio-background,#fbfcf8)] text-[var(--portfolio-text,#0f172a)]",
+      )}
+    >
+      {isMinimal ? (
+        <div className="absolute inset-0 bg-white" />
+      ) : isEditorial ? (
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#fdf6e3_0%,#fdfaee_100%)]" />
+      ) : isDark ? (
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_60%,#0f172a_100%)]" />
+      ) : (
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#ffffff_0%,#f8faf6_54%,#eef6e8_100%)]" />
+      )}
+      {!isEditorial ? (
+        <div
+          className={cn(
+            "absolute inset-0",
+            isDark
+              ? "opacity-25 [background-image:linear-gradient(rgba(248,250,252,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(248,250,252,0.06)_1px,transparent_1px)] [background-size:60px_60px]"
+              : "opacity-45 [background-image:linear-gradient(rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:46px_46px]",
+          )}
+        />
       ) : null}
-      {visualMode === "journey" ? (
-        <div className="absolute bottom-24 left-14 h-[3px] w-[46%] bg-[rgba(31,122,77,0.2)]" />
+      {isDark ? (
+        <div className="absolute -right-24 -top-24 h-[60%] w-[40%] rotate-12 bg-[var(--portfolio-accent)] opacity-30" />
+      ) : null}
+      {!isDark && !isEditorial ? (
+        <div
+          className={cn(
+            "absolute top-0 h-full bg-[linear-gradient(180deg,rgba(31,122,77,0.12),rgba(246,212,107,0.16))]",
+            visualMode === "diagonal" && "-right-16 w-[38%] skew-x-[-13deg]",
+            visualMode === "matrix" && "right-0 w-[27%]",
+            visualMode === "journey" && "-right-24 w-[44%] skew-x-[-18deg]",
+            visualMode === "minimal" && "-right-20 w-[26%] skew-x-[-10deg] opacity-65",
+            visualMode === "editorial" && "-right-16 w-[33%] skew-x-[-13deg]",
+          )}
+        />
       ) : null}
       <div className="absolute left-9 top-7 flex items-center gap-3">
         <span className="h-[2px] w-14 bg-[var(--portfolio-primary)]" />
@@ -290,7 +317,12 @@ function DeckShell({
           {page.eyebrow || PAGE_LABEL[page.type]}
         </span>
       </div>
-      <div className="absolute bottom-6 left-9 right-9 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+      <div
+        className={cn(
+          "absolute bottom-6 left-9 right-9 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em]",
+          isDark ? "text-slate-500" : "text-slate-400",
+        )}
+      >
         <span>Dibut Portfolio</span>
         <span>
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
@@ -974,18 +1006,27 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pages.length]);
 
-  const fontPair = getPortfolioFontPair(document.theme.fontPairId);
+  const template = getPortfolioTemplate(document.templateId);
+  const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
+    headingFamily: "Pretendard, system-ui, sans-serif",
+    bodyFamily: "Pretendard, system-ui, sans-serif",
+    headingWeight: 900,
+    headingTracking: "normal",
+    align: "left",
+    density: "balanced",
+    emphasis: "bar",
+  };
 
   useEffect(() => {
-    if (!fontPair.googleFontsHref || typeof document === "undefined") return;
-    const id = `dibut-fontpair-${fontPair.id}`;
+    if (!visualStyle.googleFontsHref || typeof window === "undefined") return;
+    const id = `dibut-template-font-${document.templateId}`;
     if (window.document.getElementById(id)) return;
     const link = window.document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
-    link.href = fontPair.googleFontsHref;
+    link.href = visualStyle.googleFontsHref;
     window.document.head.appendChild(link);
-  }, [fontPair.googleFontsHref, fontPair.id]);
+  }, [visualStyle.googleFontsHref, document.templateId]);
 
   const themeStyle = {
     "--portfolio-primary": document.theme.primary,
@@ -994,16 +1035,20 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
     "--portfolio-surface": document.theme.surface,
     "--portfolio-text": document.theme.text,
     "--portfolio-muted": document.theme.muted,
-    "--portfolio-radius": `${document.theme.radius}px`,
-    "--portfolio-font-heading": fontPair.heading,
-    "--portfolio-font-body": fontPair.body,
-    fontFamily: fontPair.body,
+    "--portfolio-font-heading": visualStyle.headingFamily,
+    "--portfolio-font-body": visualStyle.bodyFamily,
+    fontFamily: visualStyle.bodyFamily,
     color: document.theme.text,
   } as CSSProperties;
 
+  // Bold Showcase 처럼 어두운 배경 템플릿은 외곽(앱 쉘)도 다크 모드로
+  const isDarkTemplate = ["visual-showcase"].includes(document.templateId);
+  const shellBg = isDarkTemplate ? "bg-[#0f172a]" : "bg-[#f5f8f1]";
+  const shellText = isDarkTemplate ? "text-slate-100" : "text-slate-900";
+
   if (!page) {
     return (
-      <div className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)} style={themeStyle}>
+      <div className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)}>
         웹 슬라이드 페이지가 없습니다.
       </div>
     );
@@ -1011,8 +1056,8 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
 
   return (
     <section
-      className={cn("portfolio-site-deck min-h-screen text-[var(--portfolio-text)]", className)}
-      style={{ ...themeStyle, backgroundColor: document.theme.background }}
+      className={cn(`portfolio-site-deck min-h-screen ${shellBg} ${shellText}`, className)}
+      style={themeStyle}
     >
       <style jsx global>{`
         .portfolio-site-deck h1,
@@ -1028,8 +1073,8 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
               <Layers3 className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-800">{document.sections[0]?.title || page.title}</p>
-              <p className="text-xs font-semibold text-slate-500">
+              <p className={cn("truncate text-sm font-bold", isDarkTemplate ? "text-slate-100" : "text-slate-800")}>{document.sections[0]?.title || page.title}</p>
+              <p className={cn("text-xs font-semibold", isDarkTemplate ? "text-slate-400" : "text-slate-500")}>
                 {currentIndex + 1} / {pages.length}
               </p>
             </div>
@@ -1039,7 +1084,12 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
               type="button"
               onClick={() => setCurrentIndex((current) => Math.max(0, current - 1))}
               disabled={!canGoPrev}
-              className="flex h-9 w-9 items-center justify-center border border-[#d8e4d0] bg-white text-slate-700 shadow-sm transition hover:bg-[#eef6e8] disabled:cursor-not-allowed disabled:opacity-35"
+              className={cn(
+                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
+                isDarkTemplate
+                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
+              )}
               aria-label="이전 페이지"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -1048,7 +1098,12 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
               type="button"
               onClick={() => setCurrentIndex((current) => Math.min(pages.length - 1, current + 1))}
               disabled={!canGoNext}
-              className="flex h-9 w-9 items-center justify-center border border-[#d8e4d0] bg-white text-slate-700 shadow-sm transition hover:bg-[#eef6e8] disabled:cursor-not-allowed disabled:opacity-35"
+              className={cn(
+                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
+                isDarkTemplate
+                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
+              )}
               aria-label="다음 페이지"
             >
               <ChevronRight className="h-4 w-4" />
@@ -1058,11 +1113,14 @@ export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRend
 
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <div
-            className="relative w-full overflow-hidden border border-[#d8e4d0] bg-white shadow-[0_24px_70px_rgba(85,120,63,0.16)]"
+            className={cn(
+              "relative w-full overflow-hidden border shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
+              isDarkTemplate ? "border-slate-700 bg-slate-900" : "border-[#d8e4d0] bg-white",
+            )}
             style={{ maxWidth: "min(1120px, calc(177.78vh - 300px))" }}
           >
             <div className="aspect-[16/9] w-full">
-              <DeckShell page={page} index={currentIndex} total={pages.length}>
+              <DeckShell page={page} index={currentIndex} total={pages.length} templateId={document.templateId}>
                 {renderSlide(page)}
               </DeckShell>
             </div>
