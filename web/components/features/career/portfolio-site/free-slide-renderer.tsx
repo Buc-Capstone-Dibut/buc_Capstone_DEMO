@@ -15,25 +15,14 @@ type FreeSlideRendererProps = {
 };
 
 /**
- * AI 자율 슬라이드를 안전한 grid 슬롯 위에 렌더한다.
+ * AI 자율 슬라이드 렌더러 — html 우선, 구버전 slots 폴백 지원.
  *
- * 구조:
- *   <article aspect-[16/9] overflow-hidden>
- *     <div [layout.rootClassName]>     ← 우리가 정한 안전 grid
- *       <div [slot[0].className]>      ← min-w-0 min-h-0 overflow-hidden 강제
- *         {renderNode(slide.slots[0])} ← AI 가 만든 자식 트리만 자유
- *       </div>
- *       ... (슬롯 N개)
- *     </div>
- *   </article>
- *
- * - tag 화이트리스트는 normalize 단계에서 검증됨
- * - className 도 normalize 단계에서 위험 클래스 제거됨 (absolute/fixed/큰 사이즈 등)
- * - text 는 평문만 → React 가 자동 escape → XSS 차단
+ * - html: AI 가 작성한 HTML 문자열. 서버에서 sanitizeAiHtml 로 정제됨.
+ *   클라이언트에서는 dangerouslySetInnerHTML 로 그대로 삽입.
+ *   외곽 컨테이너에 aspect-[16/9] + overflow-hidden 강제로 화면 벗어남 방지.
+ * - slots: 구버전(슬롯 기반 트리). html 이 비어 있을 때만 사용.
  */
 export function FreeSlideRenderer({ slide, theme }: FreeSlideRendererProps) {
-  const layout = getFreeSlideLayout(slide.layout);
-
   return (
     <FreeSlideErrorBoundary>
       <article
@@ -51,30 +40,49 @@ export function FreeSlideRenderer({ slide, theme }: FreeSlideRendererProps) {
         }
         aria-label={slide.intent || "포트폴리오 슬라이드"}
       >
-        <div className={layout.rootClassName}>
-          {layout.slots.map((slot, index) => {
-            const node = slide.slots[index];
-            return (
-              <div key={slot.key} className={slot.className}>
-                {node ? <RenderedNode node={node} depth={0} /> : null}
-              </div>
-            );
-          })}
-        </div>
+        {slide.html ? (
+          <div
+            className="h-full w-full overflow-hidden"
+            // sanitize 는 서버 normalize 단계에서 끝남
+            dangerouslySetInnerHTML={{ __html: slide.html }}
+          />
+        ) : slide.slots && slide.slots.length ? (
+          <LegacySlotRenderer slide={slide} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-500">
+            슬라이드 내용이 비어 있습니다.
+          </div>
+        )}
       </article>
     </FreeSlideErrorBoundary>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 구버전 — 슬롯 트리 기반 렌더 (호환 유지)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function LegacySlotRenderer({ slide }: { slide: PortfolioFreeSlide }) {
+  const layout = getFreeSlideLayout(slide.layout);
+  return (
+    <div className={layout.rootClassName}>
+      {layout.slots.map((slot, index) => {
+        const node = slide.slots?.[index];
+        return (
+          <div key={slot.key} className={slot.className}>
+            {node ? <RenderedNode node={node} depth={0} /> : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
 function renderNode(node: FreeSlideNode, depth: number): ReactNode {
   if (depth > 10) return null;
   const Tag = node.tag as keyof JSX.IntrinsicElements;
-  // 슬롯 안쪽 자식들에 자동으로 적용되는 안전망:
-  //  - depth 0 (슬롯 직속 자식) 컨테이너는 min-w-0 자동 부착 (overflow 방지)
   const safeClassName =
-    depth === 0 && node.className
-      ? cn("min-w-0", node.className)
-      : node.className;
+    depth === 0 && node.className ? cn("min-w-0", node.className) : node.className;
 
   const props: { className?: string; style?: CSSProperties } = {};
   if (safeClassName) props.className = safeClassName;
@@ -101,7 +109,7 @@ function RenderedNode({ node, depth }: { node: FreeSlideNode; depth: number }) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 에러 바운더리 — AI 트리가 깨져도 슬라이드만 fallback
+// 에러 바운더리 — 깨져도 슬라이드만 fallback
 // ──────────────────────────────────────────────────────────────────────────────
 
 class FreeSlideErrorBoundary extends Component<
