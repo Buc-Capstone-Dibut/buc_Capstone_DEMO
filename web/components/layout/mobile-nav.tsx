@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 export function GlobalMobileNav() {
   const pathname = usePathname()
 
+  // 공개 포트폴리오 페이지(/p/...)는 standalone — 모바일 nav 숨김
+  if (pathname?.startsWith("/p/")) return null
+
   const navItems = [
     { label: "Insights", href: "/insights", icon: BookOpen },
     { label: "Interview", href: "/interview", icon: Mic },

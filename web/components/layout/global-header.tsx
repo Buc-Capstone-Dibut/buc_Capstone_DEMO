@@ -75,6 +75,9 @@ export function GlobalHeader() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null);
 
+  // 공개 포트폴리오 페이지(/p/...)는 standalone — 글로벌 헤더 숨김
+  if (pathname?.startsWith("/p/")) return null;
+
 
   // 현재 활성화된 메인 카테고리 찾기
   // 하위 메뉴 중 하나라도 일치하면 해당 카테고리를 활성 상태로 간주

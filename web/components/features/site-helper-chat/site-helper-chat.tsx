@@ -52,6 +52,8 @@ const STARTER_QUESTIONS = [
 const HIDDEN_PATH_PREFIXES = [
   "/interview/room",
   "/interview/training/portfolio/room",
+  // 공개 포트폴리오 페이지(/p/...)는 standalone — 도우미 chat 숨김
+  "/p/",
 ];
 
 function createMessageId() {

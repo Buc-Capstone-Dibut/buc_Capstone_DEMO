@@ -1,0 +1,707 @@
+/*
+ * NeonEditorial template — static structural port of public/portfolio-demo-neon/index.html.
+ * Tokens (--bg, --accent, …) are injected via inline `style` on the `.root` wrapper.
+ * The cursor: none rule and font-family are scoped to .root to avoid leaking out of the template.
+ */
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
+.root {
+  /* Token CSS variables injected via inline style from the component */
+  position: relative;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+.root *,
+.root *::before,
+.root *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.root :global(a),
+.root :global(button) { color: inherit; }
+.root :global(ul) { list-style: none; }
+.root :global(img) { display: block; max-width: 100%; }
+
+/* --- Custom cursor --- */
+.root :global(.cursor-dot),
+.root :global(.cursor-ring) {
+  position: fixed; top: 0; left: 0;
+  pointer-events: none; z-index: 9999;
+  will-change: transform;
+}
+.root :global(.cursor-dot) {
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  transition: background 0.25s ease;
+}
+.root :global(.cursor-ring) {
+  width: 36px; height: 36px;
+  border: 1.5px solid rgba(57, 255, 20, 0.5);
+  border-radius: 50%;
+  opacity: 0;
+  transition: width 0.3s ease, height 0.3s ease,
+              background 0.3s ease, border-color 0.3s ease;
+}
+.root :global(.cursor-ring.is-hover) {
+  width: 52px; height: 52px;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.root :global(.cursor-dot.is-hover) { background: #000; }
+
+/* --- Scroll progress --- */
+.root :global(.scroll-progress) {
+  position: fixed; top: 0; left: 0;
+  height: 2px; width: 0%;
+  background: var(--accent);
+  z-index: 10000;
+  transition: width 0.06s linear;
+}
+
+/* --- Hero --- */
+.root :global(.hero) {
+  position: relative;
+  min-height: 100vh;
+  padding: 40px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-image:
+    repeating-linear-gradient(to right,  rgba(240,240,240,0.04) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(to bottom, rgba(240,240,240,0.04) 0 1px, transparent 1px 80px);
+}
+.root :global(.hero-top),
+.root :global(.hero-bottom) {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 24px;
+}
+.root :global(.hero-bottom) { align-items: flex-end; }
+
+.root :global(.label) {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.root :global(.label.accent) { color: var(--accent); }
+
+.root :global(.hero-name) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 80px 0;
+}
+.root :global(.hero-line) {
+  overflow: hidden;
+  line-height: 0.88;
+}
+.root :global(.hero-line .word) {
+  display: inline-block;
+  font-size: clamp(72px, 14vw, 144px);
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.05em;
+  will-change: transform, clip-path;
+}
+.root :global(.hero-line.sub .word) {
+  font-size: clamp(40px, 7vw, 76px);
+  color: var(--text-secondary);
+  letter-spacing: -0.03em;
+  margin-top: 24px;
+}
+.root :global(.hero-line.sub .word .dot) { color: var(--accent); }
+
+.root :global(.bio) {
+  font-size: 16px;
+  line-height: 1.9;
+  color: var(--text-secondary);
+  max-width: 340px;
+}
+.root :global(.scroll-hint) {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.root :global(.scroll-hint .arrow) { animation: bob 1.6s ease-in-out infinite; }
+
+/* --- Marquee --- */
+.root :global(.marquee) {
+  background: var(--accent);
+  color: #000;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.root :global(.marquee-track) {
+  display: inline-flex;
+  white-space: nowrap;
+  padding: 22px 0;
+  font-size: clamp(20px, 2.4vw, 30px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  animation: marquee 28s linear infinite;
+}
+.root :global(.marquee-track span) {
+  padding: 0 36px;
+}
+.root :global(.marquee-track .star) { color: rgba(0,0,0,0.4); padding: 0 16px; }
+
+/* --- Section base --- */
+.root :global(.section) {
+  position: relative;
+  padding: 160px 56px;
+  border-top: 1px solid var(--border);
+}
+.root :global(.section-head) {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 80px;
+}
+.root :global(.section-display) {
+  font-size: clamp(64px, 9vw, 104px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* --- ABOUT --- */
+.root :global(.about-grid) {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 80px;
+  margin-bottom: 120px;
+}
+.root :global(.about-quote blockquote) {
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--text-primary);
+  border-left: 2px solid var(--accent);
+  padding-left: 28px;
+}
+.root :global(.about-body p) {
+  font-size: 16px;
+  line-height: 1.9;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+.root :global(.about-body p strong) {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.root :global(.strength-grid) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.root :global(.strength-card) {
+  background: var(--bg-card);
+  padding: 56px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: background 0.4s ease;
+}
+.root :global(.strength-card:hover) { background: var(--bg-alt); }
+.root :global(.strength-num) {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.25em;
+}
+.root :global(.strength-card h3) {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.root :global(.strength-card p) {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* --- WORKS --- */
+.root :global(.works-list) {
+  border-top: 1px solid var(--border);
+}
+.root :global(.work-row) {
+  position: relative;
+  display: grid;
+  grid-template-columns: 220px 1fr 240px 32px;
+  align-items: center;
+  gap: 40px;
+  padding: 32px 28px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text-primary);
+  overflow: hidden;
+  transition: color 0.3s ease;
+}
+
+.root :global(.work-thumb) {
+  position: relative;
+  display: block;
+  width: 220px;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: border-color 0.4s ease, transform 0.4s ease;
+}
+.root :global(.work-thumb img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.2, 0, 0.2, 1);
+}
+.root :global(.work-row:hover .work-thumb img) {
+  transform: scale(1.06);
+}
+
+/* Empty placeholder: large outline number */
+.root :global(.work-thumb.is-empty) {
+  background:
+    linear-gradient(135deg, rgba(57,255,20,0.05), transparent),
+    var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.root :global(.work-thumb-number) {
+  font-size: 64px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--accent);
+  text-stroke: 1.5px var(--accent);
+  opacity: 0.7;
+  transition: opacity 0.4s ease, -webkit-text-stroke-color 0.4s ease;
+}
+.root :global(.work-row:hover .work-thumb) {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+.root :global(.work-row:hover .work-thumb.is-empty) {
+  background:
+    linear-gradient(135deg, rgba(0,0,0,0.04), transparent),
+    rgba(255,255,255,0.5);
+}
+.root :global(.work-row:hover .work-thumb-number) {
+  -webkit-text-stroke-color: rgba(0, 0, 0, 0.7);
+  opacity: 1;
+}
+.root :global(.work-row::before) {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  z-index: 0;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.root :global(.work-row > *) { position: relative; z-index: 1; }
+.root :global(.work-row:hover) { color: #000; }
+.root :global(.work-row:hover::before) { transform: scaleX(1); }
+
+.root :global(.work-info) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.root :global(.work-info .work-num) {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  transition: color 0.3s ease;
+}
+.root :global(.work-row:hover .work-info .work-num) { color: rgba(0, 0, 0, 0.7); }
+
+.root :global(.work-info h3) {
+  font-size: clamp(26px, 3.4vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.root :global(.work-meta) {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+.root :global(.work-row:hover .work-meta) { color: rgba(0,0,0,0.55); }
+
+.root :global(.work-tags) {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  text-align: right;
+  transition: color 0.3s ease;
+}
+.root :global(.work-row:hover .work-tags) { color: rgba(0,0,0,0.7); }
+
+.root :global(.work-arrow) {
+  font-size: 28px;
+  font-weight: 300;
+  text-align: right;
+  transition: transform 0.4s ease;
+}
+.root :global(.work-row:hover .work-arrow) { transform: translateX(8px); }
+
+/* KPI spotlight */
+.root :global(.kpi-spotlight) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  margin-top: 80px;
+  border: 1px solid var(--border);
+}
+.root :global(.kpi) {
+  background: var(--bg-alt);
+  padding: 64px 32px;
+  text-align: center;
+}
+.root :global(.kpi-num-wrap) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.root :global(.kpi-num) {
+  font-size: clamp(56px, 7vw, 96px);
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.root :global(.kpi-suffix) {
+  font-size: clamp(28px, 3.5vw, 48px);
+  font-weight: 900;
+  color: var(--accent);
+}
+.root :global(.kpi-label) {
+  display: block;
+  margin-top: 18px;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* --- EXPERIENCE --- */
+.root :global(.timeline) { border-top: 1px solid var(--border); }
+.root :global(.timeline-row) {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 60px;
+  padding: 36px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.root :global(.t-date) {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-top: 6px;
+}
+.root :global(.t-info h3) {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 18px;
+}
+.root :global(.t-info h3 .org) { color: var(--text-secondary); font-weight: 600; }
+.root :global(.t-info li) {
+  position: relative;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  padding-left: 20px;
+  margin-bottom: 6px;
+}
+.root :global(.t-info li::before) {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+.root :global(.subhead) {
+  margin-top: 100px;
+  margin-bottom: 32px;
+}
+
+/* --- CONTACT --- */
+.root :global(.contact) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.root :global(.contact-display) {
+  font-size: clamp(96px, 18vw, 228px);
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.06em;
+  text-transform: uppercase;
+  margin: 32px 0 80px;
+}
+.root :global(.contact-display .accent) { color: var(--accent); }
+.root :global(.contact-display .line) { display: block; overflow: hidden; }
+.root :global(.contact-display .line > span) { display: inline-block; will-change: transform; }
+
+.root :global(.magnetic-btn) {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 56px;
+  border: 1.5px solid var(--accent);
+  border-radius: 100px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: transparent;
+  transition: background 0.3s ease, color 0.3s ease;
+  will-change: transform;
+}
+.root :global(.magnetic-btn:hover) {
+  background: var(--accent);
+  color: #000;
+}
+.root :global(.magnetic-btn .arrow) {
+  transition: transform 0.4s ease;
+}
+.root :global(.magnetic-btn:hover .arrow) { transform: translateX(6px); }
+
+.root :global(.socials) {
+  display: flex;
+  gap: 40px;
+  margin-top: 96px;
+  flex-wrap: wrap;
+}
+.root :global(.socials a) {
+  position: relative;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  padding-bottom: 6px;
+  transition: color 0.3s ease;
+}
+.root :global(.socials a::after) {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%; height: 1px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+}
+.root :global(.socials a:hover) { color: var(--accent); }
+.root :global(.socials a:hover::after) { transform: scaleX(1); }
+
+.root :global(footer.foot) {
+  margin-top: 120px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+/* ============= T31 visual safety ============= */
+/* Sustain layout when users exceed T26 char-limit guides. */
+
+/* Works row: work-info now competes with 240px tags column + 220px thumb. */
+.root :global(.work-info h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+.root :global(.work-info .work-meta) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.root :global(.work-tags) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Strength cards: title 2 lines, body 5 lines. */
+.root :global(.strength-card h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+.root :global(.strength-card p) {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  word-break: keep-all;
+}
+
+/* KPI label one-line ellipsis. */
+.root :global(.kpi-label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Timeline row: title ellipsis, bullet content breaks gracefully. */
+.root :global(.t-info h3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+}
+.root :global(.t-info li) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Hero name: prevent long words from blowing out viewport. */
+.root :global(.hero-line) {
+  width: 100%;
+  max-width: 100%;
+}
+.root :global(.hero-line .word) {
+  max-width: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* About block: natural Korean line-breaking. */
+.root :global(.about-quote blockquote) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.root :global(.about-body p) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Contact display: keep word boundaries for Korean. */
+.root :global(.contact-display) {
+  word-break: keep-all;
+}
+
+/* Marquee: defensive nowrap on items (animation depends on it). */
+.root :global(.marquee-track span) {
+  white-space: nowrap;
+}
+/* ============= /T31 ============= */
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .root :global(.hero) { padding: 28px 24px; }
+  .root :global(.section) { padding: 100px 24px; }
+  .root :global(.hero-name) { padding: 60px 0; }
+  .root :global(.hero-line .word) { font-size: clamp(56px, 16vw, 96px); }
+  .root :global(.hero-line.sub .word) { font-size: clamp(32px, 9vw, 56px); }
+  .root :global(.bio) { max-width: 100%; }
+  .root :global(.hero-bottom) { flex-direction: column; align-items: flex-start; gap: 24px; }
+  .root :global(.hero-top) { flex-direction: row; }
+
+  .root :global(.section-head) { margin-bottom: 56px; gap: 16px; }
+  .root :global(.section-display) { font-size: clamp(56px, 12vw, 80px); }
+
+  .root :global(.about-grid) {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    margin-bottom: 80px;
+  }
+  .root :global(.strength-grid) { grid-template-columns: 1fr; }
+  .root :global(.strength-card) { padding: 36px 28px; }
+
+  .root :global(.work-row) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    padding: 20px 16px;
+  }
+  .root :global(.work-thumb) {
+    width: 100%;
+    height: 200px;
+  }
+  .root :global(.work-thumb-number) {
+    font-size: 96px;
+  }
+  .root :global(.work-info h3) { font-size: 22px; }
+  .root :global(.work-tags) { display: none; }
+  .root :global(.work-arrow) { display: none; }
+
+  .root :global(.kpi-spotlight) { grid-template-columns: 1fr; }
+  .root :global(.kpi) { padding: 48px 24px; }
+
+  .root :global(.timeline-row) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 28px 16px;
+  }
+  .root :global(.t-date) { padding-top: 0; }
+
+  .root :global(.contact-display) { font-size: clamp(72px, 22vw, 160px); }
+  .root :global(.magnetic-btn) { padding: 22px 36px; font-size: 14px; }
+  .root :global(.socials) { gap: 24px; margin-top: 64px; }
+  .root :global(footer.foot) { flex-direction: column; gap: 12px; margin-top: 80px; }
+
+  .root :global(.cursor-dot),
+  .root :global(.cursor-ring) { display: none; }
+  .root { cursor: auto; }
+}
