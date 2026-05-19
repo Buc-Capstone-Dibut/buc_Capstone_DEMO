@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import {
   getPortfolioTemplate,
@@ -9,9 +17,32 @@ import {
   type PortfolioSiteBlock,
   type PortfolioSitePage,
   type PortfolioSitePageType,
+  type PortfolioTemplateId,
   type PortfolioTemplateVisualStyle,
 } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
+// ──────────────────────────────────────────────────────────────────────────────
+
+type RendererContextValue = { templateId: PortfolioTemplateId };
+const RendererContext = createContext<RendererContextValue>({ templateId: "developer-minimal" });
+
+function useTemplateId(): PortfolioTemplateId {
+  return useContext(RendererContext).templateId;
+}
+
+/** templateId 식별 헬퍼들. 컴포넌트 안에서 짧게 사용. */
+function isMinimal(id: PortfolioTemplateId) {
+  return id === "developer-minimal";
+}
+function isEditorial(id: PortfolioTemplateId) {
+  return id === "case-study";
+}
+function isBold(id: PortfolioTemplateId) {
+  return id === "visual-showcase";
+}
 
 type PortfolioSiteRendererProps = {
   document: PortfolioDocument;
@@ -334,8 +365,27 @@ function DeckShell({
 }
 
 function BigNumber({ value }: { value: string }) {
+  const templateId = useTemplateId();
+  if (isBold(templateId)) {
+    return (
+      <span
+        className="select-none text-[148px] font-black leading-none text-[var(--portfolio-accent)] opacity-90"
+        style={{ textShadow: "0 0 60px rgba(255,255,255,0.15)" }}
+      >
+        {value}
+      </span>
+    );
+  }
+  if (isEditorial(templateId)) {
+    return (
+      <span className="select-none font-serif text-[140px] font-black italic leading-none text-[var(--portfolio-primary)] opacity-25">
+        {value}
+      </span>
+    );
+  }
+  // Minimal Tech
   return (
-    <span className="select-none text-[118px] font-black leading-none text-[var(--portfolio-primary)] opacity-[0.11]">
+    <span className="select-none text-[118px] font-black leading-none text-slate-200">
       {value}
     </span>
   );
@@ -367,17 +417,68 @@ function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: num
 }
 
 function MetricLine({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
   const metrics = metricBlocks(page);
   if (!metrics.length) return null;
 
+  if (isBold(templateId)) {
+    // Bold Showcase — 거대한 컬러 블록, text-7xl 숫자, 어두운 배경 위 흰 글씨
+    return (
+      <div className="flex flex-wrap gap-4">
+        {metrics.slice(0, 3).map((metric) => (
+          <div
+            key={metric.id}
+            className="min-w-0 rounded-2xl border-2 border-[var(--portfolio-accent)] bg-slate-800/50 px-6 py-5 backdrop-blur-sm"
+          >
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--portfolio-accent)]">
+              {plainText(metric.label, 30) || "Metric"}
+            </p>
+            <p className="mt-2 break-keep text-[64px] font-black leading-none tracking-tighter text-white">
+              {plainText(metric.value, 24) || "-"}
+            </p>
+            {metric.caption ? (
+              <p className="mt-2 max-w-[180px] break-keep text-[12px] font-bold leading-5 text-slate-300">
+                {plainText(metric.caption, 90)}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isEditorial(templateId)) {
+    // Editorial Magazine — serif 큰 숫자, 점선 구분
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-10 gap-y-4 border-t border-dashed border-[var(--portfolio-primary)]/40 pt-5">
+        {metrics.slice(0, 4).map((metric) => (
+          <div key={metric.id} className="min-w-0">
+            <p className="font-serif text-[11px] font-medium italic tracking-[0.18em] text-slate-500">
+              {plainText(metric.label, 30) || "Metric"}
+            </p>
+            <p className="mt-1 break-keep font-serif text-[44px] font-bold leading-tight text-[var(--portfolio-primary)]">
+              {plainText(metric.value, 24) || "-"}
+            </p>
+            {metric.caption ? (
+              <p className="mt-1 max-w-[200px] break-keep font-serif text-[12px] font-medium italic leading-5 text-slate-600">
+                {plainText(metric.caption, 90)}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Minimal Tech — 깔끔한 sans 큰 숫자
   return (
-    <div className="flex flex-wrap gap-x-7 gap-y-4">
+    <div className="flex flex-wrap gap-x-8 gap-y-4">
       {metrics.slice(0, 4).map((metric) => (
-        <div key={metric.id} className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+        <div key={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
             {plainText(metric.label, 30) || "Metric"}
           </p>
-          <p className="mt-1 break-keep text-3xl font-black leading-tight text-[var(--portfolio-primary)]">
+          <p className="mt-1 break-keep text-[40px] font-black leading-tight tracking-tight text-[var(--portfolio-primary)]">
             {plainText(metric.value, 24) || "-"}
           </p>
           {metric.caption ? (
@@ -392,10 +493,63 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
 }
 
 function FlowRibbon({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
   const items = flowItems(page);
+  const ROMAN = ["I", "II", "III", "IV", "V"];
+
+  if (isEditorial(templateId)) {
+    // Editorial — 로마 숫자(I,II,III,IV), serif, 빈 박스, 점선 라인
+    return (
+      <div className="relative">
+        <div className="absolute left-4 right-4 top-[28px] h-0 border-t border-dashed border-[var(--portfolio-primary)]/50" />
+        <div className="relative grid grid-cols-4 gap-5">
+          {items.slice(0, 4).map((item, index) => (
+            <div key={`${item}-${index}`} className="min-w-0">
+              <div className="flex h-14 w-14 items-center justify-center border-2 border-[var(--portfolio-primary)] bg-[var(--portfolio-background)] font-serif text-xl font-bold text-[var(--portfolio-primary)]">
+                {ROMAN[index]}
+              </div>
+              <p className="mt-3 break-keep font-serif text-[13px] font-medium italic leading-6 text-slate-800">
+                {plainText(item, 90)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isBold(templateId)) {
+    // Bold — 거대 숫자 카드, 컬러 블록 강조, 굵은 화살표
+    return (
+      <div className="relative">
+        <div className="relative grid grid-cols-4 gap-2">
+          {items.slice(0, 4).map((item, index) => (
+            <div
+              key={`${item}-${index}`}
+              className="relative min-w-0 rounded-lg border-2 border-[var(--portfolio-accent)] bg-slate-800 p-4"
+            >
+              {index < 3 ? (
+                <div className="absolute -right-3 top-1/2 z-10 -translate-y-1/2 text-2xl font-black text-[var(--portfolio-accent)]">
+                  →
+                </div>
+              ) : null}
+              <p className="text-[32px] font-black leading-none text-[var(--portfolio-accent)]">
+                {String(index + 1).padStart(2, "0")}
+              </p>
+              <p className="mt-3 break-keep text-[13px] font-black leading-5 text-white">
+                {plainText(item, 90)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Minimal Tech — 단순 박스 + 얇은 라인
   return (
     <div className="relative">
-      <div className="absolute left-4 right-4 top-[35px] h-[2px] bg-[#b9cdae]" />
+      <div className="absolute left-4 right-4 top-[35px] h-[2px] bg-slate-200" />
       <div className="relative grid grid-cols-4 gap-4">
         {items.slice(0, 4).map((item, index) => (
           <div key={`${item}-${index}`} className="min-w-0">
@@ -416,12 +570,64 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
 }
 
 function KeywordCloud({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
   const items = matrixItems(page);
   if (!items.length) return null;
+
+  if (isEditorial(templateId)) {
+    // Editorial — serif 큰 따옴표 매거진 식 + 인용 키워드 가운데 배치
+    return (
+      <div className="relative flex h-[250px] flex-col items-center justify-center px-4">
+        <span className="font-serif text-[120px] font-bold leading-none text-[var(--portfolio-primary)]/20">
+          “
+        </span>
+        <div className="-mt-12 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 px-8">
+          {items.slice(0, 8).map((item, index) => (
+            <span
+              key={`${item}-${index}`}
+              className="break-keep font-serif text-base font-medium italic text-slate-800"
+              style={{
+                borderBottom: index % 2 === 0 ? `2px solid ${ACCENT_COLORS[index % ACCENT_COLORS.length]}` : undefined,
+              }}
+            >
+              {plainText(item, 50)}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isBold(templateId)) {
+    // Bold — 컬러 칩, 크기 다양, 강한 대비
+    return (
+      <div className="flex h-[250px] flex-wrap content-center items-center justify-center gap-3 p-4">
+        {items.slice(0, 10).map((item, index) => {
+          const color = ACCENT_COLORS[index % ACCENT_COLORS.length];
+          const size = index % 4 === 0 ? "text-xl px-5 py-3" : index % 3 === 0 ? "text-lg px-4 py-2.5" : "text-sm px-3 py-2";
+          return (
+            <span
+              key={`${item}-${index}`}
+              className={cn("break-keep rounded-full border-2 font-black", size)}
+              style={{
+                borderColor: color,
+                backgroundColor: `${color}22`,
+                color: color,
+              }}
+            >
+              {plainText(item, 50)}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Minimal Tech — 격자 라인 위 키워드 배치 (기본)
   return (
     <div className="relative h-[250px]">
-      <div className="absolute left-1/2 top-0 h-full w-px bg-[#c8dabc]" />
-      <div className="absolute left-0 top-1/2 h-px w-full bg-[#c8dabc]" />
+      <div className="absolute left-1/2 top-0 h-full w-px bg-slate-200" />
+      <div className="absolute left-0 top-1/2 h-px w-full bg-slate-200" />
       {items.slice(0, 9).map((item, index) => {
         const positions = [
           "left-[7%] top-[8%]",
@@ -511,10 +717,47 @@ function TimelineLine({ page }: { page: PortfolioSitePage }) {
 }
 
 function CalloutLine({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
   const callout = calloutBlocks(page)[0];
   if (!callout) return null;
+
+  if (isEditorial(templateId)) {
+    // Editorial — 매거진 식 큰 인용 부호 + serif italic
+    return (
+      <div className="relative pl-6">
+        <span className="absolute -left-2 top-[-12px] font-serif text-[68px] font-bold leading-none text-[var(--portfolio-primary)]/40">
+          “
+        </span>
+        <p className="font-serif text-[11px] font-medium italic tracking-[0.2em] text-[var(--portfolio-primary)]">
+          {callout.label || "Key Point"}
+        </p>
+        <p className="mt-2 whitespace-pre-line break-keep font-serif text-[15px] font-medium italic leading-[1.7] text-slate-800">
+          {multilineText(callout.content, 240)}
+        </p>
+      </div>
+    );
+  }
+
+  if (isBold(templateId)) {
+    // Bold — 컬러 블록 배경, 강한 대비, 흰 글씨
+    return (
+      <div
+        className="rounded-2xl border-2 border-[var(--portfolio-accent)] bg-slate-800/60 p-5 backdrop-blur-sm"
+        style={{ boxShadow: "0 0 30px rgba(255,255,255,0.05)" }}
+      >
+        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--portfolio-accent)]">
+          {callout.label || "Key Point"}
+        </p>
+        <p className="mt-2 whitespace-pre-line break-keep text-[15px] font-bold leading-7 text-white">
+          {multilineText(callout.content, 240)}
+        </p>
+      </div>
+    );
+  }
+
+  // Minimal Tech — 단순 좌측 막대
   return (
-    <div className="border-l-[6px] border-[#f6d46b] pl-5">
+    <div className="border-l-[6px] border-[var(--portfolio-primary)] pl-5">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--portfolio-primary)]">
         {callout.label || "Key Point"}
       </p>
@@ -526,6 +769,52 @@ function CalloutLine({ page }: { page: PortfolioSitePage }) {
 }
 
 function TitleBlock({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
+
+  if (isEditorial(templateId)) {
+    // Editorial Magazine — 매거진 식 중앙 정렬, serif 큰 헤딩, 큰 부제, 가는 라인 강조
+    return (
+      <div className="flex flex-col items-center text-center">
+        {page.intent ? (
+          <p className="break-keep font-serif text-[12px] font-medium italic tracking-[0.3em] text-[var(--portfolio-primary)]">
+            — {plainText(page.intent, 88)} —
+          </p>
+        ) : null}
+        <h1 className="mt-4 break-keep font-serif text-[44px] font-bold leading-[1.1] tracking-tight text-slate-950">
+          {plainText(page.title, 90)}
+        </h1>
+        <span className="mt-4 inline-block h-[2px] w-16 bg-[var(--portfolio-primary)]" />
+        {page.subtitle ? (
+          <p className="mt-4 max-w-[560px] break-keep font-serif text-[16px] font-medium italic leading-7 text-slate-600">
+            {plainText(page.subtitle, 140)}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (isBold(templateId)) {
+    // Bold Showcase — 거대 sans, 강한 트래킹, 어두운 배경에 흰 글씨
+    return (
+      <div>
+        {page.intent ? (
+          <p className="text-[12px] font-black uppercase tracking-[0.32em] text-[var(--portfolio-accent)]">
+            {plainText(page.intent, 88)}
+          </p>
+        ) : null}
+        <h1 className="mt-4 break-keep text-[52px] font-black leading-[0.95] tracking-tighter text-white">
+          {plainText(page.title, 90)}
+        </h1>
+        {page.subtitle ? (
+          <p className="mt-5 max-w-[560px] break-keep text-[16px] font-bold leading-7 text-slate-300">
+            {plainText(page.subtitle, 140)}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Minimal Tech — 큰 sans, 좌측 정렬, 미니멀
   return (
     <div>
       {page.intent ? (
@@ -546,8 +835,24 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
 }
 
 function CompositionNote({ page }: { page: PortfolioSitePage }) {
+  const templateId = useTemplateId();
   const metaphor = page.composition?.visualMetaphor || page.visualDirection;
   if (!metaphor) return null;
+
+  if (isEditorial(templateId)) {
+    return (
+      <p className="font-serif text-[11px] font-medium italic tracking-[0.22em] text-[var(--portfolio-primary)]">
+        {plainText(metaphor, 54)}
+      </p>
+    );
+  }
+  if (isBold(templateId)) {
+    return (
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--portfolio-accent)]">
+        {plainText(metaphor, 54)}
+      </p>
+    );
+  }
   return (
     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
       {plainText(metaphor, 54)}
@@ -977,7 +1282,15 @@ function renderSlide(page: PortfolioSitePage) {
   return <CaseSlide page={page} />;
 }
 
-export function PortfolioSiteRenderer({ document, className }: PortfolioSiteRendererProps) {
+export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+  return (
+    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+      <PortfolioSiteRendererInner {...props} />
+    </RendererContext.Provider>
+  );
+}
+
+function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRendererProps) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
