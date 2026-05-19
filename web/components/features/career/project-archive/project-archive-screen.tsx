@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Globe2, Loader2, Presentation, Sparkles, X } from "lucide-react";
+import { Globe2, Loader2, Sparkles, X } from "lucide-react";
 import { CoverLetterWizardOverlay } from "@/components/features/career/cover-letter-wizard-overlay";
 import { cn } from "@/lib/utils";
 import type { ProjectInput } from "@/app/career/projects/types";
@@ -210,7 +210,7 @@ export function ProjectArchiveScreen({
               </button>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => handlePortfolioFormatSelect("site")}
@@ -225,23 +225,6 @@ export function ProjectArchiveScreen({
                 </span>
                 <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
                   브라우저에서 여러 페이지를 넘기는 HTML 기반 포트폴리오
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handlePortfolioFormatSelect("slide")}
-                disabled={isCreatingPortfolio}
-                className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <Presentation className="h-5 w-5" />
-                </span>
-                <span className="mt-4 block text-base font-black text-slate-950">
-                  PPT 16:9형
-                </span>
-                <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
-                  기존 슬라이드 편집기로 세부 배치를 조정하는 포트폴리오
                 </span>
               </button>
 
