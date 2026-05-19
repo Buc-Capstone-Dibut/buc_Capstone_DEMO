@@ -23,6 +23,11 @@ import {
 import { cn } from "@/lib/utils";
 import { MinimalMonoRenderer } from "./renderers/minimal-mono-renderer";
 import { EditorialMagazineRenderer } from "./renderers/editorial-magazine-renderer";
+import { BrutalistTechRenderer } from "./renderers/brutalist-tech-renderer";
+import { SoftPastelCardRenderer } from "./renderers/soft-pastel-card-renderer";
+import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
+import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
+import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -1298,6 +1303,21 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   }
   if (rendererId === "editorial-magazine") {
     return <EditorialMagazineRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "brutalist-tech") {
+    return <BrutalistTechRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "soft-pastel-card") {
+    return <SoftPastelCardRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "terminal-code") {
+    return <TerminalCodeRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "notion-document") {
+    return <NotionDocumentRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "gallery-mood") {
+    return <GalleryMoodRenderer document={props.document} className={props.className} />;
   }
   // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
   return (

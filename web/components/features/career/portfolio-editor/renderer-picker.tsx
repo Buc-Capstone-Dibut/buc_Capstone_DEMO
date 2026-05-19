@@ -26,6 +26,11 @@ type RendererPickerProps = {
 const IMPLEMENTED: ReadonlySet<PortfolioRendererId> = new Set([
   "minimal-mono",
   "editorial-magazine",
+  "brutalist-tech",
+  "soft-pastel-card",
+  "terminal-code",
+  "notion-document",
+  "gallery-mood",
 ]);
 
 export function RendererPicker({ rendererId, onChange }: RendererPickerProps) {
