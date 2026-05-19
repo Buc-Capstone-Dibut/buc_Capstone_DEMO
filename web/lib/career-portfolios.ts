@@ -403,21 +403,15 @@ export type FreeSlideLayoutDefinition = {
   intentHint: string;
 };
 
-/** AI 자율 슬라이드 한 장 — AI 가 작성한 HTML 문자열을 sanitize 후 렌더 */
+/** AI 자율 슬라이드 한 장 — 안전 슬롯 + 슬롯별 자유 콘텐츠 */
 export type PortfolioFreeSlide = {
   id: string;
   /** 슬라이드 의도 한 줄 (썸네일/네비게이션 표기용) */
   intent: string;
-  /**
-   * sanitize 된 HTML 문자열. 슬라이드 컨테이너(aspect-[16/9])에
-   * dangerouslySetInnerHTML 로 삽입된다. 위험 태그/속성/URL 은 normalize
-   * 단계에서 모두 제거됨.
-   */
-  html: string;
-  /** 어떤 안전 레이아웃을 사용할지 (외곽 컨테이너 grid). 선택사항. */
-  layout?: FreeSlideLayout;
-  /** [구버전 호환] 슬롯 기반 노드 트리. html 이 비었을 때만 사용. */
-  slots?: FreeSlideNode[];
+  /** 어떤 안전 레이아웃을 사용할지 */
+  layout: FreeSlideLayout;
+  /** 각 슬롯 안의 콘텐츠. layout 정의의 slots 개수와 같아야 한다 */
+  slots: FreeSlideNode[];
   /** 원본 데이터 추적용 */
   sourceId?: string;
   sourceKind?: "project" | "experience" | "manual";
@@ -4015,154 +4009,30 @@ function normalizeFreeSlideNode(
   return { tag, className, style, text, children };
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// HTML sanitizer — AI 가 생성한 HTML 문자열에서 위험 태그/속성/URL 을 제거.
-// 외부 라이브러리 없이 동작. 우리 사용 패턴(AI 생성 → 서버 검증 → 클라이언트
-// 렌더, 사용자 입력은 들어오지 않음)에 충분히 안전.
-// ──────────────────────────────────────────────────────────────────────────────
-
-const DANGEROUS_HTML_TAGS = new Set([
-  "script",
-  "iframe",
-  "object",
-  "embed",
-  "link",
-  "style",
-  "meta",
-  "base",
-  "form",
-  "input",
-  "button",
-  "select",
-  "textarea",
-  "video",
-  "audio",
-  "source",
-  "track",
-  "applet",
-  "frame",
-  "frameset",
-  "noframes",
-  "svg", // SVG 안에 script 가능 — 완전 차단
-  "math",
-  "img", // 외부 이미지 차단 (이전 결정: 이미지 사용 안 함)
-  "a", // 외부 링크 차단 (마우스 클릭으로 떠나는 것 방지)
-]);
-
-const MAX_AI_HTML_LENGTH = 32_000; // 슬라이드 1장당 32KB 까지
-
-/**
- * AI 가 생성한 HTML 을 안전한 형태로 정리한다.
- * - 위험 태그 통째 제거 (열고/닫는 태그 + 그 사이 내용)
- * - on* 이벤트 핸들러 속성 제거 (onclick, onload, ...)
- * - javascript:, data:, vbscript: URL 제거
- * - style 속성 안의 url()/expression()/javascript: 제거
- * - 셀프-클로징 위험 태그(<img>, <input> 등)도 제거
- */
-export function sanitizeAiHtml(input: unknown): string {
-  if (typeof input !== "string") return "";
-  let html = input.trim();
-  if (!html) return "";
-  html = html.slice(0, MAX_AI_HTML_LENGTH);
-
-  // 1) 위험 태그 통째 제거 (열고/닫는 페어)
-  for (const tag of DANGEROUS_HTML_TAGS) {
-    // <tag ...> ... </tag>
-    const pairRegex = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}\\s*>`, "gi");
-    html = html.replace(pairRegex, "");
-    // 셀프-클로징 또는 단일 태그
-    const singleRegex = new RegExp(`<${tag}(?:\\s[^>]*)?/?>`, "gi");
-    html = html.replace(singleRegex, "");
-  }
-
-  // 2) HTML 코멘트 제거 (<!-- ... -->)
-  html = html.replace(/<!--[\s\S]*?-->/g, "");
-
-  // 3) on* 이벤트 핸들러 속성 제거 (onclick="...", onmouseover='...' 등)
-  html = html.replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-
-  // 4) href / src 안의 위험 URL 제거 — 안전한 외부 링크는 어차피 a/img 태그
-  //    제거됐으니 남아도 무해하지만 한 번 더.
-  html = html.replace(
-    /\s(href|src|action|formaction|background|poster|cite|data|usemap)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,
-    "",
-  );
-
-  // 5) style 속성 안의 위험 값 제거 (url(), expression(), javascript:)
-  html = html.replace(/style\s*=\s*"([^"]*)"/gi, (_, value) => {
-    if (/url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:/i.test(value)) {
-      return "";
-    }
-    return `style="${value}"`;
-  });
-  html = html.replace(/style\s*=\s*'([^']*)'/gi, (_, value) => {
-    if (/url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:/i.test(value)) {
-      return "";
-    }
-    return `style='${value}'`;
-  });
-
-  // 6) javascript: URL 형식 자체 제거 (any remaining attr 값에서)
-  html = html.replace(/javascript\s*:/gi, "");
-  html = html.replace(/vbscript\s*:/gi, "");
-
-  // 7) 코드포인트 0~8, 11, 12, 14~31 같은 컨트롤 문자 제거
-  // eslint-disable-next-line no-control-regex
-  html = html.replace(/[ --]/g, "");
-
-  // 8) <html>, <body>, <head>, <!DOCTYPE> 같은 문서-수준 태그 제거 (남으면 깨짐)
-  html = html
-    .replace(/<\/?(html|body|head|title)\b[^>]*>/gi, "")
-    .replace(/<!doctype[^>]*>/gi, "");
-
-  return html.trim();
-}
-
 export function normalizePortfolioFreeSlides(value: unknown): PortfolioFreeSlide[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const result: PortfolioFreeSlide[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== "object") continue;
-    const item = raw as Partial<PortfolioFreeSlide> & {
-      layout?: unknown;
-      slots?: unknown;
-      root?: unknown;
-      html?: unknown;
-    };
+    const item = raw as Partial<PortfolioFreeSlide> & { layout?: unknown; slots?: unknown; root?: unknown };
 
-    // layout — 선택사항. 알려진 layout 만 통과.
+    // layout 정규화 — 알려진 layout 만 통과
     const layoutId =
       typeof item.layout === "string" && item.layout in FREE_SLIDE_LAYOUTS
         ? (item.layout as FreeSlideLayout)
-        : undefined;
+        : "split-left";
+    const layoutDef = FREE_SLIDE_LAYOUTS[layoutId];
 
-    // html 우선 — 새 방식
-    const html = sanitizeAiHtml(item.html);
-
-    // 구버전 slots 호환 — html 이 비었을 때만 사용
-    let slots: FreeSlideNode[] | undefined;
-    if (!html) {
-      const slotsRaw = Array.isArray(item.slots)
-        ? item.slots
-        : Array.isArray(item.root)
-          ? item.root
-          : [];
-      if (slotsRaw.length && layoutId) {
-        const layoutDef = FREE_SLIDE_LAYOUTS[layoutId];
-        slots = layoutDef.slots.map((_, index) => {
-          const node = normalizeFreeSlideNode(slotsRaw[index]);
-          return node || { tag: "div" };
-        });
-      }
-    }
-
-    // 둘 다 비었으면 슬라이드 자체 건너뜀
-    if (!html && (!slots || !slots.length)) continue;
+    // slots 정규화 — 슬롯 개수에 맞춰 잘라내고 부족하면 빈 div 채움
+    const slotsRaw = Array.isArray(item.slots) ? item.slots : Array.isArray(item.root) ? item.root : [];
+    const slots: FreeSlideNode[] = layoutDef.slots.map((_, index) => {
+      const node = normalizeFreeSlideNode(slotsRaw[index]);
+      return node || { tag: "div" };
+    });
 
     result.push({
       id: typeof item.id === "string" && item.id ? item.id : makeId("free-slide"),
       intent: typeof item.intent === "string" ? item.intent.slice(0, 240) : "",
-      html,
       layout: layoutId,
       slots,
       sourceId: typeof item.sourceId === "string" ? item.sourceId : undefined,
