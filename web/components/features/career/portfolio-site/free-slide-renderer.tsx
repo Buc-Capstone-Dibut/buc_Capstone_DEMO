@@ -2,10 +2,12 @@
 
 import { Component, type CSSProperties, type ReactNode } from "react";
 import {
+  getFreeSlideLayout,
   type FreeSlideNode,
   type PortfolioFreeSlide,
   type PortfolioTheme,
 } from "@/lib/career-portfolios";
+import { cn } from "@/lib/utils";
 
 type FreeSlideRendererProps = {
   slide: PortfolioFreeSlide;
@@ -13,33 +15,52 @@ type FreeSlideRendererProps = {
 };
 
 /**
- * AI 자율 슬라이드 트리를 React 트리로 변환해 렌더링한다.
- * - tag 는 normalize 단계에서 화이트리스트 검증됨
- * - className 은 sanitize 단계에서 안전 문자만 통과 (Tailwind 클래스)
- * - style 은 allowlist 키만 통과 (CSSProperties 안전 subset)
- * - text 는 평문으로만 삽입 (React 가 자동 escape → XSS 차단)
- * - children 은 재귀 처리
+ * AI 자율 슬라이드를 안전한 grid 슬롯 위에 렌더한다.
  *
- * Error 가 발생해도 화면 전체가 깨지지 않게 ErrorBoundary 로 감쌈.
+ * 구조:
+ *   <article aspect-[16/9] overflow-hidden>
+ *     <div [layout.rootClassName]>     ← 우리가 정한 안전 grid
+ *       <div [slot[0].className]>      ← min-w-0 min-h-0 overflow-hidden 강제
+ *         {renderNode(slide.slots[0])} ← AI 가 만든 자식 트리만 자유
+ *       </div>
+ *       ... (슬롯 N개)
+ *     </div>
+ *   </article>
+ *
+ * - tag 화이트리스트는 normalize 단계에서 검증됨
+ * - className 도 normalize 단계에서 위험 클래스 제거됨 (absolute/fixed/큰 사이즈 등)
+ * - text 는 평문만 → React 가 자동 escape → XSS 차단
  */
 export function FreeSlideRenderer({ slide, theme }: FreeSlideRendererProps) {
+  const layout = getFreeSlideLayout(slide.layout);
+
   return (
     <FreeSlideErrorBoundary>
       <article
         className="relative h-full w-full overflow-hidden"
-        style={{
-          backgroundColor: theme.background,
-          color: theme.text,
-          // CSS 변수로 노출 → AI가 className 에서 var(--portfolio-primary) 등 활용 가능
-          ["--portfolio-primary" as string]: theme.primary,
-          ["--portfolio-accent" as string]: theme.accent,
-          ["--portfolio-surface" as string]: theme.surface,
-          ["--portfolio-text" as string]: theme.text,
-          ["--portfolio-muted" as string]: theme.muted,
-        } as CSSProperties}
+        style={
+          {
+            backgroundColor: theme.background,
+            color: theme.text,
+            ["--portfolio-primary" as string]: theme.primary,
+            ["--portfolio-accent" as string]: theme.accent,
+            ["--portfolio-surface" as string]: theme.surface,
+            ["--portfolio-text" as string]: theme.text,
+            ["--portfolio-muted" as string]: theme.muted,
+          } as CSSProperties
+        }
         aria-label={slide.intent || "포트폴리오 슬라이드"}
       >
-        {renderNode(slide.root, 0)}
+        <div className={layout.rootClassName}>
+          {layout.slots.map((slot, index) => {
+            const node = slide.slots[index];
+            return (
+              <div key={slot.key} className={slot.className}>
+                {node ? <RenderedNode node={node} depth={0} /> : null}
+              </div>
+            );
+          })}
+        </div>
       </article>
     </FreeSlideErrorBoundary>
   );
@@ -48,20 +69,25 @@ export function FreeSlideRenderer({ slide, theme }: FreeSlideRendererProps) {
 function renderNode(node: FreeSlideNode, depth: number): ReactNode {
   if (depth > 10) return null;
   const Tag = node.tag as keyof JSX.IntrinsicElements;
+  // 슬롯 안쪽 자식들에 자동으로 적용되는 안전망:
+  //  - depth 0 (슬롯 직속 자식) 컨테이너는 min-w-0 자동 부착 (overflow 방지)
+  const safeClassName =
+    depth === 0 && node.className
+      ? cn("min-w-0", node.className)
+      : node.className;
+
   const props: { className?: string; style?: CSSProperties } = {};
-  if (node.className) props.className = node.className;
+  if (safeClassName) props.className = safeClassName;
   if (node.style) props.style = node.style as CSSProperties;
+
+  if (node.tag === "br" || node.tag === "hr") {
+    return <Tag {...props} />;
+  }
 
   const childNodes = node.children?.map((child, index) => (
     <RenderedNode key={index} node={child} depth={depth + 1} />
   ));
 
-  // void elements (br, hr) 는 children 못 가짐
-  if (node.tag === "br" || node.tag === "hr") {
-    return <Tag {...props} />;
-  }
-
-  // text + children 동시 허용 (text 가 먼저)
   return (
     <Tag {...props}>
       {node.text}
@@ -75,7 +101,7 @@ function RenderedNode({ node, depth }: { node: FreeSlideNode; depth: number }) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 에러 바운더리 — AI 트리가 깨져도 슬라이드만 fallback 으로 렌더
+// 에러 바운더리 — AI 트리가 깨져도 슬라이드만 fallback
 // ──────────────────────────────────────────────────────────────────────────────
 
 class FreeSlideErrorBoundary extends Component<
