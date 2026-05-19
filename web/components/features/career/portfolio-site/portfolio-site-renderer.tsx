@@ -361,7 +361,8 @@ function DeckShell({
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
         </span>
       </div>
-      <div className="relative h-full w-full">{children}</div>
+      {/* 푸터(bottom-6) 와 콘텐츠가 겹치지 않게 하단 pb-12 안전 영역. overflow-hidden 으로 콘텐츠가 16:9 컨테이너 밖으로 새지 않도록. */}
+      <div className="relative h-full w-full overflow-hidden pb-12">{children}</div>
     </article>
   );
 }
@@ -882,7 +883,7 @@ function EmphasisRail({ page, max = 5 }: { page: PortfolioSitePage; max?: number
 
 function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[1.12fr_0.88fr] gap-12 px-16 pb-16 pt-20">
+    <div className="grid h-full grid-cols-[1.12fr_0.88fr] gap-12 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <h1 className="mt-5 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
@@ -909,20 +910,20 @@ function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
 function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const blocks = textBlocks(page);
   return (
-    <div className="grid h-full grid-cols-[0.82fr_1.18fr] gap-12 px-16 pb-16 pt-20">
-      <div className="flex min-w-0 flex-col justify-center">
+    <div className="grid h-full grid-cols-[0.82fr_1.18fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
+      <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p className="mt-6 whitespace-pre-line break-keep text-[15px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 260)}
+        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+          {pageNarrative(page, 200)}
         </p>
-        <div className="mt-9">
+        <div className="mt-6">
           <RoleBars page={page} />
         </div>
       </div>
-      <div className="flex min-w-0 flex-col justify-center gap-8">
-        <TextList blocks={blocks.length ? blocks : page.blocks} max={5} />
-        <EmphasisRail page={page} max={6} />
+      <div className="flex min-w-0 flex-col justify-center gap-6 overflow-hidden">
+        <TextList blocks={blocks.length ? blocks : page.blocks} max={3} />
+        <EmphasisRail page={page} max={5} />
       </div>
     </div>
   );
@@ -931,7 +932,7 @@ function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
 function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const items = flowItems(page).slice(0, 4);
   return (
-    <div className="flex h-full flex-col px-14 pb-14 pt-20">
+    <div className="flex h-full flex-col overflow-hidden px-12 pb-6 pt-14">
       <div className="grid grid-cols-[1fr_300px] gap-8">
         <div className="min-w-0">
           <CompositionNote page={page} />
@@ -975,7 +976,7 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
   const value = metric?.value || String(pageEmphasis(page).length || textBlocks(page).length || 1);
   const label = metric?.label || page.intent || "핵심 근거";
   return (
-    <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-12 px-16 pb-16 pt-20">
+    <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-12 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <p className="text-[106px] font-black leading-none text-[var(--portfolio-primary)]">
@@ -999,7 +1000,7 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
 
 function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[0.72fr_1.28fr] gap-10 px-16 pb-16 pt-20">
+    <div className="grid h-full grid-cols-[0.72fr_1.28fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
@@ -1025,7 +1026,7 @@ function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
 function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const items = timelineItems(page).slice(0, 6);
   return (
-    <div className="flex h-full flex-col px-16 pb-16 pt-20">
+    <div className="flex h-full flex-col overflow-hidden px-14 pb-6 pt-14">
       <div className="max-w-[760px]">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
@@ -1056,7 +1057,7 @@ function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
 function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const blocks = textBlocks(page).slice(0, 4);
   return (
-    <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 px-14 pb-14 pt-20">
+    <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 overflow-hidden px-12 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
@@ -1085,7 +1086,7 @@ function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
 
 function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="flex h-full flex-col justify-center px-20 pb-16 pt-20">
+    <div className="flex h-full flex-col justify-center overflow-hidden px-16 pb-6 pt-14">
       <div className="max-w-[820px]">
         <CompositionNote page={page} />
         <h1 className="mt-6 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
@@ -1104,7 +1105,7 @@ function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
 
 function CoverSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[1fr_340px] gap-10 px-16 pb-16 pt-20">
+    <div className="grid h-full grid-cols-[1fr_340px] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center border-l-[10px] border-[var(--portfolio-primary)] pl-9">
         <TitleBlock page={page} />
         <p className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
@@ -1137,14 +1138,14 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
 
 function ProfileSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[0.92fr_1.08fr] gap-10 px-16 pb-16 pt-20">
-      <div className="flex min-w-0 flex-col justify-center">
+    <div className="grid h-full grid-cols-[0.92fr_1.08fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
+      <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-8 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
-          {pageNarrative(page, 320)}
+        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
+          {pageNarrative(page, 220)}
         </p>
       </div>
-      <div className="flex min-w-0 flex-col justify-center gap-10">
+      <div className="flex min-w-0 flex-col justify-center gap-7 overflow-hidden">
         <RoleBars page={page} />
         <TimelineLine page={page} />
       </div>
@@ -1154,17 +1155,17 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[0.78fr_1.22fr] gap-10 px-16 pb-16 pt-20">
-      <div className="flex min-w-0 flex-col justify-center">
+    <div className="grid h-full grid-cols-[0.78fr_1.22fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
+      <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-7 whitespace-pre-line break-keep text-[15px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 280)}
+        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+          {pageNarrative(page, 200)}
         </p>
-        <div className="mt-8">
+        <div className="mt-6">
           <MetricLine page={page} />
         </div>
       </div>
-      <div className="flex min-w-0 flex-col justify-center">
+      <div className="flex min-w-0 flex-col justify-center gap-4 overflow-hidden">
         <KeywordCloud page={page} />
         <CalloutLine page={page} />
       </div>
@@ -1175,7 +1176,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const items = timelineItems(page);
   return (
-    <div className="px-16 pb-16 pt-20">
+    <div className="flex h-full flex-col overflow-hidden px-14 pb-6 pt-14">
       <TitleBlock page={page} />
       <div className="relative mt-16">
         <div className="absolute left-0 right-0 top-[39px] h-[3px] bg-[#b9cdae]" />
@@ -1205,19 +1206,19 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
   const blocks = textBlocks(page);
   return (
-    <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 px-14 pb-14 pt-20">
-      <div className="flex min-w-0 flex-col justify-center">
+    <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 overflow-hidden px-14 pb-6 pt-14">
+      <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
-          {pageNarrative(page, 260)}
+        <p className="mt-5 whitespace-pre-line break-keep text-[13px] font-bold leading-6 text-slate-700">
+          {pageNarrative(page, 200)}
         </p>
-        <div className="mt-8">
+        <div className="mt-6">
           <RoleBars page={page} />
         </div>
       </div>
-      <div className="flex min-w-0 flex-col justify-center gap-8">
+      <div className="flex min-w-0 flex-col justify-center gap-6 overflow-hidden">
         <FlowRibbon page={page} />
-        <TextList blocks={blocks} max={5} />
+        <TextList blocks={blocks} max={3} />
         <CalloutLine page={page} />
       </div>
     </div>
@@ -1226,17 +1227,17 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
 
 function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="grid h-full grid-cols-[0.86fr_1.14fr] gap-10 px-16 pb-16 pt-20">
-      <div className="flex min-w-0 flex-col justify-center">
+    <div className="grid h-full grid-cols-[0.86fr_1.14fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
+      <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <div className="mt-8">
+        <div className="mt-6">
           <MetricLine page={page} />
         </div>
-        <div className="mt-8">
+        <div className="mt-6">
           <CalloutLine page={page} />
         </div>
       </div>
-      <div className="flex min-w-0 flex-col justify-center gap-8">
+      <div className="flex min-w-0 flex-col justify-center gap-6 overflow-hidden">
         <TimelineLine page={page} />
         <KeywordCloud page={page} />
       </div>
@@ -1246,7 +1247,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 
 function ClosingSlide({ page }: { page: PortfolioSitePage }) {
   return (
-    <div className="flex h-full flex-col justify-center px-20 pb-16 pt-20">
+    <div className="flex h-full flex-col justify-center overflow-hidden px-16 pb-6 pt-14">
       <div className="max-w-[760px] border-l-[10px] border-[var(--portfolio-primary)] pl-9">
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
           {page.eyebrow || "Contact"}
