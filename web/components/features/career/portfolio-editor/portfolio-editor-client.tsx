@@ -52,6 +52,7 @@ import {
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
 import { TemplatePicker } from "./template-picker";
+import { RendererPicker } from "./renderer-picker";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -651,6 +652,12 @@ export function PortfolioEditorClient({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <RendererPicker
+              rendererId={document.rendererId}
+              onChange={(nextId) =>
+                setDocument((current) => ({ ...current, rendererId: nextId }))
+              }
+            />
             <TemplatePicker
               templateId={document.templateId}
               onChange={(nextId) => {

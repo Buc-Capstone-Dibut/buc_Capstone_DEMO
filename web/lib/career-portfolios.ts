@@ -267,6 +267,80 @@ export type PortfolioTheme = {
   radius: number;
 };
 
+/**
+ * 사이트 포맷 슬라이드 렌더러 ID.
+ * 같은 데이터(pages/blocks)를 어떤 시각 디자인으로 렌더할지 결정.
+ * 사용자가 포트폴리오 만들기 전에 선택.
+ */
+export type PortfolioRendererId =
+  | "minimal-mono"
+  | "editorial-magazine"
+  | "brutalist-tech"
+  | "soft-pastel-card"
+  | "terminal-code"
+  | "notion-document"
+  | "gallery-mood";
+
+export type PortfolioRendererDefinition = {
+  id: PortfolioRendererId;
+  name: string;
+  description: string;
+  /** 카드 미리보기용 색 (primary, accent, background) */
+  previewColors: { primary: string; accent: string; background: string };
+};
+
+export const PORTFOLIO_RENDERERS: PortfolioRendererDefinition[] = [
+  {
+    id: "minimal-mono",
+    name: "Minimal Mono",
+    description: "흑백 + 한 가지 강조색. 넓은 여백, 큰 sans. 백엔드·시스템 인상.",
+    previewColors: { primary: "#0a0a0a", accent: "#10b981", background: "#fafafa" },
+  },
+  {
+    id: "editorial-magazine",
+    name: "Editorial Magazine",
+    description: "크림 종이톤, serif 헤딩, 매거진 식 중앙 정렬. PM·디자이너 인상.",
+    previewColors: { primary: "#7c2d12", accent: "#b45309", background: "#fdf6e3" },
+  },
+  {
+    id: "brutalist-tech",
+    name: "Brutalist Tech",
+    description: "강한 대비·기하 블록·굵은 mono 폰트. 개발자·엔지니어.",
+    previewColors: { primary: "#000000", accent: "#facc15", background: "#fafaf9" },
+  },
+  {
+    id: "soft-pastel-card",
+    name: "Soft Pastel Card",
+    description: "파스텔 그라데이션, 둥근 카드. 신입·주니어 친근 톤.",
+    previewColors: { primary: "#7c3aed", accent: "#f472b6", background: "#fdf2f8" },
+  },
+  {
+    id: "terminal-code",
+    name: "Terminal / Code",
+    description: "다크 + 그린 액센트, mono 폰트, ASCII 박스. 개발자 너드 톤.",
+    previewColors: { primary: "#00ff88", accent: "#00ff88", background: "#0a0a0a" },
+  },
+  {
+    id: "notion-document",
+    name: "Notion Document",
+    description: "회색배경 + 흰 카드, 미니멀 sans. 일반 비즈니스 톤.",
+    previewColors: { primary: "#1f2937", accent: "#0ea5e9", background: "#f9fafb" },
+  },
+  {
+    id: "gallery-mood",
+    name: "Gallery Mood",
+    description: "모노톤 베이지, 큰 serif, 시처럼. 여백 자체가 강조.",
+    previewColors: { primary: "#44403c", accent: "#a8a29e", background: "#f5f5f4" },
+  },
+];
+
+export function getPortfolioRenderer(
+  id?: PortfolioRendererId,
+): PortfolioRendererDefinition | undefined {
+  if (!id) return undefined;
+  return PORTFOLIO_RENDERERS.find((r) => r.id === id);
+}
+
 export type PortfolioDocument = {
   version: 1;
   templateId: PortfolioTemplateId;
@@ -278,6 +352,11 @@ export type PortfolioDocument = {
   sections: PortfolioSection[];
   mode?: "paged";
   pages?: PortfolioSitePage[];
+  /**
+   * 사이트 포맷에서만 사용. 사용자가 미리 선택한 디자인 렌더러 ID.
+   * 없으면 기존 PortfolioSiteRenderer 의 기본 렌더링 사용.
+   */
+  rendererId?: PortfolioRendererId;
 };
 
 export type PortfolioTemplateBlueprint = {
@@ -3519,6 +3598,11 @@ export function normalizePortfolioDocument(
         ? raw.generationPreset
         : getDefaultPortfolioPreset(format),
     theme: { ...template.theme, ...(raw.theme || {}) },
+    rendererId:
+      typeof raw.rendererId === "string" &&
+      PORTFOLIO_RENDERERS.some((r) => r.id === raw.rendererId)
+        ? (raw.rendererId as PortfolioRendererId)
+        : undefined,
     mode: format === "site" ? "paged" : undefined,
     pages: format === "site" ? sitePages : undefined,
     sections:

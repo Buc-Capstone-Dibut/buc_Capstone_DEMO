@@ -21,6 +21,8 @@ import {
   type PortfolioTemplateVisualStyle,
 } from "@/lib/career-portfolios";
 import { cn } from "@/lib/utils";
+import { MinimalMonoRenderer } from "./renderers/minimal-mono-renderer";
+import { EditorialMagazineRenderer } from "./renderers/editorial-magazine-renderer";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -1282,7 +1284,21 @@ function renderSlide(page: PortfolioSitePage) {
   return <CaseSlide page={page} />;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 새 디자인 렌더러 dispatch — rendererId 가 지정되어 있으면 그에 맞는
+// 별도 렌더러 컴포넌트를 사용. 없으면 기존 inner 렌더러 사용.
+// ──────────────────────────────────────────────────────────────────────────────
+
 export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+  const rendererId = props.document.rendererId;
+
+  if (rendererId === "minimal-mono") {
+    return <MinimalMonoRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "editorial-magazine") {
+    return <EditorialMagazineRenderer document={props.document} className={props.className} />;
+  }
+  // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
   return (
     <RendererContext.Provider value={{ templateId: props.document.templateId }}>
       <PortfolioSiteRendererInner {...props} />
