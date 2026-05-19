@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
-  FREE_SLIDE_LAYOUTS,
   PORTFOLIO_CANVAS_STYLE_VERSION,
   buildPortfolioPublicSummary,
   createDefaultPortfolioDocument,
@@ -440,75 +439,45 @@ async function generatePortfolioFreeSlides(input: {
   const template = getPortfolioTemplate(input.templateId);
   const templateGuide =
     input.templateId === "developer-minimal"
-      ? `[Minimal Tech] 흰 배경, 큰 sans, 넓은 여백, 한 색 강조만(emerald/sky 등).
-- 메트릭은 큰 숫자로 강조. 화려한 그라데이션·border-radius 큰 곡선 금지.
-- 슬라이드 7~9장.`
+      ? `[Minimal Tech] 흰 배경, 큰 sans 타이포(font-sans / Inter), 넓은 여백, 한 색 강조만(emerald/sky 등 한 색).
+- 그리드 단순(1~2 컬럼), 텍스트 좌측 정렬, 메트릭은 큰 숫자로 강조.
+- 화려한 그라데이션·이모티콘·border-radius 큰 곡선 금지. 절제된 angular 디자인.
+- 페이지 7~9장.`
       : input.templateId === "case-study"
         ? `[Editorial Magazine] 크림/베이지 종이 톤(bg-amber-50 / bg-stone-50), serif 헤딩(font-serif),
-큰 인용구(blockquote), 매거진 톤.
-- 프로젝트마다 "문제 / 과정 / 결과" 분리. drop cap, 큰 인용 부호 적극.
-- 슬라이드 11~13장.`
-        : `[Bold Showcase] 다크 네이비/블랙 배경(bg-slate-900 / bg-zinc-950), 강한 컬러 블록, 거대한 BigNumber.
+중앙 정렬, 큰 인용구(blockquote), 매거진 컬럼 그리드.
+- 각 프로젝트마다 "문제 / 과정 / 결과" 3장으로 풀어쓰기. drop cap, 큰 인용 부호 적극.
+- 페이지 12~14장.`
+        : `[Bold Showcase] 다크 네이비/블랙 배경(bg-slate-900 / bg-zinc-950), 강한 컬러 블록(분홍·노랑·시안 등),
+거대한 BigNumber(text-8xl 이상), 풀블리드 컬러 강조.
 - text 는 흰색·밝은 톤. 대비 강하게.
-- 슬라이드 9~11장.`;
-
-  // 슬라이드 루트의 안전 grid 는 우리가 정함. AI 는 layout 만 고르고
-  // 각 slot 안의 *콘텐츠*만 자유 디자인.
-  const layoutCatalog = Object.values(FREE_SLIDE_LAYOUTS)
-    .map((layout) => {
-      const slotInfo = layout.slots
-        .map((slot, index) => `    - slot[${index}] ("${slot.key}"): ${slot.hint}`)
-        .join("\n");
-      return `* ${layout.id} — ${layout.intentHint}\n${slotInfo}`;
-    })
-    .join("\n\n");
+- 페이지 9~11장.`;
 
   const seed = Math.random().toString(36).slice(2, 10);
   const prompt = `너는 개발자 포트폴리오 슬라이드를 *AI 자율로 디자인*하는 시니어 UI 아트디렉터다.
-사용자 데이터를 보고 슬라이드 N장을 만들어 반환한다.
+사용자 데이터를 보고 슬라이드 N장을 *JSON 트리* 로 만들어 반환한다. 정해진 컴포넌트/카드 템플릿은 없다 — 매 슬라이드를 그리드·여백·타이포·색·강조 방식이 *서로 다르게* 직접 디자인해라.
 
-[★ 가장 중요한 규칙]
-슬라이드 루트의 grid 는 우리가 정해놓은 안전 layout 12종 중 하나를 골라야 한다.
-너는 layout 을 고르고 각 slot 안의 *콘텐츠 트리* 만 자유 디자인한다.
-이렇게 하면 슬라이드 요소가 절대 겹치거나 화면 밖으로 벗어나지 않는다.
-
-[안전 룰 — 절대 어기면 정규화 단계에서 자동 제거된다]
-- tag 화이트리스트: div, section, header, footer, article, main, aside, p, h1~h6, span, strong, em, ul, ol, li, blockquote, figure, figcaption, hr, br
-- script, img, iframe, link, style, button, a, input, form 등 절대 금지
-- className 위험 클래스 금지:
-  * absolute, fixed, sticky → 절대 금지 (요소 겹침 원인)
-  * z-*, inset-*, top-*, left-*, right-*, bottom-* (-0 제외) → 금지
-  * 음수 margin (-m*, -mt-*, -mb-*, -ml-*, -mr-* 등) → 금지
-  * 큰 고정 사이즈 (w-[1000px], h-[2000px] 등 4자리 px) → 금지
-  * 큰 vh/vw 단위 (h-[300vh] 등) → 금지
-- text 는 평문만. HTML 금지. 마크업은 children 으로 표현.
+[안전 룰 — 절대 어기지 마라]
+- tag 는 다음만 사용: div, section, header, footer, article, main, aside, p, h1, h2, h3, h4, h5, h6, span, strong, em, ul, ol, li, blockquote, figure, figcaption, hr, br
+- script, img, iframe, link, style, button, a, input, form 같은 태그는 절대 사용하지 않는다.
+- className 은 Tailwind CSS 클래스만 사용. (예: "h-full grid grid-cols-[1.1fr_1fr] gap-12 px-20 py-16 bg-slate-950 text-slate-50")
+- style 객체에는 다음 키만 사용: color, backgroundColor, background, padding, margin, borderRadius, border, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textAlign, textTransform, opacity, width, height, maxWidth, maxHeight, minWidth, minHeight, display, gridTemplateColumns, gridTemplateRows, gridColumn, gridRow, gap, position(relative/absolute), top, bottom, left, right, boxShadow, whiteSpace
+- url(), expression(), javascript: 같은 위험한 값은 style 에 절대 쓰지 않는다.
+- text 는 평문만(HTML 금지). HTML 마크업이 필요하면 children 으로 노드 만든다.
 - 트리 깊이 8 이하, 슬라이드당 노드 200 이하.
 
-[layout 카탈로그 — 12종 중에서만 고른다]
-${layoutCatalog}
-
-[layout 선택 가이드]
-- 표지: hero-statement / hero-with-metric / closing-statement
-- 프로필: split-left / centered-stack / hero-statement
-- 기술 스택: three-col / grid-2x2 / split-right-wide
-- 프로젝트 케이스: journey-track / split-right-wide / evidence-wall / hero-with-metric
-- 결과·메트릭: metric-spotlight / hero-with-metric
-- 회고·인용: full-bleed-quote / centered-stack
-- 마감: closing-statement
-- *같은 layout 을 연속 2장 이상 쓰지 마라*. 매 슬라이드 다른 layout.
-
-[슬롯 안 콘텐츠 디자인 가이드]
-- 슬롯 자체는 이미 grid cell. 슬롯 안에서는 *flex/grid 중첩, 텍스트 크기, 색, 강조* 만 자유 결정.
-- 슬롯 안 콘텐츠 className 예: "flex flex-col gap-4", "text-5xl font-black text-emerald-600", "border-l-4 border-amber-500 pl-4", "uppercase tracking-[0.2em] text-xs text-slate-400"
-- 텍스트는 사용자 데이터(description/situation/role/solution/result/lesson/techStack)를 그대로 인용. 없는 수치·회사명·성과 만들지 마라.
-- 슬롯 안 자식 트리는 보통 3~6 노드. 너무 많이 채우지 마라(가독성).
-
-${templateGuide}
+[루트 디자인 가이드]
+- 슬라이드 루트는 항상 16:9 비율의 div. className 은 보통 "h-full w-full overflow-hidden ..." 로 시작.
+- 화면 전체를 채우는 디자인을 만들어라(text-xs 같은 작은 글자만 가득 두지 말고, 큰 헤딩·여백·시각 블록을 균형 있게).
+- 각 슬라이드 intent 한 줄을 정한 뒤, 그 intent 를 시각화하는 데 집중.
+- 사용자 데이터(description/situation/role/solution/result/lesson/techStack)를 *그대로 인용*. 없는 수치/회사명/성과는 만들지 않는다.
 
 [다양성 강제]
-- 슬라이드 N장 모두 *서로 다른 layout*. layout 카탈로그를 최대한 다양하게 활용.
-- 같은 layout 을 한 portfolio 안에서 두 번 이상 쓸 거면 *반드시 다른 톤·다른 콘텐츠*.
-- generationSeed: ${seed} — 이 값에 따라 같은 데이터라도 매번 다른 layout 시퀀스와 톤.
+- 슬라이드 N장 모두 *완전히 다른 레이아웃*. 같은 그리드/같은 배치 반복 금지.
+- 한 장은 hero statement, 한 장은 큰 메트릭, 한 장은 4단 흐름, 한 장은 인용구, 한 장은 매트릭스/타임라인 등 — *시각 패턴이 매번 다르게*.
+- generationSeed: ${seed} — 이 값에 따라 같은 데이터라도 매번 다른 톤·구도 선택.
+
+${templateGuide}
 
 [사용자 데이터]
 ${JSON.stringify(input.source, null, 2)}
@@ -528,62 +497,35 @@ primary: ${template.theme.primary}, accent: ${template.theme.accent}, background
     {
       "id": "slide-1",
       "intent": "표지 — 한 줄 인상",
-      "layout": "hero-with-metric",
-      "slots": [
-        {
-          "tag": "div",
-          "className": "flex flex-col gap-4",
-          "children": [
-            { "tag": "p", "className": "text-xs font-black uppercase tracking-[0.3em] text-emerald-600", "text": "PORTFOLIO 2026" },
-            { "tag": "h1", "className": "text-6xl font-black leading-[0.95]", "text": "백엔드 리드 김지원" },
-            { "tag": "p", "className": "max-w-[460px] text-base font-bold leading-7 text-slate-700", "text": "1만 동시 접속에서도 P99 220ms 를 지킵니다." }
-          ]
-        },
-        {
-          "tag": "div",
-          "className": "flex flex-col gap-3",
-          "children": [
-            { "tag": "p", "className": "text-7xl font-black text-emerald-600 leading-none", "text": "850→220ms" },
-            { "tag": "p", "className": "text-xs font-bold uppercase tracking-[0.2em] text-slate-500", "text": "P99 응답시간" }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "slide-2",
-      "intent": "Aurora 케이스 — 문제·역할·해결·결과",
-      "layout": "journey-track",
-      "slots": [
-        {
-          "tag": "div",
-          "className": "flex flex-col gap-2",
-          "children": [
-            { "tag": "p", "className": "text-xs font-black uppercase tracking-[0.25em] text-emerald-600", "text": "CASE 1 · AURORA COMMERCE" },
-            { "tag": "h2", "className": "text-4xl font-black leading-tight", "text": "동시 접속 1만 명에서 채팅이 끊기지 않게" }
-          ]
-        },
-        { "tag": "div", "className": "flex flex-col gap-2", "children": [
-          { "tag": "p", "className": "text-xs font-black uppercase tracking-wider text-slate-400", "text": "01 문제" },
-          { "tag": "p", "className": "text-sm font-bold leading-6 text-slate-700", "text": "트래픽 5천 명 한계, 마케팅 시즌마다 메시지 끊김" }
-        ] },
-        { "tag": "div", "className": "flex flex-col gap-2", "children": [
-          { "tag": "p", "className": "text-xs font-black uppercase tracking-wider text-slate-400", "text": "02 역할" },
-          { "tag": "p", "className": "text-sm font-bold leading-6 text-slate-700", "text": "백엔드 리드 합류, 7개월 마이그레이션 책임" }
-        ] },
-        { "tag": "div", "className": "flex flex-col gap-2", "children": [
-          { "tag": "p", "className": "text-xs font-black uppercase tracking-wider text-slate-400", "text": "03 해결" },
-          { "tag": "p", "className": "text-sm font-bold leading-6 text-slate-700", "text": "Redis Pub/Sub + Kafka 비동기 분리" }
-        ] },
-        { "tag": "div", "className": "flex flex-col gap-2", "children": [
-          { "tag": "p", "className": "text-xs font-black uppercase tracking-wider text-slate-400", "text": "04 결과" },
-          { "tag": "p", "className": "text-sm font-bold leading-6 text-emerald-700", "text": "P99 220ms · 다운타임 0건" }
-        ] }
-      ]
+      "sourceKind": "manual",
+      "root": {
+        "tag": "div",
+        "className": "h-full w-full grid grid-cols-[1.2fr_1fr] gap-12 px-20 py-16",
+        "children": [
+          {
+            "tag": "div",
+            "className": "flex flex-col justify-center",
+            "children": [
+              { "tag": "p", "className": "text-xs font-black uppercase tracking-[0.3em] text-emerald-600", "text": "PORTFOLIO 2026" },
+              { "tag": "h1", "className": "mt-4 text-6xl font-black leading-[0.95] text-slate-950", "text": "백엔드 리드 김지원" },
+              { "tag": "p", "className": "mt-6 max-w-[460px] text-base font-bold leading-7 text-slate-700", "text": "1만 동시 접속에서도 P99 220ms 를 지키는 시스템을 설계합니다." }
+            ]
+          },
+          {
+            "tag": "div",
+            "className": "flex flex-col justify-center border-l-[8px] border-emerald-600 pl-10",
+            "children": [
+              { "tag": "p", "className": "text-7xl font-black text-emerald-600 leading-none", "text": "850→220ms" },
+              { "tag": "p", "className": "mt-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500", "text": "P99 응답시간" }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
 
-총 슬라이드 수는 위 템플릿 가이드 분량 따른다. 표지 → 프로필/기술 1~2장 → 프로젝트 슬라이드(템플릿별 분량) → 회고/마감 흐름.`;
+총 슬라이드 수는 위 템플릿 가이드에 따른다. 표지 + 프로필/스킬 1~2장 + 프로젝트 슬라이드(템플릿별 개수) + 마무리 1장 정도로 흐름.`;
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);

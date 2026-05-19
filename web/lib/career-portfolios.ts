@@ -374,48 +374,17 @@ export type FreeSlideNode = {
   children?: FreeSlideNode[];
 };
 
-/**
- * 안전한 슬라이드 레이아웃 12종. 슬라이드 루트의 grid 구조는 우리가 고정하고,
- * AI 는 각 슬롯 안의 콘텐츠만 자유 디자인한다 → overflow/겹침 원천 차단.
- */
-export type FreeSlideLayout =
-  | "split-left" // 좌(콘텐츠) / 우(보조) 1:1
-  | "split-right-wide" // 좌(헤딩) / 우(콘텐츠 풍부) 1:2
-  | "split-left-wide" // 좌(콘텐츠 풍부) / 우(보조) 2:1
-  | "three-col" // 3등분
-  | "hero-statement" // 상단(큰 헤딩) / 하단(본문 + 강조)
-  | "hero-with-metric" // 좌(헤딩+요약) / 우(큰 메트릭)
-  | "full-bleed-quote" // 가운데 큰 인용구 — 슬롯 1개
-  | "journey-track" // 상단(헤딩) / 하단(4단 가로 흐름)
-  | "grid-2x2" // 2×2 카드 4개
-  | "centered-stack" // 가운데 수직 스택 1개
-  | "metric-spotlight" // 좌(큰 숫자) / 우(설명·캡션)
-  | "evidence-wall" // 좌(요약) / 우(2×2 증거 카드)
-  | "closing-statement"; // 가운데 마감 한 줄
-
-export type FreeSlideLayoutDefinition = {
-  id: FreeSlideLayout;
-  /** 루트 컨테이너 className (Tailwind) */
-  rootClassName: string;
-  /** 슬롯 개수 + 슬롯별 className */
-  slots: Array<{ key: string; className: string; hint: string }>;
-  /** AI 가 이 레이아웃을 골랐을 때 의도된 상황 */
-  intentHint: string;
-};
-
-/** AI 자율 슬라이드 한 장 — 안전 슬롯 + 슬롯별 자유 콘텐츠 */
+/** AI 자율 슬라이드 한 장 */
 export type PortfolioFreeSlide = {
   id: string;
   /** 슬라이드 의도 한 줄 (썸네일/네비게이션 표기용) */
   intent: string;
-  /** 어떤 안전 레이아웃을 사용할지 */
-  layout: FreeSlideLayout;
-  /** 각 슬롯 안의 콘텐츠. layout 정의의 slots 개수와 같아야 한다 */
-  slots: FreeSlideNode[];
-  /** 원본 데이터 추적용 */
+  /** 원본 데이터 추적용 — 어떤 프로젝트/경력에서 나온 슬라이드인지 */
   sourceId?: string;
   sourceKind?: "project" | "experience" | "manual";
   visible?: boolean;
+  /** 슬라이드 루트 노드. 16:9 컨테이너 안에서 자유 디자인 */
+  root: FreeSlideNode;
 };
 
 export type PortfolioTemplateBlueprint = {
@@ -3776,205 +3745,15 @@ function normalizeFreeSlideStyle(value: unknown): FreeSlideStyle | undefined {
   return touched ? result : undefined;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 12 안전 레이아웃 정의 — 슬라이드 루트의 grid 는 우리가 고정하고, AI 는 슬롯
-// 안의 콘텐츠만 자유 디자인. 모든 슬롯에 overflow-hidden + min-w-0 + min-h-0
-// 강제로 자식이 슬롯 밖으로 못 나가게 한다.
-// ──────────────────────────────────────────────────────────────────────────────
-
-const SLOT_BASE = "min-w-0 min-h-0 overflow-hidden";
-
-export const FREE_SLIDE_LAYOUTS: Record<FreeSlideLayout, FreeSlideLayoutDefinition> = {
-  "split-left": {
-    id: "split-left",
-    intentHint: "좌측 메시지 + 우측 보조 (가장 무난한 2단)",
-    rootClassName: "grid h-full w-full grid-cols-2 gap-10 px-16 py-14",
-    slots: [
-      { key: "primary", className: `${SLOT_BASE} flex flex-col justify-center`, hint: "주 메시지·헤딩·요약" },
-      { key: "secondary", className: `${SLOT_BASE} flex flex-col justify-center`, hint: "보조 정보·메트릭·키워드" },
-    ],
-  },
-  "split-right-wide": {
-    id: "split-right-wide",
-    intentHint: "좌 헤딩 작게 / 우 콘텐츠 풍부 (1:2)",
-    rootClassName: "grid h-full w-full grid-cols-[1fr_2fr] gap-10 px-16 py-14",
-    slots: [
-      { key: "headline", className: `${SLOT_BASE} flex flex-col justify-center`, hint: "헤딩과 핵심 라벨" },
-      { key: "content", className: `${SLOT_BASE} flex flex-col justify-center gap-6`, hint: "본문·리스트·디테일" },
-    ],
-  },
-  "split-left-wide": {
-    id: "split-left-wide",
-    intentHint: "좌 본문 풍부 / 우 강조 메트릭 (2:1)",
-    rootClassName: "grid h-full w-full grid-cols-[2fr_1fr] gap-10 px-16 py-14",
-    slots: [
-      { key: "content", className: `${SLOT_BASE} flex flex-col justify-center gap-6`, hint: "본문 흐름" },
-      { key: "accent", className: `${SLOT_BASE} flex flex-col justify-center border-l border-current/15 pl-8`, hint: "큰 숫자·인용" },
-    ],
-  },
-  "three-col": {
-    id: "three-col",
-    intentHint: "3등분 카드 (역할/기술/결과 같은 3축)",
-    rootClassName: "grid h-full w-full grid-cols-3 gap-8 px-14 py-12",
-    slots: [
-      { key: "col-1", className: `${SLOT_BASE} flex flex-col gap-3`, hint: "첫 번째 축" },
-      { key: "col-2", className: `${SLOT_BASE} flex flex-col gap-3`, hint: "두 번째 축" },
-      { key: "col-3", className: `${SLOT_BASE} flex flex-col gap-3`, hint: "세 번째 축" },
-    ],
-  },
-  "hero-statement": {
-    id: "hero-statement",
-    intentHint: "상단 큰 헤딩 / 하단 본문 (표지·강한 한 문장)",
-    rootClassName: "grid h-full w-full grid-rows-[1.4fr_1fr] gap-10 px-20 py-16",
-    slots: [
-      { key: "headline", className: `${SLOT_BASE} flex flex-col justify-end`, hint: "큰 헤딩 (h1)" },
-      { key: "support", className: `${SLOT_BASE} flex flex-col gap-4`, hint: "본문 + 강조 키워드" },
-    ],
-  },
-  "hero-with-metric": {
-    id: "hero-with-metric",
-    intentHint: "좌 헤딩+요약 / 우 큰 메트릭 (임팩트 표지)",
-    rootClassName: "grid h-full w-full grid-cols-[1.2fr_1fr] gap-12 px-20 py-16",
-    slots: [
-      { key: "headline", className: `${SLOT_BASE} flex flex-col justify-center gap-4`, hint: "헤딩 + 요약 한 줄" },
-      { key: "metric", className: `${SLOT_BASE} flex flex-col justify-center gap-3 border-l-[6px] border-current/30 pl-10`, hint: "큰 숫자 한 개 + 캡션" },
-    ],
-  },
-  "full-bleed-quote": {
-    id: "full-bleed-quote",
-    intentHint: "가운데 큰 인용구 한 개 (회고·강조)",
-    rootClassName: "flex h-full w-full items-center justify-center px-24 py-20",
-    slots: [
-      { key: "quote", className: `${SLOT_BASE} flex max-w-[900px] flex-col items-start gap-6`, hint: "큰 인용 + 출처" },
-    ],
-  },
-  "journey-track": {
-    id: "journey-track",
-    intentHint: "상단 헤딩 / 하단 4단 가로 흐름 (문제→해결→결과)",
-    rootClassName: "grid h-full w-full grid-rows-[auto_1fr] gap-8 px-16 py-12",
-    slots: [
-      { key: "headline", className: `${SLOT_BASE} flex flex-col gap-3`, hint: "헤딩 + 부제" },
-      { key: "step-1", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "1단계 (예: 문제)" },
-      { key: "step-2", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "2단계 (예: 역할)" },
-      { key: "step-3", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "3단계 (예: 해결)" },
-      { key: "step-4", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "4단계 (예: 결과)" },
-    ],
-  },
-  "grid-2x2": {
-    id: "grid-2x2",
-    intentHint: "2×2 카드 4개 (역할/기술/팀/성과 등)",
-    rootClassName: "grid h-full w-full grid-cols-2 grid-rows-2 gap-6 px-14 py-12",
-    slots: [
-      { key: "tl", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "좌상" },
-      { key: "tr", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "우상" },
-      { key: "bl", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "좌하" },
-      { key: "br", className: `${SLOT_BASE} flex flex-col gap-2`, hint: "우하" },
-    ],
-  },
-  "centered-stack": {
-    id: "centered-stack",
-    intentHint: "가운데 수직 스택 (단일 메시지 강조)",
-    rootClassName: "flex h-full w-full items-center justify-center px-24 py-20",
-    slots: [
-      { key: "stack", className: `${SLOT_BASE} flex max-w-[820px] flex-col items-start gap-6`, hint: "헤딩 + 본문 + 키워드" },
-    ],
-  },
-  "metric-spotlight": {
-    id: "metric-spotlight",
-    intentHint: "좌 거대한 숫자 / 우 설명 + 캡션",
-    rootClassName: "grid h-full w-full grid-cols-[1.1fr_1fr] gap-12 px-20 py-16",
-    slots: [
-      { key: "metric", className: `${SLOT_BASE} flex flex-col justify-center gap-4`, hint: "거대한 숫자 (text-7xl 이상)" },
-      { key: "explain", className: `${SLOT_BASE} flex flex-col justify-center gap-4`, hint: "설명 본문 + 보조 메트릭" },
-    ],
-  },
-  "evidence-wall": {
-    id: "evidence-wall",
-    intentHint: "좌 요약 / 우 2×2 증거 카드",
-    rootClassName: "grid h-full w-full grid-cols-[0.85fr_1.15fr] gap-10 px-16 py-14",
-    slots: [
-      { key: "summary", className: `${SLOT_BASE} flex flex-col justify-center gap-4`, hint: "요약 헤딩 + 본문" },
-      { key: "evidence-tl", className: `${SLOT_BASE} flex flex-col gap-1 border-t-[3px] border-current/40 pt-3`, hint: "증거 1" },
-      { key: "evidence-tr", className: `${SLOT_BASE} flex flex-col gap-1 border-t-[3px] border-current/40 pt-3`, hint: "증거 2" },
-      { key: "evidence-bl", className: `${SLOT_BASE} flex flex-col gap-1 border-t-[3px] border-current/40 pt-3`, hint: "증거 3" },
-      { key: "evidence-br", className: `${SLOT_BASE} flex flex-col gap-1 border-t-[3px] border-current/40 pt-3`, hint: "증거 4" },
-    ],
-  },
-  "closing-statement": {
-    id: "closing-statement",
-    intentHint: "마감 — 가운데 한 줄",
-    rootClassName: "flex h-full w-full items-center justify-center px-24 py-20",
-    slots: [
-      { key: "message", className: `${SLOT_BASE} flex max-w-[760px] flex-col items-start gap-5`, hint: "마감 한 줄 + 연락처/링크" },
-    ],
-  },
-};
-
-export function getFreeSlideLayout(id?: string): FreeSlideLayoutDefinition {
-  if (id && id in FREE_SLIDE_LAYOUTS) {
-    return FREE_SLIDE_LAYOUTS[id as FreeSlideLayout];
-  }
-  return FREE_SLIDE_LAYOUTS["split-left"];
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// className sanitize — token-level 위험 클래스 제거
-// ──────────────────────────────────────────────────────────────────────────────
-
-/** 토큰 자체가 위험한 경우 (정확 매치) */
-const DANGEROUS_EXACT_TOKENS = new Set([
-  "absolute",
-  "fixed",
-  "sticky",
-]);
-
-/** 토큰 prefix 가 위험한 경우 */
-const DANGEROUS_PREFIXES = [
-  "inset-", "z-",
-  "-m-", "-mt-", "-mb-", "-ml-", "-mr-", "-mx-", "-my-",
-  "-p-", "-pt-", "-pb-", "-pl-", "-pr-", "-px-", "-py-",
-  "-top-", "-left-", "-right-", "-bottom-",
-  "translate-x-[-", "translate-y-[-",
-];
-
-/** 큰 고정 사이즈 차단 (4자리 px 이상 또는 절대 큰 vh/vw) */
-const DANGEROUS_BIG_SIZE_REGEX = /^(?:w|h|min-w|min-h|max-w|max-h)-\[\s*(?:[1-9]\d{3,}px|[3-9]\d+vh|[3-9]\d+vw|1\d{2,}vh|1\d{2,}vw)/;
-
-/** position: 으로 시작하지만 absolute/fixed 인 경우 차단 (top-0/bottom-0 같은 0 값은 허용) */
-function isDangerousPositionToken(token: string): boolean {
-  // top-4 left-12 right-0 bottom-2 같은 토큰. 모두 absolute 와 같이 쓰일 때 위험.
-  // 단, 0 또는 px=0 만 허용 — 일반적으로 0 으로 정렬용으로 자주 씀.
-  if (/^(?:top|left|right|bottom)-/.test(token)) {
-    return !/-0(?:\.\d+)?$|-\[0(?:px)?\]$/.test(token);
-  }
-  return false;
-}
-
-function isDangerousToken(token: string): boolean {
-  if (!token) return true;
-  if (DANGEROUS_EXACT_TOKENS.has(token)) return true;
-  if (DANGEROUS_PREFIXES.some((prefix) => token.startsWith(prefix))) return true;
-  if (DANGEROUS_BIG_SIZE_REGEX.test(token)) return true;
-  if (isDangerousPositionToken(token)) return true;
-  // Tailwind variant 들 (md:, hover:, lg:)도 안쪽 토큰을 검사
-  const colonIdx = token.lastIndexOf(":");
-  if (colonIdx >= 0 && colonIdx < token.length - 1) {
-    return isDangerousToken(token.slice(colonIdx + 1));
-  }
-  return false;
-}
-
 function sanitizeClassName(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
-  // Tailwind class 안전 문자만 통과
-  const cleaned = trimmed.replace(/[^a-zA-Z0-9_:\-./\[\]()%@&,#?+ ]/g, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return undefined;
-  // 토큰 단위 위험 검사
-  const tokens = cleaned.split(/\s+/).filter((token) => !isDangerousToken(token));
-  if (!tokens.length) return undefined;
-  return tokens.join(" ").slice(0, MAX_FREE_SLIDE_CLASSNAME_LENGTH);
+  // Tailwind class 만 허용 — 영숫자·괄호·콜론·점·하이픈·슬래시·% 까지.
+  // 그 외 문자는 모두 제거.
+  const safe = trimmed.replace(/[^a-zA-Z0-9_:\-./\[\]()%@&,#?+ ]/g, " ").replace(/\s+/g, " ").trim();
+  if (!safe) return undefined;
+  return safe.slice(0, MAX_FREE_SLIDE_CLASSNAME_LENGTH);
 }
 
 function normalizeFreeSlideNode(
@@ -4014,33 +3793,19 @@ export function normalizePortfolioFreeSlides(value: unknown): PortfolioFreeSlide
   const result: PortfolioFreeSlide[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== "object") continue;
-    const item = raw as Partial<PortfolioFreeSlide> & { layout?: unknown; slots?: unknown; root?: unknown };
-
-    // layout 정규화 — 알려진 layout 만 통과
-    const layoutId =
-      typeof item.layout === "string" && item.layout in FREE_SLIDE_LAYOUTS
-        ? (item.layout as FreeSlideLayout)
-        : "split-left";
-    const layoutDef = FREE_SLIDE_LAYOUTS[layoutId];
-
-    // slots 정규화 — 슬롯 개수에 맞춰 잘라내고 부족하면 빈 div 채움
-    const slotsRaw = Array.isArray(item.slots) ? item.slots : Array.isArray(item.root) ? item.root : [];
-    const slots: FreeSlideNode[] = layoutDef.slots.map((_, index) => {
-      const node = normalizeFreeSlideNode(slotsRaw[index]);
-      return node || { tag: "div" };
-    });
-
+    const item = raw as Partial<PortfolioFreeSlide>;
+    const root = normalizeFreeSlideNode(item.root);
+    if (!root) continue;
     result.push({
       id: typeof item.id === "string" && item.id ? item.id : makeId("free-slide"),
       intent: typeof item.intent === "string" ? item.intent.slice(0, 240) : "",
-      layout: layoutId,
-      slots,
       sourceId: typeof item.sourceId === "string" ? item.sourceId : undefined,
       sourceKind:
         item.sourceKind === "project" || item.sourceKind === "experience" || item.sourceKind === "manual"
           ? item.sourceKind
           : undefined,
       visible: item.visible !== false,
+      root,
     });
   }
   return result.length ? result : undefined;
