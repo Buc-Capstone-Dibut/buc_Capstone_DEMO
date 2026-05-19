@@ -64,6 +64,7 @@ export function SoftPastelCardRenderer({ document, className }: RendererProps) {
           color: TEXT,
           fontFamily: "Pretendard, Inter, system-ui, sans-serif",
           boxShadow: SOFT_SHADOW_HOVER,
+          border: `1px solid ${HAIRLINE}`,
         }}
       >
         <div className="aspect-[16/9] w-full">

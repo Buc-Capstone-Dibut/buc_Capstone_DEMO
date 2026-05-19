@@ -9,7 +9,6 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import {
   getPortfolioTemplate,
   type PortfolioDocument,
@@ -28,6 +27,7 @@ import { SoftPastelCardRenderer } from "./renderers/soft-pastel-card-renderer";
 import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
+import { RendererEmptyState, RendererShell } from "./renderers/renderer-shell";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -1337,24 +1337,11 @@ function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRender
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const page = pages[Math.min(currentIndex, Math.max(0, pages.length - 1))];
-  const canGoPrev = currentIndex > 0;
-  const canGoNext = currentIndex < pages.length - 1;
 
   useEffect(() => {
     if (currentIndex <= pages.length - 1) return;
     setCurrentIndex(Math.max(0, pages.length - 1));
   }, [currentIndex, pages.length]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") setCurrentIndex((current) => Math.max(0, current - 1));
-      if (event.key === "ArrowRight") {
-        setCurrentIndex((current) => Math.min(pages.length - 1, current + 1));
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pages.length]);
 
   const template = getPortfolioTemplate(document.templateId);
   const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
@@ -1391,111 +1378,41 @@ function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRender
     color: document.theme.text,
   } as CSSProperties;
 
-  // Bold Showcase 처럼 어두운 배경 템플릿은 외곽(앱 쉘)도 다크 모드로
+  // Bold Showcase 처럼 어두운 배경 템플릿은 슬라이드 캔버스만 다크
   const isDarkTemplate = ["visual-showcase"].includes(document.templateId);
-  const shellBg = isDarkTemplate ? "bg-[#0f172a]" : "bg-[#f5f8f1]";
-  const shellText = isDarkTemplate ? "text-slate-100" : "text-slate-900";
 
   if (!page) {
-    return (
-      <div className={cn("flex min-h-screen items-center justify-center bg-[#f5f8f1] text-slate-700", className)}>
-        웹 슬라이드 페이지가 없습니다.
-      </div>
-    );
+    return <RendererEmptyState className={className} />;
   }
 
   return (
-    <section
-      className={cn(`portfolio-site-deck min-h-screen ${shellBg} ${shellText}`, className)}
-      style={themeStyle}
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={currentIndex}
+      setIndex={setCurrentIndex}
+      className={className}
     >
-      <style jsx global>{`
-        .portfolio-site-deck h1,
-        .portfolio-site-deck h2,
-        .portfolio-site-deck h3 {
-          font-family: var(--portfolio-font-heading);
-        }
-      `}</style>
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
-        <div className="flex min-h-12 items-center justify-between gap-3 pb-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-[var(--portfolio-primary)] text-white shadow-sm">
-              <Layers3 className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className={cn("truncate text-sm font-bold", isDarkTemplate ? "text-slate-100" : "text-slate-800")}>{document.sections[0]?.title || page.title}</p>
-              <p className={cn("text-xs font-semibold", isDarkTemplate ? "text-slate-400" : "text-slate-500")}>
-                {currentIndex + 1} / {pages.length}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCurrentIndex((current) => Math.max(0, current - 1))}
-              disabled={!canGoPrev}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
-                isDarkTemplate
-                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
-                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
-              )}
-              aria-label="이전 페이지"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentIndex((current) => Math.min(pages.length - 1, current + 1))}
-              disabled={!canGoNext}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35",
-                isDarkTemplate
-                  ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
-                  : "border-[#d8e4d0] bg-white text-slate-700 hover:bg-[#eef6e8]",
-              )}
-              aria-label="다음 페이지"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div
-            className={cn(
-              "relative w-full overflow-hidden border shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
-              isDarkTemplate ? "border-slate-700 bg-slate-900" : "border-[#d8e4d0] bg-white",
-            )}
-            style={{ maxWidth: "min(1120px, calc(177.78vh - 300px))" }}
-          >
-            <div className="aspect-[16/9] w-full">
-              <DeckShell page={page} index={currentIndex} total={pages.length} templateId={document.templateId}>
-                {renderSlide(page)}
-              </DeckShell>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex min-h-14 items-center gap-2 overflow-x-auto pt-4">
-          {pages.map((item, index) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setCurrentIndex(index)}
-              className={cn(
-                "flex h-10 shrink-0 items-center gap-2 border px-3 text-xs font-bold transition",
-                index === currentIndex
-                  ? "border-[var(--portfolio-primary)] bg-white text-[var(--portfolio-primary)] shadow-sm"
-                  : "border-[#d8e4d0] bg-white/75 text-slate-600 hover:bg-white hover:text-slate-900",
-              )}
-            >
-              <span className="text-[10px] opacity-65">{String(index + 1).padStart(2, "0")}</span>
-              <span className="max-w-[160px] truncate">{item.title}</span>
-            </button>
-          ))}
+      <div
+        className={cn(
+          "portfolio-site-deck relative w-full overflow-hidden rounded-lg border shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
+          isDarkTemplate ? "border-slate-700 bg-slate-900" : "border-[#d8e4d0] bg-white",
+        )}
+        style={{ ...themeStyle, maxWidth: "min(1120px, calc(177.78vh - 220px))" }}
+      >
+        <style jsx global>{`
+          .portfolio-site-deck h1,
+          .portfolio-site-deck h2,
+          .portfolio-site-deck h3 {
+            font-family: var(--portfolio-font-heading);
+          }
+        `}</style>
+        <div className="aspect-[16/9] w-full">
+          <DeckShell page={page} index={currentIndex} total={pages.length} templateId={document.templateId}>
+            {renderSlide(page)}
+          </DeckShell>
         </div>
       </div>
-    </section>
+    </RendererShell>
   );
 }
