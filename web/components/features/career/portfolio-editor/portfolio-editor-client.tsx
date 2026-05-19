@@ -846,115 +846,6 @@ function getGenerationProgress(generation: GenerationState) {
   return Math.min(96, Math.max(stageProgress, sectionProgress));
 }
 
-function GenerationBuildPreview({
-  progress,
-  document,
-  generation,
-}: {
-  progress: number;
-  document: PortfolioDocument;
-  generation: GenerationState;
-}) {
-  const latestSection = generation.sections[generation.sections.length - 1];
-  const fallbackIndex = Math.min(
-    Math.max(generation.sections.length - 1, 0),
-    Math.max(document.sections.length - 1, 0),
-  );
-  const sourceSection =
-    document.sections.find((section, index) => index === latestSection?.index) ||
-    document.sections[fallbackIndex] ||
-    document.sections[0];
-
-  if (!sourceSection) return null;
-
-  const sourceCanvas: PortfolioCanvasLayout = sourceSection.canvas || {
-    ...getSectionCanvasSize(sourceSection, document),
-    elements: [],
-  };
-  const sourceElements = sourceCanvas.elements;
-  const sortedElementIds = sourceElements
-    .map((element, index) => ({ id: element.id, index }))
-    .sort((a, b) => a.index - b.index)
-    .map((item) => item.id);
-  const revealRatio = generation.error
-    ? 1
-    : Math.min(1, Math.max(0.12, (progress - 6) / 84));
-  const visibleCount = sourceElements.length
-    ? Math.max(1, Math.min(sourceElements.length, Math.ceil(sourceElements.length * revealRatio)))
-    : 0;
-  const visibleIds = new Set(sortedElementIds.slice(0, visibleCount));
-  const previewSection: PortfolioSection = {
-    ...sourceSection,
-    title: latestSection?.title || sourceSection.title,
-    canvas: {
-      ...sourceCanvas,
-      elements: sourceElements.filter((element) => visibleIds.has(element.id)),
-    },
-  };
-  const previewDocument: PortfolioDocument = {
-    ...document,
-    sections: [previewSection],
-  };
-
-  return (
-    <div className="rounded-3xl border border-[#d8e4d0] bg-white/96 p-4 shadow-[0_24px_70px_rgba(42,72,42,0.16)] ring-1 ring-white/70">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#8ca67a]">
-            Live Slide Canvas
-          </p>
-          <h3 className="mt-1 truncate text-sm font-black text-slate-900">
-            {previewSection.title || SECTION_LABEL[previewSection.type]}
-          </h3>
-        </div>
-        <span className="shrink-0 rounded-full border border-[#d8e4d0] bg-[#f8faf5] px-3 py-1 text-xs font-black text-primary">
-          {visibleCount}/{Math.max(sourceElements.length, 1)} elements
-        </span>
-      </div>
-
-      <div className="relative">
-        <PortfolioRenderer
-          document={previewDocument}
-          selectedSectionId={previewSection.id}
-          readonly
-        />
-        <div
-          className="pointer-events-none absolute bottom-5 top-5 w-px bg-primary/50 shadow-[0_0_22px_rgba(132,185,70,0.45)] transition-all duration-700"
-          style={{ left: `${Math.min(96, Math.max(4, progress))}%` }}
-        />
-        <div className="pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-full border border-[#d8e4d0] bg-white/88 px-3 py-1.5 text-[11px] font-black text-primary shadow-sm backdrop-blur">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-55" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-          </span>
-          실제 슬라이드 구성 중
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        {["헤더", "본문", "시각화", "정렬"].map((label, index) => {
-          const threshold = 20 + index * 20;
-          return (
-          <div
-            key={label}
-            className={`min-w-0 rounded-2xl border px-3 py-2 transition-all duration-700 ${
-              progress >= threshold
-                ? "translate-y-0 border-[#d8e4d0] opacity-100"
-                : "translate-y-3 border-transparent opacity-0"
-            }`}
-          >
-            <p className="truncate text-[10px] font-black text-primary">{label}</p>
-            <p className="mt-1 truncate text-[11px] font-black text-slate-800">
-              {index < 2 ? "생성" : "보정"}
-            </p>
-          </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function GenerationStatusOverlay({
   generation,
   document,
@@ -968,85 +859,219 @@ function GenerationStatusOverlay({
   const total = generation.total || document.sections.length || 10;
   const blocking = generation.active || completed;
 
+  // 현재 스테이지 인덱스 (단계 칩 강조용)
+  const stageIndex = generation.error
+    ? -1
+    : completed
+      ? GENERATION_STAGE_LABELS.length
+      : Math.max(
+          0,
+          GENERATION_STAGE_LABELS.findIndex((s) => generation.stage.includes(s)),
+        );
+
+  const latest = generation.sections[generation.sections.length - 1];
+  const sectionCount = Math.min(generation.sections.length, total);
+
   return (
     <div
-      className={`fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-[#f5f8f1]/76 px-6 py-8 backdrop-blur-[7px] ${
+      className={`fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto px-6 py-10 backdrop-blur-2xl ${
         blocking ? "pointer-events-auto" : "pointer-events-none"
       }`}
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(248,250,246,0.97) 0%, rgba(234,243,223,0.97) 100%)",
+      }}
     >
-      <div className="grid w-full max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <GenerationBuildPreview progress={progress} document={document} generation={generation} />
-        <div className="rounded-3xl border border-[#d8e4d0] bg-white/94 p-5 shadow-[0_22px_60px_rgba(42,72,42,0.18)] ring-1 ring-white/70">
-          <div className="flex items-start gap-3">
-            <span
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                generation.error
-                  ? "bg-red-50 text-red-500"
-                  : "bg-primary/12 text-primary"
-              }`}
-            >
-              {generation.error ? (
-                <X className="h-5 w-5" />
-              ) : completed ? (
-                <Check className="h-5 w-5" />
-              ) : (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8ca67a]">
-                AI Portfolio Builder
-              </p>
-              <h2 className="mt-1 text-base font-black text-slate-900">
-                {generation.error || generation.stage || "포트폴리오 생성 중"}
-              </h2>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                선택한 프로젝트를 분석해 슬라이스, 이미지, 인포그래픽을 순서대로 배치합니다.
-              </p>
+      <div className="relative w-full max-w-md">
+        {/* 카드 */}
+        <div className="relative overflow-hidden rounded-[28px] border border-[#d8e4d0] bg-white shadow-[0_30px_80px_rgba(15,42,28,0.25)]">
+          {/* 상단 — 슬라이드 스택 일러스트 */}
+          <div className="relative flex h-44 items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#f8faf6_0%,#eaf3df_100%)]">
+            <SlideStackIllustration
+              error={Boolean(generation.error)}
+              completed={completed}
+            />
+            {/* eyebrow */}
+            <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-primary shadow-sm backdrop-blur">
+              <span className="relative flex h-1.5 w-1.5">
+                {!completed && !generation.error ? (
+                  <>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                  </>
+                ) : (
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                )}
+              </span>
+              AI Portfolio Builder
+            </div>
+            <div className="absolute right-5 top-5 rounded-full bg-white/85 px-3 py-1.5 text-[11px] font-black text-primary shadow-sm backdrop-blur">
+              {progress}%
             </div>
           </div>
 
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between text-xs font-black text-slate-500">
-              <span>생성 진행률</span>
-              <span className="text-primary">{progress}%</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-[#eef6e8]">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-700"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
+          {/* 본문 */}
+          <div className="px-6 pb-6 pt-5">
+            <h2 className="text-[19px] font-black tracking-tight text-slate-900">
+              {generation.error
+                ? "포트폴리오 생성에 실패했어요"
+                : completed
+                  ? "포트폴리오가 완성됐어요"
+                  : generation.stage || "포트폴리오를 만들고 있어요"}
+            </h2>
+            <p className="mt-1.5 text-[13px] leading-6 text-slate-500">
+              {generation.error
+                ? generation.error
+                : completed
+                  ? "잠시 후 편집기로 이동합니다"
+                  : "선택한 프로젝트를 분석해 슬라이드를 한 장씩 짜고 있어요 · 보통 30~60초 걸려요"}
+            </p>
 
-          <div className="mt-4 rounded-2xl border border-[#e1ead9] bg-[#f8faf5]/88 px-3 py-2 text-xs font-bold text-slate-600">
-            생성된 슬라이스 {Math.min(generation.sections.length, total)} / {total}
-          </div>
-
-          {generation.sections.length ? (
-            <div className="mt-4 space-y-2">
-              {generation.sections.slice(-4).map((section) => (
+            {/* 진행 바 */}
+            <div className="mt-5">
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#eef6e8]">
                 <div
-                  key={`${section.index}-${section.title}`}
-                  className="flex items-center gap-2 rounded-2xl border border-[#e1ead9] bg-white/88 px-3 py-2"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-black text-primary">
-                    {section.index + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-black text-slate-800">
-                      {section.title || SECTION_LABEL[section.type]}
-                    </p>
-                    <p className="text-[11px] font-semibold text-slate-400">
-                      {SECTION_LABEL[section.type]} 슬라이스 구성 완료
-                    </p>
-                  </div>
-                </div>
-              ))}
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    generation.error ? "bg-red-400" : "bg-primary"
+                  }`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-slate-500">
+                <span>
+                  슬라이드 {sectionCount} / {total}
+                </span>
+                <span>
+                  {generation.error ? "중단됨" : completed ? "완료" : "진행 중"}
+                </span>
+              </div>
             </div>
-          ) : null}
+
+            {/* 단계 칩 */}
+            {!generation.error ? (
+              <div className="mt-5 flex flex-wrap gap-1.5">
+                {GENERATION_STAGE_LABELS.map((label, i) => {
+                  const done = i < stageIndex;
+                  const active = i === stageIndex && !completed;
+                  return (
+                    <span
+                      key={label}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition ${
+                        done
+                          ? "bg-primary/10 text-primary"
+                          : active
+                            ? "bg-primary text-white"
+                            : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-1.5 w-1.5 items-center justify-center rounded-full ${
+                          done
+                            ? "bg-primary"
+                            : active
+                              ? "animate-pulse bg-white"
+                              : "bg-slate-300"
+                        }`}
+                      />
+                      {label}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {/* 최근 생성된 슬라이드 */}
+            {latest && !generation.error ? (
+              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-[#e1ead9] bg-[#f8faf5]/70 px-3 py-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-xs font-black text-primary">
+                  {latest.index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-black text-slate-800">
+                    {latest.title || SECTION_LABEL[latest.type]}
+                  </p>
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    방금 추가 · {SECTION_LABEL[latest.type]}
+                  </p>
+                </div>
+                {!completed ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                ) : (
+                  <Check className="h-4 w-4 text-primary" />
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
+
+        {/* 외곽 글로우 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-[28px] bg-primary/30 blur-3xl"
+        />
       </div>
+    </div>
+  );
+}
+
+/**
+ * 로딩 일러스트 — 3 장의 슬라이드가 위로 떠오르며 셔머가 흐름.
+ * completed/error 상태에서는 정지된 모양만 유지.
+ */
+function SlideStackIllustration({
+  error,
+  completed,
+}: {
+  error: boolean;
+  completed: boolean;
+}) {
+  const stopped = error || completed;
+  return (
+    <div className="relative h-28 w-44">
+      {[0, 1, 2].map((i) => {
+        const tilt = (i - 1) * 4;
+        return (
+          <div
+            key={i}
+            className={`absolute left-1/2 top-1/2 h-20 w-32 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-[#d8e4d0] bg-white shadow-[0_10px_30px_rgba(42,72,42,0.18)] ${
+              stopped ? "" : "animate-portfolio-slide-stack"
+            }`}
+            style={{
+              transform: `translate(-50%, -50%) rotate(${tilt}deg) translateY(${i * -4}px)`,
+              animationDelay: stopped ? undefined : `${i * 0.35}s`,
+              opacity: stopped ? (i === 1 ? 1 : 0.55) : undefined,
+              zIndex: 3 - i,
+            }}
+          >
+            {/* 슬라이드 내부 미니어처 */}
+            <div className="flex h-full flex-col gap-1.5 px-2.5 py-2.5">
+              <div className="h-1.5 w-10 rounded-full bg-primary/60" />
+              <div className="h-1 w-16 rounded-full bg-slate-200" />
+              <div className="h-1 w-12 rounded-full bg-slate-200" />
+              <div className="mt-auto flex gap-1">
+                <div className="h-4 w-4 rounded bg-primary/25" />
+                <div className="h-4 flex-1 rounded bg-slate-100" />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      <style jsx>{`
+        @keyframes portfolio-slide-stack {
+          0%,
+          100% {
+            transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(0px);
+            opacity: 0.6;
+          }
+          50% {
+            transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(-6px);
+            opacity: 1;
+          }
+        }
+        .animate-portfolio-slide-stack {
+          animation: portfolio-slide-stack 2.4s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+        }
+      `}</style>
     </div>
   );
 }
