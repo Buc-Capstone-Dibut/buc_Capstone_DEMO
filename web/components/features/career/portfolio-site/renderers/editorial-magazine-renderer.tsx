@@ -11,8 +11,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -30,6 +28,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#fdf6e3";
 const HEADING = "#7c2d12";
@@ -61,106 +60,27 @@ export function EditorialMagazineRenderer({ document, className }: RendererProps
     window.document.head.appendChild(link);
   }, []);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
-      if (event.key === "ArrowRight") setIndex((i) => Math.min(pages.length - 1, i + 1));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pages.length]);
-
   if (!page) {
-    return (
-      <div className={cn("flex min-h-screen items-center justify-center", className)} style={{ backgroundColor: BG, color: MUTED }}>
-        슬라이드가 없습니다.
-      </div>
-    );
+    return <RendererEmptyState className={className} />;
   }
 
   return (
-    <section
-      className={cn("min-h-screen", className)}
-      style={{ backgroundColor: BG, color: TEXT, fontFamily: "Pretendard, system-ui, sans-serif" }}
-    >
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
-        {/* 헤더 — 매거진 마스트헤드 */}
-        <header className="flex h-14 items-end justify-between border-b-[2px] pb-3" style={{ borderColor: HEADING }}>
-          <div className="flex items-baseline gap-3">
-            <p className="font-bold italic tracking-tight" style={{ fontFamily: SERIF, color: HEADING, fontSize: "22px" }}>
-              {document.sections[0]?.title || page.title}
-            </p>
-            <span className="text-[10px] font-medium uppercase tracking-[0.3em]" style={{ color: MUTED }}>
-              Vol. {String(index + 1).padStart(2, "0")}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="font-medium italic" style={{ fontFamily: SERIF, color: MUTED, fontSize: "13px" }}>
-              {String(index + 1)} / {pages.length}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              disabled={index === 0}
-              className="flex h-7 w-7 items-center justify-center border transition disabled:cursor-not-allowed disabled:opacity-25"
-              style={{ borderColor: HEADING }}
-              aria-label="이전"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" style={{ color: HEADING }} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-              disabled={index >= pages.length - 1}
-              className="flex h-7 w-7 items-center justify-center border transition disabled:cursor-not-allowed disabled:opacity-25"
-              style={{ borderColor: HEADING }}
-              aria-label="다음"
-            >
-              <ChevronRight className="h-3.5 w-3.5" style={{ color: HEADING }} />
-            </button>
-          </div>
-        </header>
-
-        {/* 슬라이드 */}
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
-          <div
-            className="relative w-full border-[3px] shadow-[0_24px_70px_rgba(124,45,18,0.18)]"
-            style={{
-              maxWidth: "min(1120px, calc(177.78vh - 220px))",
-              borderColor: HEADING,
-              backgroundColor: BG,
-            }}
-          >
-            <div className="aspect-[16/9] w-full">
-              <SlideShell page={page}>{renderSlide(page)}</SlideShell>
-            </div>
-          </div>
-        </div>
-
-        {/* 썸네일 */}
-        <div className="flex h-12 items-center gap-2 overflow-x-auto border-t pt-3" style={{ borderColor: HAIRLINE }}>
-          {pages.map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setIndex(i)}
-              className="flex h-7 shrink-0 items-center gap-2 border px-3 transition"
-              style={{
-                borderColor: i === index ? HEADING : HAIRLINE,
-                backgroundColor: i === index ? HEADING : "transparent",
-                color: i === index ? BG : TEXT,
-                fontFamily: SERIF,
-                fontSize: "12px",
-                fontStyle: "italic",
-              }}
-            >
-              <span className="tabular-nums opacity-75">{ROMAN[i] || i + 1}</span>
-              <span className="max-w-[140px] truncate">{p.title}</span>
-            </button>
-          ))}
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+      <div
+        className="relative w-full border-[3px] shadow-[0_24px_70px_rgba(124,45,18,0.18)]"
+        style={{
+          maxWidth: "min(1120px, calc(177.78vh - 220px))",
+          borderColor: HEADING,
+          backgroundColor: BG,
+          color: TEXT,
+          fontFamily: "Pretendard, system-ui, sans-serif",
+        }}
+      >
+        <div className="aspect-[16/9] w-full">
+          <SlideShell page={page}>{renderSlide(page)}</SlideShell>
         </div>
       </div>
-    </section>
+    </RendererShell>
   );
 }
 

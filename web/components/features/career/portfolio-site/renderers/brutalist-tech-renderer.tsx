@@ -11,8 +11,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -29,6 +27,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#fafaf9";
 const TEXT = "#000000";
@@ -58,100 +57,27 @@ export function BrutalistTechRenderer({ document, className }: RendererProps) {
     window.document.head.appendChild(link);
   }, []);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
-      if (event.key === "ArrowRight") setIndex((i) => Math.min(pages.length - 1, i + 1));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pages.length]);
-
   if (!page) {
-    return (
-      <div className={cn("flex min-h-screen items-center justify-center", className)} style={{ backgroundColor: BG, color: MUTED, fontFamily: MONO }}>
-        NO SLIDES
-      </div>
-    );
+    return <RendererEmptyState className={className} />;
   }
 
   return (
-    <section
-      className={cn("min-h-screen", className)}
-      style={{ backgroundColor: BG, color: TEXT, fontFamily: MONO }}
-    >
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
-        <header className="flex h-12 items-center justify-between border-b-[3px] pb-3" style={{ borderColor: BORDER }}>
-          <div className="flex items-center gap-3">
-            <span className="block h-4 w-4 border-[3px]" style={{ borderColor: BORDER, backgroundColor: ACCENT }} />
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em]">
-              {document.sections[0]?.title || page.title}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-bold tabular-nums uppercase">
-              [{String(index + 1).padStart(2, "0")} / {String(pages.length).padStart(2, "0")}]
-            </span>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              disabled={index === 0}
-              className="flex h-8 w-8 items-center justify-center border-[3px] transition disabled:cursor-not-allowed disabled:opacity-25"
-              style={{ borderColor: BORDER, backgroundColor: BG }}
-              aria-label="이전"
-            >
-              <ChevronLeft className="h-4 w-4" strokeWidth={3} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-              disabled={index >= pages.length - 1}
-              className="flex h-8 w-8 items-center justify-center border-[3px] transition disabled:cursor-not-allowed disabled:opacity-25"
-              style={{ borderColor: BORDER, backgroundColor: ACCENT }}
-              aria-label="다음"
-            >
-              <ChevronRight className="h-4 w-4" strokeWidth={3} />
-            </button>
-          </div>
-        </header>
-
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
-          <div
-            className="relative w-full border-[5px] shadow-[8px_8px_0_0_#000000]"
-            style={{
-              maxWidth: "min(1120px, calc(177.78vh - 220px))",
-              borderColor: BORDER,
-              backgroundColor: BG,
-            }}
-          >
-            <div className="aspect-[16/9] w-full">
-              <SlideShell page={page}>{renderSlide(page)}</SlideShell>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex h-12 items-center gap-1 overflow-x-auto border-t-[3px] pt-3" style={{ borderColor: BORDER }}>
-          {pages.map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setIndex(i)}
-              className={cn(
-                "flex h-8 shrink-0 items-center gap-1.5 border-[3px] px-3 text-[10px] font-bold uppercase transition",
-                i === index ? "shadow-[3px_3px_0_0_#000000]" : "",
-              )}
-              style={{
-                borderColor: BORDER,
-                backgroundColor: i === index ? ACCENT : BG,
-              }}
-            >
-              <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span>
-              <span className="max-w-[120px] truncate">{p.title}</span>
-            </button>
-          ))}
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+      <div
+        className="relative w-full border-[5px] shadow-[8px_8px_0_0_#000000]"
+        style={{
+          maxWidth: "min(1120px, calc(177.78vh - 220px))",
+          borderColor: BORDER,
+          backgroundColor: BG,
+          color: TEXT,
+          fontFamily: MONO,
+        }}
+      >
+        <div className="aspect-[16/9] w-full">
+          <SlideShell page={page}>{renderSlide(page)}</SlideShell>
         </div>
       </div>
-    </section>
+    </RendererShell>
   );
 }
 

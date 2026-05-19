@@ -10,9 +10,8 @@
  * 강조: 작은 강조색, 회색 caption, callout 박스, bullet list, table
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useMemo, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -30,6 +29,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#f9fafb";
 const CARD = "#ffffff";
@@ -48,97 +48,27 @@ export function NotionDocumentRenderer({ document, className }: RendererProps) {
   const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
-      if (event.key === "ArrowRight") setIndex((i) => Math.min(pages.length - 1, i + 1));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pages.length]);
-
   if (!page) {
-    return (
-      <div className={cn("flex min-h-screen items-center justify-center", className)} style={{ backgroundColor: BG, color: MUTED }}>
-        슬라이드가 없습니다.
-      </div>
-    );
+    return <RendererEmptyState className={className} />;
   }
 
   return (
-    <section
-      className={cn("min-h-screen", className)}
-      style={{ backgroundColor: BG, color: TEXT, fontFamily: "Pretendard, Inter, system-ui, sans-serif" }}
-    >
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
-        <header className="flex h-12 items-center justify-between rounded-lg bg-white px-4 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <FileText className="h-4 w-4" style={{ color: MUTED }} />
-            <p className="text-[13px] font-semibold" style={{ color: HEADING }}>
-              {document.sections[0]?.title || page.title}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium tabular-nums" style={{ color: MUTED }}>
-              {index + 1} / {pages.length}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              disabled={index === 0}
-              className="flex h-7 w-7 items-center justify-center rounded-md border bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
-              style={{ borderColor: HAIRLINE }}
-              aria-label="이전"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-              disabled={index >= pages.length - 1}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-              style={{ backgroundColor: ACCENT }}
-              aria-label="다음"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </header>
-
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
-          <div
-            className="relative w-full overflow-hidden rounded-lg border bg-white shadow-md"
-            style={{
-              maxWidth: "min(1120px, calc(177.78vh - 220px))",
-              borderColor: HAIRLINE,
-            }}
-          >
-            <div className="aspect-[16/9] w-full">
-              <SlideShell page={page}>{renderSlide(page)}</SlideShell>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex h-12 items-center gap-1.5 overflow-x-auto pt-3">
-          {pages.map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setIndex(i)}
-              className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition")}
-              style={{
-                borderColor: i === index ? ACCENT : HAIRLINE,
-                backgroundColor: i === index ? ACCENT_BG : CARD,
-                color: i === index ? ACCENT : TEXT,
-              }}
-            >
-              <span className="tabular-nums opacity-60">{i + 1}</span>
-              <span className="max-w-[120px] truncate">{p.title}</span>
-            </button>
-          ))}
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg border bg-white shadow-md"
+        style={{
+          maxWidth: "min(1120px, calc(177.78vh - 220px))",
+          borderColor: HAIRLINE,
+          backgroundColor: CARD,
+          color: TEXT,
+          fontFamily: "Pretendard, Inter, system-ui, sans-serif",
+        }}
+      >
+        <div className="aspect-[16/9] w-full">
+          <SlideShell page={page}>{renderSlide(page)}</SlideShell>
         </div>
       </div>
-    </section>
+    </RendererShell>
   );
 }
 
