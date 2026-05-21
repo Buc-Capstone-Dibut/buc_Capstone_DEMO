@@ -49,6 +49,7 @@ import {
 } from "@/lib/career-portfolios";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import { PortfolioSitePageEditor } from "./portfolio-site-page-editor";
+import { PortfolioSiteAiChat } from "./portfolio-site-ai-chat";
 import {
   PortfolioRenderer,
   PortfolioSlideThumbnail,
@@ -877,6 +878,23 @@ export function PortfolioEditorClient({
             disabled={generation.active || regeneratingPageId !== null}
           />
         </div>
+        <PortfolioSiteAiChat
+          portfolioId={portfolio.id}
+          activePageId={activeSitePageId || null}
+          onApplyPatches={(patches) => {
+            updateDocument((current) => {
+              const byId = new Map(patches.map((p) => [p.pageId, p.patch] as const));
+              return {
+                ...current,
+                pages: (current.pages || []).map((p) => {
+                  const patch = byId.get(p.id);
+                  return patch ? { ...p, ...patch } : p;
+                }),
+              };
+            });
+          }}
+          disabled={generation.active}
+        />
       </div>
     );
   }
