@@ -27,7 +27,11 @@ import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
-import { EditFocusProvider, type EditFocus } from "./renderers/edit-focus";
+import {
+  EditFocusProvider,
+  type EditFocus,
+  type InlineEditHandlers,
+} from "./renderers/edit-focus";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -66,6 +70,8 @@ type PortfolioSiteRendererProps = {
   includeHiddenPages?: boolean;
   /** 우측 편집 패널과 동기화된 시각 강조 */
   editFocus?: EditFocus;
+  /** 슬라이드 위 텍스트 직접 클릭 편집 핸들러 (편집기 전용) */
+  inlineEdit?: InlineEditHandlers;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1336,7 +1342,11 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
     );
   }
 
-  return <EditFocusProvider focus={props.editFocus}>{body}</EditFocusProvider>;
+  return (
+    <EditFocusProvider focus={props.editFocus} inlineEdit={props.inlineEdit}>
+      {body}
+    </EditFocusProvider>
+  );
 }
 
 function PortfolioSiteRendererInner({

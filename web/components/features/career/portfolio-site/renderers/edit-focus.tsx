@@ -14,12 +14,24 @@
  * 4. 블록 단위로 정밀 강조하려면 각 렌더러가 EditTarget 으로 wrap (점진적)
  */
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 /** CSS selector 내부에 ID 를 안전하게 삽입하기 위한 escape (영문/숫자/하이픈/언더스코어만 허용). */
 function cssEscape(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
+
+/**
+ * Inline edit handlers — 클릭한 element 의 data 속성으로 어떤 필드/블록인지 판별 후
+ * 부모에 patch 요청.
+ */
+export type InlineEditHandlers = {
+  onPatchPageField: (
+    field: EditFocusField,
+    value: string | string[],
+  ) => void;
+  onPatchBlockContent: (blockId: string, content: string) => void;
+};
 
 export type EditFocusField =
   | "title"
@@ -52,18 +64,53 @@ export function useEditFocus(): EditFocus {
 export function EditFocusProvider({
   focus,
   children,
+  inlineEdit,
 }: {
   focus?: EditFocus;
   children: ReactNode;
+  /** 슬라이드 위 텍스트 직접 클릭 편집 활성화 (편집기 전용) */
+  inlineEdit?: InlineEditHandlers;
 }) {
   const resolved: EditFocus = focus || { field: null, blockId: null };
   const hasFocus = Boolean(resolved.field || resolved.blockId);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inlineEditRef = useRef(inlineEdit);
+  inlineEditRef.current = inlineEdit;
+
+  // Inline edit — 슬라이드 안 마커 element 클릭 → contentEditable 활성화
+  useEffect(() => {
+    if (!inlineEdit) return;
+    const root = rootRef.current;
+    if (!root) return;
+
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      // 이미 편집 중인 element 면 자체 동작 유지
+      if (target.closest('[contenteditable="true"]')) return;
+      const editable = findEditableTarget(target, root);
+      if (!editable) return;
+      event.preventDefault();
+      event.stopPropagation();
+      startInlineEdit(editable.el, editable.kind, editable.value, inlineEditRef);
+    };
+
+    root.addEventListener("click", onClick, true);
+    return () => root.removeEventListener("click", onClick, true);
+  }, [inlineEdit]);
+
   return (
     <EditFocusContext.Provider value={resolved}>
       <div
+        ref={rootRef}
         data-portfolio-edit-focus={resolved.field || undefined}
         data-portfolio-edit-focus-block={resolved.blockId || undefined}
-        className={hasFocus ? "portfolio-edit-focus-root" : undefined}
+        className={[
+          hasFocus ? "portfolio-edit-focus-root" : "",
+          inlineEdit ? "portfolio-inline-edit-root" : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined}
       >
         {children}
         {/* 활성 블록 ID 에 대해서만 동적으로 CSS 주입 → renderer 수정 없이 블록 강조 */}
@@ -84,6 +131,128 @@ export function EditFocusProvider({
       </div>
     </EditFocusContext.Provider>
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Inline editing 헬퍼
+// ──────────────────────────────────────────────────────────────────────────
+
+type EditableKind =
+  | { type: "field"; field: EditFocusField }
+  | { type: "block"; blockId: string };
+
+function findEditableTarget(
+  clicked: HTMLElement,
+  root: HTMLElement,
+): { el: HTMLElement; kind: EditableKind; value: string } | null {
+  // 1) data-edit-field 마커가 있는 가장 가까운 조상
+  const fieldEl = clicked.closest<HTMLElement>("[data-edit-field]");
+  if (fieldEl && root.contains(fieldEl)) {
+    const field = fieldEl.dataset.editField as EditFocusField | undefined;
+    if (field) return { el: fieldEl, kind: { type: "field", field }, value: fieldEl.innerText };
+  }
+
+  // 2) h1/h2 = title (data-edit-field 없을 때도)
+  const heading = clicked.closest<HTMLElement>("h1, h2");
+  if (heading && root.contains(heading)) {
+    // 단, RendererShell 의 헤더에 있는 텍스트는 제외 (역할이 다름)
+    if (!heading.closest("header")) {
+      return { el: heading, kind: { type: "field", field: "title" }, value: heading.innerText };
+    }
+  }
+
+  // 3) data-edit-block-id 마커 (블록 카드 컨테이너) — 텍스트 컨텐츠 편집
+  const blockEl = clicked.closest<HTMLElement>("[data-edit-block-id]");
+  if (blockEl && root.contains(blockEl)) {
+    const blockId = blockEl.dataset.editBlockId;
+    if (blockId) return { el: blockEl, kind: { type: "block", blockId }, value: blockEl.innerText };
+  }
+
+  return null;
+}
+
+function startInlineEdit(
+  el: HTMLElement,
+  kind: EditableKind,
+  originalValue: string,
+  handlersRef: { current: InlineEditHandlers | undefined },
+) {
+  // 시각 큐 — 외곽 ring
+  const prevOutline = el.style.outline;
+  const prevOffset = el.style.outlineOffset;
+  const prevBorderRadius = el.style.borderRadius;
+  el.style.outline = "2px solid rgba(132,185,70,0.95)";
+  el.style.outlineOffset = "3px";
+  el.style.borderRadius = "4px";
+
+  el.setAttribute("contenteditable", "true");
+  el.setAttribute("spellcheck", "false");
+  el.focus();
+
+  // 전체 선택
+  const sel = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+
+  const isMultiline = kind.type === "field" && kind.field === "narrative";
+
+  let finished = false;
+  const finish = (commit: boolean) => {
+    if (finished) return;
+    finished = true;
+    el.removeAttribute("contenteditable");
+    el.removeAttribute("spellcheck");
+    el.style.outline = prevOutline;
+    el.style.outlineOffset = prevOffset;
+    el.style.borderRadius = prevBorderRadius;
+    el.removeEventListener("blur", onBlur);
+    el.removeEventListener("keydown", onKey);
+
+    if (commit) {
+      const newText = el.innerText.trim();
+      if (newText !== originalValue.trim()) {
+        const handlers = handlersRef.current;
+        if (handlers) {
+          if (kind.type === "field") {
+            if (kind.field === "emphasis") {
+              const items = newText
+                .split(/[,\n]/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+              handlers.onPatchPageField(kind.field, items);
+            } else {
+              handlers.onPatchPageField(kind.field, newText);
+            }
+          } else if (kind.type === "block") {
+            handlers.onPatchBlockContent(kind.blockId, newText);
+          }
+        }
+      } else {
+        // 텍스트 변경 없으면 React 가 다시 그릴 때 reset
+        el.innerText = originalValue;
+      }
+    } else {
+      // Esc — 원본 복원
+      el.innerText = originalValue;
+    }
+  };
+
+  const onBlur = () => finish(true);
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      finish(false);
+      el.blur();
+    } else if (e.key === "Enter" && !e.shiftKey && !isMultiline) {
+      e.preventDefault();
+      el.blur();
+    }
+  };
+
+  el.addEventListener("blur", onBlur);
+  el.addEventListener("keydown", onKey);
 }
 
 /**

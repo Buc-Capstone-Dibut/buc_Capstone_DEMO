@@ -868,6 +868,28 @@ export function PortfolioEditorClient({
               includeHiddenPages
               disableKeyboardNav={generation.active}
               editFocus={editFocus}
+              inlineEdit={
+                generation.active || regeneratingPageId !== null
+                  ? undefined
+                  : {
+                      onPatchPageField: (field, value) => {
+                        if (!activeSitePageId) return;
+                        updatePageById(activeSitePageId, {
+                          [field]: value,
+                        } as Partial<PortfolioSitePage>);
+                      },
+                      onPatchBlockContent: (blockId, content) => {
+                        if (!activeSitePageId) return;
+                        const page = sitePages.find((p) => p.id === activeSitePageId);
+                        if (!page) return;
+                        updatePageById(activeSitePageId, {
+                          blocks: page.blocks.map((b) =>
+                            b.id === blockId ? { ...b, content } : b,
+                          ),
+                        });
+                      },
+                    }
+              }
             />
             <GenerationStatusOverlay generation={generation} document={document} />
           </main>

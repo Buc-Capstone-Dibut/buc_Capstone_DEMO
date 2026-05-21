@@ -695,3 +695,29 @@ body {
   outline: 2px solid rgba(132, 185, 70, 0.4) !important;
   outline-offset: 3px !important;
 }
+
+/* Inline edit hover hint — 편집 가능한 element 위에 마우스 올리면 cursor + 약한 ring */
+.portfolio-inline-edit-root [data-edit-field]:hover:not([contenteditable="true"]),
+.portfolio-inline-edit-root h1:hover:not([contenteditable="true"]),
+.portfolio-inline-edit-root h2:hover:not([contenteditable="true"]),
+.portfolio-inline-edit-root [data-edit-block-id]:hover:not([contenteditable="true"]) {
+  cursor: text !important;
+  outline: 1px dashed rgba(132, 185, 70, 0.55) !important;
+  outline-offset: 4px !important;
+  border-radius: 4px !important;
+}
+/* 헤더 영역의 h1/h2 는 제외 (네비/타이틀바) */
+.portfolio-inline-edit-root header h1:hover,
+.portfolio-inline-edit-root header h2:hover {
+  cursor: default !important;
+  outline: none !important;
+}
+
+/* contentEditable 활성 시 cursor + caret 강조 */
+[contenteditable="true"] {
+  cursor: text !important;
+  caret-color: rgba(132, 185, 70, 1) !important;
+  /* 편집 중엔 텍스트 잘림 방지 */
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
