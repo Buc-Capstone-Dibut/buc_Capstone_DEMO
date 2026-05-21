@@ -413,6 +413,7 @@ function BigNumber({ value }: { value: string }) {
 }
 
 function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: number }) {
+  const patch = usePatchActivePage();
   return (
     <div className="space-y-3">
       {blocks.slice(0, max).map((block, index) => (
@@ -439,6 +440,7 @@ function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: num
 
 function MetricLine({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
+  const patch = usePatchActivePage();
   const metrics = metricBlocks(page);
   if (!metrics.length) return null;
 
@@ -452,16 +454,14 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
             className="min-w-0 rounded-2xl border-2 border-[var(--portfolio-accent)] bg-slate-800/50 px-6 py-5 backdrop-blur-sm"
           >
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--portfolio-accent)]">
-              {plainText(metric.label, 30) || "Metric"}
+              <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
             </p>
             <p className="mt-2 break-keep text-[64px] font-black leading-none tracking-tighter text-white">
-              {plainText(metric.value, 24) || "-"}
+              <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
             </p>
-            {metric.caption ? (
-              <p className="mt-2 max-w-[180px] break-keep text-[12px] font-bold leading-5 text-slate-300">
-                <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
-              </p>
-            ) : null}
+            <p className="mt-2 max-w-[180px] break-keep text-[12px] font-bold leading-5 text-slate-300">
+              <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
+            </p>
           </div>
         ))}
       </div>
@@ -475,16 +475,14 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
         {metrics.slice(0, 4).map((metric) => (
           <div key={metric.id} className="min-w-0">
             <p className="font-serif text-[11px] font-medium italic tracking-[0.18em] text-slate-500">
-              {plainText(metric.label, 30) || "Metric"}
+              <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
             </p>
             <p className="mt-1 break-keep font-serif text-[44px] font-bold leading-tight text-[var(--portfolio-primary)]">
-              {plainText(metric.value, 24) || "-"}
+              <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
             </p>
-            {metric.caption ? (
-              <p className="mt-1 max-w-[200px] break-keep font-serif text-[12px] font-medium italic leading-5 text-slate-600">
-                <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
-              </p>
-            ) : null}
+            <p className="mt-1 max-w-[200px] break-keep font-serif text-[12px] font-medium italic leading-5 text-slate-600">
+              <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
+            </p>
           </div>
         ))}
       </div>
@@ -497,16 +495,14 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
       {metrics.slice(0, 4).map((metric) => (
         <div key={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            {plainText(metric.label, 30) || "Metric"}
+            <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
           </p>
           <p className="mt-1 break-keep text-[40px] font-black leading-tight tracking-tight text-[var(--portfolio-primary)]">
-            {plainText(metric.value, 24) || "-"}
+            <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
           </p>
-          {metric.caption ? (
-            <p className="mt-1 max-w-[170px] break-keep text-[11px] font-semibold leading-5 text-slate-500">
-              <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
-            </p>
-          ) : null}
+          <p className="mt-1 max-w-[170px] break-keep text-[11px] font-semibold leading-5 text-slate-500">
+            <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={90} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
+          </p>
         </div>
       ))}
     </div>
@@ -693,10 +689,10 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
           <div key={item.id}>
             <div className="flex items-end justify-between gap-4">
               <p className="break-keep text-[13px] font-black text-slate-800">
-                {plainText(item.label, 40) || "기여"}
+                <EditableText value={item.label} onChange={(v) => patch(["blocks", item.id, "label"], v)} maxLength={40} placeholder="기여" fieldKey={`block-${item.id}-label`} />
               </p>
               <p className="shrink-0 text-[12px] font-black text-slate-500">
-                {plainText(item.value, 60) || `${percent}%`}
+                <EditableText value={item.value} onChange={(v) => patch(["blocks", item.id, "value"], v)} maxLength={60} placeholder={`${percent}%`} fieldKey={`block-${item.id}-value`} />
               </p>
             </div>
             <div className="mt-2 h-[6px] overflow-hidden rounded-full bg-[#dfeada]">
@@ -708,11 +704,9 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
                 }}
               />
             </div>
-            {item.caption ? (
-              <p className="mt-1 break-keep text-[11px] font-semibold leading-5 text-slate-500">
-                {plainText(item.caption, 110)}
-              </p>
-            ) : null}
+            <p className="mt-1 break-keep text-[11px] font-semibold leading-5 text-slate-500">
+              <EditableText value={item.caption} onChange={(v) => patch(["blocks", item.id, "caption"], v)} maxLength={110} placeholder="설명 (선택)" fieldKey={`block-${item.id}-caption`} />
+            </p>
           </div>
         );
       })}
@@ -740,6 +734,7 @@ function TimelineLine({ page }: { page: PortfolioSitePage }) {
 
 function CalloutLine({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
+  const patch = usePatchActivePage();
   const callout = calloutBlocks(page)[0];
   if (!callout) return null;
 
@@ -792,6 +787,7 @@ function CalloutLine({ page }: { page: PortfolioSitePage }) {
 
 function TitleBlock({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
+  const patch = usePatchActivePage();
 
   if (isEditorial(templateId)) {
     // Editorial Magazine — 매거진 식 중앙 정렬, serif 큰 헤딩, 큰 부제, 가는 라인 강조
@@ -883,6 +879,8 @@ function CompositionNote({ page }: { page: PortfolioSitePage }) {
 }
 
 function EmphasisRail({ page, max = 5 }: { page: PortfolioSitePage; max?: number }) {
+  const patch = usePatchActivePage();
+  const allEmphasis = page.emphasis || [];
   const items = pageEmphasis(page).slice(0, max);
   if (!items.length) return null;
   return (
@@ -893,7 +891,18 @@ function EmphasisRail({ page, max = 5 }: { page: PortfolioSitePage; max?: number
           className="text-[12px] font-black uppercase tracking-[0.12em]"
           style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
         >
-          {plainText(item, 24)}
+          <EditableText
+            value={item}
+            onChange={(v) => {
+              const next = [...allEmphasis];
+              if (v.trim() === "") next.splice(index, 1);
+              else next[index] = v;
+              patch(["emphasis"], next);
+            }}
+            maxLength={24}
+            placeholder="키워드"
+            fieldKey={`emphasis-${index}`}
+          />
         </span>
       ))}
     </div>
@@ -1140,15 +1149,29 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={320} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
-          {pageEmphasis(page).slice(0, 4).map((item, index) => (
-            <span
-              key={`${item}-${index}`}
-              className="text-[13px] font-black uppercase tracking-[0.12em]"
-              style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
-            >
-              {item}
-            </span>
-          ))}
+          {pageEmphasis(page).slice(0, 4).map((item, index) => {
+            const allEmphasis = page.emphasis || [];
+            return (
+              <span
+                key={`${item}-${index}`}
+                className="text-[13px] font-black uppercase tracking-[0.12em]"
+                style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
+              >
+                <EditableText
+                  value={item}
+                  onChange={(v) => {
+                    const next = [...allEmphasis];
+                    if (v.trim() === "") next.splice(index, 1);
+                    else next[index] = v;
+                    patch(["emphasis"], next);
+                  }}
+                  maxLength={24}
+                  placeholder="키워드"
+                  fieldKey={`emphasis-${index}`}
+                />
+              </span>
+            );
+          })}
         </div>
       </div>
       <div className="relative flex flex-col justify-center">
