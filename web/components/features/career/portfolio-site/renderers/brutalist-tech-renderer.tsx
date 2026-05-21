@@ -10,7 +10,7 @@
  * 강조: 굵은 border, 컬러 블록 (특히 노란 배경), 강한 대비
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -27,7 +27,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
 
 const BG = "#fafaf9";
 const TEXT = "#000000";
@@ -37,12 +37,20 @@ const ACCENT_TEXT = "#000000";
 const BORDER = "#000000";
 const MONO = "'Space Mono', 'IBM Plex Mono', monospace";
 
-export function BrutalistTechRenderer({ document, className }: RendererProps) {
+export function BrutalistTechRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+}: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => p.visible !== false),
     [document.pages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   useEffect(() => {
@@ -62,7 +70,16 @@ export function BrutalistTechRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className="relative w-full border-[5px] shadow-[8px_8px_0_0_#000000]"
         style={{

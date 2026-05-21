@@ -9,10 +9,11 @@
  * 키보드 ← → 페이지 네비게이션 포함.
  */
 
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PortfolioDocument, PortfolioSitePage } from "@/lib/career-portfolios";
+import type { RendererProps } from "./shared";
 
 const SHELL_BG = "#f5f5f5";
 const SHELL_CARD = "#ffffff";
@@ -28,6 +29,12 @@ type RendererShellProps = {
   className?: string;
   /** 슬라이드 영역 (각 렌더러의 캔버스). 부모가 가운데에 배치함. */
   children: ReactNode;
+  /** 헤더 chrome 숨김 (편집기에서 자체 헤더 쓸 때) */
+  hideHeader?: boolean;
+  /** 하단 썸네일 숨김 (편집기에서 사이드바로 페이지 네비 할 때) */
+  hideThumbnails?: boolean;
+  /** 키보드 ← → 네비 비활성화 (편집기 input 포커스 등과 충돌 방지) */
+  disableKeyboardNav?: boolean;
 };
 
 export function RendererShell({
@@ -37,16 +44,23 @@ export function RendererShell({
   setIndex,
   className,
   children,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
 }: RendererShellProps) {
   // 키보드 네비
   useEffect(() => {
+    if (disableKeyboardNav) return;
     const onKey = (event: KeyboardEvent) => {
+      // input/textarea 포커스 상태면 무시
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       if (event.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
       if (event.key === "ArrowRight") setIndex((i) => Math.min(pages.length - 1, i + 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pages.length, setIndex]);
+  }, [pages.length, setIndex, disableKeyboardNav]);
 
   const currentPage = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
@@ -61,6 +75,7 @@ export function RendererShell({
     >
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6">
         {/* 헤더 */}
+        {!hideHeader ? (
         <header
           className="flex h-12 items-center justify-between rounded-lg px-4"
           style={{ backgroundColor: SHELL_CARD, border: `1px solid ${SHELL_BORDER}` }}
@@ -108,6 +123,7 @@ export function RendererShell({
             </button>
           </div>
         </header>
+        ) : null}
 
         {/* 슬라이드 캔버스 영역 — 각 렌더러가 채움 */}
         <div className="flex min-h-0 flex-1 items-center justify-center py-6">
@@ -115,6 +131,7 @@ export function RendererShell({
         </div>
 
         {/* 썸네일 */}
+        {!hideThumbnails ? (
         <div className="flex h-12 items-center gap-1.5 overflow-x-auto">
           {pages.map((p, i) => (
             <button
@@ -133,6 +150,7 @@ export function RendererShell({
             </button>
           ))}
         </div>
+        ) : null}
       </div>
     </section>
   );
@@ -156,3 +174,27 @@ export const SHELL_CONSTANTS = {
   MUTED: SHELL_MUTED,
   BORDER: SHELL_BORDER,
 } as const;
+
+/**
+ * 페이지 인덱스를 외부 제어(activeIndex/onActiveIndexChange)와 내부 state 사이에서
+ * 일관되게 다루는 helper. 각 렌더러에서 boilerplate 줄이려고 추출.
+ */
+export function useRendererPageIndex(
+  props: Pick<RendererProps, "activeIndex" | "onActiveIndexChange">,
+  total: number,
+) {
+  const [internalIndex, setInternalIndex] = useState(0);
+  const externalIndex = props.activeIndex;
+  const index = (externalIndex !== undefined ? externalIndex : internalIndex);
+  const onChange = props.onActiveIndexChange;
+  const setIndex = useCallback(
+    (next: number | ((prev: number) => number)) => {
+      const resolved = typeof next === "function" ? (next as (n: number) => number)(index) : next;
+      const clamped = Math.max(0, Math.min(Math.max(total - 1, 0), resolved));
+      if (onChange) onChange(clamped);
+      else setInternalIndex(clamped);
+    },
+    [index, total, onChange],
+  );
+  return [index, setIndex] as const;
+}

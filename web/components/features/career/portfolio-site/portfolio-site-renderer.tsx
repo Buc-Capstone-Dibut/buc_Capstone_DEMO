@@ -55,6 +55,13 @@ type PortfolioSiteRendererProps = {
   document: PortfolioDocument;
   readonly?: boolean;
   className?: string;
+  /** 편집기에서 활성 페이지 제어 (사이드바와 동기화) */
+  activeIndex?: number;
+  onActiveIndexChange?: (next: number) => void;
+  /** chrome 옵션 (편집기에서 자체 헤더/사이드바로 대체할 때) */
+  hideHeader?: boolean;
+  hideThumbnails?: boolean;
+  disableKeyboardNav?: boolean;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1297,28 +1304,24 @@ function renderSlide(page: PortfolioSitePage) {
 
 export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   const rendererId = props.document.rendererId;
+  const shared = {
+    document: props.document,
+    className: props.className,
+    activeIndex: props.activeIndex,
+    onActiveIndexChange: props.onActiveIndexChange,
+    hideHeader: props.hideHeader,
+    hideThumbnails: props.hideThumbnails,
+    disableKeyboardNav: props.disableKeyboardNav,
+  };
 
-  if (rendererId === "minimal-mono") {
-    return <MinimalMonoRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "editorial-magazine") {
-    return <EditorialMagazineRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "brutalist-tech") {
-    return <BrutalistTechRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "soft-pastel-card") {
-    return <SoftPastelCardRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "terminal-code") {
-    return <TerminalCodeRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "notion-document") {
-    return <NotionDocumentRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "gallery-mood") {
-    return <GalleryMoodRenderer document={props.document} className={props.className} />;
-  }
+  if (rendererId === "minimal-mono") return <MinimalMonoRenderer {...shared} />;
+  if (rendererId === "editorial-magazine") return <EditorialMagazineRenderer {...shared} />;
+  if (rendererId === "brutalist-tech") return <BrutalistTechRenderer {...shared} />;
+  if (rendererId === "soft-pastel-card") return <SoftPastelCardRenderer {...shared} />;
+  if (rendererId === "terminal-code") return <TerminalCodeRenderer {...shared} />;
+  if (rendererId === "notion-document") return <NotionDocumentRenderer {...shared} />;
+  if (rendererId === "gallery-mood") return <GalleryMoodRenderer {...shared} />;
+
   // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
   return (
     <RendererContext.Provider value={{ templateId: props.document.templateId }}>

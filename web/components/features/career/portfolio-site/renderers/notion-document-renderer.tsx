@@ -10,7 +10,7 @@
  * 강조: 작은 강조색, 회색 caption, callout 박스, bullet list, table
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ArrowRight } from "lucide-react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
@@ -29,7 +29,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
 
 const BG = "#f9fafb";
 const CARD = "#ffffff";
@@ -40,12 +40,20 @@ const ACCENT = "#0ea5e9";
 const ACCENT_BG = "#e0f2fe";
 const HAIRLINE = "#e5e7eb";
 
-export function NotionDocumentRenderer({ document, className }: RendererProps) {
+export function NotionDocumentRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+}: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => p.visible !== false),
     [document.pages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -53,7 +61,16 @@ export function NotionDocumentRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className="relative w-full overflow-hidden rounded-lg border bg-white shadow-md"
         style={{

@@ -10,7 +10,7 @@
  * 강조: 둥근 모서리 카드, 큰 보더 반경, soft shadow, 그라데이션 배경
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
@@ -29,7 +29,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
 
 const BG_GRADIENT = "linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 50%, #ecfeff 100%)";
 const CARD_BG = "rgba(255,255,255,0.7)";
@@ -42,12 +42,20 @@ const SOFT_SHADOW = "0 8px 32px rgba(124,58,237,0.08)";
 const SOFT_SHADOW_HOVER = "0 12px 40px rgba(124,58,237,0.12)";
 const ROUNDED = "rounded-3xl";
 
-export function SoftPastelCardRenderer({ document, className }: RendererProps) {
+export function SoftPastelCardRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+}: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => p.visible !== false),
     [document.pages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -55,7 +63,16 @@ export function SoftPastelCardRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className={cn("relative w-full overflow-hidden", ROUNDED)}
         style={{

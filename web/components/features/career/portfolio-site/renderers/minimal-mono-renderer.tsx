@@ -10,7 +10,7 @@
  * 강조 도구: 좌측 막대(border-l-[4px]), 큰 숫자, 점선 디바이더
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -28,7 +28,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
 
 const ACCENT = "#10b981";
 const TEXT = "#0a0a0a";
@@ -36,12 +36,20 @@ const MUTED = "#737373";
 const BG = "#fafafa";
 const HAIRLINE = "#e5e5e5";
 
-export function MinimalMonoRenderer({ document, className }: RendererProps) {
+export function MinimalMonoRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+}: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => p.visible !== false),
     [document.pages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -49,7 +57,16 @@ export function MinimalMonoRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className="relative w-full border bg-white"
         style={{
