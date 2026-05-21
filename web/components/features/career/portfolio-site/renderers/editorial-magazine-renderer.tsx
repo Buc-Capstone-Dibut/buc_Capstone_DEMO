@@ -10,7 +10,7 @@
  * 강조 도구: 큰 따옴표(") · 점선 디바이더 · drop cap · italic
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -28,7 +28,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#fdf6e3";
 const HEADING = "#7c2d12";
@@ -40,21 +40,12 @@ const SERIF = "'Playfair Display', Georgia, serif";
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 
-export function EditorialMagazineRenderer({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: RendererProps) {
+export function EditorialMagazineRenderer({ document, className }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
-    [document.pages, includeHiddenPages],
+    () => (document.pages || []).filter((p) => p.visible !== false),
+    [document.pages],
   );
-  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
+  const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   // Playfair Display 폰트 동적 로드
@@ -74,16 +65,7 @@ export function EditorialMagazineRenderer({
   }
 
   return (
-    <RendererShell
-      document={document}
-      pages={pages}
-      index={index}
-      setIndex={setIndex}
-      className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
-    >
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
       <div
         className="relative w-full border-[3px] shadow-[0_24px_70px_rgba(124,45,18,0.18)]"
         style={{
@@ -113,7 +95,7 @@ function SlideShell({ page, children }: { page: PortfolioSitePage; children: Rea
       }}
     >
       <div className="absolute left-16 top-6 flex items-center gap-3">
-        <span data-edit-field="eyebrow" className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF, fontStyle: "italic" }}>
+        <span className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF, fontStyle: "italic" }}>
           — {page.eyebrow || "Editorial"} —
         </span>
       </div>
@@ -154,7 +136,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
       </h1>
       <span className="my-7 inline-block h-[2px] w-20" style={{ backgroundColor: HEADING }} />
       {page.subtitle ? (
-        <p data-edit-field="subtitle"
+        <p
           className="max-w-[640px] break-keep text-[18px] font-medium italic leading-8"
           style={{ fontFamily: SERIF, color: TEXT }}
         >
@@ -204,7 +186,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         </p>
       </div>
       <div className="flex flex-col justify-center gap-6">
-        <Pullquote data-edit-field="emphasis" items={pageEmphasis(page).slice(0, 4)} />
+        <Pullquote items={pageEmphasis(page).slice(0, 4)} />
       </div>
     </div>
   );
@@ -278,18 +260,18 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1.4fr] gap-10">
       <div className="flex flex-col justify-center border-r-[2px] pr-10" style={{ borderColor: HEADING }}>
-        <p data-edit-field="eyebrow" className="text-[11px] font-medium italic uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF }}>
+        <p className="text-[11px] font-medium italic uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF }}>
           {page.eyebrow || "Case Study"}
         </p>
         <h2 className="mt-3 break-keep text-[36px] font-bold italic leading-[1.1]" style={{ fontFamily: SERIF, color: HEADING }}>
           {plainText(page.title, 80)}
         </h2>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-3 text-[12px] font-medium italic" style={{ color: MUTED, fontFamily: SERIF }}>
+          <p className="mt-3 text-[12px] font-medium italic" style={{ color: MUTED, fontFamily: SERIF }}>
             {plainText(page.subtitle, 100)}
           </p>
         ) : null}
-        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-[1.85]" style={{ color: TEXT }}>
+        <p className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-[1.85]" style={{ color: TEXT }}>
           {pageNarrative(page, 260)}
         </p>
       </div>
@@ -297,7 +279,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
         {/* Magazine columns — 본문 블록들 */}
         <div className="columns-1 gap-6 [column-fill:_balance] md:columns-2">
           {blocks.map((block, i) => (
-            <div key={block.id} data-edit-block-id={block.id} className="mb-4 break-inside-avoid">
+            <div key={block.id} className="mb-4 break-inside-avoid">
               <p className="text-[10px] font-medium italic uppercase tracking-[0.22em]" style={{ color: ACCENT, fontFamily: SERIF }}>
                 — {ROMAN[i]} {getBlockLabel(block, "Note")} —
               </p>
@@ -328,13 +310,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-12">
       <div className="flex flex-col justify-center">
-        <p data-edit-field="eyebrow" className="text-[11px] font-medium italic uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF }}>
+        <p className="text-[11px] font-medium italic uppercase tracking-[0.28em]" style={{ color: ACCENT, fontFamily: SERIF }}>
           {page.eyebrow || "Notes"}
         </p>
         <h2 className="mt-3 break-keep text-[36px] font-bold italic leading-[1.1]" style={{ fontFamily: SERIF, color: HEADING }}>
           {plainText(page.title, 80)}
         </h2>
-        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13.5px] font-medium leading-[1.85]" style={{ color: TEXT }}>
+        <p className="mt-6 whitespace-pre-line break-keep text-[13.5px] font-medium leading-[1.85]" style={{ color: TEXT }}>
           {pageNarrative(page, 280)}
         </p>
       </div>
@@ -383,7 +365,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
       <h2 className="max-w-[780px] break-keep text-[40px] font-bold italic leading-[1.1]" style={{ fontFamily: SERIF, color: HEADING }}>
         {plainText(page.title, 80)}
       </h2>
-      <p data-edit-field="narrative" className="max-w-[640px] whitespace-pre-line break-keep text-[14px] font-medium italic leading-8" style={{ color: TEXT, fontFamily: SERIF }}>
+      <p className="max-w-[640px] whitespace-pre-line break-keep text-[14px] font-medium italic leading-8" style={{ color: TEXT, fontFamily: SERIF }}>
         {pageNarrative(page, 240)}
       </p>
       {items.length ? (
@@ -414,7 +396,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
         {plainText(page.title, 80)}
       </h1>
       <span className="my-7 inline-block h-[2px] w-20" style={{ backgroundColor: HEADING }} />
-      <p data-edit-field="narrative" className="max-w-[600px] whitespace-pre-line break-keep text-[16px] font-medium italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
+      <p className="max-w-[600px] whitespace-pre-line break-keep text-[16px] font-medium italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
         {pageNarrative(page, 280)}
       </p>
     </div>

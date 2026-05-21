@@ -10,7 +10,7 @@
  * 강조: `$` `>` 프롬프트, ASCII 박스(═──), comment 색
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -27,7 +27,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#0a0a0a";
 const SURFACE = "#111111";
@@ -40,21 +40,12 @@ const KEYWORD = "#569cd6";
 const BORDER = "#1f1f1f";
 const MONO = "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace";
 
-export function TerminalCodeRenderer({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: RendererProps) {
+export function TerminalCodeRenderer({ document, className }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
-    [document.pages, includeHiddenPages],
+    () => (document.pages || []).filter((p) => p.visible !== false),
+    [document.pages],
   );
-  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
+  const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   useEffect(() => {
@@ -73,16 +64,7 @@ export function TerminalCodeRenderer({
   }
 
   return (
-    <RendererShell
-      document={document}
-      pages={pages}
-      index={index}
-      setIndex={setIndex}
-      className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
-    >
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
       <div
         className="relative w-full border"
         style={{
@@ -162,9 +144,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
         </h1>
         {page.subtitle ? (
           <p className="mt-4 max-w-[520px] break-keep text-[13px] font-medium leading-6">
-            <span data-edit-field="subtitle">
-              <Comment>{plainText(page.subtitle, 140)}</Comment>
-            </span>
+            <Comment>{plainText(page.subtitle, 140)}</Comment>
           </p>
         ) : null}
         <p className="mt-6 text-[12px]">
@@ -189,7 +169,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           </div>
         ) : (
           <div className="border p-5" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
-            <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+            <p className="whitespace-pre-line break-keep text-[13px] font-medium leading-7">
               {pageNarrative(page, 200)}
             </p>
           </div>
@@ -210,7 +190,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         <p className="mt-3 text-[10px]" style={{ color: COMMENT }}>
           {"// readme.md"}
         </p>
-        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -299,14 +279,14 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div>
-        <p data-edit-field="eyebrow" className="text-[11px]" style={{ color: COMMENT }}>
+        <p className="text-[11px]" style={{ color: COMMENT }}>
           {`// ${page.eyebrow || "case study"}`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
           {plainText(page.title, 70)}
         </h2>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-1 text-[11px]" style={{ color: MUTED }}>
+          <p className="mt-1 text-[11px]" style={{ color: MUTED }}>
             {">"} {plainText(page.subtitle, 80)}
           </p>
         ) : null}
@@ -344,19 +324,19 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-6 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
-        <p data-edit-field="eyebrow" className="text-[11px]" style={{ color: COMMENT }}>
+        <p className="text-[11px]" style={{ color: COMMENT }}>
           {`// ${page.eyebrow || "detail"}`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
           {plainText(page.title, 70)}
         </h2>
-        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
           {pageNarrative(page, 220)}
         </p>
       </div>
       <div className="flex flex-col justify-center gap-2 overflow-hidden">
         {blocks.map((block, i) => (
-          <div key={block.id} data-edit-block-id={block.id} className="border p-3" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
+          <div key={block.id} className="border p-3" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
             <p className="text-[10px]" style={{ color: ACCENT }}>
               {`> ${getBlockLabel(block, `note ${i + 1}`)}`}
             </p>
@@ -415,7 +395,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           {">>> "}
           process complete
         </p>
-        <p data-edit-field="narrative" className="mt-6 max-w-[600px] whitespace-pre-line break-keep text-[14px] font-medium leading-8">
+        <p className="mt-6 max-w-[600px] whitespace-pre-line break-keep text-[14px] font-medium leading-8">
           {pageNarrative(page, 260)}
         </p>
         <p className="mt-6 text-[13px]">

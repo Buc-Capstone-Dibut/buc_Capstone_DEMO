@@ -10,7 +10,7 @@
  * 강조: 작은 강조색, 회색 caption, callout 박스, bullet list, table
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
@@ -29,7 +29,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#f9fafb";
 const CARD = "#ffffff";
@@ -40,21 +40,12 @@ const ACCENT = "#0ea5e9";
 const ACCENT_BG = "#e0f2fe";
 const HAIRLINE = "#e5e7eb";
 
-export function NotionDocumentRenderer({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: RendererProps) {
+export function NotionDocumentRenderer({ document, className }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
-    [document.pages, includeHiddenPages],
+    () => (document.pages || []).filter((p) => p.visible !== false),
+    [document.pages],
   );
-  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
+  const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -62,16 +53,7 @@ export function NotionDocumentRenderer({
   }
 
   return (
-    <RendererShell
-      document={document}
-      pages={pages}
-      index={index}
-      setIndex={setIndex}
-      className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
-    >
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
       <div
         className="relative w-full overflow-hidden rounded-lg border bg-white shadow-md"
         style={{
@@ -94,7 +76,7 @@ function SlideShell({ page, children }: { page: PortfolioSitePage; children: Rea
   return (
     <article className="relative h-full w-full overflow-hidden" style={{ backgroundColor: CARD }}>
       <div className="absolute left-12 top-5 flex items-center gap-2 text-[11px] font-medium" style={{ color: MUTED }}>
-        <span data-edit-field="eyebrow" className="rounded bg-gray-100 px-2 py-0.5">{page.eyebrow || "Page"}</span>
+        <span className="rounded bg-gray-100 px-2 py-0.5">{page.eyebrow || "Page"}</span>
         <span>·</span>
         <span>최종 수정: 방금</span>
       </div>
@@ -127,7 +109,7 @@ function PageTitle({ page }: { page: PortfolioSitePage }) {
         {plainText(page.title, 80)}
       </h1>
       {page.subtitle ? (
-        <p data-edit-field="subtitle" className="mt-2 break-keep text-[13px] font-medium" style={{ color: MUTED }}>
+        <p className="mt-2 break-keep text-[13px] font-medium" style={{ color: MUTED }}>
           {plainText(page.subtitle, 120)}
         </p>
       ) : null}
@@ -141,7 +123,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1.4fr_1fr] gap-8 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
         <PageTitle page={page} />
-        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: TEXT }}>
+        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 220)}
         </p>
       </div>
@@ -176,7 +158,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: MUTED }}>
             ABOUT
           </p>
-          <p data-edit-field="narrative" className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
+          <p className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
             {pageNarrative(page, 240)}
           </p>
         </div>
@@ -188,7 +170,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
             <table className="mt-2 w-full border-collapse text-[12px]">
               <tbody>
                 {contributions.map((c) => (
-                  <tr key={c.id} data-edit-block-id={c.id} className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <tr key={c.id} className="border-b" style={{ borderColor: HAIRLINE }}>
                     <td className="py-2 pr-3 font-bold" style={{ color: HEADING }}>
                       {plainText(c.label, 30)}
                     </td>
@@ -314,13 +296,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: MUTED }}>
             DETAIL
           </p>
-          <p data-edit-field="narrative" className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
+          <p className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
             {pageNarrative(page, 240)}
           </p>
           {blocks.length ? (
             <ul className="mt-3 space-y-1.5">
               {blocks.map((block) => (
-                <li key={block.id} data-edit-block-id={block.id} className="flex items-start gap-2 text-[12px]">
+                <li key={block.id} className="flex items-start gap-2 text-[12px]">
                   <span style={{ color: ACCENT }}>•</span>
                   <span className="break-keep font-medium" style={{ color: TEXT }}>
                     <strong style={{ color: HEADING }}>{getBlockLabel(block, "Note")}:</strong>{" "}
@@ -393,7 +375,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 60)}
         </h1>
         <div className="my-5 h-px w-full" style={{ backgroundColor: HAIRLINE }} />
-        <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[14px] font-medium leading-8" style={{ color: TEXT }}>
+        <p className="whitespace-pre-line break-keep text-[14px] font-medium leading-8" style={{ color: TEXT }}>
           {pageNarrative(page, 280)}
         </p>
         <div className="mt-5 flex items-center gap-2 text-[12px]" style={{ color: ACCENT }}>

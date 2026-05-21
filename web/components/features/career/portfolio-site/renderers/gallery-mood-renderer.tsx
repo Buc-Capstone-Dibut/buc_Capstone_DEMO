@@ -10,7 +10,7 @@
  * 강조: 큰 숫자, 가는 라인, 작은 caption, italic
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -28,7 +28,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG = "#f5f5f4";
 const HEADING = "#292524";
@@ -38,21 +38,12 @@ const ACCENT = "#78716c";
 const HAIRLINE = "#e7e5e4";
 const SERIF = "'DM Serif Display', 'Cormorant Garamond', Georgia, serif";
 
-export function GalleryMoodRenderer({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: RendererProps) {
+export function GalleryMoodRenderer({ document, className }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
-    [document.pages, includeHiddenPages],
+    () => (document.pages || []).filter((p) => p.visible !== false),
+    [document.pages],
   );
-  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
+  const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   // DM Serif Display 폰트 동적 로드
@@ -72,16 +63,7 @@ export function GalleryMoodRenderer({
   }
 
   return (
-    <RendererShell
-      document={document}
-      pages={pages}
-      index={index}
-      setIndex={setIndex}
-      className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
-    >
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
       <div
         className="relative w-full"
         style={{
@@ -109,7 +91,7 @@ function SlideShell({ page, index, children }: { page: PortfolioSitePage; index:
     >
       {/* 좌측 상단 라벨 */}
       <div className="absolute left-8 top-8 flex flex-col gap-1">
-        <p data-edit-field="eyebrow" className="text-[9px] font-medium uppercase tracking-[0.4em]" style={{ color: MUTED }}>
+        <p className="text-[9px] font-medium uppercase tracking-[0.4em]" style={{ color: MUTED }}>
           Plate {String(index + 1).padStart(2, "0")}
         </p>
         {page.eyebrow ? (
@@ -162,7 +144,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
       </h1>
       <span className="my-10 block h-px w-12" style={{ backgroundColor: HEADING }} />
       {page.subtitle ? (
-        <p data-edit-field="subtitle"
+        <p
           className="max-w-[540px] break-keep text-[15px] font-light italic leading-9"
           style={{ fontFamily: SERIF, color: TEXT }}
         >
@@ -307,25 +289,25 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1.3fr] gap-16">
       <div className="flex flex-col justify-center">
-        <p data-edit-field="eyebrow" className="text-[10px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
+        <p className="text-[10px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
           {page.eyebrow || "Work"}
         </p>
         <h2 className="mt-3 break-keep text-[40px] font-normal leading-[1.08]" style={{ fontFamily: SERIF, color: HEADING }}>
           {plainText(page.title, 70)}
         </h2>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-5 break-keep text-[13px] font-light italic" style={{ color: MUTED, fontFamily: SERIF }}>
+          <p className="mt-5 break-keep text-[13px] font-light italic" style={{ color: MUTED, fontFamily: SERIF }}>
             {plainText(page.subtitle, 90)}
           </p>
         ) : null}
         <span className="mt-7 block h-px w-10" style={{ backgroundColor: ACCENT }} />
-        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep text-[13px] font-light leading-[1.95]" style={{ color: TEXT }}>
+        <p className="mt-7 whitespace-pre-line break-keep text-[13px] font-light leading-[1.95]" style={{ color: TEXT }}>
           {pageNarrative(page, 240)}
         </p>
       </div>
       <div className="flex flex-col justify-center gap-6">
         {blocks.map((block, i) => (
-          <div key={block.id} data-edit-block-id={block.id} className="border-l pl-5" style={{ borderColor: HAIRLINE }}>
+          <div key={block.id} className="border-l pl-5" style={{ borderColor: HAIRLINE }}>
             <p className="text-[9px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
               No. {String(i + 1).padStart(2, "0")} — {getBlockLabel(block, "Note")}
             </p>
@@ -355,14 +337,14 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1.1fr_1fr] gap-14">
       <div className="flex flex-col justify-center">
-        <p data-edit-field="eyebrow" className="text-[10px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
+        <p className="text-[10px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
           {page.eyebrow || "Detail"}
         </p>
         <h2 className="mt-3 break-keep text-[38px] font-normal leading-[1.08]" style={{ fontFamily: SERIF, color: HEADING }}>
           {plainText(page.title, 70)}
         </h2>
         <span className="mt-6 block h-px w-10" style={{ backgroundColor: ACCENT }} />
-        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13.5px] font-light leading-[2]" style={{ color: TEXT }}>
+        <p className="mt-6 whitespace-pre-line break-keep text-[13.5px] font-light leading-[2]" style={{ color: TEXT }}>
           {pageNarrative(page, 280)}
         </p>
       </div>
@@ -414,7 +396,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
       <h2 className="max-w-[780px] break-keep text-[46px] font-normal leading-[1.08]" style={{ fontFamily: SERIF, color: HEADING }}>
         {plainText(page.title, 60)}
       </h2>
-      <p data-edit-field="narrative" className="max-w-[580px] whitespace-pre-line break-keep text-[15px] font-light italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
+      <p className="max-w-[580px] whitespace-pre-line break-keep text-[15px] font-light italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
         {pageNarrative(page, 220)}
       </p>
       {items.length ? (
@@ -445,7 +427,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
         {plainText(page.title, 60)}
       </h1>
       <span className="my-10 block h-px w-16" style={{ backgroundColor: HEADING }} />
-      <p data-edit-field="narrative" className="max-w-[560px] whitespace-pre-line break-keep text-[15px] font-light italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
+      <p className="max-w-[560px] whitespace-pre-line break-keep text-[15px] font-light italic leading-9" style={{ color: TEXT, fontFamily: SERIF }}>
         {pageNarrative(page, 240)}
       </p>
     </div>

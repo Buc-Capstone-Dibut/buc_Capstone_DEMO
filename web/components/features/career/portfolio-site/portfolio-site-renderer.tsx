@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -26,12 +27,7 @@ import { SoftPastelCardRenderer } from "./renderers/soft-pastel-card-renderer";
 import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
-import {
-  EditFocusProvider,
-  type EditFocus,
-  type InlineEditHandlers,
-} from "./renderers/edit-focus";
+import { RendererEmptyState, RendererShell } from "./renderers/renderer-shell";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -59,19 +55,6 @@ type PortfolioSiteRendererProps = {
   document: PortfolioDocument;
   readonly?: boolean;
   className?: string;
-  /** 편집기에서 활성 페이지 제어 (사이드바와 동기화) */
-  activeIndex?: number;
-  onActiveIndexChange?: (next: number) => void;
-  /** chrome 옵션 (편집기에서 자체 헤더/사이드바로 대체할 때) */
-  hideHeader?: boolean;
-  hideThumbnails?: boolean;
-  disableKeyboardNav?: boolean;
-  /** true: 숨김 페이지도 포함해서 렌더 (편집기용) */
-  includeHiddenPages?: boolean;
-  /** 우측 편집 패널과 동기화된 시각 강조 */
-  editFocus?: EditFocus;
-  /** 슬라이드 위 텍스트 직접 클릭 편집 핸들러 (편집기 전용) */
-  inlineEdit?: InlineEditHandlers;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -368,7 +351,7 @@ function DeckShell({
       ) : null}
       <div className="absolute left-9 top-7 flex items-center gap-3">
         <span className="h-[2px] w-14 bg-[var(--portfolio-primary)]" />
-        <span data-edit-field="eyebrow" className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--portfolio-primary)]">
+        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--portfolio-primary)]">
           {page.eyebrow || PAGE_LABEL[page.type]}
         </span>
       </div>
@@ -420,7 +403,7 @@ function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: num
   return (
     <div className="space-y-3">
       {blocks.slice(0, max).map((block, index) => (
-        <div key={block.id} data-edit-block-id={block.id} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
+        <div key={block.id} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
           <span
             className="mt-1 h-7 w-7 text-center text-sm font-black leading-7 text-white"
             style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
@@ -477,7 +460,7 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
     return (
       <div className="flex flex-wrap items-baseline gap-x-10 gap-y-4 border-t border-dashed border-[var(--portfolio-primary)]/40 pt-5">
         {metrics.slice(0, 4).map((metric) => (
-          <div key={metric.id} data-edit-block-id={metric.id} className="min-w-0">
+          <div key={metric.id} className="min-w-0">
             <p className="font-serif text-[11px] font-medium italic tracking-[0.18em] text-slate-500">
               {plainText(metric.label, 30) || "Metric"}
             </p>
@@ -499,7 +482,7 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex flex-wrap gap-x-8 gap-y-4">
       {metrics.slice(0, 4).map((metric) => (
-        <div key={metric.id} data-edit-block-id={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
+        <div key={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
             {plainText(metric.label, 30) || "Metric"}
           </p>
@@ -693,7 +676,7 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
       {items.slice(0, 4).map((item, index) => {
         const percent = contributionPercent(item.value);
         return (
-          <div key={item.id} data-edit-block-id={item.id}>
+          <div key={item.id}>
             <div className="flex items-end justify-between gap-4">
               <p className="break-keep text-[13px] font-black text-slate-800">
                 {plainText(item.label, 40) || "기여"}
@@ -810,7 +793,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
         </h1>
         <span className="mt-4 inline-block h-[2px] w-16 bg-[var(--portfolio-primary)]" />
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-4 max-w-[560px] break-keep font-serif text-[16px] font-medium italic leading-7 text-slate-600">
+          <p className="mt-4 max-w-[560px] break-keep font-serif text-[16px] font-medium italic leading-7 text-slate-600">
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -831,7 +814,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 90)}
         </h1>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-5 max-w-[560px] break-keep text-[16px] font-bold leading-7 text-slate-300">
+          <p className="mt-5 max-w-[560px] break-keep text-[16px] font-bold leading-7 text-slate-300">
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -851,7 +834,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
         {plainText(page.title, 90)}
       </h1>
       {page.subtitle ? (
-        <p data-edit-field="subtitle" className="mt-4 max-w-[560px] break-keep text-[15px] font-bold leading-7 text-slate-600">
+        <p className="mt-4 max-w-[560px] break-keep text-[15px] font-bold leading-7 text-slate-600">
           {plainText(page.subtitle, 140)}
         </p>
       ) : null}
@@ -911,7 +894,7 @@ function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <h1 className="mt-5 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 86)}
         </h1>
-        <p data-edit-field="narrative" className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
+        <p className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 320)}
         </p>
         <div className="mt-10">
@@ -936,7 +919,7 @@ function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -959,7 +942,7 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <div className="min-w-0">
           <CompositionNote page={page} />
           <TitleBlock page={page} />
-          <p data-edit-field="narrative" className="mt-5 max-w-[540px] whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+          <p className="mt-5 max-w-[540px] whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
             {pageNarrative(page, 240)}
           </p>
         </div>
@@ -1007,7 +990,7 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
         <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
           {plainText(label, 48)}
         </p>
-        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
+        <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 260)}
         </p>
       </div>
@@ -1026,7 +1009,7 @@ function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 240)}
         </p>
         <div className="mt-8">
@@ -1089,7 +1072,7 @@ function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
       </div>
       <div className="grid min-w-0 grid-cols-2 content-center gap-x-7 gap-y-5">
         {blocks.map((block, index) => (
-          <div key={block.id} data-edit-block-id={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
+          <div key={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
             <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[var(--portfolio-primary)]">
               {getBlockLabel(block, `Evidence ${index + 1}`)}
             </p>
@@ -1114,7 +1097,7 @@ function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <h1 className="mt-6 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 90)}
         </h1>
-        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
+        <p className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 280)}
         </p>
         <div className="mt-10">
@@ -1130,10 +1113,10 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1fr_340px] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center border-l-[10px] border-[var(--portfolio-primary)] pl-9">
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
+        <p className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 320)}
         </p>
-        <div data-edit-field="emphasis" className="mt-9 flex flex-wrap gap-3">
+        <div className="mt-9 flex flex-wrap gap-3">
           {pageEmphasis(page).slice(0, 4).map((item, index) => (
             <span
               key={`${item}-${index}`}
@@ -1163,7 +1146,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.92fr_1.08fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
+        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
           {pageNarrative(page, 220)}
         </p>
       </div>
@@ -1180,7 +1163,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.78fr_1.22fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -1231,7 +1214,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[13px] font-bold leading-6 text-slate-700">
+        <p className="mt-5 whitespace-pre-line break-keep text-[13px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -1271,13 +1254,13 @@ function ClosingSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex h-full flex-col justify-center overflow-hidden px-16 pb-6 pt-14">
       <div className="max-w-[760px] border-l-[10px] border-[var(--portfolio-primary)] pl-9">
-        <p data-edit-field="eyebrow" className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
           {page.eyebrow || "Contact"}
         </p>
         <h1 className="mt-6 break-keep text-[48px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 90)}
         </h1>
-        <p data-edit-field="narrative" className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
+        <p className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
           {pageNarrative(page, 300)}
         </p>
         <div className="mt-10">
@@ -1314,63 +1297,51 @@ function renderSlide(page: PortfolioSitePage) {
 
 export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   const rendererId = props.document.rendererId;
-  const shared = {
-    document: props.document,
-    className: props.className,
-    activeIndex: props.activeIndex,
-    onActiveIndexChange: props.onActiveIndexChange,
-    hideHeader: props.hideHeader,
-    hideThumbnails: props.hideThumbnails,
-    disableKeyboardNav: props.disableKeyboardNav,
-    includeHiddenPages: props.includeHiddenPages,
-  };
 
-  let body: ReactNode;
-  if (rendererId === "minimal-mono") body = <MinimalMonoRenderer {...shared} />;
-  else if (rendererId === "editorial-magazine") body = <EditorialMagazineRenderer {...shared} />;
-  else if (rendererId === "brutalist-tech") body = <BrutalistTechRenderer {...shared} />;
-  else if (rendererId === "soft-pastel-card") body = <SoftPastelCardRenderer {...shared} />;
-  else if (rendererId === "terminal-code") body = <TerminalCodeRenderer {...shared} />;
-  else if (rendererId === "notion-document") body = <NotionDocumentRenderer {...shared} />;
-  else if (rendererId === "gallery-mood") body = <GalleryMoodRenderer {...shared} />;
-  else {
-    // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
-    body = (
-      <RendererContext.Provider value={{ templateId: props.document.templateId }}>
-        <PortfolioSiteRendererInner {...props} />
-      </RendererContext.Provider>
-    );
+  if (rendererId === "minimal-mono") {
+    return <MinimalMonoRenderer document={props.document} className={props.className} />;
   }
-
+  if (rendererId === "editorial-magazine") {
+    return <EditorialMagazineRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "brutalist-tech") {
+    return <BrutalistTechRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "soft-pastel-card") {
+    return <SoftPastelCardRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "terminal-code") {
+    return <TerminalCodeRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "notion-document") {
+    return <NotionDocumentRenderer document={props.document} className={props.className} />;
+  }
+  if (rendererId === "gallery-mood") {
+    return <GalleryMoodRenderer document={props.document} className={props.className} />;
+  }
+  // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
   return (
-    <EditFocusProvider focus={props.editFocus} inlineEdit={props.inlineEdit}>
-      {body}
-    </EditFocusProvider>
+    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+      <PortfolioSiteRendererInner {...props} />
+    </RendererContext.Provider>
   );
 }
 
-function PortfolioSiteRendererInner({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: PortfolioSiteRendererProps) {
+function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRendererProps) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
-        (page) => includeHiddenPages || page.visible !== false,
+        (page) => page.visible !== false,
       ),
-    [document.pages, document.sections, includeHiddenPages],
+    [document.pages, document.sections],
   );
-  const [currentIndex, setCurrentIndex] = useRendererPageIndex(
-    { activeIndex, onActiveIndexChange },
-    pages.length,
-  );
+  const [currentIndex, setCurrentIndex] = useState(0);
   const page = pages[Math.min(currentIndex, Math.max(0, pages.length - 1))];
+
+  useEffect(() => {
+    if (currentIndex <= pages.length - 1) return;
+    setCurrentIndex(Math.max(0, pages.length - 1));
+  }, [currentIndex, pages.length]);
 
   const template = getPortfolioTemplate(document.templateId);
   const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
@@ -1421,9 +1392,6 @@ function PortfolioSiteRendererInner({
       index={currentIndex}
       setIndex={setCurrentIndex}
       className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
     >
       <div
         className={cn(

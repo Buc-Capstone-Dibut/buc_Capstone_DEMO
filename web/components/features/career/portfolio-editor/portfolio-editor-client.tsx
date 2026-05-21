@@ -42,21 +42,15 @@ import {
   type PortfolioListItem,
   type PortfolioSection,
   type PortfolioSectionType,
-  type PortfolioSitePage,
-  type PortfolioSitePageType,
   type PortfolioSourceData,
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
-import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
-import { PortfolioSitePageEditor } from "./portfolio-site-page-editor";
-import { PortfolioSiteAiChat } from "./portfolio-site-ai-chat";
 import {
   PortfolioRenderer,
   PortfolioSlideThumbnail,
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
-import { EditFocusBadge } from "../portfolio-site/renderers/edit-focus";
 import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
 
@@ -551,142 +545,6 @@ export function PortfolioEditorClient({
     setSelectedElement(null);
   };
 
-  // ────────────────────────────────────────────────────────────────────────
-  // 웹슬라이드(site) 포맷 — 페이지 helpers (좌측 사이드바와 연동)
-  // ────────────────────────────────────────────────────────────────────────
-  const sitePages = useMemo(() => document.pages || [], [document.pages]);
-  const [activeSitePageId, setActiveSitePageId] = useState<string>(() => sitePages[0]?.id || "");
-
-  // 페이지 목록 변경 시 활성 페이지 보정
-  useEffect(() => {
-    if (!sitePages.length) {
-      if (activeSitePageId) setActiveSitePageId("");
-      return;
-    }
-    if (!sitePages.some((p) => p.id === activeSitePageId)) {
-      setActiveSitePageId(sitePages[0].id);
-    }
-  }, [sitePages, activeSitePageId]);
-
-  const togglePageVisibility = (pageId: string) => {
-    updateDocument((current) => ({
-      ...current,
-      pages: (current.pages || []).map((p) =>
-        p.id === pageId ? { ...p, visible: p.visible === false } : p,
-      ),
-    }));
-  };
-
-  const deletePage = (pageId: string) => {
-    updateDocument((current) => ({
-      ...current,
-      pages: (current.pages || []).filter((p) => p.id !== pageId),
-    }));
-    if (activeSitePageId === pageId) {
-      const fallback =
-        sitePages[sitePages.findIndex((p) => p.id === pageId) + 1]?.id ||
-        sitePages[sitePages.findIndex((p) => p.id === pageId) - 1]?.id ||
-        sitePages.find((p) => p.id !== pageId)?.id ||
-        "";
-      setActiveSitePageId(fallback);
-    }
-  };
-
-  const reorderPages = (orderedIds: string[]) => {
-    updateDocument((current) => {
-      const byId = new Map((current.pages || []).map((p) => [p.id, p] as const));
-      const reordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as typeof current.pages;
-      return { ...current, pages: reordered };
-    });
-  };
-
-  const updatePageById = (pageId: string, patch: Partial<PortfolioSitePage>) => {
-    updateDocument((current) => ({
-      ...current,
-      pages: (current.pages || []).map((p) =>
-        p.id === pageId ? { ...p, ...patch } : p,
-      ),
-    }));
-  };
-
-  // AI 페이지 재생성
-  const [regeneratingPageId, setRegeneratingPageId] = useState<string | null>(null);
-  // 우측 패널 ↔ 슬라이드 캔버스 강조 동기화
-  const [editFocus, setEditFocus] = useState<{
-    field?: "title" | "subtitle" | "eyebrow" | "narrative" | "emphasis" | null;
-    blockId?: string | null;
-  }>({ field: null, blockId: null });
-  const regeneratePage = async (pageId: string, instruction?: string) => {
-    if (regeneratingPageId) return;
-    setRegeneratingPageId(pageId);
-    try {
-      const response = await fetch(
-        `/api/career/portfolios/${portfolio.id}/pages/${pageId}/regenerate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ instruction: instruction || undefined }),
-        },
-      );
-      const payload = await response.json();
-      if (!response.ok || !payload.page) {
-        throw new Error(payload.error || "재생성 실패");
-      }
-      updateDocument((current) => ({
-        ...current,
-        pages: (current.pages || []).map((p) =>
-          p.id === pageId ? { ...(payload.page as PortfolioSitePage) } : p,
-        ),
-      }));
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "AI 재생성 실패");
-    } finally {
-      setRegeneratingPageId(null);
-    }
-  };
-
-  const addPage = (type: PortfolioSitePageType) => {
-    const PAGE_TYPE_LABEL_LOCAL: Record<PortfolioSitePageType, string> = {
-      cover: "표지",
-      profile: "프로필",
-      skills: "기술",
-      "project-index": "프로젝트 목차",
-      "case-study": "케이스 스터디",
-      "project-detail": "프로젝트 상세",
-      experience: "경력",
-      retrospective: "회고",
-      contact: "연락처",
-    };
-    const TYPE_TO_LAYOUT: Record<PortfolioSitePageType, PortfolioSitePage["layout"]> = {
-      cover: "cover-focus",
-      profile: "profile-summary",
-      skills: "skills-grid",
-      "project-index": "project-index",
-      "case-study": "case-study",
-      "project-detail": "project-detail",
-      experience: "case-study",
-      retrospective: "case-study",
-      contact: "cover-focus",
-    };
-    const newId = `page-${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)}`;
-    const newPage: PortfolioSitePage = {
-      id: newId,
-      type,
-      title: `새 ${PAGE_TYPE_LABEL_LOCAL[type]}`,
-      eyebrow: PAGE_TYPE_LABEL_LOCAL[type],
-      narrative: "",
-      emphasis: [],
-      layout: TYPE_TO_LAYOUT[type],
-      blocks: [],
-      visible: true,
-    };
-    updateDocument((current) => ({
-      ...current,
-      pages: [...(current.pages || []), newPage],
-    }));
-    setActiveSitePageId(newId);
-  };
-
   const deleteSection = (sectionId: string) => {
     if (document.sections.length <= 1) {
       alert("최소 1개의 슬라이스는 필요합니다.");
@@ -842,90 +700,10 @@ export function PortfolioEditorClient({
           </div>
         </header>
 
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <PortfolioSitePagesSidebar
-            pages={sitePages}
-            activePageId={activeSitePageId}
-            onSelectPage={(pageId) => setActiveSitePageId(pageId)}
-            onReorderPages={reorderPages}
-            onToggleVisibility={togglePageVisibility}
-            onDeletePage={deletePage}
-            onAddPage={addPage}
-            disabled={generation.active}
-          />
-          <main className="relative min-h-0 min-w-0 flex-1 overflow-auto">
-            <PortfolioSiteRenderer
-              document={document}
-              activeIndex={Math.max(
-                0,
-                sitePages.findIndex((p) => p.id === activeSitePageId),
-              )}
-              onActiveIndexChange={(next) => {
-                const target = sitePages[next];
-                if (target) setActiveSitePageId(target.id);
-              }}
-              hideThumbnails
-              includeHiddenPages
-              disableKeyboardNav={generation.active}
-              editFocus={editFocus}
-              inlineEdit={
-                generation.active || regeneratingPageId !== null
-                  ? undefined
-                  : {
-                      onPatchPageField: (field, value) => {
-                        if (!activeSitePageId) return;
-                        updatePageById(activeSitePageId, {
-                          [field]: value,
-                        } as Partial<PortfolioSitePage>);
-                      },
-                      onPatchBlockContent: (blockId, content) => {
-                        if (!activeSitePageId) return;
-                        const page = sitePages.find((p) => p.id === activeSitePageId);
-                        if (!page) return;
-                        updatePageById(activeSitePageId, {
-                          blocks: page.blocks.map((b) =>
-                            b.id === blockId ? { ...b, content } : b,
-                          ),
-                        });
-                      },
-                    }
-              }
-            />
-            <GenerationStatusOverlay generation={generation} document={document} />
-          </main>
-          <PortfolioSitePageEditor
-            page={sitePages.find((p) => p.id === activeSitePageId) || null}
-            onPatch={(patch) => {
-              if (!activeSitePageId) return;
-              updatePageById(activeSitePageId, patch);
-            }}
-            onRegenerate={(instruction) => {
-              if (!activeSitePageId) return;
-              void regeneratePage(activeSitePageId, instruction);
-            }}
-            isRegenerating={regeneratingPageId === activeSitePageId}
-            disabled={generation.active || regeneratingPageId !== null}
-            onFocusChange={(focus) => setEditFocus(focus)}
-          />
-        </div>
-        <EditFocusBadge focus={editFocus} />
-        <PortfolioSiteAiChat
-          portfolioId={portfolio.id}
-          activePageId={activeSitePageId || null}
-          onApplyPatches={(patches) => {
-            updateDocument((current) => {
-              const byId = new Map(patches.map((p) => [p.pageId, p.patch] as const));
-              return {
-                ...current,
-                pages: (current.pages || []).map((p) => {
-                  const patch = byId.get(p.id);
-                  return patch ? { ...p, ...patch } : p;
-                }),
-              };
-            });
-          }}
-          disabled={generation.active}
-        />
+        <main className="relative min-h-0 flex-1 overflow-auto">
+          <PortfolioSiteRenderer document={document} />
+          <GenerationStatusOverlay generation={generation} document={document} />
+        </main>
       </div>
     );
   }

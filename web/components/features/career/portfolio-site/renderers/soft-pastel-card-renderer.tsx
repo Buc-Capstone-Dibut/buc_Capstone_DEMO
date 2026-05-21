@@ -10,7 +10,7 @@
  * 강조: 둥근 모서리 카드, 큰 보더 반경, soft shadow, 그라데이션 배경
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
@@ -29,7 +29,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { RendererEmptyState, RendererShell } from "./renderer-shell";
 
 const BG_GRADIENT = "linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 50%, #ecfeff 100%)";
 const CARD_BG = "rgba(255,255,255,0.7)";
@@ -42,21 +42,12 @@ const SOFT_SHADOW = "0 8px 32px rgba(124,58,237,0.08)";
 const SOFT_SHADOW_HOVER = "0 12px 40px rgba(124,58,237,0.12)";
 const ROUNDED = "rounded-3xl";
 
-export function SoftPastelCardRenderer({
-  document,
-  className,
-  activeIndex,
-  onActiveIndexChange,
-  hideHeader,
-  hideThumbnails,
-  disableKeyboardNav,
-  includeHiddenPages,
-}: RendererProps) {
+export function SoftPastelCardRenderer({ document, className }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
-    [document.pages, includeHiddenPages],
+    () => (document.pages || []).filter((p) => p.visible !== false),
+    [document.pages],
   );
-  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
+  const [index, setIndex] = useState(0);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -64,16 +55,7 @@ export function SoftPastelCardRenderer({
   }
 
   return (
-    <RendererShell
-      document={document}
-      pages={pages}
-      index={index}
-      setIndex={setIndex}
-      className={className}
-      hideHeader={hideHeader}
-      hideThumbnails={hideThumbnails}
-      disableKeyboardNav={disableKeyboardNav}
-    >
+    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
       <div
         className={cn("relative w-full overflow-hidden", ROUNDED)}
         style={{
@@ -100,7 +82,7 @@ function SlideShell({ page, children }: { page: PortfolioSitePage; children: Rea
       <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-30" style={{ backgroundColor: ACCENT }} />
       <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full opacity-25" style={{ backgroundColor: PRIMARY }} />
       <div className="absolute left-10 top-6 flex items-center gap-2">
-        <span data-edit-field="eyebrow" className="rounded-full bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: PRIMARY }}>
+        <span className="rounded-full bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: PRIMARY }}>
           {page.eyebrow || "Portfolio"}
         </span>
       </div>
@@ -145,7 +127,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 80)}
         </h1>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-4 max-w-[500px] break-keep text-[15px] font-semibold leading-7" style={{ color: MUTED }}>
+          <p className="mt-4 max-w-[500px] break-keep text-[15px] font-semibold leading-7" style={{ color: MUTED }}>
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -167,7 +149,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           </Card>
         ) : (
           <Card>
-            <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[14px] font-semibold leading-7" style={{ color: TEXT }}>
+            <p className="whitespace-pre-line break-keep text-[14px] font-semibold leading-7" style={{ color: TEXT }}>
               {pageNarrative(page, 200)}
             </p>
           </Card>
@@ -185,13 +167,13 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         <h2 className="break-keep text-[36px] font-black leading-tight" style={{ color: TEXT }}>
           {plainText(page.title, 60)}
         </h2>
-        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-semibold leading-7" style={{ color: TEXT }}>
+        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-semibold leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 240)}
         </p>
       </Card>
       <div className="flex flex-col justify-center gap-3 overflow-hidden">
         {contributions.map((c, i) => (
-          <Card key={c.id} data-edit-block-id={c.id}>
+          <Card key={c.id}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-[13px] font-bold" style={{ color: TEXT }}>
                 {plainText(c.label, 30) || "강점"}
@@ -282,18 +264,18 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1.3fr] gap-6 overflow-hidden">
       <Card className="flex flex-col justify-center">
-        <p data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
           ✦ {page.eyebrow || "Case Study"}
         </p>
         <h2 className="mt-3 break-keep text-[28px] font-black leading-tight" style={{ color: TEXT }}>
           {plainText(page.title, 70)}
         </h2>
         {page.subtitle ? (
-          <p data-edit-field="subtitle" className="mt-2 text-[11px] font-bold" style={{ color: MUTED }}>
+          <p className="mt-2 text-[11px] font-bold" style={{ color: MUTED }}>
             {plainText(page.subtitle, 80)}
           </p>
         ) : null}
-        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[12.5px] font-semibold leading-6" style={{ color: TEXT }}>
+        <p className="mt-4 whitespace-pre-line break-keep text-[12.5px] font-semibold leading-6" style={{ color: TEXT }}>
           {pageNarrative(page, 200)}
         </p>
       </Card>
@@ -342,13 +324,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-6 overflow-hidden">
       <div className="flex flex-col justify-center gap-4 overflow-hidden">
-        <p data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
           ✦ {page.eyebrow || "Detail"}
         </p>
         <h2 className="break-keep text-[32px] font-black leading-tight" style={{ color: TEXT }}>
           {plainText(page.title, 70)}
         </h2>
-        <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[13px] font-semibold leading-7" style={{ color: TEXT }}>
+        <p className="whitespace-pre-line break-keep text-[13px] font-semibold leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -369,7 +351,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
           </Card>
         ) : null}
         {blocks.map((block, i) => (
-          <Card key={block.id} data-edit-block-id={block.id}>
+          <Card key={block.id}>
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: i % 2 === 0 ? PRIMARY : ACCENT }}>
               ✦ {getBlockLabel(block, `Point ${i + 1}`)}
             </p>
@@ -432,7 +414,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ACCENT }} />
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: HAIRLINE }} />
         </div>
-        <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[14px] font-semibold leading-8" style={{ color: TEXT }}>
+        <p className="whitespace-pre-line break-keep text-[14px] font-semibold leading-8" style={{ color: TEXT }}>
           {pageNarrative(page, 240)}
         </p>
       </Card>
