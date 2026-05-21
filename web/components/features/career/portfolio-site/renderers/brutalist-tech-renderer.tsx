@@ -352,7 +352,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
           </div>
         ) : null}
         {blocks.map((block, i) => (
-          <div key={block.id} className="border-[3px] px-3 py-2" style={{ borderColor: BORDER }}>
+          <div key={block.id} data-edit-block-id={block.id} className="border-[3px] px-3 py-2" style={{ borderColor: BORDER }}>
             <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: MUTED }}>
               {`> ${getBlockLabel(block, `POINT ${i + 1}`)}`}
             </p>

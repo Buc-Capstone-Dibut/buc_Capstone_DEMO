@@ -414,7 +414,7 @@ function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: num
   return (
     <div className="space-y-3">
       {blocks.slice(0, max).map((block, index) => (
-        <div key={block.id} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
+        <div key={block.id} data-edit-block-id={block.id} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3">
           <span
             className="mt-1 h-7 w-7 text-center text-sm font-black leading-7 text-white"
             style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
@@ -471,7 +471,7 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
     return (
       <div className="flex flex-wrap items-baseline gap-x-10 gap-y-4 border-t border-dashed border-[var(--portfolio-primary)]/40 pt-5">
         {metrics.slice(0, 4).map((metric) => (
-          <div key={metric.id} className="min-w-0">
+          <div key={metric.id} data-edit-block-id={metric.id} className="min-w-0">
             <p className="font-serif text-[11px] font-medium italic tracking-[0.18em] text-slate-500">
               {plainText(metric.label, 30) || "Metric"}
             </p>
@@ -493,7 +493,7 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex flex-wrap gap-x-8 gap-y-4">
       {metrics.slice(0, 4).map((metric) => (
-        <div key={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
+        <div key={metric.id} data-edit-block-id={metric.id} className="min-w-0 border-l-2 border-[var(--portfolio-primary)] pl-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
             {plainText(metric.label, 30) || "Metric"}
           </p>
@@ -687,7 +687,7 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
       {items.slice(0, 4).map((item, index) => {
         const percent = contributionPercent(item.value);
         return (
-          <div key={item.id}>
+          <div key={item.id} data-edit-block-id={item.id}>
             <div className="flex items-end justify-between gap-4">
               <p className="break-keep text-[13px] font-black text-slate-800">
                 {plainText(item.label, 40) || "기여"}
@@ -1083,7 +1083,7 @@ function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
       </div>
       <div className="grid min-w-0 grid-cols-2 content-center gap-x-7 gap-y-5">
         {blocks.map((block, index) => (
-          <div key={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
+          <div key={block.id} data-edit-block-id={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
             <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[var(--portfolio-primary)]">
               {getBlockLabel(block, `Evidence ${index + 1}`)}
             </p>

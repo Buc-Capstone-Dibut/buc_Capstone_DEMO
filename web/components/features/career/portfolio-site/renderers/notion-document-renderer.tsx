@@ -188,7 +188,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
             <table className="mt-2 w-full border-collapse text-[12px]">
               <tbody>
                 {contributions.map((c) => (
-                  <tr key={c.id} className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <tr key={c.id} data-edit-block-id={c.id} className="border-b" style={{ borderColor: HAIRLINE }}>
                     <td className="py-2 pr-3 font-bold" style={{ color: HEADING }}>
                       {plainText(c.label, 30)}
                     </td>
@@ -320,7 +320,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
           {blocks.length ? (
             <ul className="mt-3 space-y-1.5">
               {blocks.map((block) => (
-                <li key={block.id} className="flex items-start gap-2 text-[12px]">
+                <li key={block.id} data-edit-block-id={block.id} className="flex items-start gap-2 text-[12px]">
                   <span style={{ color: ACCENT }}>•</span>
                   <span className="break-keep font-medium" style={{ color: TEXT }}>
                     <strong style={{ color: HEADING }}>{getBlockLabel(block, "Note")}:</strong>{" "}

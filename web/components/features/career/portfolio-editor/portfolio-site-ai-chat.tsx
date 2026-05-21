@@ -76,12 +76,22 @@ export function PortfolioSiteAiChat({
       if (patches.length) {
         onApplyPatches(patches);
       }
+      // 0개 적용 시 명확한 안내
+      let content = payload.reply || "변경을 적용했어요.";
+      if (patches.length === 0) {
+        if (payload.debug?.droppedReason) {
+          content += `\n\n⚠️ AI 가 변경을 시도했지만 적용에 실패했어요 (${payload.debug.droppedReason}). 더 구체적으로 말씀해 주세요. 예: "표지의 제목을 더 짧게"`;
+        } else {
+          content += `\n\n⚠️ 적용 가능한 변경을 만들지 못했어요. 더 구체적인 명령을 시도해 보세요.\n예: "표지의 제목 줄여줘", "마지막 페이지 숨겨", "프로필 narrative 부드럽게"`;
+        }
+      }
       setMessages((cur) => [
         ...cur,
         {
           role: "assistant",
-          content: payload.reply || "변경을 적용했어요.",
+          content,
           patchesApplied: patches.length,
+          error: patches.length === 0,
         },
       ]);
     } catch (error) {

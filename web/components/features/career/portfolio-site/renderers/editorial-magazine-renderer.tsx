@@ -297,7 +297,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
         {/* Magazine columns — 본문 블록들 */}
         <div className="columns-1 gap-6 [column-fill:_balance] md:columns-2">
           {blocks.map((block, i) => (
-            <div key={block.id} className="mb-4 break-inside-avoid">
+            <div key={block.id} data-edit-block-id={block.id} className="mb-4 break-inside-avoid">
               <p className="text-[10px] font-medium italic uppercase tracking-[0.22em]" style={{ color: ACCENT, fontFamily: SERIF }}>
                 — {ROMAN[i]} {getBlockLabel(block, "Note")} —
               </p>

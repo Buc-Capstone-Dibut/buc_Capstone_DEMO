@@ -325,7 +325,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
       </div>
       <div className="flex flex-col justify-center gap-6">
         {blocks.map((block, i) => (
-          <div key={block.id} className="border-l pl-5" style={{ borderColor: HAIRLINE }}>
+          <div key={block.id} data-edit-block-id={block.id} className="border-l pl-5" style={{ borderColor: HAIRLINE }}>
             <p className="text-[9px] font-medium uppercase tracking-[0.4em]" style={{ color: ACCENT }}>
               No. {String(i + 1).padStart(2, "0")} — {getBlockLabel(block, "Note")}
             </p>

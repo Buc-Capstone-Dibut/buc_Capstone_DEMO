@@ -149,25 +149,58 @@ JSON 하나만 반환:
       "emphasis",
       "visible",
     ] as const;
-    const pageIdSet = new Set((document.pages || []).map((p) => p.id));
+    const allPages = document.pages || [];
+    const pageIdSet = new Set(allPages.map((p) => p.id));
     const patches: Array<{ pageId: string; patch: Partial<PortfolioSitePage> }> = [];
+    let droppedReason = "";
+    let rawPatchCount = 0;
     if (Array.isArray(parsed.patches)) {
       for (const entry of parsed.patches as unknown[]) {
+        rawPatchCount += 1;
         const e = entry as { pageId?: string; patch?: Record<string, unknown> };
-        if (!e?.pageId || !pageIdSet.has(e.pageId)) continue;
+        if (!e?.pageId) {
+          droppedReason = "pageId 누락";
+          continue;
+        }
+        // 1차: 정확한 ID 매칭
+        let targetId = pageIdSet.has(e.pageId) ? e.pageId : "";
+        // 2차: AI 가 title 을 pageId 로 보낸 경우 fallback
+        if (!targetId) {
+          const byTitle = allPages.find(
+            (p) =>
+              p.title === e.pageId ||
+              p.type === e.pageId ||
+              (e.pageId && p.title.includes(e.pageId)),
+          );
+          if (byTitle) targetId = byTitle.id;
+        }
+        // 3차: pageId 를 활성 페이지로 fallback
+        if (!targetId && body.activePageId && pageIdSet.has(body.activePageId)) {
+          targetId = body.activePageId;
+        }
+        if (!targetId) {
+          droppedReason = `pageId "${e.pageId}" 매칭 실패`;
+          continue;
+        }
         const cleaned: Partial<PortfolioSitePage> = {};
         for (const key of allowedKeys) {
           if (e.patch && key in e.patch) {
             (cleaned as Record<string, unknown>)[key] = e.patch[key];
           }
         }
-        if (Object.keys(cleaned).length) patches.push({ pageId: e.pageId, patch: cleaned });
+        if (Object.keys(cleaned).length) patches.push({ pageId: targetId, patch: cleaned });
+        else droppedReason = "patch 가 비어 있음 (허용 필드 없음)";
       }
     }
 
     return NextResponse.json({
       reply: typeof parsed.reply === "string" ? parsed.reply : "변경을 적용했어요.",
       patches,
+      // 디버그/UX 보조: AI 가 patch 를 주려고 했는데 모두 sanitize 에 걸린 경우
+      debug:
+        patches.length === 0 && rawPatchCount > 0
+          ? { rawPatchCount, droppedReason }
+          : undefined,
     });
   } catch (error) {
     console.error("ai-edit error", error);

@@ -16,6 +16,11 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
+/** CSS selector 내부에 ID 를 안전하게 삽입하기 위한 escape (영문/숫자/하이픈/언더스코어만 허용). */
+function cssEscape(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
 export type EditFocusField =
   | "title"
   | "subtitle"
@@ -61,6 +66,21 @@ export function EditFocusProvider({
         className={hasFocus ? "portfolio-edit-focus-root" : undefined}
       >
         {children}
+        {/* 활성 블록 ID 에 대해서만 동적으로 CSS 주입 → renderer 수정 없이 블록 강조 */}
+        {resolved.blockId ? (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `[data-edit-block-id="${cssEscape(resolved.blockId)}"] {
+                box-shadow: inset 0 0 0 2px rgba(132, 185, 70, 0.9) !important;
+                background-color: rgba(132, 185, 70, 0.18) !important;
+                border-radius: 6px !important;
+                outline: 2px solid rgba(132, 185, 70, 0.4) !important;
+                outline-offset: 3px !important;
+                animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate !important;
+              }`,
+            }}
+          />
+        ) : null}
       </div>
     </EditFocusContext.Provider>
   );

@@ -191,7 +191,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
       </Card>
       <div className="flex flex-col justify-center gap-3 overflow-hidden">
         {contributions.map((c, i) => (
-          <Card key={c.id}>
+          <Card key={c.id} data-edit-block-id={c.id}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-[13px] font-bold" style={{ color: TEXT }}>
                 {plainText(c.label, 30) || "강점"}
@@ -369,7 +369,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
           </Card>
         ) : null}
         {blocks.map((block, i) => (
-          <Card key={block.id}>
+          <Card key={block.id} data-edit-block-id={block.id}>
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: i % 2 === 0 ? PRIMARY : ACCENT }}>
               ✦ {getBlockLabel(block, `Point ${i + 1}`)}
             </p>

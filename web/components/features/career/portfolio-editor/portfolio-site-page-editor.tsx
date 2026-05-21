@@ -43,6 +43,33 @@ const PAGE_TYPE_LABEL: Record<PortfolioSitePageType, string> = {
   contact: "연락처",
 };
 
+/**
+ * 슬라이드 타입별로 *실제로 렌더러가 그리는* 필드 화이트리스트.
+ * 8개 렌더러 모두를 기준으로 합집합. 한 디자인에서만 쓰는 필드는 포함,
+ * 어떤 디자인에서도 안 쓰는 필드는 제외 → 우측 패널에서 숨김.
+ */
+const SLIDE_TYPE_FIELDS: Record<
+  PortfolioSitePageType,
+  {
+    title: boolean;
+    subtitle: boolean;
+    eyebrow: boolean;
+    narrative: boolean;
+    emphasis: boolean;
+    blocks: boolean;
+  }
+> = {
+  cover: { title: true, subtitle: true, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  profile: { title: true, subtitle: false, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  skills: { title: true, subtitle: false, eyebrow: true, narrative: false, emphasis: true, blocks: true },
+  "project-index": { title: true, subtitle: false, eyebrow: true, narrative: false, emphasis: false, blocks: true },
+  "case-study": { title: true, subtitle: true, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  "project-detail": { title: true, subtitle: true, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  experience: { title: true, subtitle: true, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  retrospective: { title: true, subtitle: false, eyebrow: true, narrative: true, emphasis: true, blocks: true },
+  contact: { title: true, subtitle: false, eyebrow: true, narrative: true, emphasis: false, blocks: false },
+};
+
 const BLOCK_TYPE_LABEL: Record<PortfolioSiteBlockType, string> = {
   text: "텍스트 단락",
   tags: "태그 묶음",
@@ -114,6 +141,8 @@ export function PortfolioSitePageEditor({
     onPatch({ blocks: [...page.blocks, newBlock] });
   };
 
+  const fields = SLIDE_TYPE_FIELDS[page.type] || SLIDE_TYPE_FIELDS["case-study"];
+
   return (
     <aside className="flex h-full w-[340px] shrink-0 flex-col border-l border-[#d8e4d0]/80 bg-white/82 backdrop-blur-xl">
       {/* 헤더 */}
@@ -132,73 +161,94 @@ export function PortfolioSitePageEditor({
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
-        {/* 기본 정보 */}
+        {/* 기본 정보 — slide type 에 맞는 필드만 표시 */}
         <Section title="기본 정보">
-          <Field label="제목">
-            <Input
-              value={page.title || ""}
-              onChange={(e) => onPatch({ title: e.target.value })}
-              onFocus={() => setFocus({ field: "title" })}
-              onBlur={() => setFocus(null)}
-              placeholder="슬라이드 제목"
-              disabled={disabled}
-              className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] font-bold text-slate-900"
-            />
-          </Field>
-          <Field label="부제">
-            <Input
-              value={page.subtitle || ""}
-              onChange={(e) => onPatch({ subtitle: e.target.value })}
-              onFocus={() => setFocus({ field: "subtitle" })}
-              onBlur={() => setFocus(null)}
-              placeholder="(선택) 부제"
-              disabled={disabled}
-              className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] text-slate-800"
-            />
-          </Field>
-          <Field label="Eyebrow (상단 라벨)">
-            <Input
-              value={page.eyebrow || ""}
-              onChange={(e) => onPatch({ eyebrow: e.target.value })}
-              onFocus={() => setFocus({ field: "eyebrow" })}
-              onBlur={() => setFocus(null)}
-              placeholder="(선택) 케이스 스터디 / About / ..."
-              disabled={disabled}
-              className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
-            />
-          </Field>
-          <Field label="본문 narrative">
-            <textarea
-              value={page.narrative || ""}
-              onChange={(e) => onPatch({ narrative: e.target.value })}
-              onFocus={() => setFocus({ field: "narrative" })}
-              onBlur={() => setFocus(null)}
-              placeholder="이 슬라이드의 메인 본문 텍스트"
-              disabled={disabled}
-              className="min-h-[88px] w-full rounded-lg border border-[#d8e4d0] bg-white/86 px-3 py-2 text-[13px] leading-6 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </Field>
-          <Field label="강조 키워드 (쉼표로 구분)">
-            <Input
-              value={(page.emphasis || []).join(", ")}
-              onChange={(e) =>
-                onPatch({
-                  emphasis: e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                })
-              }
-              onFocus={() => setFocus({ field: "emphasis" })}
-              onBlur={() => setFocus(null)}
-              placeholder="예: React, GSAP, AI"
-              disabled={disabled}
-              className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
-            />
-          </Field>
+          {fields.title ? (
+            <Field label="제목">
+              <Input
+                value={page.title || ""}
+                onChange={(e) => onPatch({ title: e.target.value })}
+                onFocus={() => setFocus({ field: "title" })}
+                onBlur={() => setFocus(null)}
+                placeholder="슬라이드 제목"
+                disabled={disabled}
+                className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] font-bold text-slate-900"
+              />
+            </Field>
+          ) : null}
+          {fields.subtitle ? (
+            <Field label="부제">
+              <Input
+                value={page.subtitle || ""}
+                onChange={(e) => onPatch({ subtitle: e.target.value })}
+                onFocus={() => setFocus({ field: "subtitle" })}
+                onBlur={() => setFocus(null)}
+                placeholder="(선택) 부제"
+                disabled={disabled}
+                className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] text-slate-800"
+              />
+            </Field>
+          ) : null}
+          {fields.eyebrow ? (
+            <Field label="Eyebrow (상단 라벨)">
+              <Input
+                value={page.eyebrow || ""}
+                onChange={(e) => onPatch({ eyebrow: e.target.value })}
+                onFocus={() => setFocus({ field: "eyebrow" })}
+                onBlur={() => setFocus(null)}
+                placeholder="(선택) 케이스 스터디 / About / ..."
+                disabled={disabled}
+                className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
+              />
+            </Field>
+          ) : null}
+          {fields.narrative ? (
+            <Field label="본문 narrative">
+              <textarea
+                value={page.narrative || ""}
+                onChange={(e) => onPatch({ narrative: e.target.value })}
+                onFocus={() => setFocus({ field: "narrative" })}
+                onBlur={() => setFocus(null)}
+                placeholder="이 슬라이드의 메인 본문 텍스트"
+                disabled={disabled}
+                className="min-h-[88px] w-full rounded-lg border border-[#d8e4d0] bg-white/86 px-3 py-2 text-[13px] leading-6 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </Field>
+          ) : null}
+          {fields.emphasis ? (
+            <Field label="강조 키워드 (쉼표로 구분)">
+              <Input
+                value={(page.emphasis || []).join(", ")}
+                onChange={(e) =>
+                  onPatch({
+                    emphasis: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                onFocus={() => setFocus({ field: "emphasis" })}
+                onBlur={() => setFocus(null)}
+                placeholder="예: React, GSAP, AI"
+                disabled={disabled}
+                className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
+              />
+            </Field>
+          ) : null}
+          {!fields.title &&
+          !fields.subtitle &&
+          !fields.eyebrow &&
+          !fields.narrative &&
+          !fields.emphasis ? (
+            <p className="rounded-lg border border-dashed border-[#d8e4d0] bg-white/40 px-3 py-3 text-center text-[11px] text-slate-400">
+              이 슬라이드 타입은 기본 텍스트 필드를 사용하지 않습니다.
+              아래 블록을 통해 콘텐츠를 추가하세요.
+            </p>
+          ) : null}
         </Section>
 
-        {/* 블록 */}
+        {/* 블록 — 사용하는 slide type 만 */}
+        {fields.blocks ? (
         <Section
           title={`블록 ${page.blocks.length}`}
           right={
@@ -230,6 +280,7 @@ export function PortfolioSitePageEditor({
             </ul>
           )}
         </Section>
+        ) : null}
       </div>
     </aside>
   );

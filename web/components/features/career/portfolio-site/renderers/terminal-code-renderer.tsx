@@ -356,7 +356,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
       </div>
       <div className="flex flex-col justify-center gap-2 overflow-hidden">
         {blocks.map((block, i) => (
-          <div key={block.id} className="border p-3" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
+          <div key={block.id} data-edit-block-id={block.id} className="border p-3" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
             <p className="text-[10px]" style={{ color: ACCENT }}>
               {`> ${getBlockLabel(block, `note ${i + 1}`)}`}
             </p>

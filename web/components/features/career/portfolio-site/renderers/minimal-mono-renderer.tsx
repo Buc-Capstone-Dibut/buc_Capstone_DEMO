@@ -197,7 +197,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex flex-col justify-center gap-5">
         {contributions.length ? (
           contributions.map((c) => (
-            <div key={c.id} className="border-t pt-3" style={{ borderColor: HAIRLINE }}>
+            <div key={c.id} data-edit-block-id={c.id} className="border-t pt-3" style={{ borderColor: HAIRLINE }}>
               <div className="flex items-baseline justify-between gap-4">
                 <p className="text-[13px] font-bold">{plainText(c.label, 40) || "기여"}</p>
                 <p className="text-[20px] font-black tabular-nums" style={{ color: ACCENT }}>
@@ -398,7 +398,7 @@ function TextBlockList({ page, max = 4 }: { page: PortfolioSitePage; max?: numbe
   return (
     <div className="space-y-3">
       {blocks.map((block, i) => (
-        <div key={block.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 border-t pt-3" style={{ borderColor: HAIRLINE }}>
+        <div key={block.id} data-edit-block-id={block.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 border-t pt-3" style={{ borderColor: HAIRLINE }}>
           <span className="text-[12px] font-black tabular-nums" style={{ color: ACCENT }}>
             {String(i + 1).padStart(2, "0")}
           </span>
