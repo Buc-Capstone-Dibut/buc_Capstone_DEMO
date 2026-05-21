@@ -362,7 +362,7 @@ function DeckShell({
       ) : null}
       <div className="absolute left-9 top-7 flex items-center gap-3">
         <span className="h-[2px] w-14 bg-[var(--portfolio-primary)]" />
-        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--portfolio-primary)]">
+        <span data-edit-field="eyebrow" className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--portfolio-primary)]">
           {page.eyebrow || PAGE_LABEL[page.type]}
         </span>
       </div>
@@ -804,7 +804,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
         </h1>
         <span className="mt-4 inline-block h-[2px] w-16 bg-[var(--portfolio-primary)]" />
         {page.subtitle ? (
-          <p className="mt-4 max-w-[560px] break-keep font-serif text-[16px] font-medium italic leading-7 text-slate-600">
+          <p data-edit-field="subtitle" className="mt-4 max-w-[560px] break-keep font-serif text-[16px] font-medium italic leading-7 text-slate-600">
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -825,7 +825,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 90)}
         </h1>
         {page.subtitle ? (
-          <p className="mt-5 max-w-[560px] break-keep text-[16px] font-bold leading-7 text-slate-300">
+          <p data-edit-field="subtitle" className="mt-5 max-w-[560px] break-keep text-[16px] font-bold leading-7 text-slate-300">
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -845,7 +845,7 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
         {plainText(page.title, 90)}
       </h1>
       {page.subtitle ? (
-        <p className="mt-4 max-w-[560px] break-keep text-[15px] font-bold leading-7 text-slate-600">
+        <p data-edit-field="subtitle" className="mt-4 max-w-[560px] break-keep text-[15px] font-bold leading-7 text-slate-600">
           {plainText(page.subtitle, 140)}
         </p>
       ) : null}
@@ -905,7 +905,7 @@ function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <h1 className="mt-5 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 86)}
         </h1>
-        <p className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
+        <p data-edit-field="narrative" className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 320)}
         </p>
         <div className="mt-10">
@@ -930,7 +930,7 @@ function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -953,7 +953,7 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <div className="min-w-0">
           <CompositionNote page={page} />
           <TitleBlock page={page} />
-          <p className="mt-5 max-w-[540px] whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+          <p data-edit-field="narrative" className="mt-5 max-w-[540px] whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
             {pageNarrative(page, 240)}
           </p>
         </div>
@@ -1001,7 +1001,7 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
         <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
           {plainText(label, 48)}
         </p>
-        <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
+        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 260)}
         </p>
       </div>
@@ -1020,7 +1020,7 @@ function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <TitleBlock page={page} />
-        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 240)}
         </p>
         <div className="mt-8">
@@ -1108,7 +1108,7 @@ function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <h1 className="mt-6 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 90)}
         </h1>
-        <p className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
+        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 280)}
         </p>
         <div className="mt-10">
@@ -1124,10 +1124,10 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1fr_340px] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center border-l-[10px] border-[var(--portfolio-primary)] pl-9">
         <TitleBlock page={page} />
-        <p className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
+        <p data-edit-field="narrative" className="mt-8 max-w-[620px] whitespace-pre-line break-keep text-[18px] font-bold leading-8 text-slate-700">
           {pageNarrative(page, 320)}
         </p>
-        <div className="mt-9 flex flex-wrap gap-3">
+        <div data-edit-field="emphasis" className="mt-9 flex flex-wrap gap-3">
           {pageEmphasis(page).slice(0, 4).map((item, index) => (
             <span
               key={`${item}-${index}`}
@@ -1157,7 +1157,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.92fr_1.08fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
+        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[14px] font-bold leading-7 text-slate-700">
           {pageNarrative(page, 220)}
         </p>
       </div>
@@ -1174,7 +1174,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.78fr_1.22fr] gap-10 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
+        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -1225,7 +1225,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[0.76fr_1.24fr] gap-8 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center overflow-hidden">
         <TitleBlock page={page} />
-        <p className="mt-5 whitespace-pre-line break-keep text-[13px] font-bold leading-6 text-slate-700">
+        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[13px] font-bold leading-6 text-slate-700">
           {pageNarrative(page, 200)}
         </p>
         <div className="mt-6">
@@ -1265,13 +1265,13 @@ function ClosingSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex h-full flex-col justify-center overflow-hidden px-16 pb-6 pt-14">
       <div className="max-w-[760px] border-l-[10px] border-[var(--portfolio-primary)] pl-9">
-        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
+        <p data-edit-field="eyebrow" className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
           {page.eyebrow || "Contact"}
         </p>
         <h1 className="mt-6 break-keep text-[48px] font-black leading-[1.04] text-slate-950">
           {plainText(page.title, 90)}
         </h1>
-        <p className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
+        <p data-edit-field="narrative" className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
           {pageNarrative(page, 300)}
         </p>
         <div className="mt-10">
