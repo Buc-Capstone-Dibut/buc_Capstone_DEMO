@@ -48,10 +48,11 @@ export function NotionDocumentRenderer({
   hideHeader,
   hideThumbnails,
   disableKeyboardNav,
+  includeHiddenPages,
 }: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => p.visible !== false),
-    [document.pages],
+    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
+    [document.pages, includeHiddenPages],
   );
   const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];

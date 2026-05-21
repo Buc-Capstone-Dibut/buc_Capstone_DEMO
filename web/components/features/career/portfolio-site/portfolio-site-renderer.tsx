@@ -62,6 +62,8 @@ type PortfolioSiteRendererProps = {
   hideHeader?: boolean;
   hideThumbnails?: boolean;
   disableKeyboardNav?: boolean;
+  /** true: 숨김 페이지도 포함해서 렌더 (편집기용) */
+  includeHiddenPages?: boolean;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1312,6 +1314,7 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
     hideHeader: props.hideHeader,
     hideThumbnails: props.hideThumbnails,
     disableKeyboardNav: props.disableKeyboardNav,
+    includeHiddenPages: props.includeHiddenPages,
   };
 
   if (rendererId === "minimal-mono") return <MinimalMonoRenderer {...shared} />;

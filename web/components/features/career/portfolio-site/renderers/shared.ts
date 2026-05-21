@@ -19,6 +19,8 @@ export type RendererProps = {
   hideHeader?: boolean;
   hideThumbnails?: boolean;
   disableKeyboardNav?: boolean;
+  /** true: 숨김(`visible:false`)인 페이지도 포함해서 렌더 (편집기용) */
+  includeHiddenPages?: boolean;
 };
 
 export const PAGE_LABEL: Record<PortfolioSitePageType, string> = {

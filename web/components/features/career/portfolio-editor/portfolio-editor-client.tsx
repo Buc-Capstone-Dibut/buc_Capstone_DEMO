@@ -42,9 +42,12 @@ import {
   type PortfolioListItem,
   type PortfolioSection,
   type PortfolioSectionType,
+  type PortfolioSitePage,
+  type PortfolioSitePageType,
   type PortfolioSourceData,
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
+import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import {
   PortfolioRenderer,
   PortfolioSlideThumbnail,
@@ -545,6 +548,97 @@ export function PortfolioEditorClient({
     setSelectedElement(null);
   };
 
+  // ────────────────────────────────────────────────────────────────────────
+  // 웹슬라이드(site) 포맷 — 페이지 helpers (좌측 사이드바와 연동)
+  // ────────────────────────────────────────────────────────────────────────
+  const sitePages = useMemo(() => document.pages || [], [document.pages]);
+  const [activeSitePageId, setActiveSitePageId] = useState<string>(() => sitePages[0]?.id || "");
+
+  // 페이지 목록 변경 시 활성 페이지 보정
+  useEffect(() => {
+    if (!sitePages.length) {
+      if (activeSitePageId) setActiveSitePageId("");
+      return;
+    }
+    if (!sitePages.some((p) => p.id === activeSitePageId)) {
+      setActiveSitePageId(sitePages[0].id);
+    }
+  }, [sitePages, activeSitePageId]);
+
+  const togglePageVisibility = (pageId: string) => {
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).map((p) =>
+        p.id === pageId ? { ...p, visible: p.visible === false } : p,
+      ),
+    }));
+  };
+
+  const deletePage = (pageId: string) => {
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).filter((p) => p.id !== pageId),
+    }));
+    if (activeSitePageId === pageId) {
+      const fallback =
+        sitePages[sitePages.findIndex((p) => p.id === pageId) + 1]?.id ||
+        sitePages[sitePages.findIndex((p) => p.id === pageId) - 1]?.id ||
+        sitePages.find((p) => p.id !== pageId)?.id ||
+        "";
+      setActiveSitePageId(fallback);
+    }
+  };
+
+  const reorderPages = (orderedIds: string[]) => {
+    updateDocument((current) => {
+      const byId = new Map((current.pages || []).map((p) => [p.id, p] as const));
+      const reordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as typeof current.pages;
+      return { ...current, pages: reordered };
+    });
+  };
+
+  const addPage = (type: PortfolioSitePageType) => {
+    const PAGE_TYPE_LABEL_LOCAL: Record<PortfolioSitePageType, string> = {
+      cover: "표지",
+      profile: "프로필",
+      skills: "기술",
+      "project-index": "프로젝트 목차",
+      "case-study": "케이스 스터디",
+      "project-detail": "프로젝트 상세",
+      experience: "경력",
+      retrospective: "회고",
+      contact: "연락처",
+    };
+    const TYPE_TO_LAYOUT: Record<PortfolioSitePageType, PortfolioSitePage["layout"]> = {
+      cover: "cover-focus",
+      profile: "profile-summary",
+      skills: "skills-grid",
+      "project-index": "project-index",
+      "case-study": "case-study",
+      "project-detail": "project-detail",
+      experience: "case-study",
+      retrospective: "case-study",
+      contact: "cover-focus",
+    };
+    const newId = `page-${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)}`;
+    const newPage: PortfolioSitePage = {
+      id: newId,
+      type,
+      title: `새 ${PAGE_TYPE_LABEL_LOCAL[type]}`,
+      eyebrow: PAGE_TYPE_LABEL_LOCAL[type],
+      narrative: "",
+      emphasis: [],
+      layout: TYPE_TO_LAYOUT[type],
+      blocks: [],
+      visible: true,
+    };
+    updateDocument((current) => ({
+      ...current,
+      pages: [...(current.pages || []), newPage],
+    }));
+    setActiveSitePageId(newId);
+  };
+
   const deleteSection = (sectionId: string) => {
     if (document.sections.length <= 1) {
       alert("최소 1개의 슬라이스는 필요합니다.");
@@ -700,10 +794,35 @@ export function PortfolioEditorClient({
           </div>
         </header>
 
-        <main className="relative min-h-0 flex-1 overflow-auto">
-          <PortfolioSiteRenderer document={document} />
-          <GenerationStatusOverlay generation={generation} document={document} />
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <PortfolioSitePagesSidebar
+            pages={sitePages}
+            activePageId={activeSitePageId}
+            onSelectPage={(pageId) => setActiveSitePageId(pageId)}
+            onReorderPages={reorderPages}
+            onToggleVisibility={togglePageVisibility}
+            onDeletePage={deletePage}
+            onAddPage={addPage}
+            disabled={generation.active}
+          />
+          <main className="relative min-h-0 min-w-0 flex-1 overflow-auto">
+            <PortfolioSiteRenderer
+              document={document}
+              activeIndex={Math.max(
+                0,
+                sitePages.findIndex((p) => p.id === activeSitePageId),
+              )}
+              onActiveIndexChange={(next) => {
+                const target = sitePages[next];
+                if (target) setActiveSitePageId(target.id);
+              }}
+              hideThumbnails
+              includeHiddenPages
+              disableKeyboardNav={generation.active}
+            />
+            <GenerationStatusOverlay generation={generation} document={document} />
+          </main>
+        </div>
       </div>
     );
   }
