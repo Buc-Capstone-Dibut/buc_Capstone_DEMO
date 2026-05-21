@@ -55,12 +55,16 @@ const BLOCK_TYPE_LABEL: Record<PortfolioSiteBlockType, string> = {
   image: "이미지",
 };
 
+type EditFocusField = "title" | "subtitle" | "eyebrow" | "narrative" | "emphasis";
+
 type Props = {
   page: PortfolioSitePage | null;
   onPatch: (patch: Partial<PortfolioSitePage>) => void;
   onRegenerate?: (instruction?: string) => void;
   isRegenerating?: boolean;
   disabled?: boolean;
+  /** 입력 필드/블록 포커스 시 부모에 알림 → 슬라이드 캔버스에 시각 강조 */
+  onFocusChange?: (focus: { field?: EditFocusField | null; blockId?: string | null }) => void;
 };
 
 export function PortfolioSitePageEditor({
@@ -69,7 +73,14 @@ export function PortfolioSitePageEditor({
   onRegenerate,
   isRegenerating,
   disabled,
+  onFocusChange,
 }: Props) {
+  const setFocus = (
+    f: { field?: EditFocusField | null; blockId?: string | null } | null,
+  ) => {
+    if (!onFocusChange) return;
+    onFocusChange(f || { field: null, blockId: null });
+  };
   if (!page) {
     return (
       <aside className="flex h-full w-[340px] shrink-0 flex-col items-center justify-center border-l border-[#d8e4d0]/80 bg-white/82 p-6 text-center text-sm text-slate-500 backdrop-blur-xl">
@@ -127,6 +138,8 @@ export function PortfolioSitePageEditor({
             <Input
               value={page.title || ""}
               onChange={(e) => onPatch({ title: e.target.value })}
+              onFocus={() => setFocus({ field: "title" })}
+              onBlur={() => setFocus(null)}
               placeholder="슬라이드 제목"
               disabled={disabled}
               className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] font-bold text-slate-900"
@@ -136,6 +149,8 @@ export function PortfolioSitePageEditor({
             <Input
               value={page.subtitle || ""}
               onChange={(e) => onPatch({ subtitle: e.target.value })}
+              onFocus={() => setFocus({ field: "subtitle" })}
+              onBlur={() => setFocus(null)}
               placeholder="(선택) 부제"
               disabled={disabled}
               className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[13px] text-slate-800"
@@ -145,6 +160,8 @@ export function PortfolioSitePageEditor({
             <Input
               value={page.eyebrow || ""}
               onChange={(e) => onPatch({ eyebrow: e.target.value })}
+              onFocus={() => setFocus({ field: "eyebrow" })}
+              onBlur={() => setFocus(null)}
               placeholder="(선택) 케이스 스터디 / About / ..."
               disabled={disabled}
               className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
@@ -154,6 +171,8 @@ export function PortfolioSitePageEditor({
             <textarea
               value={page.narrative || ""}
               onChange={(e) => onPatch({ narrative: e.target.value })}
+              onFocus={() => setFocus({ field: "narrative" })}
+              onBlur={() => setFocus(null)}
               placeholder="이 슬라이드의 메인 본문 텍스트"
               disabled={disabled}
               className="min-h-[88px] w-full rounded-lg border border-[#d8e4d0] bg-white/86 px-3 py-2 text-[13px] leading-6 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -170,6 +189,8 @@ export function PortfolioSitePageEditor({
                     .filter(Boolean),
                 })
               }
+              onFocus={() => setFocus({ field: "emphasis" })}
+              onBlur={() => setFocus(null)}
               placeholder="예: React, GSAP, AI"
               disabled={disabled}
               className="h-9 rounded-lg border-[#d8e4d0] bg-white/86 text-[12px] text-slate-700"
@@ -201,6 +222,9 @@ export function PortfolioSitePageEditor({
                   onMoveUp={() => handleBlockReorder(block.id, -1)}
                   onMoveDown={() => handleBlockReorder(block.id, 1)}
                   disabled={disabled}
+                  onHoverFocus={(active) =>
+                    setFocus(active ? { blockId: block.id } : null)
+                  }
                 />
               ))}
             </ul>
@@ -224,6 +248,7 @@ function BlockCard({
   onMoveUp,
   onMoveDown,
   disabled,
+  onHoverFocus,
 }: {
   block: PortfolioSiteBlock;
   index: number;
@@ -233,11 +258,18 @@ function BlockCard({
   onMoveUp: () => void;
   onMoveDown: () => void;
   disabled?: boolean;
+  onHoverFocus?: (active: boolean) => void;
 }) {
   const [open, setOpen] = useState(true);
 
   return (
-    <li className="rounded-lg border border-[#d8e4d0] bg-white/72">
+    <li
+      className="rounded-lg border border-[#d8e4d0] bg-white/72"
+      onMouseEnter={() => onHoverFocus?.(true)}
+      onMouseLeave={() => onHoverFocus?.(false)}
+      onFocus={() => onHoverFocus?.(true)}
+      onBlur={() => onHoverFocus?.(false)}
+    >
       <div className="flex items-center gap-1 px-2 py-1.5">
         <button
           type="button"

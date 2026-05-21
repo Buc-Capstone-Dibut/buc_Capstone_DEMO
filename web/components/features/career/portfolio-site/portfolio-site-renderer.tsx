@@ -27,6 +27,7 @@ import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
+import { EditFocusProvider, type EditFocus } from "./renderers/edit-focus";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -63,6 +64,8 @@ type PortfolioSiteRendererProps = {
   disableKeyboardNav?: boolean;
   /** true: 숨김 페이지도 포함해서 렌더 (편집기용) */
   includeHiddenPages?: boolean;
+  /** 우측 편집 패널과 동기화된 시각 강조 */
+  editFocus?: EditFocus;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1316,20 +1319,24 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
     includeHiddenPages: props.includeHiddenPages,
   };
 
-  if (rendererId === "minimal-mono") return <MinimalMonoRenderer {...shared} />;
-  if (rendererId === "editorial-magazine") return <EditorialMagazineRenderer {...shared} />;
-  if (rendererId === "brutalist-tech") return <BrutalistTechRenderer {...shared} />;
-  if (rendererId === "soft-pastel-card") return <SoftPastelCardRenderer {...shared} />;
-  if (rendererId === "terminal-code") return <TerminalCodeRenderer {...shared} />;
-  if (rendererId === "notion-document") return <NotionDocumentRenderer {...shared} />;
-  if (rendererId === "gallery-mood") return <GalleryMoodRenderer {...shared} />;
+  let body: ReactNode;
+  if (rendererId === "minimal-mono") body = <MinimalMonoRenderer {...shared} />;
+  else if (rendererId === "editorial-magazine") body = <EditorialMagazineRenderer {...shared} />;
+  else if (rendererId === "brutalist-tech") body = <BrutalistTechRenderer {...shared} />;
+  else if (rendererId === "soft-pastel-card") body = <SoftPastelCardRenderer {...shared} />;
+  else if (rendererId === "terminal-code") body = <TerminalCodeRenderer {...shared} />;
+  else if (rendererId === "notion-document") body = <NotionDocumentRenderer {...shared} />;
+  else if (rendererId === "gallery-mood") body = <GalleryMoodRenderer {...shared} />;
+  else {
+    // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
+    body = (
+      <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+        <PortfolioSiteRendererInner {...props} />
+      </RendererContext.Provider>
+    );
+  }
 
-  // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
-  return (
-    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
-      <PortfolioSiteRendererInner {...props} />
-    </RendererContext.Provider>
-  );
+  return <EditFocusProvider focus={props.editFocus}>{body}</EditFocusProvider>;
 }
 
 function PortfolioSiteRendererInner({

@@ -56,6 +56,7 @@ import {
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
+import { EditFocusBadge } from "../portfolio-site/renderers/edit-focus";
 import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
 
@@ -610,6 +611,11 @@ export function PortfolioEditorClient({
 
   // AI 페이지 재생성
   const [regeneratingPageId, setRegeneratingPageId] = useState<string | null>(null);
+  // 우측 패널 ↔ 슬라이드 캔버스 강조 동기화
+  const [editFocus, setEditFocus] = useState<{
+    field?: "title" | "subtitle" | "eyebrow" | "narrative" | "emphasis" | null;
+    blockId?: string | null;
+  }>({ field: null, blockId: null });
   const regeneratePage = async (pageId: string, instruction?: string) => {
     if (regeneratingPageId) return;
     setRegeneratingPageId(pageId);
@@ -861,6 +867,7 @@ export function PortfolioEditorClient({
               hideThumbnails
               includeHiddenPages
               disableKeyboardNav={generation.active}
+              editFocus={editFocus}
             />
             <GenerationStatusOverlay generation={generation} document={document} />
           </main>
@@ -876,8 +883,10 @@ export function PortfolioEditorClient({
             }}
             isRegenerating={regeneratingPageId === activeSitePageId}
             disabled={generation.active || regeneratingPageId !== null}
+            onFocusChange={(focus) => setEditFocus(focus)}
           />
         </div>
+        <EditFocusBadge focus={editFocus} />
         <PortfolioSiteAiChat
           portfolioId={portfolio.id}
           activePageId={activeSitePageId || null}
