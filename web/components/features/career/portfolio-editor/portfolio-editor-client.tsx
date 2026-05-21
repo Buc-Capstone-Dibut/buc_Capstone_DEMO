@@ -607,6 +607,37 @@ export function PortfolioEditorClient({
     }));
   };
 
+  // AI 페이지 재생성
+  const [regeneratingPageId, setRegeneratingPageId] = useState<string | null>(null);
+  const regeneratePage = async (pageId: string, instruction?: string) => {
+    if (regeneratingPageId) return;
+    setRegeneratingPageId(pageId);
+    try {
+      const response = await fetch(
+        `/api/career/portfolios/${portfolio.id}/pages/${pageId}/regenerate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instruction: instruction || undefined }),
+        },
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.page) {
+        throw new Error(payload.error || "재생성 실패");
+      }
+      updateDocument((current) => ({
+        ...current,
+        pages: (current.pages || []).map((p) =>
+          p.id === pageId ? { ...(payload.page as PortfolioSitePage) } : p,
+        ),
+      }));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "AI 재생성 실패");
+    } finally {
+      setRegeneratingPageId(null);
+    }
+  };
+
   const addPage = (type: PortfolioSitePageType) => {
     const PAGE_TYPE_LABEL_LOCAL: Record<PortfolioSitePageType, string> = {
       cover: "표지",
@@ -838,7 +869,12 @@ export function PortfolioEditorClient({
               if (!activeSitePageId) return;
               updatePageById(activeSitePageId, patch);
             }}
-            disabled={generation.active}
+            onRegenerate={(instruction) => {
+              if (!activeSitePageId) return;
+              void regeneratePage(activeSitePageId, instruction);
+            }}
+            isRegenerating={regeneratingPageId === activeSitePageId}
+            disabled={generation.active || regeneratingPageId !== null}
           />
         </div>
       </div>
