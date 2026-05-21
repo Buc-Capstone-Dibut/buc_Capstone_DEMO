@@ -95,7 +95,7 @@ function SlideShell({ page, children }: { page: PortfolioSitePage; children: Rea
     <article className="relative h-full w-full overflow-hidden bg-white px-14 py-12">
       <div className="absolute left-14 top-6 flex items-center gap-2">
         <span className="h-[1px] w-8" style={{ backgroundColor: TEXT }} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: TEXT }}>
+        <span data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: TEXT }}>
           {page.eyebrow || "PORTFOLIO"}
         </span>
       </div>
@@ -136,7 +136,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 80)}
         </h1>
         {page.subtitle ? (
-          <p className="mt-5 max-w-[520px] break-keep text-[16px] font-medium leading-7" style={{ color: MUTED }}>
+          <p data-edit-field="subtitle" className="mt-5 max-w-[520px] break-keep text-[16px] font-medium leading-7" style={{ color: MUTED }}>
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -173,7 +173,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
             ) : null}
           </>
         ) : (
-          <p className="whitespace-pre-line text-[15px] font-medium leading-7" style={{ color: MUTED }}>
+          <p data-edit-field="narrative" className="whitespace-pre-line text-[15px] font-medium leading-7" style={{ color: MUTED }}>
             {pageNarrative(page, 200)}
           </p>
         )}
@@ -190,7 +190,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         <h2 className="break-keep text-[44px] font-black leading-tight tracking-tight">
           {plainText(page.title, 80)}
         </h2>
-        <p className="mt-5 whitespace-pre-line break-keep text-[15px] font-medium leading-7" style={{ color: TEXT }}>
+        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[15px] font-medium leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 320)}
         </p>
       </div>
@@ -227,7 +227,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
         <h2 className="break-keep text-[40px] font-black leading-tight tracking-tight">
           {plainText(page.title, 80)}
         </h2>
-        <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: MUTED }}>
+        <p data-edit-field="narrative" className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: MUTED }}>
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -271,18 +271,18 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1.3fr] gap-12">
       <div className="flex flex-col justify-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
+        <p data-edit-field="eyebrow" className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: ACCENT }}>
           {page.eyebrow || "CASE STUDY"}
         </p>
         <h2 className="mt-3 break-keep text-[36px] font-black leading-tight tracking-tight">
           {plainText(page.title, 80)}
         </h2>
         {page.subtitle ? (
-          <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: MUTED }}>
+          <p data-edit-field="subtitle" className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: MUTED }}>
             {plainText(page.subtitle, 80)}
           </p>
         ) : null}
-        <p className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
+        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -310,13 +310,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-12">
       <div className="flex flex-col justify-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: MUTED }}>
+        <p data-edit-field="eyebrow" className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: MUTED }}>
           {page.eyebrow || "DETAIL"}
         </p>
         <h2 className="mt-3 break-keep text-[36px] font-black leading-tight tracking-tight">
           {plainText(page.title, 80)}
         </h2>
-        <p className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
+        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
           {pageNarrative(page, 260)}
         </p>
       </div>
@@ -346,13 +346,13 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[0.8fr_1.2fr] gap-12">
       <div className="flex flex-col justify-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: MUTED }}>
+        <p data-edit-field="eyebrow" className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: MUTED }}>
           {page.eyebrow || "GROWTH"}
         </p>
         <h2 className="mt-3 break-keep text-[36px] font-black leading-tight tracking-tight">
           {plainText(page.title, 80)}
         </h2>
-        <p className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: MUTED }}>
+        <p data-edit-field="narrative" className="mt-6 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: MUTED }}>
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -374,13 +374,13 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex h-full items-center">
       <div className="max-w-[760px] border-l-[6px] pl-10" style={{ borderColor: ACCENT }}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: ACCENT }}>
+        <p data-edit-field="eyebrow" className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: ACCENT }}>
           {page.eyebrow || "CONTACT"}
         </p>
         <h1 className="mt-5 break-keep text-[48px] font-black leading-[1.05] tracking-tight">
           {plainText(page.title, 80)}
         </h1>
-        <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-medium leading-8" style={{ color: TEXT }}>
+        <p data-edit-field="narrative" className="mt-7 whitespace-pre-line break-keep text-[16px] font-medium leading-8" style={{ color: TEXT }}>
           {pageNarrative(page, 280)}
         </p>
       </div>

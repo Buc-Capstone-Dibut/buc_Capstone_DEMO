@@ -162,7 +162,9 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
         </h1>
         {page.subtitle ? (
           <p className="mt-4 max-w-[520px] break-keep text-[13px] font-medium leading-6">
-            <Comment>{plainText(page.subtitle, 140)}</Comment>
+            <span data-edit-field="subtitle">
+              <Comment>{plainText(page.subtitle, 140)}</Comment>
+            </span>
           </p>
         ) : null}
         <p className="mt-6 text-[12px]">
@@ -187,7 +189,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           </div>
         ) : (
           <div className="border p-5" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
-            <p className="whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+            <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[13px] font-medium leading-7">
               {pageNarrative(page, 200)}
             </p>
           </div>
@@ -208,7 +210,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         <p className="mt-3 text-[10px]" style={{ color: COMMENT }}>
           {"// readme.md"}
         </p>
-        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -297,14 +299,14 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div>
-        <p className="text-[11px]" style={{ color: COMMENT }}>
+        <p data-edit-field="eyebrow" className="text-[11px]" style={{ color: COMMENT }}>
           {`// ${page.eyebrow || "case study"}`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
           {plainText(page.title, 70)}
         </h2>
         {page.subtitle ? (
-          <p className="mt-1 text-[11px]" style={{ color: MUTED }}>
+          <p data-edit-field="subtitle" className="mt-1 text-[11px]" style={{ color: MUTED }}>
             {">"} {plainText(page.subtitle, 80)}
           </p>
         ) : null}
@@ -342,13 +344,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-6 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
-        <p className="text-[11px]" style={{ color: COMMENT }}>
+        <p data-edit-field="eyebrow" className="text-[11px]" style={{ color: COMMENT }}>
           {`// ${page.eyebrow || "detail"}`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
           {plainText(page.title, 70)}
         </h2>
-        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
+        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
           {pageNarrative(page, 220)}
         </p>
       </div>
@@ -413,7 +415,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           {">>> "}
           process complete
         </p>
-        <p className="mt-6 max-w-[600px] whitespace-pre-line break-keep text-[14px] font-medium leading-8">
+        <p data-edit-field="narrative" className="mt-6 max-w-[600px] whitespace-pre-line break-keep text-[14px] font-medium leading-8">
           {pageNarrative(page, 260)}
         </p>
         <p className="mt-6 text-[13px]">

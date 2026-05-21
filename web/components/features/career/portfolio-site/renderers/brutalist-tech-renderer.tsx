@@ -109,7 +109,7 @@ function SlideShell({ page, children }: { page: PortfolioSitePage; children: Rea
       />
       <div className="absolute left-12 top-6 flex items-center gap-2">
         <span className="block h-[3px] w-6" style={{ backgroundColor: BORDER }} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.24em]">
+        <span data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.24em]">
           [{page.eyebrow || "PORTFOLIO"}]
         </span>
       </div>
@@ -143,7 +143,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 80)}
         </h1>
         {page.subtitle ? (
-          <p className="mt-5 max-w-[520px] break-keep text-[14px] font-bold leading-6" style={{ color: MUTED }}>
+          <p data-edit-field="subtitle" className="mt-5 max-w-[520px] break-keep text-[14px] font-bold leading-6" style={{ color: MUTED }}>
             {plainText(page.subtitle, 140)}
           </p>
         ) : null}
@@ -164,7 +164,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
             ) : null}
           </div>
         ) : (
-          <p className="border-l-[5px] pl-5 text-[14px] font-bold leading-7" style={{ borderColor: BORDER }}>
+          <p data-edit-field="narrative" className="border-l-[5px] pl-5 text-[14px] font-bold leading-7" style={{ borderColor: BORDER }}>
             {pageNarrative(page, 180)}
           </p>
         )}
@@ -182,7 +182,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 60)}
         </h2>
         <div className="my-4 h-[4px] w-12" style={{ backgroundColor: BORDER }} />
-        <p className="whitespace-pre-line break-keep text-[13px] font-bold leading-6">
+        <p data-edit-field="narrative" className="whitespace-pre-line break-keep text-[13px] font-bold leading-6">
           {pageNarrative(page, 240)}
         </p>
       </div>
@@ -276,7 +276,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
     <div className="flex h-full flex-col gap-6 overflow-hidden">
       <div className="flex items-baseline justify-between gap-6">
         <div className="overflow-hidden">
-          <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: MUTED }}>
+          <p data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: MUTED }}>
             [{page.eyebrow || "CASE STUDY"}]
           </p>
           <h2 className="mt-2 break-keep text-[32px] font-bold uppercase leading-tight">
@@ -284,7 +284,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
           </h2>
         </div>
         {page.subtitle ? (
-          <p className="shrink-0 border-[3px] px-3 py-1.5 text-[10px] font-bold uppercase" style={{ borderColor: BORDER, backgroundColor: ACCENT }}>
+          <p data-edit-field="subtitle" className="shrink-0 border-[3px] px-3 py-1.5 text-[10px] font-bold uppercase" style={{ borderColor: BORDER, backgroundColor: ACCENT }}>
             {plainText(page.subtitle, 50)}
           </p>
         ) : null}
@@ -331,13 +331,13 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-6 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
-        <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: MUTED }}>
+        <p data-edit-field="eyebrow" className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: MUTED }}>
           [{page.eyebrow || "DETAIL"}]
         </p>
         <h2 className="mt-2 break-keep text-[32px] font-bold uppercase leading-tight">
           {plainText(page.title, 70)}
         </h2>
-        <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-bold leading-6">
+        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[13px] font-bold leading-6">
           {pageNarrative(page, 200)}
         </p>
       </div>
@@ -377,7 +377,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
         <h2 className="mt-2 break-keep text-[32px] font-bold uppercase leading-tight">
           {plainText(page.title, 60)}
         </h2>
-        <p className="mt-4 whitespace-pre-line break-keep text-[12px] font-bold leading-6" style={{ color: MUTED }}>
+        <p data-edit-field="narrative" className="mt-4 whitespace-pre-line break-keep text-[12px] font-bold leading-6" style={{ color: MUTED }}>
           {pageNarrative(page, 200)}
         </p>
       </div>
@@ -415,7 +415,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           {plainText(page.title, 60)}
         </h1>
         <div className="my-6 h-[5px] w-32" style={{ backgroundColor: BORDER }} />
-        <p className="max-w-[640px] whitespace-pre-line break-keep text-[14px] font-bold leading-7">
+        <p data-edit-field="narrative" className="max-w-[640px] whitespace-pre-line break-keep text-[14px] font-bold leading-7">
           {pageNarrative(page, 280)}
         </p>
       </div>

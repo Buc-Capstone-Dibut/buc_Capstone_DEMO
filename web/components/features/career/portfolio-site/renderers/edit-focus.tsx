@@ -77,6 +77,18 @@ export function EditFocusProvider({
             animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate;
           }
 
+          /* 부제·eyebrow·narrative·emphasis 강조 — data-edit-field 마커 기반 */
+          [data-portfolio-edit-focus="subtitle"] [data-edit-field="subtitle"],
+          [data-portfolio-edit-focus="eyebrow"] [data-edit-field="eyebrow"],
+          [data-portfolio-edit-focus="narrative"] [data-edit-field="narrative"],
+          [data-portfolio-edit-focus="emphasis"] [data-edit-field="emphasis"] {
+            outline: 2px solid rgba(132, 185, 70, 0.85);
+            outline-offset: 4px;
+            border-radius: 4px;
+            box-shadow: 0 0 0 4px rgba(132, 185, 70, 0.12);
+            animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate;
+          }
+
           /* 블록 단위 강조 — 명시적으로 data-edit-block 마커가 있는 element */
           [data-portfolio-edit-focus-block] [data-edit-block] {
             transition: outline 0.2s ease, box-shadow 0.2s ease;
