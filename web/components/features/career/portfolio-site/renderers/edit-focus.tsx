@@ -61,56 +61,6 @@ export function EditFocusProvider({
         className={hasFocus ? "portfolio-edit-focus-root" : undefined}
       >
         {children}
-        {/* 글로벌 CSS — attribute selector 기반 자동 강조 */}
-        <style jsx global>{`
-          /* 슬라이드 외곽 살짝 글로우 */
-          .portfolio-edit-focus-root [class*="aspect-[16/9]"] {
-            transition: box-shadow 0.25s ease;
-          }
-
-          /* 제목 강조 — 모든 렌더러 공통 (h1/h2 사용) */
-          [data-portfolio-edit-focus="title"] :where(h1, h2) {
-            outline: 2px solid rgba(132, 185, 70, 0.85);
-            outline-offset: 6px;
-            border-radius: 4px;
-            box-shadow: 0 0 0 6px rgba(132, 185, 70, 0.12);
-            animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate;
-          }
-
-          /* 부제·eyebrow·narrative·emphasis 강조 — data-edit-field 마커 기반 */
-          [data-portfolio-edit-focus="subtitle"] [data-edit-field="subtitle"],
-          [data-portfolio-edit-focus="eyebrow"] [data-edit-field="eyebrow"],
-          [data-portfolio-edit-focus="narrative"] [data-edit-field="narrative"],
-          [data-portfolio-edit-focus="emphasis"] [data-edit-field="emphasis"] {
-            outline: 2px solid rgba(132, 185, 70, 0.85);
-            outline-offset: 4px;
-            border-radius: 4px;
-            box-shadow: 0 0 0 4px rgba(132, 185, 70, 0.12);
-            animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate;
-          }
-
-          /* 블록 단위 강조 — 명시적으로 data-edit-block 마커가 있는 element */
-          [data-portfolio-edit-focus-block] [data-edit-block] {
-            transition: outline 0.2s ease, box-shadow 0.2s ease;
-          }
-          [data-portfolio-edit-focus-block]
-            [data-edit-block][data-edit-block-active="true"] {
-            outline: 2px solid rgba(132, 185, 70, 0.85);
-            outline-offset: 4px;
-            border-radius: 6px;
-            box-shadow: 0 0 0 6px rgba(132, 185, 70, 0.14);
-            animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate;
-          }
-
-          @keyframes portfolio-edit-pulse {
-            from {
-              box-shadow: 0 0 0 4px rgba(132, 185, 70, 0.1);
-            }
-            to {
-              box-shadow: 0 0 0 9px rgba(132, 185, 70, 0.18);
-            }
-          }
-        `}</style>
       </div>
     </EditFocusContext.Provider>
   );

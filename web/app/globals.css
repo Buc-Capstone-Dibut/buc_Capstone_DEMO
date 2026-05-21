@@ -660,3 +660,38 @@ body {
     display: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* 웹슬라이드 편집기 — 필드/블록 강조 (우측 패널 포커스 ↔ 슬라이드 캔버스) */
+/*                                                                          */
+/* 부모에 overflow-hidden 이 많아서 outline 은 잘리는 경우가 흔함.          */
+/* 대신 background highlighter + inset box-shadow + 펄스 background        */
+/* 조합으로 element *안쪽* 에 표시 (절대 안 잘림).                          */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+@keyframes portfolio-edit-pulse {
+  from {
+    background-color: rgba(132, 185, 70, 0.12);
+  }
+  to {
+    background-color: rgba(132, 185, 70, 0.28);
+  }
+}
+
+/* 공통 스타일 — 강조 대상 element 안쪽에 그려져 overflow 에 안 잘림 */
+[data-portfolio-edit-focus="title"] h1,
+[data-portfolio-edit-focus="title"] h2,
+[data-portfolio-edit-focus="subtitle"] [data-edit-field="subtitle"],
+[data-portfolio-edit-focus="eyebrow"] [data-edit-field="eyebrow"],
+[data-portfolio-edit-focus="narrative"] [data-edit-field="narrative"],
+[data-portfolio-edit-focus="emphasis"] [data-edit-field="emphasis"],
+[data-portfolio-edit-focus-block]
+  [data-edit-block][data-edit-block-active="true"] {
+  box-shadow: inset 0 0 0 2px rgba(132, 185, 70, 0.85) !important;
+  border-radius: 4px !important;
+  position: relative !important;
+  animation: portfolio-edit-pulse 1.4s ease-in-out infinite alternate !important;
+  /* outline 도 함께 시도 — 부모가 허용하면 추가로 보임, 아니면 무시 */
+  outline: 2px solid rgba(132, 185, 70, 0.4) !important;
+  outline-offset: 3px !important;
+}
