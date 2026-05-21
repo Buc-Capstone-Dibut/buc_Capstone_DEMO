@@ -30,6 +30,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
 
 const BG = "#f9fafb";
 const CARD = "#ffffff";
@@ -91,10 +92,11 @@ export function NotionDocumentRenderer({
 }
 
 function SlideShell({ page, children }: { page: PortfolioSitePage; children: React.ReactNode }) {
+  const patch = usePatchActivePage();
   return (
     <article className="relative h-full w-full overflow-hidden" style={{ backgroundColor: CARD }}>
       <div className="absolute left-12 top-5 flex items-center gap-2 text-[11px] font-medium" style={{ color: MUTED }}>
-        <span className="rounded bg-gray-100 px-2 py-0.5">{page.eyebrow || "Page"}</span>
+        <span className="rounded bg-gray-100 px-2 py-0.5"><EditableText value={page.eyebrow} onChange={(v) => patch(["eyebrow"], v)} maxLength={60} placeholder="Page" fieldKey="eyebrow" /></span>
         <span>·</span>
         <span>최종 수정: 방금</span>
       </div>
@@ -117,6 +119,7 @@ function renderSlide(page: PortfolioSitePage) {
 }
 
 function PageTitle({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   return (
     <div>
       <div className="flex items-baseline gap-2 text-[11px] font-medium" style={{ color: MUTED }}>
@@ -124,11 +127,11 @@ function PageTitle({ page }: { page: PortfolioSitePage }) {
         <span>{plainText(page.intent || page.eyebrow || "Page", 60)}</span>
       </div>
       <h1 className="mt-3 break-keep text-[36px] font-bold leading-tight" style={{ color: HEADING }}>
-        {plainText(page.title, 80)}
+        <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
       </h1>
       {page.subtitle ? (
         <p className="mt-2 break-keep text-[13px] font-medium" style={{ color: MUTED }}>
-          {plainText(page.subtitle, 120)}
+          <EditableText value={page.subtitle} onChange={(v) => patch(["subtitle"], v)} maxLength={120} placeholder="부제 (선택)" fieldKey="subtitle" />
         </p>
       ) : null}
     </div>
@@ -136,27 +139,28 @@ function PageTitle({ page }: { page: PortfolioSitePage }) {
 }
 
 function CoverSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const metric = metricBlocks(page)[0];
   return (
     <div className="grid h-full grid-cols-[1.4fr_1fr] gap-8 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
         <PageTitle page={page} />
         <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: TEXT }}>
-          {pageNarrative(page, 220)}
+          <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={220} multiline placeholder="본문" fieldKey="narrative" />
         </p>
       </div>
       <div className="flex flex-col justify-center overflow-hidden">
         {metric ? (
           <div className="rounded-lg border p-5" style={{ borderColor: HAIRLINE, backgroundColor: BG }}>
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: MUTED }}>
-              {plainText(metric.label, 30)}
+              <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="라벨" fieldKey={`block-${metric.id}-label`} />
             </p>
             <p className="mt-2 break-keep text-[48px] font-bold leading-none" style={{ color: ACCENT }}>
-              {plainText(metric.value, 16)}
+              <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={16} placeholder="값" fieldKey={`block-${metric.id}-value`} />
             </p>
             {metric.caption ? (
               <p className="mt-3 text-[12px] font-medium leading-6" style={{ color: TEXT }}>
-                {plainText(metric.caption, 80)}
+                <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={80} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
               </p>
             ) : null}
           </div>
@@ -167,6 +171,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function ProfileSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const contributions = contributionBlocks(page).slice(0, 3);
   return (
     <div className="flex h-full flex-col gap-5 overflow-hidden">
@@ -177,7 +182,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
             ABOUT
           </p>
           <p className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
-            {pageNarrative(page, 240)}
+            <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={240} multiline placeholder="본문" fieldKey="narrative" />
           </p>
         </div>
         {contributions.length ? (
@@ -190,10 +195,10 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
                 {contributions.map((c) => (
                   <tr key={c.id} className="border-b" style={{ borderColor: HAIRLINE }}>
                     <td className="py-2 pr-3 font-bold" style={{ color: HEADING }}>
-                      {plainText(c.label, 30)}
+                      <EditableText value={c.label} onChange={(v) => patch(["blocks", c.id, "label"], v)} maxLength={30} placeholder="라벨" fieldKey={`block-${c.id}-label`} />
                     </td>
                     <td className="py-2 text-right font-bold tabular-nums" style={{ color: ACCENT }}>
-                      {plainText(c.value, 20)}
+                      <EditableText value={c.value} onChange={(v) => patch(["blocks", c.id, "value"], v)} maxLength={20} placeholder="값" fieldKey={`block-${c.id}-value`} />
                     </td>
                   </tr>
                 ))}
@@ -207,6 +212,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = matrixItems(page).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -236,6 +242,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = timelineItems(page).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -262,6 +269,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const flow = flowItems(page).slice(0, 4);
   const callout = calloutBlocks(page)[0];
   const LABELS = ["문제", "역할", "해결", "결과"];
@@ -295,7 +303,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
             💡 {callout.label || "Key Point"}
           </p>
           <p className="mt-1 whitespace-pre-line break-keep text-[12px] font-medium leading-6" style={{ color: HEADING }}>
-            {multilineText(callout.content, 180)}
+            <EditableText value={callout.content} onChange={(v) => patch(["blocks", callout.id, "content"], v)} maxLength={180} multiline placeholder="본문" fieldKey={`block-${callout.id}-content`} />
           </p>
         </div>
       ) : null}
@@ -304,6 +312,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function DetailSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const blocks = textBlocks(page).slice(0, 3);
   const metric = metricBlocks(page)[0];
   return (
@@ -315,7 +324,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
             DETAIL
           </p>
           <p className="mt-2 whitespace-pre-line break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
-            {pageNarrative(page, 240)}
+            <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={240} multiline placeholder="본문" fieldKey="narrative" />
           </p>
           {blocks.length ? (
             <ul className="mt-3 space-y-1.5">
@@ -323,8 +332,8 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
                 <li key={block.id} className="flex items-start gap-2 text-[12px]">
                   <span style={{ color: ACCENT }}>•</span>
                   <span className="break-keep font-medium" style={{ color: TEXT }}>
-                    <strong style={{ color: HEADING }}>{getBlockLabel(block, "Note")}:</strong>{" "}
-                    {blockText(block, 140)}
+                    <strong style={{ color: HEADING }}><EditableText value={block.label} onChange={(v) => patch(["blocks", block.id, "label"], v)} maxLength={40} placeholder="Note" fieldKey={`block-${block.id}-label`} />:</strong>{" "}
+                    <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={140} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
                   </span>
                 </li>
               ))}
@@ -338,14 +347,14 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
             </p>
             <div className="mt-2 rounded-lg border p-4" style={{ borderColor: HAIRLINE, backgroundColor: BG }}>
               <p className="text-[11px] font-medium" style={{ color: MUTED }}>
-                {plainText(metric.label, 30)}
+                <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="라벨" fieldKey={`block-${metric.id}-label`} />
               </p>
               <p className="mt-1 text-[40px] font-bold leading-none tabular-nums" style={{ color: ACCENT }}>
-                {plainText(metric.value, 16)}
+                <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={16} placeholder="값" fieldKey={`block-${metric.id}-value`} />
               </p>
               {metric.caption ? (
                 <p className="mt-2 text-[11px] font-medium" style={{ color: TEXT }}>
-                  {plainText(metric.caption, 80)}
+                  <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={80} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
                 </p>
               ) : null}
             </div>
@@ -357,6 +366,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = timelineItems(page).slice(0, 4);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -383,6 +393,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function ContactSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   return (
     <div className="flex h-full items-center overflow-hidden">
       <div className="mx-auto max-w-[680px]">
@@ -390,11 +401,11 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           📬 CONTACT
         </p>
         <h1 className="mt-3 break-keep text-[44px] font-bold leading-tight" style={{ color: HEADING }}>
-          {plainText(page.title, 60)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
         </h1>
         <div className="my-5 h-px w-full" style={{ backgroundColor: HAIRLINE }} />
         <p className="whitespace-pre-line break-keep text-[14px] font-medium leading-8" style={{ color: TEXT }}>
-          {pageNarrative(page, 280)}
+          <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={280} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <div className="mt-5 flex items-center gap-2 text-[12px]" style={{ color: ACCENT }}>
           <ArrowRight className="h-4 w-4" />

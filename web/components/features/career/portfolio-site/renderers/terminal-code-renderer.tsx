@@ -28,6 +28,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
 
 const BG = "#0a0a0a";
 const SURFACE = "#111111";
@@ -103,6 +104,7 @@ export function TerminalCodeRenderer({
 }
 
 function SlideShell({ page, children }: { page: PortfolioSitePage; children: React.ReactNode }) {
+  const patch = usePatchActivePage();
   return (
     <article className="relative h-full w-full overflow-hidden" style={{ backgroundColor: BG }}>
       {/* 격자 배경 */}
@@ -150,19 +152,20 @@ function Comment({ children }: { children: React.ReactNode }) {
 }
 
 function CoverSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const metric = metricBlocks(page)[0];
   return (
     <div className="grid h-full grid-cols-[1.2fr_1fr] gap-8 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
         <p className="text-[11px] font-medium" style={{ color: COMMENT }}>
-          {`/* ${plainText(page.intent || "portfolio", 60)} */`}
+          {`/* $<EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={60} placeholder="portfolio" fieldKey="intent" /> */`}
         </p>
         <h1 className="mt-4 break-keep text-[48px] font-bold leading-[1.05]" style={{ color: ACCENT }}>
-          {plainText(page.title, 80)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
         </h1>
         {page.subtitle ? (
           <p className="mt-4 max-w-[520px] break-keep text-[13px] font-medium leading-6">
-            <Comment>{plainText(page.subtitle, 140)}</Comment>
+            <Comment><EditableText value={page.subtitle} onChange={(v) => patch(["subtitle"], v)} maxLength={140} placeholder="부제 (선택)" fieldKey="subtitle" /></Comment>
           </p>
         ) : null}
         <p className="mt-6 text-[12px]">
@@ -174,21 +177,21 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           <div className="border p-5" style={{ borderColor: ACCENT, backgroundColor: SURFACE }}>
             <p className="text-[10px]" style={{ color: COMMENT }}>
               {"// "}
-              {plainText(metric.label, 30)}
+              <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="라벨" fieldKey={`block-${metric.id}-label`} />
             </p>
             <p className="mt-2 break-keep text-[56px] font-bold leading-none" style={{ color: ACCENT }}>
-              {plainText(metric.value, 16)}
+              <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={16} placeholder="값" fieldKey={`block-${metric.id}-value`} />
             </p>
             {metric.caption ? (
               <p className="mt-3 text-[12px] font-medium" style={{ color: TEXT }}>
-                {">"} {plainText(metric.caption, 80)}
+                {">"} <EditableText value={metric.caption} onChange={(v) => patch(["blocks", metric.id, "caption"], v)} maxLength={80} placeholder="설명 (선택)" fieldKey={`block-${metric.id}-caption`} />
               </p>
             ) : null}
           </div>
         ) : (
           <div className="border p-5" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
             <p className="whitespace-pre-line break-keep text-[13px] font-medium leading-7">
-              {pageNarrative(page, 200)}
+              <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={200} multiline placeholder="본문" fieldKey="narrative" />
             </p>
           </div>
         )}
@@ -198,18 +201,19 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function ProfileSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const emphasis = pageEmphasis(page).slice(0, 5);
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-8 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
         <h2 className="break-keep text-[36px] font-bold leading-tight" style={{ color: ACCENT }}>
-          {plainText(page.title, 60)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
         </h2>
         <p className="mt-3 text-[10px]" style={{ color: COMMENT }}>
           {"// readme.md"}
         </p>
         <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
-          {pageNarrative(page, 240)}
+          <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={240} multiline placeholder="본문" fieldKey="narrative" />
         </p>
       </div>
       <div className="flex flex-col justify-center gap-2 overflow-hidden">
@@ -236,11 +240,12 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = matrixItems(page).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <h2 className="break-keep text-[32px] font-bold leading-tight" style={{ color: ACCENT }}>
-        {plainText(page.title, 60)}
+        <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
       </h2>
       <p className="text-[11px]" style={{ color: COMMENT }}>
         {"// $ npm list --depth=0"}
@@ -264,11 +269,12 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = timelineItems(page).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <h2 className="break-keep text-[32px] font-bold leading-tight" style={{ color: ACCENT }}>
-        {plainText(page.title, 60)}
+        <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
       </h2>
       <p className="text-[11px]" style={{ color: COMMENT }}>
         {"// ls -la projects/"}
@@ -291,6 +297,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const flow = flowItems(page).slice(0, 4);
   const callout = calloutBlocks(page)[0];
   const LABELS = ["problem", "role", "solution", "result"];
@@ -298,14 +305,14 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div>
         <p className="text-[11px]" style={{ color: COMMENT }}>
-          {`// ${page.eyebrow || "case study"}`}
+          {`// $<EditableText value={page.eyebrow} onChange={(v) => patch(["eyebrow"], v)} maxLength={60} placeholder="case study" fieldKey="eyebrow" />`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
-          {plainText(page.title, 70)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={70} placeholder="제목" fieldKey="title" />
         </h2>
         {page.subtitle ? (
           <p className="mt-1 text-[11px]" style={{ color: MUTED }}>
-            {">"} {plainText(page.subtitle, 80)}
+            {">"} <EditableText value={page.subtitle} onChange={(v) => patch(["subtitle"], v)} maxLength={80} placeholder="부제 (선택)" fieldKey="subtitle" />
           </p>
         ) : null}
       </div>
@@ -329,7 +336,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
             {callout.label || "key point"}
           </p>
           <p className="mt-1 whitespace-pre-line break-keep text-[12px] font-medium leading-6">
-            {multilineText(callout.content, 180)}
+            <EditableText value={callout.content} onChange={(v) => patch(["blocks", callout.id, "content"], v)} maxLength={180} multiline placeholder="본문" fieldKey={`block-${callout.id}-content`} />
           </p>
         </div>
       ) : null}
@@ -338,18 +345,19 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function DetailSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const blocks = textBlocks(page).slice(0, 3);
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-6 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
         <p className="text-[11px]" style={{ color: COMMENT }}>
-          {`// ${page.eyebrow || "detail"}`}
+          {`// $<EditableText value={page.eyebrow} onChange={(v) => patch(["eyebrow"], v)} maxLength={60} placeholder="detail" fieldKey="eyebrow" />`}
         </p>
         <h2 className="mt-1 break-keep text-[28px] font-bold leading-tight" style={{ color: ACCENT }}>
-          {plainText(page.title, 70)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={70} placeholder="제목" fieldKey="title" />
         </h2>
         <p className="mt-4 whitespace-pre-line break-keep text-[13px] font-medium leading-7">
-          {pageNarrative(page, 220)}
+          <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={220} multiline placeholder="본문" fieldKey="narrative" />
         </p>
       </div>
       <div className="flex flex-col justify-center gap-2 overflow-hidden">
@@ -359,7 +367,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
               {`> ${getBlockLabel(block, `note ${i + 1}`)}`}
             </p>
             <p className="mt-1 whitespace-pre-line break-keep text-[12px] font-medium leading-6">
-              {blockText(block, 160)}
+              <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={160} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
             </p>
           </div>
         ))}
@@ -369,6 +377,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   const items = timelineItems(page).slice(0, 4);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -377,7 +386,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
           {"// git log --oneline --reverse"}
         </p>
         <h2 className="mt-1 break-keep text-[30px] font-bold leading-tight" style={{ color: ACCENT }}>
-          {plainText(page.title, 60)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
         </h2>
       </div>
       <div className="flex flex-1 flex-col gap-2 overflow-hidden">
@@ -400,6 +409,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
 }
 
 function ContactSlide({ page }: { page: PortfolioSitePage }) {
+  const patch = usePatchActivePage();
   return (
     <div className="flex h-full items-center overflow-hidden">
       <div>
@@ -407,14 +417,14 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
           {"// exit 0"}
         </p>
         <h1 className="mt-3 break-keep text-[56px] font-bold leading-[1.05]" style={{ color: ACCENT }}>
-          {plainText(page.title, 60)}
+          <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={60} placeholder="제목" fieldKey="title" />
         </h1>
         <p className="mt-2 text-[12px]" style={{ color: COMMENT }}>
           {">>> "}
           process complete
         </p>
         <p className="mt-6 max-w-[600px] whitespace-pre-line break-keep text-[14px] font-medium leading-8">
-          {pageNarrative(page, 260)}
+          <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={260} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <p className="mt-6 text-[13px]">
           <Prompt>echo &quot;thank you for reading&quot;</Prompt>
