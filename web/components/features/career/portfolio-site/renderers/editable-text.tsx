@@ -70,6 +70,55 @@ export function usePatchActivePage() {
   return ctx.patch || (() => {});
 }
 
+/**
+ * items[] 형 데이터 (timeline/flow/matrix block 또는 page.emphasis) 의
+ * 실제 저장소를 찾아 각 항목별로 onChange 클로저를 생성.
+ *
+ * @returns 항목 + 항목별 patch 함수. 저장소가 없으면 (하드코딩된 기본값) null.
+ */
+export function useItemsSource(
+  page: import("@/lib/career-portfolios").PortfolioSitePage,
+  preferredBlockType: "flow" | "timeline" | "matrix" | "tags" | null,
+): Array<{ value: string; onChange: (next: string) => void }> | null {
+  const patch = usePatchActivePage();
+
+  // 1) preferred block type 의 items
+  if (preferredBlockType) {
+    const block = page.blocks.find(
+      (b) => b.type === preferredBlockType && Array.isArray(b.items) && b.items.length > 0,
+    );
+    if (block) {
+      const items = block.items || [];
+      return items.map((item, i) => ({
+        value: item,
+        onChange: (next: string) => {
+          const arr = [...items];
+          if (next.trim() === "") arr.splice(i, 1);
+          else arr[i] = next;
+          patch(["blocks", block.id, "items"], arr);
+        },
+      }));
+    }
+  }
+
+  // 2) page.emphasis 가 충분히 있으면 거기 사용
+  const emphasis = (page.emphasis || []).filter(Boolean);
+  if (emphasis.length >= 1) {
+    return emphasis.map((item, i) => ({
+      value: item,
+      onChange: (next: string) => {
+        const arr = [...emphasis];
+        if (next.trim() === "") arr.splice(i, 1);
+        else arr[i] = next;
+        patch(["emphasis"], arr);
+      },
+    }));
+  }
+
+  // 3) 저장소 없음 — 편집 불가 (하드코딩된 fallback)
+  return null;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // 텍스트 truncate (보기 모드에서만)
 // ──────────────────────────────────────────────────────────────────────────
