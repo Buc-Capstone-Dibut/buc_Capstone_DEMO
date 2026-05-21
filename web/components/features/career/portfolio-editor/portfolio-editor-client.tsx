@@ -42,6 +42,8 @@ import {
   type PortfolioListItem,
   type PortfolioSection,
   type PortfolioSectionType,
+  type PortfolioSitePage,
+  type PortfolioSitePageType,
   type PortfolioSourceData,
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
@@ -53,6 +55,7 @@ import {
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
 import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
+import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -569,6 +572,162 @@ export function PortfolioEditorClient({
     if (selectedElement?.sectionId === sectionId) setSelectedElement(null);
   };
 
+  // ──────────────────────────────────────────────────────────────────────
+  // 웹슬라이드(site) 포맷 — 페이지 helpers + 인라인 편집
+  // ──────────────────────────────────────────────────────────────────────
+  const sitePages = useMemo(() => document.pages || [], [document.pages]);
+  const [activeSitePageId, setActiveSitePageId] = useState<string>(
+    () => sitePages[0]?.id || "",
+  );
+
+  useEffect(() => {
+    if (!sitePages.length) {
+      if (activeSitePageId) setActiveSitePageId("");
+      return;
+    }
+    if (!sitePages.some((p) => p.id === activeSitePageId)) {
+      setActiveSitePageId(sitePages[0].id);
+    }
+  }, [sitePages, activeSitePageId]);
+
+  const togglePageVisibility = (pageId: string) => {
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).map((p) =>
+        p.id === pageId ? { ...p, visible: p.visible === false } : p,
+      ),
+    }));
+  };
+
+  const deletePage = (pageId: string) => {
+    const idx = sitePages.findIndex((p) => p.id === pageId);
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).filter((p) => p.id !== pageId),
+    }));
+    if (activeSitePageId === pageId) {
+      const fallback =
+        sitePages[idx + 1]?.id ||
+        sitePages[idx - 1]?.id ||
+        sitePages.find((p) => p.id !== pageId)?.id ||
+        "";
+      setActiveSitePageId(fallback);
+    }
+  };
+
+  const reorderPages = (orderedIds: string[]) => {
+    updateDocument((current) => {
+      const byId = new Map((current.pages || []).map((p) => [p.id, p] as const));
+      const reordered = orderedIds
+        .map((id) => byId.get(id))
+        .filter(Boolean) as typeof current.pages;
+      return { ...current, pages: reordered };
+    });
+  };
+
+  const addPage = (type: PortfolioSitePageType) => {
+    const TYPE_LABEL: Record<PortfolioSitePageType, string> = {
+      cover: "표지",
+      profile: "프로필",
+      skills: "기술",
+      "project-index": "프로젝트 목차",
+      "case-study": "케이스 스터디",
+      "project-detail": "프로젝트 상세",
+      experience: "경력",
+      retrospective: "회고",
+      contact: "연락처",
+    };
+    const TYPE_LAYOUT: Record<PortfolioSitePageType, PortfolioSitePage["layout"]> = {
+      cover: "cover-focus",
+      profile: "profile-summary",
+      skills: "skills-grid",
+      "project-index": "project-index",
+      "case-study": "case-study",
+      "project-detail": "project-detail",
+      experience: "case-study",
+      retrospective: "case-study",
+      contact: "cover-focus",
+    };
+    const newId = `page-${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)}`;
+    const newPage: PortfolioSitePage = {
+      id: newId,
+      type,
+      title: `새 ${TYPE_LABEL[type]}`,
+      eyebrow: TYPE_LABEL[type],
+      narrative: "",
+      emphasis: [],
+      layout: TYPE_LAYOUT[type],
+      blocks: [],
+      visible: true,
+    };
+    updateDocument((current) => ({
+      ...current,
+      pages: [...(current.pages || []), newPage],
+    }));
+    setActiveSitePageId(newId);
+  };
+
+  /** 활성 페이지의 특정 path 를 업데이트 — EditableText 가 호출. */
+  const patchActivePage = (path: (string | number)[], value: unknown) => {
+    if (!activeSitePageId) return;
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).map((p) => {
+        if (p.id !== activeSitePageId) return p;
+        return applyPathPatch(p, path, value) as PortfolioSitePage;
+      }),
+    }));
+  };
+
+  // ──────────────────────────────────────────────────────────────────────
+  // 자동 저장 — 마지막 patch 후 1.5초 debounce
+  // ──────────────────────────────────────────────────────────────────────
+  const [autoSaveState, setAutoSaveState] = useState<
+    "idle" | "pending" | "saving" | "saved" | "error"
+  >("idle");
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const lastSavedDocRef = useRef<PortfolioDocument | null>(null);
+
+  // document 변경 시 자동 저장 큐
+  useEffect(() => {
+    if (document.format !== "site") return;
+    if (generation.active) return;
+    // 초기 mount 는 skip
+    if (lastSavedDocRef.current === null) {
+      lastSavedDocRef.current = document;
+      return;
+    }
+    if (lastSavedDocRef.current === document) return;
+    setAutoSaveState("pending");
+    if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      void autoSave();
+    }, 1500);
+    return () => {
+      if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [document, generation.active]);
+
+  const autoSave = async () => {
+    setAutoSaveState("saving");
+    try {
+      const response = await fetch(`/api/career/portfolios/${portfolio.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, templateId: document.templateId, document }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "자동 저장 실패");
+      lastSavedDocRef.current = document;
+      setAutoSaveState("saved");
+      // 2초 후 idle 로
+      window.setTimeout(() => setAutoSaveState("idle"), 2000);
+    } catch (error) {
+      console.error("auto-save error", error);
+      setAutoSaveState("error");
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -680,15 +839,7 @@ export function PortfolioEditorClient({
                 공개 보기
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              className="h-9 gap-2 rounded-lg border-[#d8e4d0] bg-white/75 text-slate-700 hover:bg-white"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              저장
-            </Button>
+            <AutoSaveIndicator state={autoSaveState} />
             <Button
               className="h-9 gap-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
               onClick={() => void handlePublish(!isPublic)}
@@ -700,10 +851,37 @@ export function PortfolioEditorClient({
           </div>
         </header>
 
-        <main className="relative min-h-0 flex-1 overflow-auto">
-          <PortfolioSiteRenderer document={document} />
-          <GenerationStatusOverlay generation={generation} document={document} />
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <PortfolioSitePagesSidebar
+            pages={sitePages}
+            activePageId={activeSitePageId}
+            onSelectPage={setActiveSitePageId}
+            onReorderPages={reorderPages}
+            onToggleVisibility={togglePageVisibility}
+            onDeletePage={deletePage}
+            onAddPage={addPage}
+            disabled={generation.active}
+          />
+          <main className="relative min-h-0 min-w-0 flex-1 overflow-auto">
+            <PortfolioSiteRenderer
+              document={document}
+              activeIndex={Math.max(
+                0,
+                sitePages.findIndex((p) => p.id === activeSitePageId),
+              )}
+              onActiveIndexChange={(next) => {
+                const target = sitePages[next];
+                if (target) setActiveSitePageId(target.id);
+              }}
+              hideThumbnails
+              includeHiddenPages
+              disableKeyboardNav={generation.active}
+              editingEnabled={!generation.active}
+              onPatchActivePage={patchActivePage}
+            />
+            <GenerationStatusOverlay generation={generation} document={document} />
+          </main>
+        </div>
       </div>
     );
   }
@@ -1539,5 +1717,83 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// path-based patch — 페이지 내 임의 경로 업데이트
+// path 예: ["title"] / ["blocks", "block-xyz", "content"] / ["emphasis"] /
+//         ["blocks", "block-abc", "items", 2]
+// ──────────────────────────────────────────────────────────────────────
+function applyPathPatch(
+  target: unknown,
+  path: (string | number)[],
+  value: unknown,
+): unknown {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+
+  // 배열: head 가 숫자 인덱스이거나, 객체 내 배열 key 이름이거나
+  if (Array.isArray(target)) {
+    const idx = typeof head === "number" ? head : Number(head);
+    if (Number.isNaN(idx)) return target;
+    const next = [...target];
+    next[idx] = applyPathPatch(next[idx], rest, value);
+    return next;
+  }
+
+  if (target && typeof target === "object") {
+    const obj = target as Record<string, unknown>;
+    // 특수 케이스: blocks 배열에서 id 로 찾기
+    if (head === "blocks" && rest.length > 0 && Array.isArray(obj.blocks)) {
+      const [blockId, ...blockRest] = rest;
+      const blocks = obj.blocks as Array<{ id?: string } & Record<string, unknown>>;
+      const newBlocks = blocks.map((b) =>
+        b.id === blockId ? (applyPathPatch(b, blockRest, value) as typeof b) : b,
+      );
+      return { ...obj, blocks: newBlocks };
+    }
+    return {
+      ...obj,
+      [String(head)]: applyPathPatch(obj[String(head)], rest, value),
+    };
+  }
+
+  // primitive 인데 path 가 남음 → 새 객체 생성
+  return value;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// AutoSaveIndicator — "저장 중 / ✓ 저장됨 / 오류" 상단 표시
+// ──────────────────────────────────────────────────────────────────────
+function AutoSaveIndicator({
+  state,
+}: {
+  state: "idle" | "pending" | "saving" | "saved" | "error";
+}) {
+  if (state === "idle") return null;
+  const isErr = state === "error";
+  const isSaved = state === "saved";
+  const text =
+    state === "pending"
+      ? "변경 감지…"
+      : state === "saving"
+        ? "저장 중…"
+        : state === "saved"
+          ? "✓ 자동 저장됨"
+          : "저장 실패 — 다시 시도";
+  return (
+    <span
+      className={
+        "inline-flex h-7 items-center rounded-full px-3 text-[11px] font-bold transition " +
+        (isErr
+          ? "bg-red-50 text-red-600"
+          : isSaved
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-slate-100 text-slate-500")
+      }
+    >
+      {text}
+    </span>
   );
 }
