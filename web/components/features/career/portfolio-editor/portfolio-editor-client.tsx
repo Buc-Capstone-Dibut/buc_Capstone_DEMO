@@ -56,6 +56,7 @@ import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer
 import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
+import { PortfolioSiteAiChat, type AiPatch } from "./portfolio-site-ai-chat";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -679,6 +680,79 @@ export function PortfolioEditorClient({
     }));
   };
 
+  // ─── AI 채팅 patches 적용 + Undo ───
+  const aiUndoSnapshotRef = useRef<PortfolioDocument | null>(null);
+  const [canUndoAi, setCanUndoAi] = useState(false);
+
+  const applyAiPatches = (patches: AiPatch[]) => {
+    // Undo snapshot 저장 (이전 문서 기억)
+    aiUndoSnapshotRef.current = document;
+    setCanUndoAi(true);
+    setDocument((current) => {
+      let next = current;
+      for (const p of patches) {
+        if (p.op === "patch_page") {
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) =>
+              pg.id === p.pageId ? { ...pg, ...p.fields } : pg,
+            ),
+          };
+        } else if (p.op === "delete_page") {
+          next = {
+            ...next,
+            pages: (next.pages || []).filter((pg) => pg.id !== p.pageId),
+          };
+          if (activeSitePageId === p.pageId) {
+            // 활성 페이지가 삭제되면 첫 페이지로
+            const fallback = (next.pages || [])[0]?.id || "";
+            setActiveSitePageId(fallback);
+          }
+        } else if (p.op === "toggle_visibility") {
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) =>
+              pg.id === p.pageId ? { ...pg, visible: p.visible } : pg,
+            ),
+          };
+        } else if (p.op === "add_page") {
+          const newId = `page-${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)}`;
+          const newPage: PortfolioSitePage = {
+            id: newId,
+            type: p.newPage.type,
+            title: p.newPage.title || `새 ${p.newPage.type}`,
+            subtitle: p.newPage.subtitle,
+            eyebrow: p.newPage.eyebrow,
+            intent: p.newPage.intent,
+            narrative: p.newPage.narrative || "",
+            emphasis: p.newPage.emphasis || [],
+            layout: p.newPage.layout || "case-study",
+            blocks: p.newPage.blocks || [],
+            visible: p.newPage.visible !== false,
+          };
+          const pages = [...(next.pages || [])];
+          if (p.insertAfterPageId) {
+            const idx = pages.findIndex((pg) => pg.id === p.insertAfterPageId);
+            if (idx >= 0) pages.splice(idx + 1, 0, newPage);
+            else pages.push(newPage);
+          } else {
+            pages.push(newPage);
+          }
+          next = { ...next, pages };
+          setActiveSitePageId(newId);
+        }
+      }
+      return next;
+    });
+  };
+
+  const undoLastAi = () => {
+    if (!aiUndoSnapshotRef.current) return;
+    setDocument(aiUndoSnapshotRef.current);
+    aiUndoSnapshotRef.current = null;
+    setCanUndoAi(false);
+  };
+
   // ──────────────────────────────────────────────────────────────────────
   // 자동 저장 — 마지막 patch 후 1.5초 debounce
   // ──────────────────────────────────────────────────────────────────────
@@ -882,6 +956,14 @@ export function PortfolioEditorClient({
             <GenerationStatusOverlay generation={generation} document={document} />
           </main>
         </div>
+        <PortfolioSiteAiChat
+          portfolioId={portfolio.id}
+          activePageId={activeSitePageId || null}
+          onApplyPatches={applyAiPatches}
+          onUndoLast={undoLastAi}
+          canUndo={canUndoAi}
+          disabled={generation.active}
+        />
       </div>
     );
   }
