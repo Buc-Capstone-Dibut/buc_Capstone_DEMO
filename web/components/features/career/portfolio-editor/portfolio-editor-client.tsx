@@ -48,6 +48,7 @@ import {
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
+import { PortfolioSitePageEditor } from "./portfolio-site-page-editor";
 import {
   PortfolioRenderer,
   PortfolioSlideThumbnail,
@@ -597,6 +598,15 @@ export function PortfolioEditorClient({
     });
   };
 
+  const updatePageById = (pageId: string, patch: Partial<PortfolioSitePage>) => {
+    updateDocument((current) => ({
+      ...current,
+      pages: (current.pages || []).map((p) =>
+        p.id === pageId ? { ...p, ...patch } : p,
+      ),
+    }));
+  };
+
   const addPage = (type: PortfolioSitePageType) => {
     const PAGE_TYPE_LABEL_LOCAL: Record<PortfolioSitePageType, string> = {
       cover: "표지",
@@ -822,6 +832,14 @@ export function PortfolioEditorClient({
             />
             <GenerationStatusOverlay generation={generation} document={document} />
           </main>
+          <PortfolioSitePageEditor
+            page={sitePages.find((p) => p.id === activeSitePageId) || null}
+            onPatch={(patch) => {
+              if (!activeSitePageId) return;
+              updatePageById(activeSitePageId, patch);
+            }}
+            disabled={generation.active}
+          />
         </div>
       </div>
     );
