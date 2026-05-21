@@ -5,7 +5,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -27,7 +26,7 @@ import { SoftPastelCardRenderer } from "./renderers/soft-pastel-card-renderer";
 import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
-import { RendererEmptyState, RendererShell } from "./renderers/renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -1333,21 +1332,28 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   );
 }
 
-function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRendererProps) {
+function PortfolioSiteRendererInner({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+  includeHiddenPages,
+}: PortfolioSiteRendererProps) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
-        (page) => page.visible !== false,
+        (page) => includeHiddenPages || page.visible !== false,
       ),
-    [document.pages, document.sections],
+    [document.pages, document.sections, includeHiddenPages],
   );
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useRendererPageIndex(
+    { activeIndex, onActiveIndexChange },
+    pages.length,
+  );
   const page = pages[Math.min(currentIndex, Math.max(0, pages.length - 1))];
-
-  useEffect(() => {
-    if (currentIndex <= pages.length - 1) return;
-    setCurrentIndex(Math.max(0, pages.length - 1));
-  }, [currentIndex, pages.length]);
 
   const template = getPortfolioTemplate(document.templateId);
   const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
@@ -1398,6 +1404,9 @@ function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRender
       index={currentIndex}
       setIndex={setCurrentIndex}
       className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
     >
       <div
         className={cn(
