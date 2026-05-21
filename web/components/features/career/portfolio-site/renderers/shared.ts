@@ -12,6 +12,16 @@ import type {
 export type RendererProps = {
   document: import("@/lib/career-portfolios").PortfolioDocument;
   className?: string;
+  /** 외부에서 활성 페이지 제어 (편집기 사이드바와 동기화) */
+  activeIndex?: number;
+  onActiveIndexChange?: (next: number) => void;
+  /** chrome 옵션 (편집기에서 헤더/썸네일 대체할 때) */
+  hideHeader?: boolean;
+  hideThumbnails?: boolean;
+  /** input 포커스 충돌 방지 */
+  disableKeyboardNav?: boolean;
+  /** 편집기에선 숨김 페이지도 표시 */
+  includeHiddenPages?: boolean;
 };
 
 export const PAGE_LABEL: Record<PortfolioSitePageType, string> = {

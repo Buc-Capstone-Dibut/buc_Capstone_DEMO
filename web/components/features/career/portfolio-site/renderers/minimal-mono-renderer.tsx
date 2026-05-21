@@ -10,7 +10,7 @@
  * 강조 도구: 좌측 막대(border-l-[4px]), 큰 숫자, 점선 디바이더
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -28,7 +28,8 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
+import { EditableText, usePatchActivePage } from "./editable-text";
 
 const ACCENT = "#10b981";
 const TEXT = "#0a0a0a";
@@ -36,12 +37,21 @@ const MUTED = "#737373";
 const BG = "#fafafa";
 const HAIRLINE = "#e5e5e5";
 
-export function MinimalMonoRenderer({ document, className }: RendererProps) {
+export function MinimalMonoRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+  includeHiddenPages,
+}: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => p.visible !== false),
-    [document.pages],
+    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
+    [document.pages, includeHiddenPages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   if (!page) {
@@ -49,7 +59,16 @@ export function MinimalMonoRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className="relative w-full border bg-white"
         style={{
@@ -106,22 +125,37 @@ function renderSlide(page: PortfolioSitePage) {
 function CoverSlide({ page }: { page: PortfolioSitePage }) {
   const emphasis = pageEmphasis(page).slice(0, 4);
   const metric = metricBlocks(page)[0];
+  const patch = usePatchActivePage();
   return (
     <div className="grid h-full grid-cols-[1.2fr_1fr] gap-12">
       <div className="flex flex-col justify-center">
-        {page.intent ? (
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: MUTED }}>
-            {plainText(page.intent, 80)}
-          </p>
-        ) : null}
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: MUTED }}>
+          <EditableText
+            value={page.intent}
+            onChange={(v) => patch(["intent"], v)}
+            maxLength={80}
+            placeholder="포지션 한 줄"
+            fieldKey="intent"
+          />
+        </p>
         <h1 className="mt-4 break-keep text-[52px] font-black leading-[1.02] tracking-tight">
-          {plainText(page.title, 80)}
+          <EditableText
+            value={page.title}
+            onChange={(v) => patch(["title"], v)}
+            maxLength={80}
+            placeholder="제목"
+            fieldKey="title"
+          />
         </h1>
-        {page.subtitle ? (
-          <p className="mt-5 max-w-[520px] break-keep text-[16px] font-medium leading-7" style={{ color: MUTED }}>
-            {plainText(page.subtitle, 140)}
-          </p>
-        ) : null}
+        <p className="mt-5 max-w-[520px] break-keep text-[16px] font-medium leading-7" style={{ color: MUTED }}>
+          <EditableText
+            value={page.subtitle}
+            onChange={(v) => patch(["subtitle"], v)}
+            maxLength={140}
+            placeholder="부제 (선택)"
+            fieldKey="subtitle"
+          />
+        </p>
         {emphasis.length ? (
           <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2">
             {emphasis.map((item, i) => (
@@ -130,7 +164,17 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
                 className="text-[11px] font-bold uppercase tracking-[0.18em]"
                 style={{ color: TEXT }}
               >
-                {plainText(item, 30)}
+                <EditableText
+                  value={item}
+                  onChange={(v) => {
+                    const next = [...(page.emphasis || [])];
+                    if (v.trim() === "") next.splice(i, 1);
+                    else next[i] = v;
+                    patch(["emphasis"], next);
+                  }}
+                  maxLength={30}
+                  fieldKey={`emphasis-${i}`}
+                />
               </span>
             ))}
           </div>
@@ -143,20 +187,43 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
         {metric ? (
           <>
             <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: MUTED }}>
-              {plainText(metric.label, 30)}
+              <EditableText
+                value={metric.label}
+                onChange={(v) => patch(["blocks", metric.id, "label"], v)}
+                maxLength={30}
+                placeholder="라벨"
+                fieldKey={`block-${metric.id}-label`}
+              />
             </p>
             <p className="mt-2 break-keep text-[88px] font-black leading-none tracking-tight" style={{ color: ACCENT }}>
-              {plainText(metric.value, 16)}
+              <EditableText
+                value={metric.value}
+                onChange={(v) => patch(["blocks", metric.id, "value"], v)}
+                maxLength={16}
+                placeholder="값"
+                fieldKey={`block-${metric.id}-value`}
+              />
             </p>
-            {metric.caption ? (
-              <p className="mt-4 max-w-[260px] text-[13px] font-medium leading-6" style={{ color: MUTED }}>
-                {plainText(metric.caption, 100)}
-              </p>
-            ) : null}
+            <p className="mt-4 max-w-[260px] text-[13px] font-medium leading-6" style={{ color: MUTED }}>
+              <EditableText
+                value={metric.caption}
+                onChange={(v) => patch(["blocks", metric.id, "caption"], v)}
+                maxLength={100}
+                placeholder="설명 (선택)"
+                fieldKey={`block-${metric.id}-caption`}
+              />
+            </p>
           </>
         ) : (
           <p className="whitespace-pre-line text-[15px] font-medium leading-7" style={{ color: MUTED }}>
-            {pageNarrative(page, 200)}
+            <EditableText
+              value={page.narrative}
+              onChange={(v) => patch(["narrative"], v)}
+              maxLength={200}
+              multiline
+              placeholder="이 페이지의 본문"
+              fieldKey="narrative"
+            />
           </p>
         )}
       </div>

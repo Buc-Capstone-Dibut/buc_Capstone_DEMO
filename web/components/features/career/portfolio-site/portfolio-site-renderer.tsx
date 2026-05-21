@@ -27,7 +27,8 @@ import { SoftPastelCardRenderer } from "./renderers/soft-pastel-card-renderer";
 import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
-import { RendererEmptyState, RendererShell } from "./renderers/renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
+import { EditableProvider } from "./renderers/editable-text";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -55,6 +56,17 @@ type PortfolioSiteRendererProps = {
   document: PortfolioDocument;
   readonly?: boolean;
   className?: string;
+  /** 편집기에서 활성 페이지 제어 */
+  activeIndex?: number;
+  onActiveIndexChange?: (next: number) => void;
+  hideHeader?: boolean;
+  hideThumbnails?: boolean;
+  disableKeyboardNav?: boolean;
+  includeHiddenPages?: boolean;
+  /** 인라인 편집 활성 (편집기) */
+  editingEnabled?: boolean;
+  /** 활성 페이지의 특정 path 를 업데이트 — 편집기에서 제공 */
+  onPatchActivePage?: (path: (string | number)[], value: unknown) => void;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1297,33 +1309,40 @@ function renderSlide(page: PortfolioSitePage) {
 
 export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   const rendererId = props.document.rendererId;
+  const shared = {
+    document: props.document,
+    className: props.className,
+    activeIndex: props.activeIndex,
+    onActiveIndexChange: props.onActiveIndexChange,
+    hideHeader: props.hideHeader,
+    hideThumbnails: props.hideThumbnails,
+    disableKeyboardNav: props.disableKeyboardNav,
+    includeHiddenPages: props.includeHiddenPages,
+  };
 
-  if (rendererId === "minimal-mono") {
-    return <MinimalMonoRenderer document={props.document} className={props.className} />;
+  let body: ReactNode;
+  if (rendererId === "minimal-mono") body = <MinimalMonoRenderer {...shared} />;
+  else if (rendererId === "editorial-magazine") body = <EditorialMagazineRenderer {...shared} />;
+  else if (rendererId === "brutalist-tech") body = <BrutalistTechRenderer {...shared} />;
+  else if (rendererId === "soft-pastel-card") body = <SoftPastelCardRenderer {...shared} />;
+  else if (rendererId === "terminal-code") body = <TerminalCodeRenderer {...shared} />;
+  else if (rendererId === "notion-document") body = <NotionDocumentRenderer {...shared} />;
+  else if (rendererId === "gallery-mood") body = <GalleryMoodRenderer {...shared} />;
+  else {
+    body = (
+      <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+        <PortfolioSiteRendererInner {...props} />
+      </RendererContext.Provider>
+    );
   }
-  if (rendererId === "editorial-magazine") {
-    return <EditorialMagazineRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "brutalist-tech") {
-    return <BrutalistTechRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "soft-pastel-card") {
-    return <SoftPastelCardRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "terminal-code") {
-    return <TerminalCodeRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "notion-document") {
-    return <NotionDocumentRenderer document={props.document} className={props.className} />;
-  }
-  if (rendererId === "gallery-mood") {
-    return <GalleryMoodRenderer document={props.document} className={props.className} />;
-  }
-  // 미구현 rendererId 또는 무지정 시 기존 렌더러 fallback
+
   return (
-    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
-      <PortfolioSiteRendererInner {...props} />
-    </RendererContext.Provider>
+    <EditableProvider
+      enabled={Boolean(props.editingEnabled)}
+      patch={props.onPatchActivePage}
+    >
+      {body}
+    </EditableProvider>
   );
 }
 

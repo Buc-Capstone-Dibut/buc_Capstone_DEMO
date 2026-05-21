@@ -10,7 +10,7 @@
  * 강조: `$` `>` 프롬프트, ASCII 박스(═──), comment 색
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { PortfolioSitePage } from "@/lib/career-portfolios";
 import {
   blockText,
@@ -27,7 +27,7 @@ import {
   timelineItems,
   type RendererProps,
 } from "./shared";
-import { RendererEmptyState, RendererShell } from "./renderer-shell";
+import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
 
 const BG = "#0a0a0a";
 const SURFACE = "#111111";
@@ -40,12 +40,21 @@ const KEYWORD = "#569cd6";
 const BORDER = "#1f1f1f";
 const MONO = "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace";
 
-export function TerminalCodeRenderer({ document, className }: RendererProps) {
+export function TerminalCodeRenderer({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+  includeHiddenPages,
+}: RendererProps) {
   const pages = useMemo(
-    () => (document.pages || []).filter((p) => p.visible !== false),
-    [document.pages],
+    () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
+    [document.pages, includeHiddenPages],
   );
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useRendererPageIndex({ activeIndex, onActiveIndexChange }, pages.length);
   const page = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   useEffect(() => {
@@ -64,7 +73,16 @@ export function TerminalCodeRenderer({ document, className }: RendererProps) {
   }
 
   return (
-    <RendererShell document={document} pages={pages} index={index} setIndex={setIndex} className={className}>
+    <RendererShell
+      document={document}
+      pages={pages}
+      index={index}
+      setIndex={setIndex}
+      className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+    >
       <div
         className="relative w-full border"
         style={{
