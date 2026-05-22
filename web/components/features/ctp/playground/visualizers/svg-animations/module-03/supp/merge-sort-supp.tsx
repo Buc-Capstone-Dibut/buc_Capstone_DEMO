@@ -90,7 +90,7 @@ const MergeSVG = () => {
         <g transform="translate(80, 50)">
           {/* Output buffer */}
           <rect x="100" y="100" width="200" height="40" fill="hsl(var(--muted))" rx="4" stroke="currentColor" strokeOpacity="0.3"/>
-          <text x="200" y="125" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">병합된 배열 배열 (보조 공간)</text>
+          <text x="200" y="125" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">병합된 결과 배열 (보조 공간)</text>
 
           {/* Left Array */}
           <g transform="translate(50, 0)">
