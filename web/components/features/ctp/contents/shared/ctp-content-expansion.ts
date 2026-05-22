@@ -657,9 +657,112 @@ const expansions: Record<string, Expansion> = {
   // module-01: search-algorithms
   "search-problem-key": {},
   "linear-search": {},
-  "brute-force-search": {},
-  "kmp-search": {},
-  "boyer-moore-search": {},
+  "brute-force-search": {
+    story: {
+      problem: `텍스트 안에서 패턴을 찾는 문제는 검색·치환·로그 분석 등 거의 모든 도구에서 마주칩니다.\n\n가장 직관적인 풀이가 어디까지 통하고 어디서 한계를 만나는지 정확히 이해해야 후속 알고리즘(KMP, Boyer-Moore)을 학습할 토대가 마련됩니다.`,
+      definition: `**핵심 아이디어**: 텍스트의 모든 시작 위치 i=0..N-M에서 패턴을 한 글자씩 대조한다.\n\n**불변식**\n- i는 텍스트 시작 위치, j는 패턴 비교 위치를 가리킨다.\n- 불일치 발생 시 i를 한 칸 뒤로 돌리고 j=0으로 초기화한다.\n\n**시간복잡도**\n- 최선 O(N), 평균/최악 O(NM).\n- 텍스트와 패턴이 길고 반복 구조가 많을수록 비교 횟수가 NM에 근접한다.`,
+      analogy: `책에서 특정 문장을 찾을 때 한 글자도 빠짐없이 모든 시작 위치에서 비교하는 방식과 같습니다.\n누구나 이해할 수 있지만, 책이 길고 문장이 자주 비슷하게 시작하면 같은 자리를 여러 번 보게 됩니다.`,
+      playgroundDescription: `i, j 포인터가 어떻게 함께 전진하는지, 불일치 발생 시 i가 어디로 되돌아가는지를 단계별로 관찰하세요.`,
+    },
+    features: [
+      { title: "직관적 흐름", description: "두 포인터 i, j만으로 동작하므로 구현이 짧고 디버깅이 쉽습니다." },
+      { title: "최악 시나리오 인식", description: "AAAA...B 형태처럼 마지막 글자에서 자주 실패하는 입력에서 NM에 가까운 비교 횟수가 누적됩니다." },
+      { title: "후속 알고리즘 동기", description: "이 풀이의 비효율 지점이 KMP의 LPS와 Boyer-Moore의 점프 규칙으로 이어집니다." },
+    ],
+    guide: [
+      {
+        title: "패턴 검색 패턴",
+        items: [
+          {
+            label: "기본 이중 루프",
+            description: "i는 시작 위치, j는 패턴 비교 위치. 끝까지 일치하면 발견.",
+            code: "for i in range(N - M + 1):\n    j = 0\n    while j < M and T[i+j] == P[j]:\n        j += 1\n    if j == M:\n        return i",
+            tags: ["Pattern"],
+          },
+          {
+            label: "최악 입력",
+            description: "패턴이 텍스트와 거의 같다가 마지막 글자에서 실패하면 비교 횟수가 폭증합니다.",
+            code: "T = 'AAAA...AAAB'\nP = 'AAAB'  # NM에 근접",
+            tags: ["Edge"],
+          },
+        ],
+      },
+    ],
+  },
+  "kmp-search": {
+    story: {
+      problem: `브루트 포스는 불일치 시 텍스트 포인터를 되돌려 같은 위치를 여러 번 비교합니다.\n\n이미 일치했던 부분에서 얻은 정보를 활용하면 텍스트를 한 번만 훑으면서 검색을 끝낼 수 있어, 긴 텍스트·반복 검사 환경에서 큰 이득을 얻습니다.`,
+      definition: `**핵심 아이디어**: 패턴 내부의 접두사·접미사 일치 정보를 LPS 배열에 미리 계산해 두고, 불일치 시 j만 LPS[j-1]로 점프시킨다.\n\n**불변식**\n- 텍스트 포인터 i는 절대 뒤로 돌아가지 않는다.\n- LPS[k]는 패턴[0..k]에서 동일한 접두사와 접미사의 최대 길이.\n\n**시간복잡도**\n- LPS 구축 O(M) + 검색 O(N) = 전체 O(N+M).\n- 공간복잡도 O(M).`,
+      analogy: `오답 노트를 미리 만들어 두고 같은 실수를 반복하지 않는 학습 방식과 같습니다.\n이미 맞춘 부분(접두사)을 다시 검사하지 않고 다음 단계에서 바로 이어갑니다.`,
+      playgroundDescription: `LPS 테이블이 어떻게 구성되는지, 불일치 발생 시 j가 어디로 점프하는지를 함께 관찰하세요.`,
+    },
+    features: [
+      { title: "패턴 자체 분석", description: "외부 텍스트가 아니라 패턴 내부의 대칭 구조에서 정보를 끌어냅니다." },
+      { title: "재사용 가능한 LPS", description: "한 번 구축한 LPS 테이블은 동일 패턴이 등장하는 모든 텍스트에서 재사용할 수 있습니다." },
+      { title: "선형 시간 보장", description: "텍스트 포인터가 단조 증가하므로 누적 비교 횟수가 N에 비례해 묶입니다." },
+    ],
+    guide: [
+      {
+        title: "LPS 구축",
+        items: [
+          {
+            label: "두 포인터 i, len",
+            description: "len은 현재까지 일치한 접두사 길이. 일치 확장 또는 LPS[len-1]로 후퇴.",
+            code: "lps = [0] * M\nlen_ = 0\ni = 1\nwhile i < M:\n    if P[i] == P[len_]:\n        len_ += 1\n        lps[i] = len_\n        i += 1\n    elif len_ > 0:\n        len_ = lps[len_ - 1]\n    else:\n        lps[i] = 0\n        i += 1",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+      {
+        title: "검색 루프",
+        items: [
+          {
+            label: "i 단조 진행",
+            description: "불일치 시 j만 LPS[j-1]로 점프하고 i는 그대로 유지.",
+            code: "i = j = 0\nwhile i < N:\n    if T[i] == P[j]:\n        i += 1; j += 1\n        if j == M:\n            print('match', i - j); j = lps[j - 1]\n    elif j > 0:\n        j = lps[j - 1]\n    else:\n        i += 1",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
+  "boyer-moore-search": {
+    story: {
+      problem: `KMP는 텍스트를 한 글자도 건너뛰지 않으므로 입력에 따라 더 빠른 풀이가 가능한지 의문이 생깁니다.\n\n패턴과 닮지 않은 영역을 통째로 건너뛸 수 있다면 실전 텍스트에서 비교 횟수를 크게 줄일 수 있습니다.`,
+      definition: `**핵심 아이디어**: 패턴을 뒤에서 앞으로 비교하고, 불일치 시 Bad Character·Good Suffix 규칙 중 더 큰 점프를 선택해 패턴을 슬라이드한다.\n\n**불변식**\n- 비교는 패턴의 마지막 글자에서 시작.\n- 두 점프 규칙은 모두 안전(정답을 건너뛰지 않음).\n\n**시간복잡도**\n- 평균은 매우 빠르고, 알파벳 크기와 패턴 길이에 비례해 점프 폭이 커진다.\n- 최악은 O(NM)이지만 실전 텍스트에서는 거의 발생하지 않는다.`,
+      analogy: `긴 터널 앞에서 차량 뒤쪽 번호판만 보고 통과 여부를 결정하는 검문과 같습니다.\n전혀 다른 번호이면 차량을 통째로 통과시키고 다음 차량으로 한 번에 넘어갈 수 있습니다.`,
+      playgroundDescription: `Bad Character가 패턴 안에 있을 때와 없을 때 점프 거리가 어떻게 달라지는지 관찰하세요.\nGood Suffix와의 점프 거리 비교도 확인합니다.`,
+    },
+    features: [
+      { title: "역방향 비교", description: "패턴 마지막 글자에서 시작하므로 한 번의 확인으로 큰 영역을 배제할 수 있습니다." },
+      { title: "두 규칙의 결합", description: "Bad Character와 Good Suffix 중 더 큰 점프를 선택해 평균 성능을 극대화합니다." },
+      { title: "알파벳/패턴 의존성", description: "알파벳 크기가 크고 패턴이 길수록 점프 폭이 커져 실전 성능이 좋아집니다." },
+    ],
+    guide: [
+      {
+        title: "Bad Character 테이블",
+        items: [
+          {
+            label: "마지막 등장 위치",
+            description: "패턴의 각 문자가 마지막으로 등장한 위치를 기록.",
+            code: "bad = {}\nfor i, c in enumerate(P):\n    bad[c] = i",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+      {
+        title: "점프 폭 계산",
+        items: [
+          {
+            label: "max(BC, GS)",
+            description: "두 규칙 중 더 큰 점프를 적용해 패턴을 슬라이드합니다.",
+            code: "shift = max(bc_shift, gs_shift)\ni += shift",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
   "hash-collision": {
     story: {
       problem: `해시 함수는 완벽하지 않아 **충돌**이 반드시 발생합니다. 이를 어떻게 처리하느냐가 성능의 핵심입니다.`,
@@ -678,13 +781,101 @@ const expansions: Record<string, Expansion> = {
   // module-01: data-structures
   "ds-compare": {},
   "array-number-prime": {},
-  "cursor-linked-list": {},
+  "cursor-linked-list": {
+    story: {
+      problem: `포인터 기반 연결 리스트는 매 삽입마다 메모리를 새로 할당해야 합니다.\n\n임베디드나 정적 메모리 풀처럼 동적 할당이 제한된 환경에서는 이 비용을 감당할 수 없고, 단편화 위험도 큽니다.`,
+      definition: `**핵심 아이디어**: 포인터 대신 배열 인덱스(커서)를 next 필드에 저장한다.\n\n**불변식**\n- head: 데이터 진입점 인덱스, free: 빈 슬롯 진입점 인덱스.\n- next == -1은 종단을 의미.\n- 사용 슬롯과 빈 슬롯이 같은 배열을 공유한다.\n\n**시간복잡도**\n- 삽입/삭제 O(1) (head·free 두 진입점만 갱신).\n- 임의 접근 O(N).`,
+      analogy: `고정된 칸 수의 주차장에서 각 자리에 "다음 차량이 주차된 자리 번호"를 적어두는 방식과 같습니다.\n빈자리도 "다음 빈자리 번호"로 연결해 두면 새 차가 와도 빈자리를 빠르게 찾고, 떠난 자리도 다시 빈자리 목록에 끼울 수 있습니다.`,
+      playgroundDescription: `삽입 시 free에서 한 칸을 떼고, 삭제 시 사용 슬롯을 다시 free 앞에 매다는 흐름을 단계별로 관찰하세요.`,
+    },
+    features: [
+      { title: "정적 메모리 친화", description: "동적 할당이 금지된 환경에서도 연결 리스트의 유연성을 그대로 가져옵니다." },
+      { title: "free 체인 재사용", description: "삭제된 슬롯을 free 앞에 매달아 다음 삽입에 즉시 재활용합니다." },
+      { title: "용량 상한 명확", description: "배열 크기가 곧 노드 수 상한이며 free == -1이면 삽입 실패로 처리합니다." },
+    ],
+    guide: linkedListGuide,
+  },
   "queue-overview": {},
 
   // module-02: sorting (overview / counting / shell)
-  "sorting-overview": {},
-  "counting-sort": {},
-  "shell-sort": {},
+  "sorting-overview": {
+    story: {
+      problem: `데이터가 무작위로 섞여 있으면 검색·중복 제거·범위 질의 같은 후속 작업이 모두 비효율적으로 바뀝니다.\n\n정렬은 그 자체가 목적이 아니더라도, 데이터 준비 단계에서 절대적인 비중을 차지하는 알고리즘 그룹입니다.`,
+      definition: `**핵심 분류 축**\n- **안정성**: 같은 값의 입력 순서가 출력에서도 보존되는지.\n- **내부/외부**: 데이터를 모두 메모리에 적재할 수 있는지.\n- **비교/비비교**: 원소를 직접 비교하는지(비교 기반은 정보 이론적으로 O(N log N) 하한).\n\n**의사결정**\n- 작은 N: 삽입 정렬이 간단하고 빠르다.\n- 거의 정렬됨: 삽입·셸 정렬이 유리.\n- 값 범위 K가 작은 정수: 도수 정렬이 O(N+K).\n- 안정성 필요: 병합·삽입·도수 정렬.\n- 메모리 제약: 힙 정렬(in-place).`,
+      analogy: `학생들이 키 순서대로 줄을 서는 방법은 여러 가지가 있고, "같은 키끼리 누가 앞인지" 정해 두는 규칙 유무에 따라 결과의 의미가 달라집니다.\n정렬 알고리즘은 모두 "줄 세우는 한 가지 규칙"을 정형화한 것입니다.`,
+      playgroundDescription: `같은 입력에 대해 정렬 알고리즘별 비교/교환 횟수와 안정성을 비교해 보세요.`,
+    },
+    features: [
+      { title: "분류 축 명확화", description: "안정성·내외부·비교/비비교 세 축으로 알고리즘을 그룹화해 선택 기준을 정리합니다." },
+      { title: "하한 인식", description: "비교 기반은 O(N log N)이 한계이며, 그 아래로 가려면 비비교 정렬(도수·기수)이 필요합니다." },
+      { title: "데이터 특성 우선", description: "단 하나의 \"가장 빠른 정렬\"은 없고, 입력 특성에 따라 최적 알고리즘이 달라집니다." },
+    ],
+    guide: sortingGuide,
+  },
+  "counting-sort": {
+    story: {
+      problem: `비교 기반 정렬은 O(N log N)보다 빨라질 수 없다는 한계가 있습니다.\n\n시험 점수(0~100), 투표 결과(후보 ID 10명)처럼 값의 범위가 좁고 미리 알려진 데이터에서는 비교 자체를 생략한 더 빠른 정렬이 가능합니다.`,
+      definition: `**핵심 아이디어**: 각 값이 몇 번 등장했는지 도수 배열에 기록하고, 누적 도수로 출력 위치를 직접 계산한다.\n\n**불변식**\n- 사전 조건: 정수형이고 값 범위 [0, K]를 알아야 한다.\n- 입력을 뒤에서부터 훑으며 count[v]를 감소시켜야 안정성이 유지된다.\n\n**시간복잡도**\n- 시간 O(N + K), 공간 O(N + K).\n- K가 N보다 매우 크면 메모리가 폭증하므로 사용 시나리오가 제한된다.`,
+      analogy: `시험 점수표에서 "90점이 3명, 95점이 5명"이라는 빈도표를 만든 뒤, 점수가 높은 순으로 좌석을 미리 배정해 두는 것과 같습니다.\n핵심은 "누가 누구보다 큰가"가 아니라 "같은 점수가 몇 명인가"입니다.`,
+      playgroundDescription: `도수 배열 → 누적 도수 변환 → 안정적 배치 3단계가 어떻게 진행되는지 단계별로 관찰하세요.`,
+    },
+    features: [
+      { title: "비교 없는 정렬", description: "원소를 직접 비교하지 않으므로 비교 기반의 O(N log N) 하한을 우회합니다." },
+      { title: "K 의존성", description: "K가 작거나 정수 범위가 좁을 때만 효율적이고, K가 크면 도수 배열이 텅 비어 비효율적입니다." },
+      { title: "안정성 보장", description: "입력을 역방향으로 훑으며 배치하면 같은 값의 원래 순서가 보존됩니다." },
+    ],
+    guide: [
+      {
+        title: "도수 정렬 3단계",
+        items: [
+          {
+            label: "1) 도수 배열",
+            description: "각 값의 등장 횟수를 count[v]에 기록.",
+            code: "count = [0] * (K + 1)\nfor x in arr:\n    count[x] += 1",
+            tags: ["Pattern"],
+          },
+          {
+            label: "2) 누적 도수",
+            description: "count[v]를 \"v 이하 원소 개수\"로 변환.",
+            code: "for v in range(1, K + 1):\n    count[v] += count[v - 1]",
+            tags: ["Pattern"],
+          },
+          {
+            label: "3) 안정 배치",
+            description: "입력을 역방향으로 훑으며 count[v]를 감소시켜 출력에 배치.",
+            code: "out = [0] * N\nfor x in reversed(arr):\n    count[x] -= 1\n    out[count[x]] = x",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
+  "shell-sort": {
+    story: {
+      problem: `삽입 정렬은 거의 정렬된 데이터에서 빠르지만, 큰 값이 맨 앞에 있는 무작위 입력에서는 그 값을 끝까지 한 칸씩 밀어내야 합니다.\n\n한 원소를 N번에 가깝게 이동시키는 비용이 누적되면 O(N²)에 묶이므로, 한 번에 멀리 이동시키는 방법이 필요합니다.`,
+      definition: `**핵심 아이디어**: 일정 간격(gap)으로 떨어진 원소끼리 부분 배열을 만들어 삽입 정렬한 뒤, gap을 점차 줄여 마지막에 gap=1로 마무리한다.\n\n**불변식**\n- 같은 gap 그룹은 항상 정렬된 상태.\n- gap이 감소할수록 배열은 점점 더 정렬되어 있음.\n\n**시간복잡도**\n- 평균 O(N^1.5), gap 수열 선택에 따라 O(N^4/3)까지 개선 가능.\n- Shell, Hibbard, Sedgewick 등 다양한 gap 수열이 제안됨.`,
+      analogy: `엉킨 머리를 빗을 때 처음엔 굵은 빗(gap=4)으로 큰 덩어리를 풀고, 점차 가는 빗으로 바꾸며 마지막에 참빗(gap=1)으로 마무리하는 것과 같습니다.`,
+      playgroundDescription: `gap이 어떻게 줄어드는지, 각 회차에서 멀리 떨어진 원소가 한 번에 자리를 잡는 모습을 관찰하세요.`,
+    },
+    features: [
+      { title: "장거리 교환", description: "한 번의 교환으로 멀리 떨어진 원소를 자리에 가깝게 보내 이동 횟수를 절감합니다." },
+      { title: "gap 수열 의존성", description: "어떤 gap 수열을 쓰느냐에 따라 평균 시간복잡도가 크게 달라집니다." },
+      { title: "마지막은 삽입 정렬", description: "gap=1 단계에서는 이미 거의 정렬된 상태이므로 추가 이동이 거의 없습니다." },
+    ],
+    guide: [
+      {
+        title: "셸 정렬 핵심 루프",
+        items: [
+          {
+            label: "gap 감소 루프",
+            description: "각 gap마다 부분 배열에 대해 삽입 정렬 수행.",
+            code: "gap = N // 2\nwhile gap > 0:\n    for i in range(gap, N):\n        key = arr[i]; j = i\n        while j >= gap and arr[j - gap] > key:\n            arr[j] = arr[j - gap]; j -= gap\n        arr[j] = key\n    gap //= 2",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
 
   // module-02 or 03: backtracking
   "queen-backtracking": {},
