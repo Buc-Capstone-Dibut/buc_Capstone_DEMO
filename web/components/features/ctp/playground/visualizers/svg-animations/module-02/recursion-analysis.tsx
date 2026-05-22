@@ -3,17 +3,19 @@ import { motion } from "framer-motion";
 
 type TreeNode = { id: number; label: string; depth: number; x: number; y: number; left?: number; right?: number; status: 'idle' | 'active' | 'done' };
 
-// Fibonacci call tree for fib(4) scaled for 800x500
+// Fibonacci call tree for fib(4) scaled for 800x500.
+// Coordinates spread out so sibling nodes don't visually clip.
+// (radius 25 + DUPLICATE bubble at -50/-30, requires >= ~140 horizontal gap.)
 const TREE_NODES: TreeNode[] = [
   { id: 0, label: 'fib(4)', depth: 0, x: 400, y: 130,  left: 1, right: 2, status: 'idle' },
-  { id: 1, label: 'fib(3)', depth: 1, x: 250, y: 220,  left: 3, right: 4, status: 'idle' },
-  { id: 2, label: 'fib(2)', depth: 1, x: 550, y: 220,  left: 5, right: 6, status: 'idle' },
+  { id: 1, label: 'fib(3)', depth: 1, x: 240, y: 220,  left: 3, right: 4, status: 'idle' },
+  { id: 2, label: 'fib(2)', depth: 1, x: 560, y: 220,  left: 5, right: 6, status: 'idle' },
   { id: 3, label: 'fib(2)', depth: 2, x: 140, y: 310,  left: 7, right: 8, status: 'idle' },
-  { id: 4, label: 'fib(1)', depth: 2, x: 360, y: 310, status: 'idle' },
-  { id: 5, label: 'fib(1)', depth: 2, x: 470, y: 310, status: 'idle' },
-  { id: 6, label: 'fib(0)', depth: 2, x: 630, y: 310, status: 'idle' },
-  { id: 7, label: 'fib(1)', depth: 3, x: 80,  y: 400, status: 'idle' },
-  { id: 8, label: 'fib(0)', depth: 3, x: 200, y: 400, status: 'idle' },
+  { id: 4, label: 'fib(1)', depth: 2, x: 340, y: 310, status: 'idle' },
+  { id: 5, label: 'fib(1)', depth: 2, x: 480, y: 310, status: 'idle' },
+  { id: 6, label: 'fib(0)', depth: 2, x: 640, y: 310, status: 'idle' },
+  { id: 7, label: 'fib(1)', depth: 3, x: 60,  y: 400, status: 'idle' },
+  { id: 8, label: 'fib(0)', depth: 3, x: 220, y: 400, status: 'idle' },
 ];
 
 // Step sequence (node id to light up)

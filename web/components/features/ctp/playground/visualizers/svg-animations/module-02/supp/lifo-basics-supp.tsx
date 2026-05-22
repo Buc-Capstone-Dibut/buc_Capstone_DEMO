@@ -181,14 +181,18 @@ function BoundaryHandling() {
         <rect x="20" y="60" width="120" height="40" rx="6" fill="hsl(var(--muted))" />
         <rect x="20" y="10" width="120" height="40" rx="6" fill="hsl(var(--muted))" />
 
-        {/* Pushing to full stack */}
-        <motion.g animate={{ y: [-40, -10, -40] }} transition={{ duration: 2, repeat: Infinity }}>
+        {/* Pushing to full stack — the new box is rejected: it shakes
+            laterally and fades out instead of being inserted into the stack. */}
+        <motion.g
+           animate={{ x: [0, -8, 8, -6, 6, 0], opacity: [1, 1, 1, 0.6, 0.2, 0] }}
+           transition={{ duration: 2, repeat: Infinity, repeatDelay: 0.4, times: [0, 0.15, 0.3, 0.5, 0.7, 1] }}
+        >
            <rect x="20" y="-40" width="120" height="40" rx="6" fill="url(#destructive-grad)" filter="url(#glow)" />
-           <text x="80" y="-15" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#fff">NEW (실패)</text>
+           <text x="80" y="-15" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#fff">NEW (거부됨)</text>
         </motion.g>
 
         <rect x="-10" y="200" width="180" height="50" rx="8" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
-        <text x="80" y="222" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">꽉 찬 상태에서 Push 시발생</text>
+        <text x="80" y="222" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">꽉 찬 상태에서 Push 시 발생</text>
       </g>
 
       {/* Underflow Scenario */}
@@ -206,7 +210,7 @@ function BoundaryHandling() {
         </motion.g>
 
         <rect x="-10" y="200" width="180" height="50" rx="8" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
-        <text x="80" y="222" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">빈 상태에서 Pop 시발생</text>
+        <text x="80" y="222" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">빈 상태에서 Pop 시 발생</text>
       </g>
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />

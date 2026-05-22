@@ -48,8 +48,12 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
   const { step, callStack } = data;
 
   const getCodeHighlightY = () => {
-    if (step >= 1 && step <= 4) return 175;
-    if (step >= 5 && step <= 7) return 245;
+    // Each <text> below uses a baseline y. With a 30-px tall highlight bar,
+    // top-y = baselineY - 22 keeps the glyphs visually centered in the bar.
+    // Winding line   "return n * factorial(n - 1)"  has baseline y=185 → top 163
+    // Unwinding hint "# 풀기 (UNWINDING) ..."       has baseline y=255 → top 233
+    if (step >= 1 && step <= 4) return 163;
+    if (step >= 5 && step <= 7) return 233;
     return -100; // hidden
   };
 

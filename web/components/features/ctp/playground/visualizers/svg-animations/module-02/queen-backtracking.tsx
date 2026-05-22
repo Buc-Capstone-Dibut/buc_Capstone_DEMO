@@ -152,8 +152,9 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
                 rx="6"
               />
 
-              {/* Coordinates */}
-              <text x={cx + CELL_SIZE - 6} y={cy + CELL_SIZE - 6} fill="rgba(255,255,255,0.15)" fontSize="8" textAnchor="end">{ri},{ci}</text>
+              {/* Coordinates — moved to top-left so the 32px Queen glyph
+                  centered in the cell never overlaps the label */}
+              <text x={cx + 4} y={cy + 10} fill="rgba(255,255,255,0.15)" fontSize="8" textAnchor="start">{ri},{ci}</text>
 
               {/* Blocked Marker */}
               {isBlocked && (

@@ -198,9 +198,9 @@ export function QueueOverviewVisualizer({ data }: { data: { queue: number[], act
         )}
       </AnimatePresence>
 
-      {/* Empty Slots Guidelines */}
+      {/* Empty Slots Guidelines (Front=0 on Left → Rear on Right, matches data order) */}
       {Array.from({ length: maxSize }).map((_, i) => {
-        const xPos = startX + (maxSize - 1 - i) * (slotWidth + gap);
+        const xPos = startX + i * (slotWidth + gap);
         return (
           <g key={`empty-${i}`}>
             <rect x={xPos - slotWidth/2} y={centerY - slotHeight/2} width={slotWidth} height={slotHeight} fill="none" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" rx="6" />
@@ -212,13 +212,8 @@ export function QueueOverviewVisualizer({ data }: { data: { queue: number[], act
       {/* Queue Items */}
       <AnimatePresence>
         {queue.map((val, i) => {
-          // Items enter from the right (Rear) and exit from the left (Front)
-          // Index 0 in the 'queue' array is the Front.
-          // In the UI, let's render Front on the Left, Rear on the Right.
-          // Since empty slots are calculated (maxSize - 1 - i), index 0 (Front) should be at the leftmost available position.
-          // Actually, our Empty Slots Guidelines drew index 0 on the Right!
-          // Let's reverse the visual concept: Front=0 on Left, Rear on Right.
-          // So xPos = startX + i * (slotWidth + gap)
+          // Front=0 on Left, Rear at queue.length-1 on the Right.
+          // Items animate in from the right (Rear) and exit toward the left (Front).
           const xPos = startX + i * (slotWidth + gap);
 
           const isFront = i === 0;

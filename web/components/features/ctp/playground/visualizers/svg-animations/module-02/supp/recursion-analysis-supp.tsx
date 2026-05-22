@@ -203,7 +203,7 @@ function BottomUpExecution() {
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="410" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        밑바닥(Base)에서 구한 확실한 값을 토대로, <tspan fill="#10b981" fontWeight="800">대기 중이던 식들을 거슬러 올라가며 도축</tspan>합니다.
+        밑바닥(Base)에서 구한 확실한 값을 토대로, <tspan fill="#10b981" fontWeight="800">대기 중이던 식들을 거슬러 올라가며 도출</tspan>합니다.
       </text>
     </svg>
   );

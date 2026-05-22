@@ -180,9 +180,9 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         )}
       </AnimatePresence>
 
-      {/* Center size display */}
-      <text x={cx} y={cy - 5} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">크기 (SIZE)</text>
-      <text x={cx} y={cy + 25} textAnchor="middle" fontSize="32" fontWeight="bold" fill="#a855f7" filter="url(#neon-glow-purple)">{size}/{capacity}</text>
+      {/* Center size display (lowered + smaller so F/R labels above don't overlap) */}
+      <text x={cx} y={cy + 20} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">크기 (SIZE)</text>
+      <text x={cx} y={cy + 50} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#a855f7" filter="url(#neon-glow-purple)">{size}/{capacity}</text>
 
       {/* Inner Circle Track */}
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted))" opacity="0.5" strokeWidth="60" />
@@ -240,10 +240,11 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 {val !== null ? val : "·"}
               </motion.text>
 
-              {/* Index Outline Label */}
+              {/* Index Outline Label — pushed further out (r+75) to leave
+                  room for F/R pointer labels that sit at r+30 (cell-outside) */}
               <text
-                x={cx + (r + 55) * Math.cos(angle)}
-                y={cy + (r + 55) * Math.sin(angle) + 4}
+                x={cx + (r + 75) * Math.cos(angle)}
+                y={cy + (r + 75) * Math.sin(angle) + 4}
                 fill="hsl(var(--muted-foreground))"
                 fontSize="12"
                 textAnchor="middle"
@@ -251,19 +252,20 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 [{i}]
               </text>
 
-              {/* Pointers Top Label */}
+              {/* Pointers — placed OUTSIDE the cell ring (r+30) so they never
+                  overlap with the centered SIZE text or the cell glyph itself */}
               <AnimatePresence>
-                {isFront && (
+                {isFront && !isRear && (
                   <motion.g
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
                       fill="#ef4444"
-                      fontSize="12"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                       filter="url(#neon-glow-destructive)"
@@ -279,10 +281,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
                       fill="#10b981"
-                      fontSize="12"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                       filter="url(#neon-glow-emerald)"
@@ -298,10 +300,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
                       fill="#f59e0b"
-                      fontSize="12"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                     >

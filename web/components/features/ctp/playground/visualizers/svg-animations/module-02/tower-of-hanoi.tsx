@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 
 // Tower of Hanoi visualizer
@@ -62,10 +62,72 @@ export function useTowerOfHanoiSim() {
   };
 }
 
+// Lift height used by the 3-stage move keyframe (up → across → down).
+// Higher (smaller y) than the tallest disk position so disks always clear the pole tops.
+const LIFT_Y = 150;
+
+type DiskRenderProps = {
+  id: number;
+  size: number;
+  x: number;
+  y: number;
+  w: number;
+  color: string;
+};
+
+// Single disk renderer that animates new x/y via a 3-stage keyframe
+// (lift → traverse → lower) instead of a straight-line interpolation.
+function HanoiDisk({ id, size, x, y, w, color }: DiskRenderProps) {
+  const prevRef = useRef<{ x: number; y: number } | null>(null);
+  const prev = prevRef.current;
+  prevRef.current = { x, y };
+
+  // First mount: no animation, just place the disk.
+  const animateProp =
+    prev === null
+      ? { x, y }
+      : {
+          // up → across → down: hold x at previous while lifting, then translate
+          // x at the lifted height, then lower at the destination x.
+          x: [prev.x, prev.x, x, x],
+          y: [prev.y, LIFT_Y, LIFT_Y, y],
+        };
+
+  return (
+    <motion.g
+      key={`disk-${id}`}
+      animate={animateProp}
+      transition={{ duration: 0.7, times: [0, 0.35, 0.65, 1], ease: "easeInOut" }}
+    >
+      <rect
+        width={w}
+        height="25"
+        fill={`${color}33`}
+        stroke={color}
+        strokeWidth="2"
+        rx="6"
+        style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
+      />
+      <text
+        x={w / 2}
+        y="17"
+        fill={color}
+        fontSize="12"
+        fontWeight="bold"
+        textAnchor="middle"
+      >
+        Disk {size}
+      </text>
+    </motion.g>
+  );
+}
+
 export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, moveIndex: number, isComplete: boolean, maxMoves: number } }) {
   const { towers, moveIndex, isComplete, maxMoves } = data;
   const PEG_NAMES = ['기둥 A (시작)', '기둥 B (보조)', '기둥 C (목표)'];
-  const DISK_COLORS = ['#ef4444', '#f97316', '#10b981', '#06b6d4', '#a855f7']; // Mapping to red, orange, emerald, cyan, purple
+  // Size-keyed palette: biggest disk (size 3) is red, smallest (size 1) is emerald.
+  // Index = (3 - size): size 3 → 0 (red), size 2 → 1 (orange), size 1 → 2 (emerald).
+  const DISK_COLORS = ['#ef4444', '#f97316', '#10b981', '#06b6d4', '#a855f7'];
 
   const getPegX = (pegIndex: number) => 150 + pegIndex * 250;
   const getDiskY = (diskIndex: number) => 380 - (diskIndex * 30);
@@ -144,39 +206,22 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
         );
       })}
 
-      {/* Disks */}
+      {/* Disks (size-keyed color: largest = red, smallest = emerald) */}
       {allDisks.map(disk => {
         const w = getDiskWidth(disk.size);
         const x = getPegX(disk.pegIdx) - w / 2;
         const y = getDiskY(disk.idx);
-        const color = DISK_COLORS[disk.size - 1]; // using size strictly for color mapping (1->red, 2->orange, 3->emerald)
-
+        const color = DISK_COLORS[3 - disk.size];
         return (
-          <motion.g
+          <HanoiDisk
             key={`disk-${disk.id}`}
-            animate={{ x, y }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          >
-            <rect
-              width={w}
-              height="25"
-              fill={`${color}33`}
-              stroke={color}
-              strokeWidth="2"
-              rx="6"
-              style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
-            />
-            <text
-              x={w/2}
-              y="17"
-              fill={color}
-              fontSize="12"
-              fontWeight="bold"
-              textAnchor="middle"
-            >
-              Disk {disk.size}
-            </text>
-          </motion.g>
+            id={disk.id}
+            size={disk.size}
+            x={x}
+            y={y}
+            w={w}
+            color={color}
+          />
         );
       })}
 

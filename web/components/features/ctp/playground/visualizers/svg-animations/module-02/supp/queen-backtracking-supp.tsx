@@ -136,25 +136,39 @@ function PromisingAndPruning() {
          <motion.path d="M 25 50 L 25 200" stroke="#f43f5e" strokeWidth="4" strokeDasharray="4 4" animate={{ opacity: [0, 0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
          <motion.path d="M 50 50 L 200 200" stroke="#f43f5e" strokeWidth="4" strokeDasharray="4 4" animate={{ opacity: [0, 0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
 
-         {/* Q2 attempts */}
+      </g>
+
+      {/* Q2 attempts — moved outside the board (which spans x=0..200)
+          to a dedicated panel on the right so the attempts list, X marks,
+          and the final Q glyph don't pile up inside a single board cell */}
+      <g transform="translate(420, 130)">
+         <text x="0" y="-10" fontSize="14" fontWeight="800" fill="hsl(var(--foreground))">행 2 (Row 2) 후보 탐색</text>
+
          {/* Attempt (2,1) - Fail */}
-         <g transform="translate(25, 75)">
-            <circle cx="0" cy="0" r="15" fill="#f43f5e" opacity="0.6" />
-            <path d="M -10 -10 L 10 10 M 10 -10 L -10 10" stroke="#fff" strokeWidth="3" />
-            <text x="25" y="5" fontSize="12" fontWeight="bold" fill="#f43f5e">유망하지 않음 (Pruning!)</text>
-         </g>
+         <motion.g transform="translate(0, 20)"
+            animate={{ opacity: [0, 1, 1, 1, 1] }}
+            transition={{ duration: 4, repeat: Infinity, times: [0, 0.15, 0.5, 0.85, 1] }}>
+            <circle cx="15" cy="15" r="15" fill="#f43f5e" opacity="0.6" />
+            <path d="M 5 5 L 25 25 M 25 5 L 5 25" stroke="#fff" strokeWidth="3" />
+            <text x="40" y="20" fontSize="13" fontWeight="bold" fill="#f43f5e">(2,1) Pruning!</text>
+         </motion.g>
 
          {/* Attempt (2,2) - Fail */}
-         <g transform="translate(75, 75)">
-            <circle cx="0" cy="0" r="15" fill="#f43f5e" opacity="0.6" />
-            <path d="M -10 -10 L 10 10 M 10 -10 L -10 10" stroke="#fff" strokeWidth="3" />
-         </g>
+         <motion.g transform="translate(0, 65)"
+            animate={{ opacity: [0, 0, 1, 1, 1] }}
+            transition={{ duration: 4, repeat: Infinity, times: [0, 0.3, 0.45, 0.85, 1] }}>
+            <circle cx="15" cy="15" r="15" fill="#f43f5e" opacity="0.6" />
+            <path d="M 5 5 L 25 25 M 25 5 L 5 25" stroke="#fff" strokeWidth="3" />
+            <text x="40" y="20" fontSize="13" fontWeight="bold" fill="#f43f5e">(2,2) Pruning!</text>
+         </motion.g>
 
          {/* Attempt (2,3) - Success */}
-         <motion.g transform="translate(125, 75)" animate={{ scale: [0.8, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-            <circle cx="0" cy="0" r="18" fill="#10b981" filter="url(#glow)" />
-            <text x="0" y="5" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#fff">Q</text>
-            <text x="30" y="5" fontSize="12" fontWeight="bold" fill="#10b981">유망함! (다음 행 진행)</text>
+         <motion.g transform="translate(0, 110)"
+            animate={{ opacity: [0, 0, 0, 1, 1], scale: [0.8, 0.8, 0.8, 1.2, 1] }}
+            transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 0.7, 0.8, 1] }}>
+            <circle cx="15" cy="15" r="17" fill="#10b981" filter="url(#glow)" />
+            <text x="15" y="20" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#fff">Q</text>
+            <text x="40" y="20" fontSize="13" fontWeight="bold" fill="#10b981">(2,3) 유망함!</text>
          </motion.g>
       </g>
 
