@@ -237,12 +237,12 @@ export function FlowTracingVisualizer({ data }: { data: { step: number } }) {
               <div className="relative group">
                 <motion.div
                   animate={{
-                    borderColor: [2, 4, 6, 8].includes(step) ? "hsl(var(--destructive))" : "hsl(var(--border))",
-                    boxShadow: [2, 4, 6, 8].includes(step) ? "0 0 20px hsla(var(--destructive), 0.2)" : "none"
+                    borderColor: [2, 4, 6, 8].includes(step) ? "hsl(var(--amber-500, 38 92% 50%))" : "hsl(var(--border))",
+                    boxShadow: [2, 4, 6, 8].includes(step) ? "0 0 20px hsla(38, 92%, 50%, 0.25)" : "none"
                   }}
                   className="bg-background/80 backdrop-blur-sm border-2 rounded-xl p-5 relative shadow-sm transition-colors duration-300"
                 >
-                  <div className="absolute -top-3 left-4 bg-background px-2 text-[10px] font-black tracking-widest uppercase text-destructive border border-border rounded-full">var i</div>
+                  <div className="absolute -top-3 left-4 bg-background px-2 text-[10px] font-black tracking-widest uppercase text-amber-500 border border-border rounded-full">var i</div>
                   <div className="text-5xl font-black text-center text-foreground flex items-center justify-center min-h-[50px] font-mono">
                     <AnimatePresence mode="popLayout">
                       <motion.span

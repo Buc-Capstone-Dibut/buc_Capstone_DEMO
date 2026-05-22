@@ -156,10 +156,10 @@ export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
                   textColor = "hsl(var(--primary))";
                   shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
                 } else if (isTargetStep2) {
-                  bgColor = "hsl(var(--purple-500)/0.2)";
-                  borderColor = "hsl(var(--purple-500))";
-                  textColor = "hsl(var(--purple-500))";
-                  shadowColor = "0 0 20px hsla(var(--purple-500), 0.4)";
+                  bgColor = "hsl(var(--primary)/0.2)";
+                  borderColor = "hsl(var(--primary))";
+                  textColor = "hsl(var(--primary))";
+                  shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
                 } else if (isSliced) {
                   bgColor = "hsl(var(--emerald-500)/0.2)";
                   borderColor = "hsl(var(--emerald-500))";
@@ -177,7 +177,7 @@ export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
                           initial={{ opacity: 0, y: -20, scale: 0.8 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -20, scale: 0.8 }}
-                          className={`absolute -top-12 flex flex-col items-center z-40 ${isTargetStep1 ? "text-primary" : "text-purple-500"}`}
+                          className={`absolute -top-12 flex flex-col items-center z-40 text-primary`}
                         >
                           <span className="font-bold text-[10px] tracking-widest bg-card border px-2 py-0.5 rounded shadow-[0_0_10px_currentColor] whitespace-nowrap">
                             INDEX {i}

@@ -200,6 +200,13 @@ export function BasicBinarySearchVisualizer({ data }: { data: { step: number } }
                     y={boxY + boxSize + 18}
                     index={i}
                   />
+                  {/* Eliminated cells: explicit X strike so the discarded range is unambiguous. */}
+                  {isEliminated && (
+                    <g stroke="hsl(var(--destructive))" strokeWidth={3} strokeLinecap="round" opacity={0.85}>
+                      <line x1={x + 10} y1={boxY + 10} x2={x + boxSize - 10} y2={boxY + boxSize - 10} />
+                      <line x1={x + boxSize - 10} y1={boxY + 10} x2={x + 10} y2={boxY + boxSize - 10} />
+                    </g>
+                  )}
                 </g>
               );
             })}
