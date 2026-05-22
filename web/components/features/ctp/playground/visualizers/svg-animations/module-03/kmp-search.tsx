@@ -149,15 +149,12 @@ export function useKmpSearchSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function KmpSearchVisualizer({ data }: { data: number[] }) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  // Convert numbers to text, create a predictable scenario for KMP
-  const mappedText = data.map(n => chars[(n % 3) + 1]).join("") + "BABC"; // Only A,B,C mostly
-  // For educational purposes, a fixed pattern is better, but we will derive it
-  const patternExtracted = "ABABC";
-  const searchPattern = mappedText.includes(patternExtracted) ? patternExtracted : mappedText.substring(2, 7) || "ABABC";
+// 입력값은 ConceptSpec.simulation.initialState와 정확히 일치시킵니다.
+const KMP_TEXT = "ABABDABACDABABCABAB";
+const KMP_PATTERN = "ABABCABAB";
 
-  const { state, controls, progress, isFinished } = useKmpSearchSim(mappedText, searchPattern);
+export function KmpSearchVisualizer(_props: { data?: unknown }) {
+  const { state, controls, progress, isFinished } = useKmpSearchSim(KMP_TEXT, KMP_PATTERN);
   const { text, pattern, lps, phase, phaseText, len, lpsIndex, i, j, matchFound, comparing } = state;
 
   const svgWidth = 840;

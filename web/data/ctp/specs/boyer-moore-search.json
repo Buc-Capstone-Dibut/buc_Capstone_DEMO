@@ -16,7 +16,13 @@
     "stepCount": 0,
     "operations": ["next", "prev", "reset"],
     "initialState": { "text": "HERE IS A SIMPLE EXAMPLE", "pattern": "EXAMPLE" },
-    "storyboard": []
+    "storyboard": [
+      { "step": 0, "phase": "Bad Character 테이블 구축", "description": "패턴 'EXAMPLE'의 각 문자 마지막 등장 위치를 테이블에 미리 기록합니다." },
+      { "step": 1, "phase": "i=0 패턴 끝 비교", "description": "패턴의 마지막 글자 'E'를 텍스트 T[6]='S'와 비교합니다. 'S'는 패턴에 없으므로 패턴 길이만큼 점프합니다." },
+      { "step": 2, "phase": "Bad Character 점프", "description": "텍스트의 'I' 같은 문자가 패턴에 없으면 패턴 길이만큼 통째로 건너뛰어 비교를 크게 줄입니다." },
+      { "step": 3, "phase": "i=17 부근 정밀 비교", "description": "패턴이 텍스트 'EXAMPLE' 영역에 도달하면 마지막 글자부터 거꾸로 한 글자씩 정밀하게 일치를 확인합니다." },
+      { "step": 4, "phase": "패턴 매칭 발견", "description": "T[17..23]에서 'EXAMPLE'이 전체 일치해 매칭 위치를 찾고 검색을 종료합니다." }
+    ]
   },
   "visualizer": {
     "type": "string-pointer",

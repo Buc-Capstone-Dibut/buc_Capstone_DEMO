@@ -16,7 +16,13 @@
     "stepCount": 0,
     "operations": ["next", "prev", "reset"],
     "initialState": { "text": "ABABDABACDABABCABAB", "pattern": "ABABCABAB" },
-    "storyboard": []
+    "storyboard": [
+      { "step": 0, "phase": "LPS 계산", "description": "패턴 'ABABCABAB'에 대해 LPS=[0,0,1,2,0,1,2,3,4]를 미리 산출합니다." },
+      { "step": 1, "phase": "i=0에서 일치 진행", "description": "텍스트와 패턴이 'ABAB'까지 일치하다가 i=4, j=4에서 'D' vs 'C' 불일치가 발생합니다." },
+      { "step": 2, "phase": "LPS로 j 점프", "description": "LPS[3]=2를 참조해 j를 2로 옮기되 i는 4 그대로 유지하는 KMP의 핵심 동작을 확인합니다." },
+      { "step": 3, "phase": "텍스트 포인터 단조 진행", "description": "i는 절대 뒤로 돌아가지 않고 텍스트를 계속 전진하며 부분 일치를 누적합니다." },
+      { "step": 4, "phase": "i=10 부근에서 매칭", "description": "텍스트 중반부에서 패턴 'ABABCABAB' 전체가 일치하는 위치를 찾아 검색이 종료됩니다." }
+    ]
   },
   "visualizer": {
     "type": "string-pointer",

@@ -15,8 +15,14 @@
     "domain": "string",
     "stepCount": 0,
     "operations": ["next", "prev", "reset"],
-    "initialState": { "text": "ABABCABABA", "pattern": "ABABA" },
-    "storyboard": []
+    "initialState": { "text": "ABABCABABCABCABABA", "pattern": "ABABCAB" },
+    "storyboard": [
+      { "step": 0, "phase": "초기 상태", "description": "텍스트와 패턴을 위아래 정렬하고 i=0, j=0에서 시작합니다." },
+      { "step": 1, "phase": "i=0에서 비교", "description": "T[0..6]과 P[0..6]을 한 글자씩 대조하다 j=5에서 'A' vs 'B' 불일치가 발생합니다." },
+      { "step": 2, "phase": "i=1로 이동", "description": "i를 한 칸 옮기고 j=0부터 다시 비교를 시작합니다. T[1]='B'와 P[0]='A'가 즉시 어긋납니다." },
+      { "step": 3, "phase": "i=2에서 부분 일치", "description": "T[2]부터 'ABCAB...'까지 진행되다 j=6에서 또 한 번 어긋나며 i가 또 전진합니다." },
+      { "step": 4, "phase": "i=5에서 패턴 발견", "description": "T[5..11]에서 'ABABCAB'가 그대로 일치해 첫 매칭 위치를 확정합니다." }
+    ]
   },
   "visualizer": {
     "type": "string-pointer",

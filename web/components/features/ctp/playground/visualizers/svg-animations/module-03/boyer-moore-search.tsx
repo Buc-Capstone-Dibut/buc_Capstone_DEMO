@@ -137,12 +137,12 @@ export function useBoyerMooreSearchSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
-  // Use meaningful strings for Boyer-Moore demonstration
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const mappedText = data.map(n => chars[(n % 3) + 1]).join("") + "TEST STRING FIND HERE";
-  const searchPattern = "STRING";
-  const { state, controls, progress, isFinished } = useBoyerMooreSearchSim(mappedText, searchPattern);
+// 입력값은 ConceptSpec.simulation.initialState와 정확히 일치시킵니다.
+const BOYER_MOORE_TEXT = "HERE IS A SIMPLE EXAMPLE";
+const BOYER_MOORE_PATTERN = "EXAMPLE";
+
+export function BoyerMooreSearchVisualizer(_props: { data?: unknown }) {
+  const { state, controls, progress, isFinished } = useBoyerMooreSearchSim(BOYER_MOORE_TEXT, BOYER_MOORE_PATTERN);
   const { text, pattern, badCharTable, phase, phaseText, i, j, matchFound, comparing, skipDistance, badCharIndex } = state;
 
   const svgWidth = 840;

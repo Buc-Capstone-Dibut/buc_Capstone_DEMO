@@ -102,14 +102,12 @@ export function useBruteForceSearchSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
-  // We use data array indirectly, let's map it to string for visualizer compatibility
-  // In a real scenario, string visualizers might take string props, but for CTP we just map numbers to chars for consistency
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const mappedText = data.map(n => chars[n % chars.length]).join("") || "ABCABCDABCE";
-  const searchPattern = mappedText.substring(3, 6) || "ABC";
+// 입력값은 ConceptSpec.simulation.initialState와 정확히 일치시킵니다.
+const BRUTE_FORCE_TEXT = "ABABCABABCABCABABA";
+const BRUTE_FORCE_PATTERN = "ABABCAB";
 
-  const { state, controls, progress, isFinished } = useBruteForceSearchSim(mappedText, searchPattern);
+export function BruteForceSearchVisualizer(_props: { data?: unknown }) {
+  const { state, controls, progress, isFinished } = useBruteForceSearchSim(BRUTE_FORCE_TEXT, BRUTE_FORCE_PATTERN);
   const { text, pattern, i, j, comparing, matchFound, phase } = state;
 
   const svgWidth = 800;
