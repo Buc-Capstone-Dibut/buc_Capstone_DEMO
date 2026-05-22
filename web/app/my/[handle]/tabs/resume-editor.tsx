@@ -16,7 +16,6 @@ import {
   Plus,
   Sparkles,
   Trash2,
-  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +65,8 @@ interface ResumeEditorProps {
   onAiCurate?: () => void;
   /** AI 큐레이션 진행 중 여부 (버튼 disabled/스피너 표시용). */
   aiCurating?: boolean;
+  /** 이번 세션에서 이미 AI 큐레이션을 한 번 실행했는지. true면 버튼이 숨겨지고 완료 안내로 대체됨. */
+  aiCurated?: boolean;
 }
 
 export function ResumeEditor({
@@ -78,9 +79,9 @@ export function ResumeEditor({
   applicationTarget,
   onAiCurate,
   aiCurating = false,
+  aiCurated = false,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
-  const [isParsingFile, setIsParsingFile] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
   const [isResumeImportDialogOpen, setIsResumeImportDialogOpen] = useState(false);
@@ -88,7 +89,6 @@ export function ResumeEditor({
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
   // 편집 패널은 항상 켜져있다 (사용자가 "클릭해서 열기" 같은 한 번 더의 조작 없이 즉시
   // 편집 가능). 과거에 있던 previewToggleMode 의 패널-숨김 기능은 제거됐다.
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editPanelRef = useRef<HTMLDivElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
@@ -597,41 +597,6 @@ export function ResumeEditor({
     });
   };
 
-  const parseResumeFile = async (file: File) => {
-    setIsParsingFile(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/interview/parse-resume", {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json().catch(() => null);
-
-      if (!response.ok || !result?.success || !result?.data) {
-        throw new Error(result?.error || "이력서 파일 파싱에 실패했습니다.");
-      }
-
-      onChange(normalizeResumePayload(result.data));
-      toast({
-        title: "이력서 파싱 완료",
-        description: "파싱된 내용이 편집 폼에 반영되었습니다. 저장 버튼을 눌러 확정하세요.",
-      });
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "이력서 파싱 중 오류가 발생했습니다.";
-      toast({
-        title: "파싱 실패",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsParsingFile(false);
-    }
-  };
 
   return (
     <>
@@ -643,92 +608,110 @@ export function ResumeEditor({
         )}
       >
         <div ref={editPanelRef} className="space-y-5">
-      {/* File parsing banner */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
-        <div className="min-w-0 [word-break:keep-all]">
-          <p className="text-sm font-medium leading-snug">
-            {applicationTarget
-              ? "보관함에서 가져온 뒤, AI로 회사·직무에 맞게 다듬어 보세요"
-              : "기존의 이력서를 가져와 내용을 채울 수 있어요"}
+      {/* Top guide banner */}
+      {applicationTarget && aiCurated ? (
+        // ① AI 큐레이션 완료 후 — 완료 안내만 노출 (AI 버튼 사라짐)
+        <div className="rounded-xl border border-emerald-300/60 bg-emerald-50 px-5 py-4 flex flex-col gap-2">
+          <p className="text-sm font-semibold leading-snug text-emerald-800">
+            ✅ AI가 {applicationTarget.company || "지원 회사"} ·{" "}
+            {applicationTarget.role || "직무"}에 맞춰 이력서를 다듬었습니다
           </p>
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            {applicationTarget
-              ? `① 사용자가 직접 가져올 자료를 고르고 → ② ${
-                  applicationTarget.company || "지원 회사"
-                } · ${applicationTarget.role || "직무"}에 맞게 AI가 정리합니다.`
-              : "이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다."}
+          <p className="text-[11px] leading-snug text-emerald-700/80">
+            필요한 부분은 아래에서 직접 편집해 마무리하세요. 다시 가져오고 싶다면
+            우측의 버튼으로 자료를 더 불러올 수 있습니다.
           </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              void parseResumeFile(file);
-              event.target.value = "";
-            }}
-          />
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={() => setIsResumeImportDialogOpen(true)}
-            className="shrink-0 gap-1.5 text-xs"
-          >
-            <Inbox className="w-3.5 h-3.5" />
-            기존 자료 가져오기
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0 gap-1.5 text-xs"
-            disabled={isParsingFile}
-          >
-            {isParsingFile ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                파싱 중...
-              </>
-            ) : (
-              <>
-                <Upload className="w-3.5 h-3.5" />
-                파일 불러와 파싱
-              </>
-            )}
-          </Button>
-          {applicationTarget && onAiCurate && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="sm"
-              onClick={onAiCurate}
-              disabled={aiCurating}
+              onClick={() => setIsResumeImportDialogOpen(true)}
               className="shrink-0 gap-1.5 text-xs"
-              title={`${applicationTarget.company || "지원 회사"} · ${
-                applicationTarget.role || "직무"
-              }에 맞춰 현재 내용을 다듬습니다`}
             >
-              {aiCurating ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  다듬는 중…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  AI로 회사·직무에 맞게 다듬기
-                </>
-              )}
+              <Inbox className="w-3.5 h-3.5" />
+              자료 더 가져오기
             </Button>
+          </div>
+        </div>
+      ) : (
+        // ② 셋업 직후 / 일반 — 가져오기 + (target 있으면) AI 다듬기 노출
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
+          <div className="min-w-0 [word-break:keep-all]">
+            <p className="text-sm font-semibold leading-snug">
+              {applicationTarget
+                ? "① 자료를 가져온 뒤 → ② AI가 회사·직무에 맞게 다듬어드려요"
+                : "기존의 이력서를 가져와 내용을 채울 수 있어요"}
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              {applicationTarget
+                ? `보관함에 모아둔 프로젝트·경력·자기소개서를 직접 골라 폼에 채우고, ${
+                    applicationTarget.company || "지원 회사"
+                  } · ${
+                    applicationTarget.role || "직무"
+                  }에 맞게 한 번에 정리해드립니다.`
+                : "이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={applicationTarget && onAiCurate ? "outline" : "default"}
+              size="sm"
+              onClick={() => setIsResumeImportDialogOpen(true)}
+              className="shrink-0 gap-1.5 text-xs"
+            >
+              <Inbox className="w-3.5 h-3.5" />
+              기존 자료 가져오기
+            </Button>
+            {applicationTarget && onAiCurate && (
+              <div className="relative">
+                {!aiCurating && (
+                  <span className="pointer-events-none absolute -top-2 -right-2 z-10 inline-flex h-5 items-center gap-0.5 rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-white shadow-md ring-2 ring-amber-100">
+                    추천
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={onAiCurate}
+                  disabled={aiCurating}
+                  className={cn(
+                    "shrink-0 gap-1.5 text-xs",
+                    !aiCurating &&
+                      "shadow-md shadow-primary/30 ring-2 ring-primary/20 hover:ring-primary/30",
+                  )}
+                  title={`${applicationTarget.company || "지원 회사"} · ${
+                    applicationTarget.role || "직무"
+                  }에 맞춰 현재 폼 내용을 다듬습니다`}
+                >
+                  {aiCurating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      다듬는 중…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI로 다듬기
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+          {applicationTarget && onAiCurate && !aiCurating && (
+            <div className="mt-1 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-[11px] leading-snug text-amber-800">
+              <Sparkles className="mt-[1px] h-3 w-3 shrink-0" aria-hidden />
+              <span>
+                <b>도움말</b> · 자료를 채운 다음 「AI로 다듬기」를 한 번 누르면,
+                {applicationTarget.company || "지원 회사"} 채용공고에 맞게
+                요약·문장톤·우선순위를 정리해드립니다. (한 번만 누르세요)
+              </span>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Title Input — between banner and basic info */}
       <div className="px-1 space-y-1.5">

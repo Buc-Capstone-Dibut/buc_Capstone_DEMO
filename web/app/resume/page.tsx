@@ -19,6 +19,7 @@ export default function ResumePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
+    const [aiCurated, setAiCurated] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
     // 새 이력서 작성 시 1단계 입력 또는 선택한 공고를 저장 시점에 함께 DB로 보내기 위한 보관소
@@ -188,8 +189,9 @@ export default function ResumePage() {
         }
     }, [isNewModeFromUrl, loading, searchParams]);
 
-    // 사용자가 ResumeEditor에서 'AI로 회사·직무에 맞게 다듬기'를 눌렀을 때 실행되는 핸들러.
-    // 현재 폼에 채워진 내용(payload)을 base로 AI에 맡겨, 회사·직무에 맞게 다듬은 결과로 교체한다.
+    // 사용자가 ResumeEditor에서 'AI로 다듬기'를 눌렀을 때 실행되는 핸들러.
+    // 결과를 받은 뒤 한 번에 교체하지 않고, 주요 텍스트 필드(개인 한 줄 소개·자기소개·각 경력/프로젝트
+    // 설명)를 한 글자씩 채워 넣어 "스트리밍 타이핑"처럼 보이게 만든다.
     const handleAiCurate = async () => {
         const target = pendingTarget?.meta;
         if (!target) {
@@ -220,19 +222,84 @@ export default function ResumePage() {
             if (!response.ok || !json?.success) {
                 throw new Error(json?.error || "AI 큐레이션에 실패했습니다.");
             }
-            setResumePayload(normalizeResumePayload(json.data.resumePayload));
-            if (typeof json.data.title === "string" && json.data.title.trim()) {
-                setResumeTitle(json.data.title);
+            const finalPayload = normalizeResumePayload(json.data.resumePayload);
+            const finalTitle =
+                typeof json.data.title === "string" && json.data.title.trim()
+                    ? json.data.title
+                    : "";
+            // 텍스트 필드만 빈 값으로 시작하는 base를 만들어 먼저 set
+            const blank: ResumePayload = {
+                ...finalPayload,
+                personalInfo: { ...finalPayload.personalInfo, intro: "" },
+                selfIntroduction: "",
+                experience: finalPayload.experience.map((e) => ({
+                    ...e,
+                    description: "",
+                })),
+                projects: finalPayload.projects.map((p) => ({
+                    ...p,
+                    description: "",
+                })),
+            };
+            setResumePayload(blank);
+            if (finalTitle) setResumeTitle(finalTitle);
+            await new Promise((r) => setTimeout(r, 80));
+
+            // 한 글자씩 채워 넣기. setResumePayload(prev => ...) 패턴으로
+            // 직전 상태에서 안전하게 한 필드만 갱신.
+            const CHUNK = 6;
+            const SPEED_MS = 18;
+            const typeField = async (
+                fullText: string,
+                update: (prev: ResumePayload, slice: string) => ResumePayload,
+            ) => {
+                if (!fullText) return;
+                for (let i = 0; i <= fullText.length; i += CHUNK) {
+                    const slice = fullText.slice(0, i);
+                    setResumePayload((prev) => update(prev, slice));
+                    await new Promise((r) => setTimeout(r, SPEED_MS));
+                }
+                setResumePayload((prev) => update(prev, fullText));
+            };
+
+            await typeField(finalPayload.personalInfo?.intro || "", (prev, s) => ({
+                ...prev,
+                personalInfo: { ...prev.personalInfo, intro: s },
+            }));
+            await typeField(finalPayload.selfIntroduction || "", (prev, s) => ({
+                ...prev,
+                selfIntroduction: s,
+            }));
+            for (let idx = 0; idx < finalPayload.experience.length; idx++) {
+                const text = finalPayload.experience[idx]?.description || "";
+                await typeField(text, (prev, s) => ({
+                    ...prev,
+                    experience: prev.experience.map((e, i) =>
+                        i === idx ? { ...e, description: s } : e,
+                    ),
+                }));
             }
+            for (let idx = 0; idx < finalPayload.projects.length; idx++) {
+                const text = finalPayload.projects[idx]?.description || "";
+                await typeField(text, (prev, s) => ({
+                    ...prev,
+                    projects: prev.projects.map((p, i) =>
+                        i === idx ? { ...p, description: s } : p,
+                    ),
+                }));
+            }
+            // 마지막에 누락된 필드 차이를 메우기 위해 한 번 더 통째로 set
+            setResumePayload(finalPayload);
+            setAiCurated(true);
             toast({
-                title: "AI 큐레이션 완료",
+                title: "AI 다듬기 완료",
                 description:
-                    "회사·직무에 맞춰 이력서를 다듬었습니다. 결과를 확인하고 직접 수정하세요.",
+                    "회사·직무에 맞춰 이력서를 정리했습니다. 필요하면 직접 수정하세요.",
             });
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "AI 큐레이션 실패";
+            const message = error instanceof Error ? error.message : "AI 다듬기 실패";
             toast({
-                title: "큐레이션 실패",
+                title: "다듬기 실패",
                 description: message,
                 variant: "destructive",
             });
@@ -402,6 +469,7 @@ export default function ResumePage() {
                     applicationTarget={pendingTarget?.meta ?? null}
                     onAiCurate={handleAiCurate}
                     aiCurating={generatingTailoredResume}
+                    aiCurated={aiCurated}
                 />
             </main>
         </div>
