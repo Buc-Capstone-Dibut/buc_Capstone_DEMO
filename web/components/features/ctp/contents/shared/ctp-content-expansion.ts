@@ -640,6 +640,54 @@ const expansions: Record<string, Expansion> = {
     ],
     guide: searchGuide,
   },
+
+  // ───────────────────────────────────────────────────────────────
+  // 신규 module-01~04 커리큘럼 placeholder (Phase 1 Content Specialist 가 채움)
+  // ───────────────────────────────────────────────────────────────
+
+  // module-01: algorithm-foundation
+  "algo-overview": {},
+  "flow-tracing": {},
+  "iterative-recursion": {},
+  "condition-loop": {},
+  "recursion-basics": {},
+  "tower-of-hanoi": {},
+  "recursion-analysis": {},
+
+  // module-01: search-algorithms
+  "search-problem-key": {},
+  "linear-search": {},
+  "brute-force-search": {},
+  "kmp-search": {},
+  "boyer-moore-search": {},
+  "hash-collision": {
+    story: {
+      problem: `해시 함수는 완벽하지 않아 **충돌**이 반드시 발생합니다. 이를 어떻게 처리하느냐가 성능의 핵심입니다.`,
+      definition: `**핵심 아이디어**: 동일 버킷을 공유하는 키를 관리하는 방식.\n\n**대표 전략**\n- 체이닝: 연결 리스트/배열로 버킷 관리\n- 오픈 어드레싱: 빈 슬롯을 탐색`,
+      analogy: `같은 사물함 번호를 받은 사람이 여러 명일 때, 줄을 세우거나 다른 빈 칸을 찾는 상황과 같습니다.`,
+      playgroundDescription: `충돌이 일어난 버킷에서 탐색 경로가 어떻게 변하는지 확인하세요.`,
+    },
+    features: [
+      { title: "체이닝", description: "버킷마다 리스트를 사용해 충돌을 처리합니다." },
+      { title: "오픈 어드레싱", description: "선형/이차/이중 해시로 빈 슬롯을 찾습니다." },
+      { title: "클러스터링", description: "연속 충돌로 성능이 급락할 수 있습니다." },
+      { title: "로드 팩터", description: "임계값을 넘기면 리해시가 필요합니다." },
+    ],
+  },
+
+  // module-01: data-structures
+  "ds-compare": {},
+  "array-number-prime": {},
+  "cursor-linked-list": {},
+  "queue-overview": {},
+
+  // module-02: sorting (overview / counting / shell)
+  "sorting-overview": {},
+  "counting-sort": {},
+  "shell-sort": {},
+
+  // module-02 or 03: backtracking
+  "queen-backtracking": {},
 };
 
 export function applyContentExpansion(config: CTPModuleConfig, activeKey: string): CTPModuleConfig {
