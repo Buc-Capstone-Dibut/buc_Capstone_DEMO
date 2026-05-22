@@ -61,6 +61,7 @@ export const CTP_DATA: CTPCategory[] = [
         subConcepts: [
           { id: "search-problem-key", title: "03-1 검색 문제와 키" },
           { id: "linear-search", title: "03-2 선형 검색" },
+          { id: "linear-search-trace", title: "03-2.1 선형 검색 (코드 실행)" },
           { id: "basic-binary-search", title: "03-3 이진 검색" },
           { id: "hash-collision", title: "03-4 해시법과 충돌 해결" },
         ],

@@ -8,6 +8,7 @@ import { ChapterOverview } from "./shared/chapter-overview";
 import {
   createInteractiveTemplateModules,
 } from "./shared/module-utils";
+import type { CTPModule } from "@/components/features/ctp/common/types";
 
 import { AlgoOverviewVisualizer, useAlgoOverviewSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/algo-overview";
 import { ConditionLoopVisualizer, useConditionLoopSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/condition-loop";
@@ -20,6 +21,11 @@ import { ArrayPrimeVisualizer, useArrayPrimeSim } from "@/components/features/ct
 
 import { ProblemKeyVisualizer, useProblemKeySim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/search-problem-key";
 import { LinearSearchVisualizer, useLinearSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/linear-search";
+import {
+  LinearSearchTraceVisualizer,
+  useLinearSearchTraceSim,
+  LINEAR_SEARCH_TRACE_STARTER_CODE,
+} from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/linear-search-trace";
 import { BasicBinarySearchVisualizer, useBasicBinarySearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/basic-binary-search";
 import { HashCollisionVisualizer, useHashCollisionSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/hash-collision";
 
@@ -422,6 +428,48 @@ const FOUNDATION_BASIC_SEARCH_MODULES = createInteractiveTemplateModules([
   },
 ]);
 
+// Phase 4 PoC — Skulpt trace 기반 code 모드 모듈 (interactive 자동 래핑 우회).
+const LINEAR_SEARCH_TRACE_MODULE: CTPModule = {
+  config: {
+    id: "linear-search-trace",
+    title: "03-2.1 선형 검색 (코드 실행)",
+    description: "Skulpt 인터프리터로 Python 코드를 직접 실행하고 변수 변화를 자동 시각화합니다.",
+    mode: "code",
+    tags: ["Code", "Trace", "Skulpt"],
+    initialCode: { python: LINEAR_SEARCH_TRACE_STARTER_CODE },
+    story: {
+      problem: "기존 선형 검색 시각화는 미리 만든 시나리오를 재생합니다. 사용자가 코드를 바꿔도 시각화는 동일하죠. 코드 실행 결과가 직접 시각화에 반영되면 어떻게 될까요? 학습자가 직접 코드를 수정하며 그 결과를 바로 눈으로 확인할 수 있다면, 추상적인 알고리즘 동작이 구체적인 경험으로 바뀝니다.",
+      definition: "linear-search-trace는 Skulpt 인터프리터로 사용자 Python 코드를 실제로 실행하며 step별 변수 상태를 캡처해 자동 시각화하는 모드입니다.\n- 사용자 코드 → Web Worker(Skulpt) 실행\n- 매 라인마다 변수 snapshot (captureGlobals)\n- arr/i/current 등 변수를 GenericArrayVisualizer가 자동 매핑",
+      analogy: "이전 visualizer가 정해진 시나리오로 영화를 재생하는 것이었다면, trace 모드는 사용자가 직접 감독이 되어 코드를 수정하며 그 결과를 실시간으로 화면에 띄우는 것과 같습니다. 코드와 시각화가 양방향으로 묶여 있어 학습 효과가 강화됩니다.",
+    },
+    features: [
+      {
+        title: "코드 직접 실행",
+        description: "Skulpt 인터프리터가 Python 코드를 브라우저에서 그대로 실행합니다. 서버 호출 0건으로 즉시 응답이 옵니다.",
+      },
+      {
+        title: "변수 자동 추적",
+        description: "captureGlobals가 매 라인마다 모든 변수의 snapshot을 저장합니다. arr/i/target 등이 자동으로 시각화에 전달됩니다.",
+      },
+      {
+        title: "Generic Visualizer",
+        description: "별도 visualizer 작성 없이 GenericArrayVisualizer가 알려진 변수명을 자동 매핑합니다. 알려진 포인터(i/current/L/R/M)는 색상별 화살표로 표시됩니다.",
+      },
+      {
+        title: "안전한 격리",
+        description: "Web Worker 격리 + 30s timeout + MAX_STEPS 10000으로 무한 루프와 메모리 폭주를 차단합니다. 사용자 코드가 메인 스레드에 영향을 주지 않습니다.",
+      },
+    ],
+  },
+  useSim: useLinearSearchTraceSim,
+  Visualizer: LinearSearchTraceVisualizer,
+};
+
+const FOUNDATION_BASIC_SEARCH_MODULES_WITH_TRACE = {
+  ...FOUNDATION_BASIC_SEARCH_MODULES,
+  "linear-search-trace": LINEAR_SEARCH_TRACE_MODULE,
+};
+
 export function FoundationAlgorithmBasicsContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
@@ -538,7 +586,7 @@ export function FoundationSearchAlgorithmsContent() {
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
       <CTPContentController
         category="Module 01. Foundation"
-        modules={FOUNDATION_BASIC_SEARCH_MODULES}
+        modules={FOUNDATION_BASIC_SEARCH_MODULES_WITH_TRACE}
         overview={
           <ChapterOverview
             moduleLabel="Module 01. Foundation"
@@ -569,6 +617,13 @@ export function FoundationSearchAlgorithmsContent() {
                 description: "단순 탐색의 구현과 최적화 포인트를 익힙니다.",
                 previewVisualizers: LinearSearchSupplementaryOptions.slice(0, 4),
                 previewLabels: ["순차 탐색", "보초법", "적용 시점", "성능 비교"],
+              },
+              {
+                id: "linear-search-trace",
+                title: "03-2.1 선형 검색 (코드 실행)",
+                description: "Skulpt로 Python 코드 직접 실행 + 자동 시각화 PoC.",
+                previewVisualizers: LinearSearchSupplementaryOptions.slice(0, 4),
+                previewLabels: ["코드 실행", "변수 추적", "Generic Viz", "Worker 격리"],
               },
               {
                 id: "basic-binary-search",
