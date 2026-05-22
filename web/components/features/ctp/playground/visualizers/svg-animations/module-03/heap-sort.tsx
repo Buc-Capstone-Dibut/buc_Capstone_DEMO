@@ -188,8 +188,8 @@ export function HeapSortVisualizer({ data }: { data: any }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Heap Sort</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phase}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Heap Sort</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{phase}</text>
 
           {/* --- Tree Visualization --- */}
           {/* Edges */}
@@ -211,10 +211,10 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                strokeColor = "rgba(148, 163, 184, 0.05)";
                strokeDash = "4";
             } else if (isSwappingEdge) {
-               strokeColor = "#f43f5e";
+               strokeColor = "hsl(347 89% 60%)";
                strokeWidth = 4;
             } else if (isComparingEdge) {
-               strokeColor = "#eab308";
+               strokeColor = "hsl(45 93% 47%)";
                strokeWidth = 4;
             }
 
@@ -239,25 +239,25 @@ export function HeapSortVisualizer({ data }: { data: any }) {
              const isSwapping = swapping?.includes(idx);
              const isCurrentI = idx === i && !isSorted;
 
-             let fillColor = "#334155";
+             let fillColor = "hsl(215 25% 27%)";
              let opacity = 0.8;
              let filter = "";
 
              if (isSorted) {
-               fillColor = "#8b5cf6"; // purple for sorted
+               fillColor = "hsl(258 90% 66%)"; // purple for sorted
                opacity = 0.3; // fade out nodes clearly removed from heap
              } else if (isSwapping) {
-               fillColor = "#f43f5e";
+               fillColor = "hsl(347 89% 60%)";
                opacity = 1;
                filter = "url(#glow-swap)";
              } else if (isComparing) {
-               fillColor = "#eab308";
+               fillColor = "hsl(45 93% 47%)";
                opacity = 1;
              } else if (isCurrentI) {
-               fillColor = "#3b82f6";
+               fillColor = "hsl(217 91% 60%)";
                opacity = 1;
              } else if (idx < heapSize) {
-               fillColor = "#10b981"; // In-heap nodes are green
+               fillColor = "hsl(160 84% 39%)"; // In-heap nodes are green
                opacity = 0.9;
              }
 
@@ -275,7 +275,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                    filter={filter}
                    animate={{ fill: fillColor, opacity }}
                  />
-                 <text x="0" y="5" fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle" opacity={opacity > 0.5 ? 1 : 0.5}>{item.val}</text>
+                 <text x="0" y="5" fill="hsl(0 0% 100%)" fontSize="14" fontWeight="bold" textAnchor="middle" opacity={opacity > 0.5 ? 1 : 0.5}>{item.val}</text>
                </motion.g>
              );
           })}
@@ -307,20 +307,20 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               const isSwapping = swapping?.includes(idx);
               const isCurrentI = idx === i;
 
-              let fillColor = "#334155";
+              let fillColor = "hsl(215 25% 27%)";
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "#8b5cf6"; // sorted purple
+                fillColor = "hsl(258 90% 66%)"; // sorted purple
                 opacity = 0.9;
               } else if (isSwapping) {
-                fillColor = "#f43f5e"; // swap red
+                fillColor = "hsl(347 89% 60%)"; // swap red
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "#eab308"; // compare yellow
+                fillColor = "hsl(45 93% 47%)"; // compare yellow
                 opacity = 1;
               } else if (idx < heapSize) {
-                fillColor = "#10b981"; // active heap green
+                fillColor = "hsl(160 84% 39%)"; // active heap green
                 opacity = 0.8;
               }
 
@@ -344,7 +344,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={-10}
-                    fill={(isSorted || isSwapping || isComparing || idx < heapSize) ? "#fff" : "#94a3b8"}
+                    fill={(isSorted || isSwapping || isComparing || idx < heapSize) ? "hsl(0 0% 100%)" : "hsl(215 20% 65%)"}
                     fontSize="14"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -354,7 +354,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={height + 20}
-                    fill="#64748b"
+                    fill="hsl(215 16% 47%)"
                     fontSize="12"
                     textAnchor="middle"
                   >

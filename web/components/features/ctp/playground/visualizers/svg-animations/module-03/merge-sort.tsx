@@ -195,11 +195,11 @@ export function MergeSortVisualizer({ data }: { data: any }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Merge Sort</text>
-           <text x="30" y="65" fill="#64748b" fontSize="14">{statusHTML}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Merge Sort</text>
+           <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{statusHTML}</text>
 
           {/* Main Array Label */}
-          <text x="50" y="100" fill="#94a3b8" fontSize="12" fontWeight="bold">Main Array (원본)</text>
+          <text x="50" y="100" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Main Array (원본)</text>
 
           {/* Main Array Background slots */}
            {array.map((_: SortElement, idx: number) => (
@@ -256,23 +256,23 @@ export function MergeSortVisualizer({ data }: { data: any }) {
               const inLeft = left !== null && mid !== null && idx >= left && idx <= mid;
               const inRight = mid !== null && right !== null && idx > mid && idx <= right;
 
-              let fillColor = "#334155";
+              let fillColor = "hsl(215 25% 27%)";
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "#10b981"; // green
+                fillColor = "hsl(160 84% 39%)"; // green
                 opacity = 0.9;
               } else if (isCopyingFrom || isCopyingTo) {
-                fillColor = "#8b5cf6"; // purple
+                fillColor = "hsl(258 90% 66%)"; // purple
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "#eab308"; // yellow
+                fillColor = "hsl(45 93% 47%)"; // yellow
                 opacity = 1;
               } else if (inLeft) {
-                fillColor = "#3b82f6"; // blue
+                fillColor = "hsl(217 91% 60%)"; // blue
                 opacity = 0.8;
               } else if (inRight) {
-                fillColor = "#ef4444"; // red
+                fillColor = "hsl(0 84% 60%)"; // red
                 opacity = 0.8;
               }
 
@@ -299,16 +299,16 @@ export function MergeSortVisualizer({ data }: { data: any }) {
                     animate={{ fill: fillColor, opacity }}
                     transition={{ duration: 0.3 }}
                   />
-                  <text x={barWidth / 2} y={-10} fill={isSorted || opacity > 0.6 ? "#fff" : "#64748b"} fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                  <text x={barWidth / 2} y={-10} fill={isSorted || opacity > 0.6 ? "hsl(0 0% 100%)" : "hsl(215 16% 47%)"} fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
 
                   {/* Pointers mapping to Original indices (i, j) */}
                   {idx === i && (
-                    <motion.text x={barWidth / 2} y={height + 25} fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 25} fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       i
                     </motion.text>
                   )}
                   {idx === j && (
-                    <motion.text x={barWidth / 2} y={height + 25} fill="#ef4444" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 25} fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       j
                     </motion.text>
                   )}
@@ -318,7 +318,7 @@ export function MergeSortVisualizer({ data }: { data: any }) {
           </AnimatePresence>
 
           {/* Temp Array Label */}
-          <text x="50" y="300" fill="#94a3b8" fontSize="12" fontWeight="bold">Temp Array (임시 메모리)</text>
+          <text x="50" y="300" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Temp Array (임시 메모리)</text>
 
           {/* Draw Temp Array Background slots */}
           {tempArray.map((_: SortElement | null, idx: number) => (
@@ -346,12 +346,12 @@ export function MergeSortVisualizer({ data }: { data: any }) {
                   <rect
                     width={barWidth}
                     height={height}
-                    fill="#8b5cf6"
+                    fill="hsl(258 90% 66%)"
                     opacity={0.8}
                     rx={4}
                     filter={isCopyingToTemp ? "url(#glow-copy)" : ""}
                   />
-                  <text x={barWidth / 2} y={-10} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                  <text x={barWidth / 2} y={-10} fill="hsl(0 0% 100%)" fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
                 </motion.g>
               );
             })}
@@ -359,7 +359,7 @@ export function MergeSortVisualizer({ data }: { data: any }) {
 
            {/* Pointers mapping to Temp indices (k) */}
            {k !== null && (
-              <motion.text x={getX(k) + barWidth / 2} y={svgHeight - 5} fill="#a855f7" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.text x={getX(k) + barWidth / 2} y={svgHeight - 5} fill="hsl(271 91% 65%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   k
               </motion.text>
             )}

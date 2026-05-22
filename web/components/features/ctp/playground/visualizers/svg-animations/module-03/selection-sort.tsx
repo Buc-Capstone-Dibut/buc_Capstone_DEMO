@@ -240,7 +240,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="#a855f7" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-rose)">
+      <text x="40" y="50" fill="hsl(271 91% 65%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-rose)">
         SELECTION SORT
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -253,7 +253,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           현재 타겟 범위 (시작: Index {i})
         </text>
-        <text x="170" y="45" fill={isSwapping ? "#f97316" : (j !== -1 ? "#06b6d4" : "#10b981")} fontSize="14" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isSwapping ? "hsl(24 95% 53%)" : (j !== -1 ? "hsl(189 94% 43%)" : "hsl(160 84% 39%)")} fontSize="14" fontWeight="bold" textAnchor="middle">
           {isSwapping ? `가장 작은 값(${array[i] ? array[i].val : ''})을 자리에 배치합니다!` : (j !== -1 && minIndex !== -1 ? `최솟값 후보 변경됨, 계속 탐색을 진행합니다.` : "다음 사이클을 시작합니다.")}
         </text>
       </g>
@@ -261,11 +261,11 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       {/* Area Marker for Sorted/Unsorted */}
       {i < N && (
         <g>
-          <rect x={START_X - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(16, 185, 129, 0.05)" stroke="#10b981" strokeDasharray="4" />
-          <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill="#10b981" fontSize="12" fontWeight="bold">정렬 완료 구역</text>
+          <rect x={START_X - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(16, 185, 129, 0.05)" stroke="hsl(160 84% 39%)" strokeDasharray="4" />
+          <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold">정렬 완료 구역</text>
 
-          <rect x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(N - i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(244, 63, 94, 0.05)" stroke="#f43f5e" strokeDasharray="4" />
-          <text x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING)} y={START_Y - MAX_BAR_HEIGHT - 40} fill="#f43f5e" fontSize="12" fontWeight="bold">미정렬 구역 (최솟값 탐색 대상)</text>
+          <rect x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(N - i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(244, 63, 94, 0.05)" stroke="hsl(347 89% 60%)" strokeDasharray="4" />
+          <text x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING)} y={START_Y - MAX_BAR_HEIGHT - 40} fill="hsl(347 89% 60%)" fontSize="12" fontWeight="bold">미정렬 구역 (최솟값 탐색 대상)</text>
         </g>
       )}
 
@@ -293,20 +293,20 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
 
           if (isSortedBlock) {
             fill = "rgba(16, 185, 129, 0.1)";
-            stroke = "#10b981";
-            textColor = "#10b981";
+            stroke = "hsl(160 84% 39%)";
+            textColor = "hsl(160 84% 39%)";
           } else if (isSwapTarget) {
             fill = "rgba(249, 115, 22, 0.1)";
-            stroke = "#f97316";
-            textColor = "#f97316";
+            stroke = "hsl(24 95% 53%)";
+            textColor = "hsl(24 95% 53%)";
           } else if (isCurrentMin) {
             fill = "rgba(6, 182, 212, 0.1)";
-            stroke = "#06b6d4";
-            textColor = "#06b6d4";
+            stroke = "hsl(189 94% 43%)";
+            textColor = "hsl(189 94% 43%)";
           } else if (isComparing) {
             fill = "rgba(168, 85, 247, 0.1)";
-            stroke = "#a855f7";
-            textColor = "#a855f7";
+            stroke = "hsl(271 91% 65%)";
+            textColor = "hsl(271 91% 65%)";
           }
 
           return (
@@ -340,7 +340,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
                     exit={{ opacity: 0, scale: 0.5 }}
                     x={BLOCK_WIDTH / 2}
                     y={-25}
-                    fill="#06b6d4"
+                    fill="hsl(189 94% 43%)"
                     fontSize="12"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -359,7 +359,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     d={`M ${BLOCK_WIDTH / 2} -35 L ${BLOCK_WIDTH / 2} -10`}
-                    stroke="#a855f7"
+                    stroke="hsl(271 91% 65%)"
                     strokeWidth="3"
                     markerEnd="url(#arrow)"
                   />
@@ -378,7 +378,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
               exit={{ opacity: 0 }}
               d={`M ${START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 30} C ${START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 90}, ${START_X + minIndex * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 90}, ${START_X + minIndex * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 30}`}
               fill="none"
-              stroke="#f97316"
+              stroke="hsl(24 95% 53%)"
               strokeWidth="4"
               strokeDasharray="6"
               filter="url(#neon-glow-orange)"
@@ -390,16 +390,16 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       {/* Legend */}
       <g transform="translate(40, 420)">
         <rect width="400" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <circle cx="20" cy="25" r="5" fill="#a855f7" />
+        <circle cx="20" cy="25" r="5" fill="hsl(271 91% 65%)" />
         <text x="35" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">탐색</text>
 
-        <circle cx="85" cy="25" r="5" fill="#06b6d4" />
+        <circle cx="85" cy="25" r="5" fill="hsl(189 94% 43%)" />
         <text x="100" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">현재 최소값</text>
 
-        <circle cx="185" cy="25" r="5" fill="#f97316" />
+        <circle cx="185" cy="25" r="5" fill="hsl(24 95% 53%)" />
         <text x="200" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">교환</text>
 
-        <circle cx="255" cy="25" r="5" fill="#10b981" />
+        <circle cx="255" cy="25" r="5" fill="hsl(160 84% 39%)" />
         <text x="270" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">정렬 확정</text>
       </g>
     </svg>
