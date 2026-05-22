@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { groupSkillsByCategory } from "@/lib/interview/tech-categories";
 import { getTechLogo } from "@/lib/interview/tech-logos";
-import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
 
 export type ResumeA4SectionKey =
   | "summary"
@@ -1269,23 +1268,7 @@ export function KoreanResumePreview({
           ))}
         </div>
 
-        {/* PDF 다운로드 + 새 탭에서 열기. 미리보기 DOM 을 그대로 캡쳐(html2canvas-pro)
-            해서 PDF 로 만들기 때문에 화면과 PDF 가 완전히 동일하다. */}
-        <ResumePdfDownloadButton
-          resumePayload={payload}
-          resumeOptions={options}
-          title={title}
-          fileName={title || payload.personalInfo?.name || "resume"}
-          variant="default"
-          size="default"
-          className="mt-3 h-9 w-full gap-2"
-          label="PDF로 저장 (새 탭에서 열기)"
-          iconLeft={<Download className="h-4 w-4" />}
-          openInNewTab
-        />
-        <p className="mt-1.5 text-center text-[10.5px] text-slate-400">
-          저장된 PDF 가 새 탭으로 열려 바로 확인할 수 있어요
-        </p>
+        {/* PDF 다운로드는 페이지 상단 헤더의 'PDF 다운로드' 버튼으로 일원화. */}
       </div>
 
       {/* leaf-block 단위 측정 기반 페이지 분할 — 한 entry 안에서도 길어지면 자연스럽게
