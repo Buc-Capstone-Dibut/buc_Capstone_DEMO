@@ -29,7 +29,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
-import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
+import { EditableText, useItemsSource, useItemsSourceOrFallback, usePatchActivePage } from "./editable-text";
 
 const BG = "#fdf6e3";
 const HEADING = "#7c2d12";
@@ -143,7 +143,7 @@ function renderSlide(page: PortfolioSitePage) {
 
 function CoverSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const emphasis = pageEmphasis(page).slice(0, 4);
+  const emphasis = useItemsSourceOrFallback(page, null, () => pageEmphasis(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <p className="text-[12px] font-medium italic tracking-[0.32em]" style={{ color: ACCENT, fontFamily: SERIF }}>
@@ -172,7 +172,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
               className="text-[12px] font-medium italic tracking-[0.2em]"
               style={{ color: ACCENT, fontFamily: SERIF }}
             >
-              {plainText(item, 30)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={30} fieldKey={`item-${i}`} />
             </span>
           ))}
         </div>
@@ -208,7 +208,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
         </p>
       </div>
       <div className="flex flex-col justify-center gap-6">
-        <Pullquote items={pageEmphasis(page).slice(0, 4)} />
+        <Pullquote items={useItemsSourceOrFallback(page, null, () => pageEmphasis(page)).slice(0, 4)} />
       </div>
     </div>
   );
@@ -216,7 +216,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = matrixItems(page).slice(0, 12);
+  const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page)).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-8">
       <div className="text-center">
@@ -235,7 +235,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
               color: i % 2 === 0 ? HEADING : TEXT,
             }}
           >
-            {plainText(item, 36)}
+            <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={36} fieldKey={`item-${i}`} />
             {i < items.length - 1 ? <span className="ml-7 select-none" style={{ color: ACCENT, opacity: 0.4 }}>·</span> : null}
           </span>
         ))}
@@ -246,7 +246,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 6);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-8">
       <div className="text-center">
@@ -265,7 +265,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
                 {ROMAN[i] || i + 1}.
               </span>
               <p className="break-keep text-[15px] font-medium leading-7" style={{ color: TEXT }}>
-                {plainText(item, 100)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} />
               </p>
               <span className="text-right text-[11px] font-medium uppercase tracking-[0.18em] tabular-nums" style={{ color: MUTED }}>
                 page {String(i + 1).padStart(2, "0")}
@@ -332,7 +332,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
 function DetailSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
   const metric = metricBlocks(page)[0];
-  const flow = flowItems(page).slice(0, 4);
+  const flow = useItemsSourceOrFallback(page, "flow", () => flowItems(page)).slice(0, 4);
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-12">
       <div className="flex flex-col justify-center">
@@ -370,7 +370,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
                   {ROMAN[i]}.
                 </span>
                 <p className="break-keep text-[13px] font-medium leading-7" style={{ color: TEXT }}>
-                  {plainText(item, 120)}
+                  <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={120} fieldKey={`item-${i}`} />
                 </p>
               </div>
             ))}
@@ -383,7 +383,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 4);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col items-center justify-center gap-8 text-center">
       <p className="text-[11px] font-medium italic uppercase tracking-[0.32em]" style={{ color: ACCENT, fontFamily: SERIF }}>
@@ -403,7 +403,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
                 {ROMAN[i]}.
               </p>
               <p className="mt-1 break-keep text-[12px] font-medium leading-6" style={{ color: TEXT }}>
-                {plainText(item, 70)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={70} fieldKey={`item-${i}`} />
               </p>
             </div>
           ))}
@@ -431,7 +431,7 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
   );
 }
 
-function Pullquote({ items }: { items: string[] }) {
+function Pullquote({ items }: { items: Array<{ value: string; onChange?: (next: string) => void }> }) {
   if (!items.length) return null;
   return (
     <div className="relative pl-8">
@@ -445,7 +445,7 @@ function Pullquote({ items }: { items: string[] }) {
             className="break-keep text-[20px] font-medium italic leading-[1.55]"
             style={{ fontFamily: SERIF, color: i === 0 ? HEADING : TEXT }}
           >
-            {plainText(item, 80)}
+            <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={80} fieldKey={`item-${i}`} />
           </p>
         ))}
       </div>

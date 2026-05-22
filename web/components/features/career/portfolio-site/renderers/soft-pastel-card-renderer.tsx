@@ -30,7 +30,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
-import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
+import { EditableText, useItemsSource, useItemsSourceOrFallback, usePatchActivePage } from "./editable-text";
 
 const BG_GRADIENT = "linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 50%, #ecfeff 100%)";
 const CARD_BG = "rgba(255,255,255,0.7)";
@@ -198,7 +198,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
           <Card key={c.id}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-[13px] font-bold" style={{ color: TEXT }}>
-                {plainText(c.label, 30) || "강점"}
+                <EditableText value={c.label} onChange={(v) => patch(["blocks", c.id, "label"], v)} maxLength={30} placeholder="강점" fieldKey={`block-${c.id}-label`} />
               </p>
               <p
                 className="text-[22px] font-black tabular-nums"
@@ -221,7 +221,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = matrixItems(page).slice(0, 12);
+  const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page)).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-5 overflow-hidden">
       <div className="flex items-baseline justify-between">
@@ -243,7 +243,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
                 color: i % 3 === 2 ? PRIMARY : "white",
               }}
             >
-              {plainText(item, 30)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={30} fieldKey={`item-${i}`} />
             </span>
           ))}
         </div>
@@ -254,7 +254,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 6);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-5 overflow-hidden">
       <h2 className="break-keep text-[36px] font-black leading-tight" style={{ color: TEXT }}>
@@ -273,7 +273,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
               {i + 1}
             </span>
             <p className="mt-3 break-keep text-[13px] font-bold leading-6" style={{ color: TEXT }}>
-              {plainText(item, 80)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={80} fieldKey={`item-${i}`} />
             </p>
           </Card>
         ))}
@@ -284,7 +284,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const flow = flowItems(page).slice(0, 4);
+  const flow = useItemsSourceOrFallback(page, "flow", () => flowItems(page)).slice(0, 4);
   const callout = calloutBlocks(page)[0];
   return (
     <div className="grid h-full grid-cols-[1fr_1.3fr] gap-6 overflow-hidden">
@@ -319,7 +319,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
                   {i + 1}
                 </span>
                 <p className="break-keep text-[12px] font-semibold leading-6" style={{ color: TEXT }}>
-                  {plainText(item, 100)}
+                  <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} />
                 </p>
               </div>
             ))}
@@ -379,7 +379,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
         {blocks.map((block, i) => (
           <Card key={block.id}>
             <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: i % 2 === 0 ? PRIMARY : ACCENT }}>
-              ✦ {getBlockLabel(block, `Point ${i + 1}`)}
+              ✦ <EditableText value={block.label} onChange={(v) => patch(["blocks", block.id, "label"], v)} maxLength={40} placeholder={`Point ${i + 1}`} fieldKey={`block-${block.id}-label`} />
             </p>
             <p className="mt-1 whitespace-pre-line break-keep text-[12px] font-semibold leading-6" style={{ color: TEXT }}>
               <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={160} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
@@ -393,7 +393,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 4);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col gap-5 overflow-hidden">
       <div>
@@ -417,7 +417,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
               {i + 1}
             </span>
             <p className="mt-3 break-keep text-[13px] font-bold leading-6" style={{ color: TEXT }}>
-              {plainText(item, 100)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} />
             </p>
           </Card>
         ))}

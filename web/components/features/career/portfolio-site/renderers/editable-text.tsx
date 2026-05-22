@@ -119,6 +119,28 @@ export function useItemsSource(
   return null;
 }
 
+/**
+ * useItemsSource 의 fallback 보장 버전.
+ * 편집 가능 source 가 있으면 그것 사용, 없으면 fallback() 호출해 view-only items 반환.
+ * 결과는 항상 { value, onChange? } 배열.
+ *
+ * 사용 예 (slide 안):
+ *   const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page)).slice(0, 12);
+ *   ...
+ *   {items.map((item, i) => (
+ *     <p><EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={30} /></p>
+ *   ))}
+ */
+export function useItemsSourceOrFallback(
+  page: import("@/lib/career-portfolios").PortfolioSitePage,
+  preferredBlockType: "flow" | "timeline" | "matrix" | "tags" | null,
+  fallback: () => string[],
+): Array<{ value: string; onChange?: (next: string) => void }> {
+  const editable = useItemsSource(page, preferredBlockType);
+  if (editable) return editable;
+  return fallback().map((value) => ({ value }));
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // 텍스트 truncate (보기 모드에서만)
 // ──────────────────────────────────────────────────────────────────────────

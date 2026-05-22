@@ -30,7 +30,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
-import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
+import { EditableText, useItemsSource, useItemsSourceOrFallback, usePatchActivePage } from "./editable-text";
 
 const BG = "#f9fafb";
 const CARD = "#ffffff";
@@ -124,7 +124,7 @@ function PageTitle({ page }: { page: PortfolioSitePage }) {
     <div>
       <div className="flex items-baseline gap-2 text-[11px] font-medium" style={{ color: MUTED }}>
         <span>📄</span>
-        <span>{plainText(page.intent || page.eyebrow || "Page", 60)}</span>
+        <span><EditableText value={page.intent || page.eyebrow} onChange={(v) => patch(["intent"], v)} maxLength={60} placeholder="Page" fieldKey="intent" /></span>
       </div>
       <h1 className="mt-3 break-keep text-[36px] font-bold leading-tight" style={{ color: HEADING }}>
         <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
@@ -213,7 +213,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = matrixItems(page).slice(0, 12);
+  const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page)).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <PageTitle page={page} />
@@ -232,7 +232,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
                 color: i % 3 === 0 ? ACCENT : TEXT,
               }}
             >
-              {plainText(item, 30)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={30} fieldKey={`item-${i}`} />
             </span>
           ))}
         </div>
@@ -243,7 +243,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 6);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <PageTitle page={page} />
@@ -258,7 +258,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
                 {i + 1}
               </span>
               <span className="break-keep font-medium" style={{ color: TEXT }}>
-                {plainText(item, 100)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} />
               </span>
             </li>
           ))}
@@ -270,7 +270,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const flow = flowItems(page).slice(0, 4);
+  const flow = useItemsSourceOrFallback(page, "flow", () => flowItems(page)).slice(0, 4);
   const callout = calloutBlocks(page)[0];
   const LABELS = ["문제", "역할", "해결", "결과"];
   return (
@@ -289,7 +289,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
                 </td>
                 <td className="py-2 align-top">
                   <p className="break-keep font-medium leading-6" style={{ color: TEXT }}>
-                    {plainText(item, 120)}
+                    <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={120} fieldKey={`item-${i}`} />
                   </p>
                 </td>
               </tr>
@@ -367,7 +367,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 4);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <PageTitle page={page} />
@@ -382,7 +382,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
                 {i + 1}
               </span>
               <p className="break-keep text-[13px] font-medium leading-6" style={{ color: TEXT }}>
-                {plainText(item, 130)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={130} fieldKey={`item-${i}`} />
               </p>
             </li>
           ))}

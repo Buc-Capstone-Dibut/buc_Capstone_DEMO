@@ -28,7 +28,7 @@ import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
-import { EditableProvider, EditableText, usePatchActivePage } from "./renderers/editable-text";
+import { EditableProvider, EditableText, useItemsSourceOrFallback, usePatchActivePage } from "./renderers/editable-text";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 템플릿 컨텍스트 — 시각 헬퍼들이 templateId 별 다른 디자인을 분기 적용할 때 사용
@@ -426,7 +426,7 @@ function TextList({ blocks, max = 6 }: { blocks: PortfolioSiteBlock[]; max?: num
           </span>
           <div className="min-w-0 border-t border-[#c8dabc] pt-2">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--portfolio-primary)]">
-              {getBlockLabel(block, `Point ${index + 1}`)}
+              <EditableText value={block.label} onChange={(v) => patch(["blocks", block.id, "label"], v)} maxLength={40} placeholder={`Point ${index + 1}`} fieldKey={`block-${block.id}-label`} />
             </p>
             <p className="mt-1 whitespace-pre-line text-[13px] font-semibold leading-6 text-slate-700">
               <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={220} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
@@ -511,7 +511,7 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
 
 function FlowRibbon({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
-  const items = flowItems(page);
+  const items = useItemsSourceOrFallback(page, "flow", () => flowItems(page));
   const ROMAN = ["I", "II", "III", "IV", "V"];
 
   if (isEditorial(templateId)) {
@@ -521,12 +521,12 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
         <div className="absolute left-4 right-4 top-[28px] h-0 border-t border-dashed border-[var(--portfolio-primary)]/50" />
         <div className="relative grid grid-cols-4 gap-5">
           {items.slice(0, 4).map((item, index) => (
-            <div key={`${item}-${index}`} className="min-w-0">
+            <div key={`${item.value}-${index}`} className="min-w-0">
               <div className="flex h-14 w-14 items-center justify-center border-2 border-[var(--portfolio-primary)] bg-[var(--portfolio-background)] font-serif text-xl font-bold text-[var(--portfolio-primary)]">
                 {ROMAN[index]}
               </div>
               <p className="mt-3 break-keep font-serif text-[13px] font-medium italic leading-6 text-slate-800">
-                {plainText(item, 90)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={90} fieldKey={`item-${index}`} />
               </p>
             </div>
           ))}
@@ -542,7 +542,7 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
         <div className="relative grid grid-cols-4 gap-2">
           {items.slice(0, 4).map((item, index) => (
             <div
-              key={`${item}-${index}`}
+              key={`${item.value}-${index}`}
               className="relative min-w-0 rounded-lg border-2 border-[var(--portfolio-accent)] bg-slate-800 p-4"
             >
               {index < 3 ? (
@@ -554,7 +554,7 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
                 {String(index + 1).padStart(2, "0")}
               </p>
               <p className="mt-3 break-keep text-[13px] font-black leading-5 text-white">
-                {plainText(item, 90)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={90} fieldKey={`item-${index}`} />
               </p>
             </div>
           ))}
@@ -569,7 +569,7 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
       <div className="absolute left-4 right-4 top-[35px] h-[2px] bg-slate-200" />
       <div className="relative grid grid-cols-4 gap-4">
         {items.slice(0, 4).map((item, index) => (
-          <div key={`${item}-${index}`} className="min-w-0">
+          <div key={`${item.value}-${index}`} className="min-w-0">
             <div
               className="flex h-16 w-16 items-center justify-center text-xl font-black text-white"
               style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
@@ -577,7 +577,7 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
               {index + 1}
             </div>
             <p className="mt-3 break-keep text-[13px] font-black leading-5 text-slate-800">
-              {plainText(item, 90)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={90} fieldKey={`item-${index}`} />
             </p>
           </div>
         ))}
@@ -588,7 +588,7 @@ function FlowRibbon({ page }: { page: PortfolioSitePage }) {
 
 function KeywordCloud({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
-  const items = matrixItems(page);
+  const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page));
   if (!items.length) return null;
 
   if (isEditorial(templateId)) {
@@ -601,13 +601,13 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
         <div className="-mt-12 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 px-8">
           {items.slice(0, 8).map((item, index) => (
             <span
-              key={`${item}-${index}`}
+              key={`${item.value}-${index}`}
               className="break-keep font-serif text-base font-medium italic text-slate-800"
               style={{
                 borderBottom: index % 2 === 0 ? `2px solid ${ACCENT_COLORS[index % ACCENT_COLORS.length]}` : undefined,
               }}
             >
-              {plainText(item, 50)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={50} fieldKey={`item-${index}`} />
             </span>
           ))}
         </div>
@@ -624,7 +624,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
           const size = index % 4 === 0 ? "text-xl px-5 py-3" : index % 3 === 0 ? "text-lg px-4 py-2.5" : "text-sm px-3 py-2";
           return (
             <span
-              key={`${item}-${index}`}
+              key={`${item.value}-${index}`}
               className={cn("break-keep rounded-full border-2 font-black", size)}
               style={{
                 borderColor: color,
@@ -632,7 +632,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
                 color: color,
               }}
             >
-              {plainText(item, 50)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={50} fieldKey={`item-${index}`} />
             </span>
           );
         })}
@@ -659,7 +659,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
         ];
         return (
           <span
-            key={`${item}-${index}`}
+            key={`${item.value}-${index}`}
             className={cn(
               "absolute max-w-[180px] break-keep px-2 py-1 text-sm font-black leading-5",
               positions[index % positions.length],
@@ -669,7 +669,7 @@ function KeywordCloud({ page }: { page: PortfolioSitePage }) {
               borderBottom: `3px solid ${ACCENT_COLORS[index % ACCENT_COLORS.length]}`,
             }}
           >
-            {plainText(item, 50)}
+            <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={50} fieldKey={`item-${index}`} />
           </span>
         );
       })}
@@ -715,16 +715,16 @@ function RoleBars({ page }: { page: PortfolioSitePage }) {
 }
 
 function TimelineLine({ page }: { page: PortfolioSitePage }) {
-  const items = timelineItems(page);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page));
   return (
     <div className="space-y-3">
       {items.slice(0, 5).map((item, index) => (
-        <div key={`${item}-${index}`} className="grid grid-cols-[42px_minmax(0,1fr)] items-start gap-4">
+        <div key={`${item.value}-${index}`} className="grid grid-cols-[42px_minmax(0,1fr)] items-start gap-4">
           <span className="text-3xl font-black leading-none text-[var(--portfolio-primary)] opacity-80">
             {String(index + 1).padStart(2, "0")}
           </span>
           <p className="break-keep border-l-2 border-[#c8dabc] pl-4 text-[13px] font-bold leading-6 text-slate-700">
-            {plainText(item, 140)}
+            <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={140} fieldKey={`item-${index}`} />
           </p>
         </div>
       ))}
@@ -854,26 +854,38 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
 
 function CompositionNote({ page }: { page: PortfolioSitePage }) {
   const templateId = useTemplateId();
+  const patch = usePatchActivePage();
+  // 우선순위: composition.visualMetaphor → visualDirection
+  // 편집 시엔 visualDirection 으로 patch (더 자유로운 텍스트)
   const metaphor = page.composition?.visualMetaphor || page.visualDirection;
   if (!metaphor) return null;
+  const editable = (
+    <EditableText
+      value={metaphor}
+      onChange={(v) => patch(["visualDirection"], v)}
+      maxLength={54}
+      placeholder="시각 방향"
+      fieldKey="composition-note"
+    />
+  );
 
   if (isEditorial(templateId)) {
     return (
       <p className="font-serif text-[11px] font-medium italic tracking-[0.22em] text-[var(--portfolio-primary)]">
-        {plainText(metaphor, 54)}
+        {editable}
       </p>
     );
   }
   if (isBold(templateId)) {
     return (
       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--portfolio-accent)]">
-        {plainText(metaphor, 54)}
+        {editable}
       </p>
     );
   }
   return (
     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-      {plainText(metaphor, 54)}
+      {editable}
     </p>
   );
 }
@@ -881,24 +893,19 @@ function CompositionNote({ page }: { page: PortfolioSitePage }) {
 function EmphasisRail({ page, max = 5 }: { page: PortfolioSitePage; max?: number }) {
   const patch = usePatchActivePage();
   const allEmphasis = page.emphasis || [];
-  const items = pageEmphasis(page).slice(0, max);
+  const items = useItemsSourceOrFallback(page, null, () => pageEmphasis(page)).slice(0, max);
   if (!items.length) return null;
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-[#c8dabc] pt-4">
       {items.map((item, index) => (
         <span
-          key={`${item}-${index}`}
+          key={`${item.value}-${index}`}
           className="text-[12px] font-black uppercase tracking-[0.12em]"
           style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
         >
           <EditableText
-            value={item}
-            onChange={(v) => {
-              const next = [...allEmphasis];
-              if (v.trim() === "") next.splice(index, 1);
-              else next[index] = v;
-              patch(["emphasis"], next);
-            }}
+            value={item.value}
+            onChange={item.onChange || (() => {})}
             maxLength={24}
             placeholder="키워드"
             fieldKey={`emphasis-${index}`}
@@ -961,7 +968,7 @@ function SplitProofCompositionSlide({ page }: { page: PortfolioSitePage }) {
 
 function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = flowItems(page).slice(0, 4);
+  const items = useItemsSourceOrFallback(page, "flow", () => flowItems(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col overflow-hidden px-12 pb-6 pt-14">
       <div className="grid grid-cols-[1fr_300px] gap-8">
@@ -981,7 +988,7 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <div className="relative grid grid-cols-4 gap-5">
           {items.map((item, index) => (
             <div
-              key={`${item}-${index}`}
+              key={`${item.value}-${index}`}
               className="min-w-0 border-t-[6px] bg-[#fbfcf8]/85 pt-4"
               style={{
                 borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length],
@@ -992,7 +999,7 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
                 {String(index + 1).padStart(2, "0")}
               </p>
               <p className="mt-3 text-[13px] font-black leading-5 text-slate-800">
-                {plainText(item, 46)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={46} fieldKey={`item-${index}`} />
               </p>
             </div>
           ))}
@@ -1005,17 +1012,24 @@ function DiagonalFlowCompositionSlide({ page }: { page: PortfolioSitePage }) {
 function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
   const metric = metricBlocks(page)[0] || contributionBlocks(page)[0];
-  const value = metric?.value || String(pageEmphasis(page).length || textBlocks(page).length || 1);
-  const label = metric?.label || page.intent || "핵심 근거";
+  const fallbackValue = String(pageEmphasis(page).length || textBlocks(page).length || 1);
   return (
     <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-12 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
         <p className="text-[106px] font-black leading-none text-[var(--portfolio-primary)]">
-          {plainText(value, 14)}
+          {metric ? (
+            <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={14} placeholder={fallbackValue} fieldKey={`block-${metric.id}-value`} />
+          ) : (
+            <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={14} placeholder={fallbackValue} fieldKey="intent" />
+          )}
         </p>
         <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
-          {plainText(label, 48)}
+          {metric ? (
+            <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={48} placeholder="라벨" fieldKey={`block-${metric.id}-label`} />
+          ) : (
+            <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={48} placeholder="핵심 근거" fieldKey="intent" />
+          )}
         </p>
         <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-bold leading-8 text-slate-700">
           <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={260} multiline placeholder="본문" fieldKey="narrative" />
@@ -1058,7 +1072,7 @@ function RadialMapCompositionSlide({ page }: { page: PortfolioSitePage }) {
 
 function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 6);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 6);
   return (
     <div className="flex h-full flex-col overflow-hidden px-14 pb-6 pt-14">
       <div className="max-w-[760px]">
@@ -1069,7 +1083,7 @@ function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
         <div className="absolute left-0 right-0 top-[92px] h-[3px] bg-[#b9cdae]" />
         <div className="relative grid grid-cols-6 gap-3">
           {items.map((item, index) => (
-            <div key={`${item}-${index}`} className="min-w-0">
+            <div key={`${item.value}-${index}`} className="min-w-0">
               <p
                 className="flex h-[72px] w-[72px] items-center justify-center text-2xl font-black text-white"
                 style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
@@ -1077,7 +1091,7 @@ function TimelineTrackCompositionSlide({ page }: { page: PortfolioSitePage }) {
                 {index + 1}
               </p>
               <p className="mt-4 text-[12px] font-black leading-5 text-slate-800">
-                {plainText(item, 40)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={40} fieldKey={`item-${index}`} />
               </p>
             </div>
           ))}
@@ -1104,7 +1118,7 @@ function EvidenceWallCompositionSlide({ page }: { page: PortfolioSitePage }) {
         {blocks.map((block, index) => (
           <div key={block.id} className="min-w-0 border-t-[5px] pt-3" style={{ borderColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>
             <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[var(--portfolio-primary)]">
-              {getBlockLabel(block, `Evidence ${index + 1}`)}
+              <EditableText value={block.label} onChange={(v) => patch(["blocks", block.id, "label"], v)} maxLength={40} placeholder={`Evidence ${index + 1}`} fieldKey={`block-${block.id}-label`} />
             </p>
             <p className="mt-2 whitespace-pre-line break-keep text-[12px] font-bold leading-6 text-slate-700">
               <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={180} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
@@ -1149,29 +1163,21 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
           <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={320} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
-          {pageEmphasis(page).slice(0, 4).map((item, index) => {
-            const allEmphasis = page.emphasis || [];
-            return (
-              <span
-                key={`${item}-${index}`}
-                className="text-[13px] font-black uppercase tracking-[0.12em]"
-                style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
-              >
-                <EditableText
-                  value={item}
-                  onChange={(v) => {
-                    const next = [...allEmphasis];
-                    if (v.trim() === "") next.splice(index, 1);
-                    else next[index] = v;
-                    patch(["emphasis"], next);
-                  }}
-                  maxLength={24}
-                  placeholder="키워드"
-                  fieldKey={`emphasis-${index}`}
-                />
-              </span>
-            );
-          })}
+          {useItemsSourceOrFallback(page, null, () => pageEmphasis(page)).slice(0, 4).map((item, index) => (
+            <span
+              key={`${item.value}-${index}`}
+              className="text-[13px] font-black uppercase tracking-[0.12em]"
+              style={{ color: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
+            >
+              <EditableText
+                value={item.value}
+                onChange={item.onChange || (() => {})}
+                maxLength={24}
+                placeholder="키워드"
+                fieldKey={`emphasis-${index}`}
+              />
+            </span>
+          ))}
         </div>
       </div>
       <div className="relative flex flex-col justify-center">
@@ -1228,7 +1234,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page));
   return (
     <div className="flex h-full flex-col overflow-hidden px-14 pb-6 pt-14">
       <TitleBlock page={page} />
@@ -1236,7 +1242,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
         <div className="absolute left-0 right-0 top-[39px] h-[3px] bg-[#b9cdae]" />
         <div className="relative grid grid-cols-5 gap-5">
           {items.slice(0, 5).map((item, index) => (
-            <div key={`${item}-${index}`} className="min-w-0">
+            <div key={`${item.value}-${index}`} className="min-w-0">
               <div
                 className="flex h-20 w-20 items-center justify-center text-2xl font-black text-white"
                 style={{ backgroundColor: ACCENT_COLORS[index % ACCENT_COLORS.length] }}
@@ -1244,7 +1250,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
                 {index + 1}
               </div>
               <p className="mt-5 text-[15px] font-black leading-6 text-slate-800">
-                {plainText(item, 54)}
+                <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={54} fieldKey={`item-${index}`} />
               </p>
             </div>
           ))}

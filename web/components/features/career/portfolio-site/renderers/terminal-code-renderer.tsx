@@ -28,7 +28,7 @@ import {
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
-import { EditableText, useItemsSource, usePatchActivePage } from "./editable-text";
+import { EditableText, useItemsSource, useItemsSourceOrFallback, usePatchActivePage } from "./editable-text";
 
 const BG = "#0a0a0a";
 const SURFACE = "#111111";
@@ -202,7 +202,7 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
 
 function ProfileSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const emphasis = pageEmphasis(page).slice(0, 5);
+  const emphasis = useItemsSourceOrFallback(page, null, () => pageEmphasis(page)).slice(0, 5);
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-8 overflow-hidden">
       <div className="flex flex-col justify-center overflow-hidden">
@@ -226,7 +226,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
           </p>
           {emphasis.map((item, i) => (
             <p key={`${item}-${i}`} className="ml-4 text-[12px] font-medium">
-              <span style={{ color: STRING }}>&quot;{plainText(item, 60)}&quot;</span>
+              <span style={{ color: STRING }}>&quot;<EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={60} fieldKey={`item-${i}`} />&quot;</span>
               {i < emphasis.length - 1 ? <span style={{ color: MUTED }}>,</span> : null}
             </p>
           ))}
@@ -241,7 +241,7 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
 
 function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = matrixItems(page).slice(0, 12);
+  const items = useItemsSourceOrFallback(page, "matrix", () => matrixItems(page)).slice(0, 12);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <h2 className="break-keep text-[32px] font-bold leading-tight" style={{ color: ACCENT }}>
@@ -260,7 +260,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
             <span style={{ color: ACCENT }} className="text-[11px] font-bold">
               ✓
             </span>
-            <span className="break-keep text-[12px] font-medium">{plainText(item, 30)}</span>
+            <span className="break-keep text-[12px] font-medium"><EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={30} fieldKey={`item-${i}`} /></span>
           </div>
         ))}
       </div>
@@ -270,7 +270,7 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
 
 function IndexSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 6);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 6);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <h2 className="break-keep text-[32px] font-bold leading-tight" style={{ color: ACCENT }}>
@@ -287,7 +287,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
             </span>
             <span className="break-keep">
               <span style={{ color: ACCENT }}>{">"} </span>
-              {plainText(item, 90)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={90} fieldKey={`item-${i}`} />
             </span>
           </div>
         ))}
@@ -298,7 +298,7 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
 
 function CaseSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const flow = flowItems(page).slice(0, 4);
+  const flow = useItemsSourceOrFallback(page, "flow", () => flowItems(page)).slice(0, 4);
   const callout = calloutBlocks(page)[0];
   const LABELS = ["problem", "role", "solution", "result"];
   return (
@@ -325,7 +325,7 @@ function CaseSlide({ page }: { page: PortfolioSitePage }) {
             <p className="mt-1 text-[16px] font-bold tabular-nums" style={{ color: i === flow.length - 1 ? ACCENT : TEXT }}>
               0{i + 1}.
             </p>
-            <p className="mt-2 break-keep text-[12px] font-medium leading-5">{plainText(item, 100)}</p>
+            <p className="mt-2 break-keep text-[12px] font-medium leading-5"><EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} /></p>
           </div>
         ))}
       </div>
@@ -364,7 +364,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
         {blocks.map((block, i) => (
           <div key={block.id} className="border p-3" style={{ borderColor: BORDER, backgroundColor: SURFACE }}>
             <p className="text-[10px]" style={{ color: ACCENT }}>
-              {`> ${getBlockLabel(block, `note ${i + 1}`)}`}
+              {"> "}<EditableText value={block.label} onChange={(v) => patch(["blocks", block.id, "label"], v)} maxLength={40} placeholder={`note ${i + 1}`} fieldKey={`block-${block.id}-label`} />
             </p>
             <p className="mt-1 whitespace-pre-line break-keep text-[12px] font-medium leading-6">
               <EditableText value={block.content} onChange={(v) => patch(["blocks", block.id, "content"], v)} maxLength={160} multiline placeholder="본문" fieldKey={`block-${block.id}-content`} />
@@ -378,7 +378,7 @@ function DetailSlide({ page }: { page: PortfolioSitePage }) {
 
 function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
   const patch = usePatchActivePage();
-  const items = timelineItems(page).slice(0, 4);
+  const items = useItemsSourceOrFallback(page, "timeline", () => timelineItems(page)).slice(0, 4);
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
       <div>
@@ -399,7 +399,7 @@ function RetrospectiveSlide({ page }: { page: PortfolioSitePage }) {
               <span style={{ color: ACCENT }} className="font-bold">
                 feat:{" "}
               </span>
-              {plainText(item, 100)}
+              <EditableText value={item.value} onChange={item.onChange || (() => {})} maxLength={100} fieldKey={`item-${i}`} />
             </span>
           </div>
         ))}
