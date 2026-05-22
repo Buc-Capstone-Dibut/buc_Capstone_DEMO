@@ -270,3 +270,10 @@ export function RangeRestrictionSVG() {
     </svg>
   );
 }
+
+export const CountingSortSupplementaryOptions = [
+  FrequencyArraySVG,
+  CumulativeSumSVG,
+  StableSortingSVG,
+  RangeRestrictionSVG,
+];

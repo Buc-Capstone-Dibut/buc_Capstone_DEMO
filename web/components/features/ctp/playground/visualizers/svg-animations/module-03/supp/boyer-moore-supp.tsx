@@ -266,3 +266,10 @@ export function GoodSuffixRuleSVG() {
     </svg>
   );
 }
+
+export const BoyerMooreSearchSupplementaryOptions = [
+  RightToLeftCompareSVG,
+  BadCharacterRuleSVG,
+  AlignBadCharacterSVG,
+  GoodSuffixRuleSVG,
+];

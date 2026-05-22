@@ -233,3 +233,10 @@ export function HeapSortProcessSVG() {
     </svg>
   );
 }
+
+export const HeapSortSupplementaryOptions = [
+  CompleteBinaryTreeSVG,
+  MaxHeapPropertySVG,
+  HeapifySVG,
+  HeapSortProcessSVG,
+];

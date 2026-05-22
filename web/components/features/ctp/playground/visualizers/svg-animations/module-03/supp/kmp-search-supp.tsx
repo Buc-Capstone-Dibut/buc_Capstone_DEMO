@@ -202,3 +202,10 @@ export function LinearTimeEfficiencySVG() {
     </svg>
   );
 }
+
+export const KmpSearchSupplementaryOptions = [
+  PrefixSuffixSVG,
+  LPSTableSVG,
+  KMPSkipSVG,
+  LinearTimeEfficiencySVG,
+];

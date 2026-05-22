@@ -180,3 +180,10 @@ export function PatternBacktrackSVG() {
     </svg>
   );
 }
+
+export const BruteForceSearchSupplementaryOptions = [
+  BruteForceScanSVG,
+  TwoPointerMatchingSVG,
+  WorstCaseMatchSVG,
+  PatternBacktrackSVG,
+];

@@ -27,11 +27,11 @@ import { CountingSortVisualizer, useCountingSortSim } from "@/components/feature
 import { ShellSortSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/shell-sort-supp";
 import { QuickSortSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/quick-sort-supp";
 import { MergeSortSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/merge-sort-supp";
-import { CompleteBinaryTreeSVG, MaxHeapPropertySVG, HeapifySVG, HeapSortProcessSVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/heap-sort-supp";
-import { FrequencyArraySVG, CumulativeSumSVG, StableSortingSVG, RangeRestrictionSVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/counting-sort-supp";
-import { BruteForceScanSVG, TwoPointerMatchingSVG, WorstCaseMatchSVG, PatternBacktrackSVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/brute-force-supp";
-import { PrefixSuffixSVG, LPSTableSVG, KMPSkipSVG, LinearTimeEfficiencySVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/kmp-search-supp";
-import { RightToLeftCompareSVG, BadCharacterRuleSVG, AlignBadCharacterSVG, GoodSuffixRuleSVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/boyer-moore-supp";
+import { HeapSortSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/heap-sort-supp";
+import { CountingSortSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/counting-sort-supp";
+import { BruteForceSearchSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/brute-force-supp";
+import { KmpSearchSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/kmp-search-supp";
+import { BoyerMooreSearchSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/boyer-moore-supp";
 
 import { BruteForceSearchVisualizer, useBruteForceSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/brute-force-search";
 import { KmpSearchVisualizer, useKmpSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/kmp-search";
@@ -228,10 +228,10 @@ const SORTING_MODULES = createInteractiveTemplateModules([
       analogy: "회사 조직도에서 본부장(루트)이 퇴사(정렬 완료)하면, 말단 직원(배열 끝)이 본부장 자리로 올라간 뒤 자신의 역량에 맞는 계급까지 강등(Heapify)되는 과정과 똑같습니다."
     },
     features: [
-      { title: "완전 이진 트리와 배열", description: "부모는 (i-1)/2, 왼쪽 자식은 2i+1, 오른쪽은 2i+2번 인덱스를 갖습니다.", SupplementaryVisualizer: CompleteBinaryTreeSVG },
-      { title: "최대 힙 (Max Heap)", description: "부모 노드가 자식 노드보다 항상 커야 한다는 힙의 규칙을 위에서부터 지킵니다.", SupplementaryVisualizer: MaxHeapPropertySVG },
-      { title: "Heapify (강등 과정)", description: "위로 올라간 작은 값이 제자리를 찾기 위해 큰 자식과 계속 자리를 바꿉니다.", SupplementaryVisualizer: HeapifySVG },
-      { title: "추출과 힙 사이즈 축소", description: "최댓값(루트)을 배열 맨 뒤로 보낸 후, 힙의 논리적 크기를 1 줄입니다.", SupplementaryVisualizer: HeapSortProcessSVG },
+      { title: "완전 이진 트리와 배열", description: "부모는 (i-1)/2, 왼쪽 자식은 2i+1, 오른쪽은 2i+2번 인덱스를 갖습니다.", SupplementaryVisualizer: HeapSortSupplementaryOptions[0] },
+      { title: "최대 힙 (Max Heap)", description: "부모 노드가 자식 노드보다 항상 커야 한다는 힙의 규칙을 위에서부터 지킵니다.", SupplementaryVisualizer: HeapSortSupplementaryOptions[1] },
+      { title: "Heapify (강등 과정)", description: "위로 올라간 작은 값이 제자리를 찾기 위해 큰 자식과 계속 자리를 바꿉니다.", SupplementaryVisualizer: HeapSortSupplementaryOptions[2] },
+      { title: "추출과 힙 사이즈 축소", description: "최댓값(루트)을 배열 맨 뒤로 보낸 후, 힙의 논리적 크기를 1 줄입니다.", SupplementaryVisualizer: HeapSortSupplementaryOptions[3] },
     ],
     useSim: useHeapSortSim,
     Visualizer: HeapSortVisualizer,
@@ -254,25 +254,25 @@ const SORTING_MODULES = createInteractiveTemplateModules([
         title: "도수 분포표 작성",
         description:
           "입력 배열을 한 번 훑으며 각 값의 등장 횟수를 `count[v]`에 기록합니다. 이 한 번의 패스로 모든 빈도 정보를 손에 넣고, 별도 비교 없이 빈도 분포를 즉시 얻습니다.",
-        SupplementaryVisualizer: FrequencyArraySVG,
+        SupplementaryVisualizer: CountingSortSupplementaryOptions[0],
       },
       {
         title: "누적 도수로 위치 계산",
         description:
           "도수 배열을 누적합으로 변환하면 \"값 v 이하인 원소의 개수\"가 곧 v의 출력 위치가 됩니다. 별도 비교 없이 정확한 자리를 알아낼 수 있습니다.",
-        SupplementaryVisualizer: CumulativeSumSVG,
+        SupplementaryVisualizer: CountingSortSupplementaryOptions[1],
       },
       {
         title: "안정 정렬 보장",
         description:
           "입력을 뒤에서부터 훑으며 `count[v]`를 감소시키는 방식으로 같은 값의 원래 순서를 보존합니다. 보조 키가 있는 데이터에서도 안전하게 사용할 수 있습니다.",
-        SupplementaryVisualizer: StableSortingSVG,
+        SupplementaryVisualizer: CountingSortSupplementaryOptions[2],
       },
       {
         title: "메모리 제약",
         description:
           "값 범위 K가 N에 비해 지나치게 크면 도수 배열이 메모리를 많이 차지하고 대부분이 비어 있게 됩니다. K가 작거나 값이 정수인 경우에 한해 효율적인 선택지가 됩니다.",
-        SupplementaryVisualizer: RangeRestrictionSVG,
+        SupplementaryVisualizer: CountingSortSupplementaryOptions[3],
       },
     ],
     useSim: useCountingSortSim,
@@ -299,25 +299,25 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         title: "두 포인터 비교",
         description:
           "텍스트 포인터 `i`와 패턴 포인터 `j`가 함께 전진하며 한 글자씩 대조합니다. 불일치가 발생하면 `i`를 한 칸 뒤로 돌리고 `j`는 0으로 초기화하는 단순한 규칙으로 동작합니다.",
-        SupplementaryVisualizer: TwoPointerMatchingSVG,
+        SupplementaryVisualizer: BruteForceSearchSupplementaryOptions[1],
       },
       {
         title: "모든 시작 위치 검사",
         description:
           "텍스트의 0부터 `N-M`까지 모든 위치를 빠짐없이 검사합니다. 누락이 없다는 보장이 있는 대신 비교 횟수가 입력 크기에 비례해 누적됩니다.",
-        SupplementaryVisualizer: BruteForceScanSVG,
+        SupplementaryVisualizer: BruteForceSearchSupplementaryOptions[0],
       },
       {
         title: "최악 O(NM)의 함정",
         description:
           "거의 일치하다가 마지막 글자에서 실패하는 패턴(`AAAA...B` 형태)이 반복되면 비교 횟수가 NM에 가깝게 늘어납니다. 텍스트와 패턴이 길고 반복 구조가 많을수록 성능 저하가 커집니다.",
-        SupplementaryVisualizer: WorstCaseMatchSVG,
+        SupplementaryVisualizer: BruteForceSearchSupplementaryOptions[2],
       },
       {
         title: "후속 알고리즘의 출발점",
         description:
           "이 단순한 풀이의 비효율 지점을 분석하는 데서 KMP의 LPS 테이블, 보이어-무어의 점프 규칙 같은 고급 아이디어가 출발합니다. 브루트 포스를 정확히 이해하는 것이 다음 단계 학습의 토대입니다.",
-        SupplementaryVisualizer: PatternBacktrackSVG,
+        SupplementaryVisualizer: BruteForceSearchSupplementaryOptions[3],
       },
     ],
     useSim: useBruteForceSearchSim,
@@ -341,25 +341,25 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         title: "패턴 자체의 대칭 활용",
         description:
           "패턴 안에서 앞쪽과 뒤쪽이 일치하는 구조를 찾아내는 것이 핵심입니다. 외부 텍스트가 아니라 패턴 자체에서 정보를 끌어내 미리 준비해 둡니다.",
-        SupplementaryVisualizer: PrefixSuffixSVG,
+        SupplementaryVisualizer: KmpSearchSupplementaryOptions[0],
       },
       {
         title: "LPS 테이블 구축",
         description:
           "패턴 길이 M에 대해 `O(M)` 시간으로 LPS 테이블을 만들어 둡니다. 한 번 구축한 테이블은 동일 패턴이 등장하는 모든 텍스트에 재사용할 수 있습니다.",
-        SupplementaryVisualizer: LPSTableSVG,
+        SupplementaryVisualizer: KmpSearchSupplementaryOptions[1],
       },
       {
         title: "텍스트 포인터 단조 진행",
         description:
           "불일치가 발생해도 텍스트 포인터 `i`는 절대 뒤로 돌아가지 않습니다. 이미 검사한 위치를 다시 비교하지 않으므로 누적 비교 횟수가 텍스트 길이에 비례해 묶입니다.",
-        SupplementaryVisualizer: KMPSkipSVG,
+        SupplementaryVisualizer: KmpSearchSupplementaryOptions[2],
       },
       {
         title: "선형 시간 보장",
         description:
           "전체 시간복잡도가 `O(N+M)`으로 묶여 입력 크기가 커도 안정적입니다. 같은 패턴으로 매우 긴 텍스트를 반복 검사하는 응용에서 특히 강점이 큽니다.",
-        SupplementaryVisualizer: LinearTimeEfficiencySVG,
+        SupplementaryVisualizer: KmpSearchSupplementaryOptions[3],
       },
     ],
     useSim: useKmpSearchSim,
@@ -383,25 +383,25 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         title: "역방향 비교 시작점",
         description:
           "패턴의 마지막 글자부터 비교하기 때문에 패턴과 매우 다른 텍스트 영역을 첫 비교만으로 판단할 수 있습니다. 한 번 확인으로 큰 영역을 배제하는 구조가 핵심입니다.",
-        SupplementaryVisualizer: RightToLeftCompareSVG,
+        SupplementaryVisualizer: BoyerMooreSearchSupplementaryOptions[0],
       },
       {
         title: "Bad Character 점프",
         description:
           "불일치한 텍스트 문자가 패턴에 없다면 패턴 길이만큼 즉시 건너뜁니다. 패턴 안에 있다면 두 글자가 정렬되도록 패턴을 적절히 당겨 옵니다.",
-        SupplementaryVisualizer: BadCharacterRuleSVG,
+        SupplementaryVisualizer: BoyerMooreSearchSupplementaryOptions[1],
       },
       {
         title: "패턴 정렬 점프",
         description:
           "Bad Character가 패턴 어딘가에 있다면, 그 문자가 서로 일치하도록 패턴을 당겨 다음 비교 시작점을 정합니다. 패턴 위치를 정밀하게 끌어와 비교 효율을 높입니다.",
-        SupplementaryVisualizer: AlignBadCharacterSVG,
+        SupplementaryVisualizer: BoyerMooreSearchSupplementaryOptions[2],
       },
       {
         title: "Good Suffix 점프",
         description:
           "이미 끝에서부터 일치한 접미사가 있다면 그 정보를 활용해 더 멀리 점프할 수 있습니다. Bad Character와 Good Suffix 중 더 큰 점프 거리를 선택해 평균 성능을 끌어올립니다.",
-        SupplementaryVisualizer: GoodSuffixRuleSVG,
+        SupplementaryVisualizer: BoyerMooreSearchSupplementaryOptions[3],
       },
     ],
     useSim: useBoyerMooreSearchSim,
