@@ -147,7 +147,7 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
           <div className="relative z-10 flex gap-12 items-start mt-8 w-full max-w-lg justify-center">
 
              {/* SVG overlay: Hash Func → Bucket 7 connection (absolute over the row) */}
-             {(step === 1 || step >= 3) && (
+             {(step >= 1) && (
                 <svg
                    className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible"
                    aria-hidden
