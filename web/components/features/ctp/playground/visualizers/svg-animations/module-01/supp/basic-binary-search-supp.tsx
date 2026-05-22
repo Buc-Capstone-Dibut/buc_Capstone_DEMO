@@ -54,8 +54,8 @@ function LogNReduction() {
         {/* Step 3: Quarter Array */}
         <g transform="translate(0, 120)">
            <text x="0" y="15" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">Step 3</text>
-           <rect x="250" y="0" width="100" height="20" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.2)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
-           <text x="300" y="14" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Found (71)</text>
+           <rect x="250" y="0" width="100" height="20" rx="4" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.2)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
+           <text x="300" y="14" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">Found (71)</text>
         </g>
       </g>
 
@@ -97,10 +97,10 @@ function BoundaryUpdateRules() {
         <path d="M 275 -25 L 275 -5" stroke="hsl(var(--primary))" strokeWidth="2" markerEnd="url(#arrow)" />
 
         {/* L Pointer */}
-        <text x="25" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">L</text>
+        <text x="25" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">L</text>
 
         {/* R Pointer */}
-        <text x="375" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">R</text>
+        <text x="375" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">R</text>
 
         {/* MID Pointer (Initial) */}
         <motion.g animate={{ y: [0, -10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
@@ -109,12 +109,12 @@ function BoundaryUpdateRules() {
         </motion.g>
 
         {/* Animated L movement */}
-        <motion.path d="M 25 80 L 175 80" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" strokeDasharray="4 4" markerEnd="url(#arrow)"
+        <motion.path d="M 25 80 L 175 80" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" strokeDasharray="4 4" markerEnd="url(#arrow)"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: [0, 1, 1, 0] }}
           transition={{ duration: 4, repeat: Infinity }}
         />
-        <motion.text x="100" y="95" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))"
+        <motion.text x="100" y="95" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))"
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, 1, 1, 0] }}
           transition={{ duration: 4, repeat: Infinity }}
@@ -148,12 +148,12 @@ function SortingTradeOff() {
         <text x="160" y="65" fontSize="12" fontWeight="bold" fill="hsl(var(--primary))">O(N log N) Sort Cost</text>
 
         {/* Sorted Array */}
-        <rect x="0" y="80" width="300" height="40" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
+        <rect x="0" y="80" width="300" height="40" rx="4" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.1)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
         <text x="150" y="105" textAnchor="middle" fontSize="14" fill="hsl(var(--foreground))">[1, 2, 4, 7, 8, 9]</text>
 
         {/* Success path */}
-        <path d="M 150 120 C 150 150, 50 150, 50 180" fill="none" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" markerEnd="url(#arrow)" />
-        <text x="50" y="200" textAnchor="middle" fontSize="11" fill="hsl(var(--emerald-500, #10b981))">Binary Search O(log N)</text>
+        <path d="M 150 120 C 150 150, 50 150, 50 180" fill="none" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" markerEnd="url(#arrow)" />
+        <text x="50" y="200" textAnchor="middle" fontSize="11" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">Binary Search O(log N)</text>
 
         {/* Failure path if modified */}
         <path d="M 250 120 C 250 150, 250 150, 250 180" fill="none" stroke="hsl(var(--destructive))" strokeWidth="2" markerEnd="url(#arrow)" strokeDasharray="4 4" />
@@ -189,8 +189,8 @@ function UsageJudgment() {
 
       {/* When TO use */}
       <g transform="translate(320, 80)">
-        <rect x="0" y="0" width="200" height="150" rx="12" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
-        <circle cx="100" cy="30" r="16" fill="hsl(var(--emerald-500, #10b981))" />
+        <rect x="0" y="0" width="200" height="150" rx="12" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.1)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
+        <circle cx="100" cy="30" r="16" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))" />
         <path d="M 93 30 L 98 35 L 108 23" fill="none" stroke="white" strokeWidth="3" />
         <text x="100" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Best Used For:</text>
 

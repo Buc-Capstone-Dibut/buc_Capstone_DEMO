@@ -16,11 +16,11 @@ function HashMagic() {
 
       {/* Hash Function Processor */}
       <g transform="translate(240, 80)">
-        <rect x="0" y="0" width="120" height="80" rx="12" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
-        <path d="M 40 25 L 50 35 L 60 25 M 60 55 L 70 45 L 80 55" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" fill="none" />
-        <circle cx="60" cy="40" r="16" fill="hsl(var(--emerald-500, #10b981)/0.2)" />
+        <rect x="0" y="0" width="120" height="80" rx="12" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.1)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
+        <path d="M 40 25 L 50 35 L 60 25 M 60 55 L 70 45 L 80 55" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" fill="none" />
+        <circle cx="60" cy="40" r="16" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.2)" />
         <text x="60" y="30" textAnchor="middle" fontSize="16">⚙️</text>
-        <text x="60" y="65" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Hash Function</text>
+        <text x="60" y="65" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">Hash Function</text>
       </g>
 
       {/* Array Index */}
@@ -33,13 +33,13 @@ function HashMagic() {
       {/* Connection Arrows & Animations */}
       <motion.path d="M 180 120 L 225 120" stroke="hsl(var(--border))" strokeWidth="3" markerEnd="url(#arrow)"
         animate={{ x: [0, 5, 0] }} transition={{ duration: 1, repeat: Infinity }} />
-      <motion.path d="M 360 120 L 405 120" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="3" markerEnd="url(#arrow)"
+      <motion.path d="M 360 120 L 405 120" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="3" markerEnd="url(#arrow)"
         animate={{ x: [0, 5, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.5 }} />
 
       {/* Equation */}
       <rect x="150" y="220" width="300" height="36" rx="18" fill="hsl(var(--muted)/0.3)" />
       <text x="300" y="244" textAnchor="middle" fontSize="14" fontFamily="monospace" fill="hsl(var(--foreground))">
-        index = <tspan fill="hsl(var(--emerald-500, #10b981))">hash</tspan>("apple") % array_size
+        index = <tspan fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">hash</tspan>("apple") % array_size
       </text>
       <text x="300" y="275" textAnchor="middle" fontSize="12" fontWeight="500" fill="hsl(var(--muted-foreground))">
         Bypasses searching! Math calculates the exact memory location instantly.
@@ -50,7 +50,7 @@ function HashMagic() {
           <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--border))" />
         </marker>
         <marker id="arrow-green" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--emerald-500, #10b981))" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))" />
         </marker>
       </defs>
     </svg>
@@ -133,11 +133,11 @@ function ChainingSolution() {
           <text x="200" y="25" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--destructive))">"melon"</text>
 
           {/* Node 3 ("kiwi") animated */}
-          <motion.path d="M 240 20 L 280 20" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2.5" markerEnd="url(#arrow)"
+          <motion.path d="M 240 20 L 280 20" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2.5" markerEnd="url(#arrow)"
             initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 4, repeat: Infinity }} />
-          <motion.rect x="280" y="0" width="80" height="40" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.1)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2"
+          <motion.rect x="280" y="0" width="80" height="40" rx="4" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.1)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2"
             initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 4, repeat: Infinity }} />
-          <motion.text x="320" y="25" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))"
+          <motion.text x="320" y="25" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))"
             initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 4, repeat: Infinity }}>"kiwi"</motion.text>
         </g>
       </g>
@@ -177,17 +177,17 @@ function OpenAddressing() {
         <text x="200" y="54" fontSize="11" fontWeight="bold" fill="hsl(var(--destructive))">Collision!</text>
 
         {/* Step 2: Probe next */}
-        <path d="M -70 60 L -70 85 L -10 85" fill="none" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="3" strokeDasharray="4 4" markerEnd="url(#arrow)" />
-        <text x="200" y="89" fontSize="11" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">Check [1 + 1]</text>
+        <path d="M -70 60 L -70 85 L -10 85" fill="none" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="3" strokeDasharray="4 4" markerEnd="url(#arrow)" />
+        <text x="200" y="89" fontSize="11" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">Check [1 + 1]</text>
 
         {/* Placement */}
-        <rect x="0" y="70" width="180" height="30" rx="4" fill="hsl(var(--emerald-500, #10b981)/0.2)" stroke="hsl(var(--emerald-500, #10b981))" strokeWidth="2" />
-        <text x="90" y="90" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, #10b981))">"melon" (Placed!)</text>
+        <rect x="0" y="70" width="180" height="30" rx="4" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.2)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
+        <text x="90" y="90" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">"melon" (Placed!)</text>
       </g>
 
       <rect x="50" y="240" width="500" height="40" rx="8" fill="hsl(var(--muted)/0.3)" />
       <text x="300" y="258" textAnchor="middle" fontSize="12" fontWeight="500" fill="hsl(var(--foreground))">
-        No linked lists. If a bucket is full, we step to the <tspan fill="hsl(var(--emerald-500, #10b981))" fontWeight="bold">next available slot</tspan> (+1).
+        No linked lists. If a bucket is full, we step to the <tspan fill="hsl(var(--emerald-500, hsl(160 84% 39%)))" fontWeight="bold">next available slot</tspan> (+1).
       </text>
       <text x="300" y="274" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">
         Great for CPU cache, but suffers from "clustering" if array is too full.
