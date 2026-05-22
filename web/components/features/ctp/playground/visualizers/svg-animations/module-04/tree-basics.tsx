@@ -7,6 +7,7 @@ import {
   NodeCircle,
   EdgeLine,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -153,11 +154,9 @@ export function TreeBasicsVisualizer({ data }: { data: { step: number } }) {
         return (
           <EdgeLine
             key={`edge-${parent}-${child}`}
-            x1={p.x}
-            y1={p.y + r}
-            x2={c.x}
-            y2={c.y - r}
+            {...edgeAt(p, c, r, r)}
             status={status}
+            arrow
           />
         );
       })}

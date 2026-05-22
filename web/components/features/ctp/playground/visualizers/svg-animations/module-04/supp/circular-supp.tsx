@@ -209,11 +209,11 @@ function CircularSupp3() {
         direction="down"
       />
 
-      {/* turn 라벨 */}
-      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={10} fill={colorTokens.muted} fontFamily="ui-monospace, monospace">
+      {/* turn 라벨 — token PointerArrow(y=cy+22) 와 14px 이상 분리되도록 위로 이동 */}
+      <text x={cx} y={cy - 12} textAnchor="middle" fontSize={10} fill={colorTokens.muted} fontFamily="ui-monospace, monospace">
         turn 3
       </text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={9} fill={colorTokens.muted} fontStyle="italic">
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={9} fill={colorTokens.muted} fontStyle="italic">
         스케줄러
       </text>
 

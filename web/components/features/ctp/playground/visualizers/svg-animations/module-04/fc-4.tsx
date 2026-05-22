@@ -215,7 +215,7 @@ export function Fc4Visualizer({ data }: { data: { step: number } }) {
             fontFamily="ui-monospace, monospace"
             fill="hsl(var(--foreground))"
           >
-            {line.length > 42 ? line.slice(0, 41) + "…" : line}
+            {line.length > 52 ? line.slice(0, 51) + "…" : line}
           </text>
         ))}
 
