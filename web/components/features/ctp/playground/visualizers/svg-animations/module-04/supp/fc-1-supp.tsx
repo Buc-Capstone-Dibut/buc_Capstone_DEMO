@@ -14,16 +14,16 @@ function Fc1Supp1() {
   const W = 600;
   const H = 300;
   // 3-level decision tree
-  // root: "정렬?" → left=hash, right=binary
-  // left subtree at depth 2: "검색 횟수 많음?" → linear, hash
+  // 라벨이 r=28 안에 안 들어가는 문제 → ArrayBox (직사각형 80×40) 로 교체.
+  // 한글 라벨을 그대로 노출하면서 노드 폭으로 텍스트 수용.
   const nodes = [
-    { id: 0, cx: 300, cy: 70, label: "정렬?", status: "active" as const },
-    { id: 1, cx: 160, cy: 160, label: "검색 多?", status: "comparing" as const },
-    { id: 2, cx: 440, cy: 160, label: "메모리 여유?", status: "comparing" as const },
-    { id: 3, cx: 90, cy: 240, label: "Linear", status: "found" as const },
-    { id: 4, cx: 230, cy: 240, label: "Hash", status: "found" as const },
-    { id: 5, cx: 380, cy: 240, label: "Binary", status: "found" as const },
-    { id: 6, cx: 510, cy: 240, label: "Hash", status: "found" as const },
+    { id: 0, cx: 300, cy: 75, label: "정렬?", status: "active" as const },
+    { id: 1, cx: 160, cy: 165, label: "검색多?", status: "comparing" as const },
+    { id: 2, cx: 440, cy: 165, label: "메모리?", status: "comparing" as const },
+    { id: 3, cx: 80, cy: 245, label: "Linear", status: "found" as const },
+    { id: 4, cx: 220, cy: 245, label: "Hash", status: "found" as const },
+    { id: 5, cx: 380, cy: 245, label: "Binary", status: "found" as const },
+    { id: 6, cx: 520, cy: 245, label: "Hash", status: "found" as const },
   ];
   const edges: Array<{ a: number; b: number; label: string }> = [
     { a: 0, b: 1, label: "No" },
@@ -33,6 +33,8 @@ function Fc1Supp1() {
     { a: 2, b: 5, label: "No" },
     { a: 2, b: 6, label: "Yes" },
   ];
+  const boxW = 80;
+  const boxH = 40;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full font-mono">
@@ -49,16 +51,26 @@ function Fc1Supp1() {
           <EdgeLine
             key={i}
             x1={a.cx}
-            y1={a.cy + 18}
+            y1={a.cy + boxH / 2}
             x2={b.cx}
-            y2={b.cy - 18}
+            y2={b.cy - boxH / 2}
             status="muted"
             label={e.label}
+            arrow
           />
         );
       })}
       {nodes.map((n) => (
-        <NodeCircle key={n.id} cx={n.cx} cy={n.cy} r={28} value={n.label.length > 4 ? n.label.slice(0, 4) : n.label} status={n.status} showGlow={n.status === "found"} />
+        <ArrayBox
+          key={n.id}
+          x={n.cx - boxW / 2}
+          y={n.cy - boxH / 2}
+          width={boxW}
+          height={boxH}
+          value={n.label}
+          status={n.status}
+          showGlow={n.status === "found"}
+        />
       ))}
 
       <text x={W / 2} y={H - 14} textAnchor="middle" fontSize={11} fill="hsl(var(--foreground))" fontStyle="italic">
@@ -200,11 +212,12 @@ function Fc1Supp4() {
   const y = 90;
 
   // bucket → chain lengths (충돌 시연)
+  // 마지막 체인 4 → 3 으로 축소: viewBox H=300 footer (H-12=288) 와 노드 겹침 방지
   const chains = [
     [11],
     [3, 9],
     [6],
-    [2, 5, 7, 1], // 가장 긴 체인
+    [2, 5, 7], // 가장 긴 체인
   ];
 
   return (
@@ -233,20 +246,26 @@ function Fc1Supp4() {
             />
             {chain.map((v, ci) => {
               const cy = y + bucketH + 28 + ci * 36;
+              const nodeR = 14;
+              const centerX = x + bucketW / 2;
+              // ci===0: bucket bottom → first node top
+              // ci>=1: prev node bottom (cy - 36 + nodeR) → this node top
+              const y1 = ci === 0 ? y + bucketH : cy - 36 + nodeR;
+              const y2 = cy - nodeR;
               return (
                 <g key={ci}>
                   <NodeCircle
-                    cx={x + bucketW / 2}
+                    cx={centerX}
                     cy={cy}
-                    r={14}
+                    r={nodeR}
                     value={v}
                     status={chain.length >= 3 ? "comparing" : "active"}
                   />
                   <EdgeLine
-                    x1={x + bucketW / 2}
-                    y1={ci === 0 ? y + bucketH : cy - 14 - 22}
-                    x2={x + bucketW / 2}
-                    y2={cy - 14}
+                    x1={centerX}
+                    y1={y1}
+                    x2={centerX}
+                    y2={y2}
                     status="muted"
                   />
                 </g>

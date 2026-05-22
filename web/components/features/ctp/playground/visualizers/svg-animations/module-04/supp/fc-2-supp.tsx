@@ -4,7 +4,6 @@ import {
   CyberGrid,
   NeonGlowFilters,
   ArrayBox,
-  NodeCircle,
   EdgeLine,
   colorTokens,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
@@ -62,19 +61,22 @@ function Fc2Supp1() {
 function Fc2Supp2() {
   const W = 600;
   const H = 300;
-  // 3-level tree (root, 2 children, 4 grandchildren)
+  // 5글자 라벨 "(0,5)" 가 r=22 안에 안 들어감 → ArrayBox(직사각형 70×36) 로 교체.
+  // grandchild cx 간격 60→70px 확장 (Important #16) 으로 노드 사이 여유 확보
   const nodes = [
-    { id: 0, cx: 300, cy: 70, label: "(0,5)" },
-    { id: 1, cx: 180, cy: 150, label: "(0,2)" },
-    { id: 2, cx: 420, cy: 150, label: "(3,5)" },
-    { id: 3, cx: 110, cy: 230, label: "(0,0)" },
-    { id: 4, cx: 250, cy: 230, label: "(2,2)" },
-    { id: 5, cx: 360, cy: 230, label: "(3,3)" },
-    { id: 6, cx: 490, cy: 230, label: "(5,5)" },
+    { id: 0, cx: 300, cy: 75, label: "(0,5)" },
+    { id: 1, cx: 180, cy: 155, label: "(0,2)" },
+    { id: 2, cx: 420, cy: 155, label: "(3,5)" },
+    { id: 3, cx: 100, cy: 235, label: "(0,0)" },
+    { id: 4, cx: 260, cy: 235, label: "(2,2)" },
+    { id: 5, cx: 350, cy: 235, label: "(3,3)" },
+    { id: 6, cx: 500, cy: 235, label: "(5,5)" },
   ];
   const edges: Array<[number, number]> = [
     [0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6],
   ];
+  const boxW = 70;
+  const boxH = 36;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full font-mono">
@@ -91,22 +93,24 @@ function Fc2Supp2() {
           <EdgeLine
             key={i}
             x1={na.cx}
-            y1={na.cy + 22}
+            y1={na.cy + boxH / 2}
             x2={nb.cx}
-            y2={nb.cy - 22}
+            y2={nb.cy - boxH / 2}
             status="muted"
+            arrow
           />
         );
       })}
       {nodes.map((n) => (
-        <NodeCircle
+        <ArrayBox
           key={n.id}
-          cx={n.cx}
-          cy={n.cy}
-          r={22}
+          x={n.cx - boxW / 2}
+          y={n.cy - boxH / 2}
+          width={boxW}
+          height={boxH}
           value={n.label}
           status={n.id === 0 ? "active" : n.id <= 2 ? "comparing" : "found"}
-          showGlow={n.id <= 2 || n.id === 3 || n.id === 4 || n.id === 5 || n.id === 6}
+          showGlow={n.id <= 2 || n.id >= 3}
         />
       ))}
 
