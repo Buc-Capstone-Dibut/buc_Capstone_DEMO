@@ -11,7 +11,7 @@ import {
   colorTokens,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
-export function useBinarySearchSim() {
+export function useBasicBinarySearchSim() {
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
     "> SYSTEM INITIALIZED: Binary Search Protocol",
@@ -52,7 +52,7 @@ export function useBinarySearchSim() {
   };
 }
 
-export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
+export function BasicBinarySearchVisualizer({ data }: { data: { step: number } }) {
   const { step } = data;
   const arr = [1, 3, 5, 7, 9, 11, 13];
   const target = 11;
@@ -101,7 +101,7 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
 
         {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-w-[300px] bg-background/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 mb-4 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />

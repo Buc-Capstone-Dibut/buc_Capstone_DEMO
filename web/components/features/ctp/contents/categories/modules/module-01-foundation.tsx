@@ -20,7 +20,7 @@ import { ArrayPrimeVisualizer, useArrayPrimeSim } from "@/components/features/ct
 
 import { ProblemKeyVisualizer, useProblemKeySim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/search-problem-key";
 import { LinearSearchVisualizer, useLinearSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/linear-search";
-import { BinarySearchVisualizer, useBinarySearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/basic-binary-search";
+import { BasicBinarySearchVisualizer, useBasicBinarySearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/basic-binary-search";
 import { HashCollisionVisualizer, useHashCollisionSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-01/hash-collision";
 
 // Supplementary Visualizers
@@ -356,8 +356,8 @@ const FOUNDATION_BASIC_SEARCH_MODULES = createInteractiveTemplateModules([
     id: "basic-binary-search",
     title: "03-3 이진 검색 기초",
     description: "경계 이동 규칙과 불변식을 유지하는 이진 탐색 코드 구조를 학습합니다.",
-    useSim: useBinarySearchSim,
-    Visualizer: BinarySearchVisualizer,
+    useSim: useBasicBinarySearchSim,
+    Visualizer: BasicBinarySearchVisualizer,
     story: {
       problem: "전 세계 사람의 전화번호가 담긴 책(수십억 개)에서 특정 사람의 폰 번호를 찾을 때, 첫 장부터 한 장씩 선형으로 넘긴다면 평생이 걸릴 것입니다.\n\n데이터 양이 우주적으로 막대해질 때, 선형 검색의 참담한 속도 한계를 극복하지 못하면 시스템은 그대로 침몰합니다.",
       definition: "**이진 검색(Binary Search)** 은 '사전에 완벽히 정렬된' 데이터 배열의 마법을 이용하여, 탐색 범위를 매 회차마다 무자비하게 반 토막(Half) 내며 좁혀 들어가는 초속도 탐색 알고리즘입니다.\n\n* **로그 시간 복잡도 `O(log N)`**: 데이터 사이즈가 10억 개라도 단 30번의 질문(비교)만으로 타겟을 저격해내는 압도적인 위력을 자랑합니다.\n* **탐색 범위(L, R, M) 포인터**: 현재 후보 구간의 양 끝단인 Left(L)와 Right(R), 그리고 구간의 심장을 찌르는 Mid(M) 포인터의 숨 막히는 갱신 로직이 핵심입니다.\n* **가혹한 전제조건의 트레이드오프**: 이진 검색의 짜릿한 속력을 맛보려면, 배열이 반드시 미리 정렬(`O(N log N)`)되어 있어야 한다는 가혹한 초기 투자 비용(정렬 시간)을 기꺼이 지불해야 합니다.",
