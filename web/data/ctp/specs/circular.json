@@ -1,0 +1,106 @@
+{
+  "id": "circular",
+  "moduleId": "module-04-list-tree-final",
+  "conceptId": "list",
+  "title": "08-4 원형 이중 연결 리스트",
+  "difficulty": "intermediate",
+  "prerequisites": ["doubly"],
+  "learningOutcomes": [
+    "마지막 노드의 next가 head로, head의 prev가 마지막 노드로 되돌아오는 원형 구조 이해",
+    "특정 노드만 알아도 한 바퀴 순회로 전체 리스트를 방문할 수 있는 흐름 체득",
+    "라운드 로빈 스케줄러, 음악 재생 큐 같은 응용에서 끝-시작 경계를 없애는 장점 설명"
+  ],
+  "simulation": {
+    "mode": "interactive",
+    "domain": "list",
+    "stepCount": 3,
+    "operations": ["next", "prev", "reset"],
+    "initialState": {
+      "nodes": [
+        { "id": 0, "value": "A", "prev": 2, "next": 1 },
+        { "id": 1, "value": "B", "prev": 0, "next": 2 },
+        { "id": 2, "value": "C", "prev": 1, "next": 0 }
+      ],
+      "head": 0
+    },
+    "storyboard": [
+      {
+        "step": 0,
+        "description": "A → B → C → A 순서로 노드가 원형으로 연결되어 있습니다. 끝 노드 C의 next는 head A를 가리킵니다.",
+        "stateAfter": { "head": 0, "highlight": [0, 1, 2], "shape": "circle" }
+      },
+      {
+        "step": 1,
+        "description": "B에서 시작해도 next를 3번 따라가면 다시 B로 돌아옵니다. 원형 구조에서는 어디서 출발하든 전체 순회가 가능합니다.",
+        "stateAfter": { "highlight": ["B", "C", "A", "B"], "loop": true }
+      },
+      {
+        "step": 2,
+        "description": "원형 구조에서는 \"끝\"이라는 특수 경계가 없으므로 종료 조건을 시작 노드로 다시 돌아왔는지로 정의해야 합니다.",
+        "stateAfter": { "head": 0, "stopCondition": "current === start" }
+      }
+    ]
+  },
+  "visualizer": {
+    "type": "linked-list",
+    "showIndices": true,
+    "showPointers": ["head"]
+  },
+  "supplementary": [
+    {
+      "title": "끝과 시작의 결합",
+      "description": "마지막 노드의 next가 첫 노드로 되돌아오고, 첫 노드의 prev가 마지막 노드를 가리킵니다. \"끝\"이라는 특수 위치가 사라지고 모든 노드가 동등한 위치를 갖습니다.",
+      "visualHint": "노드들을 원형 배치하고 next 화살표가 시작점으로 되돌아오는 모양"
+    },
+    {
+      "title": "어디서든 전체 순회 가능",
+      "description": "head를 알지 못해도 어떤 노드든 손에 들고 있으면 한 바퀴를 돌아 전체에 접근할 수 있습니다. 다만 종료 조건은 \"시작 노드로 되돌아왔는가\"로 잡아야 합니다.",
+      "visualHint": "임의 노드에서 출발해 화살표를 따라 한 바퀴 도는 경로"
+    },
+    {
+      "title": "라운드 로빈 응용",
+      "description": "라운드 로빈 스케줄러, 음악 반복 재생, 게임 턴 진행처럼 \"끝나면 다시 처음부터\"가 자연스러운 흐름에 적합합니다. 조건 분기 없이 next만 따라가면 됩니다.",
+      "visualHint": "원형 트랙을 따라 토큰이 시계 방향으로 한 노드씩 이동"
+    },
+    {
+      "title": "주의: 무한 루프 위험",
+      "description": "종료 조건을 두지 않으면 next를 영원히 따라갈 수 있습니다. 시작 노드 기억, 방문 카운트, 최대 반복 횟수 같은 안전 장치를 명시적으로 둬야 합니다.",
+      "visualHint": "순회 카운터와 \"시작 노드 비교\" 종료 조건을 함께 표시"
+    }
+  ],
+  "content": {
+    "story": {
+      "problem": "라운드 로빈 스케줄러나 음악 반복 재생처럼 마지막에 도달한 뒤 다시 처음으로 돌아가야 하는 작업은 매번 \"끝에 닿았는가\"를 검사해 head로 되돌아가는 분기 코드를 작성해야 합니다. 분기 처리는 단순해 보여도 누락이 잦고, 데이터 흐름에서 끝-시작 경계를 특수 케이스로 만든다는 부담이 있습니다.",
+      "definition": "원형 이중 연결 리스트(Circular Doubly Linked List)는 마지막 노드의 next가 첫 노드로, 첫 노드의 prev가 마지막 노드로 연결된 자료구조입니다.\n- 진입점: head 한 개. tail은 head.prev로 즉시 접근 가능\n- \"끝\"이라는 특수 위치가 없으므로 종료 조건은 \"시작 노드로 되돌아왔는가\"로 정의\n- 어느 노드에서 출발해도 한 바퀴 순회로 전체에 도달할 수 있어 라운드 로빈 응용에 적합",
+      "analogy": "회전 초밥 벨트나 원형 트랙과 같습니다. 접시는 정해진 순서대로 손님 앞을 지나가지만, 마지막 자리 다음에 다시 첫 자리가 등장하기 때문에 \"끝\"이라는 개념 자체가 없습니다. 어디에 앉아 있어도 한 바퀴를 기다리면 모든 접시를 볼 수 있습니다."
+    },
+    "features": [
+      {
+        "title": "끝과 시작의 결합",
+        "description": "마지막 노드의 next가 head로 되돌아옴으로써 끝-시작 경계가 사라집니다. 모든 노드가 동등한 위치를 가지므로 특수 케이스 분기가 거의 사라집니다.",
+        "icon": "refresh"
+      },
+      {
+        "title": "임의 출발점 순회",
+        "description": "head를 모르더라도 노드 하나만 손에 들고 있으면 한 바퀴를 돌아 전체를 방문할 수 있습니다. 시작 노드를 기억해 두는 것이 종료 조건의 핵심입니다.",
+        "icon": "loop"
+      },
+      {
+        "title": "라운드 로빈에 자연스러운 표현",
+        "description": "라운드 로빈 스케줄러, 음악 반복 재생, 게임 턴 진행처럼 \"끝나면 처음으로\"가 자연스러운 응용에 적합합니다. 별도 조건 분기 없이 next 한 번이면 됩니다.",
+        "icon": "rotate"
+      },
+      {
+        "title": "무한 루프 방지 책임",
+        "description": "끝 노드가 없으므로 잘못 짠 순회는 영원히 끝나지 않을 수 있습니다. 시작 노드 비교, 방문 카운트 같은 안전 장치를 반드시 코드에 명시해야 합니다.",
+        "icon": "alert"
+      }
+    ],
+    "complexity": {
+      "access": "O(N)",
+      "search": "O(N)",
+      "insertion": "O(1)",
+      "deletion": "O(1)"
+    }
+  }
+}
