@@ -105,7 +105,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
     description: "최솟값 선택 반복 패턴을 실습합니다.",
     sampleData: [7, 3, 9, 2, 4],
     story: {
-      problem: "버블 정렬은 너무 잦은 교환(Swap)이 발생합니다. 교환 횟수를 획기적으로 줄일 방법은 없을까요?",
+      problem: "버블 정렬은 너무 잦은 교환(Swap)이 발생합니다. 교환 횟수를 크게 줄일 방법은 없을까요?",
       definition: "선택 정렬(Selection Sort)은 정렬되지 않은 영역에서 '가장 작은 값'을 찾아, 그 값을 정렬되지 않은 부분의 '맨 앞'과 교환하는 알고리즘입니다.",
       analogy: "카드 게임에서 카드를 정리할 때, 카드를 쭉 훑어보고 가장 작은 카드를 뽑아 맨 앞으로 옮기는 것과 똑같습니다."
     },
@@ -209,7 +209,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
       analogy: "2권짜리 작은 사전 2개를 하나의 큰 사전으로 합칠 때, 양쪽 사전의 첫 페이지만 비교하면서 더 앞선 알파벳을 새 사전에 넘기는 과정을 반복하는 것과 같습니다."
     },
     features: [
-      { title: "무자비한 분할 (Divide)", description: "배열의 크기가 1이 될 때까지 무조건 정확히 반으로 쪼갭니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[0] },
+      { title: "정확한 분할 (Divide)", description: "배열의 크기가 1이 될 때까지 무조건 정확히 반으로 쪼갭니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[0] },
       { title: "체계적인 병합 (Merge)", description: "정렬된 두 부분 배열의 맨 앞만 비교하며 하나로 합칩니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[1] },
       { title: "흔들리지 않는 편안함 O(N log N)", description: "초기 상태가 극악이라도 트리의 깊이는 항상 일정합니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[2] },
       { title: "메모리의 대가 O(N)", description: "데이터를 합칠 때 원래 배열 크기만큼의 추가 도화지(배열)가 반드시 필요합니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[3] },
