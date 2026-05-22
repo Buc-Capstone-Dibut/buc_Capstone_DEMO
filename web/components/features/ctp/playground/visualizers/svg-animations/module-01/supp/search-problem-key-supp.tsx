@@ -130,6 +130,29 @@ function SearchKeyCriteria() {
            animate={{ rx: [90, 110, 90], ry: [20, 40, 20] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} />
       </g>
 
+      {/* Scan Beams: render at outer-SVG coords so each beam unambiguously originates
+          at Target bottom-center (400, 160) and lands on each node top-center (150 + i*125, 240). */}
+      {[5, 12, 15, 27, 8].map((val, i) => {
+        const isMatch = val === 15;
+        const targetX = 400;
+        const targetY = 160;
+        const nodeCenterX = 150 + i * 125;
+        const nodeTopY = 240;
+        return (
+          <motion.path
+            key={`beam-${i}`}
+            d={`M ${targetX} ${targetY} L ${nodeCenterX} ${nodeTopY}`}
+            stroke={isMatch ? "#10b981" : "#f43f5e"}
+            strokeWidth="3"
+            strokeDasharray="6 6"
+            opacity="0.6"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+          />
+        );
+      })}
+
       {/* Dataset Nodes */}
       <g transform="translate(100, 240)">
         {[5, 12, 15, 27, 8].map((val, i) => {
@@ -147,10 +170,6 @@ function SearchKeyCriteria() {
               <text x="50" y="25" textAnchor="middle" fontSize="12" fontWeight="700" fill={isMatch ? "#fff" : "hsl(var(--muted-foreground))"}>User Data</text>
               <line x1="20" y1="35" x2="80" y2="35" stroke={isMatch ? "#fff" : "hsl(var(--border))"} strokeWidth="2" opacity="0.5" />
               <text x="50" y="65" textAnchor="middle" fontSize="24" fontWeight="900" fill={isMatch ? "#fff" : "hsl(var(--foreground))"}>{val}</text>
-
-              {/* Scan Beam */}
-              <motion.path d={`M ${200 - i * 125 + 100} -50 L 50 -10`} stroke={isMatch ? "#10b981" : "#f43f5e"} strokeWidth="3" strokeDasharray="6 6" opacity="0.6"
-                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />
             </g>
           );
         })}
