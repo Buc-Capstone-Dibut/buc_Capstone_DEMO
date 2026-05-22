@@ -13,8 +13,8 @@ import {
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
-// FC-1: 4문제 미니 워크플로 (input → linear → binary → hash → summary)
-const MAX_STEPS = 5;
+// FC-1: 4문제 미니 워크플로 (input → linear → binary(3 sub-step) → hash → summary)
+const MAX_STEPS = 7;
 
 const INPUT_ARR = [3, 7, 1, 9, 4, 11, 6, 5, 2, 8];
 const SORTED_ARR = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11];
@@ -22,6 +22,13 @@ const TARGET = 9;
 // 해시 충돌 시연: hash(x) = x % 7
 const HASH_BUCKETS = 7;
 const hashOf = (n: number) => n % HASH_BUCKETS;
+
+// Binary stage helper: step 2~4 동안 sub-step에 따라 L/R/M 갱신
+const BINARY_PHASES = [
+  { L: 0, R: 9, M: 4 },  // step 2: M=4 (값=5) < target=9 → L 이동
+  { L: 5, R: 9, M: 7 },  // step 3: M=7 (값=8) < target=9 → L 이동
+  { L: 8, R: 9, M: 8 },  // step 4: M=8 (값=9) === target → 발견
+];
 
 export function useFc1Sim() {
   const [step, setStep] = useState(0);
@@ -37,9 +44,11 @@ export function useFc1Sim() {
     setStep((prev) => {
       const next = Math.min(prev + 1, MAX_STEPS - 1);
       if (next === 1) appendLog("[LINEAR] 인덱스 0부터 순회. target=9는 인덱스 3에서 발견 (비교 4회).");
-      if (next === 2) appendLog("[BINARY] 정렬된 사본에서 L=0, R=9, M=4. 절반씩 후보 구간 축소 (비교 3~4회).");
-      if (next === 3) appendLog("[HASH] 입력을 해시 테이블에 적재. lookup(9)는 평균 O(1).");
-      if (next === 4) appendLog("[SUMMARY] 선형 O(N) · 이진 O(log N) · 해시 O(1) 평균.");
+      if (next === 2) appendLog("[BINARY 1/3] L=0, R=9, M=4. arr[4]=5 < 9 → L = M+1 = 5.");
+      if (next === 3) appendLog("[BINARY 2/3] L=5, R=9, M=7. arr[7]=8 < 9 → L = M+1 = 8.");
+      if (next === 4) appendLog("[BINARY 3/3] L=8, R=9, M=8. arr[8]=9 === target → 발견.");
+      if (next === 5) appendLog("[HASH] 입력을 해시 테이블에 적재. lookup(9)는 평균 O(1).");
+      if (next === 6) appendLog("[SUMMARY] 선형 O(N) · 이진 O(log N) · 해시 O(1) 평균.");
       return next;
     });
   }, [appendLog]);
@@ -74,19 +83,24 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
   const boxStartX = (svgWidth - totalWidth) / 2;
   const boxY = 120;
 
-  const arr = step >= 2 ? SORTED_ARR : INPUT_ARR;
+  const inBinaryStage = step >= 2 && step <= 4;
+  const arr = inBinaryStage ? SORTED_ARR : (step >= 5 ? INPUT_ARR : (step === 1 ? INPUT_ARR : INPUT_ARR));
   const stageLabel =
     step === 0 ? "INPUT" :
     step === 1 ? "LINEAR SEARCH" :
-    step === 2 ? "BINARY SEARCH" :
-    step === 3 ? "HASH SEARCH" :
+    step === 2 ? "BINARY SEARCH (1/3)" :
+    step === 3 ? "BINARY SEARCH (2/3)" :
+    step === 4 ? "BINARY SEARCH (3/3)" :
+    step === 5 ? "HASH SEARCH" :
     "SUMMARY";
 
   // Linear search: 인덱스 0..3 까지 진행, target found at 3
   const linearProgress = step === 1 ? 4 : 0;
-  // Binary search: L=0, R=9, M=4 (값=5), target=9, found at index 8
-  const L = 0, R = 9, M = 4;
+  // Binary search: sub-step에 따라 L/R/M
+  const binaryPhase = inBinaryStage ? BINARY_PHASES[step - 2] : BINARY_PHASES[0];
+  const { L, R, M } = binaryPhase;
   const binaryFoundIdx = SORTED_ARR.indexOf(TARGET); // 8
+  const binaryFoundNow = step === 4; // 마지막 sub-step에서만 발견
 
   return (
     <svg
@@ -110,13 +124,15 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
       <text x={svgWidth / 2} y={78} textAnchor="middle" fontSize={11} fill="hsl(var(--muted-foreground))">
         {step === 0 && "정렬되지 않은 입력. 어떤 검색 전략을 고를지 결정합니다."}
         {step === 1 && "선형 검색: 인덱스 0부터 차례로 비교. 비교 횟수를 누적합니다."}
-        {step === 2 && "이진 검색: 정렬된 사본에서 L/R/M 포인터로 절반씩 좁혀 갑니다."}
-        {step === 3 && "해시 검색: 버킷에 적재 후 즉시 조회. 충돌 시 체인이 길어집니다."}
-        {step === 4 && "복잡도 요약: O(N) vs O(log N) vs O(1) 평균."}
+        {step === 2 && "이진 검색 1/3: L=0, R=9, M=4. arr[4]=5 < 9이므로 좌측 절반을 버립니다 (L = M+1)."}
+        {step === 3 && "이진 검색 2/3: L=5, R=9, M=7. arr[7]=8 < 9이므로 다시 좌측 절반을 버립니다 (L = M+1)."}
+        {step === 4 && "이진 검색 3/3: L=8, R=9, M=8. arr[8]=9 → target 발견 (총 3회 비교)."}
+        {step === 5 && "해시 검색: 버킷에 적재 후 즉시 조회. 충돌 시 체인이 길어집니다."}
+        {step === 6 && "복잡도 요약: O(N) vs O(log N) vs O(1) 평균."}
       </text>
 
-      {/* Step 0~2: 배열 표시 (INPUT_ARR or SORTED_ARR) */}
-      {step <= 2 && arr.map((val, i) => {
+      {/* Step 0~4: 배열 표시 (INPUT_ARR or SORTED_ARR) */}
+      {step <= 4 && arr.map((val, i) => {
         const x = boxStartX + i * (boxSize + boxGap);
         let status: ColorToken = "default";
 
@@ -129,11 +145,12 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
           if (i === linearProgress - 1) status = "found"; // 발견
         }
 
-        // step 2: binary search L/R/M
-        if (step === 2) {
-          if (i === M) status = "active";
-          else if (i === binaryFoundIdx) status = "found";
+        // step 2~4: binary search L/R/M sub-steps
+        if (inBinaryStage) {
+          if (binaryFoundNow && i === binaryFoundIdx) status = "found";
+          else if (i === M) status = "active";
           else if (i >= L && i <= R) status = "comparing";
+          else status = "muted"; // 이미 버린 구간
         }
 
         return (
@@ -163,8 +180,8 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
         />
       )}
 
-      {/* step 2: L/R/M pointer — L=blue(pointer) / R=orange(comparing) 색 분리 */}
-      {step === 2 && (
+      {/* step 2~4: L/R/M pointer — L=blue(pointer) / R=orange(comparing) 색 분리 */}
+      {inBinaryStage && (
         <>
           <PointerArrow
             x={boxStartX + L * (boxSize + boxGap) + boxSize / 2}
@@ -190,8 +207,8 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
         </>
       )}
 
-      {/* step 3: 해시 테이블 (7 buckets + 충돌 chain) */}
-      {step === 3 && (() => {
+      {/* step 5: 해시 테이블 (7 buckets + 충돌 chain) */}
+      {step === 5 && (() => {
         const bucketBoxSize = 64;
         const bucketGap = 14;
         const bucketTotal = HASH_BUCKETS * bucketBoxSize + (HASH_BUCKETS - 1) * bucketGap;
@@ -256,8 +273,8 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
         );
       })()}
 
-      {/* step 4: summary table */}
-      {step === 4 && (() => {
+      {/* step 6: summary table */}
+      {step === 6 && (() => {
         const rows = [
           { label: "Linear", complexity: "O(N)", comparisons: "4 회", note: "정렬 불필요" },
           { label: "Binary", complexity: "O(log N)", comparisons: "3 회", note: "정렬 전제" },
