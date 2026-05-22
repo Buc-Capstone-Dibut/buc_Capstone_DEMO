@@ -12,10 +12,11 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { ChevronLeft, ChevronRight, Layers3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Layers3, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PortfolioDocument, PortfolioSitePage } from "@/lib/career-portfolios";
 import type { RendererProps } from "./shared";
@@ -62,11 +63,48 @@ export function RendererShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [pages.length, setIndex, disableKeyboardNav]);
 
+  // ─── 전체화면 모드 ───
+  const sectionRef = useRef<HTMLElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 외부에서 ESC 등으로 fullscreen 빠져나갈 때 동기화
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(
+        typeof window !== "undefined" && Boolean((window.document as Document).fullscreenElement),
+      );
+    };
+    if (typeof window !== "undefined") {
+      window.document.addEventListener("fullscreenchange", onFsChange);
+      return () => window.document.removeEventListener("fullscreenchange", onFsChange);
+    }
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const el = sectionRef.current;
+    if (!el) return;
+    try {
+      if (!window.document.fullscreenElement) {
+        await el.requestFullscreen({ navigationUI: "hide" });
+      } else {
+        await window.document.exitFullscreen();
+      }
+    } catch (e) {
+      console.error("fullscreen toggle failed", e);
+    }
+  }, []);
+
   const currentPage = pages[Math.min(index, Math.max(0, pages.length - 1))];
 
   return (
     <section
-      className={cn("min-h-screen", className)}
+      ref={sectionRef}
+      className={cn(
+        "min-h-screen portfolio-renderer-shell",
+        isFullscreen && "portfolio-renderer-shell-fullscreen",
+        className,
+      )}
       style={{
         backgroundColor: SHELL_BG,
         color: SHELL_HEADING,
@@ -120,6 +158,17 @@ export function RendererShell({
               aria-label="다음"
             >
               <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <span className="mx-1 h-4 w-px" style={{ backgroundColor: SHELL_BORDER }} />
+            <button
+              type="button"
+              onClick={() => void toggleFullscreen()}
+              className="flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-slate-50"
+              style={{ border: `1px solid ${SHELL_BORDER}`, color: SHELL_HEADING, backgroundColor: SHELL_CARD }}
+              aria-label={isFullscreen ? "전체화면 종료" : "전체화면"}
+              title={isFullscreen ? "전체화면 종료 (Esc)" : "전체화면"}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </button>
           </div>
         </header>
