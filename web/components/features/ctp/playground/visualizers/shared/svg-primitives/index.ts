@@ -8,3 +8,4 @@ export { StepCounter } from "./StepCounter";
 export { LogPanel } from "./LogPanel";
 export { NodeCircle } from "./NodeCircle";
 export { EdgeLine } from "./EdgeLine";
+export { edgeAt } from "./edgeAt";
