@@ -59,12 +59,6 @@ export interface CTPModuleConfig {
     insertion: string;
     deletion: string;
   };
-  complexityNames?: {
-    access?: string;
-    search?: string;
-    insertion?: string;
-    deletion?: string;
-  };
   practiceProblems?: CTPPracticeProblem[];
   implementation?: CTPImplementationExample[];
   initialCode?: {
@@ -112,18 +106,4 @@ export interface VisualItem {
   label?: string; // Optional label (e.g., index or variable name)
   isGhost?: boolean; // For capacity visualization etc.
   status?: 'active' | 'comparing' | 'pop' | 'success' | 'visited' | 'found'; // [NEW] For detailed algorithm states
-}
-
-
-export type LinearItem = VisualItem;
-export type GridItem = VisualItem;
-
-export interface LinkedListNode {
-  id: string | number;
-  value: any;
-  nextId?: string | number | null;
-  prevId?: string | number | null;
-  label?: string; // e.g. "Head", "Curr"
-  isHighlighted?: boolean;
-  isNull?: boolean;
 }
