@@ -14,6 +14,7 @@
     "test:rss": "node scripts/validate-rss.js",
     "test:ctp-problem-bank": "tsx --test components/features/ctp/playground/browser-judge/*.test.ts",
     "test:ctp-specs": "tsx --test data/ctp/specs/*.test.ts",
+    "test:ctp-skulpt-runner": "tsx --test lib/ctp/skulpt-runner.test.ts",
     "verify:ctp": "node scripts/ctp-verify.mjs",
     "verify:ctp:sample": "node scripts/ctp-verify.mjs --concept=basic-binary-search",
     "test:interview-report": "tsx --test lib/interview/report/*.test.ts",
