@@ -128,9 +128,13 @@ export function CountingSortVisualizer({ data }: { data: any }) {
   const maxCount = Math.max(...counts, 1);
   const chartHeight = 120;
 
-  const row1BaseY = 200;
-  const row2BaseY = 420;
-  const row3BaseY = 640;
+  // row*BaseY is the BASELINE of bars; row label sits at
+  // row*BaseY - chartHeight - 20. With chartHeight=120, row1BaseY=200
+  // puts the row label at y=60, colliding with the status line at y=65.
+  // Shift row1 down by 20 so its label lands at y=80 instead.
+  const row1BaseY = 220;
+  const row2BaseY = 440;
+  const row3BaseY = 660;
 
   // Layout calculations
   const totalInputBarWidth = (svgWidth - 100) / array.length;
@@ -287,10 +291,14 @@ export function CountingSortVisualizer({ data }: { data: any }) {
             })}
           </AnimatePresence>
 
-          {/* Dynamic Link Line (Phase 3) */}
+          {/* Dynamic Link Line (Phase 3).
+              Path now starts at row1BaseY + 40 (below the row's index
+              label at +20) and ends at row2BaseY - chartHeight - 35
+              (above the counts row's value text) so it never crosses
+              "[idx]" or value labels. */}
           {i !== null && cIdx !== null && phase.includes("3단계") && !phase.includes("완료") && outIdx === null && (
              <motion.path
-                d={`M ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 10} C ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 60}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - chartHeight - 50}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - Math.max(20, (counts[cIdx] / maxCount) * chartHeight)}`}
+                d={`M ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 40} C ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 80}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - chartHeight - 60}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - chartHeight - 35}`}
                 fill="none" stroke="hsl(350 89% 60%)" strokeWidth="2" strokeDasharray="4"
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
              />
@@ -298,7 +306,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
 
           {outIdx !== null && cIdx !== null && phase.includes("3단계") && (
              <motion.path
-                d={`M ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 10} C ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 60}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - chartHeight - 50}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - Math.max(20, ((output[outIdx]?.val || 0) / maxVal) * chartHeight)}`}
+                d={`M ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 40} C ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 80}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - chartHeight - 60}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - chartHeight - 35}`}
                 fill="none" stroke="hsl(258 90% 66%)" strokeWidth="2" strokeDasharray="4"
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
              />
