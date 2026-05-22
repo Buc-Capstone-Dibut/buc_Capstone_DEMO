@@ -148,16 +148,16 @@ export function ShellSortVisualizer({ data }: { data: any }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Shell Sort</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Shell Sort</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">
             {isSorted ? "정렬 완료!" : `현재 간격 (Gap): ${gap > 0 ? gap : '-'}`}
           </text>
 
           {/* Action indicator */}
           <g transform={`translate(${svgWidth - 200}, 40)`}>
-            {comparing && <text x="170" y="0" fill="#eab308" fontSize="16" fontWeight="bold" textAnchor="end">비교 중...</text>}
-            {swapping && <text x="170" y="0" fill="#f43f5e" fontSize="16" fontWeight="bold" textAnchor="end">교환 (Swap)!</text>}
-            {!comparing && !swapping && gap > 0 && <text x="170" y="0" fill="#3b82f6" fontSize="16" fontWeight="bold" textAnchor="end">부분 리스트 탐색</text>}
+            {comparing && <text x="170" y="0" fill="hsl(45 93% 47%)" fontSize="16" fontWeight="bold" textAnchor="end">비교 중...</text>}
+            {swapping && <text x="170" y="0" fill="hsl(350 89% 60%)" fontSize="16" fontWeight="bold" textAnchor="end">교환 (Swap)!</text>}
+            {!comparing && !swapping && gap > 0 && <text x="170" y="0" fill="hsl(217 91% 60%)" fontSize="16" fontWeight="bold" textAnchor="end">부분 리스트 탐색</text>}
           </g>
 
           {/* Draw Array Bars */}
@@ -172,23 +172,23 @@ export function ShellSortVisualizer({ data }: { data: any }) {
               const isCurrentI = i === idx;
               const isGapGroup = gap > 0 && i !== null && (idx % gap === i % gap) && idx <= i;
 
-              let fillColor = "#334155"; // default muted
+              let fillColor = "hsl(215 25% 27%)"; // default muted
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "#10b981"; // success green
+                fillColor = "hsl(160 84% 39%)"; // success green
                 opacity = 1;
               } else if (isSwapping) {
-                fillColor = "#f43f5e"; // swap red
+                fillColor = "hsl(350 89% 60%)"; // swap red
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "#eab308"; // compare yellow
+                fillColor = "hsl(45 93% 47%)"; // compare yellow
                 opacity = 1;
               } else if (isCurrentI) {
-                fillColor = "#3b82f6"; // pointer blue
+                fillColor = "hsl(217 91% 60%)"; // pointer blue
                 opacity = 1;
               } else if (isGapGroup) {
-                fillColor = "#8b5cf6"; // gap group purple
+                fillColor = "hsl(258 90% 66%)"; // gap group purple
                 opacity = 0.8;
               }
 
@@ -212,7 +212,7 @@ export function ShellSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={-10}
-                    fill={isSorted || isSwapping || isComparing || isCurrentI || isGapGroup ? "#fff" : "#94a3b8"}
+                    fill={isSorted || isSwapping || isComparing || isCurrentI || isGapGroup ? "hsl(0 0% 100%)" : "hsl(215 20% 65%)"}
                     fontSize="16"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -222,7 +222,7 @@ export function ShellSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={height + 20}
-                    fill="#64748b"
+                    fill="hsl(215 16% 47%)"
                     fontSize="12"
                     textAnchor="middle"
                   >
@@ -231,7 +231,7 @@ export function ShellSortVisualizer({ data }: { data: any }) {
 
                   {/* Indicators below bars */}
                   {isCurrentI && (
-                    <motion.text x={barWidth / 2} y={height + 40} fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#glow-gap)" initial={{ opacity: 0, y: height + 50 }} animate={{ opacity: 1, y: height + 40 }}>
+                    <motion.text x={barWidth / 2} y={height + 40} fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#glow-gap)" initial={{ opacity: 0, y: height + 50 }} animate={{ opacity: 1, y: height + 40 }}>
                       i
                     </motion.text>
                   )}
@@ -248,7 +248,7 @@ export function ShellSortVisualizer({ data }: { data: any }) {
               exit={{ opacity: 0 }}
               d={`M ${getX(comparing[0]) + barWidth/2} ${svgHeight - 10} Q ${getX(comparing[0]) + (getX(comparing[1]) - getX(comparing[0]))/2} ${svgHeight + 30}, ${getX(comparing[1]) + barWidth/2} ${svgHeight - 10}`}
               fill="none"
-              stroke="#eab308"
+              stroke="hsl(45 93% 47%)"
               strokeWidth="2"
               strokeDasharray="4"
             />

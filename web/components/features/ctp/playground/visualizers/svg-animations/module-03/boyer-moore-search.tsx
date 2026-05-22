@@ -168,48 +168,48 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
 
           <rect width="100%" height="100%" fill="url(#grid-bm)" />
 
-          <text x="30" y="40" fill="#cbd5e1" fontSize="20" fontWeight="bold">Boyer-Moore Search (Bad Character Rule)</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phaseText}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="20" fontWeight="bold">Boyer-Moore Search (Bad Character Rule)</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{phaseText}</text>
 
           {/* Bad Character Table Visualizer */}
           <g transform="translate(40, 110)">
-             <text x="0" y="-10" fill="#94a3b8" fontSize="12" fontWeight="bold">Bad Character Table (나쁜 문자 표)</text>
+             <text x="0" y="-10" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Bad Character Table (나쁜 문자 표)</text>
              <g transform="translate(0, 5)">
                {Object.keys(badCharTable).map((char, idx) => (
                  <g key={idx} transform={`translate(${idx * 45}, 0)`}>
-                    <rect width="36" height="36" fill="#1e293b" stroke="#334155" rx="4" />
-                    <text x="18" y="24" fill="#cbd5e1" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
+                    <rect width="36" height="36" fill="hsl(217 33% 17%)" stroke="hsl(215 25% 27%)" rx="4" />
+                    <text x="18" y="24" fill="hsl(213 27% 84%)" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
                  </g>
                ))}
                {Object.keys(badCharTable).length === 0 && (
-                 <text x="20" y="24" fill="#64748b" fontSize="14" fontStyle="italic">비어 있음</text>
+                 <text x="20" y="24" fill="hsl(215 16% 47%)" fontSize="14" fontStyle="italic">비어 있음</text>
                )}
              </g>
           </g>
 
           {/* Text Section */}
           <g transform="translate(40, 260)" opacity={phase === "BUILD_TABLE" ? 0.3 : 1}>
-            <text x="0" y="0" fill="#94a3b8" fontSize="12" fontWeight="bold">Text</text>
+            <text x="0" y="0" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Text</text>
             {text.split('').map((char, idx) => {
                const x = idx * totalBoxWidth;
                const isMatchArea = matchFound && idx >= i && idx < i + pattern.length;
 
-               let tFill = "#1e293b";
+               let tFill = "hsl(217 33% 17%)";
                let filter = "";
 
                if (isMatchArea) {
-                 tFill = "#10b981"; filter = "url(#glow-bm)";
+                 tFill = "hsl(160 84% 39%)"; filter = "url(#glow-bm)";
                } else if (phase === "SEARCH" && comparing && idx === i + j) {
-                 tFill = "#3b82f6";
+                 tFill = "hsl(217 91% 60%)";
                } else if (phase === "SEARCH" && !comparing && skipDistance > 0 && idx === i + j) {
-                 tFill = "#ef4444"; // Bad Character
+                 tFill = "hsl(0 84% 60%)"; // Bad Character
                }
 
                return (
                  <g key={`bm-t-${idx}`} transform={`translate(${x}, 10)`}>
                     <rect width={boxSize} height={boxSize} fill={tFill} stroke="rgba(255,255,255,0.05)" rx="4" filter={filter} />
-                    <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
-                    <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="9" textAnchor="middle">{idx}</text>
+                    <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(0 0% 100%)" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
+                    <text x={boxSize/2} y={boxSize + 15} fill="hsl(215 19% 35%)" fontSize="9" textAnchor="middle">{idx}</text>
                  </g>
                )
             })}
@@ -217,7 +217,7 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
 
           {/* Pattern Section */}
           <g transform="translate(40, 360)" opacity={phase === "BUILD_TABLE" ? 0.3 : 1}>
-            <text x="0" y="-10" fill="#94a3b8" fontSize="12" fontWeight="bold">Pattern (비교 방향 ←)</text>
+            <text x="0" y="-10" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Pattern (비교 방향 ←)</text>
 
             <motion.g
                initial={false}
@@ -229,16 +229,16 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                   const isMatchedSoFar = idx > j && !matchFound && phase === "SEARCH";
                   const isCompareTarget = comparing && idx === j;
 
-                  let pFill = "#334155";
-                  if (matchFound) pFill = "#10b981";
-                  else if (isMatchedSoFar) pFill = "#10b981";
-                  else if (isCompareTarget) pFill = "#3b82f6";
+                  let pFill = "hsl(215 25% 27%)";
+                  if (matchFound) pFill = "hsl(160 84% 39%)";
+                  else if (isMatchedSoFar) pFill = "hsl(160 84% 39%)";
+                  else if (isCompareTarget) pFill = "hsl(217 91% 60%)";
 
                   return (
                      <g key={`bm-p-${idx}`} transform={`translate(${x}, 0)`}>
                         <rect width={boxSize} height={boxSize} fill={pFill} rx="4" />
-                        <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
-                        <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="9" textAnchor="middle">{idx}</text>
+                        <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(0 0% 100%)" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
+                        <text x={boxSize/2} y={boxSize + 15} fill="hsl(215 19% 35%)" fontSize="9" textAnchor="middle">{idx}</text>
                      </g>
                   )
                })}
@@ -249,8 +249,8 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                      initial={false}
                      animate={{ x: j * totalBoxWidth }}
                   >
-                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill="#f43f5e" />
-                     <text x={boxSize/2} y="-18" fill="#f43f5e" fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
+                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill="hsl(350 89% 60%)" />
+                     <text x={boxSize/2} y="-18" fill="hsl(350 89% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
                   </motion.g>
                )}
             </motion.g>
@@ -262,9 +262,9 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                  transform={`translate(${i * totalBoxWidth}, -40)`}
                >
                  {badCharIndex !== -1 ? (
-                    <text x={boxSize/2} y="-10" fill="#f59e0b" fontSize="12" fontWeight="bold">+ {skipDistance}칸 점프 (문자 매칭)</text>
+                    <text x={boxSize/2} y="-10" fill="hsl(38 92% 50%)" fontSize="12" fontWeight="bold">+ {skipDistance}칸 점프 (문자 매칭)</text>
                  ) : (
-                    <text x={boxSize/2} y="-10" fill="#ef4444" fontSize="12" fontWeight="bold">+ {skipDistance}칸 대폭 점프! (문자 없음)</text>
+                    <text x={boxSize/2} y="-10" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold">+ {skipDistance}칸 대폭 점프! (문자 없음)</text>
                  )}
                </motion.g>
             )}

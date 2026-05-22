@@ -158,11 +158,11 @@ export function CountingSortVisualizer({ data }: { data: any }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Counting Sort</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phase}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Counting Sort</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{phase}</text>
 
           {/* --- Input Array (Row 1) --- */}
-          <text x="50" y={row1BaseY - chartHeight - 20} fill="#94a3b8" fontSize="12" fontWeight="bold">Input Array (입력 데이터)</text>
+          <text x="50" y={row1BaseY - chartHeight - 20} fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Input Array (입력 데이터)</text>
           <AnimatePresence>
             {array.map((item: any, idx: number) => {
               const xPos = getInputX(idx);
@@ -170,7 +170,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
               const yPos = row1BaseY - height;
               const isActive = i === idx;
               const opacity = isActive ? 1 : 0.6;
-              const fillColor = isActive ? "#3b82f6" : "#334155";
+              const fillColor = isActive ? "hsl(217 91% 60%)" : "hsl(215 25% 27%)";
 
               return (
                 <motion.g
@@ -184,15 +184,15 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                      fill={fillColor} opacity={opacity} rx={4}
                      filter={isActive ? "url(#glow-active)" : ""}
                    />
-                   <text x={xPos + inputBarWidth / 2} y={yPos - 10} fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">{item.val}</text>
-                   <text x={xPos + inputBarWidth / 2} y={row1BaseY + 20} fill="#64748b" fontSize="12" textAnchor="middle">[{idx}]</text>
+                   <text x={xPos + inputBarWidth / 2} y={yPos - 10} fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                   <text x={xPos + inputBarWidth / 2} y={row1BaseY + 20} fill="hsl(215 16% 47%)" fontSize="12" textAnchor="middle">[{idx}]</text>
                 </motion.g>
               );
             })}
           </AnimatePresence>
 
           {/* --- Counts Array (Row 2) --- */}
-          <text x="50" y={row2BaseY - chartHeight - 20} fill="#94a3b8" fontSize="12" fontWeight="bold">Counts Array (도수 분포표)</text>
+          <text x="50" y={row2BaseY - chartHeight - 20} fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Counts Array (도수 분포표)</text>
           <AnimatePresence>
             {counts.map((val: number, idx: number) => {
               const xPos = getCountsX(idx);
@@ -202,9 +202,9 @@ export function CountingSortVisualizer({ data }: { data: any }) {
               const isTargeting = phase.includes("3단계") && cIdx === idx;
               const opacity = isActive ? 1 : 0.7;
 
-              let fillColor = "#334155";
-              if (isActive) fillColor = "#10b981"; // green
-              if (isTargeting) fillColor = "#f43f5e"; // red when modifying in phase 3
+              let fillColor = "hsl(215 25% 27%)";
+              if (isActive) fillColor = "hsl(160 84% 39%)"; // green
+              if (isTargeting) fillColor = "hsl(350 89% 60%)"; // red when modifying in phase 3
 
               const isCumulativePhase = phase.includes("2단계") && (isActive || cIdx === idx + 1);
 
@@ -220,14 +220,14 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                      fill={fillColor} opacity={opacity} rx={4}
                      filter={isActive ? "url(#glow-active)" : ""}
                    />
-                   <text x={xPos + countsBarWidth / 2} y={yPos - 10} fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">{val}</text>
-                   <text x={xPos + countsBarWidth / 2} y={row2BaseY + 20} fill="#64748b" fontSize="12" textAnchor="middle">Val {idx}</text>
+                   <text x={xPos + countsBarWidth / 2} y={yPos - 10} fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{val}</text>
+                   <text x={xPos + countsBarWidth / 2} y={row2BaseY + 20} fill="hsl(215 16% 47%)" fontSize="12" textAnchor="middle">Val {idx}</text>
 
                    {/* Cumulative link arrow */}
                    {isCumulativePhase && idx > 0 && cIdx === idx && (
                      <motion.path
                         d={`M ${getCountsX(idx-1) + countsBarWidth/2} ${row2BaseY + 40} Q ${getCountsX(idx-1) + countsBarWidth/2 + (xPos - getCountsX(idx-1))/2} ${row2BaseY + 80} ${xPos + countsBarWidth/2} ${row2BaseY + 40}`}
-                        fill="none" stroke="#10b981" strokeWidth="2" strokeDasharray="4"
+                        fill="none" stroke="hsl(160 84% 39%)" strokeWidth="2" strokeDasharray="4"
                         initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
                      />
                    )}
@@ -237,7 +237,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
           </AnimatePresence>
 
           {/* --- Output Array (Row 3) --- */}
-          <text x="50" y={row3BaseY - chartHeight - 20} fill="#94a3b8" fontSize="12" fontWeight="bold">Output Array (정렬 결과)</text>
+          <text x="50" y={row3BaseY - chartHeight - 20} fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Output Array (정렬 결과)</text>
           <AnimatePresence>
             {output.map((item: any, idx: number) => {
               const xPos = getInputX(idx); // uses same layout as input
@@ -247,14 +247,14 @@ export function CountingSortVisualizer({ data }: { data: any }) {
               const isSorted = item !== null && !isActive;
 
               let fillColor = "transparent";
-              let stroke = "#334155";
+              let stroke = "hsl(215 25% 27%)";
 
               if (isActive) {
-                 fillColor = "#8b5cf6"; // purple placed
-                 stroke = "#8b5cf6";
+                 fillColor = "hsl(258 90% 66%)"; // purple placed
+                 stroke = "hsl(258 90% 66%)";
               } else if (isSorted) {
-                 fillColor = "#3b82f6";
-                 stroke = "#3b82f6";
+                 fillColor = "hsl(217 91% 60%)";
+                 stroke = "hsl(217 91% 60%)";
               }
 
               return (
@@ -276,12 +276,12 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                    {item !== null && (
                       <motion.text
                          x={xPos + inputBarWidth / 2} y={yPos - 10}
-                         fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle"
+                         fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle"
                       >
                          {item.val}
                       </motion.text>
                    )}
-                   <text x={xPos + inputBarWidth / 2} y={row3BaseY + 20} fill="#64748b" fontSize="12" textAnchor="middle">[{idx}]</text>
+                   <text x={xPos + inputBarWidth / 2} y={row3BaseY + 20} fill="hsl(215 16% 47%)" fontSize="12" textAnchor="middle">[{idx}]</text>
                 </motion.g>
               );
             })}
@@ -291,7 +291,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
           {i !== null && cIdx !== null && phase.includes("3단계") && !phase.includes("완료") && outIdx === null && (
              <motion.path
                 d={`M ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 10} C ${getInputX(i) + inputBarWidth/2} ${row1BaseY + 60}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - chartHeight - 50}, ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY - Math.max(20, (counts[cIdx] / maxCount) * chartHeight)}`}
-                fill="none" stroke="#f43f5e" strokeWidth="2" strokeDasharray="4"
+                fill="none" stroke="hsl(350 89% 60%)" strokeWidth="2" strokeDasharray="4"
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
              />
           )}
@@ -299,7 +299,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
           {outIdx !== null && cIdx !== null && phase.includes("3단계") && (
              <motion.path
                 d={`M ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 10} C ${getCountsX(cIdx) + countsBarWidth/2} ${row2BaseY + 60}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - chartHeight - 50}, ${getInputX(outIdx) + inputBarWidth/2} ${row3BaseY - Math.max(20, ((output[outIdx]?.val || 0) / maxVal) * chartHeight)}`}
-                fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="4"
+                fill="none" stroke="hsl(258 90% 66%)" strokeWidth="2" strokeDasharray="4"
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
              />
           )}

@@ -183,26 +183,26 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
-          <text x="30" y="40" fill="#cbd5e1" fontSize="20" fontWeight="bold">KMP (Knuth-Morris-Pratt)</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phaseText}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="20" fontWeight="bold">KMP (Knuth-Morris-Pratt)</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{phaseText}</text>
 
           {/* LPS Building Section */}
           <g transform="translate(50, 110)">
-            <text x="0" y="0" fill={phase === "BUILD_LPS" ? "#cbd5e1" : "#475569"} fontSize="14" fontWeight="bold">LPS Array</text>
+            <text x="0" y="0" fill={phase === "BUILD_LPS" ? "hsl(213 27% 84%)" : "hsl(215 19% 35%)"} fontSize="14" fontWeight="bold">LPS Array</text>
 
             {pattern.split('').map((char, idx) => {
                const x = idx * totalBoxWidth;
                const isActive = phase === "BUILD_LPS" && idx === lpsIndex;
                const isComparingLen = phase === "BUILD_LPS" && comparing && idx === len;
 
-               let pFill = "#1e293b";
+               let pFill = "hsl(217 33% 17%)";
                let pStroke = "rgba(255,255,255,0.1)";
-               let tColor = "#94a3b8";
+               let tColor = "hsl(215 20% 65%)";
 
                if (isActive) {
-                 pFill = "#3b82f6"; pStroke = "#60a5fa"; tColor = "#fff";
+                 pFill = "hsl(217 91% 60%)"; pStroke = "hsl(213 94% 68%)"; tColor = "hsl(0 0% 100%)";
                } else if (isComparingLen) {
-                 pFill = "#10b981"; pStroke = "#34d399"; tColor = "#fff";
+                 pFill = "hsl(160 84% 39%)"; pStroke = "hsl(158 64% 52%)"; tColor = "hsl(0 0% 100%)";
                } else if (phase === "SEARCH" && idx < j && !matchFound) {
                  pFill = "rgba(16, 185, 129, 0.2)"; // Soft green
                }
@@ -213,11 +213,11 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                      <text x={boxSize/2} y={boxSize/2 + 5} fill={tColor} fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
 
                      {/* LPS Value Box */}
-                     <rect y={boxSize + 10} width={boxSize} height={boxSize} fill="none" stroke="#475569" rx="4" />
-                     <text x={boxSize/2} y={boxSize + 10 + boxSize/2 + 5} fill="#cbd5e1" fontSize="16" fontWeight="bold" textAnchor="middle">
+                     <rect y={boxSize + 10} width={boxSize} height={boxSize} fill="none" stroke="hsl(215 19% 35%)" rx="4" />
+                     <text x={boxSize/2} y={boxSize + 10 + boxSize/2 + 5} fill="hsl(213 27% 84%)" fontSize="16" fontWeight="bold" textAnchor="middle">
                        {lps[idx] !== undefined && (idx < lpsIndex || phase !== "BUILD_LPS") ? lps[idx] : ""}
                      </text>
-                     <text x={boxSize/2} y={boxSize * 2 + 25} fill="#475569" fontSize="10" textAnchor="middle">{idx}</text>
+                     <text x={boxSize/2} y={boxSize * 2 + 25} fill="hsl(215 19% 35%)" fontSize="10" textAnchor="middle">{idx}</text>
                   </g>
                );
             })}
@@ -229,8 +229,8 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                  animate={{ x: len * totalBoxWidth }}
                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
               >
-                  <path d={`M ${boxSize/2} 0 L ${boxSize/2 + 5} -8 L ${boxSize/2 - 5} -8 Z`} fill="#10b981" />
-                  <text x={boxSize/2} y="-12" fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle">len</text>
+                  <path d={`M ${boxSize/2} 0 L ${boxSize/2 + 5} -8 L ${boxSize/2 - 5} -8 Z`} fill="hsl(160 84% 39%)" />
+                  <text x={boxSize/2} y="-12" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" textAnchor="middle">len</text>
               </motion.g>
             )}
             {phase === "BUILD_LPS" && lpsIndex < pattern.length && (
@@ -239,34 +239,34 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                  animate={{ x: lpsIndex * totalBoxWidth }}
                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
               >
-                 <path d={`M ${boxSize/2} 115 L ${boxSize/2 + 5} 123 L ${boxSize/2 - 5} 123 Z`} fill="#3b82f6" />
-                 <text x={boxSize/2} y="135" fill="#3b82f6" fontSize="12" fontWeight="bold" textAnchor="middle">i</text>
+                 <path d={`M ${boxSize/2} 115 L ${boxSize/2 + 5} 123 L ${boxSize/2 - 5} 123 Z`} fill="hsl(217 91% 60%)" />
+                 <text x={boxSize/2} y="135" fill="hsl(217 91% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">i</text>
               </motion.g>
             )}
           </g>
 
           {/* Search Section */}
           <g transform="translate(50, 320)" opacity={phase === "BUILD_LPS" ? 0.3 : 1}>
-            <text x="0" y="0" fill={phase === "SEARCH" ? "#cbd5e1" : "#475569"} fontSize="14" fontWeight="bold">Text Search</text>
+            <text x="0" y="0" fill={phase === "SEARCH" ? "hsl(213 27% 84%)" : "hsl(215 19% 35%)"} fontSize="14" fontWeight="bold">Text Search</text>
 
             {/* Text Array */}
             {text.split('').map((char, idx) => {
                const x = idx * totalBoxWidth;
                const isMatchArea = matchFound && idx >= i - j && idx < i - j + pattern.length;
-               let tFill = "#1e293b";
+               let tFill = "hsl(217 33% 17%)";
                let filter = "";
 
                if (isMatchArea) {
-                 tFill = "#10b981"; filter = "url(#glow)";
+                 tFill = "hsl(160 84% 39%)"; filter = "url(#glow)";
                } else if (phase === "SEARCH" && comparing && idx === i) {
-                 tFill = "#3b82f6";
+                 tFill = "hsl(217 91% 60%)";
                }
 
                return (
                  <g key={`t-${idx}`} transform={`translate(${x}, 15)`}>
                     <rect width={boxSize} height={boxSize} fill={tFill} stroke="rgba(255,255,255,0.05)" rx="4" filter={filter} />
-                    <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
-                    <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="10" textAnchor="middle">{idx}</text>
+                    <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
+                    <text x={boxSize/2} y={boxSize + 15} fill="hsl(215 19% 35%)" fontSize="10" textAnchor="middle">{idx}</text>
                  </g>
                )
             })}
@@ -283,15 +283,15 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                   const isMatchedSoFar = idx < j && !matchFound;
                   const isCompareTarget = comparing && idx === j;
 
-                  let pFill = "#334155";
-                  if (matchFound) pFill = "#10b981";
-                  else if (isMatchedSoFar) pFill = "#10b981";
-                  else if (isCompareTarget) pFill = "#3b82f6";
+                  let pFill = "hsl(215 25% 27%)";
+                  if (matchFound) pFill = "hsl(160 84% 39%)";
+                  else if (isMatchedSoFar) pFill = "hsl(160 84% 39%)";
+                  else if (isCompareTarget) pFill = "hsl(217 91% 60%)";
 
                   return (
                      <g key={`sp-${idx}`} transform={`translate(${x}, 0)`}>
                         <rect width={boxSize} height={boxSize} fill={pFill} rx="4" />
-                        <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
+                        <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
                      </g>
                   )
                })}
@@ -302,8 +302,8 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                      initial={false}
                      animate={{ x: j * totalBoxWidth }}
                   >
-                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill="#f43f5e" />
-                     <text x={boxSize/2} y="-18" fill="#f43f5e" fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
+                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill="hsl(350 89% 60%)" />
+                     <text x={boxSize/2} y="-18" fill="hsl(350 89% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
                   </motion.g>
                )}
             </motion.g>
@@ -316,8 +316,8 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                  animate={{ x: i * totalBoxWidth }}
                  transition={{ type: "spring", stiffness: 200, damping: 25 }}
               >
-                  <path d={`M ${boxSize/2} 0 L ${boxSize/2 + 5} -8 L ${boxSize/2 - 5} -8 Z`} fill="#ef4444" />
-                  <text x={boxSize/2} y="-12" fill="#ef4444" fontSize="12" fontWeight="bold" textAnchor="middle">i</text>
+                  <path d={`M ${boxSize/2} 0 L ${boxSize/2 + 5} -8 L ${boxSize/2 - 5} -8 Z`} fill="hsl(0 84% 60%)" />
+                  <text x={boxSize/2} y="-12" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">i</text>
               </motion.g>
             )}
 
@@ -326,7 +326,7 @@ export function KmpSearchVisualizer({ data }: { data: number[] }) {
                <motion.line
                   x1={i * totalBoxWidth + boxSize/2} y1="51"
                   x2={i * totalBoxWidth + boxSize/2} y2="80"
-                  stroke="#3b82f6" strokeWidth="2" strokeDasharray="4"
+                  stroke="hsl(217 91% 60%)" strokeWidth="2" strokeDasharray="4"
                />
             )}
           </g>

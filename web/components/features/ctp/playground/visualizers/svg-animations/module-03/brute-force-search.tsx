@@ -144,30 +144,30 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Brute Force Search</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phase}</text>
+          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Brute Force Search</text>
+          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{phase}</text>
 
           {/* Text Array */}
-          <text x="50" y="140" fill="#94a3b8" fontSize="12" fontWeight="bold">Text</text>
+          <text x="50" y="140" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Text</text>
           {text.split('').map((char, idx) => {
             const x = textStartX + idx * totalBoxWidth;
             const isMatchArea = matchFound && idx >= i && idx < i + pattern.length;
             const isComparing = comparing && idx === i + j;
 
             let strokeColor = "rgba(255,255,255,0.1)";
-            let fillColor = "#1e293b";
-            let textColor = "#94a3b8";
+            let fillColor = "hsl(217 33% 17%)";
+            let textColor = "hsl(215 20% 65%)";
             let filter = "";
 
             if (isMatchArea) {
-              fillColor = "#10b981";
-              strokeColor = "#10b981";
-              textColor = "#ffffff";
+              fillColor = "hsl(160 84% 39%)";
+              strokeColor = "hsl(160 84% 39%)";
+              textColor = "hsl(0 0% 100%)";
               filter = "url(#glow-match)";
             } else if (isComparing) {
-              fillColor = "#3b82f6";
-              strokeColor = "#3b82f6";
-              textColor = "#ffffff";
+              fillColor = "hsl(217 91% 60%)";
+              strokeColor = "hsl(217 91% 60%)";
+              textColor = "hsl(0 0% 100%)";
               filter = "url(#glow-compare)";
             }
 
@@ -175,13 +175,13 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
               <g key={`text-${idx}`} transform={`translate(${x}, 160)`}>
                 <rect width={boxSize} height={boxSize} fill={fillColor} stroke={strokeColor} strokeWidth="2" rx="6" filter={filter} />
                 <text x={boxSize/2} y={boxSize/2 + 6} fill={textColor} fontSize="20" fontWeight="bold" textAnchor="middle">{char}</text>
-                <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="12" textAnchor="middle">{idx}</text>
+                <text x={boxSize/2} y={boxSize + 15} fill="hsl(215 19% 35%)" fontSize="12" textAnchor="middle">{idx}</text>
               </g>
             );
           })}
 
           {/* Pattern Array */}
-          <text x="50" y="260" fill="#94a3b8" fontSize="12" fontWeight="bold">Pattern</text>
+          <text x="50" y="260" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Pattern</text>
 
           <motion.g
             initial={false}
@@ -194,23 +194,23 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
               const isComparing = comparing && idx === j;
               const isFailed = !comparing && idx === j && !matchFound && j < pattern.length && progress > 0;
 
-              let fillColor = "#334155";
-              let textColor = "#cbd5e1";
+              let fillColor = "hsl(215 25% 27%)";
+              let textColor = "hsl(213 27% 84%)";
               let filter = "";
 
               if (matchFound) {
-                fillColor = "#10b981";
-                textColor = "#ffffff";
+                fillColor = "hsl(160 84% 39%)";
+                textColor = "hsl(0 0% 100%)";
                 filter = "url(#glow-match)";
               } else if (isFailed) {
-                fillColor = "#ef4444";
-                textColor = "#ffffff";
+                fillColor = "hsl(0 84% 60%)";
+                textColor = "hsl(0 0% 100%)";
               } else if (isMatchedSoFar) {
-                fillColor = "#10b981"; // Darker green for matching prefix
-                textColor = "#ffffff";
+                fillColor = "hsl(160 84% 39%)"; // Darker green for matching prefix
+                textColor = "hsl(0 0% 100%)";
               } else if (isComparing) {
-                fillColor = "#3b82f6";
-                textColor = "#ffffff";
+                fillColor = "hsl(217 91% 60%)";
+                textColor = "hsl(0 0% 100%)";
                 filter = "url(#glow-compare)";
               }
 
@@ -218,7 +218,7 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
                 <g key={`pattern-${idx}`} transform={`translate(${rectX}, 240)`}>
                   <rect width={boxSize} height={boxSize} fill={fillColor} rx="6" filter={filter} />
                   <text x={boxSize/2} y={boxSize/2 + 6} fill={textColor} fontSize="20" fontWeight="bold" textAnchor="middle">{char}</text>
-                  <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="12" textAnchor="middle">{idx}</text>
+                  <text x={boxSize/2} y={boxSize + 15} fill="hsl(215 19% 35%)" fontSize="12" textAnchor="middle">{idx}</text>
                 </g>
               );
             })}
@@ -226,11 +226,11 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
             {/* Pointer i (Base of Pattern) */}
             <motion.path
               d={`M ${boxSize/2} -15 L ${boxSize/2 + 5} -25 L ${boxSize/2 - 5} -25 Z`}
-              fill="#ef4444"
+              fill="hsl(0 84% 60%)"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             />
-            <text x={boxSize/2} y="-30" fill="#ef4444" fontSize="14" fontWeight="bold" textAnchor="middle">i</text>
+            <text x={boxSize/2} y="-30" fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">i</text>
 
             {/* Pointer j (Current match pos) */}
             {!matchFound && j < pattern.length && (
@@ -239,8 +239,8 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
                  animate={{ x: j * totalBoxWidth }}
                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
               >
-                <path d={`M ${boxSize/2} -10 L ${boxSize/2 + 5} -20 L ${boxSize/2 - 5} -20 Z`} fill="#3b82f6" />
-                <text x={boxSize/2} y="-25" fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle">j</text>
+                <path d={`M ${boxSize/2} -10 L ${boxSize/2 + 5} -20 L ${boxSize/2 - 5} -20 Z`} fill="hsl(217 91% 60%)" />
+                <text x={boxSize/2} y="-25" fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">j</text>
               </motion.g>
             )}
           </motion.g>
@@ -252,7 +252,7 @@ export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
                 y1="240"
                 x2={textStartX + (i + j) * totalBoxWidth + boxSize/2}
                 y2="200"
-                stroke="#3b82f6" strokeWidth="2" strokeDasharray="4"
+                stroke="hsl(217 91% 60%)" strokeWidth="2" strokeDasharray="4"
              />
           )}
 
