@@ -365,29 +365,29 @@ const FOUNDATION_BASIC_SEARCH_MODULES = createInteractiveTemplateModules([
     useSim: useBasicBinarySearchSim,
     Visualizer: BasicBinarySearchVisualizer,
     story: {
-      problem: "전 세계 사람의 전화번호가 담긴 책(수십억 개)에서 특정 사람의 폰 번호를 찾을 때, 첫 장부터 한 장씩 선형으로 넘긴다면 평생이 걸릴 것입니다.\n\n데이터 양이 우주적으로 막대해질 때, 선형 검색의 참담한 속도 한계를 극복하지 못하면 시스템은 그대로 침몰합니다.",
-      definition: "**이진 검색(Binary Search)** 은 정렬된 배열에서 탐색 범위를 매 회차마다 절반씩 줄여나가는 알고리즘입니다.\n* **로그 시간 복잡도 `O(log N)`**: 데이터가 10억 개라도 약 30번의 비교만으로 대상을 찾을 수 있습니다.\n* **탐색 범위 포인터 (L, R, M)**: 후보 구간의 양 끝단 Left(L)과 Right(R), 그리고 중간 위치 Mid(M)의 갱신 규칙이 핵심입니다.\n* **전제조건의 트레이드오프**: 이진 검색의 속도를 얻으려면 배열이 미리 정렬(`O(N log N)`)되어 있어야 합니다.",
-      analogy: "📖 **두꺼운 영한사전에서 영단어 찾기**와 완벽히 똑같습니다.\n\n사전에서 'school'을 찾기 위해 첫 겉표지부터 한 장 한 장 넘기는 사람은 없습니다. 감으로 정가운데를 쫙 펼쳐서 'money'가 나오면, 'school'은 훨씬 더 뒤쪽에 있다는 사실을 단번에 확신하고 앞쪽 절반의 수천 페이지 분량을 차갑게 '통째로 버립니다'(탐색 공간 절반 축소). 이 무자비하고 통쾌한 절단력이 이진 검색의 본질입니다."
+      problem: "전 세계 사람의 전화번호가 담긴 책(수십억 개)에서 특정 사람의 번호를 찾을 때, 첫 장부터 한 장씩 선형으로 넘긴다면 사실상 끝낼 수 없습니다.\n\n데이터 양이 커질수록 선형 검색의 `O(N)` 비용은 실시간 응답 한계를 넘어 시스템 전체의 지연 요인이 됩니다.",
+      definition: "**이진 검색(Binary Search)** 은 정렬된 배열에서 탐색 범위를 매 회차마다 절반씩 줄여나가는 알고리즘입니다.\n* **로그 시간 복잡도 `O(log N)`**: 데이터가 10억 개라도 약 30번의 비교만으로 대상을 찾을 수 있습니다.\n* **탐색 범위 포인터 (L, R, M)**: 후보 구간의 양 끝단 Left(L)와 Right(R), 그리고 중간 위치 Mid(M)의 갱신 규칙이 핵심입니다.\n* **전제조건의 트레이드오프**: 이진 검색의 속도를 얻으려면 배열이 미리 정렬(`O(N log N)`)되어 있어야 합니다.",
+      analogy: "**두꺼운 영한사전에서 영단어 찾기**와 같은 원리입니다.\n\n'school'을 찾기 위해 사전을 처음부터 한 장씩 넘기지는 않습니다. 가운데를 펼쳐서 'money'가 나오면 'school'은 그 뒤쪽에 있다는 사실을 알 수 있으므로 앞쪽 절반은 탐색에서 제외합니다(탐색 공간 절반 축소). 이런 절반 단위의 범위 축소가 이진 검색의 핵심입니다."
     },
     features: [
       {
-        title: "탐색 범위의 O(log N) 반전 축소",
-        description: "사전 정렬된 데이터에서 중간값(`Mid`)과 타겟을 비교하여 탐색해야 할 범위를 매 회차 절반씩 버려나가는 강력한 속도 향상을 시각적으로 체감합니다.",
+        title: "탐색 범위의 O(log N) 축소",
+        description: "사전 정렬된 데이터에서 중간값(`Mid`)과 타겟을 비교해 탐색 범위를 매 회차 절반씩 줄여나가는 과정을 시각적으로 확인합니다. 데이터 크기가 커질수록 비교 횟수의 절감 효과가 분명해집니다.",
         SupplementaryVisualizer: BinarySearchSupplementaryOptions[0]
       },
       {
-        title: "경계값(Left, Right) 갱신 규칙정립",
-        description: "`Left <= Right` 반복 조건 내에서 `Left = Mid + 1`, `Right = Mid - 1`로 포인터가 정교하게 크로스되며 종료되는 불변식(Invariant)을 완벽히 이해합니다.",
+        title: "경계값(Left, Right) 갱신 규칙 정립",
+        description: "`Left <= Right` 반복 조건 내에서 `Left = Mid + 1`, `Right = Mid - 1`로 포인터가 교차하며 종료되는 불변식(Invariant)을 확인합니다. 경계 갱신 한 줄 차이가 무한 루프와 정상 종료를 가른다는 점을 점검합니다.",
         SupplementaryVisualizer: BinarySearchSupplementaryOptions[1]
       },
       {
         title: "이진 탐색의 한계: 정렬 비용 트레이드오프",
-        description: "이진 탐색의 로그 시간 속도를 얻기 위해 먼저 배열을 정렬(`O(N log N)`)해야 한다는 점과, 삽입/삭제가 빈번할 때 정렬 비용이 누적된다는 점을 고찰합니다.",
+        description: "이진 탐색의 로그 시간 속도를 얻기 위해 먼저 배열을 정렬(`O(N log N)`)해야 한다는 점을 짚습니다. 삽입/삭제가 빈번할 때는 정렬 비용이 누적되어 이득이 상쇄될 수 있음을 함께 고찰합니다.",
         SupplementaryVisualizer: BinarySearchSupplementaryOptions[2]
       },
       {
         title: "정렬 선행 조건과 사용 판단",
-        description: "이진 탐색의 전제 조건(정렬된 배열)으로 인한 초기 비용과, 반복 탐색 시 얻는 이득을 장단점 비교표로 확인하며 실전 적용 기준을 세웁니다.",
+        description: "이진 탐색의 전제 조건(정렬된 배열)으로 인한 초기 비용과 반복 탐색 시 얻는 이득을 장단점 비교표로 확인합니다. 데이터 갱신 빈도와 탐색 빈도의 비율로 실전 적용 기준을 세웁니다.",
         SupplementaryVisualizer: BinarySearchSupplementaryOptions[3]
       }
     ]
@@ -399,29 +399,29 @@ const FOUNDATION_BASIC_SEARCH_MODULES = createInteractiveTemplateModules([
     useSim: useHashCollisionSim,
     Visualizer: HashCollisionVisualizer,
     story: {
-      problem: "이진 탐색의 `O(log N)` 속도도 훌륭하지만, 거대 금융 트랜잭션이나 초실시간 게임 서버에서는 데이터가 1억 개든 100억 개든 상관없이 '단 한 번의 시도'만에 무조건 정답지에 꽂히는 궁극의 스피드 `O(1)`의 기적이 필요합니다.",
-      definition: "**해시(Hashing)** 는 임의의 길이를 가진 데이터를 해시 함수에 통과시켜 배열 인덱스로 변환하는 매핑 기술입니다.\n* **해시 함수(Hash Function)**: 불규칙한 데이터를 고정된 길이의 숫자(메모리 주소)로 변환합니다.\n* **충돌 (Collision)**: 서로 다른 데이터가 같은 인덱스로 매핑되는 현상이 필연적으로 발생합니다.\n* **체이닝 (Chaining)**: 충돌이 발생한 버킷에 연결 리스트(Linked List)를 이어 붙여 여러 데이터를 함께 보관하는 방식입니다.",
-      analogy: "🎫 **놀이공원 물품 보관함의 발급기** 원리입니다.\n\n손님이 자신의 '고급 레스토랑 멤버십 카드'를 리더기에 스와이프하면 기계가 수학 공식을 돌려 즉석에서 '당신은 무조건 7번 보관함입니다'라고 지정해 줍니다(탐색 시간 제로). 그런데 우연히 뒤에 온 손님 카드도 계산 결과 '7번 보관함'이 당첨된다면(해시 충돌)? 7번 보관함이 박살나는 대신, 친절한 직원이 재빨리 7번 사물함 뒷구멍에 긴 대형 박스를 테이프로 임시 연장해 주어(체이닝) 두 사람 모두 평화롭게 짐을 넣어둘 수 있도록 시스템이 수습됩니다."
+      problem: "이진 검색의 `O(log N)`도 충분히 빠르지만, 대규모 금융 트랜잭션이나 실시간 게임 서버에서는 데이터 양과 무관하게 한 번의 접근으로 값을 찾아내는 `O(1)` 수준의 응답이 요구됩니다.\n\n이런 환경에서는 비교 횟수 자체를 데이터 크기에 묶지 않는 새로운 매핑 방식이 필요합니다.",
+      definition: "**해시(Hashing)** 는 임의의 길이를 가진 데이터를 해시 함수에 통과시켜 배열 인덱스로 변환하는 매핑 기술입니다.\n* **해시 함수(Hash Function)**: 불규칙한 데이터를 고정된 길이의 숫자(메모리 주소)로 변환합니다.\n* **충돌(Collision)**: 서로 다른 데이터가 같은 인덱스로 매핑되는 현상이 발생할 수 있습니다.\n* **체이닝(Chaining)**: 충돌이 발생한 버킷에 연결 리스트(Linked List)를 이어 붙여 여러 데이터를 함께 보관하는 방식입니다.",
+      analogy: "**놀이공원 물품 보관함의 자동 발급기**와 같은 원리입니다.\n\n손님이 멤버십 카드를 리더기에 대면 기계가 정해진 규칙으로 '7번 보관함'을 즉시 지정해 줍니다(상수 시간 접근). 만약 뒤에 온 손님 카드도 동일하게 '7번'으로 계산된다면(해시 충돌), 7번 보관함 뒤쪽에 보조 칸을 이어 붙여 두 손님의 짐을 함께 보관하도록 처리합니다(체이닝)."
     },
     features: [
       {
-        title: "단번에 찾기: 해시 함수의 마법",
-        description: "데이터의 값을 해시 함수에 통과시켜 배열의 '인덱스'로 즉시 변환, 데이터 크기에 무관하게 `O(1)`이라는 경이적인 속도로 접근하는 기본 원리를 관찰합니다.",
+        title: "단번에 찾기: 해시 함수의 동작",
+        description: "데이터의 값을 해시 함수에 통과시켜 배열 인덱스로 변환하는 과정을 관찰합니다. 데이터 크기와 무관하게 `O(1)` 시간에 접근하는 기본 원리를 확인합니다.",
         SupplementaryVisualizer: HashCollisionSupplementaryOptions[0]
       },
       {
-        title: "필연적인 충돌(Collision)의 시각화",
-        description: "서로 다른 데이터가 우연히 같은 해시값을 배정받아 충돌하는 현상을 애니메이션으로 확인하고 그 위협성을 다룹니다.",
+        title: "충돌 처리의 시각화",
+        description: "서로 다른 데이터가 같은 해시값을 받아 충돌하는 현상을 애니메이션으로 확인합니다. 충돌이 누적될 경우 탐색 비용이 어떻게 증가하는지 점검합니다.",
         SupplementaryVisualizer: HashCollisionSupplementaryOptions[1]
       },
       {
         title: "체이닝(Chaining) 방식의 해결",
-        description: "충돌이 일어난 인덱스에 연결 리스트를 만들어 매달아 데이터를 안전하게 보존하고 탐색하는 기법을 실습합니다.",
+        description: "충돌이 일어난 인덱스에 연결 리스트를 이어 붙여 데이터를 보존하고 탐색하는 기법을 실습합니다. 같은 버킷에 누적되는 데이터의 순회 비용을 함께 살펴봅니다.",
         SupplementaryVisualizer: HashCollisionSupplementaryOptions[2]
       },
       {
         title: "개방 주소법(Open Addressing)",
-        description: "충돌 발생 시 연결 리스트 대신 배열 내의 다음 빈 슬롯으로 이동하여 저장하는 선형 탐사(Linear Probing) 방식을 체이닝과 비교하며 각각의 트레이드오프를 이해합니다.",
+        description: "충돌 발생 시 연결 리스트 대신 배열 내의 다음 빈 슬롯으로 이동해 저장하는 선형 탐사(Linear Probing) 방식을 다룹니다. 체이닝과 비교하며 메모리 사용 패턴과 군집(clustering) 측면의 트레이드오프를 이해합니다.",
         SupplementaryVisualizer: HashCollisionSupplementaryOptions[3]
       }
     ]
