@@ -86,7 +86,7 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
 
         {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-w-[300px] bg-[hsl(220_25%_8%)]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 mb-4 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />

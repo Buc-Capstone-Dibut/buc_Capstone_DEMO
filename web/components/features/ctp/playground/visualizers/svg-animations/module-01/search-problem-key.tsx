@@ -89,7 +89,7 @@ export function ProblemKeyVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col gap-8 relative items-center z-10">
 
         {/* Query Configuration Panel */}
-        <div className="w-full bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 border border-border shadow-2xl relative overflow-hidden">
+        <div className="w-full bg-[hsl(220_25%_8%)]/90 backdrop-blur-md rounded-2xl p-6 border border-border shadow-2xl relative overflow-hidden">
           <div className="flex items-center gap-2 mb-6 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />

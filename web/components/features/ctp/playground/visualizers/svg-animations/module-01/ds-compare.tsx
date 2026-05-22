@@ -85,7 +85,7 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 z-10">
 
         {/* ARRAY PANEL */}
-        <div className="bg-[#0d1117]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
+        <div className="bg-[hsl(220_25%_8%)]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
           <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-8">
             <h3 className="font-black uppercase tracking-widest text-cyan-500 text-sm">Contiguous Array</h3>
             <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -168,7 +168,7 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
         </div>
 
         {/* LINKED LIST PANEL */}
-        <div className="bg-[#0d1117]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
+        <div className="bg-[hsl(220_25%_8%)]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
           <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-8">
             <h3 className="font-black uppercase tracking-widest text-purple-500 text-sm">Linked List</h3>
             <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
