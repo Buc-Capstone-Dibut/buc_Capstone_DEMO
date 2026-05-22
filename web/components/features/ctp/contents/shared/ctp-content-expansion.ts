@@ -648,11 +648,124 @@ const expansions: Record<string, Expansion> = {
   // module-01: algorithm-foundation
   "algo-overview": {},
   "flow-tracing": {},
-  "iterative-recursion": {},
+  "iterative-recursion": {
+    story: {
+      definition: `**왜 변환하는가?**\n- Python 등 일부 언어는 꼬리 재귀 자동 최적화(TCO)를 제공하지 않는다.\n- 입력 크기가 커 호출 깊이가 수만 단계에 이르면 스택 오버플로가 발생한다.\n- 디버거에서 스택 프레임이 너무 많아 추적이 어려운 경우 명시적 스택이 더 명확하다.\n\n**명시 스택 패턴**\n- 재귀의 "프레임"을 스택에 push할 데이터(파라미터, 진행 단계, 복귀 지점)로 모델링.\n- while 루프에서 pop → 처리 → 필요 시 자식 push 흐름으로 동작 재현.`,
+      playgroundDescription: `재귀 호출이 어떻게 명시 스택의 push/pop으로 치환되는지, 동일 입력에 대해 동일 결과가 나오는지 단계별로 확인하세요.`,
+    },
+    features: [
+      { title: "스택 오버플로 회피", description: "암시적 호출 스택 대신 힙(heap) 메모리의 스택 자료구조를 사용하면 OS 스택 한도와 무관하게 깊은 탐색이 가능합니다." },
+      { title: "디버깅 용이성", description: "스택 내용이 명시적이므로 현재 진행 상태와 남은 작업을 직접 출력하거나 검증할 수 있습니다." },
+      { title: "메모리 vs 가독성 트레이드오프", description: "코드는 길어지고 가독성은 떨어지지만, 깊이 제한이 사라지고 흐름 제어가 명확해지는 이점이 있습니다." },
+      { title: "꼬리 재귀 최적화 부재", description: "Python·Java 등 대부분 언어는 자동 TCO를 지원하지 않으므로, 재귀 깊이가 큰 알고리즘은 반복 변환이 안전합니다." },
+    ],
+    guide: [
+      {
+        title: "재귀 → 반복 변환 템플릿",
+        items: [
+          {
+            label: "기본 변환",
+            description: "스택에 작업을 push, 루프에서 pop하며 처리. 필요 시 자식 작업을 다시 push.",
+            code: "stack = [initial_task]\nwhile stack:\n    task = stack.pop()\n    # 처리\n    for child in next_tasks(task):\n        stack.append(child)",
+            tags: ["Pattern"],
+          },
+          {
+            label: "DFS 변환 예",
+            description: "트리 DFS 재귀를 명시 스택으로 변환.",
+            code: "stack = [root]\nwhile stack:\n    node = stack.pop()\n    visit(node)\n    if node.right: stack.append(node.right)\n    if node.left: stack.append(node.left)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
   "condition-loop": {},
-  "recursion-basics": {},
-  "tower-of-hanoi": {},
-  "recursion-analysis": {},
+  "recursion-basics": {
+    story: {
+      definition: `**기저 조건(Base Case)의 중요성**\n- 기저 조건이 없거나 도달 불가능하면 스택 오버플로가 발생한다.\n- 입력이 매 호출마다 단조 감소(또는 단조 증가)해 반드시 기저 조건에 닿는지 확인해야 한다.\n\n**호출 스택 메모리 비용**\n- 호출 1회 = 스택 프레임 1개(지역 변수 + 반환 주소).\n- 깊이 N의 재귀는 O(N) 추가 메모리를 사용한다.\n- Python 기본 재귀 한도는 약 1000회 (\`sys.getrecursionlimit()\`).`,
+      playgroundDescription: `기저 조건이 어디서 발동하는지, 그리고 호출 스택이 어떻게 쌓였다 풀리는지 단계별로 관찰하세요.`,
+    },
+    features: [
+      { title: "꼬리 재귀 vs 머리 재귀", description: "꼬리 재귀(Tail Recursion)는 마지막 동작이 자기 호출이라 변환이 쉽고, 머리 재귀는 호출 결과를 결합해야 해 변환이 까다롭습니다." },
+      { title: "스택 오버플로 임계값", description: "재귀 깊이가 OS 스택 크기를 넘으면 RuntimeError(Python) 또는 segfault(C/C++)가 발생합니다. 입력 크기에서 깊이를 미리 예측해야 합니다." },
+      { title: "재귀 한도 조정", description: "Python에서는 `sys.setrecursionlimit(10000)`으로 조정 가능하지만, 본질적 해결책은 반복문 전환 또는 명시적 스택 사용입니다." },
+    ],
+    guide: [
+      {
+        title: "재귀 설계 체크리스트",
+        items: [
+          {
+            label: "기저 조건 먼저",
+            description: "함수 시작점에서 기저 조건을 검사하고 즉시 반환합니다.",
+            code: "def f(n):\n    if n <= 0:\n        return 0  # base case\n    return n + f(n - 1)",
+            tags: ["Invariant"],
+          },
+          {
+            label: "입력 단조 감소",
+            description: "재귀 호출의 인자가 기저 조건 방향으로 반드시 줄어드는지 확인합니다.",
+            code: "# OK: f(n-1)  → 0으로 수렴\n# BAD: f(n) → 무한 재귀",
+            tags: ["Edge"],
+          },
+        ],
+      },
+    ],
+  },
+  "tower-of-hanoi": {
+    story: {
+      definition: `**점화식과 최소 이동 횟수**\n- T(n) = 2T(n-1) + 1\n- 풀이: T(n) = 2^n - 1.\n- n=10 → 1023회, n=20 → 약 100만 회, n=64 → 약 1.8×10^19회.\n\n**분할 전략**\n- n-1개를 보조 기둥(via auxiliary)으로 이동.\n- 가장 큰 원판 1개를 목적 기둥으로 이동.\n- n-1개를 보조 기둥에서 목적 기둥으로 이동.`,
+      playgroundDescription: `보조 기둥의 역할이 매 재귀 호출마다 어떻게 바뀌는지 관찰하세요. 같은 기둥이 어떤 호출에서는 from, 다른 호출에서는 via가 됩니다.`,
+    },
+    features: [
+      { title: "분할 정복 사고의 정수", description: "한 번에 풀 수 없는 문제를 같은 형태의 더 작은 문제로 분해하는 사고 패턴이 하노이의 탑에 가장 선명하게 드러납니다." },
+      { title: "보조 기둥 선택 규칙", description: "from·to·via 세 기둥의 역할이 매 재귀 호출마다 바뀌며, 이를 함수 인자로 명시적으로 전달하는 패턴을 익힙니다." },
+      { title: "지수 복잡도 체감", description: "n이 1 증가할 때마다 이동 횟수가 2배가 되는 지수 성장의 위험성을 실제 숫자로 확인합니다." },
+      { title: "전설의 하노이 (n=64)", description: "신화 속 64개 원판을 모두 옮기는 데 약 5800억 년이 걸린다는 사실은 지수 복잡도가 왜 위험한지 보여주는 고전 예시입니다." },
+    ],
+    guide: [
+      {
+        title: "하노이의 탑 재귀 패턴",
+        items: [
+          {
+            label: "3단계 분해",
+            description: "n-1을 via로 옮긴 뒤, 1을 to로, 다시 n-1을 to로 옮깁니다.",
+            code: "def hanoi(n, src, dst, via):\n    if n == 0:\n        return\n    hanoi(n - 1, src, via, dst)\n    print(f'{src} -> {dst}')\n    hanoi(n - 1, via, dst, src)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
+  "recursion-analysis": {
+    story: {
+      definition: `**점화식에서 시간복잡도 도출**\n- 분할 정복 형태: T(n) = aT(n/b) + f(n)\n- 마스터 정리(Master Theorem)로 빠르게 점근식 도출 가능.\n  - 예: T(n)=2T(n/2)+O(n) → O(n log n) (병합 정렬)\n  - 예: T(n)=2T(n/2)+O(1) → O(n) (이진 트리 순회 비교)\n\n**공간복잡도 분석**\n- 활성 스택 프레임 수 = 최대 호출 깊이 = O(depth).\n- 트리 재귀에서 깊이는 트리 높이와 같다.`,
+      playgroundDescription: `호출 트리를 시각화하면서 중복 호출이 어디서 발생하는지, 그리고 그 중복이 시간복잡도에 어떻게 영향을 주는지 확인하세요.`,
+    },
+    features: [
+      { title: "분할 형태 분류", description: "T(n) = aT(n/b) + f(n) 형태에서 a(분할 개수), b(축소 비율), f(n)(병합 비용)을 식별합니다." },
+      { title: "중복 호출 감지", description: "피보나치처럼 같은 입력을 여러 번 계산하는 패턴은 호출 트리에서 동일 노드의 반복으로 드러납니다." },
+      { title: "메모이제이션 전환 신호", description: "중복 부분 문제 + 최적 부분 구조가 보이면 메모이제이션(top-down) 또는 DP(bottom-up)로 전환할 신호입니다." },
+      { title: "공간복잡도 O(depth)", description: "한 번에 활성화되는 스택 프레임은 최대 호출 깊이만큼이므로, 공간복잡도는 호출 트리 노드 수가 아닌 트리 높이로 측정합니다." },
+    ],
+    guide: [
+      {
+        title: "메모이제이션 패턴",
+        items: [
+          {
+            label: "순수 재귀 (느림)",
+            description: "같은 부분 문제를 여러 번 재계산. O(2^n).",
+            code: "def fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)",
+            tags: ["Edge"],
+          },
+          {
+            label: "메모이제이션 (빠름)",
+            description: "한 번 계산한 결과를 dict/배열에 저장. O(n).",
+            code: "from functools import lru_cache\n@lru_cache(None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
 
   // module-01: search-algorithms
   "search-problem-key": {},
@@ -795,7 +908,18 @@ const expansions: Record<string, Expansion> = {
     ],
     guide: linkedListGuide,
   },
-  "queue-overview": {},
+  "queue-overview": {
+    story: {
+      definition: `**FIFO 비용 모델**\n- \`enqueue\`: rear에 추가 → O(1).\n- \`dequeue\`: front에서 제거 → O(1).\n- 중간 접근/탐색은 큐의 기본 연산이 아니다(필요하면 다른 자료구조).\n\n**front/rear 포인터의 의미**\n- front는 "다음 dequeue 대상" 위치.\n- rear는 "다음 enqueue가 들어갈" 위치.\n- 빈 큐 / 가득 찬 큐 판별 규칙을 둘 중 어느 한 쪽 기준으로 통일해 두면 디버깅이 쉽다.`,
+      playgroundDescription: `enqueue/dequeue를 번갈아 실행하면서 front와 rear의 거리가 어떻게 변하는지 추적하세요.`,
+    },
+    features: [
+      { title: "원형 큐와의 차이", description: "선형 큐는 front가 이동하면 앞쪽 슬롯이 낭비되지만, 원형 큐는 (i+1)%n으로 처음에 다시 연결해 공간을 재활용합니다." },
+      { title: "데크(Deque) 확장", description: "Deque는 양쪽 끝에서 enqueue/dequeue가 모두 가능한 큐의 확장입니다. BFS·슬라이딩 윈도우 최대값 문제에 자주 사용됩니다." },
+      { title: "Python 큐 구현 비교", description: "Python에서는 `queue.Queue`(스레드 안전, 락 비용), `collections.deque`(O(1) 양끝 연산, 일반 알고리즘에 적합)을 구분해서 사용합니다." },
+    ],
+    guide: queueGuide,
+  },
 
   // module-02: sorting (overview / counting / shell)
   "sorting-overview": {
@@ -878,7 +1002,37 @@ const expansions: Record<string, Expansion> = {
   },
 
   // module-02 or 03: backtracking
-  "queen-backtracking": {},
+  "queen-backtracking": {
+    story: {
+      definition: `**가지치기(Pruning) 결정 기준**\n- N-Queen에서 새 퀸을 (r, c)에 두려면 다음이 모두 비어야 한다.\n  - 같은 열 c\n  - 주대각선: r - c (변하지 않는 값)\n  - 부대각선: r + c (변하지 않는 값)\n- 세 집합 중 하나라도 충돌하면 그 가지를 즉시 포기.\n\n**탐색 트리 구조**\n- 각 행 r에서 N개 후보 열을 시도 → 분기 인수 N.\n- 최대 깊이 N (행 개수).\n- 무가지치기 시 N^N 경우의 수, 가지치기 후 실제 탐색 노드는 훨씬 적다.`,
+      playgroundDescription: `가지치기 전후 방문 노드 수의 차이를 비교하면서, 어떤 가지에서 일찍 포기하는지 확인하세요.`,
+    },
+    features: [
+      { title: "분기 인수와 깊이", description: "분기 인수 b·깊이 d일 때 최악 탐색 공간은 O(b^d). N-Queen은 b=N, d=N으로 가지치기 없이는 매우 큽니다." },
+      { title: "대칭성 활용", description: "체스판 좌우 대칭으로 첫 행의 절반만 탐색해 해를 구한 뒤 2배 해도 됩니다(중앙 열은 별도)." },
+      { title: "N=8 해의 개수", description: "정확히 92개의 해가 존재하며, 본질적으로 서로 다른 해는 회전·반사 대칭을 제외하면 12개입니다." },
+      { title: "비트마스크 표현", description: "열·대각선·부대각선을 정수 비트로 표현하면 충돌 검사가 O(1)이 되어 큰 N에서도 빠르게 동작합니다." },
+    ],
+    guide: [
+      {
+        title: "백트래킹 일반 패턴",
+        items: [
+          {
+            label: "선택 → 재귀 → 복원",
+            description: "유효한 선택을 적용하고 재귀 호출, 복귀 후 선택을 되돌립니다.",
+            code: "def backtrack(state):\n    if is_goal(state):\n        record(state)\n        return\n    for choice in candidates(state):\n        if not feasible(state, choice):\n            continue\n        apply(state, choice)\n        backtrack(state)\n        undo(state, choice)",
+            tags: ["Pattern"],
+          },
+          {
+            label: "N-Queen 비트마스크",
+            description: "col·diag1·diag2 세 비트마스크로 충돌 검사를 상수 시간에 처리.",
+            code: "def solve(r, n, cols, d1, d2):\n    if r == n:\n        return 1\n    count = 0\n    free = ~(cols | d1 | d2) & ((1 << n) - 1)\n    while free:\n        pick = free & -free\n        count += solve(r+1, n,\n                       cols | pick,\n                       (d1 | pick) << 1,\n                       (d2 | pick) >> 1)\n        free ^= pick\n    return count",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export function applyContentExpansion(config: CTPModuleConfig, activeKey: string): CTPModuleConfig {
