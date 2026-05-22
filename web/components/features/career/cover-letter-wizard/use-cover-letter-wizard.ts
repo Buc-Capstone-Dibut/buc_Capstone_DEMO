@@ -210,6 +210,7 @@ export function useCoverLetterWizard({
     workspaceName: "",
     colorTag: COLOR_TAGS[0],
     questions: [createQuestion()],
+    targetJobPostingId: null,
   });
 
   useEffect(() => {
@@ -596,6 +597,8 @@ export function useCoverLetterWizard({
         title: workspaceTitle,
         body: payload.content,
         questions: persistableQuestions,
+        // 셋업 단계에서 사용자가 자신의 채용공고를 선택했다면 정규화 FK로 연결
+        targetJobPostingId: form.targetJobPostingId ?? undefined,
       };
       try {
         if (coverLetterId) {
@@ -661,6 +664,7 @@ export function useCoverLetterWizard({
     form.deadline,
     form.workspaceName,
     form.colorTag,
+    form.targetJobPostingId,
     experienceSnapshot,
     questionMessages,
     questionWorkflowMap,

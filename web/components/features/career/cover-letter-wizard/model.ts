@@ -50,6 +50,8 @@ export type WizardForm = {
   workspaceName: string;
   colorTag: string;
   questions: CoverLetterQuestion[];
+  /** 사용자가 자신의 채용공고 중 하나를 셋업에서 선택했을 때 그 id */
+  targetJobPostingId?: string | null;
 };
 
 export type CoverLetterQuestionPreset = {
