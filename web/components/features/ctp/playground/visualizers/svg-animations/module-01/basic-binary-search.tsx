@@ -122,7 +122,7 @@ export function BasicBinarySearchVisualizer({ data }: { data: { step: number } }
                      step === 5 ? 16 + 36 * 3 :
                      step === 6 ? 16 + 36 * 4 :
                      16 + 36 * 5,
-                height: step === 1 ? 36 * 2 : step === 6 ? 36 * 2 : 36,
+                height: step === 1 ? 36 * 2 : step === 4 ? 36 * 2 : step === 6 ? 36 * 2 : 36,
                 opacity: step === 0 ? 0 : 1,
                 boxShadow: step > 0 ? "0 0 20px hsla(var(--cyan-500), 0.2) inset" : "none"
               }}
