@@ -147,13 +147,20 @@ export function SinglyVisualizer({ data }: { data: { step: number } }) {
   const svgHeight = 400;
   const r = 30;
   const gap = 130;
-  const totalWidth = state.nodes.length * (2 * r) + (state.nodes.length - 1) * (gap - 2 * r);
-  const startX = (svgWidth - totalWidth) / 2 + r;
   const cy = 220;
 
+  // 고정 anchor: Z/A/B/X/C 가 모든 step 에서 동일한 x 좌표 유지.
+  // 좌→우 순서: Z(prepend), A, B, X(중간 삽입), C
+  // step 0 에서는 A 가 머리지만 Z 슬롯은 비워두지 않고 좌측을 살짝 쉬프트.
+  //   대신 Z/A/B/X/C 모두 5 슬롯에 안정 배치 → step 1+ 에서 Z 가 등장해도 시프트 없음.
+  const SLOT: Record<string, number> = { Z: 0, A: 1, B: 2, X: 3, C: 4 };
+  const SLOT_COUNT = 5;
+  const totalWidth = SLOT_COUNT * (2 * r) + (SLOT_COUNT - 1) * (gap - 2 * r);
+  const startX = (svgWidth - totalWidth) / 2 + r;
+
   const xOf = (id: string) => {
-    const idx = state.nodes.findIndex((n) => n.id === id);
-    return idx >= 0 ? startX + idx * gap : -1;
+    const slot = SLOT[id];
+    return slot !== undefined ? startX + slot * gap : -1;
   };
 
   return (

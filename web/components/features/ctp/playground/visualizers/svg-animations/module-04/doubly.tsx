@@ -150,13 +150,19 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
   const svgHeight = 400;
   const r = 30;
   const gap = 140;
-  const totalWidth = state.nodes.length * (2 * r) + (state.nodes.length - 1) * (gap - 2 * r);
-  const startX = (svgWidth - totalWidth) / 2 + r;
   const cy = 220;
 
+  // 고정 anchor: A/B/X/C 가 모든 step 에서 동일한 x 좌표 유지.
+  // step 3 X 삽입 시 회전·시프트 없이 빈 자리에서 등장.
+  // step 4 B 삭제 시 양옆 노드가 이동하지 않음.
+  const SLOT: Record<string, number> = { A: 0, B: 1, X: 2, C: 3 };
+  const SLOT_COUNT = 4;
+  const totalWidth = SLOT_COUNT * (2 * r) + (SLOT_COUNT - 1) * (gap - 2 * r);
+  const startX = (svgWidth - totalWidth) / 2 + r;
+
   const xOf = (id: string) => {
-    const idx = state.nodes.findIndex((n) => n.id === id);
-    return idx >= 0 ? startX + idx * gap : -1;
+    const slot = SLOT[id];
+    return slot !== undefined ? startX + slot * gap : -1;
   };
 
   return (
@@ -181,7 +187,7 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
         {step === 4 && "Delete: B 제거. A↔X 양방향 재연결로 O(1)"}
       </text>
 
-      {/* Forward edges (next, upper) */}
+      {/* Forward edges (next, upper) — y offset 16 으로 prev 와 분리 + label */}
       {state.nodes
         .filter((n) => n.next !== null)
         .map((n) => {
@@ -194,16 +200,17 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
             <EdgeLine
               key={`next-${n.id}`}
               x1={fromX}
-              y1={cy - 8}
+              y1={cy - 16}
               x2={toX}
-              y2={cy - 8}
+              y2={cy - 16}
               status={status}
               arrow
+              label="next"
             />
           );
         })}
 
-      {/* Backward edges (prev, lower) */}
+      {/* Backward edges (prev, lower) — y offset 16 으로 next 와 분리 + label */}
       {state.nodes
         .filter((n) => n.prev !== null)
         .map((n) => {
@@ -216,11 +223,12 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
             <EdgeLine
               key={`prev-${n.id}`}
               x1={fromX}
-              y1={cy + 8}
+              y1={cy + 16}
               x2={toX}
-              y2={cy + 8}
+              y2={cy + 16}
               status={status}
               arrow
+              label="prev"
             />
           );
         })}
