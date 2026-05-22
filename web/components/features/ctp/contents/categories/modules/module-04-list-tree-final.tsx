@@ -14,12 +14,26 @@ import { useFc2Sim, Fc2Visualizer } from "@/components/features/ctp/playground/v
 import { useFc3Sim, Fc3Visualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/fc-3";
 import { useFc4Sim, Fc4Visualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/fc-4";
 
+// Tier 2 Main Visualizers & Hooks (module-04)
+import { useSinglySim, SinglyVisualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/singly";
+import { useDoublySim, DoublyVisualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/doubly";
+import { useCircularSim, CircularVisualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/circular";
+import { useTreeBasicsSim, TreeBasicsVisualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/tree-basics";
+import { useBstSim, BstVisualizer } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/bst";
+
 // Tier 1 Supplementary Visualizers (module-04)
 import { CursorLinkedListSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/cursor-linked-list-supp";
 import { Fc1SupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/fc-1-supp";
 import { Fc2SupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/fc-2-supp";
 import { Fc3SupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/fc-3-supp";
 import { Fc4SupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/fc-4-supp";
+
+// Tier 2 Supplementary Visualizers (module-04)
+import { SinglySupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/singly-supp";
+import { DoublySupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/doubly-supp";
+import { CircularSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/circular-supp";
+import { TreeBasicsSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/tree-basics-supp";
+import { BstSupplementaryOptions } from "@/components/features/ctp/playground/visualizers/svg-animations/module-04/supp/bst-supp";
 
 const LIST_MODULES = createInteractiveTemplateModules([
   {
@@ -40,23 +54,29 @@ const LIST_MODULES = createInteractiveTemplateModules([
         title: "노드 기반 표현",
         description:
           "각 데이터를 노드 객체로 감싸고 `next` 포인터로 다음 노드를 가리킵니다. 메모리상 노드들이 서로 떨어져 있어도 논리적으로는 한 줄로 연결됩니다.",
+        SupplementaryVisualizer: SinglySupplementaryOptions[0],
       },
       {
         title: "head 단일 진입점",
         description:
           "리스트 전체에 접근하려면 `head`만 알면 됩니다. `head`를 잃어버리면 전체 데이터에 접근할 방법이 사라지므로 `head` 관리가 가장 중요한 책임입니다.",
+        SupplementaryVisualizer: SinglySupplementaryOptions[1],
       },
       {
         title: "O(1) 포인터 재배선",
         description:
           "삽입·삭제 위치를 이미 알고 있다면 두 개 포인터만 갱신하면 됩니다. 배열처럼 나머지 원소를 밀거나 당기는 비용이 발생하지 않습니다.",
+        SupplementaryVisualizer: SinglySupplementaryOptions[2],
       },
       {
         title: "단방향 순회의 제약",
         description:
           "`prev` 정보가 없기 때문에 한 방향으로만 이동할 수 있습니다. 양방향 순회가 필요하거나 끝에서 자주 접근해야 하면 이중 연결 리스트로 확장합니다.",
+        SupplementaryVisualizer: SinglySupplementaryOptions[3],
       },
     ],
+    useSim: useSinglySim,
+    Visualizer: SinglyVisualizer,
   },
   {
     id: "doubly",
@@ -76,23 +96,29 @@ const LIST_MODULES = createInteractiveTemplateModules([
         title: "prev·next 양방향 포인터",
         description:
           "각 노드는 직전·다음 노드를 동시에 가리킵니다. 어디서든 양쪽 방향으로 자유롭게 이동할 수 있다는 점이 단일 연결 리스트와의 가장 큰 차이입니다.",
+        SupplementaryVisualizer: DoublySupplementaryOptions[0],
       },
       {
         title: "head와 tail 동시 보관",
         description:
           "리스트 시작과 끝 모두에 즉시 접근할 수 있어 양쪽 끝 삽입·삭제가 `O(1)`에 끝납니다. 데크(Deque) 같은 구조의 자연스러운 토대가 됩니다.",
+        SupplementaryVisualizer: DoublySupplementaryOptions[1],
       },
       {
         title: "O(1) 임의 노드 삭제",
         description:
           "삭제할 노드를 알고 있으면 `prev`·`next`를 따라 양옆 노드만 다시 잇습니다. 단일 연결 리스트처럼 직전 노드를 다시 탐색하지 않아도 됩니다.",
+        SupplementaryVisualizer: DoublySupplementaryOptions[2],
       },
       {
         title: "메모리 비용 트레이드오프",
         description:
           "노드마다 포인터 하나가 더 필요하기 때문에 메모리 사용량이 증가합니다. 데이터 양이 많거나 메모리 제약이 강한 환경에서는 단일 연결 리스트와 비용 효용을 비교해야 합니다.",
+        SupplementaryVisualizer: DoublySupplementaryOptions[3],
       },
     ],
+    useSim: useDoublySim,
+    Visualizer: DoublyVisualizer,
   },
   {
     id: "cursor-linked-list",
@@ -154,23 +180,29 @@ const LIST_MODULES = createInteractiveTemplateModules([
         title: "끝과 시작의 결합",
         description:
           "마지막 노드의 `next`가 `head`로 되돌아옴으로써 끝-시작 경계가 사라집니다. 모든 노드가 동등한 위치를 가지므로 특수 케이스 분기가 거의 사라집니다.",
+        SupplementaryVisualizer: CircularSupplementaryOptions[0],
       },
       {
         title: "임의 출발점 순회",
         description:
           "`head`를 모르더라도 노드 하나만 손에 들고 있으면 한 바퀴를 돌아 전체를 방문할 수 있습니다. 시작 노드를 기억해 두는 것이 종료 조건의 핵심입니다.",
+        SupplementaryVisualizer: CircularSupplementaryOptions[1],
       },
       {
         title: "라운드 로빈에 자연스러운 표현",
         description:
           "라운드 로빈 스케줄러, 음악 반복 재생, 게임 턴 진행처럼 \"끝나면 처음으로\"가 자연스러운 응용에 적합합니다. 별도 조건 분기 없이 `next` 한 번이면 됩니다.",
+        SupplementaryVisualizer: CircularSupplementaryOptions[2],
       },
       {
         title: "무한 루프 방지 책임",
         description:
           "끝 노드가 없으므로 잘못 짠 순회는 영원히 끝나지 않을 수 있습니다. 시작 노드 비교, 방문 카운트 같은 안전 장치를 반드시 코드에 명시해야 합니다.",
+        SupplementaryVisualizer: CircularSupplementaryOptions[3],
       },
     ],
+    useSim: useCircularSim,
+    Visualizer: CircularVisualizer,
   },
 ]);
 
@@ -193,23 +225,29 @@ const TREE_MODULES = createInteractiveTemplateModules([
         title: "부모-자식 계층 표현",
         description:
           "각 노드는 정확히 한 명의 부모와 0개 이상의 자식을 가집니다. 이 단순한 규칙으로 임의의 깊이를 가진 계층 구조를 모두 표현할 수 있습니다.",
+        SupplementaryVisualizer: TreeBasicsSupplementaryOptions[0],
       },
       {
         title: "루트와 리프의 역할",
         description:
           "루트는 전체 트리의 진입점, 리프는 경로의 종착점입니다. 모든 탐색·순회는 루트에서 출발해 리프 방향으로 진행되는 것이 기본입니다.",
+        SupplementaryVisualizer: TreeBasicsSupplementaryOptions[1],
       },
       {
         title: "깊이와 높이의 구분",
         description:
           "깊이는 \"이 노드가 얼마나 아래에 있는가\"를, 높이는 \"트리가 얼마나 깊은가\"를 나타냅니다. 두 개념을 혼동하지 않는 것이 트리 알고리즘 분석의 첫 단계입니다.",
+        SupplementaryVisualizer: TreeBasicsSupplementaryOptions[2],
       },
       {
         title: "순회 순서 선택",
         description:
           "전위·중위·후위·레벨 순회는 같은 트리에서도 다른 출력을 만듭니다. 풀려는 문제(검색·정렬·계산)에 맞춰 적절한 순회 순서를 고르는 감각이 필요합니다.",
+        SupplementaryVisualizer: TreeBasicsSupplementaryOptions[3],
       },
     ],
+    useSim: useTreeBasicsSim,
+    Visualizer: TreeBasicsVisualizer,
   },
   {
     id: "bst",
@@ -229,23 +267,29 @@ const TREE_MODULES = createInteractiveTemplateModules([
         title: "정렬 불변식 유지",
         description:
           "모든 노드에서 왼쪽 < 부모 < 오른쪽이라는 부등식이 항상 성립합니다. 이 단순한 규칙이 검색·삽입·삭제 모두를 한 방향 탐색으로 풀어 줍니다.",
+        SupplementaryVisualizer: BstSupplementaryOptions[0],
       },
       {
         title: "평균 O(log N) 검색",
         description:
           "한 단계마다 후보 노드 수가 절반에 가깝게 줄어듭니다. 균형이 잘 잡힌 BST에서는 N=1000 노드에서도 약 10번의 비교로 검색이 끝납니다.",
+        SupplementaryVisualizer: BstSupplementaryOptions[1],
       },
       {
         title: "중위 순회 = 정렬 출력",
         description:
           "BST를 중위 순회하면 결과가 항상 오름차순 정렬됩니다. 정렬된 데이터 추출이 필요한 응용에서는 별도 정렬 단계를 생략할 수 있습니다.",
+        SupplementaryVisualizer: BstSupplementaryOptions[2],
       },
       {
         title: "균형 붕괴 시 O(N)",
         description:
           "오름차순 입력처럼 데이터가 한쪽으로 쏠리면 트리가 선형 리스트처럼 늘어집니다. 이를 막기 위해 AVL 트리·레드-블랙 트리 같은 자동 균형 트리가 등장했습니다.",
+        SupplementaryVisualizer: BstSupplementaryOptions[3],
       },
     ],
+    useSim: useBstSim,
+    Visualizer: BstVisualizer,
   },
 ]);
 
