@@ -33,9 +33,6 @@ interface CTPPlaygroundProps {
   initialCode: string;
   visualizer: ReactNode; // The visualized component (Left Panel)
   onRun?: (code: string) => void; // Trigger execution simulation
-  restrictedEditing?: boolean;
-  editBoundaryStart?: string;
-  editBoundaryEnd?: string;
   showStatePanel?: boolean;
   statePanelMode?: "summary" | "full";
 }
@@ -44,9 +41,6 @@ export function CTPPlayground({
   initialCode,
   visualizer,
   onRun,
-  restrictedEditing = false,
-  editBoundaryStart = "# === USER CODE START ===",
-  editBoundaryEnd = "# === USER CODE END ===",
   showStatePanel = true,
   statePanelMode = "full",
 }: CTPPlaygroundProps) {
@@ -74,11 +68,6 @@ export function CTPPlayground({
       .slice(0, currentStepIndex + 1)
       .flatMap((step) => step.events ?? []);
   }, [steps, currentStepIndex]);
-
-  const extractedUserBlock = useMemo(() => {
-    const source = code || initialCode;
-    return extractUserBlock(source, editBoundaryStart, editBoundaryEnd);
-  }, [code, initialCode, editBoundaryStart, editBoundaryEnd]);
 
   useEffect(() => {
     if (!code && initialCode) {
@@ -111,17 +100,11 @@ export function CTPPlayground({
   }, [currentStepIndex, steps.length, playState, setPlayState]);
 
   const handleRun = () => {
-    console.log("[Playground] Run Triggered");
     if (onRun) {
       // If code is empty (initial state), use initialCode
       // CodeEditor updates store synchronously on change, so 'code' should be current.
       const source = code || initialCode;
-      if (!restrictedEditing) {
-        onRun(source);
-        return;
-      }
-      const merged = replaceUserBlock(source, editBoundaryStart, editBoundaryEnd, extractedUserBlock);
-      onRun(merged);
+      onRun(source);
     }
   };
 
@@ -142,19 +125,6 @@ export function CTPPlayground({
     setCurrentStep(value[0]);
   };
 
-  // --- SKULPT PROTOTYPE VERIFICATION ---
-  // Temporarily rendering SkulptTest to verify infrastructure
-  // Revert this block after verification
-  /*
-  return (
-    <div className="flex flex-col h-[700px] ... (original UI hidden) ...">
-       ...
-    </div>
-  );
-  */
-
-  // Dynamic import or direct if file exists
-  // For now assuming direct import added at top
   return (
     <div className={cn(
       "flex flex-col bg-background overflow-hidden shadow-sm transition-all duration-300",
@@ -346,15 +316,9 @@ export function CTPPlayground({
         <ResizablePanel defaultSize={50} minSize={30}>
           <CodeEditor
             initialCode={initialCode}
-            value={restrictedEditing ? extractedUserBlock : code}
+            value={code}
             onChange={(val) => {
-              if (!restrictedEditing) {
-                setCode(val || "");
-                return;
-              }
-              const source = code || initialCode;
-              const next = replaceUserBlock(source, editBoundaryStart, editBoundaryEnd, val || "");
-              setCode(next);
+              setCode(val || "");
             }}
             activeLine={steps[currentStepIndex]?.activeLine}
             readOnly={false}
@@ -376,25 +340,3 @@ export function CTPPlayground({
   );
 }
 
-const extractUserBlock = (code: string, start: string, end: string) => {
-  if (!code) return "";
-  const startIdx = code.indexOf(start);
-  const endIdx = code.indexOf(end);
-  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    return code;
-  }
-  const sliceStart = startIdx + start.length;
-  return code.slice(sliceStart, endIdx).trim();
-};
-
-const replaceUserBlock = (code: string, start: string, end: string, userBlock: string) => {
-  if (!code) return userBlock;
-  const startIdx = code.indexOf(start);
-  const endIdx = code.indexOf(end);
-  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    return userBlock;
-  }
-  const before = code.slice(0, startIdx + start.length);
-  const after = code.slice(endIdx);
-  return `${before}\n${userBlock}\n${after}`;
-};
