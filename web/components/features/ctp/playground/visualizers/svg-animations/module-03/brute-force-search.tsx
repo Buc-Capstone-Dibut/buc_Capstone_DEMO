@@ -17,7 +17,7 @@ type SearchState = {
 };
 
 // --- Hook ---
-export function useBruteForceSim(text: string, pattern: string) {
+export function useBruteForceSearchSim(text: string, pattern: string) {
   const [history, setHistory] = useState<SearchState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -102,14 +102,14 @@ export function useBruteForceSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function BruteForceVisualizer({ data }: { data: number[] }) {
+export function BruteForceSearchVisualizer({ data }: { data: number[] }) {
   // We use data array indirectly, let's map it to string for visualizer compatibility
   // In a real scenario, string visualizers might take string props, but for CTP we just map numbers to chars for consistency
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const mappedText = data.map(n => chars[n % chars.length]).join("") || "ABCABCDABCE";
   const searchPattern = mappedText.substring(3, 6) || "ABC";
 
-  const { state, controls, progress, isFinished } = useBruteForceSim(mappedText, searchPattern);
+  const { state, controls, progress, isFinished } = useBruteForceSearchSim(mappedText, searchPattern);
   const { text, pattern, i, j, comparing, matchFound, phase } = state;
 
   const svgWidth = 800;

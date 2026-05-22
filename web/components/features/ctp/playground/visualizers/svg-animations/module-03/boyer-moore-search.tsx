@@ -25,7 +25,7 @@ type BMState = {
 };
 
 // --- Hook ---
-export function useBoyerMooreSim(text: string, pattern: string) {
+export function useBoyerMooreSearchSim(text: string, pattern: string) {
   const [history, setHistory] = useState<BMState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -142,7 +142,7 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const mappedText = data.map(n => chars[(n % 3) + 1]).join("") + "TEST STRING FIND HERE";
   const searchPattern = "STRING";
-  const { state, controls, progress, isFinished } = useBoyerMooreSim(mappedText, searchPattern);
+  const { state, controls, progress, isFinished } = useBoyerMooreSearchSim(mappedText, searchPattern);
   const { text, pattern, badCharTable, phase, phaseText, i, j, matchFound, comparing, skipDistance, badCharIndex } = state;
 
   const svgWidth = 840;

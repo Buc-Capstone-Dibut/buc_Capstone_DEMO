@@ -25,7 +25,7 @@ type KMPState = {
 };
 
 // --- Hook ---
-export function useKMPSim(text: string, pattern: string) {
+export function useKmpSearchSim(text: string, pattern: string) {
   const [history, setHistory] = useState<KMPState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -149,7 +149,7 @@ export function useKMPSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function KMPSearchVisualizer({ data }: { data: number[] }) {
+export function KmpSearchVisualizer({ data }: { data: number[] }) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   // Convert numbers to text, create a predictable scenario for KMP
   const mappedText = data.map(n => chars[(n % 3) + 1]).join("") + "BABC"; // Only A,B,C mostly
@@ -157,7 +157,7 @@ export function KMPSearchVisualizer({ data }: { data: number[] }) {
   const patternExtracted = "ABABC";
   const searchPattern = mappedText.includes(patternExtracted) ? patternExtracted : mappedText.substring(2, 7) || "ABABC";
 
-  const { state, controls, progress, isFinished } = useKMPSim(mappedText, searchPattern);
+  const { state, controls, progress, isFinished } = useKmpSearchSim(mappedText, searchPattern);
   const { text, pattern, lps, phase, phaseText, len, lpsIndex, i, j, matchFound, comparing } = state;
 
   const svgWidth = 840;

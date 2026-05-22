@@ -33,9 +33,9 @@ import { BruteForceScanSVG, TwoPointerMatchingSVG, WorstCaseMatchSVG, PatternBac
 import { PrefixSuffixSVG, LPSTableSVG, KMPSkipSVG, LinearTimeEfficiencySVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/kmp-search-supp";
 import { RightToLeftCompareSVG, BadCharacterRuleSVG, AlignBadCharacterSVG, GoodSuffixRuleSVG } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/supp/boyer-moore-supp";
 
-import { BruteForceVisualizer, useBruteForceSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/brute-force-search";
-import { KMPSearchVisualizer, useKMPSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/kmp-search";
-import { BoyerMooreSearchVisualizer, useBoyerMooreSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/boyer-moore-search";
+import { BruteForceSearchVisualizer, useBruteForceSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/brute-force-search";
+import { KmpSearchVisualizer, useKmpSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/kmp-search";
+import { BoyerMooreSearchVisualizer, useBoyerMooreSearchSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/boyer-moore-search";
 
 const SORTING_MODULES = createInteractiveTemplateModules([
   {
@@ -320,8 +320,8 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         SupplementaryVisualizer: PatternBacktrackSVG,
       },
     ],
-    useSim: useBruteForceSim,
-    Visualizer: BruteForceVisualizer,
+    useSim: useBruteForceSearchSim,
+    Visualizer: BruteForceSearchVisualizer,
   },
   {
     id: "kmp-search",
@@ -362,8 +362,8 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         SupplementaryVisualizer: LinearTimeEfficiencySVG,
       },
     ],
-    useSim: useKMPSim,
-    Visualizer: KMPSearchVisualizer,
+    useSim: useKmpSearchSim,
+    Visualizer: KmpSearchVisualizer,
   },
   {
     id: "boyer-moore-search",
@@ -404,7 +404,7 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
         SupplementaryVisualizer: GoodSuffixRuleSVG,
       },
     ],
-    useSim: useBoyerMooreSim,
+    useSim: useBoyerMooreSearchSim,
     Visualizer: BoyerMooreSearchVisualizer,
   },
 ]);
