@@ -142,7 +142,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
   const state = data;
   const { array, heapSize, i, j, comparing, swapping, sortedIndices, phase } = state;
 
-  const maxVal = Math.max(...data, 1);
+  const maxVal = Math.max(...array.map((a: any) => a.val), 1);
   const svgWidth = 800;
   const svgHeight = 600; // Taller for tree + array
   const treeHeight = 350;
@@ -154,16 +154,19 @@ export function HeapSortVisualizer({ data }: { data: any }) {
   const barWidth = Math.min(40, totalBarWidth * 0.8);
   const getX = (index: number) => 50 + index * totalBarWidth + (totalBarWidth - barWidth) / 2;
 
-  // Tree layout
-  const getNodePos = (idx: number) => {
-    const level = Math.floor(Math.log2(idx + 1));
-    const nodesInLevel = Math.pow(2, level);
-    const indexInLevel = idx - (nodesInLevel - 1);
-
-    // Spread nodes evenly across the width based on their level
-    const xStep = svgWidth / (nodesInLevel + 1);
-    const x = xStep * (indexInLevel + 1);
-    const y = 80 + level * 80;
+  // Tree layout — parent-relative recursive positioning so siblings never collide.
+  // x(child) = x(parent) ± svgWidth / 2^(level+2)
+  const getNodePos = (idx: number): { x: number; y: number } => {
+    if (idx === 0) {
+      return { x: svgWidth / 2, y: 80 };
+    }
+    const parentIdx = Math.floor((idx - 1) / 2);
+    const parentPos = getNodePos(parentIdx);
+    const parentLevel = Math.floor(Math.log2(parentIdx + 1));
+    const offset = svgWidth / Math.pow(2, parentLevel + 2);
+    const isLeftChild = idx === 2 * parentIdx + 1;
+    const x = isLeftChild ? parentPos.x - offset : parentPos.x + offset;
+    const y = parentPos.y + 80;
     return { x, y };
   };
 
