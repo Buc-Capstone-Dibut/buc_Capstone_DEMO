@@ -9,6 +9,7 @@ import {
   EdgeLine,
   PointerArrow,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -223,11 +224,14 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
           />
           {/* right child = 7 */}
           <EdgeLine
-            x1={treeOriginX + 70 + 14}
-            y1={treeOriginY - 50 + 14}
-            x2={treeOriginX + 120 - 14}
-            y2={treeOriginY + 10 - 14}
+            {...edgeAt(
+              { x: treeOriginX + 70, y: treeOriginY - 50 },
+              { x: treeOriginX + 120, y: treeOriginY + 10 },
+              treeNodeR,
+              treeNodeR,
+            )}
             status="pointer"
+            arrow
           />
           <NodeCircle
             cx={treeOriginX + 120}

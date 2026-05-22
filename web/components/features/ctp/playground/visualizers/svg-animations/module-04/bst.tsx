@@ -8,6 +8,7 @@ import {
   EdgeLine,
   PointerArrow,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -180,20 +181,16 @@ export function BstVisualizer({ data }: { data: { step: number } }) {
       {/* Edges */}
       {state.presentValues.includes(5) && state.presentValues.includes(3) && (
         <EdgeLine
-          x1={NODE_POS[5].x - 14}
-          y1={NODE_POS[5].y + r - 6}
-          x2={NODE_POS[3].x + 14}
-          y2={NODE_POS[3].y - r + 6}
+          {...edgeAt(NODE_POS[5], NODE_POS[3], r, r)}
           status={isPathEdge(5, 3) ? "active" : "muted"}
+          arrow
         />
       )}
       {state.presentValues.includes(5) && state.presentValues.includes(7) && (
         <EdgeLine
-          x1={NODE_POS[5].x + 14}
-          y1={NODE_POS[5].y + r - 6}
-          x2={NODE_POS[7].x - 14}
-          y2={NODE_POS[7].y - r + 6}
+          {...edgeAt(NODE_POS[5], NODE_POS[7], r, r)}
           status={isPathEdge(5, 7) ? "active" : "muted"}
+          arrow
         />
       )}
 

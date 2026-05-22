@@ -7,6 +7,7 @@ import {
   EdgeLine,
   PointerArrow,
   colorTokens,
+  edgeAt,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
 // Supp 1: 노드와 head 진입점 — head 라벨이 첫 노드 위에서 가리키고 next 화살표 연결
@@ -107,20 +108,14 @@ function SinglySupp2() {
 
       {/* B → X (새 active) */}
       <EdgeLine
-        x1={positions.B.x + 8}
-        y1={cy - r + 4}
-        x2={positions.X.x - 4}
-        y2={positions.X.y + r}
+        {...edgeAt(positions.B, positions.X, r, r)}
         status="active"
         arrow
       />
 
       {/* X → C (새 active) */}
       <EdgeLine
-        x1={positions.X.x + 4}
-        y1={positions.X.y + r}
-        x2={positions.C.x - 8}
-        y2={cy - r + 4}
+        {...edgeAt(positions.X, positions.C, r, r)}
         status="active"
         arrow
       />
@@ -214,11 +209,12 @@ function SinglySupp4() {
   const H = 200;
   const r = 20;
   const cy = 100;
+  // 4번째 노드 cx=250 으로 좌측 이동: target 라벨이 viewBox(W=300) 우측 가장자리에서 잘리지 않도록 여유 확보
   const positions = [
-    { x: 60, val: "A", idx: 0 },
-    { x: 130, val: "B", idx: 1 },
-    { x: 200, val: "C", idx: 2 },
-    { x: 270, val: "D", idx: 3 },
+    { x: 50, val: "A", idx: 0 },
+    { x: 115, val: "B", idx: 1 },
+    { x: 180, val: "C", idx: 2 },
+    { x: 250, val: "D", idx: 3 },
   ];
 
   return (

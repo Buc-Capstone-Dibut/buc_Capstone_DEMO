@@ -163,7 +163,7 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
         />
       )}
 
-      {/* step 2: L/R/M pointer */}
+      {/* step 2: L/R/M pointer — L=blue(pointer) / R=orange(comparing) 색 분리 */}
       {step === 2 && (
         <>
           <PointerArrow
@@ -177,7 +177,7 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
             x={boxStartX + R * (boxSize + boxGap) + boxSize / 2}
             y={boxY - 8}
             label="R"
-            color={colorTokens.pointer}
+            color={colorTokens.comparing}
             direction="down"
           />
           <PointerArrow
@@ -221,34 +221,31 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
                   {/* chain nodes */}
                   {chain.map((v, ci) => {
                     const cy = bucketY + bucketBoxSize + 30 + ci * 38;
+                    const nodeR = 14;
                     const isFound = v === TARGET;
+                    const centerX = x + bucketBoxSize / 2;
+                    // ci===0: bucket bottom → first node top
+                    // ci>=1: previous node bottom (cy - 38 + nodeR) → this node top (cy - nodeR)
+                    const y1 = ci === 0 ? bucketY + bucketBoxSize : cy - 38 + nodeR;
+                    const y2 = cy - nodeR;
                     return (
                       <g key={`chain-${b}-${ci}`}>
                         <NodeCircle
-                          cx={x + bucketBoxSize / 2}
+                          cx={centerX}
                           cy={cy}
-                          r={14}
+                          r={nodeR}
                           value={v}
                           status={isFound ? "found" : "comparing"}
                           showGlow={isFound}
                         />
-                        {ci === 0 ? (
-                          <EdgeLine
-                            x1={x + bucketBoxSize / 2}
-                            y1={bucketY + bucketBoxSize}
-                            x2={x + bucketBoxSize / 2}
-                            y2={cy - 14}
-                            status={isFound ? "found" : "muted"}
-                          />
-                        ) : (
-                          <EdgeLine
-                            x1={x + bucketBoxSize / 2}
-                            y1={cy - 14 - 24}
-                            x2={x + bucketBoxSize / 2}
-                            y2={cy - 14}
-                            status="muted"
-                          />
-                        )}
+                        <EdgeLine
+                          x1={centerX}
+                          y1={y1}
+                          x2={centerX}
+                          y2={y2}
+                          status={ci === 0 && isFound ? "found" : "muted"}
+                          arrow
+                        />
                       </g>
                     );
                   })}

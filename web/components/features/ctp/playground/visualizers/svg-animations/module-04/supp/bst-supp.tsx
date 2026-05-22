@@ -7,6 +7,7 @@ import {
   EdgeLine,
   ArrayBox,
   colorTokens,
+  edgeAt,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
 // Supp 1: BST 불변식
@@ -29,8 +30,8 @@ function BstSupp1() {
         BST 불변식 (left &lt; parent &lt; right)
       </text>
 
-      <EdgeLine x1={POS.root.x - 6} y1={POS.root.y + r - 4} x2={POS.left.x + 6} y2={POS.left.y - r + 4} status="active" />
-      <EdgeLine x1={POS.root.x + 6} y1={POS.root.y + r - 4} x2={POS.right.x - 6} y2={POS.right.y - r + 4} status="active" />
+      <EdgeLine {...edgeAt(POS.root, POS.left, r, r)} status="active" arrow />
+      <EdgeLine {...edgeAt(POS.root, POS.right, r, r)} status="active" arrow />
 
       <NodeCircle cx={POS.root.x} cy={POS.root.y} r={r} value={5} status="found" showGlow />
       <NodeCircle cx={POS.left.x} cy={POS.left.y} r={r} value={3} status="comparing" />
@@ -74,8 +75,8 @@ function BstSupp2() {
         삽입·검색 공통 경로
       </text>
 
-      <EdgeLine x1={POS.root.x - 6} y1={POS.root.y + r - 4} x2={POS.left.x + 6} y2={POS.left.y - r + 4} status="muted" />
-      <EdgeLine x1={POS.root.x + 6} y1={POS.root.y + r - 4} x2={POS.right.x - 6} y2={POS.right.y - r + 4} status="active" />
+      <EdgeLine {...edgeAt(POS.root, POS.left, r, r)} status="muted" />
+      <EdgeLine {...edgeAt(POS.root, POS.right, r, r)} status="active" arrow />
 
       <NodeCircle cx={POS.root.x} cy={POS.root.y} r={r} value={5} status="active" showGlow />
       <NodeCircle cx={POS.left.x} cy={POS.left.y} r={r} value={3} status="comparing" />
@@ -116,8 +117,8 @@ function BstSupp3() {
         중위 순회 = 오름차순 출력
       </text>
 
-      <EdgeLine x1={POS.root.x - 6} y1={POS.root.y + r - 4} x2={POS.left.x + 6} y2={POS.left.y - r + 4} status="active" />
-      <EdgeLine x1={POS.root.x + 6} y1={POS.root.y + r - 4} x2={POS.right.x - 6} y2={POS.right.y - r + 4} status="active" />
+      <EdgeLine {...edgeAt(POS.root, POS.left, r, r)} status="active" arrow />
+      <EdgeLine {...edgeAt(POS.root, POS.right, r, r)} status="active" arrow />
 
       <NodeCircle cx={POS.root.x} cy={POS.root.y} r={r} value={5} status="comparing" />
       <NodeCircle cx={POS.left.x} cy={POS.left.y} r={r} value={3} status="comparing" />
@@ -138,23 +139,23 @@ function BstSupp3() {
 // Supp 4: 균형 트리의 필요성
 function BstSupp4() {
   const W = 300;
-  const H = 200;
+  const H = 220;
   const r = 12;
 
-  // 왼쪽: 한쪽 기울어진 BST (O(N))
+  // 왼쪽: 한쪽 기울어진 BST (O(N)) — y 압축으로 footer와 분리
   const SKEW: Record<number, { x: number; y: number }> = {
     1: { x: 50, y: 56 },
-    2: { x: 70, y: 96 },
-    3: { x: 90, y: 136 },
-    4: { x: 110, y: 176 },
+    2: { x: 70, y: 90 },
+    3: { x: 90, y: 124 },
+    4: { x: 110, y: 158 },
   };
 
   // 오른쪽: 균형 잡힌 BST (O(log N))
   const BAL: Record<number, { x: number; y: number }> = {
     3: { x: 220, y: 60 },
-    1: { x: 185, y: 120 },
-    4: { x: 255, y: 120 },
-    2: { x: 200, y: 180 },
+    1: { x: 185, y: 116 },
+    4: { x: 255, y: 116 },
+    2: { x: 200, y: 172 },
   };
 
   return (
@@ -167,9 +168,9 @@ function BstSupp4() {
       </text>
 
       {/* SKEW edges */}
-      <EdgeLine x1={SKEW[1].x + 4} y1={SKEW[1].y + r - 2} x2={SKEW[2].x - 4} y2={SKEW[2].y - r + 2} status="muted" />
-      <EdgeLine x1={SKEW[2].x + 4} y1={SKEW[2].y + r - 2} x2={SKEW[3].x - 4} y2={SKEW[3].y - r + 2} status="muted" />
-      <EdgeLine x1={SKEW[3].x + 4} y1={SKEW[3].y + r - 2} x2={SKEW[4].x - 4} y2={SKEW[4].y - r + 2} status="muted" />
+      <EdgeLine {...edgeAt(SKEW[1], SKEW[2], r, r)} status="muted" />
+      <EdgeLine {...edgeAt(SKEW[2], SKEW[3], r, r)} status="muted" />
+      <EdgeLine {...edgeAt(SKEW[3], SKEW[4], r, r)} status="muted" />
 
       <NodeCircle cx={SKEW[1].x} cy={SKEW[1].y} r={r} value={1} status="comparing" />
       <NodeCircle cx={SKEW[2].x} cy={SKEW[2].y} r={r} value={2} status="comparing" />
@@ -184,9 +185,9 @@ function BstSupp4() {
       </text>
 
       {/* BAL edges */}
-      <EdgeLine x1={BAL[3].x - 4} y1={BAL[3].y + r - 2} x2={BAL[1].x + 4} y2={BAL[1].y - r + 2} status="active" />
-      <EdgeLine x1={BAL[3].x + 4} y1={BAL[3].y + r - 2} x2={BAL[4].x - 4} y2={BAL[4].y - r + 2} status="active" />
-      <EdgeLine x1={BAL[1].x + 4} y1={BAL[1].y + r - 2} x2={BAL[2].x - 4} y2={BAL[2].y - r + 2} status="active" />
+      <EdgeLine {...edgeAt(BAL[3], BAL[1], r, r)} status="active" />
+      <EdgeLine {...edgeAt(BAL[3], BAL[4], r, r)} status="active" />
+      <EdgeLine {...edgeAt(BAL[1], BAL[2], r, r)} status="active" />
 
       <NodeCircle cx={BAL[3].x} cy={BAL[3].y} r={r} value={3} status="active" showGlow />
       <NodeCircle cx={BAL[1].x} cy={BAL[1].y} r={r} value={1} status="active" />
