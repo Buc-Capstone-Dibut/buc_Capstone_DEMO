@@ -2,6 +2,16 @@
 
 import { motion } from "framer-motion";
 
+function SharedDefs() {
+  return (
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--primary))" />
+      </marker>
+    </defs>
+  );
+}
+
 function LogNReduction() {
   return (
     <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
@@ -60,6 +70,7 @@ function LogNReduction() {
 function BoundaryUpdateRules() {
   return (
     <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <SharedDefs />
       <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">Left, Mid, Right Pointer Rules</text>
 
       <g transform="translate(100, 110)">
@@ -124,6 +135,7 @@ function BoundaryUpdateRules() {
 function SortingTradeOff() {
   return (
     <svg viewBox="0 0 600 300" className="w-full h-full" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <SharedDefs />
       <text x="300" y="40" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(var(--foreground))">The Hidden Cost: Sorting</text>
 
       <g transform="translate(150, 80)">

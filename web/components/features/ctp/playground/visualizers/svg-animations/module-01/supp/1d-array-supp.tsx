@@ -28,6 +28,15 @@ function SharedDefs() {
       <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#000000" floodOpacity="0.1" />
       </filter>
+      <marker id="arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
+      </marker>
+      <marker id="arrow-head-emerald" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+      </marker>
+      <marker id="arrow-head-rose" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
+      </marker>
       <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
         <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
       </pattern>
@@ -201,7 +210,7 @@ function ArrayTraversal() {
           initial={{ x: 80, opacity: 1 }}
           transition={{ duration: 6, ease: "linear", repeat: Infinity }}
         >
-          <path d="M 0 30 L 0 -10" stroke="#f43f5e" strokeWidth="4" markerEnd="url(#arrow-head)" />
+          <path d="M 0 30 L 0 -10" stroke="#f43f5e" strokeWidth="4" markerEnd="url(#arrow-head-rose)" />
           <text x="0" y="45" textAnchor="middle" fontSize="16" fontWeight="900" fill="#f43f5e">i</text>
         </motion.g>
 

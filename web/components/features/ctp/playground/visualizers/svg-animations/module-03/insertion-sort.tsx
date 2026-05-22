@@ -230,6 +230,13 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id="neon-glow-orange" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.2" />
         </pattern>
@@ -282,7 +289,10 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
             animate={{
               opacity: 1,
               scale: 1,
-              y: isInserting ? 0 : -80, // Drop down if inserting
+              // y=-130 (was -80) lifts the floating Key high enough that
+              // tall bars + the "Key" label clear the status panel
+              // (y=25..85) when i is large and the key overlaps it.
+              y: isInserting ? 0 : -130,
               x: isInserting ? START_X + holeIndex * (BLOCK_WIDTH + BLOCK_SPACING) : START_X + i * (BLOCK_WIDTH + BLOCK_SPACING)
             }}
             exit={{ opacity: 0, scale: 0 }}

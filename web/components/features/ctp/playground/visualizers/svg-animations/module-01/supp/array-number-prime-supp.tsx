@@ -28,6 +28,9 @@ function SharedDefs() {
         <feGaussianBlur stdDeviation="6" result="blur" />
         <feComposite in="SourceGraphic" in2="blur" operator="over" />
       </filter>
+      <marker id="arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--muted-foreground))" />
+      </marker>
       <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
         <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
       </pattern>
