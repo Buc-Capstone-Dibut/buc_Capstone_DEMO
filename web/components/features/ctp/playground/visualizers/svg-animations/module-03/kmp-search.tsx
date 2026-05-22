@@ -157,7 +157,7 @@ export function KmpSearchVisualizer(_props: { data?: unknown }) {
   const { state, controls, progress, isFinished } = useKmpSearchSim(KMP_TEXT, KMP_PATTERN);
   const { text, pattern, lps, phase, phaseText, len, lpsIndex, i, j, matchFound, comparing } = state;
 
-  const svgWidth = 840;
+  const svgWidth = 900;
   const svgHeight = 500;
 
   const boxSize = 36;
