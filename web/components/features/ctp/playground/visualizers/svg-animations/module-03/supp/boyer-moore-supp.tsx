@@ -21,17 +21,17 @@ export function RightToLeftCompareSVG() {
         <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Text</text>
         {['S', 'K', 'I', 'P', ' ', 'T', 'H', 'I', 'S'].map((char, i) => (
           <g key={i} transform={`translate(${i * 45}, 0)`}>
-             <rect width="40" height="40" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+             <rect width="40" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
              <text x="20" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
 
         <g transform="translate(90, 60)">
            <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Pattern</text>
-           <rect x="0" y="0" width="40" height="40" fill="#3b82f6" rx="4" />
-           <rect x="45" y="0" width="40" height="40" fill="#3b82f6" rx="4" />
-           <rect x="90" y="0" width="40" height="40" fill="#3b82f6" rx="4" />
-           <rect x="135" y="0" width="40" height="40" fill="#10b981" rx="4" />
+           <rect x="0" y="0" width="40" height="40" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="45" y="0" width="40" height="40" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="90" y="0" width="40" height="40" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="135" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
 
            <text x="20" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">T</text>
            <text x="65" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">H</text>
@@ -41,11 +41,11 @@ export function RightToLeftCompareSVG() {
            {/* Backward Arrow */}
            <motion.path
               d="M 155 -15 L 20 -15"
-              fill="none" stroke="#f43f5e" strokeWidth="4" strokeDasharray="6"
+              fill="none" stroke="hsl(347 89% 60%)" strokeWidth="4" strokeDasharray="6"
               initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, repeat: Infinity }}
            />
-           <polygon points="15,-15 25,-22 25,-8" fill="#f43f5e" />
-           <text x="90" y="-25" fill="#f43f5e" fontSize="14" fontWeight="bold" textAnchor="middle">역순(Right-to-Left) 비교</text>
+           <polygon points="15,-15 25,-22 25,-8" fill="hsl(347 89% 60%)" />
+           <text x="90" y="-25" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">역순(Right-to-Left) 비교</text>
         </g>
       </g>
     </svg>
@@ -70,22 +70,22 @@ export function BadCharacterRuleSVG() {
         <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Text</text>
         {['F', 'I', 'N', 'D', ' ', 'H', 'E', 'R', 'E'].map((char, i) => (
           <g key={i} transform={`translate(${i * 45}, 0)`}>
-             <rect width="40" height="40" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+             <rect width="40" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
              <text x="20" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
 
         {/* Unmatched Character 'D' */}
-        <motion.rect x="135" y="0" width="40" height="40" fill="none" stroke="#f43f5e" strokeWidth="4" rx="4" />
-        <text x="155" y="-10" fill="#f43f5e" fontSize="14" fontWeight="bold" textAnchor="middle">나쁜 문자 'D'</text>
+        <motion.rect x="135" y="0" width="40" height="40" fill="none" stroke="hsl(347 89% 60%)" strokeWidth="4" rx="4" />
+        <text x="155" y="-10" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">나쁜 문자 'D'</text>
 
         {/* Pattern Stage 1 */}
         <g transform="translate(0, 60)">
            <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Pattern</text>
-           <rect x="0" y="0" width="40" height="40" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="45" y="0" width="40" height="40" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="90" y="0" width="40" height="40" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="135" y="0" width="40" height="40" fill="#f43f5e" opacity="0.8" rx="4" />
+           <rect x="0" y="0" width="40" height="40" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="45" y="0" width="40" height="40" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="90" y="0" width="40" height="40" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="135" y="0" width="40" height="40" fill="hsl(347 89% 60%)" opacity="0.8" rx="4" />
 
            <text x="20" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">H</text>
            <text x="65" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">E</text>
@@ -96,20 +96,20 @@ export function BadCharacterRuleSVG() {
         {/* Arrow Skip */}
         <motion.path
            d="M 155 110 Q 245 150 335 110"
-           fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="4"
+           fill="none" stroke="hsl(160 84% 39%)" strokeWidth="4" strokeDasharray="4"
            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 1, duration: 1, repeat: Infinity, repeatDelay: 1 }}
         />
-        <text x="245" y="160" fill="#10b981" fontSize="14" fontWeight="bold" textAnchor="middle">패턴에 'D'가 없으므로 D 다음으로 대폭 점프!</text>
+        <text x="245" y="160" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle">패턴에 'D'가 없으므로 D 다음으로 대폭 점프!</text>
 
         {/* Pattern Stage 2 */}
         <motion.g
            transform="translate(180, 60)"
            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2, duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
         >
-           <rect x="0" y="0" width="40" height="40" fill="#10b981" rx="4" />
-           <rect x="45" y="0" width="40" height="40" fill="#10b981" rx="4" />
-           <rect x="90" y="0" width="40" height="40" fill="#10b981" rx="4" />
-           <rect x="135" y="0" width="40" height="40" fill="#10b981" rx="4" />
+           <rect x="0" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="45" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="90" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="135" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
 
            <text x="20" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">H</text>
            <text x="65" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">E</text>
@@ -140,23 +140,23 @@ export function AlignBadCharacterSVG() {
         <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Text</text>
         {['S', 'U', 'M', 'M', 'E', 'R', 'T', 'I', 'M', 'E'].map((char, i) => (
           <g key={i} transform={`translate(${i * 40}, 0)`}>
-             <rect width="36" height="36" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+             <rect width="36" height="36" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
              <text x="18" y="23" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
 
         {/* Unmatched Character 'M' */}
-        <motion.rect x="120" y="0" width="36" height="36" fill="none" stroke="#f59e0b" strokeWidth="4" rx="4" />
-        <text x="138" y="-10" fill="#f59e0b" fontSize="12" fontWeight="bold" textAnchor="middle">나쁜 문자 'M'</text>
-        <text x="338" y="80" fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle">'M'을 일치시킴</text>
+        <motion.rect x="120" y="0" width="36" height="36" fill="none" stroke="hsl(38 92% 50%)" strokeWidth="4" rx="4" />
+        <text x="138" y="-10" fill="hsl(38 92% 50%)" fontSize="12" fontWeight="bold" textAnchor="middle">나쁜 문자 'M'</text>
+        <text x="338" y="80" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" textAnchor="middle">'M'을 일치시킴</text>
 
         {/* Pattern Stage 1 */}
         <g transform="translate(0, 50)">
            <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Pattern</text>
-           <rect x="0" y="0" width="36" height="36" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="40" y="0" width="36" height="36" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="80" y="0" width="36" height="36" fill="#f59e0b" opacity="0.8" rx="4" />
-           <rect x="120" y="0" width="36" height="36" fill="#f43f5e" opacity="0.8" rx="4" />
+           <rect x="0" y="0" width="36" height="36" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="40" y="0" width="36" height="36" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="80" y="0" width="36" height="36" fill="hsl(38 92% 50%)" opacity="0.8" rx="4" />
+           <rect x="120" y="0" width="36" height="36" fill="hsl(347 89% 60%)" opacity="0.8" rx="4" />
 
            <text x="18" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">T</text>
            <text x="58" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">I</text>
@@ -167,7 +167,7 @@ export function AlignBadCharacterSVG() {
         {/* Arrow Align */}
         <motion.path
            d="M 138 95 Q 158 130 178 95"
-           fill="none" stroke="#f59e0b" strokeWidth="3" strokeDasharray="4"
+           fill="none" stroke="hsl(38 92% 50%)" strokeWidth="3" strokeDasharray="4"
            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 1, duration: 1, repeat: Infinity, repeatDelay: 1 }}
         />
 
@@ -176,10 +176,10 @@ export function AlignBadCharacterSVG() {
            transform="translate(40, 50)"
            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2, duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
         >
-           <rect x="0" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
-           <rect x="40" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
-           <rect x="80" y="0" width="36" height="36" fill="#10b981" rx="4" />
-           <rect x="120" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
+           <rect x="0" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="40" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="80" y="0" width="36" height="36" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="120" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
 
            <text x="18" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">T</text>
            <text x="58" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">I</text>
@@ -211,7 +211,7 @@ export function GoodSuffixRuleSVG() {
         <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Text</text>
         {['T', 'O', 'M', 'A', 'T', 'O', 'B', 'M', 'A', 'T', 'O'].map((char, i) => (
           <g key={i} transform={`translate(${i * 40}, 0)`}>
-             <rect width="36" height="36" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+             <rect width="36" height="36" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
              <text x="18" y="23" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
@@ -219,12 +219,12 @@ export function GoodSuffixRuleSVG() {
         {/* Pattern Stage 1 */}
         <g transform="translate(0, 50)">
            <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Pattern</text>
-           <rect x="0" y="0" width="36" height="36" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="40" y="0" width="36" height="36" fill="#3b82f6" opacity="0.4" rx="4" />
-           <rect x="80" y="0" width="36" height="36" fill="#f43f5e" opacity="0.8" rx="4" />
-           <rect x="120" y="0" width="36" height="36" fill="#10b981" opacity="1" rx="4" />
-           <rect x="160" y="0" width="36" height="36" fill="#10b981" opacity="1" rx="4" />
-           <rect x="200" y="0" width="36" height="36" fill="#10b981" opacity="1" rx="4" />
+           <rect x="0" y="0" width="36" height="36" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="40" y="0" width="36" height="36" fill="hsl(217 91% 60%)" opacity="0.4" rx="4" />
+           <rect x="80" y="0" width="36" height="36" fill="hsl(347 89% 60%)" opacity="0.8" rx="4" />
+           <rect x="120" y="0" width="36" height="36" fill="hsl(160 84% 39%)" opacity="1" rx="4" />
+           <rect x="160" y="0" width="36" height="36" fill="hsl(160 84% 39%)" opacity="1" rx="4" />
+           <rect x="200" y="0" width="36" height="36" fill="hsl(160 84% 39%)" opacity="1" rx="4" />
 
            <text x="18" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">P</text>
            <text x="58" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="0.5">O</text>
@@ -233,12 +233,12 @@ export function GoodSuffixRuleSVG() {
            <text x="178" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="1">T</text>
            <text x="218" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" opacity="1">O</text>
         </g>
-        <text x="178" y="105" fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle">이미 일치한 접미사 "ATO"</text>
+        <text x="178" y="105" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" textAnchor="middle">이미 일치한 접미사 "ATO"</text>
 
         {/* Arrow Match */}
         <motion.path
            d="M 178 115 Q 260 160 340 100"
-           fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray="4"
+           fill="none" stroke="hsl(160 84% 39%)" strokeWidth="3" strokeDasharray="4"
            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 1, duration: 1, repeat: Infinity, repeatDelay: 1 }}
         />
 
@@ -247,12 +247,12 @@ export function GoodSuffixRuleSVG() {
            transform="translate(160, 50)"
            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2, duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
         >
-           <rect x="0" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
-           <rect x="40" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
-           <rect x="80" y="0" width="36" height="36" fill="#3b82f6" rx="4" />
-           <rect x="120" y="0" width="36" height="36" fill="#10b981" rx="4" />
-           <rect x="160" y="0" width="36" height="36" fill="#10b981" rx="4" />
-           <rect x="200" y="0" width="36" height="36" fill="#10b981" rx="4" />
+           <rect x="0" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="40" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="80" y="0" width="36" height="36" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="120" y="0" width="36" height="36" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="160" y="0" width="36" height="36" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="200" y="0" width="36" height="36" fill="hsl(160 84% 39%)" rx="4" />
 
            <text x="18" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">P</text>
            <text x="58" y="23" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">O</text>
