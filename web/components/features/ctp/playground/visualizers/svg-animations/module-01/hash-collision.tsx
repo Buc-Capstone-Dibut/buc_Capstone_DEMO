@@ -106,6 +106,7 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
                      step === 4 ? 16 + 36 * 3 :
                      16 + 36 * 6,
                 height: (step === 1 || step === 3) ? 36 * 2 :
+                        (step === 2) ? 36 * 2 :
                         (step === 4) ? 36 * 3 :
                         (step === 5) ? 36 * 2 : 36,
                 opacity: step === 0 ? 0 : 1,
