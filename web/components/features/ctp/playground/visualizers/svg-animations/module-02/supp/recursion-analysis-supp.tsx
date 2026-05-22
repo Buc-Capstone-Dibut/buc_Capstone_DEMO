@@ -220,7 +220,7 @@ function EquationSubstitution() {
       </text>
 
       <g transform="translate(150, 100)" filter="url(#soft-shadow)">
-         <rect cx="0" cy="0" width="500" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+         <rect x="0" y="0" width="500" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
 
          <g transform="translate(80, 50)">
             <text x="0" y="0" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" fontFamily="monospace">

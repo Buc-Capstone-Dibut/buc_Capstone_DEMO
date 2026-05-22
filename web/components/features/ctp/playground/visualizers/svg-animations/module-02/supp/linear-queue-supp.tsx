@@ -164,7 +164,7 @@ function StateConditionRules() {
       </text>
 
       <g transform="translate(150, 120)" filter="url(#soft-shadow)">
-         <rect cx="0" cy="0" width="500" height="220" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+         <rect x="0" y="0" width="500" height="220" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
 
          <g transform="translate(50, 40)">
             <rect width="40" height="40" rx="6" fill="#10b981" />

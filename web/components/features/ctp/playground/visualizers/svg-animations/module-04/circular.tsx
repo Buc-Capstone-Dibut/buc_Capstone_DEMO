@@ -155,20 +155,23 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
   const cy0 = svgHeight / 2 + 10;
   const ringRadius = 130;
 
-  // 원형 배치: 노드를 -π/2 부터 시작해 시계방향
-  const n = state.nodes.length;
+  // 원형 배치 (안정 좌표): 고정 anchor 4 슬롯에 노드를 매핑.
+  // A/B/C 는 step 0~4 동안 동일 슬롯을 차지. 신규 X 는 빈 슬롯(3) 에 추가됨.
+  // 결과: 회전 효과 없이 X 만 빈 공간에서 등장 → "삽입" 의미 명확.
+  const SLOT_COUNT = 4;
+  const slotByValue: Record<string, number> = { A: 0, B: 1, C: 2, X: 3 };
   const posOf = (id: string): { x: number; y: number } => {
-    const idx = state.nodes.findIndex((node) => node.id === id);
-    if (idx < 0) return { x: 0, y: 0 };
-    const angle = -Math.PI / 2 + (2 * Math.PI * idx) / n;
+    const slot = slotByValue[id];
+    if (slot === undefined) return { x: 0, y: 0 };
+    const angle = -Math.PI / 2 + (2 * Math.PI * slot) / SLOT_COUNT;
     return {
       x: cx0 + ringRadius * Math.cos(angle),
       y: cy0 + ringRadius * Math.sin(angle),
     };
   };
 
-  // 호 화살표용 path 생성
-  function arcPath(from: { x: number; y: number }, to: { x: number; y: number }): string {
+  // 호 화살표용 path 생성 (bulge 파라미터화: wrap-around 강조 시 30 사용)
+  function arcPath(from: { x: number; y: number }, to: { x: number; y: number }, bulge = 18): string {
     // 두 점 사이를 호로 잇고, 노드 반지름만큼 시작·끝을 안쪽으로 당김
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -185,7 +188,6 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
     const outX = midX - cx0;
     const outY = midY - cy0;
     const outDist = Math.sqrt(outX * outX + outY * outY);
-    const bulge = 18;
     const cpX = midX + (outX / outDist) * bulge;
     const cpY = midY + (outY / outDist) * bulge;
     return `M ${startX} ${startY} Q ${cpX} ${cpY} ${endX} ${endY}`;
@@ -233,20 +235,24 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
         {step === 4 && "Delete: B 제거. 양옆 재연결로 원형 유지"}
       </text>
 
-      {/* next edges (호) */}
+      {/* next edges (호) — wrap-around (C→A 또는 X→A) 만 strokeWidth=3, bulge=30 으로 강조 */}
       {state.nodes.map((node) => {
         const from = posOf(node.id);
         const to = posOf(node.next);
         const isHighlighted = state.edgeHighlights.some(
           ([a, b]) => a === node.id && b === node.next,
         );
+        // wrap-around 정의: next 가 head(A) 인 마지막 노드 (last → first 결합)
+        const isWrap = node.next === state.head;
         const color = isHighlighted ? colorTokens.active : colorTokens.pointer;
+        const strokeW = isWrap ? 3 : 2;
+        const bulge = isWrap ? 30 : 18;
         return (
           <g key={`edge-${node.id}-${node.next}`}>
             <path
-              d={arcPath(from, to)}
+              d={arcPath(from, to, bulge)}
               stroke={color}
-              strokeWidth={2}
+              strokeWidth={strokeW}
               fill="none"
             />
             {arrowHead(to, from, color)}

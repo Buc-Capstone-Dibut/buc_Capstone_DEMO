@@ -155,7 +155,7 @@ function TailRecursion() {
       </text>
 
       <g transform="translate(100, 100)" filter="url(#soft-shadow)">
-         <rect cx="0" cy="0" width="600" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
+         <rect x="0" y="0" width="600" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
 
          <g transform="translate(50, 30)">
             <text x="0" y="0" fontSize="18" fontWeight="bold" fill="#f43f5e">일반 재귀 (돌아와서 할 일이 남음)</text>
