@@ -101,7 +101,7 @@ function MemoryOptimization() {
       <rect width="800" height="450" fill="url(#grid)" />
 
       <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
-        공간 복잡도의 압도적 차이 ( O(N) vs O(1) )
+        공간 복잡도 비교 ( O(N) vs O(1) )
       </text>
 
       <g transform="translate(150, 100)">
@@ -225,7 +225,7 @@ function TradeoffGuide() {
             <text x="110" y="40" textAnchor="middle" fontSize="22" fontWeight="900" fill="#10b981">반복문 (Iteration)</text>
 
             <text x="20" y="90" fontSize="16" fontWeight="bold" fill="#10b981">👍 장점</text>
-            <text x="20" y="115" fontSize="14" fill="hsl(var(--foreground))">- 압도적인 성능과 속도</text>
+            <text x="20" y="115" fontSize="14" fill="hsl(var(--foreground))">- 빠른 성능과 안정적인 속도</text>
             <text x="20" y="135" fontSize="14" fill="hsl(var(--foreground))">- 메모리 안정성 (O(1))</text>
 
             <text x="20" y="175" fontSize="16" fontWeight="bold" fill="#f43f5e">👎 단점</text>
