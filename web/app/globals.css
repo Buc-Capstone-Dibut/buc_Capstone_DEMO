@@ -234,7 +234,16 @@ body {
 }
 
 .site-helper-chat-trigger:hover::before {
-  animation: site-helper-ring-fill 0.7s linear infinite;
+  animation: site-helper-ring-fill 0.7s linear 1 forwards;
+}
+
+/* 한 번 채워진 뒤에는 링을 가득 찬 상태로 고정하고 더 이상 애니메이션이 돌지 않도록 */
+.site-helper-chat-trigger.is-filled::before {
+  --site-helper-ring-angle: 360deg;
+  animation: none;
+}
+.site-helper-chat-trigger.is-filled:hover::before {
+  animation: none;
 }
 
 .site-helper-chat-mascot {
