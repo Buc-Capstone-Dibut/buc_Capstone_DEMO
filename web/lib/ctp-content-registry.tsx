@@ -11,13 +11,13 @@ import {
   StackRecursionIntegrationContent,
 } from "@/components/features/ctp/contents/categories/modules/module-02-stack-recursion";
 import {
-  SortingContentRefactored,
+  SortingContent,
   StringSearchContent,
   SortingStringIntegrationContent,
 } from "@/components/features/ctp/contents/categories/modules/module-03-sorting-string";
 import {
-  ListContentRefactored,
-  TreeContentRefactored,
+  ListContent,
+  TreeContent,
   ListTreeIntegrationContent,
   FinalChallengeContent,
 } from "@/components/features/ctp/contents/categories/modules/module-04-list-tree-final";
@@ -34,12 +34,12 @@ export const CTP_CONTENT_REGISTRY: Record<string, ContentComponent | undefined> 
   "module-02-stack-recursion/recursion": RecursionContent,
   "module-02-stack-recursion/stack-recursion-integration": StackRecursionIntegrationContent,
 
-  "module-03-sorting-string/sorting": SortingContentRefactored,
+  "module-03-sorting-string/sorting": SortingContent,
   "module-03-sorting-string/string-search": StringSearchContent,
   "module-03-sorting-string/sorting-string-integration": SortingStringIntegrationContent,
 
-  "module-04-list-tree-final/list": ListContentRefactored,
-  "module-04-list-tree-final/tree": TreeContentRefactored,
+  "module-04-list-tree-final/list": ListContent,
+  "module-04-list-tree-final/tree": TreeContent,
   "module-04-list-tree-final/list-tree-integration": ListTreeIntegrationContent,
   "module-04-list-tree-final/final-challenge": FinalChallengeContent,
 };

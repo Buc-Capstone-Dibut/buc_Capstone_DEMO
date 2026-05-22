@@ -34,7 +34,7 @@ const LIST_MODULES = createInteractiveTemplateModules([
   },
 ]);
 
-const TREE_MODULES_REFACTORED = createInteractiveTemplateModules([
+const TREE_MODULES = createInteractiveTemplateModules([
   {
     id: "tree-basics",
     title: "09-1 트리 구조",
@@ -76,7 +76,7 @@ const FINAL_CHALLENGE_MODULES = createInteractiveTemplateModules([
   },
 ]);
 
-export function ListContentRefactored() {
+export function ListContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
       <CTPContentController
@@ -105,12 +105,12 @@ export function ListContentRefactored() {
   );
 }
 
-export function TreeContentRefactored() {
+export function TreeContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
       <CTPContentController
         category="Module 04. List, Tree & Final"
-        modules={TREE_MODULES_REFACTORED}
+        modules={TREE_MODULES}
         overview={
           <ChapterOverview
             moduleLabel="Module 04. List, Tree & Final"

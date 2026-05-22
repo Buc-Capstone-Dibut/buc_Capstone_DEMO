@@ -37,7 +37,7 @@ import { BruteForceVisualizer, useBruteForceSim } from "@/components/features/ct
 import { KMPSearchVisualizer, useKMPSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/kmp-search";
 import { BoyerMooreSearchVisualizer, useBoyerMooreSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/boyer-moore-search";
 
-const SORTING_MODULES_REFACTORED = createInteractiveTemplateModules([
+const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "sorting-overview",
     title: "06-1 정렬 알고리즘 개요",
@@ -271,12 +271,12 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
   },
 ]);
 
-export function SortingContentRefactored() {
+export function SortingContent() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading content...</div>}>
       <CTPContentController
         category="Module 03. Sorting & String"
-        modules={SORTING_MODULES_REFACTORED}
+        modules={SORTING_MODULES}
         overview={
           <ChapterOverview
             moduleLabel="Module 03. Sorting & String"
