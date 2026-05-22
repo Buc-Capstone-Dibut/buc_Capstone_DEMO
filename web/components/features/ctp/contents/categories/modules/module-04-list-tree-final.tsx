@@ -5,7 +5,7 @@ import { CTPContentController } from "@/components/features/ctp/common/CTPConten
 import { ProblemBankController } from "@/components/features/ctp/problem-bank";
 import { module04Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
-import { createCodeTemplateModules, createInteractiveTemplateModules } from "./shared/module-utils";
+import { createInteractiveTemplateModules } from "./shared/module-utils";
 
 const LIST_MODULES = createInteractiveTemplateModules([
   {
@@ -46,27 +46,6 @@ const TREE_MODULES_REFACTORED = createInteractiveTemplateModules([
     title: "09-2 이진 트리와 이진 검색 트리",
     description: "BST 삽입/탐색 규칙과 활용 패턴을 익힙니다.",
     sampleData: [10, 5, 15, 3, 7],
-  },
-]);
-
-const LIST_TREE_INTEGRATION_MODULES = createCodeTemplateModules([
-  {
-    id: "list-tree-integrated-1",
-    title: "통합 문제 1: 리스트 삽입/삭제 시나리오",
-    description: "연결 구조에서 삽입/삭제의 포인터 변경을 시뮬레이션합니다.",
-    sampleData: [2, 5, 8, 11],
-  },
-  {
-    id: "list-tree-integrated-2",
-    title: "통합 문제 2: BST 탐색/삽입 응용",
-    description: "트리 탐색/삽입 규칙을 복합 조건 문제에 적용합니다.",
-    sampleData: [9, 4, 13, 1, 6],
-  },
-  {
-    id: "list-tree-integrated-3",
-    title: "통합 문제 3: 구조 선택 트레이드오프",
-    description: "리스트 vs 트리 선택을 시간/메모리 관점에서 비교합니다.",
-    sampleData: [12, 7, 3, 14, 5],
   },
 ]);
 

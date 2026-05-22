@@ -5,7 +5,7 @@ import { CTPContentController } from "@/components/features/ctp/common/CTPConten
 import { ProblemBankController } from "@/components/features/ctp/problem-bank";
 import { module03Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
-import { createCodeTemplateModules, createInteractiveTemplateModules } from "./shared/module-utils";
+import { createInteractiveTemplateModules } from "./shared/module-utils";
 
 // Module 03 Main Visualizers & Hooks
 import { SortingOverviewVisualizer, useSortingOverviewSim } from "@/components/features/ctp/playground/visualizers/svg-animations/module-03/sorting-overview";
@@ -268,27 +268,6 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
     ],
     useSim: useBoyerMooreSim,
     Visualizer: BoyerMooreSearchVisualizer,
-  },
-]);
-
-const SORTING_STRING_INTEGRATION_MODULES = createCodeTemplateModules([
-  {
-    id: "sorting-string-integrated-1",
-    title: "통합 문제 1: 정렬 후 문자열 처리",
-    description: "전처리 정렬 + 매칭 조합 문제를 풉니다.",
-    sampleData: [8, 2, 6, 3, 9],
-  },
-  {
-    id: "sorting-string-integrated-2",
-    title: "통합 문제 2: 패턴 매칭 성능 비교",
-    description: "문자열 검색 알고리즘 성능을 데이터별로 비교합니다.",
-    sampleData: [4, 4, 1, 7, 1],
-  },
-  {
-    id: "sorting-string-integrated-3",
-    title: "통합 문제 3: 비재귀 퀵정렬 응용",
-    description: "반복 기반 분할 정복 응용 문제를 풉니다.",
-    sampleData: [13, 5, 11, 2, 7],
   },
 ]);
 

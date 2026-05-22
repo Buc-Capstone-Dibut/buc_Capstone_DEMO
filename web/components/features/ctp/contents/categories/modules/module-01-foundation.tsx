@@ -6,7 +6,6 @@ import { ProblemBankController } from "@/components/features/ctp/problem-bank";
 import { module01Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import {
-  createCodeTemplateModules,
   createInteractiveTemplateModules,
 } from "./shared/module-utils";
 
@@ -420,28 +419,6 @@ const FOUNDATION_BASIC_SEARCH_MODULES = createInteractiveTemplateModules([
         SupplementaryVisualizer: HashCollisionSupplementaryOptions[3]
       }
     ]
-  },
-]);
-
-// Requirement: keep this chapter as code simulator
-const FOUNDATION_INTEGRATION_MODULES = createCodeTemplateModules([
-  {
-    id: "foundation-integrated-1",
-    title: "통합 문제 1: 배열+검색",
-    description: "배열 전처리 후 검색 전략을 선택하는 통합 문제를 풉니다.",
-    sampleData: [9, 1, 6, 3, 7, 2],
-  },
-  {
-    id: "foundation-integrated-2",
-    title: "통합 문제 2: 정렬된 배열 삽입/탐색",
-    description: "정렬 상태를 유지하면서 삽입/탐색 비용을 최적화합니다.",
-    sampleData: [1, 2, 4, 5, 8, 11],
-  },
-  {
-    id: "foundation-integrated-3",
-    title: "통합 문제 3: 해시 충돌 시나리오",
-    description: "충돌 상황에서 자료구조 선택과 리해시 전략을 설계합니다.",
-    sampleData: [21, 31, 41, 22, 32, 42],
   },
 ]);
 
