@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   Briefcase,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Inbox,
   Loader2,
   Plus,
@@ -64,6 +66,16 @@ export function CoverLetterWizardIntakeDialog({
   const [postings, setPostings] = useState<JobPostingOption[]>([]);
   const [postingsLoading, setPostingsLoading] = useState(false);
   const [postingsLoaded, setPostingsLoaded] = useState(false);
+  const [postingsPage, setPostingsPage] = useState(1);
+  const POSTINGS_PAGE_SIZE = 5;
+  const postingsTotalPages = Math.max(
+    1,
+    Math.ceil(postings.length / POSTINGS_PAGE_SIZE),
+  );
+  const pagedPostings = postings.slice(
+    (postingsPage - 1) * POSTINGS_PAGE_SIZE,
+    postingsPage * POSTINGS_PAGE_SIZE,
+  );
 
   useEffect(() => {
     if (intakeStep !== 1 || postingsLoaded) return;
@@ -272,7 +284,7 @@ export function CoverLetterWizardIntakeDialog({
                   </div>
                 ) : (
                   <ul className="divide-y divide-slate-200/70">
-                    {postings.map((p) => {
+                    {pagedPostings.map((p) => {
                       const active = p.id === form.targetJobPostingId;
                       return (
                         <li key={p.id}>
@@ -305,6 +317,35 @@ export function CoverLetterWizardIntakeDialog({
                   </ul>
                 )}
               </div>
+              {postings.length > POSTINGS_PAGE_SIZE && (
+                <div className="flex items-center justify-between gap-2 border-t bg-white px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setPostingsPage((p) => Math.max(1, p - 1))}
+                    disabled={postingsPage === 1}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                    aria-label="이전 페이지"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {postingsPage} / {postingsTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPostingsPage((p) =>
+                        Math.min(postingsTotalPages, p + 1),
+                      )
+                    }
+                    disabled={postingsPage >= postingsTotalPages}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                    aria-label="다음 페이지"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </aside>
           </div>
         ) : (
