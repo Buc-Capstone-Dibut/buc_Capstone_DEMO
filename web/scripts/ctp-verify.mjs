@@ -90,7 +90,13 @@ function countSentences(text) {
   return Math.max(punct, bullets);
 }
 
-const FORBIDDEN_WORDS = ["압도적", "잔혹", "신비한", "미슐랭", "마스터하기"];
+const FORBIDDEN_WORDS = [
+  "압도적", "잔혹", "신비한", "미슐랭", "마스터하기",
+  "마법", "기적", "참담", "침몰", "박살",
+  "궁극의", "경이", "위협성", "필연적", "무자비",
+];
+
+const EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
 
 function g4_toneGuide(spec) {
   const { story, features } = spec.content;
@@ -108,6 +114,9 @@ function g4_toneGuide(spec) {
   const joined = JSON.stringify(spec.content);
   for (const word of FORBIDDEN_WORDS) {
     if (joined.includes(word)) issues.push(`금지 표현 "${word}" 포함`);
+  }
+  if (EMOJI_REGEX.test(joined)) {
+    issues.push("이모지 사용 (TONE_GUIDE 금지)");
   }
   if (issues.length > 0) return { status: "FAIL", reason: issues.join(", ") };
   return { status: "PASS" };
