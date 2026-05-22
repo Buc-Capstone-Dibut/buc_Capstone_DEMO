@@ -102,7 +102,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill={isSolved ? "#10b981" : isBacktracking ? "#f97316" : "#06b6d4"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isSolved ? 'emerald' : isBacktracking ? 'orange' : 'cyan'})`}>
+      <text x="40" y="50" fill={isSolved ? "hsl(160 84% 39%)" : isBacktracking ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isSolved ? 'emerald' : isBacktracking ? 'orange' : 'cyan'})`}>
         {isSolved ? "해결 완료!" : isBacktracking ? "백트래킹 중" : "N-QUEEN 백트래킹"}
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -115,7 +115,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           {isSolved ? "모든 4개의 퀸이 공격받지 않는 위치에 배치되었습니다." : isBacktracking ? "이 행에는 가능한 위치가 없습니다. 이전 행으로 돌아갑니다." : "유망하지 않은 경로를 가지치기하며 탐색 공간을 줄입니다."}
         </text>
-        <text x="170" y="45" fill={isSolved ? "#10b981" : isBacktracking ? "#f97316" : "#06b6d4"} fontSize="13" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isSolved ? "hsl(160 84% 39%)" : isBacktracking ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"} fontSize="13" fontWeight="bold" textAnchor="middle">
           {isSolved ? "성공!" : isBacktracking ? "이전 행으로 되돌아가는 중..." : "안전한 위치 탐색 중..."}
         </text>
       </g>
@@ -147,7 +147,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
                 x={cx + 2} y={cy + 2}
                 width={CELL_SIZE - 4} height={CELL_SIZE - 4}
                 fill={isQueen ? (isSolved ? "rgba(16, 185, 129, 0.2)" : "rgba(6, 182, 212, 0.2)") : isBlocked ? "rgba(249, 115, 22, 0.1)" : isActiveRow ? "rgba(168, 85, 247, 0.1)" : isLightSq ? "hsl(var(--muted))" : "hsl(var(--card))"}
-                stroke={isQueen ? (isSolved ? "#10b981" : "#06b6d4") : isBlocked ? "rgba(249, 115, 22, 0.4)" : isActiveRow ? "#a855f7" : "transparent"}
+                stroke={isQueen ? (isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)") : isBlocked ? "rgba(249, 115, 22, 0.4)" : isActiveRow ? "hsl(271 91% 65%)" : "transparent"}
                 strokeWidth={isQueen ? 2 : 1}
                 rx="6"
               />
@@ -165,7 +165,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
               {isQueen && (
                 <motion.text
                   x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 12}
-                  fill={isSolved ? "#10b981" : "#06b6d4"}
+                  fill={isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)"}
                   fontSize="32"
                   textAnchor="middle"
                   initial={{ scale: 0, rotate: -30 }}
@@ -206,11 +206,11 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
 
             <AnimatePresence mode="wait">
               {isPlaced ? (
-                <text x="715" y={y + 24} fill="#06b6d4" fontSize="12" fontWeight="bold" textAnchor="end">
+                <text x="715" y={y + 24} fill="hsl(189 94% 43%)" fontSize="12" fontWeight="bold" textAnchor="end">
                   열(Col) {col}에 {QUEEN_EMOJI}
                 </text>
               ) : isActive ? (
-                <text x="715" y={y + 24} fill="#a855f7" fontSize="12" fontWeight="bold" textAnchor="end">
+                <text x="715" y={y + 24} fill="hsl(271 91% 65%)" fontSize="12" fontWeight="bold" textAnchor="end">
                   ← 현재 (Current)
                 </text>
               ) : (
@@ -225,7 +225,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
 
       {/* Key Concept Note */}
       <g transform="translate(450, 440)">
-        <text x="0" y="0" fill="#f97316" fontSize="12" fontWeight="bold">핵심 개념:</text>
+        <text x="0" y="0" fill="hsl(24 95% 53%)" fontSize="12" fontWeight="bold">핵심 개념:</text>
         <text x="70" y="0" fill="hsl(var(--muted-foreground))" fontSize="12">백트래킹은 제약 조건을 위반하는</text>
         <text x="0" y="18" fill="hsl(var(--muted-foreground))" fontSize="12">순간 그 경로를 포기하여(가지치기),</text>
         <text x="0" y="36" fill="hsl(var(--muted-foreground))" fontSize="12">탐색 공간(Search Space)을 기하급수적으로 줄입니다.</text>

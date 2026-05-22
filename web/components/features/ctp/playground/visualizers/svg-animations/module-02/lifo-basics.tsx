@@ -131,18 +131,18 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title & Core Concept */}
-      <text x="40" y="50" fill="#06b6d4" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">LIFO 스택</text>
+      <text x="40" y="50" fill="hsl(189 94% 43%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">LIFO 스택</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">Last-In, First-Out (후입선출) 메모리 구조</text>
 
       {/* Container Base & Borders (The "Stack" glass case) */}
       <motion.path
         d={`M ${centerX - slotWidth/2 - 20} ${baseY - maxSize * (slotHeight + gap) - 10} L ${centerX - slotWidth/2 - 20} ${baseY + 10} L ${centerX + slotWidth/2 + 20} ${baseY + 10} L ${centerX + slotWidth/2 + 20} ${baseY - maxSize * (slotHeight + gap) - 10}`}
         fill="none"
-        stroke={isError ? "#ef4444" : "hsl(var(--border))"}
+        stroke={isError ? "hsl(0 84% 60%)" : "hsl(var(--border))"}
         strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
-        animate={{ stroke: isError ? "#ef4444" : "hsl(var(--border))" }}
+        animate={{ stroke: isError ? "hsl(0 84% 60%)" : "hsl(var(--border))" }}
         transition={{ duration: 0.2 }}
       />
       <motion.rect
@@ -164,7 +164,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
             x={centerX}
             y={baseY - maxSize * (slotHeight + gap) - 40}
             textAnchor="middle"
-            fill={action.type === "PUSH" ? "#06b6d4" : action.type === "POP" ? "#f97316" : action.type === "PEEK" ? "#a855f7" : "#ef4444"}
+            fill={action.type === "PUSH" ? "hsl(189 94% 43%)" : action.type === "POP" ? "hsl(24 95% 53%)" : action.type === "PEEK" ? "hsl(271 91% 65%)" : "hsl(0 84% 60%)"}
             fontSize="18"
             fontWeight="bold"
             letterSpacing="2"
@@ -209,7 +209,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
                 height={slotHeight}
                 rx="8"
                 fill={isActivelyPopping ? "rgba(249, 115, 22, 0.2)" : (isTop ? "rgba(6, 182, 212, 0.2)" : "hsl(var(--muted))")}
-                stroke={isActivelyPopping ? "#f97316" : (isTop ? "#06b6d4" : "hsl(var(--border))")}
+                stroke={isActivelyPopping ? "hsl(24 95% 53%)" : (isTop ? "hsl(189 94% 43%)" : "hsl(var(--border))")}
                 strokeWidth="2"
                 filter={isActivelyPopping ? "url(#neon-glow-orange)" : (isTop ? "url(#neon-glow-cyan)" : undefined)}
               />
@@ -218,7 +218,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
               <motion.text
                 x={centerX}
                 y={slotHeight / 2 + 6}
-                fill={isActivelyPopping ? "#f97316" : (isTop ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))")}
+                fill={isActivelyPopping ? "hsl(24 95% 53%)" : (isTop ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))")}
                 fontSize="18"
                 fontWeight="bold"
                 textAnchor="middle"
@@ -232,8 +232,8 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                 >
-                  <path d={`M ${centerX + slotWidth/2 + 25} ${slotHeight/2} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 - 5} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 + 5} Z`} fill="#06b6d4" />
-                  <text x={centerX + slotWidth/2 + 35} y={slotHeight/2 + 4} fill="#06b6d4" fontSize="12" fontWeight="bold" letterSpacing="1" filter="url(#neon-glow-cyan)">TOP</text>
+                  <path d={`M ${centerX + slotWidth/2 + 25} ${slotHeight/2} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 - 5} L ${centerX + slotWidth/2 + 10} ${slotHeight/2 + 5} Z`} fill="hsl(189 94% 43%)" />
+                  <text x={centerX + slotWidth/2 + 35} y={slotHeight/2 + 4} fill="hsl(189 94% 43%)" fontSize="12" fontWeight="bold" letterSpacing="1" filter="url(#neon-glow-cyan)">TOP</text>
                 </motion.g>
               )}
             </motion.g>
@@ -251,7 +251,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
         <text x="165" y="60" fill="hsl(var(--foreground))" fontSize="11" textAnchor="end">{maxSize}</text>
 
         <text x="15" y="80" fill="hsl(var(--muted-foreground))" fontSize="11">현재 크기:</text>
-        <text x="165" y="80" fill="#06b6d4" fontSize="11" textAnchor="end" fontWeight="bold" filter="url(#neon-glow-cyan)">{stack.length}</text>
+        <text x="165" y="80" fill="hsl(189 94% 43%)" fontSize="11" textAnchor="end" fontWeight="bold" filter="url(#neon-glow-cyan)">{stack.length}</text>
 
         <text x="15" y="100" fill="hsl(var(--muted-foreground))" fontSize="11">남은 공간:</text>
         <text x="165" y="100" fill="hsl(var(--foreground))" fontSize="11" textAnchor="end">{maxSize - stack.length}</text>
@@ -262,7 +262,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
           x="15"
           y="120"
           height="6"
-          fill="#06b6d4"
+          fill="hsl(189 94% 43%)"
           rx="3"
           filter="url(#neon-glow-cyan)"
           animate={{ width: 150 * (stack.length / maxSize) }}

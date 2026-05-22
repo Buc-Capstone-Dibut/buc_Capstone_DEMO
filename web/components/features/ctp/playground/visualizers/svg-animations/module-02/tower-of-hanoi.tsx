@@ -127,7 +127,7 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
   const PEG_NAMES = ['기둥 A (시작)', '기둥 B (보조)', '기둥 C (목표)'];
   // Size-keyed palette: biggest disk (size 3) is red, smallest (size 1) is emerald.
   // Index = (3 - size): size 3 → 0 (red), size 2 → 1 (orange), size 1 → 2 (emerald).
-  const DISK_COLORS = ['#ef4444', '#f97316', '#10b981', '#06b6d4', '#a855f7'];
+  const DISK_COLORS = ['hsl(0 84% 60%)', 'hsl(24 95% 53%)', 'hsl(160 84% 39%)', 'hsl(189 94% 43%)', 'hsl(271 91% 65%)'];
 
   const getPegX = (pegIndex: number) => 150 + pegIndex * 250;
   const getDiskY = (diskIndex: number) => 380 - (diskIndex * 30);
@@ -170,7 +170,7 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill={isComplete ? "#10b981" : "#f97316"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isComplete ? 'emerald' : 'orange'})`}>
+      <text x="40" y="50" fill={isComplete ? "hsl(160 84% 39%)" : "hsl(24 95% 53%)"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isComplete ? 'emerald' : 'orange'})`}>
         하노이의 탑 (TOWER OF HANOI)
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -228,13 +228,13 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
       {/* Complexity Annotations */}
       <g transform="translate(100, 470)">
         <text x="0" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          알고리즘: <tspan fill="#a855f7" fontWeight="bold">hanoi(n, src, aux, tgt)</tspan>
+          알고리즘: <tspan fill="hsl(271 91% 65%)" fontWeight="bold">hanoi(n, src, aux, tgt)</tspan>
         </text>
         <text x="300" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          시간 복잡도: <tspan fill="#ef4444" fontWeight="bold">O(2^N)</tspan>
+          시간 복잡도: <tspan fill="hsl(0 84% 60%)" fontWeight="bold">O(2^N)</tspan>
         </text>
         <text x="500" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          공간 복잡도: <tspan fill="#06b6d4" fontWeight="bold">O(N)</tspan> 호출 스택 깊이
+          공간 복잡도: <tspan fill="hsl(189 94% 43%)" fontWeight="bold">O(N)</tspan> 호출 스택 깊이
         </text>
       </g>
     </svg>

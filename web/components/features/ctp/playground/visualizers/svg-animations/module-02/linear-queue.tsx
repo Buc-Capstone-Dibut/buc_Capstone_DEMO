@@ -145,7 +145,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title & Core Concept */}
-      <text x="40" y="50" fill="#f97316" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">선형 큐 (Linear Queue)</text>
+      <text x="40" y="50" fill="hsl(24 95% 53%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">선형 큐 (Linear Queue)</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">배열 기반 고정 크기 구조 (Array-Based Fixed Structure)</text>
 
       {/* Container Background Base */}
@@ -157,9 +157,9 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
         fill={isError ? "rgba(239, 68, 68, 0.05)" : "hsl(var(--card))"}
         opacity={0.5}
         rx="12"
-        stroke={isError ? "#ef4444" : "hsl(var(--border))"}
+        stroke={isError ? "hsl(0 84% 60%)" : "hsl(var(--border))"}
         strokeWidth="2"
-        animate={{ stroke: isError ? "#ef4444" : "hsl(var(--border))" }}
+        animate={{ stroke: isError ? "hsl(0 84% 60%)" : "hsl(var(--border))" }}
         transition={{ duration: 0.2 }}
       />
 
@@ -173,7 +173,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
             x={400}
             y={centerY + slotHeight/2 + 60}
             textAnchor="middle"
-            fill={action.type === "ENQUEUE" ? "#10b981" : action.type === "DEQUEUE" ? "#ef4444" : action.type === "PEEK" ? "#a855f7" : "#ef4444"}
+            fill={action.type === "ENQUEUE" ? "hsl(160 84% 39%)" : action.type === "DEQUEUE" ? "hsl(0 84% 60%)" : action.type === "PEEK" ? "hsl(271 91% 65%)" : "hsl(0 84% 60%)"}
             fontSize="18"
             fontWeight="bold"
             letterSpacing="2"
@@ -193,7 +193,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
             exit={{ opacity: 0 }}
           >
             <rect x="230" y="380" width="340" height="30" fill="rgba(249, 115, 22, 0.1)" stroke="rgba(249, 115, 22, 0.3)" rx="8" />
-            <text x="400" y="400" fill="#f97316" fontSize="12" fontWeight="bold" textAnchor="middle">WARNING: 낭비된 공간 감지 (가짜 오버플로 위험)</text>
+            <text x="400" y="400" fill="hsl(24 95% 53%)" fontSize="12" fontWeight="bold" textAnchor="middle">WARNING: 낭비된 공간 감지 (가짜 오버플로 위험)</text>
           </motion.g>
         )}
       </AnimatePresence>
@@ -226,7 +226,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
                 height={slotHeight}
                 rx="8"
                 fill={isActivelyDequeuing ? "rgba(239, 68, 68, 0.2)" : (isActivelyEnqueuing ? "rgba(16, 185, 129, 0.2)" : (isWasted ? "rgba(30,30,30,0.4)" : "hsl(var(--card))"))}
-                stroke={isActivelyDequeuing ? "#ef4444" : (isActivelyEnqueuing ? "#10b981" : (isEmpty && !isWasted ? "hsl(var(--border))" : (isWasted ? "hsl(var(--border))" : "#06b6d4")))}
+                stroke={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isActivelyEnqueuing ? "hsl(160 84% 39%)" : (isEmpty && !isWasted ? "hsl(var(--border))" : (isWasted ? "hsl(var(--border))" : "hsl(189 94% 43%)")))}
                 strokeWidth={isActivelyDequeuing || isActivelyEnqueuing ? "3" : "2"}
                 strokeDasharray={(isEmpty && !isWasted) || isWasted ? "4 4" : "0"}
                 filter={isActivelyDequeuing ? "url(#neon-glow-destructive)" : (isActivelyEnqueuing ? "url(#neon-glow-emerald)" : undefined)}
@@ -236,7 +236,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
               <motion.text
                 x={xPos}
                 y={centerY + 6}
-                fill={isActivelyDequeuing ? "#ef4444" : (isWasted ? "hsl(var(--muted-foreground))" : (isEmpty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))"))}
+                fill={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isWasted ? "hsl(var(--muted-foreground))" : (isEmpty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))"))}
                 fontSize="20"
                 fontWeight="bold"
                 textAnchor="middle"
@@ -257,8 +257,8 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                   >
-                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="#ef4444" />
-                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="#ef4444" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-destructive)">F</text>
+                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="hsl(0 84% 60%)" />
+                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-destructive)">F</text>
                   </motion.g>
                 )}
                 {isRear && !isFront && (
@@ -267,8 +267,8 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                   >
-                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="#10b981" />
-                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">R</text>
+                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="hsl(160 84% 39%)" />
+                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">R</text>
                   </motion.g>
                 )}
                 {isFront && isRear && (
@@ -277,8 +277,8 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                   >
-                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="#f59e0b" />
-                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="#f59e0b" fontSize="12" fontWeight="bold" textAnchor="middle">F=R</text>
+                    <path d={`M ${xPos} ${centerY - slotHeight/2 - 5} L ${xPos - 5} ${centerY - slotHeight/2 - 15} L ${xPos + 5} ${centerY - slotHeight/2 - 15} Z`} fill="hsl(38 92% 50%)" />
+                    <text x={xPos} y={centerY - slotHeight/2 - 25} fill="hsl(38 92% 50%)" fontSize="12" fontWeight="bold" textAnchor="middle">F=R</text>
                   </motion.g>
                 )}
               </AnimatePresence>
@@ -292,10 +292,10 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
         <rect x="0" y="0" width="160" height="60" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
 
         <text x="15" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">Front:</text>
-        <text x="55" y="25" fill="#ef4444" fontSize="12" fontWeight="bold" filter="url(#neon-glow-destructive)">{front}</text>
+        <text x="55" y="25" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-destructive)">{front}</text>
 
         <text x="15" y="45" fill="hsl(var(--muted-foreground))" fontSize="11">Rear:</text>
-        <text x="55" y="45" fill="#10b981" fontSize="12" fontWeight="bold" filter="url(#neon-glow-emerald)">{rear}</text>
+        <text x="55" y="45" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-emerald)">{rear}</text>
 
         <text x="90" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">최대:</text>
         <text x="130" y="25" fill="hsl(var(--foreground))" fontSize="11">{maxSize}</text>

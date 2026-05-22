@@ -111,14 +111,14 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title & Core Concept */}
-      <text x="40" y="50" fill="#f97316" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">재귀 분석 (Recursion Analysis)</text>
+      <text x="40" y="50" fill="hsl(24 95% 53%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">재귀 분석 (Recursion Analysis)</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">피보나치 수열의 중복 부분 문제 (Overlapping Subproblems)</text>
 
       {/* Context info box */}
       <g transform="translate(420, 30)">
         <rect width="340" height="50" fill="rgba(249, 115, 22, 0.1)" stroke="rgba(249, 115, 22, 0.3)" rx="8" />
-        <text x="170" y="22" fill="#fff" fontSize="11" textAnchor="middle">단순 재귀 피보나치는 <tspan fill="#f97316" fontWeight="bold">불필요한 중복 계산</tspan>을 수행합니다.</text>
-        <text x="170" y="40" fill="#fff" fontSize="11" textAnchor="middle"><tspan fontWeight="bold" fill="#f97316">fib(2)</tspan>가 두 번 계산됩니다! 메모이제이션(Memoization)이 필요합니다.</text>
+        <text x="170" y="22" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle">단순 재귀 피보나치는 <tspan fill="hsl(24 95% 53%)" fontWeight="bold">불필요한 중복 계산</tspan>을 수행합니다.</text>
+        <text x="170" y="40" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle"><tspan fontWeight="bold" fill="hsl(24 95% 53%)">fib(2)</tspan>가 두 번 계산됩니다! 메모이제이션(Memoization)이 필요합니다.</text>
       </g>
 
       {/* Edges */}
@@ -129,7 +129,7 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
           y1={e.y1}
           x2={e.x2}
           y2={e.y2}
-          stroke={e.isDuplicate ? "#f97316" : "#444"}
+          stroke={e.isDuplicate ? "hsl(24 95% 53%)" : "hsl(0 0% 27%)"}
           strokeWidth="2"
           strokeDasharray={e.isDuplicate ? "6 6" : "0"}
         />
@@ -147,7 +147,7 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
               cy={n.y}
               r={25}
               fill={!isActive ? "hsl(var(--card))" : isDuplicate ? "rgba(249, 115, 22, 0.2)" : "rgba(6, 182, 212, 0.2)"}
-              stroke={!isActive ? "hsl(var(--border))" : isDuplicate ? "#f97316" : "#06b6d4"}
+              stroke={!isActive ? "hsl(var(--border))" : isDuplicate ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"}
               strokeWidth={isActive ? 3 : 2}
               initial={{ scale: 0.8 }}
               animate={{
@@ -164,15 +164,15 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
               textAnchor="middle"
               fontSize="14"
               fontWeight="bold"
-              fill={!isActive ? "hsl(var(--muted-foreground))" : isDuplicate ? "#f97316" : "#06b6d4"}
+              fill={!isActive ? "hsl(var(--muted-foreground))" : isDuplicate ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"}
             >
               {n.label}
             </motion.text>
 
             {isDuplicate && isActive && (
               <motion.g initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <rect x={n.x - 45} y={n.y - 50} width="90" height="20" fill="rgba(249, 115, 22, 0.2)" stroke="#f97316" rx="4" />
-                <text x={n.x} y={n.y - 36} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#f97316">중복 (DUPLICATE!)</text>
+                <rect x={n.x - 45} y={n.y - 50} width="90" height="20" fill="rgba(249, 115, 22, 0.2)" stroke="hsl(24 95% 53%)" rx="4" />
+                <text x={n.x} y={n.y - 36} textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(24 95% 53%)">중복 (DUPLICATE!)</text>
               </motion.g>
             )}
           </motion.g>
@@ -183,10 +183,10 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
       <g transform="translate(40, 440)">
         <rect x="0" y="0" width="300" height="40" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
 
-        <circle cx="20" cy="20" r="6" fill="rgba(6, 182, 212, 0.2)" stroke="#06b6d4" strokeWidth="2" />
+        <circle cx="20" cy="20" r="6" fill="rgba(6, 182, 212, 0.2)" stroke="hsl(189 94% 43%)" strokeWidth="2" />
         <text x="35" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">정상 호출 (Normal Call)</text>
 
-        <circle cx="150" cy="20" r="6" fill="rgba(249, 115, 22, 0.2)" stroke="#f97316" strokeWidth="2" />
+        <circle cx="150" cy="20" r="6" fill="rgba(249, 115, 22, 0.2)" stroke="hsl(24 95% 53%)" strokeWidth="2" />
         <text x="165" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">중복 호출 (Redundant Call)</text>
       </g>
     </svg>

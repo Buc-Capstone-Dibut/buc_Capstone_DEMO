@@ -90,17 +90,17 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="#3b82f6" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-blue)">비재귀적 표현 (ITERATIVE RECURSION)</text>
+      <text x="40" y="50" fill="hsl(217 91% 60%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-blue)">비재귀적 표현 (ITERATIVE RECURSION)</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">명시적 스택을 사용한 깊이 우선 탐색(DFS) 시뮬레이션</text>
 
       {/* Info Panel */}
       <g transform="translate(400, 25)">
         <rect width="360" height="60" fill="rgba(59, 130, 246, 0.1)" stroke="rgba(59, 130, 246, 0.3)" rx="8" />
-        <text x="180" y="25" fill="#fff" fontSize="11" textAnchor="middle">
+        <text x="180" y="25" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle">
           재귀는 OS 콜 스택을 사용합니다. 이를 반복문으로 변환하려면
         </text>
-        <text x="180" y="45" fill="#fff" fontSize="11" textAnchor="middle">
-          직접 <tspan fill="#3b82f6" fontWeight="bold">명시적 스택 (Explicit Stack)</tspan>(LIFO)을 관리해야 합니다!
+        <text x="180" y="45" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle">
+          직접 <tspan fill="hsl(217 91% 60%)" fontWeight="bold">명시적 스택 (Explicit Stack)</tspan>(LIFO)을 관리해야 합니다!
         </text>
       </g>
 
@@ -136,7 +136,7 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
             <motion.circle
               cx={n.x} cy={n.y} r={20}
               fill={isVisited ? "rgba(16, 185, 129, 0.2)" : isInStack ? "rgba(59, 130, 246, 0.2)" : "hsl(var(--card))"}
-              stroke={isCurrent ? "#ef4444" : isVisited ? "#10b981" : isInStack ? "#3b82f6" : "hsl(var(--border))"}
+              stroke={isCurrent ? "hsl(0 84% 60%)" : isVisited ? "hsl(160 84% 39%)" : isInStack ? "hsl(217 91% 60%)" : "hsl(var(--border))"}
               strokeWidth={isInStack || isVisited || isCurrent ? 3 : 2}
               style={{ filter: isCurrent ? 'url(#neon-glow-red)' : isInStack ? 'url(#neon-glow-blue)' : isVisited ? 'url(#neon-glow-emerald)' : 'none' }}
               animate={{
@@ -146,7 +146,7 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             />
             <text x={n.x} y={n.y + 5} textAnchor="middle" fontSize="14" fontWeight="bold"
-              fill={isVisited ? "#10b981" : isInStack ? "#3b82f6" : "hsl(var(--muted-foreground))"}>
+              fill={isVisited ? "hsl(160 84% 39%)" : isInStack ? "hsl(217 91% 60%)" : "hsl(var(--muted-foreground))"}>
               {n.id}
             </text>
           </motion.g>
@@ -155,13 +155,13 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
 
       {/* Legend inside tree area */}
       <g transform="translate(45, 430)">
-        <circle cx="10" cy="10" r="6" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" />
+        <circle cx="10" cy="10" r="6" fill="rgba(59, 130, 246, 0.2)" stroke="hsl(217 91% 60%)" strokeWidth="2" />
         <text x="25" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">스택 대기 (In Stack)</text>
 
-        <circle cx="130" cy="10" r="6" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="2" />
+        <circle cx="130" cy="10" r="6" fill="rgba(16, 185, 129, 0.2)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
         <text x="145" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">방문 완료 (Visited)</text>
 
-        <circle cx="250" cy="10" r="6" fill="rgba(239, 68, 68, 0.2)" stroke="#ef4444" strokeWidth="2" />
+        <circle cx="250" cy="10" r="6" fill="rgba(239, 68, 68, 0.2)" stroke="hsl(0 84% 60%)" strokeWidth="2" />
         <text x="265" y="14" fill="hsl(var(--muted-foreground))" fontSize="11">현재 팝 (Current)</text>
       </g>
 
@@ -189,10 +189,10 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
               exit={{ opacity: 0, y: y - 30 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
             >
-              <rect x="415" y={0} width="130" height={slotHeight} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" rx="6" />
-              <text x="480" y="25" fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
+              <rect x="415" y={0} width="130" height={slotHeight} fill="rgba(59, 130, 246, 0.2)" stroke="hsl(217 91% 60%)" strokeWidth="2" rx="6" />
+              <text x="480" y="25" fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
               {isTop && (
-                <text x="420" y="12" fill="#3b82f6" fontSize="9" fontWeight="bold" letterSpacing="1">TOP</text>
+                <text x="420" y="12" fill="hsl(217 91% 60%)" fontSize="9" fontWeight="bold" letterSpacing="1">TOP</text>
               )}
             </motion.g>
           );
@@ -216,8 +216,8 @@ export function IterativeRecursionVisualizer({ data }: { data: { step: number, e
                 animate={{ opacity: 1, scale: 1, x: 0, y }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
               >
-                <rect x="0" y={0} width="160" height="35" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" strokeWidth="2" rx="6" />
-                <text x="80" y="22" fill="#10b981" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
+                <rect x="0" y={0} width="160" height="35" fill="rgba(16, 185, 129, 0.15)" stroke="hsl(160 84% 39%)" strokeWidth="2" rx="6" />
+                <text x="80" y="22" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle">노드 {nodeId}</text>
               </motion.g>
             );
           })}
