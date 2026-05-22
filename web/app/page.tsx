@@ -265,7 +265,7 @@ export default function HomePage() {
                   <h3 className="mb-4 text-[24px] font-bold leading-tight tracking-tight text-neutral-900">
                     {service.title}
                   </h3>
-                  <p className="text-[14px] font-medium leading-relaxed text-neutral-500">
+                  <p className="text-[14px] font-medium leading-relaxed text-neutral-500 transition-all duration-300 ease-in-out xl:line-clamp-1 xl:group-hover:line-clamp-none">
                     {service.desc}
                   </p>
 
