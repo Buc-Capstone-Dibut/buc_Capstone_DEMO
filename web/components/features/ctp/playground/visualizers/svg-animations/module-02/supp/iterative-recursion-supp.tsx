@@ -210,11 +210,11 @@ function TradeoffGuide() {
             <rect width="220" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(239 84% 67%)" strokeWidth="2" />
             <text x="110" y="40" textAnchor="middle" fontSize="22" fontWeight="900" fill="hsl(239 84% 67%)">재귀 (Recursion)</text>
 
-            <text x="20" y="90" fontSize="16" fontWeight="bold" fill="hsl(160 84% 39%)">👍 장점</text>
+            <text x="20" y="90" fontSize="16" fontWeight="bold" fill="hsl(160 84% 39%)">장점</text>
             <text x="20" y="115" fontSize="14" fill="hsl(var(--foreground))">- 코드가 간결하고 우아함</text>
             <text x="20" y="135" fontSize="14" fill="hsl(var(--foreground))">- 점화식, 트리 탐색에 직관적</text>
 
-            <text x="20" y="175" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)">👎 단점</text>
+            <text x="20" y="175" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)">단점</text>
             <text x="20" y="200" fontSize="14" fill="hsl(var(--foreground))">- 높은 메모리 차지 (O(N))</text>
             <text x="20" y="220" fontSize="14" fill="hsl(var(--foreground))">- 스택 오버플로우 위험</text>
          </g>
@@ -224,11 +224,11 @@ function TradeoffGuide() {
             <rect width="220" height="240" rx="16" fill="url(#surface-grad)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
             <text x="110" y="40" textAnchor="middle" fontSize="22" fontWeight="900" fill="hsl(160 84% 39%)">반복문 (Iteration)</text>
 
-            <text x="20" y="90" fontSize="16" fontWeight="bold" fill="hsl(160 84% 39%)">👍 장점</text>
+            <text x="20" y="90" fontSize="16" fontWeight="bold" fill="hsl(160 84% 39%)">장점</text>
             <text x="20" y="115" fontSize="14" fill="hsl(var(--foreground))">- 빠른 성능과 안정적인 속도</text>
             <text x="20" y="135" fontSize="14" fill="hsl(var(--foreground))">- 메모리 안정성 (O(1))</text>
 
-            <text x="20" y="175" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)">👎 단점</text>
+            <text x="20" y="175" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)">단점</text>
             <text x="20" y="200" fontSize="14" fill="hsl(var(--foreground))">- 상태 변수 관리가 김</text>
             <text x="20" y="220" fontSize="14" fill="hsl(var(--foreground))">- 복잡한 구조 시 가독성 최악</text>
          </g>

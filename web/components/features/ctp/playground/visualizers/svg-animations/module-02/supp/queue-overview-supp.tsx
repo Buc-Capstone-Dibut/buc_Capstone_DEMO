@@ -197,8 +197,8 @@ function ThroughputLatency() {
 
         <text x="20" y="70" fontSize="12" fill="hsl(var(--muted-foreground))">큐 길이가 길어지면?</text>
         <rect x="20" y="80" width="160" height="4" fill="hsl(239 84% 67%)" />
-        <text x="20" y="105" fontSize="13" fontWeight="bold" fill="hsl(var(--foreground))">✅ 데이터 유실 방지율 상승</text>
-        <text x="20" y="130" fontSize="13" fontWeight="bold" fill="hsl(347 89% 60%)">❌ 평균 대기 시간(지연) 폭증</text>
+        <text x="20" y="105" fontSize="13" fontWeight="bold" fill="hsl(var(--foreground))">+ 데이터 유실 방지율 상승</text>
+        <text x="20" y="130" fontSize="13" fontWeight="bold" fill="hsl(347 89% 60%)">- 평균 대기 시간(지연) 폭증</text>
       </g>
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />

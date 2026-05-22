@@ -86,10 +86,10 @@ function PointerStateTransition() {
       {/* Operation Log */}
       <g transform="translate(150, 50)" filter="url(#soft-shadow)">
          <motion.rect width="180" height="40" rx="8" fill="hsl(239 84% 67%)" opacity="0.2" animate={{ opacity: [0, 0.8, 0, 0, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.2, 0.3, 1, 1] }} />
-         <motion.text x="90" y="25" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(239 84% 67%)" animate={{ opacity: [0, 1, 0, 0, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.2, 0.3, 1, 1] }}>Enqueue(B) ➡️ Rear+1</motion.text>
+         <motion.text x="90" y="25" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(239 84% 67%)" animate={{ opacity: [0, 1, 0, 0, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.2, 0.3, 1, 1] }}>Enqueue(B) → Rear+1</motion.text>
 
          <motion.rect y="40" width="180" height="40" rx="8" fill="hsl(347 89% 60%)" opacity="0.2" animate={{ opacity: [0, 0, 0, 0.8, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.6, 0.7, 0.8, 1] }} />
-         <motion.text x="90" y="65" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)" animate={{ opacity: [0, 0, 0, 1, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.6, 0.7, 0.8, 1] }}>Dequeue(A) ➡️ Front+1</motion.text>
+         <motion.text x="90" y="65" textAnchor="middle" fontSize="16" fontWeight="bold" fill="hsl(347 89% 60%)" animate={{ opacity: [0, 0, 0, 1, 0] }} transition={{ duration: 6, repeat: Infinity, times: [0, 0.6, 0.7, 0.8, 1] }}>Dequeue(A) → Front+1</motion.text>
       </g>
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
