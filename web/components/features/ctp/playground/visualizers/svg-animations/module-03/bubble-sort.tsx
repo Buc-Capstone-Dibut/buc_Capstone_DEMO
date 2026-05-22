@@ -200,13 +200,6 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <filter id="neon-glow-emerald" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
         <filter id="neon-glow-rose" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4" result="coloredBlur" />
           <feMerge>
