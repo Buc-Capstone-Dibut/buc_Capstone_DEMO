@@ -139,20 +139,22 @@ export function HeapifySVG() {
         <polyline points="0,0 -80,60" fill="none" stroke="#94a3b8" strokeWidth="2" />
         <polyline points="0,0 80,60" fill="none" stroke="#94a3b8" strokeWidth="2" />
 
-        {/* Animated Root */}
+        {/* Animated Root (curves UP through midpoint to avoid collision
+            with the rising child) */}
         <motion.g
           initial={{ y: 0, x: 0 }}
-          animate={{ y: [0, 60], x: [0, -80] }}
+          animate={{ y: [0, 20, 60], x: [0, -40, -80] }}
           transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut", repeatDelay: 1 }}
         >
           <circle r="25" fill="#f43f5e" />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">10</text>
         </motion.g>
 
-        {/* Animated Left Child */}
+        {/* Animated Left Child (curves DOWN through midpoint so the two
+            nodes pass alongside each other, not through the same point) */}
         <motion.g
            initial={{ y: 60, x: -80 }}
-           animate={{ y: [60, 0], x: [-80, 0] }}
+           animate={{ y: [60, 40, 0], x: [-80, -40, 0] }}
            transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut", repeatDelay: 1 }}
         >
           <circle r="25" fill="#10b981" />
