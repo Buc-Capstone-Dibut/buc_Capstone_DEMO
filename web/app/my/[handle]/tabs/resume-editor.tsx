@@ -14,7 +14,6 @@ import {
   Inbox,
   Loader2,
   Plus,
-  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -29,7 +28,6 @@ import {
   ResumeImportDialog,
   type ResumeImportSelection,
 } from "@/components/features/resume/resume-import-dialog";
-import { ResumeAiTuneDialog } from "@/components/features/resume/resume-ai-tune-dialog";
 import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
@@ -70,7 +68,6 @@ export function ResumeEditor({
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isWorkExpModalOpen, setIsWorkExpModalOpen] = useState(false);
   const [isResumeImportDialogOpen, setIsResumeImportDialogOpen] = useState(false);
-  const [isAiTuneDialogOpen, setIsAiTuneDialogOpen] = useState(false);
   const hasAutoOpenedImportRef = useRef(false);
   const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
   // 편집 패널은 항상 켜져있다 (사용자가 "클릭해서 열기" 같은 한 번 더의 조작 없이 즉시
@@ -665,16 +662,6 @@ export function ResumeEditor({
           </Button>
           <Button
             type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsAiTuneDialogOpen(true)}
-            className="shrink-0 gap-1.5 text-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            AI로 정리하기
-          </Button>
-          <Button
-            type="button"
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
@@ -1229,29 +1216,6 @@ export function ResumeEditor({
         open={isResumeImportDialogOpen}
         onOpenChange={setIsResumeImportDialogOpen}
         onApply={handleApplyResumeImport}
-      />
-
-      <ResumeAiTuneDialog
-        open={isAiTuneDialogOpen}
-        onOpenChange={setIsAiTuneDialogOpen}
-        currentPayload={payload}
-        onApply={(newPayload, summary) => {
-          const previous = payload;
-          onChange(newPayload);
-          toast({
-            title: "AI 가공 완료",
-            description: summary,
-            action: (
-              <button
-                type="button"
-                onClick={() => onChange(previous)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-accent"
-              >
-                원본 복원
-              </button>
-            ),
-          });
-        }}
       />
     </>
   );
