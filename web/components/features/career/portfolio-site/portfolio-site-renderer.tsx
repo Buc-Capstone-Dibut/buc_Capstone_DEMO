@@ -5,7 +5,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -1392,21 +1391,28 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
   );
 }
 
-function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRendererProps) {
+function PortfolioSiteRendererInner({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+  includeHiddenPages,
+}: PortfolioSiteRendererProps) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
-        (page) => page.visible !== false,
+        (page) => includeHiddenPages || page.visible !== false,
       ),
-    [document.pages, document.sections],
+    [document.pages, document.sections, includeHiddenPages],
   );
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useRendererPageIndex(
+    { activeIndex, onActiveIndexChange },
+    pages.length,
+  );
   const page = pages[Math.min(currentIndex, Math.max(0, pages.length - 1))];
-
-  useEffect(() => {
-    if (currentIndex <= pages.length - 1) return;
-    setCurrentIndex(Math.max(0, pages.length - 1));
-  }, [currentIndex, pages.length]);
 
   const template = getPortfolioTemplate(document.templateId);
   const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
@@ -1457,6 +1463,9 @@ function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRender
       index={currentIndex}
       setIndex={setCurrentIndex}
       className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
     >
       <div
         className={cn(
