@@ -14,6 +14,7 @@ import {
   Inbox,
   Loader2,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -53,6 +54,18 @@ interface ResumeEditorProps {
    * 외부 호출 시그니처 호환을 위해 prop 자체는 남겨두지만 내부 동작에는 영향이 없다.
    */
   previewToggleMode?: boolean;
+  /** 셋업에서 넘어온 지원 대상 정보. 있으면 'AI로 회사·직무에 맞게 다듬기' 버튼이 노출됨. */
+  applicationTarget?: {
+    company: string;
+    division: string;
+    role: string;
+    deadline: string;
+    jobDescription: string;
+  } | null;
+  /** AI 큐레이션 트리거 (현재 payload를 회사·직무에 맞게 다듬어 onChange로 갱신). */
+  onAiCurate?: () => void;
+  /** AI 큐레이션 진행 중 여부 (버튼 disabled/스피너 표시용). */
+  aiCurating?: boolean;
 }
 
 export function ResumeEditor({
@@ -62,6 +75,9 @@ export function ResumeEditor({
   saving,
   title = "",
   onTitleChange,
+  applicationTarget,
+  onAiCurate,
+  aiCurating = false,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -631,10 +647,16 @@ export function ResumeEditor({
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
         <div className="min-w-0 [word-break:keep-all]">
           <p className="text-sm font-medium leading-snug">
-            기존의 이력서를 가져와 내용을 채울 수 있어요
+            {applicationTarget
+              ? "보관함에서 가져온 뒤, AI로 회사·직무에 맞게 다듬어 보세요"
+              : "기존의 이력서를 가져와 내용을 채울 수 있어요"}
           </p>
           <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다.
+            {applicationTarget
+              ? `① 사용자가 직접 가져올 자료를 고르고 → ② ${
+                  applicationTarget.company || "지원 회사"
+                } · ${applicationTarget.role || "직무"}에 맞게 AI가 정리합니다.`
+              : "이전에 저장한 프로젝트·경력·자기소개서를 한 번에 불러옵니다."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -680,6 +702,31 @@ export function ResumeEditor({
               </>
             )}
           </Button>
+          {applicationTarget && onAiCurate && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onAiCurate}
+              disabled={aiCurating}
+              className="shrink-0 gap-1.5 text-xs"
+              title={`${applicationTarget.company || "지원 회사"} · ${
+                applicationTarget.role || "직무"
+              }에 맞춰 현재 내용을 다듬습니다`}
+            >
+              {aiCurating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  다듬는 중…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI로 회사·직무에 맞게 다듬기
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
