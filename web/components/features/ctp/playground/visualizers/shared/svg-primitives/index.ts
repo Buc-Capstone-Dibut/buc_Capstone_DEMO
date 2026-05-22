@@ -3,4 +3,8 @@ export { CyberGrid } from "./CyberGrid";
 export { NeonGlowFilters } from "./NeonGlowFilters";
 export { IndexLabel } from "./IndexLabel";
 export { ArrayBox } from "./ArrayBox";
-// 이후 task에서 컴포넌트들이 추가됨
+export { PointerArrow } from "./PointerArrow";
+export { StepCounter } from "./StepCounter";
+export { LogPanel } from "./LogPanel";
+export { NodeCircle } from "./NodeCircle";
+export { EdgeLine } from "./EdgeLine";
