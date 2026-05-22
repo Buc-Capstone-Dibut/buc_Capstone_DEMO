@@ -35,7 +35,6 @@ interface CTPState {
   reset: () => void;
   nextStep: () => void;
   prevStep: () => void;
-  addStep: (step: VisualStep) => void;
 }
 
 export const useCTPStore = create<CTPState>((set, get) => ({
@@ -76,10 +75,4 @@ export const useCTPStore = create<CTPState>((set, get) => ({
       set({ currentStepIndex: currentStepIndex - 1 });
     }
   },
-
-  // Streaming Support for Skulpt
-  addStep: (step) => {
-    const { steps } = get();
-    set({ steps: [...steps, step] });
-  }
 }));
