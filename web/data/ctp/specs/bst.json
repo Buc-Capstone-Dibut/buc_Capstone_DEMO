@@ -13,38 +13,87 @@
   "simulation": {
     "mode": "interactive",
     "domain": "tree",
-    "stepCount": 3,
+    "stepCount": 6,
     "operations": ["next", "prev", "reset"],
     "initialState": {
-      "root": {
-        "value": 8,
-        "left": {
-          "value": 3,
-          "left": { "value": 1, "left": null, "right": null },
-          "right": { "value": 6, "left": null, "right": null }
-        },
-        "right": {
-          "value": 10,
-          "left": null,
-          "right": { "value": 14, "left": null, "right": null }
-        }
-      }
+      "root": null
     },
     "storyboard": [
       {
         "step": 0,
-        "description": "루트가 8이고 왼쪽 서브트리는 모두 8 미만, 오른쪽 서브트리는 모두 8 초과인 BST입니다.",
-        "stateAfter": { "highlight": "root", "invariant": "left < parent < right" }
+        "description": "빈 BST입니다. root가 null인 상태에서 시작해 값을 하나씩 삽입하며 구조를 만들어 갑니다.",
+        "stateAfter": {
+          "root": null,
+          "currentNode": null,
+          "path": [],
+          "phase": "empty"
+        }
       },
       {
         "step": 1,
-        "description": "값 7을 검색합니다. 8 < 7 거짓이므로 왼쪽으로, 3 < 7 참이므로 오른쪽으로, 6 < 7 참이므로 다시 오른쪽으로 진행하면 null에 도달합니다.",
-        "stateAfter": { "path": [8, 3, 6, null], "found": false }
+        "description": "값 5를 삽입합니다. 빈 트리이므로 5가 곧바로 루트가 됩니다.",
+        "stateAfter": {
+          "root": { "value": 5, "left": null, "right": null },
+          "currentNode": 5,
+          "path": [5],
+          "phase": "insert"
+        }
       },
       {
         "step": 2,
-        "description": "값 7을 삽입하면 마지막 도달 위치인 6의 오른쪽 자식 자리에 새 노드가 자리잡습니다. 불변식은 그대로 유지됩니다.",
-        "stateAfter": { "inserted": 7, "parent": 6, "side": "right" }
+        "description": "값 3을 삽입합니다. 5와 비교해 3 < 5이므로 왼쪽 자식 자리에 들어갑니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": null
+          },
+          "currentNode": 3,
+          "path": [5, 3],
+          "phase": "insert"
+        }
+      },
+      {
+        "step": 3,
+        "description": "값 7을 삽입합니다. 5와 비교해 7 > 5이므로 오른쪽 자식 자리에 들어갑니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 7,
+          "path": [5, 7],
+          "phase": "insert"
+        }
+      },
+      {
+        "step": 4,
+        "description": "값 3을 검색합니다. root 5와 비교해 3 < 5이므로 왼쪽으로 내려가 즉시 3을 발견합니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 3,
+          "path": [5, 3],
+          "phase": "search-success"
+        }
+      },
+      {
+        "step": 5,
+        "description": "값 7을 검색합니다. root 5와 비교해 7 > 5이므로 오른쪽으로 내려가 7을 발견합니다. 평균 O(log N) 검색이 동작합니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 7,
+          "path": [5, 7],
+          "phase": "search-success"
+        }
       }
     ]
   },
@@ -57,22 +106,22 @@
     {
       "title": "BST 불변식",
       "description": "모든 노드에 대해 왼쪽 서브트리의 값은 부모보다 작고, 오른쪽 서브트리의 값은 부모보다 크다는 규칙이 모든 동작의 토대입니다. 불변식이 무너지면 검색이 정답을 보장하지 못합니다.",
-      "visualHint": "각 노드 옆에 left<parent<right 부등식을 표시"
+      "visualHint": "루트 5 노드 옆에 left<5<right 부등식 라벨, 좌측 자식 3은 muted 박스에 <5, 우측 자식 7은 muted 박스에 >5 표시"
     },
     {
       "title": "삽입과 검색의 공통 경로",
       "description": "검색과 삽입은 같은 경로를 따라갑니다. 값이 작으면 왼쪽, 크면 오른쪽으로 내려가다가 null을 만나면 검색 실패 또는 삽입 위치가 됩니다.",
-      "visualHint": "검색·삽입 경로를 동일한 색 화살표로 강조"
+      "visualHint": "BST 5/3/7 트리에 7 탐색 경로를 active 색 굵은 화살표로(5→7), 동일 경로 위 점선으로 \"insert도 같은 길\" 라벨 표시"
     },
     {
       "title": "중위 순회로 정렬된 출력",
       "description": "BST의 중위 순회(in-order traversal)는 항상 오름차순 정렬된 결과를 돌려줍니다. 정렬된 데이터가 필요한 응용에서는 정렬 단계 없이 순회 한 번으로 충분합니다.",
-      "visualHint": "중위 순회 경로를 점선으로 따라가며 출력 배열에 값을 차례로 채움"
+      "visualHint": "BST 5/3/7 위쪽에 중위 순회 화살표(3→5→7) 점선 표시, 아래쪽에 정렬된 결과 배열 [3,5,7] ArrayBox 가로 배치"
     },
     {
       "title": "균형 트리의 필요성",
       "description": "오름차순 입력처럼 한쪽으로 치우친 데이터가 삽입되면 트리가 선형으로 늘어져 최악 O(N)이 됩니다. AVL 트리, 레드-블랙 트리 같은 균형 트리는 이 문제를 구조적으로 해결합니다.",
-      "visualHint": "기울어진 BST와 균형 BST를 좌우로 나란히 비교"
+      "visualHint": "왼쪽에 한쪽으로 기울어진 BST(1→2→3→4 우측 사슬, O(N) 라벨), 오른쪽에 균형 잡힌 BST(루트 3, 좌 1/2, 우 4, O(log N) 라벨) 비교"
     }
   ],
   "content": {

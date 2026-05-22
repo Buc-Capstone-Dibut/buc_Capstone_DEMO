@@ -13,7 +13,7 @@
   "simulation": {
     "mode": "interactive",
     "domain": "list",
-    "stepCount": 3,
+    "stepCount": 5,
     "operations": ["next", "prev", "reset"],
     "initialState": {
       "nodes": [
@@ -27,18 +27,79 @@
     "storyboard": [
       {
         "step": 0,
-        "description": "head는 A, tail은 C를 가리키며 각 노드는 prev와 next 두 포인터를 모두 가집니다.",
-        "stateAfter": { "head": 0, "tail": 2, "highlight": [0, 1, 2] }
+        "description": "head는 A, tail은 C를 가리키며 각 노드는 prev와 next 두 포인터로 양방향 연결됩니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": null,
+          "highlight": [0, 1, 2]
+        }
       },
       {
         "step": 1,
-        "description": "B 노드만 알고 있어도 prev로 A에 접근하고 next로 C에 접근할 수 있습니다. 양방향 순회의 핵심입니다.",
-        "stateAfter": { "highlight": ["B"], "traverse": ["B.prev=A", "B.next=C"] }
+        "description": "B 노드를 손에 들었을 때 prev로 A에 즉시 접근할 수 있음을 확인합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 1,
+          "highlight": [1, 0]
+        }
       },
       {
         "step": 2,
-        "description": "B를 삭제하려면 A.next=C, C.prev=A로 두 포인터만 갱신하면 됩니다. 직전 노드를 따로 찾을 필요가 없어집니다.",
-        "stateAfter": { "head": 0, "tail": 2, "removed": "B" }
+        "description": "같은 B 노드에서 next를 따라 C로도 즉시 이동할 수 있습니다. 양방향 자유 이동이 핵심입니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 1,
+          "highlight": [1, 2]
+        }
+      },
+      {
+        "step": 3,
+        "description": "B와 C 사이에 새 노드 X를 삽입합니다. X.prev=B, X.next=C, B.next=X, C.prev=X 네 포인터를 모두 갱신해야 합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 3 },
+            { "id": 3, "value": "X", "prev": 1, "next": 2 },
+            { "id": 2, "value": "C", "prev": 3, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 3,
+          "highlight": [1, 3, 2]
+        }
+      },
+      {
+        "step": 4,
+        "description": "B를 삭제합니다. B.prev인 A의 next=X, B.next인 X의 prev=A로 양쪽 포인터를 동시에 재연결합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 3 },
+            { "id": 3, "value": "X", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 3, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 0,
+          "highlight": [0, 3]
+        }
       }
     ]
   },
@@ -51,22 +112,22 @@
     {
       "title": "양방향 포인터 구조",
       "description": "각 노드는 data, prev, next 세 필드를 가집니다. prev는 직전 노드, next는 다음 노드를 가리키며 양쪽 끝은 null로 종단을 표시합니다.",
-      "visualHint": "노드 박스에 prev/next 화살표를 양방향으로 표시"
+      "visualHint": "노드 3개를 가로로 배치하고 위쪽에 next 화살표(active), 아래쪽에 prev 화살표(pointer)를 각각 반대 방향으로 그려 양방향 표시"
     },
     {
       "title": "head와 tail 이중 진입점",
       "description": "리스트 앞쪽 접근은 head, 뒤쪽 접근은 tail로 즉시 가능합니다. 끝쪽 삽입·삭제가 O(1)이 되는 결정적 이유입니다.",
-      "visualHint": "리스트 양 끝에 head/tail 라벨을 노란/파란색으로 표시"
+      "visualHint": "노드 3개 중 가장 왼쪽 위에 head 라벨(found 색), 가장 오른쪽 위에 tail 라벨(pointer 색)을 PointerArrow로 표시"
     },
     {
       "title": "O(1) 임의 노드 삭제",
       "description": "삭제할 노드를 직접 손에 들고 있다면 prev/next 정보로 양옆을 이어 붙이기만 하면 됩니다. 단일 연결 리스트와 달리 직전 노드를 따로 찾을 필요가 없습니다.",
-      "visualHint": "B 노드를 강조하고 A↔C 화살표를 빨간색으로 갱신"
+      "visualHint": "가운데 노드 B를 muted 색으로 반투명 처리하고, A와 C 사이를 직접 잇는 active 색 양방향 화살표 두 개를 곡선으로 그림"
     },
     {
       "title": "추가 메모리 비용",
       "description": "노드당 포인터가 하나 더 늘어나기 때문에 메모리 사용량이 증가합니다. 데이터 양이 매우 많거나 메모리 제약이 큰 환경에서는 비용 대비 효용을 따져 봅니다.",
-      "visualHint": "노드 박스 옆에 단일 vs 이중 메모리 크기 비교 막대"
+      "visualHint": "왼쪽에 단일 연결 노드 박스(next만, 너비 1단위), 오른쪽에 이중 연결 노드 박스(prev/next, 너비 1.5단위)를 비교 표시"
     }
   ],
   "content": {

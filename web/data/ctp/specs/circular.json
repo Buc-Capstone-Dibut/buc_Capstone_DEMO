@@ -13,7 +13,7 @@
   "simulation": {
     "mode": "interactive",
     "domain": "list",
-    "stepCount": 3,
+    "stepCount": 5,
     "operations": ["next", "prev", "reset"],
     "initialState": {
       "nodes": [
@@ -26,18 +26,74 @@
     "storyboard": [
       {
         "step": 0,
-        "description": "A → B → C → A 순서로 노드가 원형으로 연결되어 있습니다. 끝 노드 C의 next는 head A를 가리킵니다.",
-        "stateAfter": { "head": 0, "highlight": [0, 1, 2], "shape": "circle" }
+        "description": "A → B → C → A 순서로 노드가 원형으로 연결됩니다. 마지막 C의 next가 다시 head A로 되돌아옵니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": 2, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": 0 }
+          ],
+          "head": 0,
+          "current": null,
+          "highlight": [0, 1, 2]
+        }
       },
       {
         "step": 1,
-        "description": "B에서 시작해도 next를 3번 따라가면 다시 B로 돌아옵니다. 원형 구조에서는 어디서 출발하든 전체 순회가 가능합니다.",
-        "stateAfter": { "highlight": ["B", "C", "A", "B"], "loop": true }
+        "description": "B에서 출발해 next를 따라 C로 이동합니다. 임의 노드에서 시작해도 한 바퀴를 돌 수 있는지 확인합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": 2, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": 0 }
+          ],
+          "head": 0,
+          "current": 2,
+          "highlight": [1, 2]
+        }
       },
       {
         "step": 2,
-        "description": "원형 구조에서는 \"끝\"이라는 특수 경계가 없으므로 종료 조건을 시작 노드로 다시 돌아왔는지로 정의해야 합니다.",
-        "stateAfter": { "head": 0, "stopCondition": "current === start" }
+        "description": "C에서 next를 따라 head A로 되돌아옵니다. 원형 구조의 끝-시작 결합이 시각적으로 드러나는 순간입니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": 2, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": 0 }
+          ],
+          "head": 0,
+          "current": 0,
+          "highlight": [2, 0]
+        }
+      },
+      {
+        "step": 3,
+        "description": "C와 A 사이에 새 노드 X를 삽입합니다. C.next=X, X.prev=C, X.next=A, A.prev=X 네 포인터를 갱신합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": 3, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": 3 },
+            { "id": 3, "value": "X", "prev": 2, "next": 0 }
+          ],
+          "head": 0,
+          "current": 3,
+          "highlight": [2, 3, 0]
+        }
+      },
+      {
+        "step": 4,
+        "description": "B를 삭제합니다. A.next=C, C.prev=A로 양옆을 이어 붙이면 원형 구조가 자연스럽게 유지됩니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": 3, "next": 2 },
+            { "id": 2, "value": "C", "prev": 0, "next": 3 },
+            { "id": 3, "value": "X", "prev": 2, "next": 0 }
+          ],
+          "head": 0,
+          "current": 0,
+          "highlight": [0, 2]
+        }
       }
     ]
   },
@@ -50,22 +106,22 @@
     {
       "title": "끝과 시작의 결합",
       "description": "마지막 노드의 next가 첫 노드로 되돌아오고, 첫 노드의 prev가 마지막 노드를 가리킵니다. \"끝\"이라는 특수 위치가 사라지고 모든 노드가 동등한 위치를 갖습니다.",
-      "visualHint": "노드들을 원형 배치하고 next 화살표가 시작점으로 되돌아오는 모양"
+      "visualHint": "노드 4개(A,B,C,D)를 원형으로 배치하고, C→D→A 호 형태 화살표로 마지막→첫 노드 연결을 강조"
     },
     {
       "title": "어디서든 전체 순회 가능",
       "description": "head를 알지 못해도 어떤 노드든 손에 들고 있으면 한 바퀴를 돌아 전체에 접근할 수 있습니다. 다만 종료 조건은 \"시작 노드로 되돌아왔는가\"로 잡아야 합니다.",
-      "visualHint": "임의 노드에서 출발해 화살표를 따라 한 바퀴 도는 경로"
+      "visualHint": "노드 4개를 원형 배치하고 B에서 출발한 current 포인터가 C→D→A→B로 한 바퀴 도는 active 경로 표시"
     },
     {
       "title": "라운드 로빈 응용",
       "description": "라운드 로빈 스케줄러, 음악 반복 재생, 게임 턴 진행처럼 \"끝나면 다시 처음부터\"가 자연스러운 흐름에 적합합니다. 조건 분기 없이 next만 따라가면 됩니다.",
-      "visualHint": "원형 트랙을 따라 토큰이 시계 방향으로 한 노드씩 이동"
+      "visualHint": "원형 노드 배치 위에 token PointerArrow가 한 노드 위쪽에 위치하고, 화살표 옆에 turn 1/turn 2/turn 3 라벨로 라운드 진행 표시"
     },
     {
       "title": "주의: 무한 루프 위험",
       "description": "종료 조건을 두지 않으면 next를 영원히 따라갈 수 있습니다. 시작 노드 기억, 방문 카운트, 최대 반복 횟수 같은 안전 장치를 명시적으로 둬야 합니다.",
-      "visualHint": "순회 카운터와 \"시작 노드 비교\" 종료 조건을 함께 표시"
+      "visualHint": "원형 노드 가운데에 start=B 라벨과 visited=2/3 카운터 박스를 배치하고 종료 조건 current===start를 점선 박스로 표시"
     }
   ],
   "content": {
