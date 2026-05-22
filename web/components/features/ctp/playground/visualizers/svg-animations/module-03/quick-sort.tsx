@@ -272,14 +272,16 @@ export function QuickSortVisualizer({ data }: { data: any }) {
                     [{idx}]
                   </text>
 
-                  {/* Pointers: i boundary of smaller elements, j current checking */}
+                  {/* Pointers: i boundary of smaller elements, j current checking.
+                      i and j can coincide (when partition first starts) — stack
+                      the labels vertically so they never overlap. */}
                   {idx === i && (
                     <motion.text x={barWidth / 2} y={height + 40} fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       i
                     </motion.text>
                   )}
                   {idx === j && (
-                    <motion.text x={barWidth / 2} y={height + 40} fill="hsl(45 93% 47%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 60} fill="hsl(45 93% 47%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       j
                     </motion.text>
                   )}

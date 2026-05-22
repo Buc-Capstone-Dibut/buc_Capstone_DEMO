@@ -301,14 +301,16 @@ export function MergeSortVisualizer({ data }: { data: any }) {
                   />
                   <text x={barWidth / 2} y={-10} fill={isSorted || opacity > 0.6 ? "hsl(0 0% 100%)" : "hsl(215 16% 47%)"} fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
 
-                  {/* Pointers mapping to Original indices (i, j) */}
+                  {/* Pointers mapping to Original indices (i, j).
+                      i and j can briefly target the same index — stack the
+                      labels on different rows so they never overlap. */}
                   {idx === i && (
                     <motion.text x={barWidth / 2} y={height + 25} fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       i
                     </motion.text>
                   )}
                   {idx === j && (
-                    <motion.text x={barWidth / 2} y={height + 25} fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 45} fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       j
                     </motion.text>
                   )}
