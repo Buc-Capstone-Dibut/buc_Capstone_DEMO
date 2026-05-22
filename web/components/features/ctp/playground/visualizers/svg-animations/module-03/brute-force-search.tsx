@@ -113,8 +113,9 @@ export function BruteForceSearchVisualizer(_props: { data?: unknown }) {
   const svgWidth = 800;
   const svgHeight = 400;
 
-  const boxSize = 40;
-  const gap = 8;
+  // Sized so 18-char text fits the 800-wide viewBox: 18 * 34 = 612 px.
+  const boxSize = 30;
+  const gap = 4;
   const totalBoxWidth = boxSize + gap;
 
   // Center alignment offset

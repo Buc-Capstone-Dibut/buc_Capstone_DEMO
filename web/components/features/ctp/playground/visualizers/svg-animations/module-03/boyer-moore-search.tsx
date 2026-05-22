@@ -148,8 +148,9 @@ export function BoyerMooreSearchVisualizer(_props: { data?: unknown }) {
   const svgWidth = 840;
   const svgHeight = 500;
 
-  const boxSize = 32;
-  const gap = 6;
+  // Sized so 24-char text fits the 840-wide viewBox: 24 * 32 = 768 px.
+  const boxSize = 28;
+  const gap = 4;
   const totalBoxWidth = boxSize + gap;
 
   return (
@@ -176,9 +177,9 @@ export function BoyerMooreSearchVisualizer(_props: { data?: unknown }) {
              <text x="0" y="-10" fill="hsl(215 20% 65%)" fontSize="12" fontWeight="bold">Bad Character Table (나쁜 문자 표)</text>
              <g transform="translate(0, 5)">
                {Object.keys(badCharTable).map((char, idx) => (
-                 <g key={idx} transform={`translate(${idx * 45}, 0)`}>
-                    <rect width="36" height="36" fill="hsl(217 33% 17%)" stroke="hsl(215 25% 27%)" rx="4" />
-                    <text x="18" y="24" fill="hsl(213 27% 84%)" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
+                 <g key={idx} transform={`translate(${idx * 80}, 0)`}>
+                    <rect width="70" height="36" fill="hsl(217 33% 17%)" stroke="hsl(215 25% 27%)" rx="4" />
+                    <text x="35" y="24" fill="hsl(213 27% 84%)" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
                  </g>
                ))}
                {Object.keys(badCharTable).length === 0 && (
