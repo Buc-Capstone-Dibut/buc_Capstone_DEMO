@@ -44,7 +44,12 @@ function runCaseWithWorker(
   problem: ProblemBankItem,
 ): Promise<WorkerJudgeResponse> {
   return new Promise((resolve) => {
-    const worker = new Worker(`/workers/skulpt.worker.js?v=${Date.now()}-${Math.random()}`);
+    // Build-pinned cache key: deploy id varies per Vercel build, so a new
+    // deploy still gets a fresh worker, but repeated test cases within one
+    // session reuse the CDN-cached worker (was: Date.now()+random() which
+    // defeated Vercel's edge cache and forced a ~80kB worker refetch per run).
+    const workerVersion = process.env.NEXT_PUBLIC_BUILD_ID || "v1";
+    const worker = new Worker(`/workers/skulpt.worker.js?v=${workerVersion}`);
     let resolved = false;
     let stdout = "";
 

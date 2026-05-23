@@ -142,7 +142,9 @@ export async function runWithTrace(
   return new Promise<SkulptRunResult>((resolve) => {
     let worker: Worker;
     try {
-      worker = new Worker(`/workers/skulpt.worker.js?v=${Date.now()}-${Math.random()}`);
+      // Build-pinned cache key — see BrowserJudge.ts for rationale.
+      const workerVersion = process.env.NEXT_PUBLIC_BUILD_ID || "v1";
+      worker = new Worker(`/workers/skulpt.worker.js?v=${workerVersion}`);
     } catch (err) {
       resolve({
         steps: [],
