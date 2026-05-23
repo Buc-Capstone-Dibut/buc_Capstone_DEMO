@@ -3,8 +3,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { CTPPracticeProblem } from "../../common/types";
 
-export type PracticeProblem = CTPPracticeProblem;
-
 interface CTPPracticeProps {
   problems: CTPPracticeProblem[];
 }
