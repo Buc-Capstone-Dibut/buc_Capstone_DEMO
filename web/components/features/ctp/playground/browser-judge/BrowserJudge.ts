@@ -31,22 +31,47 @@ function deriveOverall(cases: TestCaseResult[]): Verdict {
   return "WA";
 }
 
+const DEFAULT_WALL_CLOCK_MS = 5_000;
+
+function resolveMaxSteps(problem: ProblemBankItem): number | undefined {
+  // Prefer new `maxSteps`; fall back to legacy `timeLimit` (same semantic — step count).
+  return problem.maxSteps ?? problem.timeLimit;
+}
+
 function runCaseWithWorker(
   userCode: string,
   testCase: ProblemTestCase,
   problem: ProblemBankItem,
 ): Promise<WorkerJudgeResponse> {
   return new Promise((resolve) => {
-    const worker = new Worker(`/workers/skulpt.worker.js?v=${Date.now()}-${Math.random()}`);
+    // Build-pinned cache key: deploy id varies per Vercel build, so a new
+    // deploy still gets a fresh worker, but repeated test cases within one
+    // session reuse the CDN-cached worker (was: Date.now()+random() which
+    // defeated Vercel's edge cache and forced a ~80kB worker refetch per run).
+    const workerVersion = process.env.NEXT_PUBLIC_BUILD_ID || "v1";
+    const worker = new Worker(`/workers/skulpt.worker.js?v=${workerVersion}`);
     let resolved = false;
     let stdout = "";
+
+    const wallClockMs = problem.wallClockMs ?? DEFAULT_WALL_CLOCK_MS;
 
     const finish = (result: WorkerJudgeResponse) => {
       if (resolved) return;
       resolved = true;
+      clearTimeout(timeoutId);
       worker.terminate();
       resolve(result);
     };
+
+    // Wall-clock guard: if Skulpt hangs (e.g. infinite loop the step-counter can't reach),
+    // terminate the worker and surface a TLE so the UI never gets stuck on "채점 중...".
+    const timeoutId = setTimeout(() => {
+      finish({
+        stdout,
+        errorCode: "TLE",
+        errorMessage: `Execution exceeded ${wallClockMs}ms wall-clock limit`,
+      });
+    }, wallClockMs);
 
     worker.onmessage = (event) => {
       const payload = event.data;
@@ -83,7 +108,7 @@ function runCaseWithWorker(
       code: userCode,
       judge: {
         stdinLines: toStdinLines(testCase.input),
-        maxSteps: problem.timeLimit,
+        maxSteps: resolveMaxSteps(problem),
         maxOutputBytes: problem.outputLimitBytes,
         captureSteps: false,
       },
@@ -140,4 +165,6 @@ export const BrowserJudge = {
 export const __browserJudgeInternals = {
   toStdinLines,
   deriveOverall,
+  resolveMaxSteps,
+  DEFAULT_WALL_CLOCK_MS,
 };

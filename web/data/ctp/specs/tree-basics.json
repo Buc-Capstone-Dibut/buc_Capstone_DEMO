@@ -1,0 +1,151 @@
+{
+  "id": "tree-basics",
+  "moduleId": "module-04-list-tree-final",
+  "conceptId": "tree",
+  "title": "09-1 트리 구조",
+  "difficulty": "beginner",
+  "prerequisites": ["singly"],
+  "learningOutcomes": [
+    "노드, 부모-자식 관계, 루트, 리프, 깊이/높이 같은 트리 기본 용어 정의",
+    "선형 자료구조와 트리의 차이를 \"한 노드가 여러 자식을 가질 수 있다\"는 관점에서 이해",
+    "트리 순회(전위·중위·후위·레벨)의 기본 흐름을 머릿속 그림으로 추적"
+  ],
+  "simulation": {
+    "mode": "interactive",
+    "domain": "tree",
+    "stepCount": 6,
+    "operations": ["next", "prev", "reset"],
+    "initialState": {
+      "root": {
+        "value": "A",
+        "left": {
+          "value": "B",
+          "left": { "value": "D", "left": null, "right": null },
+          "right": { "value": "E", "left": null, "right": null }
+        },
+        "right": {
+          "value": "C",
+          "left": { "value": "F", "left": null, "right": null },
+          "right": null
+        }
+      }
+    },
+    "storyboard": [
+      {
+        "step": 0,
+        "description": "루트 A 아래 B·C, B 아래 D·E, C 아래 F가 매달린 이진 트리 구조입니다.",
+        "stateAfter": {
+          "root": {
+            "value": "A",
+            "left": { "value": "B", "left": { "value": "D" }, "right": { "value": "E" } },
+            "right": { "value": "C", "left": { "value": "F" }, "right": null }
+          },
+          "currentNode": "A",
+          "visited": [],
+          "phase": "intro"
+        }
+      },
+      {
+        "step": 1,
+        "description": "전위 순회(pre-order)를 시작합니다. 먼저 루트 A를 방문하고 출력합니다.",
+        "stateAfter": {
+          "currentNode": "A",
+          "visited": ["A"],
+          "phase": "preorder"
+        }
+      },
+      {
+        "step": 2,
+        "description": "왼쪽 서브트리로 진입합니다. B → D 순서로 내려가며 좌측을 우선 방문합니다.",
+        "stateAfter": {
+          "currentNode": "D",
+          "visited": ["A", "B", "D"],
+          "phase": "preorder"
+        }
+      },
+      {
+        "step": 3,
+        "description": "B의 우측 자식 E를 방문한 뒤 좌측 서브트리 순회를 마칩니다.",
+        "stateAfter": {
+          "currentNode": "E",
+          "visited": ["A", "B", "D", "E"],
+          "phase": "preorder"
+        }
+      },
+      {
+        "step": 4,
+        "description": "오른쪽 서브트리로 진입해 C와 F를 차례로 방문합니다. 전위 순회 결과: A B D E C F.",
+        "stateAfter": {
+          "currentNode": "F",
+          "visited": ["A", "B", "D", "E", "C", "F"],
+          "phase": "preorder"
+        }
+      },
+      {
+        "step": 5,
+        "description": "후위 순회(post-order)로 비교하면 D E B F C A 순서가 됩니다. 자식을 먼저, 부모를 나중에 방문한 결과입니다.",
+        "stateAfter": {
+          "currentNode": "A",
+          "visited": ["D", "E", "B", "F", "C", "A"],
+          "phase": "postorder"
+        }
+      }
+    ]
+  },
+  "visualizer": {
+    "type": "tree",
+    "showIndices": false,
+    "showPointers": ["root"]
+  },
+  "supplementary": [
+    {
+      "title": "부모-자식 관계",
+      "description": "한 노드(부모) 아래에 0개 이상의 자식 노드가 매달립니다. 자식은 다시 자신의 자식을 가질 수 있어 재귀적으로 트리가 확장됩니다.",
+      "visualHint": "위에서 아래로 펼쳐지는 트리 (루트 A 위쪽, 자식 B/C 중간, 손자 D/E/F 아래쪽), 부모→자식 EdgeLine을 active 색으로 강조"
+    },
+    {
+      "title": "루트와 리프",
+      "description": "루트(root)는 부모가 없는 단 하나의 최상위 노드이고, 리프(leaf)는 자식이 없는 말단 노드입니다. 트리의 모든 노드는 루트에서 시작해 리프로 끝나는 경로 위에 놓입니다.",
+      "visualHint": "루트 A는 found 색 NodeCircle, 리프 D/E/F는 pointer 색 NodeCircle, 중간 노드 B/C는 default 색으로 구분"
+    },
+    {
+      "title": "깊이와 높이",
+      "description": "깊이(depth)는 루트에서 특정 노드까지의 간선 수, 높이(height)는 가장 깊은 리프까지의 간선 수입니다. 깊이는 노드별 속성이고 높이는 트리 전체의 속성입니다.",
+      "visualHint": "각 노드 왼쪽에 depth=0/1/2 라벨, 트리 오른쪽 세로축에 height=2 막대 표시로 두 개념 시각적 구분"
+    },
+    {
+      "title": "트리 순회의 기본",
+      "description": "전위·중위·후위 순회는 자식을 어떤 순서로 방문할지에 따라 결정되고, 레벨 순회는 깊이가 같은 노드를 먼저 방문합니다. 순회 순서가 곧 알고리즘의 출력 순서가 됩니다.",
+      "visualHint": "동일 트리 위에 전위(active)·중위(comparing)·후위(found) 세 가지 순회 경로를 서로 다른 색 점선으로 동시에 그려 비교"
+    }
+  ],
+  "content": {
+    "story": {
+      "problem": "지금까지 다룬 배열, 스택, 큐, 연결 리스트는 모두 데이터를 한 줄로 늘어놓은 선형 구조였습니다. 그러나 회사 조직도나 파일 시스템처럼 \"한 사람 아래 여러 명, 한 폴더 아래 여러 폴더\"가 자연스러운 데이터는 한 줄로 표현하기 어렵습니다. 데이터의 계층 관계를 직접 표현할 수 있는 자료구조가 필요합니다.",
+      "definition": "트리(Tree)는 부모-자식 관계로 이어진 노드들의 비선형 자료구조입니다.\n- 루트(root): 부모가 없는 최상위 노드, 트리에 단 한 개만 존재\n- 리프(leaf): 자식이 없는 말단 노드\n- 깊이(depth)는 루트에서 특정 노드까지의 간선 수, 높이(height)는 가장 깊은 리프까지의 간선 수",
+      "analogy": "회사 조직도와 가장 잘 맞아 들어갑니다. 사장(루트) 아래에 본부장 여러 명이 있고, 본부장 아래에 다시 팀장이, 그 아래에 팀원이 있습니다. 한 사람은 정확히 한 명의 직속 상사를 갖고, 위에서 아래로만 연결되며, 누구도 자신의 위쪽 사람을 자기 아래로 둘 수 없습니다."
+    },
+    "features": [
+      {
+        "title": "부모-자식 계층 표현",
+        "description": "각 노드는 정확히 한 명의 부모와 0개 이상의 자식을 가집니다. 이 단순한 규칙으로 임의의 깊이를 가진 계층 구조를 모두 표현할 수 있습니다.",
+        "icon": "git-branch"
+      },
+      {
+        "title": "루트와 리프의 역할",
+        "description": "루트는 전체 트리의 진입점, 리프는 경로의 종착점입니다. 모든 탐색·순회는 루트에서 출발해 리프 방향으로 진행되는 것이 기본입니다.",
+        "icon": "anchor"
+      },
+      {
+        "title": "깊이와 높이의 구분",
+        "description": "깊이는 \"이 노드가 얼마나 아래에 있는가\"를, 높이는 \"트리가 얼마나 깊은가\"를 나타냅니다. 두 개념을 혼동하지 않는 것이 트리 알고리즘 분석의 첫 단계입니다.",
+        "icon": "ruler"
+      },
+      {
+        "title": "순회 순서 선택",
+        "description": "전위·중위·후위·레벨 순회는 같은 트리에서도 다른 출력을 만듭니다. 풀려는 문제(검색·정렬·계산)에 맞춰 적절한 순회 순서를 고르는 감각이 필요합니다.",
+        "icon": "list"
+      }
+    ]
+  }
+}

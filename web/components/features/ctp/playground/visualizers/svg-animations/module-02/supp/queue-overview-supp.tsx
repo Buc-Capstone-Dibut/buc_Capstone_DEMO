@@ -6,23 +6,23 @@ function SharedDefs() {
   return (
     <defs>
       <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#6366f1" />
-        <stop offset="100%" stopColor="#a855f7" />
+        <stop offset="0%" stopColor="hsl(239 84% 67%)" />
+        <stop offset="100%" stopColor="hsl(271 91% 65%)" />
       </linearGradient>
       <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#10b981" />
-        <stop offset="100%" stopColor="#059669" />
+        <stop offset="0%" stopColor="hsl(160 84% 39%)" />
+        <stop offset="100%" stopColor="hsl(161 94% 30%)" />
       </linearGradient>
       <linearGradient id="destructive-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#f43f5e" />
-        <stop offset="100%" stopColor="#e11d48" />
+        <stop offset="0%" stopColor="hsl(347 89% 60%)" />
+        <stop offset="100%" stopColor="hsl(347 77% 50%)" />
       </linearGradient>
       <linearGradient id="surface-grad" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="1" />
         <stop offset="100%" stopColor="hsl(var(--muted))" stopOpacity="0.5" />
       </linearGradient>
       <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#000000" floodOpacity="0.1" />
+        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="hsl(0 0% 0%)" floodOpacity="0.1" />
       </filter>
       <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur stdDeviation="6" result="blur" />
@@ -32,7 +32,7 @@ function SharedDefs() {
         <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
       </pattern>
       <marker id="arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(239 84% 67%)" />
       </marker>
     </defs>
   );
@@ -60,39 +60,39 @@ function FIFOFairness() {
          {/* Enqueueing Elements */}
          <motion.g animate={{ x: [0, 90, 170] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}>
            <rect x="50" y="0" width="60" height="60" rx="30" fill="url(#primary-grad)" />
-           <text x="80" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#fff">3</text>
+           <text x="80" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="hsl(0 0% 100%)">3</text>
          </motion.g>
 
          {/* Inside Queue */}
          <g transform="translate(250, 0)">
            <rect x="0" y="0" width="60" height="60" rx="30" fill="hsl(var(--muted-foreground))" />
-           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#fff">2</text>
+           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="hsl(0 0% 100%)">2</text>
          </g>
          <g transform="translate(350, 0)">
            <rect x="0" y="0" width="60" height="60" rx="30" fill="url(#emerald-grad)" />
-           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#fff">1</text>
+           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="hsl(0 0% 100%)">1</text>
          </g>
 
          {/* Dequeueing Elements */}
          <motion.g animate={{ x: [450, 550, 650], opacity: [1, 1, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}>
            <rect x="0" y="0" width="60" height="60" rx="30" fill="url(#destructive-grad)" />
-           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#fff">0</text>
+           <text x="30" y="36" textAnchor="middle" fontSize="20" fontWeight="bold" fill="hsl(0 0% 100%)">0</text>
          </motion.g>
       </g>
 
       <g transform="translate(150, 100)">
-        <text x="0" y="0" fontSize="18" fontWeight="bold" fill="#6366f1">Enqueue (입장)</text>
-        <path d="M 0 15 L 0 35" stroke="#6366f1" strokeWidth="3" markerEnd="url(#arrow-head)" />
+        <text x="0" y="0" fontSize="18" fontWeight="bold" fill="hsl(239 84% 67%)">Enqueue (입장)</text>
+        <path d="M 0 15 L 0 35" stroke="hsl(239 84% 67%)" strokeWidth="3" markerEnd="url(#arrow-head)" />
       </g>
 
       <g transform="translate(480, 100)">
-        <text x="120" y="0" textAnchor="end" fontSize="18" fontWeight="bold" fill="#f43f5e">Dequeue (퇴장)</text>
-        <path d="M 120 15 L 120 35" stroke="#f43f5e" strokeWidth="3" markerEnd="url(#arrow-head)" />
+        <text x="120" y="0" textAnchor="end" fontSize="18" fontWeight="bold" fill="hsl(347 89% 60%)">Dequeue (퇴장)</text>
+        <path d="M 120 15 L 120 35" stroke="hsl(347 89% 60%)" strokeWidth="3" markerEnd="url(#arrow-head)" />
       </g>
 
       <rect x="150" y="360" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="390" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        먼저 들어온 작업이 <tspan fill="#10b981" fontWeight="800">새치기 없이 가장 먼저 처리</tspan>되는 완벽한 공정성(Fairness) 구조입니다.
+        먼저 들어온 작업이 <tspan fill="hsl(160 84% 39%)" fontWeight="800">새치기 없이 가장 먼저 처리</tspan>되는 완벽한 공정성(Fairness) 구조입니다.
       </text>
     </svg>
   );
@@ -124,26 +124,26 @@ function FrontRearPointers() {
 
          {/* Front Pointer (Output) */}
          <motion.g animate={{ x: [80, 160, 160] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1], ease: "easeInOut" }}>
-            <path d="M 55 90 L 55 130" stroke="#f43f5e" strokeWidth="4" />
-            <polygon points="45,90 65,90 55,75" fill="#f43f5e" />
-            <rect x="25" y="140" width="60" height="30" rx="6" fill="#f43f5e" />
-            <text x="55" y="160" textAnchor="middle" fontSize="14" fontWeight="900" fill="#fff">Front</text>
-            <text x="55" y="195" textAnchor="middle" fontSize="12" fill="#f43f5e">Dequeue 지점</text>
+            <path d="M 55 90 L 55 130" stroke="hsl(347 89% 60%)" strokeWidth="4" />
+            <polygon points="45,90 65,90 55,75" fill="hsl(347 89% 60%)" />
+            <rect x="25" y="140" width="60" height="30" rx="6" fill="hsl(347 89% 60%)" />
+            <text x="55" y="160" textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(0 0% 100%)">Front</text>
+            <text x="55" y="195" textAnchor="middle" fontSize="12" fill="hsl(347 89% 60%)">Dequeue 지점</text>
          </motion.g>
 
          {/* Rear Pointer (Input) */}
          <motion.g animate={{ x: [400, 480, 480] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1], ease: "easeInOut" }}>
-            <path d="M 55 -60 L 55 -20" stroke="#6366f1" strokeWidth="4" />
-            <polygon points="45,-20 65,-20 55,-5" fill="#6366f1" />
-            <rect x="25" y="-100" width="60" height="30" rx="6" fill="#6366f1" />
-            <text x="55" y="-80" textAnchor="middle" fontSize="14" fontWeight="900" fill="#fff">Rear</text>
-            <text x="55" y="-115" textAnchor="middle" fontSize="12" fill="#6366f1">Enqueue 지점</text>
+            <path d="M 55 -60 L 55 -20" stroke="hsl(239 84% 67%)" strokeWidth="4" />
+            <polygon points="45,-20 65,-20 55,-5" fill="hsl(239 84% 67%)" />
+            <rect x="25" y="-100" width="60" height="30" rx="6" fill="hsl(239 84% 67%)" />
+            <text x="55" y="-80" textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(0 0% 100%)">Rear</text>
+            <text x="55" y="-115" textAnchor="middle" fontSize="12" fill="hsl(239 84% 67%)">Enqueue 지점</text>
          </motion.g>
 
          {/* Operations Effect */}
          <motion.g animate={{ opacity: [0, 1, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1] }}>
             <rect x="420" y="0" width="70" height="70" rx="8" fill="url(#primary-grad)" opacity="0.3" filter="url(#glow)" />
-            <text x="455" y="45" textAnchor="middle" fontSize="28" fontWeight="bold" fill="#6366f1">E</text>
+            <text x="455" y="45" textAnchor="middle" fontSize="28" fontWeight="bold" fill="hsl(239 84% 67%)">E</text>
          </motion.g>
 
          <motion.g animate={{ opacity: [1, 0, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1] }}>
@@ -153,7 +153,7 @@ function FrontRearPointers() {
 
       <rect x="150" y="400" width="500" height="30" rx="15" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="420" textAnchor="middle" fontSize="14" fontWeight="600" fill="hsl(var(--foreground))">
-        입력과 출력의 포인터가 분리되어 있어, 양쪽 끝에서 각각 <tspan fill="#6366f1" fontWeight="800">독립적인 연산</tspan>을 O(1)에 수행합니다.
+        입력과 출력의 포인터가 분리되어 있어, 양쪽 끝에서 각각 <tspan fill="hsl(239 84% 67%)" fontWeight="800">독립적인 연산</tspan>을 O(1)에 수행합니다.
       </text>
     </svg>
   );
@@ -177,16 +177,16 @@ function ThroughputLatency() {
          <text x="30" y="140" textAnchor="middle" transform="rotate(-90 30 140)" fontSize="16" fontWeight="bold" fill="hsl(var(--muted-foreground))">지연 시간 (Latency)</text>
 
          {/* Latency Curve (Exponential curve showing congestion) */}
-         <motion.path d="M 50 200 Q 250 180 380 60" fill="none" stroke="#f43f5e" strokeWidth="4" strokeLinecap="round" filter="url(#glow)"
+         <motion.path d="M 50 200 Q 250 180 380 60" fill="none" stroke="hsl(347 89% 60%)" strokeWidth="4" strokeLinecap="round" filter="url(#glow)"
             initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} />
 
          {/* Processing Rate Line (Constant) */}
-         <path d="M 50 100 L 400 100" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray="8 8" />
-         <text x="320" y="90" fontSize="14" fontWeight="bold" fill="#10b981">서버 최대 처리량</text>
+         <path d="M 50 100 L 400 100" fill="none" stroke="hsl(160 84% 39%)" strokeWidth="3" strokeDasharray="8 8" />
+         <text x="320" y="90" fontSize="14" fontWeight="bold" fill="hsl(160 84% 39%)">서버 최대 처리량</text>
 
          {/* Bottleneck Point */}
-         <circle cx="280" cy="115" r="8" fill="#f43f5e" />
-         <text x="280" y="140" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#f43f5e">병목 지점</text>
+         <circle cx="280" cy="115" r="8" fill="hsl(347 89% 60%)" />
+         <text x="280" y="140" textAnchor="middle" fontSize="13" fontWeight="bold" fill="hsl(347 89% 60%)">병목 지점</text>
       </g>
 
       {/* Explanation blocks */}
@@ -196,14 +196,14 @@ function ThroughputLatency() {
         <text x="100" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">성능 Trade-off</text>
 
         <text x="20" y="70" fontSize="12" fill="hsl(var(--muted-foreground))">큐 길이가 길어지면?</text>
-        <rect x="20" y="80" width="160" height="4" fill="#6366f1" />
-        <text x="20" y="105" fontSize="13" fontWeight="bold" fill="hsl(var(--foreground))">✅ 데이터 유실 방지율 상승</text>
-        <text x="20" y="130" fontSize="13" fontWeight="bold" fill="#f43f5e">❌ 평균 대기 시간(지연) 폭증</text>
+        <rect x="20" y="80" width="160" height="4" fill="hsl(239 84% 67%)" />
+        <text x="20" y="105" fontSize="13" fontWeight="bold" fill="hsl(var(--foreground))">+ 데이터 유실 방지율 상승</text>
+        <text x="20" y="130" fontSize="13" fontWeight="bold" fill="hsl(347 89% 60%)">- 평균 대기 시간(지연) 폭증</text>
       </g>
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="410" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        무작정 큐를 길게 만들면 데이터는 안전하지만, 서비스 <tspan fill="#f43f5e" fontWeight="800">응답 시간(Latency)</tspan>이 치명적으로 느려집니다.
+        무작정 큐를 길게 만들면 데이터는 안전하지만, 서비스 <tspan fill="hsl(347 89% 60%)" fontWeight="800">응답 시간(Latency)</tspan>이 치명적으로 느려집니다.
       </text>
     </svg>
   );
@@ -223,17 +223,17 @@ function ApplicationExamples() {
          {/* BFS */}
          <g transform="translate(0, 0)" filter="url(#soft-shadow)">
             <rect width="180" height="220" rx="16" fill="url(#surface-grad)" stroke={ "hsl(var(--border))" } strokeWidth="2" />
-            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="#6366f1">BFS 최단 거리</text>
+            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="hsl(239 84% 67%)">BFS 최단 거리</text>
 
             <g transform="translate(90, 100)">
-               <circle cx="0" cy="-30" r="15" fill="none" stroke="#6366f1" strokeWidth="2" />
-               <circle cx="-30" cy="10" r="15" fill="none" stroke="#6366f1" strokeWidth="2" />
-               <circle cx="30" cy="10" r="15" fill="none" stroke="#6366f1" strokeWidth="2" />
-               <path d="M 0 -15 L -20 -15" fill="none" stroke="#6366f1" strokeWidth="2" />
+               <circle cx="0" cy="-30" r="15" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="2" />
+               <circle cx="-30" cy="10" r="15" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="2" />
+               <circle cx="30" cy="10" r="15" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="2" />
+               <path d="M 0 -15 L -20 -15" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="2" />
             </g>
 
             {/* Ripple Effect corresponding to level order */}
-            <motion.circle cx="90" cy="70" r="10" fill="none" stroke="#6366f1" strokeWidth="4" filter="url(#glow)"
+            <motion.circle cx="90" cy="70" r="10" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="4" filter="url(#glow)"
                animate={{ r: [10, 50, 80], opacity: [1, 0, 0] }} transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }} />
 
             <text x="90" y="180" textAnchor="middle" fontSize="13" fontWeight="bold" fill="hsl(var(--muted-foreground))">시작점부터 거리가</text>
@@ -243,14 +243,14 @@ function ApplicationExamples() {
          {/* Job Scheduler */}
          <g transform="translate(210, 0)" filter="url(#soft-shadow)">
             <rect width="180" height="220" rx="16" fill="url(#surface-grad)" stroke={ "hsl(var(--border))" } strokeWidth="2" />
-            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="#f43f5e">작업 스케줄링</text>
+            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="hsl(347 89% 60%)">작업 스케줄링</text>
 
             <g transform="translate(30, 80)">
                <rect width="30" height="40" rx="4" fill="url(#destructive-grad)" />
-               <rect x="40" width="30" height="40" rx="4" fill="#f43f5e" opacity="0.6" />
-               <rect x="80" width="30" height="40" rx="4" fill="#f43f5e" opacity="0.3" />
+               <rect x="40" width="30" height="40" rx="4" fill="hsl(347 89% 60%)" opacity="0.6" />
+               <rect x="80" width="30" height="40" rx="4" fill="hsl(347 89% 60%)" opacity="0.3" />
 
-               <motion.path d="M -20 20 L 140 20" stroke="#f43f5e" strokeWidth="3" strokeDasharray="4 4" markerEnd="url(#arrow-head)"
+               <motion.path d="M -20 20 L 140 20" stroke="hsl(347 89% 60%)" strokeWidth="3" strokeDasharray="4 4" markerEnd="url(#arrow-head)"
                   animate={{ x: [-20, 0, -20] }} transition={{ duration: 2, repeat: Infinity }} />
             </g>
 
@@ -261,14 +261,14 @@ function ApplicationExamples() {
          {/* Message Queue */}
          <g transform="translate(420, 0)" filter="url(#soft-shadow)">
             <rect width="180" height="220" rx="16" fill="url(#surface-grad)" stroke={ "hsl(var(--border))" } strokeWidth="2" />
-            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="#10b981">멀티스레드 메시지</text>
+            <text x="90" y="40" textAnchor="middle" fontSize="18" fontWeight="900" fill="hsl(160 84% 39%)">멀티스레드 메시지</text>
 
             <g transform="translate(20, 100)">
-               <rect x="0" y="-15" width="40" height="30" rx="4" fill="#10b981" />
-               <path d="M 50 0 L 90 0 L 90 -40 L 140 -40" fill="none" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="6 6" />
+               <rect x="0" y="-15" width="40" height="30" rx="4" fill="hsl(160 84% 39%)" />
+               <path d="M 50 0 L 90 0 L 90 -40 L 140 -40" fill="none" stroke="hsl(160 84% 39%)" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="6 6" />
 
-               <text x="20" y="5" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#fff">Thread</text>
-               <text x="120" y="-50" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#10b981">Process Queue</text>
+               <text x="20" y="5" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(0 0% 100%)">Thread</text>
+               <text x="120" y="-50" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(160 84% 39%)">Process Queue</text>
             </g>
 
             <text x="90" y="180" textAnchor="middle" fontSize="13" fontWeight="bold" fill="hsl(var(--muted-foreground))">비동기 이벤트 발생을</text>
@@ -278,7 +278,7 @@ function ApplicationExamples() {
 
       <rect x="150" y="360" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="390" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        <tspan fill="#6366f1" fontWeight="800">순서를 절대적으로 보존</tspan>해야 하는 시스템의 뼈대로 널리 활용됩니다.
+        <tspan fill="hsl(239 84% 67%)" fontWeight="800">순서를 절대적으로 보존</tspan>해야 하는 시스템의 뼈대로 널리 활용됩니다.
       </text>
     </svg>
   );

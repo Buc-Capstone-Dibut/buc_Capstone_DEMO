@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
 export type SortElement = { id: string; val: number };
@@ -142,7 +143,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
   const state = data;
   const { array, heapSize, i, j, comparing, swapping, sortedIndices, phase } = state;
 
-  const maxVal = Math.max(...data, 1);
+  const maxVal = Math.max(...array.map((a: any) => a.val), 1);
   const svgWidth = 800;
   const svgHeight = 600; // Taller for tree + array
   const treeHeight = 350;
@@ -154,16 +155,19 @@ export function HeapSortVisualizer({ data }: { data: any }) {
   const barWidth = Math.min(40, totalBarWidth * 0.8);
   const getX = (index: number) => 50 + index * totalBarWidth + (totalBarWidth - barWidth) / 2;
 
-  // Tree layout
-  const getNodePos = (idx: number) => {
-    const level = Math.floor(Math.log2(idx + 1));
-    const nodesInLevel = Math.pow(2, level);
-    const indexInLevel = idx - (nodesInLevel - 1);
-
-    // Spread nodes evenly across the width based on their level
-    const xStep = svgWidth / (nodesInLevel + 1);
-    const x = xStep * (indexInLevel + 1);
-    const y = 80 + level * 80;
+  // Tree layout — parent-relative recursive positioning so siblings never collide.
+  // x(child) = x(parent) ± svgWidth / 2^(level+2)
+  const getNodePos = (idx: number): { x: number; y: number } => {
+    if (idx === 0) {
+      return { x: svgWidth / 2, y: 80 };
+    }
+    const parentIdx = Math.floor((idx - 1) / 2);
+    const parentPos = getNodePos(parentIdx);
+    const parentLevel = Math.floor(Math.log2(parentIdx + 1));
+    const offset = svgWidth / Math.pow(2, parentLevel + 2);
+    const isLeftChild = idx === 2 * parentIdx + 1;
+    const x = isLeftChild ? parentPos.x - offset : parentPos.x + offset;
+    const y = parentPos.y + 80;
     return { x, y };
   };
 
@@ -181,15 +185,15 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
             </pattern>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Heap Sort</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phase}</text>
+          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Heap Sort</text>
+          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
 
           {/* --- Tree Visualization --- */}
           {/* Edges */}
@@ -202,19 +206,19 @@ export function HeapSortVisualizer({ data }: { data: any }) {
             const isComparingEdge = comparing && comparing.includes(idx) && comparing.includes(parentIdx);
             const isSwappingEdge = swapping && swapping.includes(idx) && swapping.includes(parentIdx);
 
-            let strokeColor = "rgba(148, 163, 184, 0.3)";
+            let strokeColor: string = colorTokens.faintEdge;
             let strokeWidth = 2;
             let strokeDash = "none";
 
             // If the child is sorted, the connection to parent is essentially broken conceptually
             if (sortedIndices.includes(idx)) {
-               strokeColor = "rgba(148, 163, 184, 0.05)";
+               strokeColor = colorTokens.gridLine;
                strokeDash = "4";
             } else if (isSwappingEdge) {
-               strokeColor = "#f43f5e";
+               strokeColor = colorTokens.destructive;
                strokeWidth = 4;
             } else if (isComparingEdge) {
-               strokeColor = "#eab308";
+               strokeColor = colorTokens.warning;
                strokeWidth = 4;
             }
 
@@ -239,25 +243,25 @@ export function HeapSortVisualizer({ data }: { data: any }) {
              const isSwapping = swapping?.includes(idx);
              const isCurrentI = idx === i && !isSorted;
 
-             let fillColor = "#334155";
+             let fillColor = "hsl(var(--muted))";
              let opacity = 0.8;
              let filter = "";
 
              if (isSorted) {
-               fillColor = "#8b5cf6"; // purple for sorted
+               fillColor = colorTokens.primaryHighlight; // purple for sorted
                opacity = 0.3; // fade out nodes clearly removed from heap
              } else if (isSwapping) {
-               fillColor = "#f43f5e";
+               fillColor = colorTokens.destructive;
                opacity = 1;
                filter = "url(#glow-swap)";
              } else if (isComparing) {
-               fillColor = "#eab308";
+               fillColor = colorTokens.warning;
                opacity = 1;
              } else if (isCurrentI) {
-               fillColor = "#3b82f6";
+               fillColor = colorTokens.primaryBlue;
                opacity = 1;
              } else if (idx < heapSize) {
-               fillColor = "#10b981"; // In-heap nodes are green
+               fillColor = colorTokens.success; // In-heap nodes are green
                opacity = 0.9;
              }
 
@@ -275,7 +279,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                    filter={filter}
                    animate={{ fill: fillColor, opacity }}
                  />
-                 <text x="0" y="5" fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle" opacity={opacity > 0.5 ? 1 : 0.5}>{item.val}</text>
+                 <text x="0" y="5" fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle" opacity={opacity > 0.5 ? 1 : 0.5}>{item.val}</text>
                </motion.g>
              );
           })}
@@ -288,8 +292,8 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               animate={{ x: getX(0) - 10, width: getX(heapSize - 1) - getX(0) + barWidth + 20 }}
               y={arrayHeightTop - 30}
               height={chartHeight + 50}
-              fill="rgba(16, 185, 129, 0.05)"
-              stroke="rgba(16, 185, 129, 0.3)"
+              fill={colorTokens.successGhost}
+              stroke={colorTokens.successEdge}
               strokeWidth="2"
               strokeDasharray="4"
               rx={8}
@@ -307,20 +311,20 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               const isSwapping = swapping?.includes(idx);
               const isCurrentI = idx === i;
 
-              let fillColor = "#334155";
+              let fillColor = "hsl(var(--muted))";
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "#8b5cf6"; // sorted purple
+                fillColor = colorTokens.primaryHighlight; // sorted purple
                 opacity = 0.9;
               } else if (isSwapping) {
-                fillColor = "#f43f5e"; // swap red
+                fillColor = colorTokens.destructive; // swap red
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "#eab308"; // compare yellow
+                fillColor = colorTokens.warning; // compare yellow
                 opacity = 1;
               } else if (idx < heapSize) {
-                fillColor = "#10b981"; // active heap green
+                fillColor = colorTokens.success; // active heap green
                 opacity = 0.8;
               }
 
@@ -344,7 +348,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={-10}
-                    fill={(isSorted || isSwapping || isComparing || idx < heapSize) ? "#fff" : "#94a3b8"}
+                    fill={(isSorted || isSwapping || isComparing || idx < heapSize) ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
                     fontSize="14"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -354,7 +358,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={height + 20}
-                    fill="#64748b"
+                    fill="hsl(var(--muted-foreground))"
                     fontSize="12"
                     textAnchor="middle"
                   >

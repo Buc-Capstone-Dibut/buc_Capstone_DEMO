@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { NeonGlowFilters } from '@/components/features/ctp/playground/visualizers/shared/svg-primitives';
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
 type Step = {
@@ -116,35 +118,8 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
 
   return (
     <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <NeonGlowFilters />
       <defs>
-        <filter id="neon-glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter id="neon-glow-emerald" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter id="neon-glow-rose" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter id="neon-glow-orange" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" opacity="0.2" />
         </pattern>
@@ -154,7 +129,7 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="#06b6d4" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">
+      <text x="40" y="50" fill={colorTokens.info} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-primary)">
         SORTING ALGORITHMS
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -176,15 +151,15 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
           let glow = "";
 
           if (status === 'sorted') {
-            fill = "rgba(16, 185, 129, 0.2)";
-            stroke = "#10b981";
-            glow = "url(#neon-glow-emerald)";
+            fill = colorTokens.successSoft;
+            stroke = colorTokens.success;
+            glow = "url(#neon-glow-success)";
           } else if (status === 'processing') {
-            fill = "rgba(6, 182, 212, 0.2)";
-            stroke = "#06b6d4";
+            fill = colorTokens.infoSoft;
+            stroke = colorTokens.info;
           } else {
-            fill = "rgba(244, 63, 94, 0.1)";
-            stroke = "#f43f5e";
+            fill = colorTokens.destructiveTrace;
+            stroke = colorTokens.destructive;
           }
 
           return (
@@ -212,7 +187,7 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
                 filter={glow}
               />
               {/* Internal value text */}
-              <text x={BAR_WIDTH / 2} y={height + 20} fill={status === 'sorted' ? "#10b981" : "hsl(var(--foreground))"} fontSize="14" fontWeight="bold" textAnchor="middle">
+              <text x={BAR_WIDTH / 2} y={height + 20} fill={status === 'sorted' ? colorTokens.success : "hsl(var(--foreground))"} fontSize="14" fontWeight="bold" textAnchor="middle">
                 {val}
               </text>
             </motion.g>
@@ -227,11 +202,11 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
           initial={{ opacity: 0, y: -20, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           x="0" y="0"
-          fill={status === 'sorted' ? "#10b981" : (status === 'processing' ? "#06b6d4" : "hsl(var(--foreground))")}
+          fill={status === 'sorted' ? colorTokens.success : (status === 'processing' ? colorTokens.info : "hsl(var(--foreground))")}
           fontSize="24"
           fontWeight="bold"
           textAnchor="middle"
-          filter={status === 'sorted' ? "url(#neon-glow-emerald)" : (status === 'processing' ? "url(#neon-glow-cyan)" : "")}
+          filter={status === 'sorted' ? "url(#neon-glow-success)" : (status === 'processing' ? "url(#neon-glow-primary)" : "")}
         >
           {status === 'input' && "무작위로 섞인 데이터 (Unsorted)"}
           {status === 'processing' && "정렬 중... O(N²) ~ O(N log N) 소요"}

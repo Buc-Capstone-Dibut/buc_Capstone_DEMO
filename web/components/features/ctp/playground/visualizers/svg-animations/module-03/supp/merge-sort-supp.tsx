@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // --- Utility Components ---
 const SVGDefs = () => (
@@ -39,13 +40,13 @@ const DivideSVG = () => {
 
       <g transform="translate(40, 50)">
         {/* Title */}
-        <text x="0" y="-10" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 무자비한 분할 (Divide)</text>
-        <text x="0" y="10" fill="hsl(var(--muted-foreground))" fontSize="14">배열의 크기가 1이 될 때까지 무조건 정확히 반으로 쪼갭니다.</text>
+        <text x="0" y="-10" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 단호한 분할 (Divide)</text>
+        <text x="0" y="10" fill="hsl(var(--muted-foreground))" fontSize="14">배열의 크기가 1이 될 때까지 정확히 반으로 쪼갭니다.</text>
 
         {/* Splitting Array Animation */}
         <g transform="translate(140, 50)">
           {/* Level 0 */}
-          <rect x="0" y="0" width="240" height="30" fill="#3b82f6" fillOpacity="0.2" stroke="#3b82f6" strokeWidth="2" rx="4" />
+          <rect x="0" y="0" width="240" height="30" fill={colorTokens.primaryBlue} fillOpacity="0.2" stroke={colorTokens.primaryBlue} strokeWidth="2" rx="4" />
           <text x="120" y="20" fill="hsl(var(--foreground))" fontSize="14" textAnchor="middle">8개의 원소</text>
 
           {/* Animation arrows */}
@@ -53,10 +54,10 @@ const DivideSVG = () => {
           <motion.path initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }} d="M 140 35 L 180 65" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.3" markerEnd="url(#arrow)" />
 
           {/* Level 1 */}
-          <rect x="-10" y="70" width="110" height="30" fill="#6366f1" fillOpacity="0.3" stroke="#6366f1" strokeWidth="2" rx="4" />
+          <rect x="-10" y="70" width="110" height="30" fill={colorTokens.primaryHighlight} fillOpacity="0.3" stroke={colorTokens.primaryHighlight} strokeWidth="2" rx="4" />
           <text x="45" y="90" fill="hsl(var(--foreground))" fontSize="12" textAnchor="middle">4개</text>
 
-          <rect x="140" y="70" width="110" height="30" fill="#6366f1" fillOpacity="0.3" stroke="#6366f1" strokeWidth="2" rx="4" />
+          <rect x="140" y="70" width="110" height="30" fill={colorTokens.primaryHighlight} fillOpacity="0.3" stroke={colorTokens.primaryHighlight} strokeWidth="2" rx="4" />
           <text x="195" y="90" fill="hsl(var(--foreground))" fontSize="12" textAnchor="middle">4개</text>
 
           {/* Arrow Level 2 */}
@@ -64,8 +65,8 @@ const DivideSVG = () => {
            <path d="M 60 105 L 80 135" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.1" markerEnd="url(#arrow)" />
 
           {/* Level 2 ... */}
-          <rect x="-20" y="140" width="45" height="25" fill="#a855f7" fillOpacity="0.4" stroke="#a855f7" strokeWidth="2" rx="4" />
-          <rect x="65" y="140" width="45" height="25" fill="#a855f7" fillOpacity="0.4" stroke="#a855f7" strokeWidth="2" rx="4" />
+          <rect x="-20" y="140" width="45" height="25" fill={colorTokens.primaryHighlight} fillOpacity="0.4" stroke={colorTokens.primaryHighlight} strokeWidth="2" rx="4" />
+          <rect x="65" y="140" width="45" height="25" fill={colorTokens.primaryHighlight} fillOpacity="0.4" stroke={colorTokens.primaryHighlight} strokeWidth="2" rx="4" />
 
           <text x="210" y="160" fill="hsl(var(--muted-foreground))" fontSize="14" fontStyle="italic">... 크기가 1이 될 때까지!</text>
         </g>
@@ -90,26 +91,26 @@ const MergeSVG = () => {
         <g transform="translate(80, 50)">
           {/* Output buffer */}
           <rect x="100" y="100" width="200" height="40" fill="hsl(var(--muted))" rx="4" stroke="currentColor" strokeOpacity="0.3"/>
-          <text x="200" y="125" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">병합된 배열 배열 (보조 공간)</text>
+          <text x="200" y="125" fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">병합된 결과 배열 (보조 공간)</text>
 
           {/* Left Array */}
           <g transform="translate(50, 0)">
-            <rect width="30" height="40" fill="#3b82f6" rx="4" opacity="0.8"/>
-            <text x="15" y="25" fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">2</text>
-            <rect x="35" y="0" width="30" height="40" fill="#3b82f6" rx="4" opacity="0.4"/>
-            <text x="50" y="25" fill="#fff" fontSize="14" textAnchor="middle">5</text>
-             <text x="35" y="-15" fill="#3b82f6" fontSize="12" fontWeight="bold" textAnchor="middle">L 포인터</text>
-             <path d="M 35 -10 L 15 0" fill="none" stroke="#3b82f6" strokeWidth="2" markerEnd="url(#arrow)" />
+            <rect width="30" height="40" fill={colorTokens.primaryBlue} rx="4" opacity="0.8"/>
+            <text x="15" y="25" fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">2</text>
+            <rect x="35" y="0" width="30" height="40" fill={colorTokens.primaryBlue} rx="4" opacity="0.4"/>
+            <text x="50" y="25" fill="hsl(var(--foreground))" fontSize="14" textAnchor="middle">5</text>
+             <text x="35" y="-15" fill={colorTokens.primaryBlue} fontSize="12" fontWeight="bold" textAnchor="middle">L 포인터</text>
+             <path d="M 35 -10 L 15 0" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" markerEnd="url(#arrow)" />
           </g>
 
           {/* Right Array */}
           <g transform="translate(250, 0)">
-            <rect width="30" height="40" fill="#ef4444" rx="4" opacity="0.8"/>
-            <text x="15" y="25" fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">3</text>
-            <rect x="35" y="0" width="30" height="40" fill="#ef4444" rx="4" opacity="0.4"/>
-            <text x="50" y="25" fill="#fff" fontSize="14" textAnchor="middle">7</text>
-             <text x="-5" y="-15" fill="#ef4444" fontSize="12" fontWeight="bold" textAnchor="middle">R 포인터</text>
-             <path d="M -5 -10 L 15 0" fill="none" stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrow)" />
+            <rect width="30" height="40" fill={colorTokens.errorRed} rx="4" opacity="0.8"/>
+            <text x="15" y="25" fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">3</text>
+            <rect x="35" y="0" width="30" height="40" fill={colorTokens.errorRed} rx="4" opacity="0.4"/>
+            <text x="50" y="25" fill="hsl(var(--foreground))" fontSize="14" textAnchor="middle">7</text>
+             <text x="-5" y="-15" fill={colorTokens.errorRed} fontSize="12" fontWeight="bold" textAnchor="middle">R 포인터</text>
+             <path d="M -5 -10 L 15 0" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" markerEnd="url(#arrow)" />
           </g>
 
           {/* Comparison and moving animation */}
@@ -117,8 +118,8 @@ const MergeSVG = () => {
             initial={{ opacity: 0, pathLength: 0 }}
             animate={{ opacity: 1, pathLength: 1 }}
             transition={{ duration: 1.5, repeat: Infinity }}
-            d="M 65 45 Q 120 70 120 90" fill="none" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow)" filter="url(#neon-glow-primary)"/>
-          <text x="200" y="60" fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle">작은 값 먼저 쏙!</text>
+            d="M 65 45 Q 120 70 120 90" fill="none" stroke={colorTokens.success} strokeWidth="3" markerEnd="url(#arrow)" filter="url(#neon-glow-primary)"/>
+          <text x="200" y="60" fill={colorTokens.success} fontSize="12" fontWeight="bold" textAnchor="middle">작은 값 먼저 쏙!</text>
         </g>
       </g>
     </svg>
@@ -140,8 +141,8 @@ const GuaranteeNLogNSVG = () => {
 
         {/* stable N log N graph representation */}
         <g transform="translate(100, 60)">
-          <rect x="0" y="0" width="300" height="100" fill="none" stroke="#10b981" strokeWidth="2" strokeDasharray="4" rx="8" opacity="0.5"/>
-          <text x="150" y="40" fill="#10b981" fontSize="18" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">최선, 평균, 최악</text>
+          <rect x="0" y="0" width="300" height="100" fill="none" stroke={colorTokens.success} strokeWidth="2" strokeDasharray="4" rx="8" opacity="0.5"/>
+          <text x="150" y="40" fill={colorTokens.success} fontSize="18" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">최선, 평균, 최악</text>
           <text x="150" y="70" fill="hsl(var(--foreground))" fontSize="24" fontWeight="bold" textAnchor="middle">항상 O(N log N)</text>
 
           {/* stable properties */}
@@ -172,21 +173,21 @@ const MemoryConstraintSVG = () => {
         {/* Arrays comparison */}
         <g transform="translate(100, 60)">
           <text x="-20" y="30" fill="currentColor" fontSize="14" opacity="0.7">원본 배열</text>
-          <rect x="80" y="10" width="240" height="30" fill="#3b82f6" rx="4" />
+          <rect x="80" y="10" width="240" height="30" fill={colorTokens.primaryBlue} rx="4" />
 
            {/* arrow down */}
            <path d="M 200 50 L 200 80" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.3" markerEnd="url(#arrow)"/>
-           <text x="220" y="70" fill="#ef4444" fontSize="14" fontWeight="bold" filter="url(#neon-glow-red)">N만큼의 공간 추가 복사!</text>
+           <text x="220" y="70" fill={colorTokens.errorRed} fontSize="14" fontWeight="bold" filter="url(#neon-glow-red)">N만큼의 공간 추가 복사!</text>
 
           <text x="-20" y="110" fill="currentColor" fontSize="14" opacity="0.7">임시 배열</text>
           <motion.rect
             initial={{ opacity: 0.3 }}
             animate={{ opacity: 0.8 }}
             transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }}
-            x="80" y="90" width="240" height="30" fill="#ef4444" rx="4" />
+            x="80" y="90" width="240" height="30" fill={colorTokens.errorRed} rx="4" />
 
-          <rect x="80" y="150" width="240" height="40" fill="transparent" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4" rx="4" />
-          <text x="200" y="175" fill="#f59e0b" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-yellow)">In-Place 정렬 실패의 원인</text>
+          <rect x="80" y="150" width="240" height="40" fill="transparent" stroke={colorTokens.warning} strokeWidth="2" strokeDasharray="4" rx="4" />
+          <text x="200" y="175" fill={colorTokens.warning} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-yellow)">In-Place 정렬 실패의 원인</text>
         </g>
       </g>
     </svg>

@@ -1,0 +1,83 @@
+{
+  "id": "boyer-moore-search",
+  "moduleId": "module-03-sorting-string",
+  "conceptId": "string-search",
+  "title": "07-3 보이어-무어",
+  "difficulty": "advanced",
+  "prerequisites": ["brute-force-search", "kmp-search"],
+  "learningOutcomes": [
+    "패턴을 뒤에서 앞으로 비교하면서 큰 보폭으로 점프하는 보이어-무어의 기본 사고 이해",
+    "Bad Character 규칙으로 불일치 문자를 패턴 내부와 줄 맞추는 흐름 설명",
+    "실전에서 매우 빠른 평균 성능과 KMP 대비 사용 상황을 비교"
+  ],
+  "simulation": {
+    "mode": "interactive",
+    "domain": "string",
+    "stepCount": 0,
+    "operations": ["next", "prev", "reset"],
+    "initialState": { "text": "HERE IS A SIMPLE EXAMPLE", "pattern": "EXAMPLE" },
+    "storyboard": [
+      { "step": 0, "phase": "Bad Character 테이블 구축", "description": "패턴 'EXAMPLE'의 각 문자 마지막 등장 위치를 테이블에 미리 기록합니다." },
+      { "step": 1, "phase": "i=0 패턴 끝 비교", "description": "패턴의 마지막 글자 'E'를 텍스트 T[6]='S'와 비교합니다. 'S'는 패턴에 없으므로 패턴 길이만큼 점프합니다." },
+      { "step": 2, "phase": "Bad Character 점프", "description": "텍스트의 'I' 같은 문자가 패턴에 없으면 패턴 길이만큼 통째로 건너뛰어 비교를 크게 줄입니다." },
+      { "step": 3, "phase": "i=17 부근 정밀 비교", "description": "패턴이 텍스트 'EXAMPLE' 영역에 도달하면 마지막 글자부터 거꾸로 한 글자씩 정밀하게 일치를 확인합니다." },
+      { "step": 4, "phase": "패턴 매칭 발견", "description": "T[17..23]에서 'EXAMPLE'이 전체 일치해 매칭 위치를 찾고 검색을 종료합니다." }
+    ]
+  },
+  "visualizer": {
+    "type": "string-pointer",
+    "showIndices": true,
+    "showPointers": ["i", "j", "shift"]
+  },
+  "supplementary": [
+    {
+      "title": "뒤에서 앞으로 비교",
+      "description": "패턴 자체는 텍스트 위에서 앞에서 뒤로 이동하지만, 개별 비교는 패턴의 마지막 글자부터 시작합니다. 끝 글자가 불일치하면 그 위치 전체를 한 번에 건너뛸 수 있습니다.",
+      "visualHint": "패턴을 텍스트 위에 정렬하고 비교 화살표는 오른쪽 → 왼쪽 방향"
+    },
+    {
+      "title": "Bad Character 규칙",
+      "description": "불일치한 텍스트 문자가 패턴 어디에도 없으면 패턴 길이만큼 즉시 점프합니다. 패턴 안에 있다면 두 글자가 맞도록 패턴을 끌어당겨 다음 비교 시작점을 정합니다.",
+      "visualHint": "불일치 글자를 빨간색으로 강조하고 점프 거리를 화살표로 표시"
+    },
+    {
+      "title": "Good Suffix 규칙",
+      "description": "이미 끝에서부터 일치한 접미사가 있다면 그 정보를 활용해 패턴을 더 멀리 점프시킬 수 있습니다. 두 규칙(Bad Character·Good Suffix)을 결합해 더 큰 보폭을 선택합니다.",
+      "visualHint": "일치한 접미사를 파란색으로 강조하고 패턴 점프 거리 표시"
+    },
+    {
+      "title": "평균 성능과 사용 상황",
+      "description": "실전 텍스트에서는 한 번에 여러 글자씩 건너뛰므로 평균적으로 매우 빠릅니다. 알파벳 크기가 크고 패턴 길이가 길수록 효과가 커지지만, 최악 시나리오는 여전히 O(NM)이라는 점에 유의해야 합니다.",
+      "visualHint": "동일 입력에서 브루트 포스/KMP/BM의 비교 횟수 비교 그래프"
+    }
+  ],
+  "content": {
+    "story": {
+      "problem": "KMP는 텍스트를 한 글자도 건너뛰지 않고 모두 읽으면서 선형 시간을 보장합니다. 그러나 실전 환경에서는 \"읽지 않아도 되는 글자는 아예 건너뛰자\"는 더 과감한 발상이 가능합니다. 패턴과 닮지 않은 텍스트 영역을 통째로 건너뛸 수 있다면, 실제 비교 횟수를 더 줄일 여지가 있습니다.",
+      "definition": "보이어-무어(Boyer-Moore) 알고리즘은 패턴을 뒤에서 앞으로 비교하면서 불일치 발생 시 큰 보폭으로 점프하는 문자열 검색 알고리즘입니다.\n- Bad Character 규칙: 불일치한 텍스트 문자가 패턴에 없으면 패턴 길이만큼 점프, 있으면 두 글자를 맞추도록 끌어당김\n- Good Suffix 규칙: 이미 일치한 접미사 정보를 활용해 더 큰 점프 선택\n- 평균 시간복잡도는 매우 빠르고, 최악은 O(NM)이지만 실전 텍스트에서는 거의 발생하지 않습니다",
+      "analogy": "긴 터널을 지나가는 차량을 검문하는 상황과 비슷합니다. 모든 차량을 처음부터 살피는 대신 차량 뒤쪽 번호판(패턴 끝)만 먼저 확인합니다. 찾는 번호와 전혀 다르면 그 차량을 통째로 통과시키고 다음 차량으로 한 번에 넘어갈 수 있습니다. 자주 일어나는 경우에는 한 번에 여러 차량을 건너뛰는 덕에 전체 검사 시간이 크게 줄어듭니다."
+    },
+    "features": [
+      {
+        "title": "역방향 비교 시작점",
+        "description": "패턴의 마지막 글자부터 비교하기 때문에 패턴과 매우 다른 텍스트 영역을 첫 비교만으로 판단할 수 있습니다. 한 번 확인으로 큰 영역을 배제하는 구조가 핵심입니다.",
+        "icon": "arrow-left"
+      },
+      {
+        "title": "Bad Character 점프",
+        "description": "불일치한 텍스트 문자가 패턴에 없다면 패턴 길이만큼 즉시 건너뜁니다. 패턴 안에 있다면 두 글자가 정렬되도록 패턴을 적절히 당겨 옵니다.",
+        "icon": "skip"
+      },
+      {
+        "title": "Good Suffix 점프",
+        "description": "이미 끝에서부터 일치한 접미사가 있다면 그 정보를 활용해 더 멀리 점프할 수 있습니다. Bad Character와 Good Suffix 중 더 큰 점프 거리를 선택합니다.",
+        "icon": "double-arrow"
+      },
+      {
+        "title": "실전에서의 강점",
+        "description": "알파벳 크기가 크고 패턴이 길수록 평균 성능이 매우 좋아집니다. 텍스트 에디터의 검색·치환, grep 류 도구 같은 실전 응용에서 자주 활용되는 알고리즘입니다.",
+        "icon": "zap"
+      }
+    ]
+  }
+}

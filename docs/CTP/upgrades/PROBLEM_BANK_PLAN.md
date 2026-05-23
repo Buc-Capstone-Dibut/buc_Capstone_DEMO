@@ -1,6 +1,7 @@
 # CTP Problem Bank — Design & Architecture Plan
 
-**Status:** Planning
+**Status:** Done (구현 완료, 4 통합 챕터 × 12 문제 = 48 문제 운영 중)
+**Last updated:** 2026-05-22 (Phase 0 정합화)
 **Target Pages:**
 - `/insights/ctp/module-01-foundation/foundation-integration`
 - `/insights/ctp/module-02-stack-recursion/stack-recursion-integration`
@@ -15,7 +16,7 @@
 
 | Before | After |
 |--------|-------|
-| 3 generic code simulator problems per integration page | 15–20 curated problems per module |
+| 3 generic code simulator problems per integration page | 12 curated problems per module |
 | No auto-grading — user judges output manually | Browser-side judge with automatic verdict (AC / WA / TLE / RTE) |
 | Single code editor, no problem statement | Baekjoon-style split panel: problem description ← → code editor |
 | No problem taxonomy | Problems categorized by difficulty (Bronze / Silver / Gold) and type (Coding / Debugging) |
@@ -201,7 +202,7 @@ interface JudgeResult {
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  Module 01 · Integration                                       │
-│  Problem Bank — 15 problems                                    │
+│  Problem Bank — 12 problems                                    │
 ├────────────┬───────────────────────────────────────────────────┤
 │ Filters    │  ┌──────────┐ ┌──────────┐ ┌──────────┐         │
 │            │  │ p01-001  │ │ p01-002  │ │ p01-003  │         │
@@ -255,10 +256,10 @@ interface JudgeResult {
 
 | Difficulty | Count | Avg solving time |
 |------------|-------|-----------------|
-| 🥉 Bronze | 4 | 1–3 min |
-| 🥈 Silver | 6 | 3–8 min |
-| 🥇 Gold | 5 | 8–15 min |
-| **Total** | **15** | |
+| 🥉 Bronze | 3 | 1–3 min |
+| 🥈 Silver | 5 | 3–8 min |
+| 🥇 Gold | 4 | 8–15 min |
+| **Total** | **12** | |
 
 ---
 
@@ -447,5 +448,4 @@ web/
 
 ---
 
-*Last updated: 2026-02-23*
-*Next step: Begin Phase 1 — engine implementation*
+*See header for current status and last-updated date.*

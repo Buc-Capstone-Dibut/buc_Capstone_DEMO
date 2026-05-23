@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // 1. 도수 배열 생성 (Frequency Array) SVG
 export function FrequencyArraySVG() {
@@ -9,7 +10,7 @@ export function FrequencyArraySVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-counting-1" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-counting-1)" />
@@ -20,17 +21,17 @@ export function FrequencyArraySVG() {
       {/* Input Array */}
       <g transform="translate(100, 100)">
         <text x="-70" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Input</text>
-        <rect x="0" y="0" width="40" height="40" fill="#3b82f6" rx="4" />
+        <rect x="0" y="0" width="40" height="40" fill={colorTokens.primaryBlue} rx="4" />
         <text x="20" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
-        <rect x="50" y="0" width="40" height="40" fill="#10b981" rx="4" />
+        <rect x="50" y="0" width="40" height="40" fill={colorTokens.success} rx="4" />
         <text x="70" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">3</text>
-        <rect x="100" y="0" width="40" height="40" fill="#3b82f6" rx="4" />
+        <rect x="100" y="0" width="40" height="40" fill={colorTokens.primaryBlue} rx="4" />
         <text x="120" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
-        <rect x="150" y="0" width="40" height="40" fill="#f43f5e" rx="4" />
+        <rect x="150" y="0" width="40" height="40" fill={colorTokens.destructive} rx="4" />
         <text x="170" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">0</text>
-        <rect x="200" y="0" width="40" height="40" fill="#8b5cf6" rx="4" />
+        <rect x="200" y="0" width="40" height="40" fill={colorTokens.primaryHighlight} rx="4" />
         <text x="220" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">2</text>
-        <rect x="250" y="0" width="40" height="40" fill="#10b981" rx="4" />
+        <rect x="250" y="0" width="40" height="40" fill={colorTokens.success} rx="4" />
         <text x="270" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">3</text>
       </g>
 
@@ -38,7 +39,7 @@ export function FrequencyArraySVG() {
       <motion.path
         d="M 120 145 C 120 180, 200 180, 200 215"
         fill="none"
-        stroke="#3b82f6"
+        stroke={colorTokens.primaryBlue}
         strokeWidth="2"
         strokeDasharray="4"
         initial={{ pathLength: 0 }}
@@ -48,7 +49,7 @@ export function FrequencyArraySVG() {
       <motion.path
         d="M 220 145 C 220 180, 200 180, 200 215"
         fill="none"
-        stroke="#3b82f6"
+        stroke={colorTokens.primaryBlue}
         strokeWidth="2"
         strokeDasharray="4"
         initial={{ pathLength: 0 }}
@@ -67,16 +68,16 @@ export function FrequencyArraySVG() {
         <text x="170" y="-10" className="fill-slate-500" fontSize="12" textAnchor="middle">3</text>
 
         {/* Values */}
-        <rect x="0" y="0" width="40" height="40" fill="none" stroke="#f43f5e" strokeWidth="2" rx="4" />
+        <rect x="0" y="0" width="40" height="40" fill="none" stroke={colorTokens.destructive} strokeWidth="2" rx="4" />
         <text x="20" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
 
-        <rect x="50" y="0" width="40" height="40" fill="none" stroke="#3b82f6" strokeWidth="2" rx="4" />
+        <rect x="50" y="0" width="40" height="40" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" rx="4" />
         <text x="70" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">2</text>
 
-        <rect x="100" y="0" width="40" height="40" fill="none" stroke="#8b5cf6" strokeWidth="2" rx="4" />
+        <rect x="100" y="0" width="40" height="40" fill="none" stroke={colorTokens.primaryHighlight} strokeWidth="2" rx="4" />
         <text x="120" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
 
-        <rect x="150" y="0" width="40" height="40" fill="none" stroke="#10b981" strokeWidth="2" rx="4" />
+        <rect x="150" y="0" width="40" height="40" fill="none" stroke={colorTokens.success} strokeWidth="2" rx="4" />
         <text x="170" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">2</text>
       </g>
 
@@ -97,7 +98,7 @@ export function CumulativeSumSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-counting-2" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-counting-2)" />
@@ -107,23 +108,23 @@ export function CumulativeSumSVG() {
 
       <g transform="translate(100, 120)">
         <text x="-70" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Counts</text>
-        <rect x="0" y="0" width="50" height="40" fill="none" stroke="#94a3b8" rx="4" />
+        <rect x="0" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" rx="4" />
         <text x="25" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
-        <rect x="60" y="0" width="50" height="40" fill="none" stroke="#94a3b8" rx="4" />
+        <rect x="60" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" rx="4" />
         <text x="85" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">2</text>
-        <rect x="120" y="0" width="50" height="40" fill="none" stroke="#94a3b8" rx="4" />
+        <rect x="120" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" rx="4" />
         <text x="145" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
-        <rect x="180" y="0" width="50" height="40" fill="none" stroke="#94a3b8" rx="4" />
+        <rect x="180" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" rx="4" />
         <text x="205" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">2</text>
 
-        <circle cx="55" cy="20" r="10" fill="#f43f5e" />
+        <circle cx="55" cy="20" r="10" fill={colorTokens.destructive} />
         <text x="55" y="25" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">+</text>
       </g>
 
       <motion.path
         d="M 125 165 C 125 190, 165 190, 165 215"
          fill="none"
-        stroke="#10b981"
+        stroke={colorTokens.success}
         strokeWidth="3"
         strokeDasharray="5"
         initial={{ pathLength: 0 }}
@@ -133,7 +134,7 @@ export function CumulativeSumSVG() {
       <motion.path
          d="M 185 165 C 185 190, 165 190, 165 215"
          fill="none"
-        stroke="#10b981"
+        stroke={colorTokens.success}
         strokeWidth="3"
         strokeDasharray="5"
         initial={{ pathLength: 0, opacity: 0 }}
@@ -145,17 +146,17 @@ export function CumulativeSumSVG() {
         <text x="-70" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Result</text>
 
         {/* Cumulative Sum */}
-        <rect x="0" y="0" width="50" height="40" fill="none" stroke="#3b82f6" strokeWidth="2" rx="4" />
+        <rect x="0" y="0" width="50" height="40" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" rx="4" />
         <text x="25" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">1</text>
 
-        <rect x="60" y="0" width="50" height="40" fill="#10b981" rx="4" />
+        <rect x="60" y="0" width="50" height="40" fill={colorTokens.success} rx="4" />
         <text x="85" y="25" className="fill-white" fontSize="18" fontWeight="bold" textAnchor="middle">3</text>
-        <text x="85" y="-10" fill="#10b981" fontSize="12" fontWeight="bold" textAnchor="middle">1 + 2 = 3</text>
+        <text x="85" y="-10" fill={colorTokens.success} fontSize="12" fontWeight="bold" textAnchor="middle">1 + 2 = 3</text>
 
-        <rect x="120" y="0" width="50" height="40" fill="none" stroke="#3b82f6" strokeWidth="2" rx="4" />
+        <rect x="120" y="0" width="50" height="40" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" rx="4" />
         <text x="145" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">4</text>
 
-        <rect x="180" y="0" width="50" height="40" fill="none" stroke="#3b82f6" strokeWidth="2" rx="4" />
+        <rect x="180" y="0" width="50" height="40" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" rx="4" />
         <text x="205" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">6</text>
       </g>
 
@@ -175,7 +176,7 @@ export function StableSortingSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-counting-3" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-counting-3)" />
@@ -186,36 +187,36 @@ export function StableSortingSVG() {
       <g transform="translate(150, 100)">
          {/* Original Array */}
          <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="14" fontWeight="bold">원본</text>
-         <rect x="0" y="0" width="50" height="40" fill="#3b82f6" rx="4" />
+         <rect x="0" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
          <text x="25" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">1_a</text>
 
-         <rect x="60" y="0" width="50" height="40" fill="#10b981" rx="4" />
+         <rect x="60" y="0" width="50" height="40" fill={colorTokens.success} rx="4" />
          <text x="85" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">2</text>
 
-         <rect x="120" y="0" width="50" height="40" fill="#3b82f6" rx="4" />
+         <rect x="120" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
          <text x="145" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">1_b</text>
 
          {/* Arrow scanning from behind */}
          <motion.path
            d="M 145 60 L 145 90 L 85 90 L 85 120"
            fill="none"
-           stroke="#f43f5e"
+           stroke={colorTokens.destructive}
            strokeWidth="3"
            initial={{ pathLength: 0 }}
            animate={{ pathLength: 1 }}
            transition={{ duration: 1, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
          />
-         <text x="170" y="60" fill="#f43f5e" fontSize="14" fontWeight="bold">뒤에서부터 읽음</text>
+         <text x="170" y="60" fill={colorTokens.destructive} fontSize="14" fontWeight="bold">뒤에서부터 읽음</text>
 
          {/* Placed Array */}
          <g transform="translate(0, 120)">
            <text x="-40" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="14" fontWeight="bold">배치</text>
-           <rect x="0" y="0" width="50" height="40" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+           <rect x="0" y="0" width="50" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
 
-           <rect x="60" y="0" width="50" height="40" fill="#3b82f6" rx="4" />
+           <rect x="60" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
            <text x="85" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">1_b</text>
 
-           <rect x="120" y="0" width="50" height="40" fill="#e2e8f0" className="dark:fill-slate-800" rx="4" />
+           <rect x="120" y="0" width="50" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
          </g>
       </g>
 
@@ -235,7 +236,7 @@ export function RangeRestrictionSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-counting-4" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-counting-4)" />
@@ -246,10 +247,10 @@ export function RangeRestrictionSVG() {
       <g transform="translate(100, 120)">
          {/* Small Array */}
          <text x="25" y="-10" className="fill-slate-700 dark:fill-slate-300" fontSize="14" fontWeight="bold" textAnchor="middle">Input</text>
-         <rect x="0" y="0" width="50" height="40" fill="#3b82f6" rx="4" />
+         <rect x="0" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
          <text x="25" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">5</text>
 
-         <rect x="60" y="0" width="50" height="40" fill="#3b82f6" rx="4" />
+         <rect x="60" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
          <text x="85" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">99999</text>
 
          {/* Memory allocation issue */}
@@ -257,16 +258,23 @@ export function RangeRestrictionSVG() {
             <motion.path
               d="M -20 20 L 20 20"
               fill="none"
-              stroke="#f43f5e"
+              stroke={colorTokens.destructive}
               strokeWidth="4"
               strokeDasharray="4"
             />
 
-            <rect x="40" y="-10" width="300" height="60" fill="none" stroke="#f43f5e" strokeWidth="2" rx="4" strokeDasharray="5" />
-            <text x="190" y="15" fill="#f43f5e" fontSize="16" fontWeight="bold" textAnchor="middle">필요한 Counts 배열의 길이: 100,000</text>
+            <rect x="40" y="-10" width="300" height="60" fill="none" stroke={colorTokens.destructive} strokeWidth="2" rx="4" strokeDasharray="5" />
+            <text x="190" y="15" fill={colorTokens.destructive} fontSize="16" fontWeight="bold" textAnchor="middle">필요한 Counts 배열의 길이: 100,000</text>
             <text x="190" y="35" className="fill-slate-500" fontSize="12" textAnchor="middle">데이터는 2개분인데 낭비가 심함!</text>
          </g>
       </g>
     </svg>
   );
 }
+
+export const CountingSortSupplementaryOptions = [
+  FrequencyArraySVG,
+  CumulativeSumSVG,
+  StableSortingSVG,
+  RangeRestrictionSVG,
+];

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 type CallFrame = { id: number; n: number; status: 'active' | 'returning' | 'done' };
 
@@ -24,7 +25,7 @@ export function useRecursionBasicsSim() {
       if (next === 5) { setCallStack([{ id: 1, n: 4, status: 'active' }, { id: 2, n: 3, status: 'active' }, { id: 3, n: 2, status: 'returning' }]); appendLog("[반환] factorial(2): 2 × 1 = 2. 프레임 팝. factorial(3)에 2 반환."); }
       if (next === 6) { setCallStack([{ id: 1, n: 4, status: 'active' }, { id: 2, n: 3, status: 'returning' }]); appendLog("[반환] factorial(3): 3 × 2 = 6. 프레임 팝. factorial(4)에 6 반환."); }
       if (next === 7) { setCallStack([{ id: 1, n: 4, status: 'done' }]); appendLog("[반환] factorial(4): 4 × 6 = 24. 최종 결과: 24."); }
-      if (next === 8) { setCallStack([]); appendLog("[완료] 모든 프레임 처리 완료. factorial(4) = 24 ✓."); }
+      if (next === 8) { setCallStack([]); appendLog("[완료] 모든 프레임 처리 완료. factorial(4) = 24."); }
       return next;
     });
   }, [appendLog]);
@@ -48,8 +49,12 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
   const { step, callStack } = data;
 
   const getCodeHighlightY = () => {
-    if (step >= 1 && step <= 4) return 175;
-    if (step >= 5 && step <= 7) return 245;
+    // Each <text> below uses a baseline y. With a 30-px tall highlight bar,
+    // top-y = baselineY - 22 keeps the glyphs visually centered in the bar.
+    // Winding line   "return n * factorial(n - 1)"  has baseline y=185 → top 163
+    // Unwinding hint "# 풀기 (UNWINDING) ..."       has baseline y=255 → top 233
+    if (step >= 1 && step <= 4) return 163;
+    if (step >= 5 && step <= 7) return 233;
     return -100; // hidden
   };
 
@@ -58,11 +63,11 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -93,7 +98,7 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title & Core Concept */}
-      <text x="40" y="50" fill="#a855f7" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">재귀 기초 (Recursion Basics)</text>
+      <text x="40" y="50" fill="hsl(271 91% 65%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">재귀 기초 (Recursion Basics)</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">호출 스택: 쌓기(Winding)와 풀기(Unwinding)</text>
 
       {/* Code Editor Panel */}
@@ -102,10 +107,10 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
         <rect width="460" height="340" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="1" rx="12" />
 
         {/* Mac OS window buttons */}
-        <circle cx="20" cy="20" r="5" fill="#ef4444" />
-        <circle cx="40" cy="20" r="5" fill="#eab308" />
-        <circle cx="60" cy="20" r="5" fill="#10b981" />
-        <text x="80" y="24" fill="#666" fontSize="11" letterSpacing="1">factorial.py</text>
+        <circle cx="20" cy="20" r="5" fill="hsl(0 84% 60%)" />
+        <circle cx="40" cy="20" r="5" fill="hsl(45 93% 47%)" />
+        <circle cx="60" cy="20" r="5" fill="hsl(160 84% 39%)" />
+        <text x="80" y="24" fill="hsl(0 0% 40%)" fontSize="11" letterSpacing="1">factorial.py</text>
 
         {/* Highlight Bar */}
         <motion.rect
@@ -113,7 +118,7 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
           y={getCodeHighlightY()}
           width="456"
           height="30"
-          fill="rgba(168, 85, 247, 0.15)"
+          fill={colorTokens.primaryHighlightTrace}
           animate={{ y: getCodeHighlightY(), opacity: step > 0 && step < 8 ? 1 : 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         />
@@ -122,45 +127,45 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
           y={getCodeHighlightY()}
           width="4"
           height="30"
-          fill="#a855f7"
+          fill="hsl(271 91% 65%)"
           animate={{ y: getCodeHighlightY(), opacity: step > 0 && step < 8 ? 1 : 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         />
 
         {/* Code Lines */}
-        <text x="30" y="80" fontSize="15" fill="#fff" fontFamily="monospace">
-          <tspan fill="#a855f7">def </tspan>
-          <tspan fill="#60a5fa">factorial</tspan>
+        <text x="30" y="80" fontSize="15" fill="hsl(0 0% 100%)" fontFamily="monospace">
+          <tspan fill="hsl(271 91% 65%)">def </tspan>
+          <tspan fill="hsl(213 94% 68%)">factorial</tspan>
           <tspan>(n):</tspan>
         </text>
 
-        <text x="50" y="115" fontSize="15" fill="#fff" fontFamily="monospace">
-          <tspan fill="#a855f7">if </tspan>
+        <text x="50" y="115" fontSize="15" fill="hsl(0 0% 100%)" fontFamily="monospace">
+          <tspan fill="hsl(271 91% 65%)">if </tspan>
           <tspan>n == </tspan>
-          <tspan fill="#f59e0b">1</tspan>
+          <tspan fill="hsl(38 92% 50%)">1</tspan>
           <tspan>:</tspan>
-          <tspan fill="#10b981">  # 기저 조건 (BASE CASE)</tspan>
+          <tspan fill="hsl(160 84% 39%)">  # 기저 조건 (BASE CASE)</tspan>
         </text>
 
-        <text x="70" y="150" fontSize="15" fill="#fff" fontFamily="monospace">
-          <tspan fill="#a855f7">return </tspan>
-          <tspan fill="#f59e0b">1</tspan>
+        <text x="70" y="150" fontSize="15" fill="hsl(0 0% 100%)" fontFamily="monospace">
+          <tspan fill="hsl(271 91% 65%)">return </tspan>
+          <tspan fill="hsl(38 92% 50%)">1</tspan>
         </text>
 
-        <text x="50" y="185" fontSize="15" fill="#fff" fontFamily="monospace">
-          <tspan fill="#a855f7">return </tspan>
+        <text x="50" y="185" fontSize="15" fill="hsl(0 0% 100%)" fontFamily="monospace">
+          <tspan fill="hsl(271 91% 65%)">return </tspan>
           <tspan>n </tspan>
-          <tspan fill="#a855f7">* </tspan>
-          <tspan fill="#60a5fa">factorial</tspan>
+          <tspan fill="hsl(271 91% 65%)">* </tspan>
+          <tspan fill="hsl(213 94% 68%)">factorial</tspan>
           <tspan>(n - </tspan>
-          <tspan fill="#f59e0b">1</tspan>
+          <tspan fill="hsl(38 92% 50%)">1</tspan>
           <tspan>)</tspan>
-          <tspan fill="#10b981">  # 쌓기 (WINDING)</tspan>
+          <tspan fill="hsl(160 84% 39%)">  # 쌓기 (WINDING)</tspan>
         </text>
 
         {/* Extra unwinding visualization context */}
-        <text x="50" y="255" fontSize="15" fill="#fff" fontFamily="monospace">
-          <tspan fill="#10b981"># 풀기 (UNWINDING) </tspan>
+        <text x="50" y="255" fontSize="15" fill="hsl(0 0% 100%)" fontFamily="monospace">
+          <tspan fill="hsl(160 84% 39%)"># 풀기 (UNWINDING) </tspan>
           <tspan fill="hsl(var(--muted-foreground))">위로 값을 반환합니다</tspan>
         </text>
 
@@ -169,13 +174,13 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
         <line x1="30" y1="310" x2="430" y2="310" stroke="hsl(var(--border))" strokeDasharray="4 4" />
 
         {step >= 7 ? (
-          <text x="30" y="335" fill="#06b6d4" fontSize="24" fontWeight="bold" filter="url(#neon-glow-cyan)">
+          <text x="30" y="335" fill="hsl(189 94% 43%)" fontSize="24" fontWeight="bold" filter="url(#neon-glow-cyan)">
             factorial(4) = 24
           </text>
         ) : step === 0 ? (
           <text x="30" y="335" fill="hsl(var(--muted-foreground))" fontSize="14">실행 대기 중...</text>
         ) : (
-          <text x="30" y="335" fill="#a855f7" fontSize="16" className="animate-pulse">계산 중...</text>
+          <text x="30" y="335" fill="hsl(271 91% 65%)" fontSize="16" className="animate-pulse">계산 중...</text>
         )}
       </g>
 
@@ -198,21 +203,21 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
             const gap = 10;
             const yPos = 340 - 15 - (index * (frameHeight + gap)) - frameHeight;
 
-            let borderColor = "#a855f7"; // purple (active winding)
-            let bgColor = "rgba(168, 85, 247, 0.15)";
+            let borderColor = "hsl(271 91% 65%)"; // purple (active winding)
+            let bgColor: string = colorTokens.primaryHighlightTrace;
             let statusText = "실행 중";
-            let statusColor = "#a855f7";
+            let statusColor = "hsl(271 91% 65%)";
 
             if (frame.status === "returning") {
-              borderColor = "#10b981"; // emerald (unwinding)
-              bgColor = "rgba(16, 185, 129, 0.15)";
+              borderColor = "hsl(160 84% 39%)"; // emerald (unwinding)
+              bgColor = colorTokens.successTrace;
               statusText = "← 반환";
-              statusColor = "#10b981";
+              statusColor = "hsl(160 84% 39%)";
             } else if (frame.status === "done") {
-              borderColor = "#06b6d4"; // cyan
-              bgColor = "rgba(6, 182, 212, 0.15)";
+              borderColor = "hsl(189 94% 43%)"; // cyan
+              bgColor = colorTokens.infoTrace;
               statusText = "완료";
-              statusColor = "#06b6d4";
+              statusColor = "hsl(189 94% 43%)";
             }
 
             return (
@@ -224,7 +229,7 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
                 <rect x="15" y="0" width="200" height={frameHeight} fill={bgColor} stroke={borderColor} strokeWidth="2" rx="8" />
-                <text x="30" y="30" fill="#fff" fontSize="16" fontWeight="bold">factorial({frame.n})</text>
+                <text x="30" y="30" fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold">factorial({frame.n})</text>
 
                 {/* Status Badge */}
                 <rect x="140" y="15" width="60" height="20" fill={bgColor} rx="4" />

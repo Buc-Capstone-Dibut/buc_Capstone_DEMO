@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 const CAPACITY = 6;
 
@@ -109,11 +110,11 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -145,10 +146,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
           </feMerge>
         </filter>
         <marker id="arr-circ" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(271 91% 65%)" />
         </marker>
         <marker id="arr-circ-err" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(0 84% 60%)" />
         </marker>
       </defs>
 
@@ -156,7 +157,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title & Core Concept */}
-      <text x="40" y="50" fill="#a855f7" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">원형 큐 (Circular Queue)</text>
+      <text x="40" y="50" fill="hsl(271 91% 65%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">원형 큐 (Circular Queue)</text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">모듈러(%) 연산을 활용한 링 버퍼 (Ring Buffer)</text>
 
       {/* Action Indicator Text */}
@@ -169,7 +170,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
             x={cx}
             y={cy - 50}
             textAnchor="middle"
-            fill={action.type === "ENQUEUE" ? "#10b981" : action.type === "DEQUEUE" ? "#ef4444" : action.type === "PEEK" ? "#a855f7" : "#ef4444"}
+            fill={action.type === "ENQUEUE" ? "hsl(160 84% 39%)" : action.type === "DEQUEUE" ? "hsl(0 84% 60%)" : action.type === "PEEK" ? "hsl(271 91% 65%)" : "hsl(0 84% 60%)"}
             fontSize="18"
             fontWeight="bold"
             letterSpacing="2"
@@ -180,9 +181,9 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         )}
       </AnimatePresence>
 
-      {/* Center size display */}
-      <text x={cx} y={cy - 5} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">크기 (SIZE)</text>
-      <text x={cx} y={cy + 25} textAnchor="middle" fontSize="32" fontWeight="bold" fill="#a855f7" filter="url(#neon-glow-purple)">{size}/{capacity}</text>
+      {/* Center size display (lowered + smaller so F/R labels above don't overlap) */}
+      <text x={cx} y={cy + 20} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">크기 (SIZE)</text>
+      <text x={cx} y={cy + 50} textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(271 91% 65%)" filter="url(#neon-glow-purple)">{size}/{capacity}</text>
 
       {/* Inner Circle Track */}
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--muted))" opacity="0.5" strokeWidth="60" />
@@ -192,7 +193,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       <path
         d={`M ${cx + r + 40},${cy - 25} A ${r + 40} ${r + 40} 0 0 1 ${cx + r + 40},${cy + 25}`}
         fill="none"
-        stroke={isError ? "#ef4444" : "#a855f7"}
+        stroke={isError ? "hsl(0 84% 60%)" : "hsl(271 91% 65%)"}
         strokeWidth="2"
         markerEnd={isError ? "url(#arr-circ-err)" : "url(#arr-circ)"}
         opacity="0.8"
@@ -221,8 +222,8 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 cx={x}
                 cy={y}
                 r="30"
-                fill={isActivelyDequeuing ? "rgba(239, 68, 68, 0.2)" : (isActivelyEnqueuing ? "rgba(16, 185, 129, 0.2)" : (isEmpty ? "hsl(var(--card))" : "hsl(var(--muted))"))}
-                stroke={isActivelyDequeuing ? "#ef4444" : (isActivelyEnqueuing ? "#10b981" : (isEmpty ? "hsl(var(--border))" : "#06b6d4"))}
+                fill={isActivelyDequeuing ? colorTokens.errorSoft : (isActivelyEnqueuing ? colorTokens.successSoft : (isEmpty ? "hsl(var(--card))" : "hsl(var(--muted))"))}
+                stroke={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isActivelyEnqueuing ? "hsl(160 84% 39%)" : (isEmpty ? "hsl(var(--border))" : "hsl(189 94% 43%)"))}
                 strokeWidth={isActivelyDequeuing || isActivelyEnqueuing ? "3" : "2"}
                 strokeDasharray={isEmpty ? "4 4" : "0"}
                 filter={isActivelyDequeuing ? "url(#neon-glow-destructive)" : (isActivelyEnqueuing ? "url(#neon-glow-emerald)" : (!isEmpty ? "url(#neon-glow-cyan)" : undefined))}
@@ -232,7 +233,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
               <motion.text
                 x={x}
                 y={y + 6}
-                fill={isActivelyDequeuing ? "#ef4444" : (isEmpty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))")}
+                fill={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isEmpty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))")}
                 fontSize="18"
                 fontWeight="bold"
                 textAnchor="middle"
@@ -240,10 +241,11 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 {val !== null ? val : "·"}
               </motion.text>
 
-              {/* Index Outline Label */}
+              {/* Index Outline Label — pushed further out (r+75) to leave
+                  room for F/R pointer labels that sit at r+30 (cell-outside) */}
               <text
-                x={cx + (r + 55) * Math.cos(angle)}
-                y={cy + (r + 55) * Math.sin(angle) + 4}
+                x={cx + (r + 75) * Math.cos(angle)}
+                y={cy + (r + 75) * Math.sin(angle) + 4}
                 fill="hsl(var(--muted-foreground))"
                 fontSize="12"
                 textAnchor="middle"
@@ -251,19 +253,20 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 [{i}]
               </text>
 
-              {/* Pointers Top Label */}
+              {/* Pointers — placed OUTSIDE the cell ring (r+30) so they never
+                  overlap with the centered SIZE text or the cell glyph itself */}
               <AnimatePresence>
-                {isFront && (
+                {isFront && !isRear && (
                   <motion.g
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
-                      fill="#ef4444"
-                      fontSize="12"
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
+                      fill="hsl(0 84% 60%)"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                       filter="url(#neon-glow-destructive)"
@@ -279,10 +282,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
-                      fill="#10b981"
-                      fontSize="12"
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
+                      fill="hsl(160 84% 39%)"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                       filter="url(#neon-glow-emerald)"
@@ -298,10 +301,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                     exit={{ opacity: 0 }}
                   >
                     <text
-                      x={cx + (r - 55) * Math.cos(angle)}
-                      y={cy + (r - 55) * Math.sin(angle) + 4}
-                      fill="#f59e0b"
-                      fontSize="12"
+                      x={cx + (r + 30) * Math.cos(angle)}
+                      y={cy + (r + 30) * Math.sin(angle) + 4}
+                      fill="hsl(38 92% 50%)"
+                      fontSize="13"
                       fontWeight="bold"
                       textAnchor="middle"
                     >
@@ -320,7 +323,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         <rect x="0" y="0" width="220" height="70" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
         <text x="15" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" fontWeight="bold" letterSpacing="1">모듈러 로직 (MODULO LOGIC)</text>
         <rect x="15" y="35" width="190" height="25" fill="hsl(var(--muted))" rx="4" />
-        <text x="25" y="52" fill="#a855f7" fontSize="11" fontFamily="monospace">rear = (rear + 1) % size</text>
+        <text x="25" y="52" fill="hsl(271 91% 65%)" fontSize="11" fontFamily="monospace">rear = (rear + 1) % size</text>
       </g>
 
       {/* Info Panel on bottom right */}
@@ -328,10 +331,10 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         <rect x="0" y="0" width="140" height="70" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
 
         <text x="15" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">Front:</text>
-        <text x="55" y="25" fill="#ef4444" fontSize="12" fontWeight="bold" filter="url(#neon-glow-destructive)">{front}</text>
+        <text x="55" y="25" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-destructive)">{front}</text>
 
         <text x="15" y="45" fill="hsl(var(--muted-foreground))" fontSize="11">Rear:</text>
-        <text x="55" y="45" fill="#10b981" fontSize="12" fontWeight="bold" filter="url(#neon-glow-emerald)">{rear}</text>
+        <text x="55" y="45" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-emerald)">{rear}</text>
 
         <text x="90" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">최대:</text>
         <text x="120" y="25" fill="hsl(var(--foreground))" fontSize="11">{capacity}</text>

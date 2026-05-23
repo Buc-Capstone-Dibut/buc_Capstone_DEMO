@@ -27,8 +27,20 @@ export interface ProblemBankItem {
   testCases: ProblemTestCase[];
   starterCode?: string;
   tags: string[];
+  /**
+   * @deprecated step count alias of `maxSteps` kept for backward compat.
+   * Prefer `maxSteps` (instruction count cap) and `wallClockMs` (wall-clock cap).
+   * Judge picks `maxSteps ?? timeLimit` so existing data keeps working.
+   */
   timeLimit?: number;
+  /** Maximum Skulpt instruction steps before TLE (counts lines executed). */
+  maxSteps?: number;
+  /** Wall-clock timeout in milliseconds before terminating the worker as TLE. */
+  wallClockMs?: number;
   outputLimitBytes?: number;
+  referenceSolution?: string;
+  solutionExplanation?: string;
+  hints?: string[];
 }
 
 export interface TestCaseResult {
