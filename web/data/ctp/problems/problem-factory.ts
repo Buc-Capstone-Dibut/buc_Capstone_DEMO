@@ -21,6 +21,9 @@ interface ProblemSeed {
   tags: string[];
   timeLimit?: number;
   outputLimitBytes?: number;
+  referenceSolution?: string;
+  solutionExplanation?: string;
+  hints?: string[];
 }
 
 export function defineProblems(moduleId: string, seeds: ProblemSeed[]): ProblemBankItem[] {
