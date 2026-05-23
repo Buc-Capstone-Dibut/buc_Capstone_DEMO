@@ -48,7 +48,7 @@ function ModuloMagic() {
       <rect width="800" height="450" fill="url(#grid)" />
 
       <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
-        모듈로(%) 연산의 수학적 마법
+        모듈로(%) 연산의 핵심 원리
       </text>
 
       <g transform="translate(150, 100)">

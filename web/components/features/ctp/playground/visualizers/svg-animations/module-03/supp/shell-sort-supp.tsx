@@ -39,7 +39,7 @@ const GapSequenceSVG = () => {
 
       <g transform="translate(30, 80)">
         {/* Title */}
-        <text x="0" y="-30" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 간격(Gap) 시퀀스의 마법</text>
+        <text x="0" y="-30" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 간격(Gap) 시퀀스 전략</text>
         <text x="0" y="-10" fill="hsl(var(--muted-foreground))" fontSize="14">배열을 N/2, N/4 간격의 여러 그룹으로 논리적으로 나눕니다.</text>
 
         {/* Array Bars */}

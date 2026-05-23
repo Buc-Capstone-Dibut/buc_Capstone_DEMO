@@ -39,8 +39,8 @@ const DivideSVG = () => {
 
       <g transform="translate(40, 50)">
         {/* Title */}
-        <text x="0" y="-10" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 무자비한 분할 (Divide)</text>
-        <text x="0" y="10" fill="hsl(var(--muted-foreground))" fontSize="14">배열의 크기가 1이 될 때까지 무조건 정확히 반으로 쪼갭니다.</text>
+        <text x="0" y="-10" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold">1. 단호한 분할 (Divide)</text>
+        <text x="0" y="10" fill="hsl(var(--muted-foreground))" fontSize="14">배열의 크기가 1이 될 때까지 정확히 반으로 쪼갭니다.</text>
 
         {/* Splitting Array Animation */}
         <g transform="translate(140, 50)">
