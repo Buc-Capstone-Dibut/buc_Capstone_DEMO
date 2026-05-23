@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
 import { colorTokens } from "../../../shared/svg-primitives";
 
 // SVG 필터 (공통)
