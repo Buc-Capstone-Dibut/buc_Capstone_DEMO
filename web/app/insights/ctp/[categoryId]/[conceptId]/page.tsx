@@ -13,6 +13,23 @@ interface PageProps {
   };
 }
 
+// CTP concepts are known at build time from the static curriculum tree.
+// Pre-rendering each (categoryId, conceptId) lets Vercel cache the HTML
+// shell at the edge — only the dynamic-imported module chunk runs at hydrate.
+export function generateStaticParams() {
+  return CTP_DATA.flatMap((category) =>
+    category.concepts.map((concept) => ({
+      categoryId: category.id,
+      conceptId: concept.id,
+    })),
+  );
+}
+
+// All curriculum content is bundled — no upstream data fetch, no need to
+// revalidate. Marking the route static guarantees pure SSG output.
+export const dynamic = "force-static";
+export const dynamicParams = false;
+
 export default function CTPDetailPage({ params }: PageProps) {
   const { categoryId, conceptId } = params;
 

@@ -1,0 +1,162 @@
+{
+  "id": "bst",
+  "moduleId": "module-04-list-tree-final",
+  "conceptId": "tree",
+  "title": "09-2 이진 검색 트리(BST)",
+  "difficulty": "intermediate",
+  "prerequisites": ["tree-basics", "basic-binary-search"],
+  "learningOutcomes": [
+    "BST의 핵심 불변식(왼쪽 < 부모 < 오른쪽)을 정의하고 유지하는 방법 이해",
+    "삽입·검색·삭제를 평균 O(log N)에 수행하는 흐름을 단계별로 추적",
+    "균형이 깨졌을 때 최악 O(N)으로 성능이 떨어지는 이유와 대안(균형 트리)의 필요성 설명"
+  ],
+  "simulation": {
+    "mode": "interactive",
+    "domain": "tree",
+    "stepCount": 6,
+    "operations": ["next", "prev", "reset"],
+    "initialState": {
+      "root": null
+    },
+    "storyboard": [
+      {
+        "step": 0,
+        "description": "빈 BST입니다. root가 null인 상태에서 시작해 값을 하나씩 삽입하며 구조를 만들어 갑니다.",
+        "stateAfter": {
+          "root": null,
+          "currentNode": null,
+          "path": [],
+          "phase": "empty"
+        }
+      },
+      {
+        "step": 1,
+        "description": "값 5를 삽입합니다. 빈 트리이므로 5가 곧바로 루트가 됩니다.",
+        "stateAfter": {
+          "root": { "value": 5, "left": null, "right": null },
+          "currentNode": 5,
+          "path": [5],
+          "phase": "insert"
+        }
+      },
+      {
+        "step": 2,
+        "description": "값 3을 삽입합니다. 5와 비교해 3 < 5이므로 왼쪽 자식 자리에 들어갑니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": null
+          },
+          "currentNode": 3,
+          "path": [5, 3],
+          "phase": "insert"
+        }
+      },
+      {
+        "step": 3,
+        "description": "값 7을 삽입합니다. 5와 비교해 7 > 5이므로 오른쪽 자식 자리에 들어갑니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 7,
+          "path": [5, 7],
+          "phase": "insert"
+        }
+      },
+      {
+        "step": 4,
+        "description": "값 3을 검색합니다. root 5와 비교해 3 < 5이므로 왼쪽으로 내려가 즉시 3을 발견합니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 3,
+          "path": [5, 3],
+          "phase": "search-success"
+        }
+      },
+      {
+        "step": 5,
+        "description": "값 7을 검색합니다. root 5와 비교해 7 > 5이므로 오른쪽으로 내려가 7을 발견합니다. 평균 O(log N) 검색이 동작합니다.",
+        "stateAfter": {
+          "root": {
+            "value": 5,
+            "left": { "value": 3, "left": null, "right": null },
+            "right": { "value": 7, "left": null, "right": null }
+          },
+          "currentNode": 7,
+          "path": [5, 7],
+          "phase": "search-success"
+        }
+      }
+    ]
+  },
+  "visualizer": {
+    "type": "bst",
+    "showIndices": false,
+    "showPointers": ["root"]
+  },
+  "supplementary": [
+    {
+      "title": "BST 불변식",
+      "description": "모든 노드에 대해 왼쪽 서브트리의 값은 부모보다 작고, 오른쪽 서브트리의 값은 부모보다 크다는 규칙이 모든 동작의 토대입니다. 불변식이 무너지면 검색이 정답을 보장하지 못합니다.",
+      "visualHint": "루트 5 노드 옆에 left<5<right 부등식 라벨, 좌측 자식 3은 muted 박스에 <5, 우측 자식 7은 muted 박스에 >5 표시"
+    },
+    {
+      "title": "삽입과 검색의 공통 경로",
+      "description": "검색과 삽입은 같은 경로를 따라갑니다. 값이 작으면 왼쪽, 크면 오른쪽으로 내려가다가 null을 만나면 검색 실패 또는 삽입 위치가 됩니다.",
+      "visualHint": "BST 5/3/7 트리에 7 탐색 경로를 active 색 굵은 화살표로(5→7), 동일 경로 위 점선으로 \"insert도 같은 길\" 라벨 표시"
+    },
+    {
+      "title": "중위 순회로 정렬된 출력",
+      "description": "BST의 중위 순회(in-order traversal)는 항상 오름차순 정렬된 결과를 돌려줍니다. 정렬된 데이터가 필요한 응용에서는 정렬 단계 없이 순회 한 번으로 충분합니다.",
+      "visualHint": "BST 5/3/7 위쪽에 중위 순회 화살표(3→5→7) 점선 표시, 아래쪽에 정렬된 결과 배열 [3,5,7] ArrayBox 가로 배치"
+    },
+    {
+      "title": "균형 트리의 필요성",
+      "description": "오름차순 입력처럼 한쪽으로 치우친 데이터가 삽입되면 트리가 선형으로 늘어져 최악 O(N)이 됩니다. AVL 트리, 레드-블랙 트리 같은 균형 트리는 이 문제를 구조적으로 해결합니다.",
+      "visualHint": "왼쪽에 한쪽으로 기울어진 BST(1→2→3→4 우측 사슬, O(N) 라벨), 오른쪽에 균형 잡힌 BST(루트 3, 좌 1/2, 우 4, O(log N) 라벨) 비교"
+    }
+  ],
+  "content": {
+    "story": {
+      "problem": "일반 트리는 데이터의 계층을 표현하지만, 특정 값을 검색하는 데는 그 자체로 도움이 되지 않습니다. 정렬되지 않은 트리에서는 모든 노드를 다 봐야 할 수도 있어 배열의 선형 검색과 다르지 않습니다. 검색·삽입·삭제를 평균 O(log N)에 처리할 수 있는 트리 구조가 필요합니다.",
+      "definition": "이진 검색 트리(Binary Search Tree, BST)는 모든 노드가 \"왼쪽 < 부모 < 오른쪽\" 불변식을 만족하는 이진 트리입니다.\n- 각 노드는 최대 2개의 자식만 가지며, 값 비교로 진행 방향을 결정\n- 검색·삽입은 루트에서 시작해 한 방향으로만 내려가므로 평균 O(log N)\n- 한쪽으로 치우친 입력이 들어오면 최악 O(N)까지 떨어지므로 균형이 핵심 변수입니다",
+      "analogy": "사전의 색인이나 도서관 청구기호 정리 규칙과 같습니다. 어떤 단어를 찾을 때 사전을 가운데에서 펴서 알파벳 순서를 비교한 뒤 왼쪽 절반 또는 오른쪽 절반으로만 들어갑니다. BST는 이 규칙을 트리 구조로 굳혀 둔 자료구조라고 볼 수 있습니다."
+    },
+    "features": [
+      {
+        "title": "정렬 불변식 유지",
+        "description": "모든 노드에서 왼쪽 < 부모 < 오른쪽이라는 부등식이 항상 성립합니다. 이 단순한 규칙이 검색·삽입·삭제 모두를 한 방향 탐색으로 풀어 줍니다.",
+        "icon": "compare"
+      },
+      {
+        "title": "평균 O(log N) 검색",
+        "description": "한 단계마다 후보 노드 수가 절반에 가깝게 줄어듭니다. 균형이 잘 잡힌 BST에서는 N=1000 노드에서도 약 10번의 비교로 검색이 끝납니다.",
+        "icon": "trending-down"
+      },
+      {
+        "title": "중위 순회 = 정렬 출력",
+        "description": "BST를 중위 순회하면 결과가 항상 오름차순 정렬됩니다. 정렬된 데이터 추출이 필요한 응용에서는 별도 정렬 단계를 생략할 수 있습니다.",
+        "icon": "list"
+      },
+      {
+        "title": "균형 붕괴 시 O(N)",
+        "description": "오름차순 입력처럼 데이터가 한쪽으로 쏠리면 트리가 선형 리스트처럼 늘어집니다. 이를 막기 위해 AVL 트리·레드-블랙 트리 같은 자동 균형 트리가 등장했습니다.",
+        "icon": "alert"
+      }
+    ],
+    "complexity": {
+      "access": "O(log N) 평균",
+      "search": "O(log N) 평균",
+      "insertion": "O(log N) 평균",
+      "deletion": "O(log N) 평균"
+    }
+  }
+}

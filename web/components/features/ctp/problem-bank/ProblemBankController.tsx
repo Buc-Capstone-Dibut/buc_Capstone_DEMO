@@ -25,17 +25,24 @@ export function ProblemBankController({
   const searchParams = useSearchParams();
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("all");
   const [type, setType] = useState<TypeFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProblemId, setSelectedProblemId] = useState<string | undefined>(problems[0]?.id);
   const [isSolving, setIsSolving] = useState(false);
   const view = searchParams.get("view");
 
   const filteredProblems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return problems.filter((problem) => {
       const matchesDifficulty = difficulty === "all" || problem.difficulty === difficulty;
       const matchesType = type === "all" || problem.type === type;
-      return matchesDifficulty && matchesType;
+      const matchesSearch =
+        !q ||
+        problem.title.toLowerCase().includes(q) ||
+        problem.id.toLowerCase().includes(q) ||
+        problem.tags.some((t) => t.toLowerCase().includes(q));
+      return matchesDifficulty && matchesType && matchesSearch;
     });
-  }, [difficulty, problems, type]);
+  }, [difficulty, problems, type, searchQuery]);
 
   const selectedProblem = useMemo(
     () => problems.find((problem) => problem.id === selectedProblemId),
@@ -95,10 +102,12 @@ export function ProblemBankController({
       <ProblemBankFilters
         difficulty={difficulty}
         type={type}
+        searchQuery={searchQuery}
         total={problems.length}
         visible={filteredProblems.length}
         onDifficultyChange={setDifficulty}
         onTypeChange={setType}
+        onSearchChange={setSearchQuery}
       />
 
       <ProblemBankGrid

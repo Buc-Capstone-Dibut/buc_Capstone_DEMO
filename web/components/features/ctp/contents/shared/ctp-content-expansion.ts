@@ -49,18 +49,6 @@ const groupDeepDive: Record<string, string> = {
 **면접 질문**
 - 배열 vs 연결리스트 선택 기준은?
 - 배열이 실제로 더 빠른 이유(캐시 친화성)는?`,
-  string: `### 심화 포인트
-**핵심 개념**
-- 문자열 연산은 길이에 비례해 비용이 증가합니다.
-- 불변(immutable) 구조이므로 반복 덧셈은 반드시 피해야 합니다.
-
-**대표 패턴**
-- 슬라이딩 윈도우 / 투 포인터 / KMP / 롤링 해시.
-- 패턴 매칭, 최소/최대 길이 substring 문제에 자주 등장.
-
-**실수/주의**
-- 슬라이스 복사 비용과 인덱스 경계 실수.
-- 유니코드/대소문자 처리 규칙 혼동.`,
   linked: `### 심화 포인트
 **핵심 개념**
 - 삽입/삭제가 빈번한 경우 배열보다 유리합니다.
@@ -95,17 +83,6 @@ const groupDeepDive: Record<string, string> = {
 **실수/주의**
 - front/rear 규칙 혼동.
 - 원형 큐에서 empty/full 구분 실패.`,
-  hash: `### 심화 포인트
-**핵심 개념**
-- 해시 함수 품질 + 충돌 처리 전략이 성능을 좌우합니다.
-- 로드 팩터가 높아지면 리해시가 필수입니다.
-
-**대표 패턴**
-- 빈도 카운팅, 중복 제거, 교집합/차집합.
-
-**실수/주의**
-- 오픈 어드레싱의 클러스터링.
-- 삭제 시 tombstone 처리 누락.`,
   tree: `### 심화 포인트
 **핵심 개념**
 - 계층 구조, 사이클 없음, 루트에서 모든 노드로 경로 존재.
@@ -118,50 +95,6 @@ const groupDeepDive: Record<string, string> = {
 **실수/주의**
 - 재귀 깊이 제한 (스택 오버플로).
 - 부모/자식 관계 혼동.`,
-  heap: `### 심화 포인트
-**핵심 개념**
-- 완전 이진 트리 + 힙 속성.
-- root에 최솟/최댓값 유지.
-
-**대표 패턴**
-- 우선순위 큐, K번째 수, 스케줄링.
-
-**실수/주의**
-- 배열 인덱스 규칙 오류.
-- heapify 과정에서 swap 조건 혼동.`,
-  trie: `### 심화 포인트
-**핵심 개념**
-- 접두사 길이에 비례한 탐색 O(L).
-- end flag로 단어/접두사를 구분합니다.
-
-**대표 패턴**
-- 자동완성, 사전 검색, IP prefix 매칭.
-
-**실수/주의**
-- 메모리 사용량 급증(노드 수 증가).
-- end flag 누락으로 단어 판정 실패.`,
-  uf: `### 심화 포인트
-**핵심 개념**
-- Union/Find는 연결성/사이클 판정의 핵심.
-- Union by Rank + Path Compression이 최적 조합.
-
-**대표 패턴**
-- MST(Kruskal), 네트워크 연결성 문제.
-
-**실수/주의**
-- parent 초기화 누락.
-- find 재귀 구현에서 반환값 갱신 누락.`,
-  graph: `### 심화 포인트
-**핵심 개념**
-- 관계/연결/최단 경로 문제의 기본 모델.
-- 표현 방식(리스트/행렬) 선택이 성능을 좌우합니다.
-
-**대표 패턴**
-- DFS/BFS, Topological Sort, MST, Shortest Path.
-
-**실수/주의**
-- 방문 배열 관리 누락 → 무한 루프.
-- 방향/무방향 간선 처리 실수.`,
   search: `### 심화 포인트
 **핵심 개념**
 - 정렬/단조성 전제가 없으면 이분 탐색 불가.
@@ -173,71 +106,26 @@ const groupDeepDive: Record<string, string> = {
 **실수/주의**
 - mid 계산/경계 이동 실수.
 - 무한 루프(정지 조건 부정확).`,
-  dp: `### 심화 포인트
-**핵심 개념**
-- 상태 정의가 문제 난이도의 80%를 결정합니다.
-- 전이식과 기저 조건이 핵심입니다.
-
-**대표 패턴**
-- LIS, Knapsack, LCS, Grid DP.
-
-**실수/주의**
-- 기저 조건 누락.
-- 상태 차원 폭발(불필요 변수 포함).`,
 };
 
 const groupByKey: Record<string, string> = {};
 const mapGroup = (group: string, keys: string[]) => keys.forEach((key) => (groupByKey[key] = group));
 mapGroup("array", ["1d-array", "2d-array"]);
-mapGroup("string", ["string"]);
-mapGroup("linked", ["singly", "doubly", "circular", "two-pointers"]);
-mapGroup("stack", ["lifo-basics", "array-stack", "linked-stack", "monotonic-stack"]);
-mapGroup("queue", ["linear-queue", "circular-queue", "deque", "pq-basics"]);
-mapGroup("hash", ["hash-basics", "collision", "hash-implement"]);
-mapGroup("tree", ["tree-basics", "tree-properties", "binary-traversal", "bst"]);
-mapGroup("heap", ["heap-basics", "min-heap", "max-heap"]);
-mapGroup("trie", ["trie-basics", "prefix-search", "trie-apps"]);
-mapGroup("uf", ["ds-basics", "union-rank", "path-compression", "ds-apps"]);
-mapGroup("graph", [
-  "graph-representation",
-  "dfs",
-  "bfs",
-  "cycle-detection",
-  "shortest-path",
-  "mst",
-  "dfs-basics",
-  "dfs-backtracking",
-  "dfs-tree-traversal",
-  "dfs-cycle-detection",
-  "dfs-path-reconstruction",
-  "bfs-basics",
-  "grid-traversal",
-  "bfs-multi-source",
-  "bfs-zero-one",
-  "bfs-path-reconstruction",
-  "dijkstra",
-  "floyd-warshall",
-  "topological-sort"
-]);
+mapGroup("linked", ["singly", "doubly", "circular"]);
+mapGroup("stack", ["lifo-basics"]);
+mapGroup("queue", ["linear-queue", "circular-queue"]);
+mapGroup("tree", ["tree-basics", "tree-properties", "bst"]);
 mapGroup("sorting", ["bubble-sort", "selection-sort", "insertion-sort", "merge-sort", "quick-sort", "heap-sort"]);
-mapGroup("search", ["basic-binary-search", "parametric-search"]);
-mapGroup("dp", ["dp-basics", "dp-1d", "dp-2d", "dp-patterns"]);
+mapGroup("search", ["basic-binary-search"]);
 
 const groupObservation: Record<string, string> = {
   array: `**이번 단계에서 무엇을 볼까?**\\n- 인덱스가 어떻게 이동하는지\\n- 비교/갱신 횟수가 어디서 커지는지`,
-  string: `**이번 단계에서 무엇을 볼까?**\\n- 포인터 이동과 부분 문자열 길이 변화\\n- 불필요한 복사/연결이 생기는 지점`,
   linked: `**이번 단계에서 무엇을 볼까?**\\n- 포인터 갱신 순서\\n- head/tail 변경 시 연결 유지 여부`,
   stack: `**이번 단계에서 무엇을 볼까?**\\n- push/pop 후 top 변화\\n- 단조 스택에서 연속 pop 발생 시점`,
   queue: `**이번 단계에서 무엇을 볼까?**\\n- front/rear 이동 규칙\\n- empty/full 판정 조건`,
-  hash: `**이번 단계에서 무엇을 볼까?**\\n- 충돌 발생 위치\\n- 리해시/프로빙 경로`,
   tree: `**이번 단계에서 무엇을 볼까?**\\n- 차수/거리/레벨/너비/크기 변화\\n- 방문 순서(전/중/후위)와 의미 차이`,
-  heap: `**이번 단계에서 무엇을 볼까?**\\n- bubble-up/down 과정\\n- 힙 속성 유지 여부`,
-  trie: `**이번 단계에서 무엇을 볼까?**\\n- prefix 경로가 확장되는 과정\\n- end flag가 켜지는 위치`,
-  uf: `**이번 단계에서 무엇을 볼까?**\\n- find 경로\\n- union 이후 parent 변화`,
-  graph: `**이번 단계에서 무엇을 볼까?**\\n- 방문 순서와 큐/스택 상태\\n- dist/parent 갱신 시점`,
   sorting: `**이번 단계에서 무엇을 볼까?**\\n- swap/partition 시점\\n- 안정성 유지 여부\\n\\n**색상 규칙(정렬 시뮬레이터)**\\n- 파랑: 기준/선택 원소 (active)\\n- 노랑: 비교 중 (comparing)\\n- 초록: 정렬 확정/완료 (success)\\n- 회색: 일반 상태`,
   search: `**이번 단계에서 무엇을 볼까?**\\n- low/high 경계 이동\\n- mid 갱신 방식`,
-  dp: `**이번 단계에서 무엇을 볼까?**\\n- dp 테이블이 채워지는 순서\\n- 전이식 적용 시점`,
 };
 
 const sortingLegendGuide: GuideSection[] = [
@@ -485,37 +373,6 @@ const queueGuide: GuideSection[] = [
   },
 ];
 
-const hashGuide: GuideSection[] = [
-  {
-    title: "해시 설계",
-    items: [
-      {
-        label: "로드 팩터",
-        description: "alpha = size/capacity가 커질수록 충돌이 급증하므로 임계값에서 리해시합니다.",
-        code: "if size / capacity > 0.7:\n    rehash()",
-        tags: ["Invariant"],
-      },
-      {
-        label: "충돌 처리",
-        description: "체이닝은 평균 O(1), 오픈 어드레싱은 클러스터링 주의가 필요합니다.",
-        code: "# chaining\nbuckets[h].append((k,v))",
-        tags: ["Tradeoff"],
-      },
-    ],
-  },
-  {
-    title: "실전 포인트",
-    items: [
-      {
-        label: "해시 키 설계",
-        description: "문자열은 다항 해시, 튜플은 조합 해시를 쓰면 충돌을 줄일 수 있습니다.",
-        code: "h = 0\nfor c in s: h = (h*P + ord(c)) % M",
-        tags: ["Pattern"],
-      },
-    ],
-  },
-];
-
 const treeGuide: GuideSection[] = [
   {
     title: "트리 불변식",
@@ -541,114 +398,6 @@ const treeGuide: GuideSection[] = [
         label: "재귀 vs 반복",
         description: "재귀는 직관적이지만 스택 제한이 있으므로 반복 순회 패턴도 익힙니다.",
         code: "stack = [root]\nwhile stack: node = stack.pop()",
-        tags: ["Pattern"],
-      },
-    ],
-  },
-];
-
-const heapGuide: GuideSection[] = [
-  {
-    title: "힙 불변식",
-    items: [
-      {
-        label: "완전 이진 트리",
-        description: "배열로 표현할 때 index 규칙(부모/자식)이 유지됩니다.",
-        code: "parent = i//2\nleft = i*2\nright = i*2+1",
-        tags: ["Invariant"],
-      },
-      {
-        label: "heapify",
-        description: "삽입은 sift-up, 삭제는 sift-down으로 불변식을 복구합니다.",
-        code: "while i>1 and heap[i] < heap[i//2]: swap()",
-        tags: ["Pattern"],
-      },
-    ],
-  },
-];
-
-const trieGuide: GuideSection[] = [
-  {
-    title: "Trie 핵심",
-    items: [
-      {
-        label: "Prefix ID",
-        description: "노드는 접두사 문자열로 식별하면 경로 시각화가 명확합니다.",
-        code: "# word='cat' -> ['c','ca','cat']",
-        tags: ["Invariant"],
-      },
-      {
-        label: "종료 표시",
-        description: "단어 종료 여부(end flag)는 접두사/단어 구분의 핵심입니다.",
-        code: "node.is_end = True",
-        tags: ["Edge"],
-      },
-    ],
-  },
-];
-
-const ufGuide: GuideSection[] = [
-  {
-    title: "Union-Find 불변식",
-    items: [
-      {
-        label: "부모 배열",
-        description: "각 노드는 부모를 가리키고, 루트는 자기 자신을 가리킵니다.",
-        code: "if parent[x] == x: return x",
-        tags: ["Invariant"],
-      },
-      {
-        label: "경로 압축",
-        description: "find 후 경로를 루트로 직접 연결해 amortized 성능을 개선합니다.",
-        code: "parent[x] = find(parent[x])",
-        tags: ["Pattern"],
-      },
-    ],
-  },
-  {
-    title: "실전 포인트",
-    items: [
-      {
-        label: "사이클 판정",
-        description: "간선을 추가할 때 두 노드가 이미 같은 집합이면 사이클입니다.",
-        code: "if find(a) == find(b): cycle",
-        tags: ["Pattern"],
-      },
-    ],
-  },
-];
-
-const graphGuide: GuideSection[] = [
-  {
-    title: "그래프 불변식",
-    items: [
-      {
-        label: "visited 관리",
-        description: "방문 상태를 명시적으로 관리해 무한 루프를 방지합니다.",
-        code: "visited[u] = True\nfor v in adj[u]: ...",
-        tags: ["Invariant"],
-      },
-      {
-        label: "간선 방향",
-        description: "무방향 그래프는 양방향 간선을 모두 추가해야 합니다.",
-        code: "adj[u].append(v)\nadj[v].append(u)",
-        tags: ["Edge"],
-      },
-    ],
-  },
-  {
-    title: "실전 패턴",
-    items: [
-      {
-        label: "BFS 최단거리",
-        description: "가중치가 없으면 BFS 레벨이 최단거리를 보장합니다.",
-        code: "dist[s]=0\nq=[s]\nwhile q: ...",
-        tags: ["Pattern"],
-      },
-      {
-        label: "Topo Sort",
-        description: "진입차수 0 노드를 큐로 관리합니다.",
-        code: "if indeg[v]==0: q.append(v)",
         tags: ["Pattern"],
       },
     ],
@@ -695,26 +444,6 @@ const searchGuide: GuideSection[] = [
   },
 ];
 
-const dpGuide: GuideSection[] = [
-  {
-    title: "DP 설계",
-    items: [
-      {
-        label: "상태 정의",
-        description: "최소한의 정보로 문제를 재귀적으로 표현할 수 있어야 합니다.",
-        code: "dp[i] = i까지의 최적값",
-        tags: ["Pattern"],
-      },
-      {
-        label: "전이/기저",
-        description: "전이식을 먼저 세우고, 기저 조건을 명확히 고정합니다.",
-        code: "dp[i] = min(dp[i-1], dp[i-2]) + cost[i]",
-        tags: ["Invariant"],
-      },
-    ],
-  },
-];
-
 const expansions: Record<string, Expansion> = {
   "1d-array": {
     story: {
@@ -739,39 +468,6 @@ const expansions: Record<string, Expansion> = {
       playgroundDescription: `경계 조건을 하나씩 확인하며 방문 배열이 어떻게 변하는지 확인하세요.\n특히 **diagonal 이동 여부**에 따라 결과가 달라지는 점을 관찰합니다.`,
     },
     guide: arrayGuide,
-  },
-  string: {
-    story: {
-      problem: `문자열은 많은 언어에서 **immutable**이므로, 반복적인 덧셈은 예상보다 느릴 수 있습니다.\n\n문자열 알고리즘은 비교/탐색 비용이 길이에 비례하므로 성능 함정이 많습니다.`,
-      definition: `**핵심 아이디어**: 문자열은 문자 배열의 특수한 형태로, 길이에 비례해 연산 비용이 증가합니다.\n\n**불변식**\n- 인덱싱은 배열과 동일하지만, 수정은 새로운 문자열을 생성합니다.\n- 부분 문자열은 O(k) 복사 비용이 들 수 있습니다.\n\n**실전 패턴**\n- 투 포인터/슬라이딩 윈도우/롤링 해시를 자주 사용합니다.`,
-      analogy: `책에서 문장을 복사해 새로운 문장을 만드는 것과 같습니다.\n즉, 작은 수정도 **전체 문장을 다시 쓰는 비용**이 발생할 수 있습니다.`,
-      playgroundDescription: `문자열 탐색 시 **현재 포인터**와 **일치 길이**가 어떻게 변하는지 확인하세요.`,
-    },
-    features: [
-      { title: "Immutable", description: "수정은 새 문자열을 생성합니다." },
-      { title: "부분 문자열 비용", description: "슬라이스는 O(k) 복사가 필요할 수 있습니다." },
-      { title: "패턴 매칭", description: "KMP, 라빈-카프, 투 포인터가 핵심입니다." },
-      { title: "빌더 패턴", description: "리스트에 append 후 join으로 최적화합니다." },
-    ],
-    guide: [
-      {
-        title: "문자열 패턴",
-        items: [
-          {
-            label: "슬라이딩 윈도우",
-            description: "고정/가변 길이 구간을 관리하며 조건을 만족하는 부분 문자열을 찾습니다.",
-            code: "l = 0\nfor r in range(n):\n    add(s[r])\n    while invalid: remove(s[l]); l += 1",
-            tags: ["Pattern"],
-          },
-          {
-            label: "롤링 해시",
-            description: "부분 문자열 비교를 O(1)으로 줄여 중복 탐색을 피합니다.",
-            code: "h = (h*P + ord(c)) % M",
-            tags: ["Pattern"],
-          },
-        ],
-      },
-    ],
   },
   "singly": {
     story: {
@@ -818,21 +514,6 @@ const expansions: Record<string, Expansion> = {
     ],
     guide: linkedListGuide,
   },
-  "two-pointers": {
-    story: {
-      problem: `정렬 배열이나 문자열 문제에서 단순 이중 루프는 O(n^2)로 너무 느립니다.\n\n투 포인터는 두 인덱스를 이동해 **선형 시간**으로 해결합니다.`,
-      definition: `**핵심 아이디어**: i, j 두 포인터가 조건을 만족하도록 이동하며 탐색한다.\n\n**불변식**\n- i <= j, 구간 [i, j]는 특정 조건을 유지한다.\n\n**실전 패턴**\n- 합이 특정 값인 쌍 찾기, 최소 길이 부분 배열 등.`,
-      analogy: `두 사람이 책의 양쪽에서 동시에 페이지를 넘기며 조건을 찾는 상황과 비슷합니다.`,
-      playgroundDescription: `포인터가 움직일 때 조건이 어떻게 변하는지 관찰하세요.`,
-    },
-    features: [
-      { title: "선형 시간", description: "정렬 배열에서는 O(n)으로 처리 가능합니다." },
-      { title: "불변식 유지", description: "조건을 만족하도록 포인터를 이동합니다." },
-      { title: "슬라이딩 윈도우", description: "변형된 형태로 사용됩니다." },
-      { title: "실전 빈도", description: "코딩 테스트에서 매우 자주 등장합니다." },
-    ],
-    guide: linkedListGuide,
-  },
   "lifo-basics": {
     story: {
       problem: `되돌리기/괄호 검사/재귀 구조는 LIFO 구조가 없으면 구현이 어렵습니다.`,
@@ -840,51 +521,6 @@ const expansions: Record<string, Expansion> = {
       analogy: `접시를 쌓아두고 위에서 하나씩 꺼내는 것과 같습니다.`,
       playgroundDescription: `push/pop 시 top이 어떻게 바뀌는지 관찰하세요.`,
     },
-    guide: stackGuide,
-  },
-  "array-stack": {
-    story: {
-      problem: `배열 기반 스택은 구현이 간단하지만, 크기 제한과 overflow 관리가 필요합니다.`,
-      definition: `**핵심 아이디어**: top 인덱스로 스택의 끝을 추적한다.\n\n**불변식**\n- top은 마지막 원소를 가리킨다.`,
-      analogy: `사물함에 물건을 순서대로 넣고 맨 위에서만 꺼내는 구조입니다.`,
-      playgroundDescription: `top 인덱스를 기준으로 push/pop 동작을 확인하세요.`,
-    },
-    features: [
-      { title: "고정 크기", description: "용량이 정해진 경우 overflow 체크 필요." },
-      { title: "캐시 효율", description: "배열 기반이라 속도가 빠릅니다." },
-      { title: "O(1) 연산", description: "push/pop은 상수 시간입니다." },
-      { title: "실전 적용", description: "문자열 처리, 계산기 구현에 활용됩니다." },
-    ],
-    guide: stackGuide,
-  },
-  "linked-stack": {
-    story: {
-      problem: `스택 크기가 동적으로 변하는 상황에서는 연결 리스트 기반 스택이 유리합니다.`,
-      definition: `**핵심 아이디어**: head가 top을 가리키는 연결 리스트 구조이다.`,
-      analogy: `계속 쌓을 수 있는 스프링 노트에 종이를 끼우는 구조와 같습니다.`,
-      playgroundDescription: `노드 연결이 push/pop에 따라 어떻게 바뀌는지 확인하세요.`,
-    },
-    features: [
-      { title: "동적 크기", description: "필요한 만큼만 메모리를 사용합니다." },
-      { title: "포인터 비용", description: "추가 포인터로 메모리 오버헤드가 있습니다." },
-      { title: "O(1) 연산", description: "push/pop은 상수 시간입니다." },
-      { title: "실전 활용", description: "재귀 구조/백트래킹 구현에 사용됩니다." },
-    ],
-    guide: stackGuide,
-  },
-  "monotonic-stack": {
-    story: {
-      problem: `다음 큰 원소, 최대 직사각형 등은 단순 스캔으로는 O(n^2)입니다.`,
-      definition: `**핵심 아이디어**: 스택을 단조 증가/감소 상태로 유지해 이전/다음 원소를 빠르게 찾는다.`,
-      analogy: `높은 산을 하나씩 제거해 시야를 확보하는 것과 비슷합니다.`,
-      playgroundDescription: `스택에서 pop이 연속으로 발생하는 순간을 관찰하세요.`,
-    },
-    features: [
-      { title: "선형 시간", description: "각 원소가 최대 한 번 push/pop 됩니다." },
-      { title: "NGE 문제", description: "다음 큰/작은 원소 계산에 최적입니다." },
-      { title: "구간 최적화", description: "히스토그램 최대 직사각형 등에 활용됩니다." },
-      { title: "패턴 반복", description: "많은 문제에서 동일한 패턴으로 등장합니다." },
-    ],
     guide: stackGuide,
   },
   "linear-queue": {
@@ -905,81 +541,6 @@ const expansions: Record<string, Expansion> = {
     },
     guide: queueGuide,
   },
-  deque: {
-    story: {
-      problem: `양쪽 삽입/삭제가 필요한 경우, 큐나 스택만으로는 비효율적입니다.`,
-      definition: `**핵심 아이디어**: 양 끝(front/rear)에서 모두 삽입/삭제가 가능하다.`,
-      analogy: `양쪽 문이 있는 버스에 승객이 오가는 것과 같습니다.`,
-      playgroundDescription: `front/rear 양쪽에서 push/pop이 어떻게 작동하는지 확인하세요.`,
-    },
-    features: [
-      { title: "양방향 연산", description: "pushFront/pushRear, popFront/popRear 지원." },
-      { title: "슬라이딩 윈도우", description: "최솟값/최댓값 유지에 자주 사용됩니다." },
-      { title: "균형 구조", description: "양쪽 끝 포인터 관리가 핵심입니다." },
-      { title: "O(1) 연산", description: "모든 연산이 상수 시간입니다." },
-    ],
-    guide: queueGuide,
-  },
-  "pq-basics": {
-    story: {
-      problem: `우선순위가 높은 작업을 먼저 처리해야 할 때 단순 큐는 부적절합니다.`,
-      definition: `**핵심 아이디어**: 우선순위 큐는 항상 가장 우선순위 높은 원소를 반환한다.`,
-      analogy: `응급실에서 중증 환자가 먼저 처리되는 것과 같습니다.`,
-      playgroundDescription: `우선순위 기준으로 pop 순서가 어떻게 달라지는지 확인하세요.`,
-    },
-    features: [
-      { title: "힙 기반", description: "일반적으로 힙으로 구현되어 O(log n)입니다." },
-      { title: "우선 처리", description: "가장 중요한 작업을 즉시 꺼낼 수 있습니다." },
-      { title: "Dijkstra 활용", description: "최단 경로에서 핵심 역할을 합니다." },
-      { title: "정렬 대체", description: "부분 정렬처럼 사용할 수 있습니다." },
-    ],
-    guide: heapGuide,
-  },
-  "hash-basics": {
-    story: {
-      problem: `키-값 조회가 잦은 문제에서 선형 탐색은 너무 느립니다.`,
-      definition: `**핵심 아이디어**: 해시 함수로 키를 배열 인덱스로 변환한다.\n\n**불변식**\n- 동일 키는 동일 인덱스로 매핑된다.\n- 로드 팩터가 일정 임계값을 넘지 않는다.`,
-      analogy: `전화번호부에서 이름을 즉시 찾기 위해 분류표를 사용하는 것과 같습니다.`,
-      playgroundDescription: `해시 충돌이 발생할 때 버킷이 어떻게 사용되는지 관찰하세요.`,
-    },
-    features: [
-      { title: "O(1) 평균", description: "탐색/삽입/삭제 평균 O(1)입니다." },
-      { title: "충돌 관리", description: "체이닝/오픈 어드레싱이 핵심입니다." },
-      { title: "로드 팩터", description: "성능과 메모리 사용의 균형점입니다." },
-      { title: "실전 활용", description: "빈도 계산/중복 제거/교집합 등에 사용됩니다." },
-    ],
-    guide: hashGuide,
-  },
-  collision: {
-    story: {
-      problem: `해시 함수는 완벽하지 않아 **충돌**이 반드시 발생합니다. 이를 어떻게 처리하느냐가 성능의 핵심입니다.`,
-      definition: `**핵심 아이디어**: 동일 버킷을 공유하는 키를 관리하는 방식.\n\n**대표 전략**\n- 체이닝: 연결 리스트/배열로 버킷 관리\n- 오픈 어드레싱: 빈 슬롯을 탐색`,
-      analogy: `같은 사물함 번호를 받은 사람이 여러 명일 때, 줄을 세우거나 다른 빈 칸을 찾는 상황과 같습니다.`,
-      playgroundDescription: `충돌이 일어난 버킷에서 탐색 경로가 어떻게 변하는지 확인하세요.`,
-    },
-    features: [
-      { title: "체이닝", description: "버킷마다 리스트를 사용해 충돌을 처리합니다." },
-      { title: "오픈 어드레싱", description: "선형/이차/이중 해시로 빈 슬롯을 찾습니다." },
-      { title: "클러스터링", description: "연속 충돌로 성능이 급락할 수 있습니다." },
-      { title: "로드 팩터", description: "임계값을 넘기면 리해시가 필요합니다." },
-    ],
-    guide: hashGuide,
-  },
-  "hash-implement": {
-    story: {
-      problem: `해시 테이블을 직접 구현하면 리사이즈/리해시/삭제 처리의 복잡성이 드러납니다.`,
-      definition: `**핵심 아이디어**: 용량 확장 시 모든 키를 재해시해야 한다.\n\n**불변식**\n- capacity는 보통 2의 거듭제곱으로 유지한다.\n- 삭제 시 tombstone 처리가 필요할 수 있다.`,
-      analogy: `책장을 넓히면 책의 위치를 다시 배치해야 하는 것과 같습니다.`,
-      playgroundDescription: `rehash가 발생하는 순간과 버킷 이동을 관찰하세요.`,
-    },
-    features: [
-      { title: "리사이즈", description: "capacity가 2배가 되면 모든 키를 다시 배치합니다." },
-      { title: "재해시 비용", description: "리해시는 O(n) 비용이 발생합니다." },
-      { title: "삭제 처리", description: "오픈 어드레싱은 tombstone이 필요합니다." },
-      { title: "성능 유지", description: "로드 팩터를 관리해야 합니다." },
-    ],
-    guide: hashGuide,
-  },
   "tree-basics": {
     story: {
       problem: `계층 구조(파일 시스템, 조직도)를 표현하려면 배열/리스트만으로는 어렵습니다.`,
@@ -992,21 +553,6 @@ const expansions: Record<string, Expansion> = {
       { title: "순회", description: "전위/중위/후위 순회가 핵심입니다." },
       { title: "재귀 구조", description: "부분 문제로 분해됩니다." },
       { title: "실전 활용", description: "폴더 구조, DOM 트리, 파서 등에 사용됩니다." },
-    ],
-    guide: treeGuide,
-  },
-  "binary-traversal": {
-    story: {
-      problem: `트리를 단순히 저장하는 것보다, **순회 순서**를 이해하는 것이 핵심입니다.`,
-      definition: `**핵심 아이디어**: 전위/중위/후위 순회는 방문 순서에 따라 의미가 달라집니다.\n\n- 전위: 루트를 먼저 방문\n- 중위: 정렬된 순서(BST)\n- 후위: 삭제/해제 작업`,
-      analogy: `집을 청소할 때 어느 방부터 들어가느냐에 따라 순서가 달라지는 것과 같습니다.`,
-      playgroundDescription: `각 순회 방식에서 방문 순서가 어떻게 변하는지 확인하세요.`,
-    },
-    features: [
-      { title: "중위 순회", description: "BST에서는 오름차순 결과를 보장합니다." },
-      { title: "후위 순회", description: "삭제/해제 단계에 적합합니다." },
-      { title: "재귀/반복", description: "스택 기반 반복 구현도 중요합니다." },
-      { title: "실전 활용", description: "표현식 평가, 트리 직렬화에 사용됩니다." },
     ],
     guide: treeGuide,
   },
@@ -1024,244 +570,6 @@ const expansions: Record<string, Expansion> = {
       { title: "실전 활용", description: "Map/Set의 기본 개념입니다." },
     ],
     guide: treeGuide,
-  },
-  "heap-basics": {
-    story: {
-      problem: `최솟값/최댓값을 반복적으로 찾아야 할 때 정렬은 비효율적입니다.`,
-      definition: `**핵심 아이디어**: 완전 이진 트리 + 힙 속성으로 루트에 최댓/최솟값 유지.`,
-      analogy: `항상 가장 작은 공이 맨 위에 올라오는 구조와 같습니다.`,
-      playgroundDescription: `삽입/삭제 시 bubble-up/down이 어떻게 동작하는지 보세요.`,
-    },
-    features: [
-      { title: "우선순위 관리", description: "최댓/최솟값 접근 O(1)." },
-      { title: "삽입/삭제", description: "O(log n)으로 유지됩니다." },
-      { title: "배열 구현", description: "완전 이진 트리 특성을 사용합니다." },
-      { title: "실전 활용", description: "스케줄링/다익스트라에 사용됩니다." },
-    ],
-    guide: heapGuide,
-  },
-  "min-heap": {
-    story: {
-      problem: `항상 가장 작은 값을 빠르게 꺼내야 하는 상황에서 최소 힙이 사용됩니다.`,
-      definition: `**핵심 아이디어**: 부모 <= 자식인 힙 불변식을 유지합니다.`,
-      analogy: `가장 작은 숫자가 항상 맨 위에 있는 서랍과 같습니다.`,
-      playgroundDescription: `min-heapify 과정에서 값이 위로 올라오는 걸 확인하세요.`,
-    },
-    features: [
-      { title: "최솟값 O(1)", description: "root가 항상 최소값입니다." },
-      { title: "삽입/삭제 O(log n)", description: "bubble-up/down으로 복구합니다." },
-      { title: "다익스트라 활용", description: "최단거리 우선순위에 핵심입니다." },
-      { title: "정렬 대체", description: "부분 정렬 용도로 유용합니다." },
-    ],
-    guide: heapGuide,
-  },
-  "max-heap": {
-    story: {
-      problem: `항상 가장 큰 값을 빠르게 꺼내야 하는 상황에서 최대 힙이 사용됩니다.`,
-      definition: `**핵심 아이디어**: 부모 >= 자식 불변식 유지.`,
-      analogy: `가장 큰 공이 위에 놓이도록 정렬된 구조입니다.`,
-      playgroundDescription: `max-heapify 동작을 관찰하세요.`,
-    },
-    features: [
-      { title: "최댓값 O(1)", description: "root가 항상 최대값입니다." },
-      { title: "삽입/삭제 O(log n)", description: "bubble-up/down으로 복구합니다." },
-      { title: "우선순위", description: "작업 스케줄링에 적합합니다." },
-      { title: "힙 정렬", description: "정렬 알고리즘으로도 활용됩니다." },
-    ],
-    guide: heapGuide,
-  },
-  "trie-basics": {
-    story: {
-      problem: `문자열 집합에서 prefix 검색을 빠르게 하려면 트라이가 필요합니다.`,
-      definition: `**핵심 아이디어**: 각 노드는 접두사(prefix)를 표현하며, 길이에 비례해 탐색한다.`,
-      analogy: `사전에서 첫 글자부터 차례대로 찾는 과정과 같습니다.`,
-      playgroundDescription: `단어 삽입 시 경로가 어떻게 확장되는지 확인하세요.`,
-    },
-    features: [
-      { title: "Prefix 검색", description: "길이에 비례한 O(L) 탐색." },
-      { title: "메모리 트레이드오프", description: "공간을 희생해 속도를 얻습니다." },
-      { title: "자동완성", description: "검색 추천에 활용됩니다." },
-      { title: "단어 종료", description: "end flag로 단어 여부를 구분합니다." },
-    ],
-    guide: trieGuide,
-  },
-  "prefix-search": {
-    story: {
-      problem: `접두사 검색은 정렬/해시만으로는 효율적이지 않을 수 있습니다.`,
-      definition: `**핵심 아이디어**: prefix 길이에 비례해 탐색하므로 문자열 길이가 짧다면 매우 빠릅니다.`,
-      analogy: `사전에서 특정 글자로 시작하는 단어들을 한꺼번에 찾는 과정과 같습니다.`,
-      playgroundDescription: `prefix 경로가 어떻게 선택되는지 확인하세요.`,
-    },
-    features: [
-      { title: "O(L) 탐색", description: "문자열 길이에 비례합니다." },
-      { title: "자동완성", description: "입력 단계마다 후보를 제시합니다." },
-      { title: "검색 최적화", description: "prefix 기반 필터링에 적합합니다." },
-      { title: "메모리 비용", description: "노드 수가 많아질 수 있습니다." },
-    ],
-    guide: trieGuide,
-  },
-  "trie-apps": {
-    story: {
-      problem: `단어 추천, 사전 검색, 라우팅 테이블 등에서 트라이 응용이 중요합니다.`,
-      definition: `**핵심 아이디어**: prefix 경로를 기반으로 다양한 질의를 처리한다.`,
-      analogy: `자동 완성 기능이 트라이의 대표적 응용입니다.`,
-      playgroundDescription: `검색 경로와 결과 후보를 확인하세요.`,
-    },
-    features: [
-      { title: "자동완성", description: "prefix 기반 추천 기능." },
-      { title: "사전 탐색", description: "문자열 집합 탐색 최적." },
-      { title: "라우팅 테이블", description: "IP prefix 매칭에 사용됩니다." },
-      { title: "검색 필터", description: "추천 시스템의 기본 구조." },
-    ],
-    guide: trieGuide,
-  },
-  "ds-basics": {
-    story: {
-      problem: `연결 요소, 사이클 판정 등에서 집합을 빠르게 합치고 찾는 연산이 필요합니다.`,
-      definition: `**핵심 아이디어**: parent 배열로 집합을 표현하고 find/union을 수행한다.`,
-      analogy: `친구 그룹을 하나씩 합치는 작업과 같습니다.`,
-      playgroundDescription: `union과 find가 어떻게 경로를 압축하는지 관찰하세요.`,
-    },
-    features: [
-      { title: "Union/Find", description: "두 원소가 같은 집합인지 즉시 확인합니다." },
-      { title: "경로 압축", description: "amortized 성능 향상." },
-      { title: "사이클 판정", description: "그래프 문제에 자주 사용됩니다." },
-      { title: "집합 병합", description: "커넥션/네트워크 문제에 필수입니다." },
-    ],
-    guide: ufGuide,
-  },
-  "union-rank": {
-    story: {
-      problem: `단순 union은 트리가 한쪽으로 치우쳐 find 비용이 커질 수 있습니다.`,
-      definition: `**핵심 아이디어**: 랭크(또는 size)가 큰 루트에 작은 루트를 붙인다.`,
-      analogy: `큰 그룹에 작은 그룹을 합쳐 균형을 유지하는 것과 같습니다.`,
-      playgroundDescription: `랭크 비교 후 부모가 결정되는 과정을 확인하세요.`,
-    },
-    features: [
-      { title: "균형 유지", description: "트리 높이를 낮게 유지합니다." },
-      { title: "amortized O(alpha)", description: "거의 상수 시간 성능." },
-      { title: "대규모 그래프", description: "MST/연결성 문제에 필수." },
-      { title: "효율적 union", description: "불필요한 깊이를 방지합니다." },
-    ],
-    guide: ufGuide,
-  },
-  "path-compression": {
-    story: {
-      problem: `find 연산이 반복되면 깊은 트리에서 성능이 크게 저하됩니다.`,
-      definition: `**핵심 아이디어**: find 과정에서 모든 노드를 루트에 직접 연결한다.`,
-      analogy: `자주 가는 길을 직선 도로로 새로 뚫는 것과 같습니다.`,
-      playgroundDescription: `find 이후 부모가 루트로 바뀌는지 관찰하세요.`,
-    },
-    features: [
-      { title: "경로 단축", description: "find를 반복할수록 빨라집니다." },
-      { title: "amortized 효율", description: "거의 O(1)에 수렴합니다." },
-      { title: "Union-Rank 결합", description: "최적 성능 조합입니다." },
-      { title: "대규모 입력", description: "N이 큰 문제에서 필수입니다." },
-    ],
-    guide: ufGuide,
-  },
-  "ds-apps": {
-    story: {
-      problem: `Union-Find는 MST, 사이클 판정, 네트워크 연결 등에 폭넓게 사용됩니다.`,
-      definition: `**핵심 아이디어**: 반복적인 연결/분리 여부 판단을 빠르게 수행한다.`,
-      analogy: `다리 건설에서 이미 연결된 섬을 다시 연결할 필요가 없는 것과 같습니다.`,
-      playgroundDescription: `간선 추가 시 union-find가 어떻게 작동하는지 확인하세요.`,
-    },
-    features: [
-      { title: "사이클 판정", description: "그래프 간선 추가 시 즉시 확인합니다." },
-      { title: "MST 핵심", description: "크루스칼 알고리즘의 기반입니다." },
-      { title: "연결성 질의", description: "네트워크 문제에 적용됩니다." },
-      { title: "온라인 쿼리", description: "실시간 연결/질의 처리에 유용합니다." },
-    ],
-    guide: ufGuide,
-  },
-  "graph-representation": {
-    story: {
-      problem: `그래프 알고리즘은 표현 방식에 따라 시간/공간 비용이 크게 달라집니다.`,
-      definition: `**핵심 아이디어**: 인접 리스트는 희소 그래프에, 인접 행렬은 밀집 그래프에 적합하다.`,
-      analogy: `교통 지도에서 각 교차로의 연결 목록(리스트) vs 전체 연결표(행렬).`,
-      playgroundDescription: `인접 리스트/행렬의 조회 비용 차이를 확인하세요.`,
-    },
-    features: [
-      { title: "희소/밀집", description: "리스트는 희소, 행렬은 밀집 그래프에 적합." },
-      { title: "조회 비용", description: "행렬은 O(1), 리스트는 O(deg)." },
-      { title: "메모리", description: "행렬은 O(V^2) 메모리 필요." },
-      { title: "탐색 알고리즘", description: "DFS/BFS는 보통 리스트 기반." },
-    ],
-    guide: graphGuide,
-  },
-  dfs: {
-    story: {
-      problem: `그래프 탐색은 거의 모든 그래프 문제의 출발점입니다.`,
-      definition: `**핵심 아이디어**: DFS는 한 갈래를 끝까지 탐색한 뒤 되돌아온다.\n\n- 재귀/스택 기반\n- 방문 처리로 무한 루프 방지`,
-      analogy: `미로에서 막다른 골목까지 들어가 보고 돌아오는 탐험.`,
-      playgroundDescription: `DFS 방문 순서를 확인하세요.`,
-    },
-    features: [
-      { title: "깊이 우선", description: "재귀 또는 스택으로 구현합니다." },
-      { title: "visited 관리", description: "재방문을 막아 무한 루프를 방지합니다." },
-      { title: "연결 요소", description: "컴포넌트 분리/개수 계산에 사용됩니다." },
-    ],
-    guide: graphGuide,
-  },
-  bfs: {
-    story: {
-      problem: `최단 거리(가중치 동일) 문제는 레벨 순 탐색이 필요합니다.`,
-      definition: `**핵심 아이디어**: BFS는 가까운 정점부터 레벨 순으로 확장한다.\n\n- 큐 기반\n- 최단 거리 보장`,
-      analogy: `물결이 퍼져나가듯 한 층씩 탐색합니다.`,
-      playgroundDescription: `BFS가 레벨별로 확장되는 흐름을 확인하세요.`,
-    },
-    features: [
-      { title: "레벨 탐색", description: "큐를 사용해 가까운 정점부터 방문합니다." },
-      { title: "최단 거리", description: "가중치가 동일한 그래프에서 최단 경로 보장." },
-      { title: "visited 관리", description: "재방문 방지로 성능을 확보합니다." },
-    ],
-    guide: graphGuide,
-  },
-  "cycle-detection": {
-    story: {
-      problem: `사이클이 있는 그래프는 위상 정렬 불가, 최단 경로 문제도 달라집니다.`,
-      definition: `**핵심 아이디어**: 방문 상태(색), Union-Find로 사이클을 판정한다.`,
-      analogy: `길을 돌아 시작점으로 다시 오는 경우가 사이클입니다.`,
-      playgroundDescription: `방문 상태가 어떻게 변하는지 확인하세요.`,
-    },
-    features: [
-      { title: "방문 색상", description: "White/Gray/Black로 사이클을 감지합니다." },
-      { title: "Union-Find", description: "무방향 그래프에서 빠른 판정." },
-      { title: "Directed vs Undirected", description: "판정 방식이 다릅니다." },
-      { title: "실전 활용", description: "스케줄링/의존성 분석에 필수." },
-    ],
-    guide: graphGuide,
-  },
-  "shortest-path": {
-    story: {
-      problem: `최단 경로는 네트워크/지도/게임 AI 등에서 핵심 알고리즘입니다.`,
-      definition: `**핵심 아이디어**: 가중치가 양수인 경우 Dijkstra, 모든 쌍은 Floyd-Warshall을 사용한다.`,
-      analogy: `지도에서 가장 빠른 길을 찾는 것과 같습니다.`,
-      playgroundDescription: `dist가 업데이트되는 순간을 관찰하세요.`,
-    },
-    features: [
-      { title: "Dijkstra", description: "우선순위 큐 기반 O(E log V)." },
-      { title: "Floyd-Warshall", description: "O(V^3)으로 모든 쌍 계산." },
-      { title: "음수 가중치", description: "벨만-포드 필요." },
-      { title: "경로 복원", description: "prev 배열로 경로를 추적합니다." },
-    ],
-    guide: graphGuide,
-  },
-  mst: {
-    story: {
-      problem: `네트워크 연결 비용을 최소화하려면 MST를 이해해야 합니다.`,
-      definition: `**핵심 아이디어**: 모든 정점을 연결하되 간선 가중치 합이 최소인 트리.`,
-      analogy: `도시들을 최소 비용 도로로 연결하는 문제와 같습니다.`,
-      playgroundDescription: `선택된 간선(edge_relax)이 어떻게 결정되는지 확인하세요.`,
-    },
-    features: [
-      { title: "Kruskal", description: "간선 정렬 + Union-Find." },
-      { title: "Prim", description: "우선순위 큐로 확장." },
-      { title: "사이클 방지", description: "사이클 생기면 제외합니다." },
-      { title: "최적성", description: "Cut property로 증명됩니다." },
-    ],
-    guide: graphGuide,
   },
   "bubble-sort": {
     story: {
@@ -1332,275 +640,476 @@ const expansions: Record<string, Expansion> = {
     ],
     guide: searchGuide,
   },
-  "parametric-search": {
+
+  // ───────────────────────────────────────────────────────────────
+  // 신규 module-01~04 커리큘럼 placeholder (Phase 1 Content Specialist 가 채움)
+  // ───────────────────────────────────────────────────────────────
+
+  // module-01: algorithm-foundation
+  "algo-overview": {},
+  "flow-tracing": {},
+  "iterative-recursion": {
     story: {
-      problem: `최적 값을 직접 계산하기 어려운 경우 이분 탐색으로 답을 찾을 수 있습니다.`,
-      definition: `**핵심 아이디어**: 결정 함수가 단조성을 가질 때 답을 이분 탐색한다.`,
-      analogy: `가능/불가능 경계를 찾는 것과 같습니다.`,
-      playgroundDescription: `조건 함수의 True/False 경계가 어떻게 움직이는지 확인하세요.`,
+      definition: `**왜 변환하는가?**\n- Python 등 일부 언어는 꼬리 재귀 자동 최적화(TCO)를 제공하지 않는다.\n- 입력 크기가 커 호출 깊이가 수만 단계에 이르면 스택 오버플로가 발생한다.\n- 디버거에서 스택 프레임이 너무 많아 추적이 어려운 경우 명시적 스택이 더 명확하다.\n\n**명시 스택 패턴**\n- 재귀의 "프레임"을 스택에 push할 데이터(파라미터, 진행 단계, 복귀 지점)로 모델링.\n- while 루프에서 pop → 처리 → 필요 시 자식 push 흐름으로 동작 재현.`,
+      playgroundDescription: `재귀 호출이 어떻게 명시 스택의 push/pop으로 치환되는지, 동일 입력에 대해 동일 결과가 나오는지 단계별로 확인하세요.`,
     },
     features: [
-      { title: "단조성", description: "조건 함수가 단조성을 만족해야 합니다." },
-      { title: "답 범위", description: "정답 후보 범위를 설정합니다." },
-      { title: "최적화", description: "최솟값/최댓값 문제 해결." },
-      { title: "실전 빈도", description: "코딩 테스트에서 매우 자주 사용됩니다." },
+      { title: "스택 오버플로 회피", description: "암시적 호출 스택 대신 힙(heap) 메모리의 스택 자료구조를 사용하면 OS 스택 한도와 무관하게 깊은 탐색이 가능합니다." },
+      { title: "디버깅 용이성", description: "스택 내용이 명시적이므로 현재 진행 상태와 남은 작업을 직접 출력하거나 검증할 수 있습니다." },
+      { title: "메모리 vs 가독성 트레이드오프", description: "코드는 길어지고 가독성은 떨어지지만, 깊이 제한이 사라지고 흐름 제어가 명확해지는 이점이 있습니다." },
+      { title: "꼬리 재귀 최적화 부재", description: "Python·Java 등 대부분 언어는 자동 TCO를 지원하지 않으므로, 재귀 깊이가 큰 알고리즘은 반복 변환이 안전합니다." },
     ],
-    guide: searchGuide,
+    guide: [
+      {
+        title: "재귀 → 반복 변환 템플릿",
+        items: [
+          {
+            label: "기본 변환",
+            description: "스택에 작업을 push, 루프에서 pop하며 처리. 필요 시 자식 작업을 다시 push.",
+            code: "stack = [initial_task]\nwhile stack:\n    task = stack.pop()\n    # 처리\n    for child in next_tasks(task):\n        stack.append(child)",
+            tags: ["Pattern"],
+          },
+          {
+            label: "DFS 변환 예",
+            description: "트리 DFS 재귀를 명시 스택으로 변환.",
+            code: "stack = [root]\nwhile stack:\n    node = stack.pop()\n    visit(node)\n    if node.right: stack.append(node.right)\n    if node.left: stack.append(node.left)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "dfs-basics": {
+  "condition-loop": {},
+  "recursion-basics": {
     story: {
-      problem: `깊이 우선 탐색은 그래프/트리의 구조를 이해하는 핵심 알고리즘입니다.`,
-      definition: `**핵심 아이디어**: 한 경로를 끝까지 탐색한 뒤 되돌아온다.`,
-      analogy: `미로에서 한 길을 끝까지 가보고 막히면 되돌아오는 것과 같습니다.`,
-      playgroundDescription: `재귀 스택이 쌓이는 과정을 관찰하세요.`,
+      definition: `**기저 조건(Base Case)의 중요성**\n- 기저 조건이 없거나 도달 불가능하면 스택 오버플로가 발생한다.\n- 입력이 매 호출마다 단조 감소(또는 단조 증가)해 반드시 기저 조건에 닿는지 확인해야 한다.\n\n**호출 스택 메모리 비용**\n- 호출 1회 = 스택 프레임 1개(지역 변수 + 반환 주소).\n- 깊이 N의 재귀는 O(N) 추가 메모리를 사용한다.\n- Python 기본 재귀 한도는 약 1000회 (\`sys.getrecursionlimit()\`).`,
+      playgroundDescription: `기저 조건이 어디서 발동하는지, 그리고 호출 스택이 어떻게 쌓였다 풀리는지 단계별로 관찰하세요.`,
     },
     features: [
-      { title: "재귀/스택", description: "스택 기반 탐색입니다." },
-      { title: "백트래킹", description: "조합/순열 문제와 연결됩니다." },
-      { title: "사이클 감지", description: "방문 상태 관리가 중요합니다." },
-      { title: "연결 요소", description: "컴포넌트 계산에 사용됩니다." },
+      { title: "꼬리 재귀 vs 머리 재귀", description: "꼬리 재귀(Tail Recursion)는 마지막 동작이 자기 호출이라 변환이 쉽고, 머리 재귀는 호출 결과를 결합해야 해 변환이 까다롭습니다." },
+      { title: "스택 오버플로 임계값", description: "재귀 깊이가 OS 스택 크기를 넘으면 RuntimeError(Python) 또는 segfault(C/C++)가 발생합니다. 입력 크기에서 깊이를 미리 예측해야 합니다." },
+      { title: "재귀 한도 조정", description: "Python에서는 `sys.setrecursionlimit(10000)`으로 조정 가능하지만, 본질적 해결책은 반복문 전환 또는 명시적 스택 사용입니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "재귀 설계 체크리스트",
+        items: [
+          {
+            label: "기저 조건 먼저",
+            description: "함수 시작점에서 기저 조건을 검사하고 즉시 반환합니다.",
+            code: "def f(n):\n    if n <= 0:\n        return 0  # base case\n    return n + f(n - 1)",
+            tags: ["Invariant"],
+          },
+          {
+            label: "입력 단조 감소",
+            description: "재귀 호출의 인자가 기저 조건 방향으로 반드시 줄어드는지 확인합니다.",
+            code: "# OK: f(n-1)  → 0으로 수렴\n# BAD: f(n) → 무한 재귀",
+            tags: ["Edge"],
+          },
+        ],
+      },
+    ],
   },
-  "dfs-backtracking": {
+  "tower-of-hanoi": {
     story: {
-      problem: `조합/순열/경로 찾기 문제는 모든 후보를 탐색해야 하지만, 불필요한 경로를 빨리 끊는 것이 핵심입니다.`,
-      definition: `**핵심 아이디어**: 선택 → 재귀 → 되돌리기를 반복하며 해를 찾는다.\n\n**불변식**\n- path에는 현재까지 선택한 해가 순서대로 들어있다.\n- 조건을 만족하지 않으면 즉시 되돌아간다(가지치기).`,
-      analogy: `갈림길마다 표지판을 남겼다가 막히면 즉시 되돌아오는 탐험입니다.`,
-      playgroundDescription: `path가 확장/축소되는 순간과, 목표를 찾는 즉시 탐색이 멈추는 지점을 보세요.`,
+      definition: `**점화식과 최소 이동 횟수**\n- T(n) = 2T(n-1) + 1\n- 풀이: T(n) = 2^n - 1.\n- n=10 → 1023회, n=20 → 약 100만 회, n=64 → 약 1.8×10^19회.\n\n**분할 전략**\n- n-1개를 보조 기둥(via auxiliary)으로 이동.\n- 가장 큰 원판 1개를 목적 기둥으로 이동.\n- n-1개를 보조 기둥에서 목적 기둥으로 이동.`,
+      playgroundDescription: `보조 기둥의 역할이 매 재귀 호출마다 어떻게 바뀌는지 관찰하세요. 같은 기둥이 어떤 호출에서는 from, 다른 호출에서는 via가 됩니다.`,
     },
     features: [
-      { title: "선택/취소", description: "path에 push하고 실패 시 pop합니다." },
-      { title: "가지치기", description: "조건 불만족이면 즉시 되돌아갑니다." },
-      { title: "탐색 공간 축소", description: "불필요한 분기를 제거해 시간을 줄입니다." },
-      { title: "실전 빈도", description: "N과 M, 스도쿠, 순열 문제에 반복됩니다." },
+      { title: "분할 정복 사고의 정수", description: "한 번에 풀 수 없는 문제를 같은 형태의 더 작은 문제로 분해하는 사고 패턴이 하노이의 탑에 가장 선명하게 드러납니다." },
+      { title: "보조 기둥 선택 규칙", description: "from·to·via 세 기둥의 역할이 매 재귀 호출마다 바뀌며, 이를 함수 인자로 명시적으로 전달하는 패턴을 익힙니다." },
+      { title: "지수 복잡도 체감", description: "n이 1 증가할 때마다 이동 횟수가 2배가 되는 지수 성장의 위험성을 실제 숫자로 확인합니다." },
+      { title: "전설의 하노이 (n=64)", description: "신화 속 64개 원판을 모두 옮기는 데 약 5800억 년이 걸린다는 사실은 지수 복잡도가 왜 위험한지 보여주는 고전 예시입니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "하노이의 탑 재귀 패턴",
+        items: [
+          {
+            label: "3단계 분해",
+            description: "n-1을 via로 옮긴 뒤, 1을 to로, 다시 n-1을 to로 옮깁니다.",
+            code: "def hanoi(n, src, dst, via):\n    if n == 0:\n        return\n    hanoi(n - 1, src, via, dst)\n    print(f'{src} -> {dst}')\n    hanoi(n - 1, via, dst, src)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "dfs-tree-traversal": {
+  "recursion-analysis": {
     story: {
-      problem: `트리는 DFS 순회로 값을 집계하거나 구조를 출력하는 문제가 많습니다.`,
-      definition: `**핵심 아이디어**: 전위/중위/후위 순회는 방문 시점이 다르다.\n\n- 전위: 방문 → 자식\n- 중위: (왼)자식 → 방문 → (오)자식\n- 후위: 자식 → 방문`,
-      analogy: `폴더를 열어보며 경로를 기록하는 순서가 달라지는 것과 같습니다.`,
-      playgroundDescription: `전위 순회에서 order가 쌓이는 순서를 확인하세요.`,
+      definition: `**점화식에서 시간복잡도 도출**\n- 분할 정복 형태: T(n) = aT(n/b) + f(n)\n- 마스터 정리(Master Theorem)로 빠르게 점근식 도출 가능.\n  - 예: T(n)=2T(n/2)+O(n) → O(n log n) (병합 정렬)\n  - 예: T(n)=2T(n/2)+O(1) → O(n) (이진 트리 순회 비교)\n\n**공간복잡도 분석**\n- 활성 스택 프레임 수 = 최대 호출 깊이 = O(depth).\n- 트리 재귀에서 깊이는 트리 높이와 같다.`,
+      playgroundDescription: `호출 트리를 시각화하면서 중복 호출이 어디서 발생하는지, 그리고 그 중복이 시간복잡도에 어떻게 영향을 주는지 확인하세요.`,
     },
     features: [
-      { title: "전위/중위/후위", description: "방문 시점 차이가 핵심입니다." },
-      { title: "서브트리 계산", description: "DFS로 서브트리 합/크기를 계산합니다." },
-      { title: "재귀 깊이", description: "깊은 트리는 스택 오버플로에 주의." },
-      { title: "실전 활용", description: "트리 DP, 순회 출력 문제에 사용됩니다." },
+      { title: "분할 형태 분류", description: "T(n) = aT(n/b) + f(n) 형태에서 a(분할 개수), b(축소 비율), f(n)(병합 비용)을 식별합니다." },
+      { title: "중복 호출 감지", description: "피보나치처럼 같은 입력을 여러 번 계산하는 패턴은 호출 트리에서 동일 노드의 반복으로 드러납니다." },
+      { title: "메모이제이션 전환 신호", description: "중복 부분 문제 + 최적 부분 구조가 보이면 메모이제이션(top-down) 또는 DP(bottom-up)로 전환할 신호입니다." },
+      { title: "공간복잡도 O(depth)", description: "한 번에 활성화되는 스택 프레임은 최대 호출 깊이만큼이므로, 공간복잡도는 호출 트리 노드 수가 아닌 트리 높이로 측정합니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "메모이제이션 패턴",
+        items: [
+          {
+            label: "순수 재귀 (느림)",
+            description: "같은 부분 문제를 여러 번 재계산. O(2^n).",
+            code: "def fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)",
+            tags: ["Edge"],
+          },
+          {
+            label: "메모이제이션 (빠름)",
+            description: "한 번 계산한 결과를 dict/배열에 저장. O(n).",
+            code: "from functools import lru_cache\n@lru_cache(None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "dfs-cycle-detection": {
+
+  // module-01: search-algorithms
+  "search-problem-key": {},
+  "linear-search": {},
+  "brute-force-search": {
     story: {
-      problem: `사이클이 존재하면 위상 정렬/의존성 처리 방식이 달라집니다.`,
-      definition: `**핵심 아이디어**: 방문 상태(0/1/2)로 역방향 간선을 감지한다.\n\n**불변식**\n- state=1(방문중) 노드로 다시 들어오면 사이클이다.`,
-      analogy: `이미 지나가는 중인 길로 다시 들어가면 원형 구조입니다.`,
-      playgroundDescription: `state 배열이 0→1→2로 바뀌는 순간과 사이클 감지 지점을 보세요.`,
+      problem: `텍스트 안에서 패턴을 찾는 문제는 검색·치환·로그 분석 등 거의 모든 도구에서 마주칩니다.\n\n가장 직관적인 풀이가 어디까지 통하고 어디서 한계를 만나는지 정확히 이해해야 후속 알고리즘(KMP, Boyer-Moore)을 학습할 토대가 마련됩니다.`,
+      definition: `**핵심 아이디어**: 텍스트의 모든 시작 위치 i=0..N-M에서 패턴을 한 글자씩 대조한다.\n\n**불변식**\n- i는 텍스트 시작 위치, j는 패턴 비교 위치를 가리킨다.\n- 불일치 발생 시 i를 한 칸 뒤로 돌리고 j=0으로 초기화한다.\n\n**시간복잡도**\n- 최선 O(N), 평균/최악 O(NM).\n- 텍스트와 패턴이 길고 반복 구조가 많을수록 비교 횟수가 NM에 근접한다.`,
+      analogy: `책에서 특정 문장을 찾을 때 한 글자도 빠짐없이 모든 시작 위치에서 비교하는 방식과 같습니다.\n누구나 이해할 수 있지만, 책이 길고 문장이 자주 비슷하게 시작하면 같은 자리를 여러 번 보게 됩니다.`,
+      playgroundDescription: `i, j 포인터가 어떻게 함께 전진하는지, 불일치 발생 시 i가 어디로 되돌아가는지를 단계별로 관찰하세요.`,
     },
     features: [
-      { title: "색칠법", description: "0/1/2 상태로 방문을 관리합니다." },
-      { title: "역방향 간선", description: "state=1로 들어오면 사이클입니다." },
-      { title: "무방향 그래프", description: "부모 간선은 제외해야 합니다." },
-      { title: "실전 활용", description: "스케줄링/그래프 검증 문제에 사용." },
+      { title: "직관적 흐름", description: "두 포인터 i, j만으로 동작하므로 구현이 짧고 디버깅이 쉽습니다." },
+      { title: "최악 시나리오 인식", description: "AAAA...B 형태처럼 마지막 글자에서 자주 실패하는 입력에서 NM에 가까운 비교 횟수가 누적됩니다." },
+      { title: "후속 알고리즘 동기", description: "이 풀이의 비효율 지점이 KMP의 LPS와 Boyer-Moore의 점프 규칙으로 이어집니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "패턴 검색 패턴",
+        items: [
+          {
+            label: "기본 이중 루프",
+            description: "i는 시작 위치, j는 패턴 비교 위치. 끝까지 일치하면 발견.",
+            code: "for i in range(N - M + 1):\n    j = 0\n    while j < M and T[i+j] == P[j]:\n        j += 1\n    if j == M:\n        return i",
+            tags: ["Pattern"],
+          },
+          {
+            label: "최악 입력",
+            description: "패턴이 텍스트와 거의 같다가 마지막 글자에서 실패하면 비교 횟수가 폭증합니다.",
+            code: "T = 'AAAA...AAAB'\nP = 'AAAB'  # NM에 근접",
+            tags: ["Edge"],
+          },
+        ],
+      },
+    ],
   },
-  "dfs-path-reconstruction": {
+  "kmp-search": {
     story: {
-      problem: `경로 존재 여부뿐 아니라 실제 경로 출력이 요구되는 문제가 많습니다.`,
-      definition: `**핵심 아이디어**: 방문 시 parent를 기록하고 목표에서 역추적한다.`,
-      analogy: `갈림길마다 표지판을 남겨 되돌아오는 것과 같습니다.`,
-      playgroundDescription: `parent가 채워지는 순서와 path 복원 과정을 확인하세요.`,
+      problem: `브루트 포스는 불일치 시 텍스트 포인터를 되돌려 같은 위치를 여러 번 비교합니다.\n\n이미 일치했던 부분에서 얻은 정보를 활용하면 텍스트를 한 번만 훑으면서 검색을 끝낼 수 있어, 긴 텍스트·반복 검사 환경에서 큰 이득을 얻습니다.`,
+      definition: `**핵심 아이디어**: 패턴 내부의 접두사·접미사 일치 정보를 LPS 배열에 미리 계산해 두고, 불일치 시 j만 LPS[j-1]로 점프시킨다.\n\n**불변식**\n- 텍스트 포인터 i는 절대 뒤로 돌아가지 않는다.\n- LPS[k]는 패턴[0..k]에서 동일한 접두사와 접미사의 최대 길이.\n\n**시간복잡도**\n- LPS 구축 O(M) + 검색 O(N) = 전체 O(N+M).\n- 공간복잡도 O(M).`,
+      analogy: `오답 노트를 미리 만들어 두고 같은 실수를 반복하지 않는 학습 방식과 같습니다.\n이미 맞춘 부분(접두사)을 다시 검사하지 않고 다음 단계에서 바로 이어갑니다.`,
+      playgroundDescription: `LPS 테이블이 어떻게 구성되는지, 불일치 발생 시 j가 어디로 점프하는지를 함께 관찰하세요.`,
     },
     features: [
-      { title: "parent 배열", description: "최초 방문 시 부모를 기록합니다." },
-      { title: "역추적", description: "target에서 parent를 따라 올라갑니다." },
-      { title: "방문 순서", description: "DFS 순서와 경로는 다를 수 있습니다." },
-      { title: "실전 활용", description: "트리 부모 찾기/경로 복원 문제." },
+      { title: "패턴 자체 분석", description: "외부 텍스트가 아니라 패턴 내부의 대칭 구조에서 정보를 끌어냅니다." },
+      { title: "재사용 가능한 LPS", description: "한 번 구축한 LPS 테이블은 동일 패턴이 등장하는 모든 텍스트에서 재사용할 수 있습니다." },
+      { title: "선형 시간 보장", description: "텍스트 포인터가 단조 증가하므로 누적 비교 횟수가 N에 비례해 묶입니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "LPS 구축",
+        items: [
+          {
+            label: "두 포인터 i, len",
+            description: "len은 현재까지 일치한 접두사 길이. 일치 확장 또는 LPS[len-1]로 후퇴.",
+            code: "lps = [0] * M\nlen_ = 0\ni = 1\nwhile i < M:\n    if P[i] == P[len_]:\n        len_ += 1\n        lps[i] = len_\n        i += 1\n    elif len_ > 0:\n        len_ = lps[len_ - 1]\n    else:\n        lps[i] = 0\n        i += 1",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+      {
+        title: "검색 루프",
+        items: [
+          {
+            label: "i 단조 진행",
+            description: "불일치 시 j만 LPS[j-1]로 점프하고 i는 그대로 유지.",
+            code: "i = j = 0\nwhile i < N:\n    if T[i] == P[j]:\n        i += 1; j += 1\n        if j == M:\n            print('match', i - j); j = lps[j - 1]\n    elif j > 0:\n        j = lps[j - 1]\n    else:\n        i += 1",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "bfs-basics": {
+  "boyer-moore-search": {
     story: {
-      problem: `최단 거리 탐색은 BFS가 가장 직관적이고 안정적입니다.`,
-      definition: `**핵심 아이디어**: 큐로 레벨별 탐색을 수행한다.`,
-      analogy: `불을 지피면 물결처럼 퍼지는 것과 같습니다.`,
-      playgroundDescription: `레벨 별 방문 순서를 관찰하세요.`,
+      problem: `KMP는 텍스트를 한 글자도 건너뛰지 않으므로 입력에 따라 더 빠른 풀이가 가능한지 의문이 생깁니다.\n\n패턴과 닮지 않은 영역을 통째로 건너뛸 수 있다면 실전 텍스트에서 비교 횟수를 크게 줄일 수 있습니다.`,
+      definition: `**핵심 아이디어**: 패턴을 뒤에서 앞으로 비교하고, 불일치 시 Bad Character·Good Suffix 규칙 중 더 큰 점프를 선택해 패턴을 슬라이드한다.\n\n**불변식**\n- 비교는 패턴의 마지막 글자에서 시작.\n- 두 점프 규칙은 모두 안전(정답을 건너뛰지 않음).\n\n**시간복잡도**\n- 평균은 매우 빠르고, 알파벳 크기와 패턴 길이에 비례해 점프 폭이 커진다.\n- 최악은 O(NM)이지만 실전 텍스트에서는 거의 발생하지 않는다.`,
+      analogy: `긴 터널 앞에서 차량 뒤쪽 번호판만 보고 통과 여부를 결정하는 검문과 같습니다.\n전혀 다른 번호이면 차량을 통째로 통과시키고 다음 차량으로 한 번에 넘어갈 수 있습니다.`,
+      playgroundDescription: `Bad Character가 패턴 안에 있을 때와 없을 때 점프 거리가 어떻게 달라지는지 관찰하세요.\nGood Suffix와의 점프 거리 비교도 확인합니다.`,
     },
     features: [
-      { title: "최단 거리", description: "가중치 없는 그래프에서 최단거리 보장." },
-      { title: "레벨 탐색", description: "거리/단계 기반 문제에 적합." },
-      { title: "큐 사용", description: "FIFO 구조를 사용합니다." },
-      { title: "격자 탐색", description: "미로/지도 문제에 자주 쓰입니다." },
+      { title: "역방향 비교", description: "패턴 마지막 글자에서 시작하므로 한 번의 확인으로 큰 영역을 배제할 수 있습니다." },
+      { title: "두 규칙의 결합", description: "Bad Character와 Good Suffix 중 더 큰 점프를 선택해 평균 성능을 극대화합니다." },
+      { title: "알파벳/패턴 의존성", description: "알파벳 크기가 크고 패턴이 길수록 점프 폭이 커져 실전 성능이 좋아집니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "Bad Character 테이블",
+        items: [
+          {
+            label: "마지막 등장 위치",
+            description: "패턴의 각 문자가 마지막으로 등장한 위치를 기록.",
+            code: "bad = {}\nfor i, c in enumerate(P):\n    bad[c] = i",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+      {
+        title: "점프 폭 계산",
+        items: [
+          {
+            label: "max(BC, GS)",
+            description: "두 규칙 중 더 큰 점프를 적용해 패턴을 슬라이드합니다.",
+            code: "shift = max(bc_shift, gs_shift)\ni += shift",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "grid-traversal": {
+  "hash-collision": {
     story: {
-      problem: `격자 기반 문제는 방향 이동, 경계 처리, 방문 체크에서 실수가 잦습니다.`,
-      definition: `**핵심 아이디어**: (r, c) 좌표를 기준으로 BFS/DFS를 적용한다.`,
-      analogy: `체스판 위에서 움직이는 규칙을 정해 탐색하는 것과 같습니다.`,
-      playgroundDescription: `방문/미방문 상태가 어떻게 변하는지 확인하세요.`,
+      problem: `해시 함수는 완벽하지 않아 **충돌**이 반드시 발생합니다. 이를 어떻게 처리하느냐가 성능의 핵심입니다.`,
+      definition: `**핵심 아이디어**: 동일 버킷을 공유하는 키를 관리하는 방식.\n\n**대표 전략**\n- 체이닝: 연결 리스트/배열로 버킷 관리\n- 오픈 어드레싱: 빈 슬롯을 탐색`,
+      analogy: `같은 사물함 번호를 받은 사람이 여러 명일 때, 줄을 세우거나 다른 빈 칸을 찾는 상황과 같습니다.`,
+      playgroundDescription: `충돌이 일어난 버킷에서 탐색 경로가 어떻게 변하는지 확인하세요.`,
     },
     features: [
-      { title: "방향 배열", description: "dr/dc로 이동을 표준화합니다." },
-      { title: "경계 체크", description: "인덱스 범위 확인이 필수입니다." },
-      { title: "거리 계산", description: "BFS로 최단거리 계산 가능." },
-      { title: "응용 다양", description: "섬 개수, 미로, 최단거리 문제." },
+      { title: "체이닝", description: "버킷마다 리스트를 사용해 충돌을 처리합니다." },
+      { title: "오픈 어드레싱", description: "선형/이차/이중 해시로 빈 슬롯을 찾습니다." },
+      { title: "클러스터링", description: "연속 충돌로 성능이 급락할 수 있습니다." },
+      { title: "로드 팩터", description: "임계값을 넘기면 리해시가 필요합니다." },
     ],
-    guide: arrayGuide,
   },
-  "bfs-multi-source": {
+
+  // module-01: data-structures
+  "ds-compare": {},
+  "array-number-prime": {},
+  "cursor-linked-list": {
     story: {
-      problem: `여러 시작점에서 동시에 퍼지는 문제(전염, 확산, 불길)는 멀티 소스 BFS가 필요합니다.`,
-      definition: `**핵심 아이디어**: 큐를 여러 시작점으로 초기화하면 레벨이 동시에 확장된다.`,
-      analogy: `여러 곳에서 동시에 퍼져 나가는 파동과 같습니다.`,
-      playgroundDescription: `dist가 여러 시작점에서 동시에 업데이트되는 흐름을 보세요.`,
+      problem: `포인터 기반 연결 리스트는 매 삽입마다 메모리를 새로 할당해야 합니다.\n\n임베디드나 정적 메모리 풀처럼 동적 할당이 제한된 환경에서는 이 비용을 감당할 수 없고, 단편화 위험도 큽니다.`,
+      definition: `**핵심 아이디어**: 포인터 대신 배열 인덱스(커서)를 next 필드에 저장한다.\n\n**불변식**\n- head: 데이터 진입점 인덱스, free: 빈 슬롯 진입점 인덱스.\n- next == -1은 종단을 의미.\n- 사용 슬롯과 빈 슬롯이 같은 배열을 공유한다.\n\n**시간복잡도**\n- 삽입/삭제 O(1) (head·free 두 진입점만 갱신).\n- 임의 접근 O(N).`,
+      analogy: `고정된 칸 수의 주차장에서 각 자리에 "다음 차량이 주차된 자리 번호"를 적어두는 방식과 같습니다.\n빈자리도 "다음 빈자리 번호"로 연결해 두면 새 차가 와도 빈자리를 빠르게 찾고, 떠난 자리도 다시 빈자리 목록에 끼울 수 있습니다.`,
+      playgroundDescription: `삽입 시 free에서 한 칸을 떼고, 삭제 시 사용 슬롯을 다시 free 앞에 매다는 흐름을 단계별로 관찰하세요.`,
     },
     features: [
-      { title: "큐 초기화", description: "여러 시작점을 동시에 넣습니다." },
-      { title: "최단 거리", description: "모든 노드까지의 최소 거리 계산." },
-      { title: "확산 문제", description: "전염/토마토/불 문제에 자주 사용." },
-      { title: "경계 조건", description: "도달 불가(-1) 처리에 주의." },
+      { title: "정적 메모리 친화", description: "동적 할당이 금지된 환경에서도 연결 리스트의 유연성을 그대로 가져옵니다." },
+      { title: "free 체인 재사용", description: "삭제된 슬롯을 free 앞에 매달아 다음 삽입에 즉시 재활용합니다." },
+      { title: "용량 상한 명확", description: "배열 크기가 곧 노드 수 상한이며 free == -1이면 삽입 실패로 처리합니다." },
     ],
-    guide: graphGuide,
+    guide: linkedListGuide,
   },
-  "bfs-zero-one": {
+  "queue-overview": {
     story: {
-      problem: `가중치가 0 또는 1인 그래프는 다익스트라보다 빠르게 풀 수 있습니다.`,
-      definition: `**핵심 아이디어**: 덱을 사용해 0 가중치는 앞, 1 가중치는 뒤에 넣는다.`,
-      analogy: `무료 도로는 먼저, 유료 도로는 나중에 처리하는 것과 같습니다.`,
-      playgroundDescription: `dist 업데이트와 덱 앞/뒤 삽입 순간을 확인하세요.`,
+      definition: `**FIFO 비용 모델**\n- \`enqueue\`: rear에 추가 → O(1).\n- \`dequeue\`: front에서 제거 → O(1).\n- 중간 접근/탐색은 큐의 기본 연산이 아니다(필요하면 다른 자료구조).\n\n**front/rear 포인터의 의미**\n- front는 "다음 dequeue 대상" 위치.\n- rear는 "다음 enqueue가 들어갈" 위치.\n- 빈 큐 / 가득 찬 큐 판별 규칙을 둘 중 어느 한 쪽 기준으로 통일해 두면 디버깅이 쉽다.`,
+      playgroundDescription: `enqueue/dequeue를 번갈아 실행하면서 front와 rear의 거리가 어떻게 변하는지 추적하세요.`,
     },
     features: [
-      { title: "덱 사용", description: "appendleft/append로 우선순위 구현." },
-      { title: "최단 거리", description: "O(V+E)로 처리 가능합니다." },
-      { title: "가중치 제한", description: "0/1만 가능(일반 가중치는 다익스트라)." },
-      { title: "실전 활용", description: "숨바꼭질 3, 알고스팟." },
+      { title: "원형 큐와의 차이", description: "선형 큐는 front가 이동하면 앞쪽 슬롯이 낭비되지만, 원형 큐는 (i+1)%n으로 처음에 다시 연결해 공간을 재활용합니다." },
+      { title: "데크(Deque) 확장", description: "Deque는 양쪽 끝에서 enqueue/dequeue가 모두 가능한 큐의 확장입니다. BFS·슬라이딩 윈도우 최대값 문제에 자주 사용됩니다." },
+      { title: "Python 큐 구현 비교", description: "Python에서는 `queue.Queue`(스레드 안전, 락 비용), `collections.deque`(O(1) 양끝 연산, 일반 알고리즘에 적합)을 구분해서 사용합니다." },
     ],
-    guide: graphGuide,
+    guide: queueGuide,
   },
-  "bfs-path-reconstruction": {
+
+  // module-02: sorting (overview / counting / shell)
+  "sorting-overview": {
     story: {
-      problem: `최단 거리뿐 아니라 실제 경로 출력이 요구되는 문제가 많습니다.`,
-      definition: `**핵심 아이디어**: 방문 시 parent를 기록하고 target에서 역추적한다.`,
-      analogy: `길마다 표지판을 남겨 되돌아오는 방식입니다.`,
-      playgroundDescription: `parent가 채워지는 순간과 path 복원 과정을 확인하세요.`,
+      problem: `데이터가 무작위로 섞여 있으면 검색·중복 제거·범위 질의 같은 후속 작업이 모두 비효율적으로 바뀝니다.\n\n정렬은 그 자체가 목적이 아니더라도, 데이터 준비 단계에서 절대적인 비중을 차지하는 알고리즘 그룹입니다.`,
+      definition: `**핵심 분류 축**\n- **안정성**: 같은 값의 입력 순서가 출력에서도 보존되는지.\n- **내부/외부**: 데이터를 모두 메모리에 적재할 수 있는지.\n- **비교/비비교**: 원소를 직접 비교하는지(비교 기반은 정보 이론적으로 O(N log N) 하한).\n\n**의사결정**\n- 작은 N: 삽입 정렬이 간단하고 빠르다.\n- 거의 정렬됨: 삽입·셸 정렬이 유리.\n- 값 범위 K가 작은 정수: 도수 정렬이 O(N+K).\n- 안정성 필요: 병합·삽입·도수 정렬.\n- 메모리 제약: 힙 정렬(in-place).`,
+      analogy: `학생들이 키 순서대로 줄을 서는 방법은 여러 가지가 있고, "같은 키끼리 누가 앞인지" 정해 두는 규칙 유무에 따라 결과의 의미가 달라집니다.\n정렬 알고리즘은 모두 "줄 세우는 한 가지 규칙"을 정형화한 것입니다.`,
+      playgroundDescription: `같은 입력에 대해 정렬 알고리즘별 비교/교환 횟수와 안정성을 비교해 보세요.`,
     },
     features: [
-      { title: "최단 경로", description: "BFS 방문 순서가 최단 경로를 보장." },
-      { title: "parent 기록", description: "최초 방문 시 부모를 저장합니다." },
-      { title: "경로 복원", description: "target에서 start로 역추적합니다." },
-      { title: "실전 활용", description: "숨바꼭질 4, 최단 경로 출력 문제." },
+      { title: "분류 축 명확화", description: "안정성·내외부·비교/비비교 세 축으로 알고리즘을 그룹화해 선택 기준을 정리합니다." },
+      { title: "하한 인식", description: "비교 기반은 O(N log N)이 한계이며, 그 아래로 가려면 비비교 정렬(도수·기수)이 필요합니다." },
+      { title: "데이터 특성 우선", description: "단 하나의 \"가장 빠른 정렬\"은 없고, 입력 특성에 따라 최적 알고리즘이 달라집니다." },
     ],
-    guide: graphGuide,
+    guide: sortingGuide,
   },
-  dijkstra: {
+  "counting-sort": {
     story: {
-      problem: `가중치가 있는 그래프에서 최단 경로를 구하려면 Dijkstra가 필수입니다.`,
-      definition: `**핵심 아이디어**: 우선순위 큐로 가장 가까운 노드를 확정한다.`,
-      analogy: `가까운 도시부터 확정해 나가는 네비게이션과 같습니다.`,
-      playgroundDescription: `dist_update 이벤트가 발생하는 순간을 관찰하세요.`,
+      problem: `비교 기반 정렬은 O(N log N)보다 빨라질 수 없다는 한계가 있습니다.\n\n시험 점수(0~100), 투표 결과(후보 ID 10명)처럼 값의 범위가 좁고 미리 알려진 데이터에서는 비교 자체를 생략한 더 빠른 정렬이 가능합니다.`,
+      definition: `**핵심 아이디어**: 각 값이 몇 번 등장했는지 도수 배열에 기록하고, 누적 도수로 출력 위치를 직접 계산한다.\n\n**불변식**\n- 사전 조건: 정수형이고 값 범위 [0, K]를 알아야 한다.\n- 입력을 뒤에서부터 훑으며 count[v]를 감소시켜야 안정성이 유지된다.\n\n**시간복잡도**\n- 시간 O(N + K), 공간 O(N + K).\n- K가 N보다 매우 크면 메모리가 폭증하므로 사용 시나리오가 제한된다.`,
+      analogy: `시험 점수표에서 "90점이 3명, 95점이 5명"이라는 빈도표를 만든 뒤, 점수가 높은 순으로 좌석을 미리 배정해 두는 것과 같습니다.\n핵심은 "누가 누구보다 큰가"가 아니라 "같은 점수가 몇 명인가"입니다.`,
+      playgroundDescription: `도수 배열 → 누적 도수 변환 → 안정적 배치 3단계가 어떻게 진행되는지 단계별로 관찰하세요.`,
     },
     features: [
-      { title: "양수 가중치", description: "음수 간선에는 사용 불가." },
-      { title: "우선순위 큐", description: "O(E log V) 복잡도." },
-      { title: "경로 복원", description: "prev 배열로 최단 경로를 추적." },
-      { title: "실전 활용", description: "지도/네트워크 라우팅에 사용." },
+      { title: "비교 없는 정렬", description: "원소를 직접 비교하지 않으므로 비교 기반의 O(N log N) 하한을 우회합니다." },
+      { title: "K 의존성", description: "K가 작거나 정수 범위가 좁을 때만 효율적이고, K가 크면 도수 배열이 텅 비어 비효율적입니다." },
+      { title: "안정성 보장", description: "입력을 역방향으로 훑으며 배치하면 같은 값의 원래 순서가 보존됩니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "도수 정렬 3단계",
+        items: [
+          {
+            label: "1) 도수 배열",
+            description: "각 값의 등장 횟수를 count[v]에 기록.",
+            code: "count = [0] * (K + 1)\nfor x in arr:\n    count[x] += 1",
+            tags: ["Pattern"],
+          },
+          {
+            label: "2) 누적 도수",
+            description: "count[v]를 \"v 이하 원소 개수\"로 변환.",
+            code: "for v in range(1, K + 1):\n    count[v] += count[v - 1]",
+            tags: ["Pattern"],
+          },
+          {
+            label: "3) 안정 배치",
+            description: "입력을 역방향으로 훑으며 count[v]를 감소시켜 출력에 배치.",
+            code: "out = [0] * N\nfor x in reversed(arr):\n    count[x] -= 1\n    out[count[x]] = x",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "floyd-warshall": {
+  "shell-sort": {
     story: {
-      problem: `모든 정점 쌍 간의 최단 경로를 구해야 할 때 사용합니다.`,
-      definition: `**핵심 아이디어**: DP로 모든 쌍 최단 경로를 갱신한다.`,
-      analogy: `모든 도시 간 거리표를 한 번에 업데이트하는 것과 같습니다.`,
-      playgroundDescription: `k 중간 노드를 기준으로 dist가 업데이트되는 순간을 확인하세요.`,
+      problem: `삽입 정렬은 거의 정렬된 데이터에서 빠르지만, 큰 값이 맨 앞에 있는 무작위 입력에서는 그 값을 끝까지 한 칸씩 밀어내야 합니다.\n\n한 원소를 N번에 가깝게 이동시키는 비용이 누적되면 O(N²)에 묶이므로, 한 번에 멀리 이동시키는 방법이 필요합니다.`,
+      definition: `**핵심 아이디어**: 일정 간격(gap)으로 떨어진 원소끼리 부분 배열을 만들어 삽입 정렬한 뒤, gap을 점차 줄여 마지막에 gap=1로 마무리한다.\n\n**불변식**\n- 같은 gap 그룹은 항상 정렬된 상태.\n- gap이 감소할수록 배열은 점점 더 정렬되어 있음.\n\n**시간복잡도**\n- 평균 O(N^1.5), gap 수열 선택에 따라 O(N^4/3)까지 개선 가능.\n- Shell, Hibbard, Sedgewick 등 다양한 gap 수열이 제안됨.`,
+      analogy: `엉킨 머리를 빗을 때 처음엔 굵은 빗(gap=4)으로 큰 덩어리를 풀고, 점차 가는 빗으로 바꾸며 마지막에 참빗(gap=1)으로 마무리하는 것과 같습니다.`,
+      playgroundDescription: `gap이 어떻게 줄어드는지, 각 회차에서 멀리 떨어진 원소가 한 번에 자리를 잡는 모습을 관찰하세요.`,
     },
     features: [
-      { title: "O(V^3)", description: "정점 수가 작을 때만 가능." },
-      { title: "간단 구현", description: "코드는 직관적이지만 느립니다." },
-      { title: "모든 쌍", description: "모든 정점 쌍 최단 경로 계산." },
-      { title: "음수 간선", description: "음수 간선 허용(음수 사이클 제외)." },
+      { title: "장거리 교환", description: "한 번의 교환으로 멀리 떨어진 원소를 자리에 가깝게 보내 이동 횟수를 절감합니다." },
+      { title: "gap 수열 의존성", description: "어떤 gap 수열을 쓰느냐에 따라 평균 시간복잡도가 크게 달라집니다." },
+      { title: "마지막은 삽입 정렬", description: "gap=1 단계에서는 이미 거의 정렬된 상태이므로 추가 이동이 거의 없습니다." },
     ],
-    guide: graphGuide,
+    guide: [
+      {
+        title: "셸 정렬 핵심 루프",
+        items: [
+          {
+            label: "gap 감소 루프",
+            description: "각 gap마다 부분 배열에 대해 삽입 정렬 수행.",
+            code: "gap = N // 2\nwhile gap > 0:\n    for i in range(gap, N):\n        key = arr[i]; j = i\n        while j >= gap and arr[j - gap] > key:\n            arr[j] = arr[j - gap]; j -= gap\n        arr[j] = key\n    gap //= 2",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
-  "topological-sort": {
+
+  // 종합 평가 (fc-1 ~ fc-4)
+  "fc-1": {
     story: {
-      problem: `선행 작업이 있는 일정(의존성 그래프)을 정렬해야 합니다.`,
-      definition: `**핵심 아이디어**: DAG에서 진입차수 0 노드를 순서대로 처리한다.`,
-      analogy: `선수 과목을 모두 이수한 후 다음 과목을 듣는 과정과 같습니다.`,
-      playgroundDescription: `indegree가 0이 되는 순간 큐에 들어가는 흐름을 보세요.`,
+      definition: `Module 1 학습 후 배열 인덱싱, 선형 탐색, 이진 탐색, 해시 충돌 처리 4가지 핵심 개념을 통합 적용하는 평가다.\n- 4단계 워크플로(최댓값 → 선형 탐색 → 이진 탐색 → 해시)로 각 알고리즘의 시간 복잡도 차이를 체험한다.\n- 같은 배열을 4가지 방식으로 다뤄보며 어떤 상황에 어떤 알고리즘이 유리한지 직관을 쌓는다.\n- 한 페이지 안에서 자료구조별 비용 모델을 비교한다.`,
     },
     features: [
-      { title: "DAG 전용", description: "사이클이 있으면 불가능합니다." },
-      { title: "진입차수", description: "indegree 관리가 핵심입니다." },
-      { title: "큐 활용", description: "Kahn 알고리즘이 대표적입니다." },
-      { title: "실전 활용", description: "빌드/작업 스케줄링에 사용됩니다." },
+      {
+        title: "통합 워크플로",
+        description: "한 화면에서 4가지 알고리즘이 같은 데이터에 어떻게 다르게 접근하는지 한눈에 비교한다. 학습 전 vs 학습 후의 사고 흐름을 측정할 수 있다.",
+      },
+      {
+        title: "시간 복잡도 직관",
+        description: "선형 O(N) vs 이진 O(log N) vs 해시 O(1)의 차이를 step 수로 직접 비교한다. N=1000에서 step 수 차이가 가시화된다.",
+      },
+      {
+        title: "자료구조 선택 연습",
+        description: "정렬 여부, 중복 허용, 메모리 제약 등 조건에 따라 어떤 자료구조가 적합한지 판단 능력을 키운다.",
+      },
     ],
-    guide: graphGuide,
   },
-  "dp-basics": {
+  "fc-2": {
     story: {
-      problem: `중복 계산이 많은 문제는 재귀만으로 해결하기 어렵습니다.`,
-      definition: `**핵심 아이디어**: 부분 문제를 저장해 전체 문제를 해결한다.`,
-      analogy: `같은 계산을 여러 번 하지 않도록 메모를 남기는 것과 같습니다.`,
-      playgroundDescription: `dp 배열이 채워지는 순서를 확인하세요.`,
+      definition: `Module 2 학습 후 스택/큐, 재귀, 백트래킹 알고리즘과 Module 3 정렬 기초를 통합 적용하는 평가다.\n- 스택/큐/재귀 트리 3개 자료구조의 동작 흐름을 한 화면에서 비교한다.\n- 같은 문제를 재귀로도 반복으로도 풀어보며 변환 패턴을 익힌다.\n- 백트래킹과 단순 brute-force의 차이를 가지치기 시점으로 체감한다.`,
     },
     features: [
-      { title: "중복 제거", description: "메모이제이션/테이블로 중복 계산 제거." },
-      { title: "상태 전이", description: "상태 정의와 전이가 핵심입니다." },
-      { title: "Top-down/Bottom-up", description: "두 방식 모두 중요합니다." },
-      { title: "실전 활용", description: "최적화 문제에 빈번히 등장." },
+      {
+        title: "3가지 자료구조 동시 비교",
+        description: "스택(LIFO), 큐(FIFO), 재귀 호출 트리를 같은 step에서 관찰한다. 어떤 문제는 어떤 구조에 자연스러운지 직관이 생긴다.",
+      },
+      {
+        title: "재귀 ↔ 반복 변환",
+        description: "팩토리얼, 피보나치 같은 단순 예제부터 시작해 명시 스택으로 재귀를 변환하는 패턴을 익힌다.",
+      },
+      {
+        title: "백트래킹 가지치기",
+        description: "전체 탐색과 가지치기 탐색의 step 수를 비교해 분기 결정의 비용 가치를 체득한다.",
+      },
     ],
-    guide: dpGuide,
   },
-  "dp-1d": {
+  "fc-3": {
     story: {
-      problem: `단일 인덱스로 표현되는 최적화 문제는 1D DP가 효율적입니다.`,
-      definition: `**핵심 아이디어**: dp[i]가 i까지의 최적값을 의미한다.`,
-      analogy: `계단을 하나씩 올라가며 최적 비용을 기록하는 것과 같습니다.`,
-      playgroundDescription: `dp 배열이 이전 값으로부터 갱신되는 과정을 확인하세요.`,
+      definition: `Module 3 문자열 검색과 Module 4 연결 리스트/트리를 통합한 평가다.\n- 문자열 매칭, 연결 리스트 traversal, 트리 순회 세 가지 작업을 같은 step 시나리오로 진행한다.\n- 자료구조별 traversal 비용을 비교하고 어떤 자료구조가 어떤 검색 패턴에 적합한지 판단한다.\n- KMP 같은 효율적 검색 알고리즘이 일반 traversal 대비 얼마나 빠른지 step 수로 가시화한다.`,
     },
     features: [
-      { title: "1D 최적화", description: "상태를 1차원으로 단순화합니다." },
-      { title: "공간 절약", description: "rolling 배열로 공간을 줄일 수 있습니다." },
-      { title: "실전 문제", description: "계단/연속합/점프 문제." },
-      { title: "전이 규칙", description: "직전 1~k 상태로 전이합니다." },
+      {
+        title: "다중 자료구조 traversal",
+        description: "문자열 인덱스 traversal, 연결 리스트 next-chain traversal, 트리 in-order traversal을 한 화면에서 비교한다.",
+      },
+      {
+        title: "검색 알고리즘 비교",
+        description: "Brute force, KMP, 트리 BST 탐색의 step 수 차이를 직접 측정한다. 입력 크기 N에 따른 비용 차이가 가시화된다.",
+      },
+      {
+        title: "자료구조 → 알고리즘 매핑",
+        description: "어떤 자료구조에 어떤 알고리즘이 자연스러운지 학습 단계의 종합 결과로 확인한다.",
+      },
     ],
-    guide: dpGuide,
   },
-  "dp-2d": {
+  "fc-4": {
     story: {
-      problem: `격자/문자열 비교 문제는 2D DP가 가장 자연스러운 해결법입니다.`,
-      definition: `**핵심 아이디어**: dp[i][j]가 i,j까지의 상태를 나타낸다.`,
-      analogy: `표를 채워가며 정답을 완성하는 방식입니다.`,
-      playgroundDescription: `행/열이 채워지는 순서를 확인하세요.`,
+      definition: `전 모듈 종합 평가. 타이머 환경에서 4문제 미니 시험 형식으로 학습 효과를 검증한다.\n- 시간 압박(약 20-30분 권장)과 정답률을 동시에 측정해 실제 코딩테스트와 유사한 환경 제공.\n- 문제 4개는 각 모듈의 핵심 개념을 골고루 다룬다.\n- 풀이 직후 자기 평가 + 학습 노트가 자동 정리된다.`,
     },
     features: [
-      { title: "표 기반", description: "행과 열을 동시에 고려합니다." },
-      { title: "LCS/편집거리", description: "대표적인 2D DP 문제." },
-      { title: "경계 초기화", description: "첫 행/열 초기값이 중요합니다." },
-      { title: "공간 절약", description: "2행/2열로 줄일 수 있습니다." },
+      {
+        title: "실전 시간 압박",
+        description: "타이머가 가시화되어 시간 분배와 풀이 속도를 동시에 훈련한다. 일정 시간 초과 시 자동 평가로 넘어간다.",
+      },
+      {
+        title: "4 모듈 종합 평가",
+        description: "Module 1~4의 핵심 개념을 1문제씩 다룬다. 한 모듈에 약점이 있으면 점수에 즉시 반영되어 약점을 식별한다.",
+      },
+      {
+        title: "학습 노트 자동 정리",
+        description: "풀이 직후 자기 평가 + 막혔던 부분 메모가 자동 정리되어 다음 학습 사이클의 기준이 된다.",
+      },
     ],
-    guide: dpGuide,
   },
-  "dp-patterns": {
+
+  // module-02 or 03: backtracking
+  "queen-backtracking": {
     story: {
-      problem: `DP는 상태 설계를 잘못하면 차원이 폭발하거나 시간 초과가 납니다.`,
-      definition: `**핵심 아이디어**: 패턴을 익히면 새로운 문제도 빠르게 모델링할 수 있다.`,
-      analogy: `비슷한 문제 유형을 푸는 공식들을 모아둔 것과 같습니다.`,
-      playgroundDescription: `상태 정의와 전이를 먼저 적는 연습을 해보세요.`,
+      definition: `**가지치기(Pruning) 결정 기준**\n- N-Queen에서 새 퀸을 (r, c)에 두려면 다음이 모두 비어야 한다.\n  - 같은 열 c\n  - 주대각선: r - c (변하지 않는 값)\n  - 부대각선: r + c (변하지 않는 값)\n- 세 집합 중 하나라도 충돌하면 그 가지를 즉시 포기.\n\n**탐색 트리 구조**\n- 각 행 r에서 N개 후보 열을 시도 → 분기 인수 N.\n- 최대 깊이 N (행 개수).\n- 무가지치기 시 N^N 경우의 수, 가지치기 후 실제 탐색 노드는 훨씬 적다.`,
+      playgroundDescription: `가지치기 전후 방문 노드 수의 차이를 비교하면서, 어떤 가지에서 일찍 포기하는지 확인하세요.`,
     },
     features: [
-      { title: "상태 축소", description: "필요한 정보만 남겨 차원 축소." },
-      { title: "전이 패턴", description: "구간/경로/부분집합 패턴." },
-      { title: "최적화", description: "메모리/시간을 절약하는 트릭." },
-      { title: "실전 빈도", description: "문제 유형을 빠르게 매칭합니다." },
+      { title: "분기 인수와 깊이", description: "분기 인수 b·깊이 d일 때 최악 탐색 공간은 O(b^d). N-Queen은 b=N, d=N으로 가지치기 없이는 매우 큽니다." },
+      { title: "대칭성 활용", description: "체스판 좌우 대칭으로 첫 행의 절반만 탐색해 해를 구한 뒤 2배 해도 됩니다(중앙 열은 별도)." },
+      { title: "N=8 해의 개수", description: "정확히 92개의 해가 존재하며, 본질적으로 서로 다른 해는 회전·반사 대칭을 제외하면 12개입니다." },
+      { title: "비트마스크 표현", description: "열·대각선·부대각선을 정수 비트로 표현하면 충돌 검사가 O(1)이 되어 큰 N에서도 빠르게 동작합니다." },
     ],
-    guide: dpGuide,
+    guide: [
+      {
+        title: "백트래킹 일반 패턴",
+        items: [
+          {
+            label: "선택 → 재귀 → 복원",
+            description: "유효한 선택을 적용하고 재귀 호출, 복귀 후 선택을 되돌립니다.",
+            code: "def backtrack(state):\n    if is_goal(state):\n        record(state)\n        return\n    for choice in candidates(state):\n        if not feasible(state, choice):\n            continue\n        apply(state, choice)\n        backtrack(state)\n        undo(state, choice)",
+            tags: ["Pattern"],
+          },
+          {
+            label: "N-Queen 비트마스크",
+            description: "col·diag1·diag2 세 비트마스크로 충돌 검사를 상수 시간에 처리.",
+            code: "def solve(r, n, cols, d1, d2):\n    if r == n:\n        return 1\n    count = 0\n    free = ~(cols | d1 | d2) & ((1 << n) - 1)\n    while free:\n        pick = free & -free\n        count += solve(r+1, n,\n                       cols | pick,\n                       (d1 | pick) << 1,\n                       (d2 | pick) >> 1)\n        free ^= pick\n    return count",
+            tags: ["Pattern"],
+          },
+        ],
+      },
+    ],
   },
 };
 

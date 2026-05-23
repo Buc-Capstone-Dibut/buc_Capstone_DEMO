@@ -6,12 +6,12 @@ function SharedDefs() {
   return (
     <defs>
       <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#6366f1" />
-        <stop offset="100%" stopColor="#a855f7" />
+        <stop offset="0%" stopColor="hsl(239 84% 67%)" />
+        <stop offset="100%" stopColor="hsl(271 91% 65%)" />
       </linearGradient>
       <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#10b981" />
-        <stop offset="100%" stopColor="#059669" />
+        <stop offset="0%" stopColor="hsl(160 84% 39%)" />
+        <stop offset="100%" stopColor="hsl(160 84% 39%)" />
       </linearGradient>
       <linearGradient id="surface-grad" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="1" />
@@ -22,10 +22,10 @@ function SharedDefs() {
         <feComposite in="SourceGraphic" in2="blur" operator="over" />
       </filter>
       <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#000000" floodOpacity="0.1" />
+        <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="hsl(0 0% 0%)" floodOpacity="0.1" />
       </filter>
       <marker id="arrow-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(239 84% 67%)" />
       </marker>
       <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
         <circle cx="2" cy="2" r="1.5" fill="hsl(var(--border))" opacity="0.5" />
@@ -51,17 +51,17 @@ function VisualDebugging() {
          <text x="20" y="25" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">코드 라인 단위 실행</text>
 
          {/* Animated Highlight code line */}
-         <motion.rect x="10" y="60" width="230" height="25" rx="6" fill="#6366f1" opacity="0.2"
+         <motion.rect x="10" y="60" width="230" height="25" rx="6" fill="hsl(239 84% 67%)" opacity="0.2"
             animate={{ y: [60, 100, 140, 60] }} transition={{ duration: 4.5, repeat: Infinity, ease: "linear" }} />
 
          <text x="20" y="78" fontSize="13" fontFamily="monospace" fill="hsl(var(--foreground))" fontWeight="600">
-            <tspan fill="#6366f1">let</tspan> x = 5;
+            <tspan fill="hsl(239 84% 67%)">let</tspan> x = 5;
          </text>
          <text x="20" y="118" fontSize="13" fontFamily="monospace" fill="hsl(var(--foreground))" fontWeight="600">
             x = x * 2;
          </text>
          <text x="20" y="158" fontSize="13" fontFamily="monospace" fill="hsl(var(--foreground))" fontWeight="600">
-            <tspan fill="#10b981">return</tspan> x;
+            <tspan fill="hsl(160 84% 39%)">return</tspan> x;
          </text>
       </g>
 
@@ -71,22 +71,22 @@ function VisualDebugging() {
       <g transform="translate(480, 120)" filter="url(#soft-shadow)">
          <rect width="200" height="200" rx="16" fill="url(#surface-grad)" stroke="url(#primary-grad)" strokeWidth="3" />
          <rect x="0" y="0" width="200" height="40" rx="16" fill="url(#primary-grad)" />
-         <text x="100" y="25" textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">메모리 상태 테이블</text>
+         <text x="100" y="25" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(0 0% 100%)">메모리 상태 테이블</text>
 
          <line x1="100" y1="40" x2="100" y2="200" stroke="hsl(var(--border))" strokeWidth="2" />
 
          <text x="50" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">변수</text>
          <text x="150" y="70" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--muted-foreground))">값 (Value)</text>
 
-         <text x="50" y="120" textAnchor="middle" fontSize="20" fontWeight="900" fill="#6366f1">x</text>
+         <text x="50" y="120" textAnchor="middle" fontSize="20" fontWeight="900" fill="hsl(239 84% 67%)">x</text>
 
          {/* Value updating */}
-         <text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="#10b981">10</text>
+         <text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(160 84% 39%)">10</text>
          <rect x="110" y="95" width="80" height="30" fill="hsl(var(--card))" /> {/* Overlayer trick for framer motion text swap issue avoiding heavy DOM */}
 
-         <motion.text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="#10b981"
+         <motion.text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(160 84% 39%)"
             animate={{ opacity: [0, 1, 0, 0] }} transition={{ duration: 4.5, repeat: Infinity, ease: "linear" }}>5</motion.text>
-         <motion.text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="#10b981"
+         <motion.text x="150" y="120" textAnchor="middle" fontSize="24" fontWeight="900" fill="hsl(160 84% 39%)"
             animate={{ opacity: [0, 0, 1, 0] }} transition={{ duration: 4.5, repeat: Infinity, ease: "linear" }}>10</motion.text>
       </g>
 
@@ -110,40 +110,40 @@ function BaseCaseIdentification() {
 
       {/* Infinite Loop Danger */}
       <g transform="translate(150, 150)" filter="url(#soft-shadow)">
-        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="#f43f5e" strokeWidth="2" />
-        <text x="100" y="30" textAnchor="middle" fontSize="16" fontWeight="800" fill="#f43f5e">종료 조건 누락</text>
+        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="hsl(347 89% 60%)" strokeWidth="2" />
+        <text x="100" y="30" textAnchor="middle" fontSize="16" fontWeight="800" fill="hsl(347 89% 60%)">종료 조건 누락</text>
 
-        <motion.path d="M 100 60 A 30 30 0 1 1 99.9 60" stroke="#f43f5e" strokeWidth="4" fill="none"
+        <motion.path d="M 100 60 A 30 30 0 1 1 99.9 60" stroke="hsl(347 89% 60%)" strokeWidth="4" fill="none"
            animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ originX: "100px", originY: "90px" }} />
 
-        <text x="100" y="130" textAnchor="middle" fontSize="20" fontWeight="900" fill="#f43f5e">무한 루프 ☠️</text>
+        <text x="100" y="130" textAnchor="middle" fontSize="18" fontWeight="900" fill="hsl(347 89% 60%)" letterSpacing="1">무한 루프 (DEAD)</text>
       </g>
 
       <path d="M 380 220 L 420 220" stroke="hsl(var(--muted-foreground))" strokeWidth="4" markerEnd="url(#arrow-head)" strokeDasharray="6 6" />
 
       {/* Controlled Exit */}
       <g transform="translate(450, 150)" filter="url(#soft-shadow)">
-        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="#10b981" strokeWidth="2" />
-        <text x="100" y="30" textAnchor="middle" fontSize="16" fontWeight="800" fill="#10b981">명확한 Exit Case</text>
+        <rect width="200" height="150" rx="16" fill="url(#surface-grad)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
+        <text x="100" y="30" textAnchor="middle" fontSize="16" fontWeight="800" fill="hsl(160 84% 39%)">명확한 Exit Case</text>
 
         {/* Loop Path */}
-        <path d="M 100 50 A 30 30 0 1 1 40 50" stroke="#10b981" strokeWidth="3" fill="none" opacity="0.3" />
+        <path d="M 100 50 A 30 30 0 1 1 40 50" stroke="hsl(160 84% 39%)" strokeWidth="3" fill="none" opacity="0.3" />
 
         <g transform="translate(60, 50)">
-           <polygon points="40,0 80,20 40,40 0,20" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="2" />
-           <text x="40" y="25" textAnchor="middle" fontSize="12" fontWeight="900" fill="#10b981">N 도착?</text>
+           <polygon points="40,0 80,20 40,40 0,20" fill="hsl(160 84% 39%)" opacity="0.2" stroke="hsl(160 84% 39%)" strokeWidth="2" />
+           <text x="40" y="25" textAnchor="middle" fontSize="12" fontWeight="900" fill="hsl(160 84% 39%)">N 도착?</text>
         </g>
 
         {/* Escape Path */}
-        <motion.path d="M 100 90 L 100 130" stroke="#6366f1" strokeWidth="4" markerEnd="url(#arrow-head)"
+        <motion.path d="M 100 90 L 100 130" stroke="hsl(239 84% 67%)" strokeWidth="4" markerEnd="url(#arrow-head)"
            initial={{ opacity: 0, y: -10 }} animate={{ opacity: [0, 1, 0], y: [0, 10, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} />
 
-        <text x="140" y="115" textAnchor="middle" fontSize="14" fontWeight="800" fill="#6366f1">Yes (탈출)</text>
+        <text x="140" y="115" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(239 84% 67%)">Yes (탈출)</text>
       </g>
 
       <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="380" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        반복과 재귀의 생명줄은 <tspan fill="#10b981" fontWeight="800">'언제 끝날 것인가(Base Case)'</tspan>를 설계하는 것입니다.
+        반복과 재귀의 생명줄은 <tspan fill="hsl(160 84% 39%)" fontWeight="800">'언제 끝날 것인가(Base Case)'</tspan>를 설계하는 것입니다.
       </text>
     </svg>
   );
@@ -162,44 +162,44 @@ function EdgeCaseSimulation() {
       {/* Input variations */}
       <g transform="translate(100, 150)">
         <g transform="translate(0, 0)">
-          <rect width="100" height="40" rx="6" fill="#10b981" opacity="0.2" stroke="#10b981" strokeWidth="2" />
-          <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="900" fill="#10b981">정상 데이터</text>
-          <motion.path d="M 100 20 L 180 60" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="4 4"
+          <rect width="100" height="40" rx="6" fill="hsl(160 84% 39%)" opacity="0.2" stroke="hsl(160 84% 39%)" strokeWidth="2" />
+          <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(160 84% 39%)">정상 데이터</text>
+          <motion.path d="M 100 20 L 180 60" stroke="hsl(160 84% 39%)" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="4 4"
              animate={{ strokeDashoffset: -20 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} />
         </g>
         <g transform="translate(0, 80)">
-          <rect width="100" height="40" rx="6" fill="#f43f5e" opacity="0.2" stroke="#f43f5e" strokeWidth="2" />
-          <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="900" fill="#f43f5e">빈 배열 [ ]</text>
-          <motion.path d="M 100 20 L 180 -10" stroke="#f43f5e" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="4 4"
+          <rect width="100" height="40" rx="6" fill="hsl(347 89% 60%)" opacity="0.2" stroke="hsl(347 89% 60%)" strokeWidth="2" />
+          <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(347 89% 60%)">빈 배열 [ ]</text>
+          <motion.path d="M 100 20 L 180 -10" stroke="hsl(347 89% 60%)" strokeWidth="3" markerEnd="url(#arrow-head)" strokeDasharray="4 4"
              animate={{ strokeDashoffset: -20 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} />
         </g>
       </g>
 
       {/* Logic Gate */}
       <g transform="translate(300, 150)" filter="url(#soft-shadow)">
-        <polygon points="60,0 120,40 60,80 0,40" fill="url(#surface-grad)" stroke="#6366f1" strokeWidth="3" />
-        <text x="60" y="45" textAnchor="middle" fontSize="14" fontWeight="800" fill="#6366f1">데이터 있음?</text>
+        <polygon points="60,0 120,40 60,80 0,40" fill="url(#surface-grad)" stroke="hsl(239 84% 67%)" strokeWidth="3" />
+        <text x="60" y="45" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(239 84% 67%)">데이터 있음?</text>
       </g>
 
-      <path d="M 420 190 L 520 150" stroke="#10b981" strokeWidth="3" markerEnd="url(#arrow-head)" />
-      <path d="M 420 190 L 520 250" stroke="#f43f5e" strokeWidth="3" markerEnd="url(#arrow-head)" />
+      <path d="M 420 190 L 520 150" stroke="hsl(160 84% 39%)" strokeWidth="3" markerEnd="url(#arrow-head)" />
+      <path d="M 420 190 L 520 250" stroke="hsl(347 89% 60%)" strokeWidth="3" markerEnd="url(#arrow-head)" />
 
-      <text x="470" y="160" fontSize="14" fontWeight="800" fill="#10b981">Yes</text>
-      <text x="470" y="235" fontSize="14" fontWeight="800" fill="#f43f5e">No</text>
+      <text x="470" y="160" fontSize="14" fontWeight="800" fill="hsl(160 84% 39%)">Yes</text>
+      <text x="470" y="235" fontSize="14" fontWeight="800" fill="hsl(347 89% 60%)">No</text>
 
       {/* Outcomes */}
       <g transform="translate(540, 120)" filter="url(#soft-shadow)">
-        <rect width="140" height="40" rx="8" fill="#10b981" />
-        <text x="70" y="25" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff">정상 로직 수행</text>
+        <rect width="140" height="40" rx="8" fill="hsl(160 84% 39%)" />
+        <text x="70" y="25" textAnchor="middle" fontSize="16" fontWeight="900" fill="hsl(0 0% 100%)">정상 로직 수행</text>
       </g>
       <g transform="translate(540, 230)" filter="url(#soft-shadow)">
-        <rect width="140" height="40" rx="8" fill="#f43f5e" />
-        <text x="70" y="25" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff">예외 반환 (Null)</text>
+        <rect width="140" height="40" rx="8" fill="hsl(347 89% 60%)" />
+        <text x="70" y="25" textAnchor="middle" fontSize="16" fontWeight="900" fill="hsl(0 0% 100%)">예외 반환 (Null)</text>
       </g>
 
       <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="380" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        데이터가 비어있거나, 값이 음수일 때 등 극단적인 <tspan fill="#f43f5e" fontWeight="800">Edge Case</tspan>를 방어해야 합니다.
+        데이터가 비어있거나, 값이 음수일 때 등 극단적인 <tspan fill="hsl(347 89% 60%)" fontWeight="800">Edge Case</tspan>를 방어해야 합니다.
       </text>
     </svg>
   );
@@ -223,8 +223,8 @@ function VariableStateTimeline() {
         <text x="450" y="210" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(var(--muted-foreground))">시간 (Step)</text>
 
         {/* Lines */}
-        <path d="M 50 150 L 150 150 L 250 120 L 350 90 L 450 40" fill="none" stroke="#f43f5e" strokeWidth="4" />
-        <path d="M 50 120 L 150 90 L 250 70 L 350 60 L 450 50" fill="none" stroke="#3b82f6" strokeWidth="4" />
+        <path d="M 50 150 L 150 150 L 250 120 L 350 90 L 450 40" fill="none" stroke="hsl(347 89% 60%)" strokeWidth="4" />
+        <path d="M 50 120 L 150 90 L 250 70 L 350 60 L 450 50" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="4" />
 
         {/* Nodes and Values */}
         {[0, 1, 2, 3, 4].map((i) => {
@@ -234,11 +234,11 @@ function VariableStateTimeline() {
 
           return (
             <g key={`step-${i}`} transform={`translate(${50 + i * 100}, 0)`}>
-              <circle cx="0" cy={sumY} r="6" fill="#f43f5e" />
-              <text x="0" y={sumY - 15} textAnchor="middle" fontSize="14" fontWeight="900" fill="#f43f5e">{sumVal}</text>
+              <circle cx="0" cy={sumY} r="6" fill="hsl(347 89% 60%)" />
+              <text x="0" y={sumY - 15} textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(347 89% 60%)">{sumVal}</text>
 
-              <circle cx="0" cy={iY} r="6" fill="#3b82f6" />
-              <text x="0" y={iY - 15} textAnchor="middle" fontSize="14" fontWeight="900" fill="#3b82f6">{i}</text>
+              <circle cx="0" cy={iY} r="6" fill="hsl(217 91% 60%)" />
+              <text x="0" y={iY - 15} textAnchor="middle" fontSize="14" fontWeight="900" fill="hsl(217 91% 60%)">{i}</text>
 
               <line x1="0" y1="175" x2="0" y2="185" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
               <text x="0" y="200" textAnchor="middle" fontSize="12" fill="hsl(var(--muted-foreground))">t={i}</text>
@@ -247,10 +247,10 @@ function VariableStateTimeline() {
         })}
 
         {/* Legend */}
-        <rect x="50" y="20" width="12" height="12" rx="2" fill="#f43f5e" />
-        <text x="70" y="30" fontSize="14" fontWeight="800" fill="#f43f5e">sum</text>
-        <rect x="120" y="20" width="12" height="12" rx="2" fill="#3b82f6" />
-        <text x="140" y="30" fontSize="14" fontWeight="800" fill="#3b82f6">i (인덱스)</text>
+        <rect x="50" y="20" width="12" height="12" rx="2" fill="hsl(347 89% 60%)" />
+        <text x="70" y="30" fontSize="14" fontWeight="800" fill="hsl(347 89% 60%)">sum</text>
+        <rect x="120" y="20" width="12" height="12" rx="2" fill="hsl(217 91% 60%)" />
+        <text x="140" y="30" fontSize="14" fontWeight="800" fill="hsl(217 91% 60%)">i (인덱스)</text>
       </g>
 
       <rect x="150" y="350" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
 export type SortElement = { id: string; val: number };
@@ -188,22 +189,22 @@ export function MergeSortVisualizer({ data }: { data: any }) {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
             </pattern>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Merge Sort</text>
-           <text x="30" y="65" fill="#64748b" fontSize="14">{statusHTML}</text>
+          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Merge Sort</text>
+           <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{statusHTML}</text>
 
           {/* Main Array Label */}
-          <text x="50" y="100" fill="#94a3b8" fontSize="12" fontWeight="bold">Main Array (원본)</text>
+          <text x="50" y="100" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Main Array (원본)</text>
 
           {/* Main Array Background slots */}
            {array.map((_: SortElement, idx: number) => (
-            <rect key={`slot-${idx}`} x={getX(idx)} y={260 - chartHeight} width={barWidth} height={chartHeight} fill="rgba(255,255,255,0.02)" rx="4"/>
+            <rect key={`slot-${idx}`} x={getX(idx)} y={260 - chartHeight} width={barWidth} height={chartHeight} fill={colorTokens.faintFill} rx="4"/>
           ))}
 
           {/* Draw Sub-array Backgrounds (Optional, helpful for visual grouping) */}
@@ -215,9 +216,9 @@ export function MergeSortVisualizer({ data }: { data: any }) {
 
               let bgColor = "transparent";
               if (inLeft) {
-                bgColor = "rgba(59, 130, 246, 0.1)"; // blue-100
+                bgColor = colorTokens.primaryBlueDim; // blue-100
               } else if (inRight) {
-                bgColor = "rgba(239, 68, 68, 0.1)"; // red-100
+                bgColor = colorTokens.destructiveTrace; // red-100
               }
 
               if (bgColor === "transparent") return null;
@@ -256,23 +257,23 @@ export function MergeSortVisualizer({ data }: { data: any }) {
               const inLeft = left !== null && mid !== null && idx >= left && idx <= mid;
               const inRight = mid !== null && right !== null && idx > mid && idx <= right;
 
-              let fillColor = "#334155";
+              let fillColor = "hsl(var(--muted))";
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "#10b981"; // green
+                fillColor = colorTokens.success; // green
                 opacity = 0.9;
               } else if (isCopyingFrom || isCopyingTo) {
-                fillColor = "#8b5cf6"; // purple
+                fillColor = colorTokens.primaryHighlight; // purple
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "#eab308"; // yellow
+                fillColor = colorTokens.warning; // yellow
                 opacity = 1;
               } else if (inLeft) {
-                fillColor = "#3b82f6"; // blue
+                fillColor = colorTokens.primaryBlue; // blue
                 opacity = 0.8;
               } else if (inRight) {
-                fillColor = "#ef4444"; // red
+                fillColor = colorTokens.errorRed; // red
                 opacity = 0.8;
               }
 
@@ -299,16 +300,18 @@ export function MergeSortVisualizer({ data }: { data: any }) {
                     animate={{ fill: fillColor, opacity }}
                     transition={{ duration: 0.3 }}
                   />
-                  <text x={barWidth / 2} y={-10} fill={isSorted || opacity > 0.6 ? "#fff" : "#64748b"} fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                  <text x={barWidth / 2} y={-10} fill={isSorted || opacity > 0.6 ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"} fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
 
-                  {/* Pointers mapping to Original indices (i, j) */}
+                  {/* Pointers mapping to Original indices (i, j).
+                      i and j can briefly target the same index — stack the
+                      labels on different rows so they never overlap. */}
                   {idx === i && (
-                    <motion.text x={barWidth / 2} y={height + 25} fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 25} fill={colorTokens.primaryBlue} fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       i
                     </motion.text>
                   )}
                   {idx === j && (
-                    <motion.text x={barWidth / 2} y={height + 25} fill="#ef4444" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 45} fill={colorTokens.errorRed} fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       j
                     </motion.text>
                   )}
@@ -318,11 +321,11 @@ export function MergeSortVisualizer({ data }: { data: any }) {
           </AnimatePresence>
 
           {/* Temp Array Label */}
-          <text x="50" y="300" fill="#94a3b8" fontSize="12" fontWeight="bold">Temp Array (임시 메모리)</text>
+          <text x="50" y="300" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Temp Array (임시 메모리)</text>
 
           {/* Draw Temp Array Background slots */}
           {tempArray.map((_: SortElement | null, idx: number) => (
-            <rect key={`temp-slot-${idx}`} x={getX(idx)} y={svgHeight - 10 - chartHeight} width={barWidth} height={chartHeight} fill="rgba(255,255,255,0.02)" rx="4"/>
+            <rect key={`temp-slot-${idx}`} x={getX(idx)} y={svgHeight - 10 - chartHeight} width={barWidth} height={chartHeight} fill={colorTokens.faintFill} rx="4"/>
           ))}
 
           {/* Draw Temp Array Bars */}
@@ -346,12 +349,12 @@ export function MergeSortVisualizer({ data }: { data: any }) {
                   <rect
                     width={barWidth}
                     height={height}
-                    fill="#8b5cf6"
+                    fill={colorTokens.primaryHighlight}
                     opacity={0.8}
                     rx={4}
                     filter={isCopyingToTemp ? "url(#glow-copy)" : ""}
                   />
-                  <text x={barWidth / 2} y={-10} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                  <text x={barWidth / 2} y={-10} fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">{item.val}</text>
                 </motion.g>
               );
             })}
@@ -359,7 +362,7 @@ export function MergeSortVisualizer({ data }: { data: any }) {
 
            {/* Pointers mapping to Temp indices (k) */}
            {k !== null && (
-              <motion.text x={getX(k) + barWidth / 2} y={svgHeight - 5} fill="#a855f7" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.text x={getX(k) + barWidth / 2} y={svgHeight - 5} fill={colorTokens.primaryHighlight} fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   k
               </motion.text>
             )}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
 export type SortElement = { id: string; val: number };
@@ -200,13 +201,6 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <filter id="neon-glow-emerald" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
         <filter id="neon-glow-rose" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4" result="coloredBlur" />
           <feMerge>
@@ -223,7 +217,7 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="#06b6d4" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">
+      <text x="40" y="50" fill={colorTokens.info} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-cyan)">
         BUBBLE SORT
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -236,7 +230,7 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           현재 상태
         </text>
-        <text x="170" y="45" fill={isSwapping ? "#f43f5e" : (j !== -1 ? "#06b6d4" : "#10b981")} fontSize="14" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isSwapping ? colorTokens.destructive : (j !== -1 ? colorTokens.info : colorTokens.success)} fontSize="14" fontWeight="bold" textAnchor="middle">
           {isSwapping ? "두 원소를 교환합니다!" : (j !== -1 ? "두 원소 크기 비교 중..." : "각 Pass가 끝나면 가장 큰 원소가 맨 뒤로 이동합니다.")}
         </text>
       </g>
@@ -259,18 +253,18 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
           let textColor = "hsl(var(--foreground))";
 
           if (isSortedBlock) {
-            fill = "rgba(16, 185, 129, 0.1)";
-            stroke = "#10b981";
-            textColor = "#10b981";
+            fill = colorTokens.successDim;
+            stroke = colorTokens.success;
+            textColor = colorTokens.success;
           } else if (isComparing) {
             if (isSwapping) {
-              fill = "rgba(244, 63, 94, 0.1)";
-              stroke = "#f43f5e";
-              textColor = "#f43f5e";
+              fill = colorTokens.destructiveTrace;
+              stroke = colorTokens.destructive;
+              textColor = colorTokens.destructive;
             } else {
-              fill = "rgba(6, 182, 212, 0.1)";
-              stroke = "#06b6d4";
-              textColor = "#06b6d4";
+              fill = colorTokens.infoDim;
+              stroke = colorTokens.info;
+              textColor = colorTokens.info;
             }
           }
 
@@ -316,7 +310,7 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
                 height={MAX_BAR_HEIGHT + 80}
                 rx="12"
                 fill="none"
-                stroke={isSwapping ? "#f43f5e" : "#06b6d4"}
+                stroke={isSwapping ? colorTokens.destructive : colorTokens.info}
                 strokeWidth="2"
                 strokeDasharray="4"
               />
@@ -324,7 +318,7 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
               <text
                 x={START_X + j * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH + BLOCK_SPACING / 2}
                 y={START_Y - MAX_BAR_HEIGHT - 55}
-                fill={isSwapping ? "#f43f5e" : "#06b6d4"}
+                fill={isSwapping ? colorTokens.destructive : colorTokens.info}
                 fontSize="14"
                 fontWeight="bold"
                 textAnchor="middle"
@@ -340,13 +334,13 @@ export function BubbleSortVisualizer({ data }: { data: any }) {
       {/* Legend */}
       <g transform="translate(40, 420)">
         <rect width="250" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <circle cx="20" cy="25" r="5" fill="#06b6d4" />
+        <circle cx="20" cy="25" r="5" fill={colorTokens.info} />
         <text x="35" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">비교 중</text>
 
-        <circle cx="95" cy="25" r="5" fill="#f43f5e" />
+        <circle cx="95" cy="25" r="5" fill={colorTokens.destructive} />
         <text x="110" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">교환</text>
 
-        <circle cx="155" cy="25" r="5" fill="#10b981" />
+        <circle cx="155" cy="25" r="5" fill={colorTokens.success} />
         <text x="170" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">정렬 확정</text>
       </g>
     </svg>

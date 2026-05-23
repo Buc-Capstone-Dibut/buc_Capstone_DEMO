@@ -1,108 +1,65 @@
-# Maintenance Playbook
+# CTP 유지보수 플레이북
 
-## A. 서브컨셉 1개 추가
+> 신규 컨셉 추가 / 기존 컨셉 수정 / ID 변경 시 따라야 하는 절차.
 
-1. 디렉토리 생성
-- `web/components/features/ctp/contents/categories/<cat>/concepts/<concept>/sub-concepts/<new-id>/`
-- `config.ts`, `logic.ts` 생성
+## 신규 sub-concept 추가 절차
 
-2. 레지스트리 연결
-- 해당 concept의 `*-registry.ts`에 key 추가
-  - `'<new-id>': { config, useSim, Visualizer }`
+1. **ConceptSpec JSON 작성**
+   - 위치: `web/data/ctp/specs/<conceptId>.json`
+   - 형식: `web/data/ctp/specs/concept-spec.ts`의 `ConceptSpec` 인터페이스 준수
+   - `validateConceptSpec()`로 사전 검증
 
-3. 사이드바/목차 노출
-- `web/lib/ctp-curriculum.ts`의 해당 concept `subConcepts[]`에 같은 `id` 추가
+2. **Visualizer 작성** (시각화가 필요한 경우)
+   - 위치: `web/components/features/ctp/playground/visualizers/svg-animations/module-XX/<id>.tsx`
+   - export: `useXxxSim` 훅 + `XxxVisualizer` 컴포넌트
+   - import 제약: `svg-primitives/` 라이브러리만 사용. hardcoded 색상/grid 금지
+   - supp: `supp/<id>-supp.tsx`에 4개 SVG 컴포넌트 + `XxxSupplementaryOptions` 배열 export
 
-4. (선택) 콘텐츠 확장 규칙 연결
-- `web/components/features/ctp/contents/shared/ctp-content-expansion.ts`
-  - `groupByKey`, `expansions`, `deepDiveByKey` 등 필요 시 추가
+3. **모듈 등록**
+   - 해당 모듈 파일(`module-XX-*.tsx`) 안 `createInteractiveTemplateModules([...])` 배열에 새 항목 추가
+   - 필드: `{ id, title, description, sampleData, story, features, useSim, Visualizer }`
+   - `id`는 ConceptSpec의 `id`와 동일해야 함
 
-5. 검증
-- URL: `/insights/ctp/<categoryId>/<conceptId>?view=<new-id>`
-- 사이드바 클릭 -> 해당 모듈 로드 -> 실행/시각화 정상 확인
+4. **커리큘럼 등록**
+   - `web/lib/ctp-curriculum.ts`의 해당 concept `subConcepts` 배열에 `{ id, title }` 추가
 
-## B. 기존 서브컨셉 내용만 수정
+5. **(선택) Expansion 매핑**
+   - `ctp-content-expansion.ts`에 같은 `id` 키로 추가 콘텐츠 보강 가능
+   - fc-1~4와 ProblemBank 컨셉은 매핑 무관
 
-수정 포인트:
-- 설명/학습 목표: `config.ts`
-- 시뮬레이션 로직: `logic.ts`
-- 시각화 표현: visualizer 파일
+6. **검증**
+   ```bash
+   pnpm exec node scripts/ctp-verify.mjs --concept <id>
+   ```
+   G1-G7 모두 PASS 확인 후 commit.
 
-검증 포인트:
-- `CTPIntro`/`CTPFeatures`/`CTPComplexity`/`CTPPractice` 섹션 렌더 여부
-- 플레이백(실행/일시정지/스텝/스크러버) 정상 여부
+## ID 변경 시 동기화 4곳
 
-## C. Code -> Interactive 모드 전환
+같은 ID가 다음 4곳에서 키로 사용된다. 하나라도 누락하면 404 또는 매핑 깨짐:
+1. `ctp-curriculum.ts`의 subConcept ID
+2. `module-XX-*.tsx`의 `createInteractiveTemplateModules` 항목 `id`
+3. URL `?view=<id>` 쿼리
+4. `ctp-content-expansion.ts`의 expansions 키 (선택)
 
-1. `config.ts`
-- `mode: "interactive"`
-- `interactive.components` 설정
+ID rename 시 위 4곳 동시 수정 + `ctp-verify.mjs` G3, G7 통과 확인.
 
-2. `logic.ts`
-- `runSimulation` 유지
-- `interactive` 객체 반환 (visualData/logs/handlers)
+## 기존 컨셉 콘텐츠 수정
 
-3. 핸들러 키 확인
-- `components`의 버튼 키와 `handlers` 키 일치
-- `reset` 대신 `clear` 사용해도 alias 처리되지만, 가능하면 명시 일치 권장
+- story/features 만 수정: 모듈 파일만 수정 + Tone Guide 준수 + G4 통과
+- Visualizer 수정: 해당 `svg-animations/module-XX/<id>.tsx` + ConceptSpec storyboard 동기화
 
-## D. Interactive -> Code 모드 전환
+## 검증 명령 모음
 
-1. `config.ts`
-- `mode` 제거 또는 `"code"`
-- `initialCode.python` 제공
+```bash
+# 단일 컨셉 검증
+pnpm exec node scripts/ctp-verify.mjs --concept <id>
 
-2. `logic.ts`
-- `useSkulptEngine({ adapterType | dataMapper })` 방식으로 `runSimulation` 구현
+# 전체 컨셉 검증 (CI)
+pnpm exec node scripts/ctp-verify.mjs --all
 
-3. visualizer 계약 확인
-- adapter 출력 타입과 visualizer 입력 타입 일치 여부 확인
+# 타입 검사
+pnpm exec tsc --noEmit
 
-## E. ID 변경 (가장 위험)
-
-동기화 대상 최소 4곳:
-1. `web/lib/ctp-curriculum.ts` (`subConcepts[].id`)
-2. concept `*-registry.ts` (모듈 key)
-3. 디렉토리명 (`sub-concepts/<id>`) 및 import 경로
-4. `ctp-content-expansion.ts` 키 (사용 중인 경우)
-
-추가 확인:
-- 기존 URL bookmark 호환이 필요하면 redirect 또는 alias key 유지
-
-## F. Concept/Category 추가
-
-Concept 추가:
-1. `contents/categories/.../concepts/<concept>/index.tsx` + registry + overview + sub-concepts 구성
-2. `web/lib/ctp-content-registry.tsx`에 `"<category>/<concept>": <ContentComponent>` 추가
-3. `web/lib/ctp-curriculum.ts`에 concept 메타 추가
-
-Category 추가:
-1. `ctp-curriculum.ts` 카테고리 추가
-2. 페이지 아이콘/스타일 의존 코드 점검 (`web/app/insights/ctp/page.tsx`)
-3. 필요한 경우 레이아웃/색상 시스템 확장
-
-## G. 시뮬레이션 오류 트러블슈팅
-
-증상별 우선 조사:
-
-1. 실행해도 step 0개
-- `logic.ts`가 실제로 `run` 호출하는지
-- worker 경로(`/workers/skulpt.worker.js`) 로드 가능한지
-
-2. step은 있는데 시각화 없음
-- adapter 출력 shape가 visualizer 계약과 맞는지
-- `CTPModuleLoader`에서 payload 추출(`data/edges/rootId`) 확인
-
-3. interactive 버튼 무반응
-- `config.interactive.components`와 `handlers` 키 매칭 확인
-- `CTPModuleLoader`가 interactive 분기로 들어가는지 확인
-
-## H. 최소 검증 체크리스트 (PR 전)
-
-- 라우트 진입: `/insights/ctp` -> 컨셉 -> `?view=<subConcept>`
-- 사이드바 선택/URL 쿼리 동기화
-- 실행 버튼 후 step 생성
-- 코드 라인 하이라이트 동작
-- 시각화/상태패널/터미널 동시 동작
-- 브라우저 콘솔 에러 없음
-
+# 빌드 검증
+pnpm exec next build
+```

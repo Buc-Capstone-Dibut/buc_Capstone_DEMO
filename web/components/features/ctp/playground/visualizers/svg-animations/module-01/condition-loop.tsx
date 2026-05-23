@@ -159,50 +159,57 @@ export function ConditionLoopVisualizer({ data }: { data: { step: number } }) {
             </defs>
           </svg>
 
-          {/* Paths connecting nodes */}
+          {/* Paths connecting nodes.
+              Diamond (Node 3) is a CSS-rotated 96x96 square at top-[170px] (parent 500x450).
+              Container center: (250, 234). Rotated 45deg, the visible corners are at
+              (250, 166)=top, (318, 234)=right, (250, 302)=bottom, (182, 234)=left
+              (half-diagonal = 96/√2 × √2 / 2 ≈ 67.88). Paths below snap to these. */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
-            {/* 1 to 2 */}
+            {/* 1 to 2 (Start → Init) */}
             <path d="M 250 40 L 250 90" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
             <motion.path d="M 250 40 L 250 90" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
               opacity={step >= 1 ? 1 : 0} strokeDasharray={step === 1 ? "4 4" : "0"}
               animate={step === 1 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             />
 
-            {/* 2 to 3 */}
-            <path d="M 250 130 L 250 170" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <motion.path d="M 250 130 L 250 170" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
+            {/* 2 to 3 (Init bottom → Condition diamond top apex) */}
+            <path d="M 250 130 L 250 166" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+            <motion.path d="M 250 130 L 250 166" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
               opacity={step >= 2 ? 1 : 0} strokeDasharray={step === 2 || step === 5 ? "4 4" : "0"}
               animate={step === 2 || step === 5 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             />
 
-            {/* 3 to 4 (True Branch) */}
-            <path d="M 250 250 L 250 300" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <motion.path d="M 250 250 L 250 300" fill="none" stroke="hsl(var(--emerald-500))" strokeWidth="4"
+            {/* 3 to 4 (Diamond bottom apex → Loop Body top) — TRUE Branch */}
+            <path d="M 250 302 L 250 310" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+            <motion.path d="M 250 302 L 250 310" fill="none" stroke="hsl(var(--emerald-500))" strokeWidth="4"
               opacity={step >= 3 && step < 6 ? 1 : 0} strokeDasharray={step === 3 || step === 4 ? "4 4" : "0"}
               animate={step === 3 || step === 4 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               filter="url(#flow-glow-primary)"
             />
-            <text x="260" y="280" className={`text-xs font-bold ${step >= 3 && step < 6 ? "fill-emerald-500" : "fill-muted-foreground"}`}>TRUE</text>
+            <text x="258" y="308" className={`text-[10px] font-bold ${step >= 3 && step < 6 ? "fill-emerald-500" : "fill-muted-foreground"}`}>TRUE</text>
 
-            {/* 4 to 5 to 3 (Loop Back) */}
-            <path d="M 180 320 L 80 320 L 80 210 L 170 210" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
-            <motion.path d="M 180 320 L 80 320 L 80 210 L 170 210" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" strokeLinejoin="round"
+            {/* 4 to 5 to 3 (Loop Back: Body left side → left rail → diamond left apex)
+                Body Node at top-[310px] h-12: bottom at y=358, left edge at x=178.
+                Route: leave body left side mid-height, up left rail, in to diamond left apex (182, 234). */}
+            <path d="M 178 334 L 80 334 L 80 234 L 182 234" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
+            <motion.path d="M 178 334 L 80 334 L 80 234 L 182 234" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" strokeLinejoin="round"
               opacity={step >= 4 && step < 6 ? 1 : 0} strokeDasharray={step === 4 || step === 5 ? "4 4" : "0"}
               animate={step === 4 || step === 5 ? { strokeDashoffset: 40 } : {}} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
             />
-            <polygon points="160,206 170,210 160,214" fill={step >= 4 && step < 6 ? "hsl(var(--primary))" : "hsl(var(--border))"} />
-            <text x="90" y="270" className={`text-xs font-bold ${step >= 4 && step < 6 ? "fill-primary" : "fill-muted-foreground"}`}>LOOP</text>
+            {/* Loop-back arrow tip at diamond left apex */}
+            <polygon points="175,230 182,234 175,238" fill={step >= 4 && step < 6 ? "hsl(var(--primary))" : "hsl(var(--border))"} />
+            <text x="90" y="290" className={`text-xs font-bold ${step >= 4 && step < 6 ? "fill-primary" : "fill-muted-foreground"}`}>LOOP</text>
 
 
-            {/* 3 to 6 (False Branch) */}
-            <path d="M 330 210 L 420 210 L 420 400 L 250 400" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
-            <motion.path d="M 330 210 L 420 210 L 420 400 L 250 400" fill="none" stroke="hsl(var(--destructive))" strokeWidth="4" strokeLinejoin="round"
+            {/* 3 to 6 (Diamond right apex → End) — FALSE Branch */}
+            <path d="M 318 234 L 420 234 L 420 400 L 250 400" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
+            <motion.path d="M 318 234 L 420 234 L 420 400 L 250 400" fill="none" stroke="hsl(var(--destructive))" strokeWidth="4" strokeLinejoin="round"
               opacity={step === 6 ? 1 : 0} strokeDasharray={step === 6 ? "4 4" : "0"}
               animate={step === 6 ? { strokeDashoffset: -60 } : {}} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               filter="url(#flow-glow-destructive)"
             />
             <polygon points="260,396 250,400 260,404" fill={step === 6 ? "hsl(var(--destructive))" : "hsl(var(--border))"} />
-            <text x="340" y="200" className={`text-xs font-bold ${step === 6 ? "fill-destructive" : "fill-muted-foreground"}`}>FALSE</text>
+            <text x="340" y="224" className={`text-xs font-bold ${step === 6 ? "fill-destructive" : "fill-muted-foreground"}`}>FALSE</text>
           </svg>
 
           {/* Nodes (z-index 10) */}
@@ -257,12 +264,12 @@ export function ConditionLoopVisualizer({ data }: { data: { step: number } }) {
                 boxShadow: step === 4 ? "0 0 20px hsla(var(--emerald-500), 0.4)" : "none",
                 backgroundColor: step === 4 ? "hsl(var(--emerald-500)/0.1)" : "hsl(var(--card))"
               }}
-              className="absolute top-[300px] w-36 h-12 rounded-lg border-2 flex items-center justify-center backdrop-blur-md"
+              className="absolute top-[310px] w-36 h-12 rounded-lg border-2 flex items-center justify-center backdrop-blur-md"
             >
               <span className="font-bold text-sm text-foreground font-mono">print("x is ", x)</span>
             </motion.div>
 
-            {/* Node 5: UPDATE (On the return path) */}
+            {/* Node 5: UPDATE — sits on the loop-back vertical rail at x≈80 (y range 234..334) */}
             <motion.div
                animate={{
                 scale: step === 5 ? 1.1 : 1,
@@ -271,7 +278,7 @@ export function ConditionLoopVisualizer({ data }: { data: { step: number } }) {
                 backgroundColor: step === 5 ? "hsl(var(--primary)/0.1)" : "hsl(var(--card))",
                 opacity: step >= 4 && step < 6 ? 1 : 0.3
               }}
-              className="absolute top-[260px] left-[50px] w-16 h-8 rounded border-2 flex flex-col items-center justify-center backdrop-blur-md z-20"
+              className="absolute top-[270px] left-[48px] w-16 h-8 rounded border-2 flex flex-col items-center justify-center backdrop-blur-md z-20"
             >
                <span className="font-bold text-[10px] text-foreground font-mono">x++</span>
             </motion.div>

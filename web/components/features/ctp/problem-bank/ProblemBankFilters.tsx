@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Difficulty, ProblemType } from "./types";
 
 export type DifficultyFilter = "all" | Difficulty;
@@ -10,19 +11,23 @@ export type TypeFilter = "all" | ProblemType;
 interface ProblemBankFiltersProps {
   difficulty: DifficultyFilter;
   type: TypeFilter;
+  searchQuery: string;
   total: number;
   visible: number;
   onDifficultyChange: (value: DifficultyFilter) => void;
   onTypeChange: (value: TypeFilter) => void;
+  onSearchChange: (value: string) => void;
 }
 
 export function ProblemBankFilters({
   difficulty,
   type,
+  searchQuery,
   total,
   visible,
   onDifficultyChange,
   onTypeChange,
+  onSearchChange,
 }: ProblemBankFiltersProps) {
   return (
     <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
@@ -59,16 +64,25 @@ export function ProblemBankFilters({
                 All
               </Button>
               <Button size="sm" variant={difficulty === "bronze" ? "default" : "outline"} onClick={() => onDifficultyChange("bronze")}>
-                🥉 Bronze
+                Bronze
               </Button>
               <Button size="sm" variant={difficulty === "silver" ? "default" : "outline"} onClick={() => onDifficultyChange("silver")}>
-                🥈 Silver
+                Silver
               </Button>
               <Button size="sm" variant={difficulty === "gold" ? "default" : "outline"} onClick={() => onDifficultyChange("gold")}>
-                🥇 Gold
+                Gold
               </Button>
             </div>
           </div>
+
+          <div className="h-6 w-px bg-border/60" />
+
+          <Input
+            placeholder="문제 검색 (제목, 태그)"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="h-9 w-64"
+          />
         </div>
       </div>
     </div>

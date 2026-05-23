@@ -85,7 +85,7 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 z-10">
 
         {/* ARRAY PANEL */}
-        <div className="bg-[#0d1117]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
+        <div className="bg-card/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
           <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-8">
             <h3 className="font-black uppercase tracking-widest text-cyan-500 text-sm">Contiguous Array</h3>
             <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -95,8 +95,13 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center relative">
-            {/* Memory Blocks Container */}
-            <div className="flex border border-cyan-500/30 p-2 rounded-xl bg-cyan-500/5 relative overflow-visible shadow-[0_0_30px_hsla(var(--cyan-500),0.05)]">
+            {/* Memory Blocks Container — expand right padding during insertion to keep
+                shifted cells (x: 68) inside the container border. */}
+            <motion.div
+               className="flex border border-cyan-500/30 p-2 rounded-xl bg-cyan-500/5 relative overflow-visible shadow-[0_0_30px_hsla(var(--cyan-500),0.05)]"
+               animate={{ paddingRight: step === 3 ? 76 : 8 }}
+               transition={{ duration: 0.4 }}
+            >
 
               {/* Target Access Pointer Step 1 */}
               <AnimatePresence>
@@ -145,7 +150,7 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
 
              {/* Array Memory Shifting Visual */}
              {step === 3 && (
@@ -163,7 +168,7 @@ export function DsCompareVisualizer({ data }: { data: { step: number } }) {
         </div>
 
         {/* LINKED LIST PANEL */}
-        <div className="bg-[#0d1117]/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
+        <div className="bg-card/90 backdrop-blur-md border border-border rounded-2xl p-6 shadow-2xl relative min-h-[300px] flex flex-col">
           <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-8">
             <h3 className="font-black uppercase tracking-widest text-purple-500 text-sm">Linked List</h3>
             <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">

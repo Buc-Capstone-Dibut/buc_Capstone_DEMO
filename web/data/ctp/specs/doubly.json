@@ -1,0 +1,168 @@
+{
+  "id": "doubly",
+  "moduleId": "module-04-list-tree-final",
+  "conceptId": "list",
+  "title": "08-2 이중 연결 리스트",
+  "difficulty": "intermediate",
+  "prerequisites": ["singly"],
+  "learningOutcomes": [
+    "prev와 next 두 포인터로 양방향 순회를 가능하게 하는 구조 이해",
+    "노드 1개의 추가 메모리 비용과 그 대가로 얻는 표현력을 비교",
+    "임의 노드 위치에서 O(1) 삭제가 가능해지는 이유를 포인터 재배선 관점에서 설명"
+  ],
+  "simulation": {
+    "mode": "interactive",
+    "domain": "list",
+    "stepCount": 5,
+    "operations": ["next", "prev", "reset"],
+    "initialState": {
+      "nodes": [
+        { "id": 0, "value": "A", "prev": null, "next": 1 },
+        { "id": 1, "value": "B", "prev": 0, "next": 2 },
+        { "id": 2, "value": "C", "prev": 1, "next": null }
+      ],
+      "head": 0,
+      "tail": 2
+    },
+    "storyboard": [
+      {
+        "step": 0,
+        "description": "head는 A, tail은 C를 가리키며 각 노드는 prev와 next 두 포인터로 양방향 연결됩니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": null,
+          "highlight": [0, 1, 2]
+        }
+      },
+      {
+        "step": 1,
+        "description": "B 노드를 손에 들었을 때 prev로 A에 즉시 접근할 수 있음을 확인합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 1,
+          "highlight": [1, 0]
+        }
+      },
+      {
+        "step": 2,
+        "description": "같은 B 노드에서 next를 따라 C로도 즉시 이동할 수 있습니다. 양방향 자유 이동이 핵심입니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 1, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 1,
+          "highlight": [1, 2]
+        }
+      },
+      {
+        "step": 3,
+        "description": "B와 C 사이에 새 노드 X를 삽입합니다. X.prev=B, X.next=C, B.next=X, C.prev=X 네 포인터를 모두 갱신해야 합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 1 },
+            { "id": 1, "value": "B", "prev": 0, "next": 3 },
+            { "id": 3, "value": "X", "prev": 1, "next": 2 },
+            { "id": 2, "value": "C", "prev": 3, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 3,
+          "highlight": [1, 3, 2]
+        }
+      },
+      {
+        "step": 4,
+        "description": "B를 삭제합니다. B.prev인 A의 next=X, B.next인 X의 prev=A로 양쪽 포인터를 동시에 재연결합니다.",
+        "stateAfter": {
+          "nodes": [
+            { "id": 0, "value": "A", "prev": null, "next": 3 },
+            { "id": 3, "value": "X", "prev": 0, "next": 2 },
+            { "id": 2, "value": "C", "prev": 3, "next": null }
+          ],
+          "head": 0,
+          "tail": 2,
+          "current": 0,
+          "highlight": [0, 3]
+        }
+      }
+    ]
+  },
+  "visualizer": {
+    "type": "linked-list",
+    "showIndices": true,
+    "showPointers": ["head", "tail"]
+  },
+  "supplementary": [
+    {
+      "title": "양방향 포인터 구조",
+      "description": "각 노드는 data, prev, next 세 필드를 가집니다. prev는 직전 노드, next는 다음 노드를 가리키며 양쪽 끝은 null로 종단을 표시합니다.",
+      "visualHint": "노드 3개를 가로로 배치하고 위쪽에 next 화살표(active), 아래쪽에 prev 화살표(pointer)를 각각 반대 방향으로 그려 양방향 표시"
+    },
+    {
+      "title": "head와 tail 이중 진입점",
+      "description": "리스트 앞쪽 접근은 head, 뒤쪽 접근은 tail로 즉시 가능합니다. 끝쪽 삽입·삭제가 O(1)이 되는 결정적 이유입니다.",
+      "visualHint": "노드 3개 중 가장 왼쪽 위에 head 라벨(found 색), 가장 오른쪽 위에 tail 라벨(pointer 색)을 PointerArrow로 표시"
+    },
+    {
+      "title": "O(1) 임의 노드 삭제",
+      "description": "삭제할 노드를 직접 손에 들고 있다면 prev/next 정보로 양옆을 이어 붙이기만 하면 됩니다. 단일 연결 리스트와 달리 직전 노드를 따로 찾을 필요가 없습니다.",
+      "visualHint": "가운데 노드 B를 muted 색으로 반투명 처리하고, A와 C 사이를 직접 잇는 active 색 양방향 화살표 두 개를 곡선으로 그림"
+    },
+    {
+      "title": "추가 메모리 비용",
+      "description": "노드당 포인터가 하나 더 늘어나기 때문에 메모리 사용량이 증가합니다. 데이터 양이 매우 많거나 메모리 제약이 큰 환경에서는 비용 대비 효용을 따져 봅니다.",
+      "visualHint": "왼쪽에 단일 연결 노드 박스(next만, 너비 1단위), 오른쪽에 이중 연결 노드 박스(prev/next, 너비 1.5단위)를 비교 표시"
+    }
+  ],
+  "content": {
+    "story": {
+      "problem": "단일 연결 리스트는 한 방향으로만 이동할 수 있어, 임의 노드를 삭제할 때 직전 노드를 다시 찾아야 한다는 비효율이 있습니다. 또한 리스트의 마지막 원소에 접근하려고 매번 head부터 끝까지 순회하는 비용도 누적되면 무시할 수 없습니다.",
+      "definition": "이중 연결 리스트(Doubly Linked List)는 각 노드가 prev와 next 두 포인터를 모두 가지는 연결 리스트입니다.\n- 진입점: head(첫 노드)와 tail(끝 노드)\n- 양방향 순회가 가능하고, 임의 노드를 손에 쥐고 있으면 O(1) 삭제가 가능\n- 노드당 포인터가 하나 더 필요하므로 메모리 비용은 단일 연결 리스트보다 약간 큽니다",
+      "analogy": "왕복 통행이 가능한 양방향 도로와 비슷합니다. 어느 노드(교차로)에 있든 앞이나 뒤로 자유롭게 이동할 수 있고, 한 노드를 도로 위에서 제거할 때도 양옆 도로를 바로 이어 붙일 수 있습니다. 다만 도로마다 양방향 차선을 마련해야 하므로 공사 비용은 단방향 도로보다 큽니다."
+    },
+    "features": [
+      {
+        "title": "prev·next 양방향 포인터",
+        "description": "각 노드는 직전·다음 노드를 동시에 가리킵니다. 어디서든 양쪽 방향으로 자유롭게 이동할 수 있다는 점이 단일 연결 리스트와의 가장 큰 차이입니다.",
+        "icon": "swap"
+      },
+      {
+        "title": "head와 tail 동시 보관",
+        "description": "리스트 시작과 끝 모두에 즉시 접근할 수 있어 양쪽 끝 삽입·삭제가 O(1)에 끝납니다. 데크(Deque) 같은 구조의 자연스러운 토대가 됩니다.",
+        "icon": "anchor"
+      },
+      {
+        "title": "O(1) 임의 노드 삭제",
+        "description": "삭제할 노드를 알고 있으면 prev·next를 따라 양옆 노드만 다시 잇습니다. 단일 연결 리스트처럼 직전 노드를 다시 탐색하지 않아도 됩니다.",
+        "icon": "scissors"
+      },
+      {
+        "title": "메모리 비용 트레이드오프",
+        "description": "노드마다 포인터 하나가 더 필요하기 때문에 메모리 사용량이 증가합니다. 데이터 양이 많거나 메모리 제약이 강한 환경에서는 단일 연결 리스트와 비용 효용을 비교해야 합니다.",
+        "icon": "balance"
+      }
+    ],
+    "complexity": {
+      "access": "O(N)",
+      "search": "O(N)",
+      "insertion": "O(1)",
+      "deletion": "O(1)"
+    }
+  }
+}

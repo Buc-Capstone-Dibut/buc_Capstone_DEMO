@@ -83,7 +83,7 @@ export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
 
         {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-w-[300px] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 mb-4 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
@@ -156,10 +156,10 @@ export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
                   textColor = "hsl(var(--primary))";
                   shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
                 } else if (isTargetStep2) {
-                  bgColor = "hsl(var(--purple-500)/0.2)";
-                  borderColor = "hsl(var(--purple-500))";
-                  textColor = "hsl(var(--purple-500))";
-                  shadowColor = "0 0 20px hsla(var(--purple-500), 0.4)";
+                  bgColor = "hsl(var(--primary)/0.2)";
+                  borderColor = "hsl(var(--primary))";
+                  textColor = "hsl(var(--primary))";
+                  shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
                 } else if (isSliced) {
                   bgColor = "hsl(var(--emerald-500)/0.2)";
                   borderColor = "hsl(var(--emerald-500))";
@@ -177,7 +177,7 @@ export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
                           initial={{ opacity: 0, y: -20, scale: 0.8 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -20, scale: 0.8 }}
-                          className={`absolute -top-12 flex flex-col items-center z-40 ${isTargetStep1 ? "text-primary" : "text-purple-500"}`}
+                          className={`absolute -top-12 flex flex-col items-center z-40 text-primary`}
                         >
                           <span className="font-bold text-[10px] tracking-widest bg-card border px-2 py-0.5 rounded shadow-[0_0_10px_currentColor] whitespace-nowrap">
                             INDEX {i}

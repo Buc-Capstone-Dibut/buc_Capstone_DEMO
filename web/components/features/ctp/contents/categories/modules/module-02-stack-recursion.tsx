@@ -6,7 +6,6 @@ import { ProblemBankController } from "@/components/features/ctp/problem-bank";
 import { module02Problems } from "@/data/ctp/problems";
 import { ChapterOverview } from "./shared/chapter-overview";
 import {
-  createCodeTemplateModules,
   createInteractiveTemplateModules,
 } from "./shared/module-utils";
 
@@ -413,103 +412,6 @@ const RECURSION_MODULES = createInteractiveTemplateModules([
     ],
     useSim: useQueenBacktrackingSim,
     Visualizer: QueenBacktrackingVisualizer,
-  },
-]);
-
-// Requirement: keep this chapter as code simulator
-const STACK_RECURSION_INTEGRATION_MODULES = createCodeTemplateModules([
-  {
-    id: "stack-recursion-integrated-1",
-    title: "통합 문제 1: 스택으로 재귀 대체",
-    description: "재귀 호출 흐름을 명시적 스택 프레임으로 치환하는 실전 문제를 풉니다.",
-    sampleData: [10, 6, 2, 9, 1],
-    story: {
-      problem:
-        "재귀 알고리즘을 그대로 서비스 코드에 넣었다가 깊은 입력에서 런타임 오류가 발생하는 경우가 많습니다. 알고리즘 아이디어는 맞지만 구현 전략이 환경 제약을 반영하지 못한 상황입니다.",
-      definition:
-        "이 통합 문제는 재귀 함수의 호출/복귀 상태를 스택에 저장해 동일 로직을 반복문으로 재현하는 과정을 다룹니다. 핵심은 '무엇을 프레임에 저장해야 원본 재귀와 완전히 같은 결과가 나오는가'입니다.",
-      analogy:
-        "자동 변속기(재귀)를 수동 변속기(명시적 스택)로 전환해도 주행 경로와 목적지는 같아야 하는 상황과 같습니다.",
-    },
-    features: [
-      {
-        title: "호출 상태 캡슐화",
-        description:
-          "파라미터, 현재 단계, 임시 결과를 프레임에 묶어 저장하는 패턴을 익힙니다.",
-      },
-      {
-        title: "동등성 검증",
-        description:
-          "재귀 버전과 반복 버전의 출력/연산 순서가 일치하는지 테스트 케이스로 교차 검증합니다.",
-      },
-      {
-        title: "예외 안전성 확보",
-        description:
-          "대규모 입력에서도 스택 오버플로 없이 안정적으로 동작하도록 구현을 다듬습니다.",
-      },
-    ],
-  },
-  {
-    id: "stack-recursion-integrated-2",
-    title: "통합 문제 2: 큐/스택 선택 문제",
-    description: "문제 요구사항에서 처리 순서를 해석해 스택과 큐 중 최적 구조를 선택합니다.",
-    sampleData: [4, 12, 8, 3, 7],
-    story: {
-      problem:
-        "많은 풀이가 구현부터 시작해서 자료구조 선택을 뒤늦게 바꾸느라 시간을 낭비합니다. 순서 제약을 먼저 읽지 않으면 정답 알고리즘을 알고도 틀린 자료구조를 선택하게 됩니다.",
-      definition:
-        "핵심은 문제를 '최근 상태 우선 회수(LIFO)인가, 도착 순서 보존(FIFO)인가'로 번역하는 것입니다. 스택/큐 선택은 구현 디테일이 아니라 문제 모델링의 본질적 결정입니다.",
-      analogy:
-        "응급실 트리아지(우선순위)와 번호표 창구(선착순)는 모두 줄서기처럼 보이지만 운영 규칙이 전혀 다릅니다. 규칙을 먼저 읽어야 도구가 정해집니다.",
-    },
-    features: [
-      {
-        title: "요구사항 문장 해석",
-        description:
-          "문제 설명 속 키워드(최근, 되돌리기, 선착순, 레벨순)를 자료구조 선택 신호로 추출하는 훈련을 합니다.",
-      },
-      {
-        title: "선택 근거 명문화",
-        description:
-          "왜 스택인지, 왜 큐인지를 연산 시나리오와 복잡도 근거로 설명하는 답안 품질을 강화합니다.",
-      },
-      {
-        title: "오선택 리팩터링",
-        description:
-          "틀린 자료구조로 시작한 코드를 요구사항 중심으로 재설계해 정답 구조로 전환하는 과정을 실습합니다.",
-      },
-    ],
-  },
-  {
-    id: "stack-recursion-integrated-3",
-    title: "통합 문제 3: 분기 탐색 실전",
-    description: "백트래킹 탐색에서 상태 복원과 가지치기를 결합해 성능을 개선합니다.",
-    sampleData: [5, 9, 1, 6, 2],
-    story: {
-      problem:
-        "분기형 문제를 완전탐색으로만 풀면 정답은 맞아도 제한 시간 안에 통과하지 못하는 경우가 많습니다. 특히 상태 복원이 어긋나면 일부 케이스만 틀리는 난해한 버그가 생깁니다.",
-      definition:
-        "이 문제는 DFS + 백트래킹 골격에 제약 검사와 가지치기를 결합해 탐색 공간을 줄이는 실전 훈련입니다. 선택-탐색-복원의 루프를 안정적으로 유지하는 것이 정답률과 성능을 동시에 좌우합니다.",
-      analogy:
-        "여러 갈래 산길에서 지도에 없는 막다른 길을 만나면 즉시 돌아와 다음 길을 고르는 등산 전략과 같습니다. 끝까지 가보는 것이 아니라, 빨리 포기하고 유망 경로에 집중해야 합니다.",
-    },
-    features: [
-      {
-        title: "분기 트리 설계",
-        description:
-          "현재 상태에서 생성 가능한 다음 후보를 체계적으로 열거하고, 탐색 순서를 설계합니다.",
-      },
-      {
-        title: "가지치기 규칙 정교화",
-        description:
-          "정답 가능성이 없는 노드를 조기에 탈락시키는 조건식을 설계해 탐색량을 줄입니다.",
-      },
-      {
-        title: "상태 복원 안정성",
-        description:
-          "재귀 복귀 시 변경한 상태를 정확히 되돌려 케이스 누락/중복 방문 버그를 방지합니다.",
-      },
-    ],
   },
 ]);
 

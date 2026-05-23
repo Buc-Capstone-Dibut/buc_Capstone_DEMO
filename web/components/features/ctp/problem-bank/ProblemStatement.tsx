@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Button } from "@/components/ui/button";
 import { ProblemBankItem } from "./types";
 
 interface ProblemStatementProps {
@@ -9,6 +11,14 @@ interface ProblemStatementProps {
 }
 
 export function ProblemStatement({ problem }: ProblemStatementProps) {
+  const [showHints, setShowHints] = useState(false);
+  const [showSolution, setShowSolution] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+
+  const hasHints = !!problem.hints && problem.hints.length > 0;
+  const hasSolution = !!problem.referenceSolution;
+  const hasExplanation = !!problem.solutionExplanation;
+
   return (
     <div className="space-y-6">
       <section className="space-y-2">
@@ -60,6 +70,49 @@ export function ProblemStatement({ problem }: ProblemStatementProps) {
           ))}
         </div>
       </section>
+
+      {(hasHints || hasSolution || hasExplanation) && (
+        <section className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
+          <h4 className="text-sm font-semibold text-foreground">학습 도우미</h4>
+          <div className="flex flex-wrap gap-2">
+            {hasHints && (
+              <Button size="sm" variant="outline" onClick={() => setShowHints((v) => !v)}>
+                {showHints ? "힌트 접기" : `힌트 (${problem.hints!.length})`}
+              </Button>
+            )}
+            {hasExplanation && (
+              <Button size="sm" variant="outline" onClick={() => setShowExplanation((v) => !v)}>
+                {showExplanation ? "해설 접기" : "해설 보기"}
+              </Button>
+            )}
+            {hasSolution && (
+              <Button size="sm" variant="outline" onClick={() => setShowSolution((v) => !v)}>
+                {showSolution ? "정답 코드 접기" : "정답 코드 보기"}
+              </Button>
+            )}
+          </div>
+
+          {showHints && hasHints && (
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/90">
+              {problem.hints!.map((hint, idx) => (
+                <li key={`${problem.id}-hint-${idx}`}>{hint}</li>
+              ))}
+            </ol>
+          )}
+
+          {showExplanation && hasExplanation && (
+            <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{problem.solutionExplanation!}</ReactMarkdown>
+            </div>
+          )}
+
+          {showSolution && hasSolution && (
+            <pre className="overflow-auto rounded border border-border/60 bg-background p-3 text-xs font-mono">
+              {problem.referenceSolution}
+            </pre>
+          )}
+        </section>
+      )}
     </div>
   );
 }
