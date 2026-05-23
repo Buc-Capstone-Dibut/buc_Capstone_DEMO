@@ -89,7 +89,7 @@ export function FlowTracingVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex gap-8 relative items-stretch z-10">
 
         {/* Code Editor Panel (Debugger Style) */}
-        <div className="flex-[3] bg-[hsl(220_25%_8%)]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden">
+        <div className="flex-[3] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden">
           {/* Editor Header */}
           <div className="flex items-center gap-3 text-muted-foreground mb-6 text-xs font-bold border-b border-border/50 pb-4">
             <div className="flex gap-1.5">
