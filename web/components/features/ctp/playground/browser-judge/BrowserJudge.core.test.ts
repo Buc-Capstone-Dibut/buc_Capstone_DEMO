@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { ProblemBankItem } from "@/components/features/ctp/problem-bank/types";
+
 import { __browserJudgeInternals } from "./BrowserJudge";
 
 test("toStdinLines normalizes CRLF and strips trailing newline", () => {
@@ -29,4 +31,39 @@ test("deriveOverall returns AC when all cases pass", () => {
     { index: 2, verdict: "AC" },
   ]);
   assert.equal(overall, "AC");
+});
+
+// ---- Phase A: maxSteps / wallClockMs semantic split ----
+
+function makeProblem(overrides: Partial<ProblemBankItem>): ProblemBankItem {
+  return {
+    id: "p",
+    moduleId: "m",
+    title: "t",
+    difficulty: "bronze",
+    type: "coding",
+    description: "",
+    inputFormat: "",
+    outputFormat: "",
+    constraints: [],
+    sampleIO: [],
+    testCases: [],
+    tags: [],
+    ...overrides,
+  };
+}
+
+test("resolveMaxSteps: prefers maxSteps over deprecated timeLimit", () => {
+  const problem = makeProblem({ maxSteps: 5_000_000, timeLimit: 10_000 });
+  assert.equal(__browserJudgeInternals.resolveMaxSteps(problem), 5_000_000);
+});
+
+test("resolveMaxSteps: falls back to timeLimit when maxSteps absent (backcompat)", () => {
+  const problem = makeProblem({ timeLimit: 12_345 });
+  assert.equal(__browserJudgeInternals.resolveMaxSteps(problem), 12_345);
+});
+
+test("resolveMaxSteps: undefined when neither set (worker default kicks in)", () => {
+  const problem = makeProblem({});
+  assert.equal(__browserJudgeInternals.resolveMaxSteps(problem), undefined);
 });

@@ -31,6 +31,11 @@ function deriveOverall(cases: TestCaseResult[]): Verdict {
   return "WA";
 }
 
+function resolveMaxSteps(problem: ProblemBankItem): number | undefined {
+  // Prefer new `maxSteps`; fall back to legacy `timeLimit` (same semantic — step count).
+  return problem.maxSteps ?? problem.timeLimit;
+}
+
 function runCaseWithWorker(
   userCode: string,
   testCase: ProblemTestCase,
@@ -83,7 +88,7 @@ function runCaseWithWorker(
       code: userCode,
       judge: {
         stdinLines: toStdinLines(testCase.input),
-        maxSteps: problem.timeLimit,
+        maxSteps: resolveMaxSteps(problem),
         maxOutputBytes: problem.outputLimitBytes,
         captureSteps: false,
       },
@@ -140,4 +145,5 @@ export const BrowserJudge = {
 export const __browserJudgeInternals = {
   toStdinLines,
   deriveOverall,
+  resolveMaxSteps,
 };
