@@ -31,6 +31,8 @@ function deriveOverall(cases: TestCaseResult[]): Verdict {
   return "WA";
 }
 
+const DEFAULT_WALL_CLOCK_MS = 5_000;
+
 function resolveMaxSteps(problem: ProblemBankItem): number | undefined {
   // Prefer new `maxSteps`; fall back to legacy `timeLimit` (same semantic — step count).
   return problem.maxSteps ?? problem.timeLimit;
@@ -46,12 +48,25 @@ function runCaseWithWorker(
     let resolved = false;
     let stdout = "";
 
+    const wallClockMs = problem.wallClockMs ?? DEFAULT_WALL_CLOCK_MS;
+
     const finish = (result: WorkerJudgeResponse) => {
       if (resolved) return;
       resolved = true;
+      clearTimeout(timeoutId);
       worker.terminate();
       resolve(result);
     };
+
+    // Wall-clock guard: if Skulpt hangs (e.g. infinite loop the step-counter can't reach),
+    // terminate the worker and surface a TLE so the UI never gets stuck on "채점 중...".
+    const timeoutId = setTimeout(() => {
+      finish({
+        stdout,
+        errorCode: "TLE",
+        errorMessage: `Execution exceeded ${wallClockMs}ms wall-clock limit`,
+      });
+    }, wallClockMs);
 
     worker.onmessage = (event) => {
       const payload = event.data;
@@ -146,4 +161,5 @@ export const __browserJudgeInternals = {
   toStdinLines,
   deriveOverall,
   resolveMaxSteps,
+  DEFAULT_WALL_CLOCK_MS,
 };
