@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 const CAPACITY = 6;
 
@@ -109,11 +110,11 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -221,7 +222,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 cx={x}
                 cy={y}
                 r="30"
-                fill={isActivelyDequeuing ? "rgba(239, 68, 68, 0.2)" : (isActivelyEnqueuing ? "rgba(16, 185, 129, 0.2)" : (isEmpty ? "hsl(var(--card))" : "hsl(var(--muted))"))}
+                fill={isActivelyDequeuing ? colorTokens.errorSoft : (isActivelyEnqueuing ? colorTokens.successSoft : (isEmpty ? "hsl(var(--card))" : "hsl(var(--muted))"))}
                 stroke={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isActivelyEnqueuing ? "hsl(160 84% 39%)" : (isEmpty ? "hsl(var(--border))" : "hsl(189 94% 43%)"))}
                 strokeWidth={isActivelyDequeuing || isActivelyEnqueuing ? "3" : "2"}
                 strokeDasharray={isEmpty ? "4 4" : "0"}

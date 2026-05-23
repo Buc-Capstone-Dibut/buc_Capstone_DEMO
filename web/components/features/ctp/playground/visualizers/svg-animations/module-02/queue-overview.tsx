@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 export function useQueueOverviewSim() {
   const [queue, setQueue] = useState<number[]>([10, 20, 30]);
@@ -97,11 +98,11 @@ export function QueueOverviewVisualizer({ data }: { data: { queue: number[], act
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -160,8 +161,8 @@ export function QueueOverviewVisualizer({ data }: { data: { queue: number[], act
         y={centerY - slotHeight/2 - 20}
         width={totalWidth + 40}
         height={slotHeight + 40}
-        fill={isError ? "rgba(239, 68, 68, 0.05)" : "rgba(16, 185, 129, 0.02)"}
-        animate={{ fill: isError ? "rgba(239, 68, 68, 0.05)" : "rgba(16, 185, 129, 0.02)" }}
+        fill={isError ? colorTokens.errorGhost : colorTokens.successFaint}
+        animate={{ fill: isError ? colorTokens.errorGhost : colorTokens.successFaint }}
       />
 
       {/* Direction Flow Arrows */}
@@ -239,7 +240,7 @@ export function QueueOverviewVisualizer({ data }: { data: { queue: number[], act
                 width={slotWidth}
                 height={slotHeight}
                 rx="8"
-                fill={isActivelyDequeuing ? "rgba(239, 68, 68, 0.2)" : (isActivelyEnqueuing ? "rgba(16, 185, 129, 0.2)" : "hsl(var(--muted))")}
+                fill={isActivelyDequeuing ? colorTokens.errorSoft : (isActivelyEnqueuing ? colorTokens.successSoft : "hsl(var(--muted))")}
                 stroke={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isFront ? "hsl(0 84% 60%)" : (isRear ? "hsl(160 84% 39%)" : "hsl(var(--border))"))}
                 strokeWidth="2"
                 filter={isActivelyDequeuing ? "url(#neon-glow-destructive)" : (isActivelyEnqueuing ? "url(#neon-glow-emerald)" : undefined)}

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 const MAX_SIZE = 6;
 
@@ -104,11 +105,11 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -154,7 +155,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
         y={centerY - slotHeight/2 - 15}
         width={totalWidth + 30}
         height={slotHeight + 30}
-        fill={isError ? "rgba(239, 68, 68, 0.05)" : "hsl(var(--card))"}
+        fill={isError ? colorTokens.errorGhost : "hsl(var(--card))"}
         opacity={0.5}
         rx="12"
         stroke={isError ? "hsl(0 84% 60%)" : "hsl(var(--border))"}
@@ -192,7 +193,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
           >
-            <rect x="230" y="380" width="340" height="30" fill="rgba(249, 115, 22, 0.1)" stroke="rgba(249, 115, 22, 0.3)" rx="8" />
+            <rect x="230" y="380" width="340" height="30" fill={colorTokens.warningDim} stroke={colorTokens.warningEdgeSubtle} rx="8" />
             <text x="400" y="400" fill="hsl(24 95% 53%)" fontSize="12" fontWeight="bold" textAnchor="middle">WARNING: 낭비된 공간 감지 (가짜 오버플로 위험)</text>
           </motion.g>
         )}
@@ -225,7 +226,7 @@ export function LinearQueueVisualizer({ data }: { data: { items: (number | null)
                 width={slotWidth}
                 height={slotHeight}
                 rx="8"
-                fill={isActivelyDequeuing ? "rgba(239, 68, 68, 0.2)" : (isActivelyEnqueuing ? "rgba(16, 185, 129, 0.2)" : (isWasted ? "rgba(30,30,30,0.4)" : "hsl(var(--card))"))}
+                fill={isActivelyDequeuing ? colorTokens.errorSoft : (isActivelyEnqueuing ? colorTokens.successSoft : (isWasted ? colorTokens.wastedSlot : "hsl(var(--card))"))}
                 stroke={isActivelyDequeuing ? "hsl(0 84% 60%)" : (isActivelyEnqueuing ? "hsl(160 84% 39%)" : (isEmpty && !isWasted ? "hsl(var(--border))" : (isWasted ? "hsl(var(--border))" : "hsl(189 94% 43%)")))}
                 strokeWidth={isActivelyDequeuing || isActivelyEnqueuing ? "3" : "2"}
                 strokeDasharray={(isEmpty && !isWasted) || isWasted ? "4 4" : "0"}

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 type CallFrame = { id: number; n: number; status: 'active' | 'returning' | 'done' };
 
@@ -62,11 +63,11 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -117,7 +118,7 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
           y={getCodeHighlightY()}
           width="456"
           height="30"
-          fill="rgba(168, 85, 247, 0.15)"
+          fill={colorTokens.primaryHighlightTrace}
           animate={{ y: getCodeHighlightY(), opacity: step > 0 && step < 8 ? 1 : 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         />
@@ -203,18 +204,18 @@ export function RecursionBasicsVisualizer({ data }: { data: { step: number, call
             const yPos = 340 - 15 - (index * (frameHeight + gap)) - frameHeight;
 
             let borderColor = "hsl(271 91% 65%)"; // purple (active winding)
-            let bgColor = "rgba(168, 85, 247, 0.15)";
+            let bgColor: string = colorTokens.primaryHighlightTrace;
             let statusText = "실행 중";
             let statusColor = "hsl(271 91% 65%)";
 
             if (frame.status === "returning") {
               borderColor = "hsl(160 84% 39%)"; // emerald (unwinding)
-              bgColor = "rgba(16, 185, 129, 0.15)";
+              bgColor = colorTokens.successTrace;
               statusText = "← 반환";
               statusColor = "hsl(160 84% 39%)";
             } else if (frame.status === "done") {
               borderColor = "hsl(189 94% 43%)"; // cyan
-              bgColor = "rgba(6, 182, 212, 0.15)";
+              bgColor = colorTokens.infoTrace;
               statusText = "완료";
               statusColor = "hsl(189 94% 43%)";
             }

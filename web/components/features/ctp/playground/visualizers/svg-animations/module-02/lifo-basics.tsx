@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 export function useLifoBasicsSim() {
   const [stack, setStack] = useState<number[]>([10, 20, 30]);
@@ -96,11 +97,11 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -150,8 +151,8 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
         y={baseY - maxSize * (slotHeight + gap) - 10}
         width={slotWidth + 40}
         height={maxSize * (slotHeight + gap) + 20}
-        fill={isError ? "rgba(239, 68, 68, 0.05)" : "rgba(6, 182, 212, 0.02)"}
-        animate={{ fill: isError ? "rgba(239, 68, 68, 0.05)" : "rgba(6, 182, 212, 0.02)" }}
+        fill={isError ? colorTokens.errorGhost : colorTokens.infoFaint}
+        animate={{ fill: isError ? colorTokens.errorGhost : colorTokens.infoFaint }}
       />
 
       {/* Action Indicator Text */}
@@ -208,7 +209,7 @@ export function LifoBasicsVisualizer({ data }: { data: { stack: number[], action
                 width={slotWidth}
                 height={slotHeight}
                 rx="8"
-                fill={isActivelyPopping ? "rgba(249, 115, 22, 0.2)" : (isTop ? "rgba(6, 182, 212, 0.2)" : "hsl(var(--muted))")}
+                fill={isActivelyPopping ? colorTokens.warningSoft : (isTop ? colorTokens.infoSoft : "hsl(var(--muted))")}
                 stroke={isActivelyPopping ? "hsl(24 95% 53%)" : (isTop ? "hsl(189 94% 43%)" : "hsl(var(--border))")}
                 strokeWidth="2"
                 filter={isActivelyPopping ? "url(#neon-glow-orange)" : (isTop ? "url(#neon-glow-cyan)" : undefined)}

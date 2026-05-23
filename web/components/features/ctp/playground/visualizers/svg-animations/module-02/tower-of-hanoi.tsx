@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // Tower of Hanoi visualizer
 type Disk = { id: number; size: number };
@@ -142,11 +143,11 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
