@@ -413,10 +413,10 @@ print(" ".join(map(str, col_sums)))
       { input: "4\n-1 -2 -3 -4\n-5", output: "1 2" },
       // N=2 최소 케이스
       { input: "2\n1 5\n6", output: "0 1" },
-      // N=20 stress: j=18에서 arr[18]=19, need=21-19=2가 seen[2]=1 → 첫 짝 (1,18)
+      // N=20 stress: i=10, v=11, need=10이 seen에 있으므로 첫 짝 (seen[10]=9, 10) = "9 10"
       {
         input: "20\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20\n21",
-        output: "1 18",
+        output: "9 10",
       },
     ],
     tags: ["hash-map", "two-sum"],
