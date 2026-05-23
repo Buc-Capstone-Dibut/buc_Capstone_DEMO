@@ -9,6 +9,7 @@ import {
   EdgeLine,
   PointerArrow,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -235,13 +236,14 @@ export function Fc2Visualizer({ data }: { data: { step: number } }) {
         const na = treeNodes[a];
         const nb = treeNodes[b];
         const active = state.treeHighlight.includes(a) && state.treeHighlight.includes(b);
+        const ep = edgeAt({ x: na.cx, y: na.cy }, { x: nb.cx, y: nb.cy }, 18, 18);
         return (
           <EdgeLine
             key={`e-${i}`}
-            x1={na.cx}
-            y1={na.cy + 16}
-            x2={nb.cx}
-            y2={nb.cy - 16}
+            x1={ep.x1}
+            y1={ep.y1}
+            x2={ep.x2}
+            y2={ep.y2}
             status={active ? "active" : "muted"}
           />
         );

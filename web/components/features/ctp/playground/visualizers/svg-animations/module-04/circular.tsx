@@ -7,6 +7,7 @@ import {
   NodeCircle,
   PointerArrow,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -170,37 +171,31 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
     };
   };
 
-  // 호 화살표용 path 생성 (bulge 파라미터화: wrap-around 강조 시 30 사용)
+  // 호 화살표용 path 생성 (bulge 파라미터화: wrap-around 강조 시 30 사용).
+  // edgeAt 으로 노드 경계점을 계산해 직선 곡선 모두 노드 안으로 파고들지 않게 한다.
   function arcPath(from: { x: number; y: number }, to: { x: number; y: number }, bulge = 18): string {
-    // 두 점 사이를 호로 잇고, 노드 반지름만큼 시작·끝을 안쪽으로 당김
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const unitX = dx / dist;
-    const unitY = dy / dist;
-    const startX = from.x + unitX * r;
-    const startY = from.y + unitY * r;
-    const endX = to.x - unitX * (r + 6);
-    const endY = to.y - unitY * (r + 6);
+    const ep = edgeAt(from, to, r, r);
     // 살짝 바깥쪽으로 휘게 (중심에서 멀어지는 방향)
-    const midX = (startX + endX) / 2;
-    const midY = (startY + endY) / 2;
+    const midX = (ep.x1 + ep.x2) / 2;
+    const midY = (ep.y1 + ep.y2) / 2;
     const outX = midX - cx0;
     const outY = midY - cy0;
-    const outDist = Math.sqrt(outX * outX + outY * outY);
+    const outDist = Math.sqrt(outX * outX + outY * outY) || 1;
     const cpX = midX + (outX / outDist) * bulge;
     const cpY = midY + (outY / outDist) * bulge;
-    return `M ${startX} ${startY} Q ${cpX} ${cpY} ${endX} ${endY}`;
+    return `M ${ep.x1} ${ep.y1} Q ${cpX} ${cpY} ${ep.x2} ${ep.y2}`;
   }
 
   function arrowHead(to: { x: number; y: number }, from: { x: number; y: number }, color: string): React.JSX.Element {
+    // 화살표 tip 은 to 노드 경계 위(edgeAt.x2/y2) — arcPath 끝점과 동일.
+    const ep = edgeAt(from, to, r, r);
     const dx = to.x - from.x;
     const dy = to.y - from.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const unitX = dx / dist;
     const unitY = dy / dist;
-    const tipX = to.x - unitX * (r + 4);
-    const tipY = to.y - unitY * (r + 4);
+    const tipX = ep.x2;
+    const tipY = ep.y2;
     const baseX = tipX - unitX * 8;
     const baseY = tipY - unitY * 8;
     const perpX = -unitY * 5;

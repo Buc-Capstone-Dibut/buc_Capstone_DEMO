@@ -10,6 +10,7 @@ import {
   NodeCircle,
   EdgeLine,
   colorTokens,
+  edgeAt,
   type ColorToken,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
@@ -241,10 +242,19 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
                     const nodeR = 14;
                     const isFound = v === TARGET;
                     const centerX = x + bucketBoxSize / 2;
-                    // ci===0: bucket bottom → first node top
-                    // ci>=1: previous node bottom (cy - 38 + nodeR) → this node top (cy - nodeR)
-                    const y1 = ci === 0 ? bucketY + bucketBoxSize : cy - 38 + nodeR;
-                    const y2 = cy - nodeR;
+                    // ci===0: bucket(rect) bottom → first node top.
+                    // ci>=1: 두 원 사이는 edgeAt 으로 경계점 계산해 라인이 절대 원 안으로 파고들지 않게 한다.
+                    let y1: number;
+                    let y2: number;
+                    if (ci === 0) {
+                      y1 = bucketY + bucketBoxSize;
+                      y2 = cy - nodeR;
+                    } else {
+                      const prevCy = cy - 38;
+                      const ep = edgeAt({ x: centerX, y: prevCy }, { x: centerX, y: cy }, nodeR, nodeR);
+                      y1 = ep.y1;
+                      y2 = ep.y2;
+                    }
                     return (
                       <g key={`chain-${b}-${ci}`}>
                         <NodeCircle

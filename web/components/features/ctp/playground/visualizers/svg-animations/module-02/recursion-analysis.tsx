@@ -1,5 +1,8 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { colorTokens, edgeAt } from "../../shared/svg-primitives";
+
+const NODE_R = 25;
 
 type TreeNode = { id: number; label: string; depth: number; x: number; y: number; left?: number; right?: number; status: 'idle' | 'active' | 'done' };
 
@@ -69,11 +72,13 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
     const res = [];
     if (n.left !== undefined) {
       const child = TREE_NODES[n.left];
-      res.push({ x1: n.x, y1: n.y + 25, x2: child.x, y2: child.y - 25, isDuplicate: child.label === 'fib(2)' && child.id === 2 });
+      const ep = edgeAt({ x: n.x, y: n.y }, { x: child.x, y: child.y }, NODE_R, NODE_R);
+      res.push({ ...ep, isDuplicate: child.label === 'fib(2)' && child.id === 2 });
     }
     if (n.right !== undefined) {
       const child = TREE_NODES[n.right];
-      res.push({ x1: n.x, y1: n.y + 25, x2: child.x, y2: child.y - 25, isDuplicate: false });
+      const ep = edgeAt({ x: n.x, y: n.y }, { x: child.x, y: child.y }, NODE_R, NODE_R);
+      res.push({ ...ep, isDuplicate: false });
     }
     return res;
   });
@@ -83,11 +88,11 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -116,7 +121,7 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
 
       {/* Context info box */}
       <g transform="translate(420, 30)">
-        <rect width="340" height="50" fill="rgba(249, 115, 22, 0.1)" stroke="rgba(249, 115, 22, 0.3)" rx="8" />
+        <rect width="340" height="50" fill={colorTokens.warningDim} stroke={colorTokens.warningEdgeSubtle} rx="8" />
         <text x="170" y="22" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle">단순 재귀 피보나치는 <tspan fill="hsl(24 95% 53%)" fontWeight="bold">불필요한 중복 계산</tspan>을 수행합니다.</text>
         <text x="170" y="40" fill="hsl(0 0% 100%)" fontSize="11" textAnchor="middle"><tspan fontWeight="bold" fill="hsl(24 95% 53%)">fib(2)</tspan>가 두 번 계산됩니다! 메모이제이션(Memoization)이 필요합니다.</text>
       </g>
@@ -145,8 +150,8 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
             <motion.circle
               cx={n.x}
               cy={n.y}
-              r={25}
-              fill={!isActive ? "hsl(var(--card))" : isDuplicate ? "rgba(249, 115, 22, 0.2)" : "rgba(6, 182, 212, 0.2)"}
+              r={NODE_R}
+              fill={!isActive ? "hsl(var(--card))" : isDuplicate ? colorTokens.warningSoft : colorTokens.infoSoft}
               stroke={!isActive ? "hsl(var(--border))" : isDuplicate ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"}
               strokeWidth={isActive ? 3 : 2}
               initial={{ scale: 0.8 }}
@@ -171,7 +176,7 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
 
             {isDuplicate && isActive && (
               <motion.g initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <rect x={n.x - 45} y={n.y - 50} width="90" height="20" fill="rgba(249, 115, 22, 0.2)" stroke="hsl(24 95% 53%)" rx="4" />
+                <rect x={n.x - 45} y={n.y - 50} width="90" height="20" fill={colorTokens.warningSoft} stroke="hsl(24 95% 53%)" rx="4" />
                 <text x={n.x} y={n.y - 36} textAnchor="middle" fontSize="10" fontWeight="bold" fill="hsl(24 95% 53%)">중복 (DUPLICATE!)</text>
               </motion.g>
             )}
@@ -183,10 +188,10 @@ export function RecursionAnalysisVisualizer({ data }: { data: { activeNodes: num
       <g transform="translate(40, 440)">
         <rect x="0" y="0" width="300" height="40" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
 
-        <circle cx="20" cy="20" r="6" fill="rgba(6, 182, 212, 0.2)" stroke="hsl(189 94% 43%)" strokeWidth="2" />
+        <circle cx="20" cy="20" r="6" fill={colorTokens.infoSoft} stroke="hsl(189 94% 43%)" strokeWidth="2" />
         <text x="35" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">정상 호출 (Normal Call)</text>
 
-        <circle cx="150" cy="20" r="6" fill="rgba(249, 115, 22, 0.2)" stroke="hsl(24 95% 53%)" strokeWidth="2" />
+        <circle cx="150" cy="20" r="6" fill={colorTokens.warningSoft} stroke="hsl(24 95% 53%)" strokeWidth="2" />
         <text x="165" y="24" fill="hsl(var(--muted-foreground))" fontSize="11">중복 호출 (Redundant Call)</text>
       </g>
     </svg>
