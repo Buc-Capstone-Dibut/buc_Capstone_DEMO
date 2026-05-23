@@ -29,6 +29,9 @@ export interface ProblemBankItem {
   tags: string[];
   timeLimit?: number;
   outputLimitBytes?: number;
+  referenceSolution?: string;
+  solutionExplanation?: string;
+  hints?: string[];
 }
 
 export interface TestCaseResult {
