@@ -211,9 +211,9 @@ function Fc3Supp3() {
 function Fc3Supp4() {
   const W = 600;
   const H = 300;
-  const tableX = 80;
+  const tableX = 60;
   const tableY = 80;
-  const colW = 220;
+  const colW = 200;
   const rowH = 40;
   const rows = [
     { feature: "강점", list: "발견 순서 보존", bst: "정렬 순서 보존" },
