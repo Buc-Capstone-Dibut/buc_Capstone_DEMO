@@ -6,6 +6,7 @@ import {
   NodeCircle,
   EdgeLine,
   colorTokens,
+  edgeAt,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
 // Tree positions (작은 트리 - 300x200 viewBox용)
@@ -44,10 +45,7 @@ function TreeBasicsSupp1() {
       {TREE_EDGES.map(([p, c]) => (
         <EdgeLine
           key={`e-${p}-${c}`}
-          x1={TREE_POS[p].x}
-          y1={TREE_POS[p].y + r}
-          x2={TREE_POS[c].x}
-          y2={TREE_POS[c].y - r}
+          {...edgeAt(TREE_POS[p], TREE_POS[c], r, r)}
           status="active"
         />
       ))}
@@ -81,10 +79,7 @@ function TreeBasicsSupp2() {
       {TREE_EDGES.map(([p, c]) => (
         <EdgeLine
           key={`e-${p}-${c}`}
-          x1={TREE_POS[p].x}
-          y1={TREE_POS[p].y + r}
-          x2={TREE_POS[c].x}
-          y2={TREE_POS[c].y - r}
+          {...edgeAt(TREE_POS[p], TREE_POS[c], r, r)}
           status="muted"
         />
       ))}
@@ -141,10 +136,7 @@ function TreeBasicsSupp3() {
       {TREE_EDGES.map(([p, c]) => (
         <EdgeLine
           key={`e-${p}-${c}`}
-          x1={TREE_POS[p].x}
-          y1={TREE_POS[p].y + r}
-          x2={TREE_POS[c].x}
-          y2={TREE_POS[c].y - r}
+          {...edgeAt(TREE_POS[p], TREE_POS[c], r, r)}
           status="muted"
         />
       ))}
@@ -198,10 +190,7 @@ function TreeBasicsSupp4() {
       {TREE_EDGES.map(([p, c]) => (
         <EdgeLine
           key={`e-${p}-${c}`}
-          x1={TREE_POS[p].x}
-          y1={TREE_POS[p].y + r}
-          x2={TREE_POS[c].x}
-          y2={TREE_POS[c].y - r}
+          {...edgeAt(TREE_POS[p], TREE_POS[c], r, r)}
           status="muted"
         />
       ))}

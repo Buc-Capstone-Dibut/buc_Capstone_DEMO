@@ -7,6 +7,7 @@ import {
   NodeCircle,
   EdgeLine,
   colorTokens,
+  edgeAt,
 } from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
 // Supp 1: 패턴 검색의 결과 누적 — 텍스트 + 일치 화살표
@@ -187,10 +188,7 @@ function Fc3Supp3() {
         return (
           <EdgeLine
             key={i}
-            x1={na.cx}
-            y1={na.cy + 22}
-            x2={nb.cx}
-            y2={nb.cy - 22}
+            {...edgeAt({ x: na.cx, y: na.cy }, { x: nb.cx, y: nb.cy }, 22, 22)}
             status="muted"
           />
         );
