@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 import type { ProblemBankItem } from "@/components/features/ctp/problem-bank/types";
 
@@ -66,6 +69,47 @@ test("resolveMaxSteps: falls back to timeLimit when maxSteps absent (backcompat)
 test("resolveMaxSteps: undefined when neither set (worker default kicks in)", () => {
   const problem = makeProblem({});
   assert.equal(__browserJudgeInternals.resolveMaxSteps(problem), undefined);
+});
+
+// ---- Phase C: error line number is corrected by preamble offset ----
+
+// Worker is a sandboxed `.js` file we can't import. We assert the contract here by
+// loading the worker source and exercising the pure helper via `new Function`. If
+// the worker copy drifts, this test catches it.
+function loadWorkerHelper(): (msg: string, preambleLineCount: number) => string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const workerPath = resolve(here, "../../../../../public/workers/skulpt.worker.js");
+  const src = readFileSync(workerPath, "utf8");
+  const match = src.match(
+    /function adjustErrorLineNumbers\(message, preambleLineCount\) \{[\s\S]*?\n\}/,
+  );
+  assert.ok(match, "worker must expose adjustErrorLineNumbers");
+  const wrapped = `${match[0]}\nreturn adjustErrorLineNumbers;`;
+  // eslint-disable-next-line no-new-func
+  return new Function(wrapped)() as (msg: string, n: number) => string;
+}
+
+test("adjustErrorLineNumbers (worker helper): subtracts preamble offset from <stdin>, line N", () => {
+  const adjust = loadWorkerHelper();
+  const original = "NameError: name 'foo' is not defined on line 14 of <stdin>, line 14";
+  // Preamble = trace helper + input helper (~12 lines in current worker build).
+  const adjusted = adjust(original, 12);
+  // User's actual line is 14 - 12 = 2.
+  assert.match(adjusted, /<stdin>, line 2/);
+  // The bare "on line 14" text is Skulpt-internal and not in our regex, so it stays.
+  assert.match(adjusted, /on line 14/);
+});
+
+test("adjustErrorLineNumbers (worker helper): clamps to 1 when subtraction would underflow", () => {
+  const adjust = loadWorkerHelper();
+  const adjusted = adjust("Traceback at <stdin>, line 3", 10);
+  assert.match(adjusted, /<stdin>, line 1/);
+});
+
+test("adjustErrorLineNumbers (worker helper): no-op when preambleLineCount is 0", () => {
+  const adjust = loadWorkerHelper();
+  const msg = "<stdin>, line 7";
+  assert.equal(adjust(msg, 0), msg);
 });
 
 // ---- Phase B: wall-clock timeout fires when worker never responds ----
