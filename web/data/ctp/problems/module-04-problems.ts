@@ -254,10 +254,7 @@ print(" ".join(out))
       { input: "4\n10 5 15 12", output: "5 10 12 15" },
       { input: "3\n3 2 1", output: "1 2 3" },
     ],
-    referenceSolution: `import sys
-sys.setrecursionlimit(10000)
-
-n = int(input())
+    referenceSolution: `n = int(input())
 arr = list(map(int, input().split()))
 
 # tree as parallel arrays (iterative insert to avoid recursion)

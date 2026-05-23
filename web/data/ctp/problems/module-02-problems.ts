@@ -534,7 +534,7 @@ print(count)
     ],
     testCases: [
       { input: "4 5\n1 2 3 4", output: "2" },
-      { input: "5 10\n2 3 5 7 8", output: "2" },
+      { input: "5 10\n2 3 5 7 8", output: "3" },
       { input: "3 100\n10 20 30", output: "0" },
     ],
     starterCode: `n, k = map(int, input().split())

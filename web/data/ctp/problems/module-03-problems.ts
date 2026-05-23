@@ -647,7 +647,7 @@ print(*msort(arr))
     testCases: [
       { input: "5 5\n1 2 3 2 2", output: "2" },
       { input: "4 3\n1 1 1 1", output: "2" },
-      { input: "6 7\n2 1 3 2 4 1", output: "2" },
+      { input: "6 7\n2 1 3 2 4 1", output: "1" },
     ],
     tags: ["two-pointer", "sliding-window"],
     referenceSolution: `n, k = map(int, input().split())
