@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // --- Utility Components ---
 const SVGDefs = () => (
@@ -46,8 +47,8 @@ const PivotSelectionSVG = () => {
         <g transform="translate(60, 60)">
           {[8, 3, 9, 2, 5, 1, 6, 4].map((v, i) => (
             <g key={i} transform={`translate(${i * 50}, 0)`}>
-              <rect x="0" y="0" width="40" height="50" fill={v === 5 ? "hsl(160 84% 39%)" : "hsl(var(--muted))"} rx="4" />
-              <text x="20" y="30" fill={v === 5 ? "hsl(0 0% 100%)" : "hsl(var(--foreground))"} fontSize="18" fontWeight="bold" textAnchor="middle">{v}</text>
+              <rect x="0" y="0" width="40" height="50" fill={v === 5 ? colorTokens.success : "hsl(var(--muted))"} rx="4" />
+              <text x="20" y="30" fill={v === 5 ? "hsl(var(--foreground))" : "hsl(var(--foreground))"} fontSize="18" fontWeight="bold" textAnchor="middle">{v}</text>
             </g>
           ))}
           {/* Pivot Indicator */}
@@ -55,8 +56,8 @@ const PivotSelectionSVG = () => {
             initial={{ y: -30, opacity: 0 }}
             animate={{ y: -10, opacity: 1 }}
             transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }}
-            d="M 220 0 L 210 -15 L 230 -15 Z" fill="hsl(160 84% 39%)" />
-          <text x="220" y="-25" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">피벗 (Pivot)</text>
+            d="M 220 0 L 210 -15 L 230 -15 Z" fill={colorTokens.success} />
+          <text x="220" y="-25" fill={colorTokens.success} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">피벗 (Pivot)</text>
         </g>
       </g>
     </svg>
@@ -81,33 +82,33 @@ const PartitioningSVG = () => {
           <text x="-10" y="30" fill="currentColor" fontSize="12" opacity="0.5">혼재</text>
 
           {/* Pivot Box Container */}
-          <rect x="190" y="80" width="60" height="80" fill="none" stroke="hsl(160 84% 39%)" strokeWidth="2" strokeDasharray="4" rx="8" />
+          <rect x="190" y="80" width="60" height="80" fill="none" stroke={colorTokens.success} strokeWidth="2" strokeDasharray="4" rx="8" />
 
           {/* Left Partition Container */}
-          <rect x="0" y="80" width="180" height="80" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="1" rx="8" opacity="0.5"/>
-          <text x="90" y="180" fill="hsl(217 91% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">피벗보다 작은 값</text>
+          <rect x="0" y="80" width="180" height="80" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="1" rx="8" opacity="0.5"/>
+          <text x="90" y="180" fill={colorTokens.primaryBlue} fontSize="12" fontWeight="bold" textAnchor="middle">피벗보다 작은 값</text>
 
           {/* Right Partition Container */}
-          <rect x="260" y="80" width="180" height="80" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="1" rx="8" opacity="0.5"/>
-          <text x="350" y="180" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">피벗보다 큰 값</text>
+          <rect x="260" y="80" width="180" height="80" fill="none" stroke={colorTokens.errorRed} strokeWidth="1" rx="8" opacity="0.5"/>
+          <text x="350" y="180" fill={colorTokens.errorRed} fontSize="12" fontWeight="bold" textAnchor="middle">피벗보다 큰 값</text>
 
           {/* Elements Moving */}
           {[1, 3, 2, 4].map((v, i) => (
             <motion.g key={`L-${i}`} initial={{ x: 30 + i * 40, y: 0 }} animate={{ x: 10 + i * 42, y: 95 }} transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}>
-              <rect width="36" height="50" fill="hsl(217 91% 60%)" rx="4" filter="url(#neon-glow-primary)"/>
-              <text x="18" y="30" fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{v}</text>
+              <rect width="36" height="50" fill={colorTokens.primaryBlue} rx="4" filter="url(#neon-glow-primary)"/>
+              <text x="18" y="30" fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle">{v}</text>
             </motion.g>
           ))}
 
           <motion.g initial={{ x: 200, y: 0 }} animate={{ x: 200, y: 95 }} transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}>
-            <rect width="40" height="50" fill="hsl(160 84% 39%)" rx="4" />
-            <text x="20" y="30" fill="hsl(0 0% 100%)" fontSize="18" fontWeight="bold" textAnchor="middle">5</text>
+            <rect width="40" height="50" fill={colorTokens.success} rx="4" />
+            <text x="20" y="30" fill="hsl(var(--foreground))" fontSize="18" fontWeight="bold" textAnchor="middle">5</text>
           </motion.g>
 
           {[8, 9, 6, 7].map((v, i) => (
             <motion.g key={`R-${i}`} initial={{ x: 260 + i * 40, y: 0 }} animate={{ x: 270 + i * 42, y: 95 }} transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}>
-              <rect width="36" height="50" fill="hsl(0 84% 60%)" rx="4" filter="url(#neon-glow-red)"/>
-               <text x="18" y="30" fill="hsl(0 0% 100%)" fontSize="16" fontWeight="bold" textAnchor="middle">{v}</text>
+              <rect width="36" height="50" fill={colorTokens.errorRed} rx="4" filter="url(#neon-glow-red)"/>
+               <text x="18" y="30" fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle">{v}</text>
             </motion.g>
           ))}
         </g>
@@ -139,15 +140,15 @@ const DivideAndConquerSVG = () => {
           <path d="M 20 30 L 100 70" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.3" markerEnd="url(#arrow)" />
 
           {/* Level 1 Nodes */}
-          <rect x="-160" y="70" width="100" height="30" fill="hsl(217 91% 60%)" fillOpacity="0.2" rx="4" stroke="hsl(217 91% 60%)" strokeWidth="1"/>
-          <text x="-110" y="90" fill="hsl(217 91% 60%)" fontSize="12" textAnchor="middle">좌측 분할 (~N/2)</text>
+          <rect x="-160" y="70" width="100" height="30" fill={colorTokens.primaryBlue} fillOpacity="0.2" rx="4" stroke={colorTokens.primaryBlue} strokeWidth="1"/>
+          <text x="-110" y="90" fill={colorTokens.primaryBlue} fontSize="12" textAnchor="middle">좌측 분할 (~N/2)</text>
 
-          <rect x="60" y="70" width="100" height="30" fill="hsl(0 84% 60%)" fillOpacity="0.2" rx="4" stroke="hsl(0 84% 60%)" strokeWidth="1"/>
-          <text x="110" y="90" fill="hsl(0 84% 60%)" fontSize="12" textAnchor="middle">우측 분할 (~N/2)</text>
+          <rect x="60" y="70" width="100" height="30" fill={colorTokens.errorRed} fillOpacity="0.2" rx="4" stroke={colorTokens.errorRed} strokeWidth="1"/>
+          <text x="110" y="90" fill={colorTokens.errorRed} fontSize="12" textAnchor="middle">우측 분할 (~N/2)</text>
 
           {/* Branch 2 (Animated pulses) */}
-          <motion.path d="M -130 100 L -170 140" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="2" markerEnd="url(#arrow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, repeat: Infinity }} />
-          <motion.path d="M -90 100 L -50 140" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="2" markerEnd="url(#arrow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, repeat: Infinity }} />
+          <motion.path d="M -130 100 L -170 140" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" markerEnd="url(#arrow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, repeat: Infinity }} />
+          <motion.path d="M -90 100 L -50 140" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" markerEnd="url(#arrow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, repeat: Infinity }} />
 
           {/* Level 2 Nodes Representation */}
           <rect x="-200" y="140" width="50" height="20" fill="hsl(var(--muted))" rx="2"/>
@@ -178,23 +179,23 @@ const WorstCaseSVG = () => {
 
         {/* Skewed Tree */}
         <g transform="translate(100, 60)">
-          <rect x="0" y="0" width="80" height="25" fill="hsl(0 84% 60%)" rx="4" />
-          <text x="40" y="17" fill="hsl(0 0% 100%)" fontSize="12" fontWeight="bold" textAnchor="middle">Pivot: 최소값</text>
+          <rect x="0" y="0" width="80" height="25" fill={colorTokens.errorRed} rx="4" />
+          <text x="40" y="17" fill="hsl(var(--foreground))" fontSize="12" fontWeight="bold" textAnchor="middle">Pivot: 최소값</text>
 
-          <path d="M 40 25 L 40 50" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="2" markerEnd="url(#arrow)" />
+          <path d="M 40 25 L 40 50" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" markerEnd="url(#arrow)" />
 
-          <rect x="20" y="50" width="80" height="25" fill="hsl(0 84% 60%)" rx="4" opacity="0.8"/>
-          <text x="60" y="67" fill="hsl(0 0% 100%)" fontSize="12" textAnchor="middle">Pivot: 그 다음</text>
+          <rect x="20" y="50" width="80" height="25" fill={colorTokens.errorRed} rx="4" opacity="0.8"/>
+          <text x="60" y="67" fill="hsl(var(--foreground))" fontSize="12" textAnchor="middle">Pivot: 그 다음</text>
 
-          <path d="M 60 75 L 60 100" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="2" markerEnd="url(#arrow)" />
+          <path d="M 60 75 L 60 100" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" markerEnd="url(#arrow)" />
 
-          <rect x="40" y="100" width="80" height="25" fill="hsl(0 84% 60%)" rx="4" opacity="0.6"/>
-          <text x="80" y="117" fill="hsl(0 0% 100%)" fontSize="12" textAnchor="middle">Pivot: 다음...</text>
+          <rect x="40" y="100" width="80" height="25" fill={colorTokens.errorRed} rx="4" opacity="0.6"/>
+          <text x="80" y="117" fill="hsl(var(--foreground))" fontSize="12" textAnchor="middle">Pivot: 다음...</text>
 
-          <path d="M 80 125 L 80 150" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="2" strokeDasharray="4" markerEnd="url(#arrow)" />
+          <path d="M 80 125 L 80 150" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" strokeDasharray="4" markerEnd="url(#arrow)" />
 
           {/* Label */}
-          <text x="180" y="90" fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold" filter="url(#neon-glow-red)">트리 높이가 N이 되어 분할의 이점 증발!</text>
+          <text x="180" y="90" fill={colorTokens.errorRed} fontSize="14" fontWeight="bold" filter="url(#neon-glow-red)">트리 높이가 N이 되어 분할의 이점 증발!</text>
           <text x="180" y="110" fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" opacity="0.8">T(N) = O(N²)</text>
         </g>
       </g>

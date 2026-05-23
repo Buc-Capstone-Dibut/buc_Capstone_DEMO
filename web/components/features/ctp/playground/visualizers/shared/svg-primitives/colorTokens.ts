@@ -50,6 +50,7 @@ export const colorTokens = {
   warningEdgeSubtle: "hsla(24, 95%, 53%, 0.3)",
   warningTrace: "hsla(24, 95%, 53%, 0.15)",
   warningDim: "hsla(24, 95%, 53%, 0.1)",
+  warningGhost: "hsla(24, 95%, 53%, 0.05)",
 
   // 위험/스왑/충돌 (rose)
   destructive: "hsl(347 89% 60%)",
@@ -78,6 +79,7 @@ export const colorTokens = {
   faintFill: "hsla(0, 0%, 100%, 0.02)",       // 거의 안 보이는 chip 배경
   faintEdge: "hsla(0, 0%, 100%, 0.1)",        // 거의 안 보이는 chip 테두리
   wastedSlot: "hsla(0, 0%, 12%, 0.4)",        // 낭비된 슬롯 (어두운 placeholder)
+  shadowGhost: "hsla(0, 0%, 0%, 0.05)",       // 거의 안 보이는 검정 그림자/오버레이
 
   // ── 의미 컬러 (덜 쓰이는 부속) ─────────────────────────────────────
   // blue (정렬 모듈에서 단순 element)

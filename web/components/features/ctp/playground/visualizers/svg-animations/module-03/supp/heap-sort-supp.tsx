@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // 1. 완전 이진 트리 (Complete Binary Tree) SVG
 export function CompleteBinaryTreeSVG() {
@@ -9,7 +10,7 @@ export function CompleteBinaryTreeSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-heap-1" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-heap-1)" />
@@ -19,57 +20,57 @@ export function CompleteBinaryTreeSVG() {
 
       <g transform="translate(100, 100)">
         {/* Edges */}
-        <polyline points="200,20 100,80" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="200,20 300,80" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="100,80 50,140" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="100,80 150,140" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="300,80 250,140" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
+        <polyline points="200,20 100,80" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="200,20 300,80" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="100,80 50,140" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="100,80 150,140" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="300,80 250,140" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
 
         {/* Nodes */}
         <g transform="translate(200, 20)">
-          <circle r="20" fill="hsl(217 91% 60%)" />
+          <circle r="20" fill={colorTokens.primaryBlue} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">0</text>
         </g>
         <g transform="translate(100, 80)">
-          <circle r="20" fill="hsl(160 84% 39%)" />
+          <circle r="20" fill={colorTokens.success} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">1</text>
         </g>
         <g transform="translate(300, 80)">
-          <circle r="20" fill="hsl(160 84% 39%)" />
+          <circle r="20" fill={colorTokens.success} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">2</text>
         </g>
         <g transform="translate(50, 140)">
-          <circle r="20" fill="hsl(258 90% 66%)" />
+          <circle r="20" fill={colorTokens.primaryHighlight} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">3</text>
         </g>
         <g transform="translate(150, 140)">
-          <circle r="20" fill="hsl(258 90% 66%)" />
+          <circle r="20" fill={colorTokens.primaryHighlight} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">4</text>
         </g>
         <g transform="translate(250, 140)">
-          <circle r="20" fill="hsl(258 90% 66%)" />
+          <circle r="20" fill={colorTokens.primaryHighlight} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">5</text>
         </g>
       </g>
 
       <g transform="translate(450, 80)">
         <text x="30" y="-10" className="fill-slate-600 dark:fill-slate-400" fontSize="14" fontWeight="bold" textAnchor="middle">배열 인덱스</text>
-        <rect x="0" y="0" width="40" height="30" fill="hsl(217 91% 60%)" rx="4" />
+        <rect x="0" y="0" width="40" height="30" fill={colorTokens.primaryBlue} rx="4" />
         <text x="20" y="20" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">0</text>
 
-        <rect x="0" y="32" width="40" height="30" fill="hsl(160 84% 39%)" rx="4" />
+        <rect x="0" y="32" width="40" height="30" fill={colorTokens.success} rx="4" />
         <text x="20" y="52" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">1</text>
 
-        <rect x="0" y="64" width="40" height="30" fill="hsl(160 84% 39%)" rx="4" />
+        <rect x="0" y="64" width="40" height="30" fill={colorTokens.success} rx="4" />
         <text x="20" y="84" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">2</text>
 
-        <rect x="0" y="96" width="40" height="30" fill="hsl(258 90% 66%)" rx="4" />
+        <rect x="0" y="96" width="40" height="30" fill={colorTokens.primaryHighlight} rx="4" />
         <text x="20" y="116" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">3</text>
 
-        <rect x="0" y="128" width="40" height="30" fill="hsl(258 90% 66%)" rx="4" />
+        <rect x="0" y="128" width="40" height="30" fill={colorTokens.primaryHighlight} rx="4" />
         <text x="20" y="148" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">4</text>
 
-        <rect x="0" y="160" width="40" height="30" fill="hsl(258 90% 66%)" rx="4" />
+        <rect x="0" y="160" width="40" height="30" fill={colorTokens.primaryHighlight} rx="4" />
         <text x="20" y="180" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">5</text>
       </g>
     </svg>
@@ -82,7 +83,7 @@ export function MaxHeapPropertySVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-heap-2" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-heap-2)" />
@@ -91,22 +92,22 @@ export function MaxHeapPropertySVG() {
       <text x="30" y="65" className="fill-slate-600 dark:fill-slate-400" fontSize="14">부모 노드의 값이 자식 노드의 값보다 항상 크거나 같은 상태입니다.</text>
 
       <g transform="translate(150, 120)">
-        <polyline points="150,20 50,80" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="150,20 250,80" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
+        <polyline points="150,20 50,80" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="150,20 250,80" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
 
         <g transform="translate(150, 20)">
-          <circle r="30" fill="hsl(347 89% 60%)" />
+          <circle r="30" fill={colorTokens.destructive} />
           <text fill="white" fontSize="20" fontWeight="bold" textAnchor="middle" dy="7">99</text>
           <text y="-40" className="fill-slate-600 dark:fill-slate-400" fontSize="14" fontWeight="bold" textAnchor="middle">부모 (최댓값)</text>
         </g>
 
         <g transform="translate(50, 80)">
-          <circle r="25" fill="hsl(217 91% 60%)" />
+          <circle r="25" fill={colorTokens.primaryBlue} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">50</text>
         </g>
 
         <g transform="translate(250, 80)">
-          <circle r="25" fill="hsl(217 91% 60%)" />
+          <circle r="25" fill={colorTokens.primaryBlue} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">75</text>
         </g>
       </g>
@@ -127,7 +128,7 @@ export function HeapifySVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-heap-3" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-heap-3)" />
@@ -136,8 +137,8 @@ export function HeapifySVG() {
       <text x="30" y="65" className="fill-slate-600 dark:fill-slate-400" fontSize="14">자식과 비교하며 노드를 아래로 내려보내 힙 속성을 복원합니다.</text>
 
       <g transform="translate(220, 100)">
-        <polyline points="0,0 -80,60" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
-        <polyline points="0,0 80,60" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" />
+        <polyline points="0,0 -80,60" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
+        <polyline points="0,0 80,60" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" />
 
         {/* Animated Root (curves UP through midpoint to avoid collision
             with the rising child) */}
@@ -146,7 +147,7 @@ export function HeapifySVG() {
           animate={{ y: [0, 20, 60], x: [0, -40, -80] }}
           transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut", repeatDelay: 1 }}
         >
-          <circle r="25" fill="hsl(347 89% 60%)" />
+          <circle r="25" fill={colorTokens.destructive} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">10</text>
         </motion.g>
 
@@ -157,12 +158,12 @@ export function HeapifySVG() {
            animate={{ y: [60, 40, 0], x: [-80, -40, 0] }}
            transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut", repeatDelay: 1 }}
         >
-          <circle r="25" fill="hsl(160 84% 39%)" />
+          <circle r="25" fill={colorTokens.success} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">99</text>
         </motion.g>
 
         <g transform="translate(80, 60)">
-          <circle r="25" fill="hsl(217 91% 60%)" />
+          <circle r="25" fill={colorTokens.primaryBlue} />
           <text fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" dy="5">20</text>
         </g>
       </g>
@@ -180,7 +181,7 @@ export function HeapSortProcessSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-heap-4" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-heap-4)" />
@@ -190,24 +191,24 @@ export function HeapSortProcessSVG() {
 
       <g transform="translate(100, 130)">
         {/* Array representation */}
-        <rect x="0" y="0" width="250" height="40" fill="none" stroke="hsl(215 20% 65%)" strokeWidth="2" rx="4" />
-        <rect x="0" y="0" width="50" height="40" fill="hsl(347 89% 60%)" rx="4" />
+        <rect x="0" y="0" width="250" height="40" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" rx="4" />
+        <rect x="0" y="0" width="50" height="40" fill={colorTokens.destructive} rx="4" />
         <text x="25" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">99</text>
 
-        <rect x="50" y="0" width="50" height="40" fill="none" stroke="hsl(215 20% 65%)" />
+        <rect x="50" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" />
         <text x="75" y="25" className="fill-slate-600 dark:fill-slate-400" fontSize="16" fontWeight="bold" textAnchor="middle">...</text>
 
-        <rect x="150" y="0" width="50" height="40" fill="none" stroke="hsl(215 20% 65%)" />
+        <rect x="150" y="0" width="50" height="40" fill="none" stroke="hsl(var(--muted-foreground))" />
         <text x="175" y="25" className="fill-slate-600 dark:fill-slate-400" fontSize="16" fontWeight="bold" textAnchor="middle">...</text>
 
-        <rect x="200" y="0" width="50" height="40" fill="hsl(217 91% 60%)" rx="4" />
+        <rect x="200" y="0" width="50" height="40" fill={colorTokens.primaryBlue} rx="4" />
         <text x="225" y="25" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle">10</text>
       </g>
 
       <motion.path
         d="M 125 125 Q 175 70, 225 125"
         fill="none"
-        stroke="hsl(160 84% 39%)"
+        stroke={colorTokens.success}
         strokeWidth="3"
         strokeDasharray="5"
         initial={{ pathLength: 0 }}
@@ -217,7 +218,7 @@ export function HeapSortProcessSVG() {
       <motion.path
         d="M 325 125 Q 275 70, 225 125"
         fill="none"
-        stroke="hsl(160 84% 39%)"
+        stroke={colorTokens.success}
         strokeWidth="3"
         strokeDasharray="5"
         initial={{ pathLength: 0 }}

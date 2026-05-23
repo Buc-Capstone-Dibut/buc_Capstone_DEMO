@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // SVG 필터 (공통)
 const NeonGlowFilters = () => (
@@ -59,18 +60,18 @@ const FindingMinSVG = () => {
         <rect x="80" y="0" width="60" height="60" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
         <text x="110" y="38" fill="hsl(var(--foreground))" fontSize="24" textAnchor="middle">5</text>
 
-        <rect x="160" y="0" width="60" height="60" rx="8" fill="rgba(6, 182, 212, 0.1)" stroke="hsl(189 94% 43%)" strokeWidth="2" />
-        <text x="190" y="38" fill="hsl(189 94% 43%)" fontSize="24" fontWeight="bold" textAnchor="middle">2</text>
-        <text x="190" y="80" fill="hsl(189 94% 43%)" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-cyan)">현재 최소 (min)</text>
-        <path d="M 190 60 L 190 85" stroke="hsl(189 94% 43%)" strokeWidth="2" />
+        <rect x="160" y="0" width="60" height="60" rx="8" fill={colorTokens.infoDim} stroke={colorTokens.info} strokeWidth="2" />
+        <text x="190" y="38" fill={colorTokens.info} fontSize="24" fontWeight="bold" textAnchor="middle">2</text>
+        <text x="190" y="80" fill={colorTokens.info} fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-cyan)">현재 최소 (min)</text>
+        <path d="M 190 60 L 190 85" stroke={colorTokens.info} strokeWidth="2" />
 
         <rect x="240" y="0" width="60" height="60" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
         <text x="270" y="38" fill="hsl(var(--foreground))" fontSize="24" textAnchor="middle">9</text>
 
-        <rect x="320" y="0" width="60" height="60" rx="8" fill="rgba(249, 115, 22, 0.1)" stroke="hsl(24 95% 53%)" strokeWidth="2" />
-        <text x="350" y="38" fill="hsl(24 95% 53%)" fontSize="24" textAnchor="middle">4</text>
-        <text x="350" y="-15" fill="hsl(24 95% 53%)" fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-orange)">탐색 중...</text>
-        <path d="M 350 -5 L 350 0" stroke="hsl(24 95% 53%)" strokeWidth="2" markerStart="url(#arrow)" />
+        <rect x="320" y="0" width="60" height="60" rx="8" fill={colorTokens.warningDim} stroke={colorTokens.warning} strokeWidth="2" />
+        <text x="350" y="38" fill={colorTokens.warning} fontSize="24" textAnchor="middle">4</text>
+        <text x="350" y="-15" fill={colorTokens.warning} fontSize="12" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-orange)">탐색 중...</text>
+        <path d="M 350 -5 L 350 0" stroke={colorTokens.warning} strokeWidth="2" markerStart="url(#arrow)" />
 
         <path d="M 190 -30 C 250 -60, 300 -60, 350 -30" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeDasharray="4" markerEnd="url(#arrow)" />
         <text x="270" y="-55" fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">크기 비교: 4 &gt; 2 (유지)</text>
@@ -90,17 +91,17 @@ const SeparatingRegionsSVG = () => {
 
       <g transform="translate(100, 100)">
         {/* 정렬된 영역 */}
-        <rect x="-10" y="-10" width="160" height="80" rx="12" fill="rgba(16, 185, 129, 0.05)" stroke="hsl(160 84% 39%)" strokeWidth="2" strokeDasharray="4" />
-        <text x="70" y="-20" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">정렬 완료 영역 (Sorted)</text>
+        <rect x="-10" y="-10" width="160" height="80" rx="12" fill={colorTokens.successGhost} stroke={colorTokens.success} strokeWidth="2" strokeDasharray="4" />
+        <text x="70" y="-20" fill={colorTokens.success} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">정렬 완료 영역 (Sorted)</text>
 
-        <rect x="0" y="0" width="60" height="60" rx="8" fill="rgba(16, 185, 129, 0.1)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
-        <text x="30" y="35" fill="hsl(160 84% 39%)" fontSize="20" fontWeight="bold" textAnchor="middle">1</text>
-        <rect x="80" y="0" width="60" height="60" rx="8" fill="rgba(16, 185, 129, 0.1)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
-        <text x="110" y="35" fill="hsl(160 84% 39%)" fontSize="20" fontWeight="bold" textAnchor="middle">3</text>
+        <rect x="0" y="0" width="60" height="60" rx="8" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="2" />
+        <text x="30" y="35" fill={colorTokens.success} fontSize="20" fontWeight="bold" textAnchor="middle">1</text>
+        <rect x="80" y="0" width="60" height="60" rx="8" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="2" />
+        <text x="110" y="35" fill={colorTokens.success} fontSize="20" fontWeight="bold" textAnchor="middle">3</text>
 
         {/* 미정렬 영역 */}
-        <rect x="150" y="-10" width="250" height="80" rx="12" fill="rgba(244, 63, 94, 0.05)" stroke="hsl(347 89% 60%)" strokeWidth="2" strokeDasharray="4" />
-        <text x="275" y="-20" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-rose)">미정렬 영역 (Unsorted)</text>
+        <rect x="150" y="-10" width="250" height="80" rx="12" fill={colorTokens.destructiveGhost} stroke={colorTokens.destructive} strokeWidth="2" strokeDasharray="4" />
+        <text x="275" y="-20" fill={colorTokens.destructive} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-rose)">미정렬 영역 (Unsorted)</text>
 
         <rect x="160" y="0" width="60" height="60" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
         <text x="190" y="35" fill="hsl(var(--foreground))" fontSize="20" textAnchor="middle">8</text>
@@ -127,14 +128,14 @@ const SwapMinimizationSVG = () => {
       <text x="300" y="50" fill="hsl(var(--foreground))" fontSize="20" fontWeight="bold" textAnchor="middle">교환 연산의 낭비를 줄임 (1 Pass당 딱 1번의 Swap)</text>
 
       <g transform="translate(100, 100)">
-        <rect x="100" y="0" width="200" height="60" rx="8" fill="rgba(6, 182, 212, 0.05)" stroke="hsl(189 94% 43%)" strokeWidth="2" />
-        <text x="200" y="25" fill="hsl(189 94% 43%)" fontSize="16" fontWeight="bold" textAnchor="middle">버블 정렬: 조건 맞을 때마다 Swap</text>
+        <rect x="100" y="0" width="200" height="60" rx="8" fill={colorTokens.infoGhost} stroke={colorTokens.info} strokeWidth="2" />
+        <text x="200" y="25" fill={colorTokens.info} fontSize="16" fontWeight="bold" textAnchor="middle">버블 정렬: 조건 맞을 때마다 Swap</text>
         <text x="200" y="45" fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">최대 O(N²)번의 Swap 발생</text>
 
         <path d="M 200 70 L 200 90" stroke="hsl(var(--muted-foreground))" strokeWidth="2" markerEnd="url(#arrow)" />
 
-        <rect x="50" y="100" width="300" height="80" rx="8" fill="rgba(16, 185, 129, 0.05)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
-        <text x="200" y="130" fill="hsl(160 84% 39%)" fontSize="16" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">선택 정렬: 최소값의 '인덱스'만 기억</text>
+        <rect x="50" y="100" width="300" height="80" rx="8" fill={colorTokens.successGhost} stroke={colorTokens.success} strokeWidth="2" />
+        <text x="200" y="130" fill={colorTokens.success} fontSize="16" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">선택 정렬: 최소값의 '인덱스'만 기억</text>
         <text x="200" y="150" fill="hsl(var(--foreground))" fontSize="14" textAnchor="middle">인덱스 검색 후 마지막에 딱 한 번만 Swap 실행</text>
         <text x="200" y="170" fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">Swap 연산 비용: O(N)</text>
       </g>
@@ -154,13 +155,13 @@ const UnstableNatureSVG = () => {
       <g transform="translate(150, 80)">
         <text x="-50" y="25" fill="hsl(var(--muted-foreground))" fontSize="14">배열 상태:</text>
 
-        <rect x="40" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(271 91% 65%)" strokeWidth="2" />
-        <text x="65" y="25" fill="hsl(271 91% 65%)" fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
-        <text x="65" y="40" fill="hsl(271 91% 65%)" fontSize="10" textAnchor="middle">a</text>
+        <rect x="40" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke={colorTokens.primaryHighlight} strokeWidth="2" />
+        <text x="65" y="25" fill={colorTokens.primaryHighlight} fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
+        <text x="65" y="40" fill={colorTokens.primaryHighlight} fontSize="10" textAnchor="middle">a</text>
 
-        <rect x="100" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(24 95% 53%)" strokeWidth="2" />
-        <text x="125" y="25" fill="hsl(24 95% 53%)" fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
-        <text x="125" y="40" fill="hsl(24 95% 53%)" fontSize="10" textAnchor="middle">b</text>
+        <rect x="100" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke={colorTokens.warning} strokeWidth="2" />
+        <text x="125" y="25" fill={colorTokens.warning} fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
+        <text x="125" y="40" fill={colorTokens.warning} fontSize="10" textAnchor="middle">b</text>
 
         <rect x="160" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
         <text x="185" y="30" fill="hsl(var(--foreground))" fontSize="20" textAnchor="middle">1</text>
@@ -168,27 +169,27 @@ const UnstableNatureSVG = () => {
         <rect x="220" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
         <text x="245" y="30" fill="hsl(var(--foreground))" fontSize="20" textAnchor="middle">9</text>
 
-        <path d="M 185 60 C 135 90, 115 90, 65 60" fill="none" stroke="hsl(347 89% 60%)" strokeWidth="2" markerEnd="url(#arrow)" strokeDasharray="4" />
-        <text x="125" y="110" fill="hsl(347 89% 60%)" fontSize="12" textAnchor="middle">최소값 1과 맨 앞의 5a를 교환</text>
+        <path d="M 185 60 C 135 90, 115 90, 65 60" fill="none" stroke={colorTokens.destructive} strokeWidth="2" markerEnd="url(#arrow)" strokeDasharray="4" />
+        <text x="125" y="110" fill={colorTokens.destructive} fontSize="12" textAnchor="middle">최소값 1과 맨 앞의 5a를 교환</text>
 
         <g transform="translate(0, 140)">
           <text x="-50" y="25" fill="hsl(var(--muted-foreground))" fontSize="14">결과:</text>
 
-          <rect x="40" y="0" width="50" height="50" rx="8" fill="rgba(16, 185, 129, 0.1)" stroke="hsl(160 84% 39%)" strokeWidth="2" />
-          <text x="65" y="30" fill="hsl(160 84% 39%)" fontSize="20" fontWeight="bold" textAnchor="middle">1</text>
+          <rect x="40" y="0" width="50" height="50" rx="8" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="2" />
+          <text x="65" y="30" fill={colorTokens.success} fontSize="20" fontWeight="bold" textAnchor="middle">1</text>
 
-          <rect x="100" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(24 95% 53%)" strokeWidth="2" />
-          <text x="125" y="25" fill="hsl(24 95% 53%)" fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
-          <text x="125" y="40" fill="hsl(24 95% 53%)" fontSize="10" textAnchor="middle">b</text>
+          <rect x="100" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke={colorTokens.warning} strokeWidth="2" />
+          <text x="125" y="25" fill={colorTokens.warning} fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
+          <text x="125" y="40" fill={colorTokens.warning} fontSize="10" textAnchor="middle">b</text>
 
-          <rect x="160" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(271 91% 65%)" strokeWidth="2" />
-          <text x="185" y="25" fill="hsl(271 91% 65%)" fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
-          <text x="185" y="40" fill="hsl(271 91% 65%)" fontSize="10" textAnchor="middle">a</text>
+          <rect x="160" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke={colorTokens.primaryHighlight} strokeWidth="2" />
+          <text x="185" y="25" fill={colorTokens.primaryHighlight} fontSize="20" fontWeight="bold" textAnchor="middle">5</text>
+          <text x="185" y="40" fill={colorTokens.primaryHighlight} fontSize="10" textAnchor="middle">a</text>
 
           <rect x="220" y="0" width="50" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
           <text x="245" y="30" fill="hsl(var(--foreground))" fontSize="20" textAnchor="middle">9</text>
 
-          <text x="142" y="-15" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" filter="url(#neon-glow-rose)">5a와 5b의 순서가 뒤집힘!</text>
+          <text x="142" y="-15" fill={colorTokens.destructive} fontSize="14" fontWeight="bold" filter="url(#neon-glow-rose)">5a와 5b의 순서가 뒤집힘!</text>
         </g>
       </g>
     </svg>

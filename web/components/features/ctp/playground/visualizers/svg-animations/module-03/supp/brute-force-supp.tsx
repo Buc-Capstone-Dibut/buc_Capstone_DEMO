@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // 1. 단순 반복 (Brute Force Scan) SVG
 export function BruteForceScanSVG() {
@@ -9,7 +10,7 @@ export function BruteForceScanSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-bf-1" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-bf-1)" />
@@ -22,7 +23,7 @@ export function BruteForceScanSVG() {
         <text x="-60" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Text</text>
         {['A', 'B', 'C', 'A', 'B', 'D'].map((char, i) => (
           <g key={i} transform={`translate(${i * 45}, 0)`}>
-             <rect width="40" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
+             <rect width="40" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
              <text x="20" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
@@ -38,8 +39,8 @@ export function BruteForceScanSVG() {
         <text x="-60" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold">Pattern</text>
         {['A', 'B', 'D'].map((char, i) => (
           <g key={i} transform={`translate(${i * 45}, 0)`}>
-             <rect width="40" height="40" fill="hsl(217 91% 60%)" rx="4" />
-             <text x="20" y="25" fill="hsl(0 0% 100%)" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
+             <rect width="40" height="40" fill={colorTokens.primaryBlue} rx="4" />
+             <text x="20" y="25" fill="hsl(var(--foreground))" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
           </g>
         ))}
       </motion.g>
@@ -54,7 +55,7 @@ export function TwoPointerMatchingSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-bf-2" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-bf-2)" />
@@ -65,33 +66,33 @@ export function TwoPointerMatchingSVG() {
       <g transform="translate(150, 120)">
         {/* Text */}
         <text x="-40" y="25" className="fill-slate-500" fontSize="16" fontWeight="bold">i</text>
-        <rect x="0" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
+        <rect x="0" y="0" width="40" height="40" fill={colorTokens.success} rx="4" />
         <text x="20" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">X</text>
 
-        <rect x="45" y="0" width="40" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
+        <rect x="45" y="0" width="40" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
         <text x="65" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">Y</text>
 
         {/* Pointer Line */}
         <motion.line
            x1="20" y1="45" x2="20" y2="75"
-           stroke="hsl(347 89% 60%)" strokeWidth="3" strokeDasharray="4"
+           stroke={colorTokens.destructive} strokeWidth="3" strokeDasharray="4"
         />
 
         {/* Pattern */}
         <g transform="translate(0, 80)">
            <text x="-40" y="25" className="fill-slate-500" fontSize="16" fontWeight="bold">j</text>
-           <rect x="0" y="0" width="40" height="40" fill="hsl(160 84% 39%)" rx="4" />
+           <rect x="0" y="0" width="40" height="40" fill={colorTokens.success} rx="4" />
            <text x="20" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">X</text>
 
-           <rect x="45" y="0" width="40" height="40" fill="hsl(217 91% 60%)" rx="4" />
+           <rect x="45" y="0" width="40" height="40" fill={colorTokens.primaryBlue} rx="4" />
            <text x="65" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">Z</text>
         </g>
 
         <motion.path
             d="M 120 40 Q 150 60 120 80"
-            fill="none" stroke="hsl(160 84% 39%)" strokeWidth="3"
+            fill="none" stroke={colorTokens.success} strokeWidth="3"
         />
-        <text x="160" y="65" fill="hsl(160 84% 39%)" fontSize="16" fontWeight="bold">일치! (i++, j++)</text>
+        <text x="160" y="65" fill={colorTokens.success} fontSize="16" fontWeight="bold">일치! (i++, j++)</text>
       </g>
     </svg>
   );
@@ -103,7 +104,7 @@ export function WorstCaseMatchSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-bf-3" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-bf-3)" />
@@ -115,7 +116,7 @@ export function WorstCaseMatchSVG() {
         {/* Text: AAAAAAB */}
         {['A', 'A', 'A', 'A', 'A', 'A', 'B'].map((char, idx) => (
            <g key={idx} transform={`translate(${idx * 45}, 0)`}>
-             <rect width="40" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
+             <rect width="40" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
              <text x="20" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
            </g>
         ))}
@@ -131,12 +132,12 @@ export function WorstCaseMatchSVG() {
               const matches = idx < 3;
               return (
                 <g key={idx} transform={`translate(${idx * 45}, 0)`}>
-                   <rect width="40" height="40" fill={matches ? "hsl(160 84% 39%)" : "hsl(347 89% 60%)"} rx="4" />
+                   <rect width="40" height="40" fill={matches ? colorTokens.success : colorTokens.destructive} rx="4" />
                    <text x="20" y="25" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle">{char}</text>
                 </g>
               )
            })}
-           <text x="200" y="25" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold">끝에서 실패!</text>
+           <text x="200" y="25" fill={colorTokens.destructive} fontSize="14" fontWeight="bold">끝에서 실패!</text>
         </motion.g>
       </g>
     </svg>
@@ -149,7 +150,7 @@ export function PatternBacktrackSVG() {
     <svg viewBox="0 0 600 300" className="w-full h-full font-sans bg-slate-50 dark:bg-slate-900 rounded-xl">
       <defs>
         <pattern id="grid-bf-4" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" className="dark:stroke-white/5" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.shadowGhost} className="dark:stroke-white/5" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-bf-4)" />
@@ -158,24 +159,24 @@ export function PatternBacktrackSVG() {
       <text x="30" y="65" className="fill-slate-600 dark:fill-slate-400" fontSize="14">불일치가 발생하면 텍스트 포인터 i가 탐색을 시작했던 위치의 바로 다음 칸으로 되돌아갑니다.</text>
 
       <g transform="translate(100, 140)">
-         <rect x="0" y="0" width="200" height="40" fill="hsl(214 32% 91%)" className="dark:fill-slate-800" rx="4" />
+         <rect x="0" y="0" width="200" height="40" fill="hsl(var(--muted))" className="dark:fill-slate-800" rx="4" />
          <text x="100" y="25" className="fill-slate-700 dark:fill-slate-300" fontSize="16" fontWeight="bold" textAnchor="middle">Text Array</text>
 
-         <rect x="80" y="-40" width="120" height="30" fill="hsl(217 91% 60%)" rx="4" />
+         <rect x="80" y="-40" width="120" height="30" fill={colorTokens.primaryBlue} rx="4" />
          <text x="140" y="-20" fill="white" fontSize="14" fontWeight="bold" textAnchor="middle">Pattern</text>
 
-         <circle cx="180" cy="0" r="10" fill="hsl(347 89% 60%)" />
+         <circle cx="180" cy="0" r="10" fill={colorTokens.destructive} />
          <text x="180" y="4" fill="white" fontSize="12" fontWeight="bold" textAnchor="middle">x</text>
-         <text x="210" y="-5" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold">불일치!</text>
+         <text x="210" y="-5" fill={colorTokens.destructive} fontSize="14" fontWeight="bold">불일치!</text>
 
          <motion.path
             d="M 180 50 Q 150 100 90 60 L 90 50"
-            fill="none" stroke="hsl(347 89% 60%)" strokeWidth="3"
+            fill="none" stroke={colorTokens.destructive} strokeWidth="3"
             initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
             transition={{ duration: 1, repeat: Infinity, repeatType: "loop", repeatDelay: 1 }}
          />
-         <circle cx="90" cy="45" r="4" fill="hsl(347 89% 60%)" />
-         <text x="135" y="110" fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">시작점 + 1 위치로 되돌아감</text>
+         <circle cx="90" cy="45" r="4" fill={colorTokens.destructive} />
+         <text x="135" y="110" fill={colorTokens.destructive} fontSize="14" fontWeight="bold" textAnchor="middle">시작점 + 1 위치로 되돌아감</text>
       </g>
     </svg>
   );

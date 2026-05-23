@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { colorTokens } from "../../../shared/svg-primitives";
 
 // --- Utility Components ---
 const SVGDefs = () => (
@@ -45,18 +46,18 @@ const GapSequenceSVG = () => {
         {/* Array Bars */}
         {[8, 3, 9, 2, 7, 1, 6, 4].map((v, i) => (
           <g key={i} transform={`translate(${i * 65 + 30}, 0)`}>
-            <rect x="0" y={100 - v * 10} width="40" height={v * 10} fill={i % 4 === 0 ? "hsl(217 91% 60%)" : i % 4 === 1 ? "hsl(0 84% 60%)" : "hsl(var(--muted))"} rx="4" />
+            <rect x="0" y={100 - v * 10} width="40" height={v * 10} fill={i % 4 === 0 ? colorTokens.primaryBlue : i % 4 === 1 ? colorTokens.errorRed : "hsl(var(--muted))"} rx="4" />
             <text x="20" y={115} fill="hsl(var(--foreground))" fontSize="14" textAnchor="middle">{v}</text>
             <text x="20" y={135} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">[{i}]</text>
           </g>
         ))}
 
         {/* Gap Lines representing Group 1 (blue) and Group 2 (red) */}
-        <path d="M 50 145 L 50 160 L 310 160 L 310 145" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="2" />
-        <text x="180" y="175" fill="hsl(217 91% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">그룹 1 (Gap = 4)</text>
+        <path d="M 50 145 L 50 160 L 310 160 L 310 145" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="2" />
+        <text x="180" y="175" fill={colorTokens.primaryBlue} fontSize="12" fontWeight="bold" textAnchor="middle">그룹 1 (Gap = 4)</text>
 
-        <path d="M 115 145 L 115 185 L 375 185 L 375 145" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="2" />
-        <text x="245" y="200" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" textAnchor="middle">그룹 2 (Gap = 4)</text>
+        <path d="M 115 145 L 115 185 L 375 185 L 375 145" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" />
+        <text x="245" y="200" fill={colorTokens.errorRed} fontSize="12" fontWeight="bold" textAnchor="middle">그룹 2 (Gap = 4)</text>
       </g>
     </svg>
   );
@@ -78,10 +79,10 @@ const FarExchangeSVG = () => {
         {/* Array Bars - Group 1 Sorting */}
         <g transform="translate(80, 0)">
           {/* Before */}
-          <rect x="0" y={100 - 80} width="40" height={80} fill="hsl(217 91% 60%)" opacity="0.3" rx="4" />
+          <rect x="0" y={100 - 80} width="40" height={80} fill={colorTokens.primaryBlue} opacity="0.3" rx="4" />
           <text x="20" y={115} fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">8</text>
 
-          <rect x="260" y={100 - 70} width="40" height={70} fill="hsl(217 91% 60%)" opacity="0.3" rx="4" />
+          <rect x="260" y={100 - 70} width="40" height={70} fill={colorTokens.primaryBlue} opacity="0.3" rx="4" />
           <text x="280" y={115} fill="hsl(var(--muted-foreground))" fontSize="14" textAnchor="middle">7</text>
 
           {/* After (Animation) */}
@@ -89,16 +90,16 @@ const FarExchangeSVG = () => {
             initial={{ x: 0, y: 100 - 80, height: 80 }}
             animate={{ x: [0, 130, 260], y: [100 - 80, -20, 100 - 80] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            width="40" fill="hsl(160 84% 39%)" rx="4" filter="url(#neon-glow-primary)" />
+            width="40" fill={colorTokens.success} rx="4" filter="url(#neon-glow-primary)" />
 
           <motion.rect
             initial={{ x: 260, y: 100 - 70, height: 70 }}
             animate={{ x: [260, 130, 0], y: [100 - 70, -20, 100 - 70] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            width="40" fill="hsl(217 91% 60%)" rx="4" filter="url(#neon-glow-primary)" />
+            width="40" fill={colorTokens.primaryBlue} rx="4" filter="url(#neon-glow-primary)" />
 
           <path d="M 20 -30 Q 150 -80 280 -30" fill="none" stroke="currentColor" strokeOpacity="0.5" strokeWidth="2" strokeDasharray="4" markerEnd="url(#arrow)" markerStart="url(#arrow)" />
-          <text x="150" y="-55" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">단 1번의 교환으로 대이동!</text>
+          <text x="150" y="-55" fill={colorTokens.success} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-primary)">단 1번의 교환으로 대이동!</text>
         </g>
       </g>
     </svg>
@@ -123,22 +124,22 @@ const DiminishingIncrementSVG = () => {
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 2, repeat: Infinity }}
-          d="M 100 80 L 400 80" fill="none" stroke="hsl(217 91% 60%)" strokeWidth="8" strokeLinecap="round" />
-        <text x="250" y="70" fill="hsl(217 91% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 4 (거친 정렬)</text>
+          d="M 100 80 L 400 80" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="8" strokeLinecap="round" />
+        <text x="250" y="70" fill={colorTokens.primaryBlue} fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 4 (거친 정렬)</text>
 
         <motion.path
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 2, delay: 0.5, repeat: Infinity }}
-          d="M 150 130 L 350 130" fill="none" stroke="hsl(258 90% 66%)" strokeWidth="8" strokeLinecap="round" />
-        <text x="250" y="120" fill="hsl(258 90% 66%)" fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 2 (중간 정렬)</text>
+          d="M 150 130 L 350 130" fill="none" stroke={colorTokens.primaryHighlight} strokeWidth="8" strokeLinecap="round" />
+        <text x="250" y="120" fill={colorTokens.primaryHighlight} fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 2 (중간 정렬)</text>
 
         <motion.path
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 2, delay: 1, repeat: Infinity }}
-          d="M 200 180 L 300 180" fill="none" stroke="hsl(160 84% 39%)" strokeWidth="8" strokeLinecap="round" filter="url(#neon-glow-primary)"/>
-        <text x="250" y="170" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 1 (미세 조정)</text>
+          d="M 200 180 L 300 180" fill="none" stroke={colorTokens.success} strokeWidth="8" strokeLinecap="round" filter="url(#neon-glow-primary)"/>
+        <text x="250" y="170" fill={colorTokens.success} fontSize="14" fontWeight="bold" textAnchor="middle">Gap = 1 (미세 조정)</text>
         <text x="250" y="205" fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">이미 거의 정렬되어 순식간에 끝납니다!</text>
       </g>
     </svg>
@@ -165,16 +166,16 @@ const OptimizationComplexitySVG = () => {
         <text x="380" y="195" fill="currentColor" fontSize="12" opacity="0.5">데이터 양 (N)</text>
 
         {/* O(N^2) Curve */}
-        <path d="M 50 180 Q 200 180, 250 50" fill="none" stroke="hsl(0 84% 60%)" strokeWidth="2" strokeDasharray="4" />
-        <text x="255" y="60" fill="hsl(0 84% 60%)" fontSize="14" fontWeight="bold">일반 삽입 정렬 O(N²)</text>
+        <path d="M 50 180 Q 200 180, 250 50" fill="none" stroke={colorTokens.errorRed} strokeWidth="2" strokeDasharray="4" />
+        <text x="255" y="60" fill={colorTokens.errorRed} fontSize="14" fontWeight="bold">일반 삽입 정렬 O(N²)</text>
 
         {/* O(N^1.5) Curve */}
         <motion.path
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
           transition={{ duration: 2, repeat: Infinity }}
-          d="M 50 180 Q 250 170, 350 70" fill="none" stroke="hsl(160 84% 39%)" strokeWidth="3" filter="url(#neon-glow-primary)"/>
-        <text x="360" y="80" fill="hsl(160 84% 39%)" fontSize="14" fontWeight="bold">셸 정렬 (Hibbard) O(N^1.5)</text>
+          d="M 50 180 Q 250 170, 350 70" fill="none" stroke={colorTokens.success} strokeWidth="3" filter="url(#neon-glow-primary)"/>
+        <text x="360" y="80" fill={colorTokens.success} fontSize="14" fontWeight="bold">셸 정렬 (Hibbard) O(N^1.5)</text>
 
         {/* Equation Badge */}
         <rect x="50" y="210" width="400" height="40" fill="hsl(var(--primary))" fillOpacity="0.1" stroke="hsl(var(--primary))" strokeWidth="1" rx="6" />
