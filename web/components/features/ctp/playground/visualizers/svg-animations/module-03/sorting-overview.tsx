@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { NeonGlowFilters } from '@/components/features/ctp/playground/visualizers/shared/svg-primitives';
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
 type Step = {
@@ -128,7 +129,7 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="hsl(189 94% 43%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-primary)">
+      <text x="40" y="50" fill={colorTokens.info} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-primary)">
         SORTING ALGORITHMS
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -150,15 +151,15 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
           let glow = "";
 
           if (status === 'sorted') {
-            fill = "rgba(16, 185, 129, 0.2)";
-            stroke = "hsl(160 84% 39%)";
+            fill = colorTokens.successSoft;
+            stroke = colorTokens.success;
             glow = "url(#neon-glow-success)";
           } else if (status === 'processing') {
-            fill = "rgba(6, 182, 212, 0.2)";
-            stroke = "hsl(189 94% 43%)";
+            fill = colorTokens.infoSoft;
+            stroke = colorTokens.info;
           } else {
-            fill = "rgba(244, 63, 94, 0.1)";
-            stroke = "hsl(350 89% 60%)";
+            fill = colorTokens.destructiveTrace;
+            stroke = colorTokens.destructive;
           }
 
           return (
@@ -186,7 +187,7 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
                 filter={glow}
               />
               {/* Internal value text */}
-              <text x={BAR_WIDTH / 2} y={height + 20} fill={status === 'sorted' ? "hsl(160 84% 39%)" : "hsl(var(--foreground))"} fontSize="14" fontWeight="bold" textAnchor="middle">
+              <text x={BAR_WIDTH / 2} y={height + 20} fill={status === 'sorted' ? colorTokens.success : "hsl(var(--foreground))"} fontSize="14" fontWeight="bold" textAnchor="middle">
                 {val}
               </text>
             </motion.g>
@@ -201,7 +202,7 @@ export function SortingOverviewVisualizer({ data }: { data: any }) {
           initial={{ opacity: 0, y: -20, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           x="0" y="0"
-          fill={status === 'sorted' ? "hsl(160 84% 39%)" : (status === 'processing' ? "hsl(189 94% 43%)" : "hsl(var(--foreground))")}
+          fill={status === 'sorted' ? colorTokens.success : (status === 'processing' ? colorTokens.info : "hsl(var(--foreground))")}
           fontSize="24"
           fontWeight="bold"
           textAnchor="middle"

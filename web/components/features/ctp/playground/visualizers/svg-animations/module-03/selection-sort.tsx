@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
 export type SortElement = { id: string; val: number };
@@ -243,7 +244,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="hsl(271 91% 65%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">
+      <text x="40" y="50" fill={colorTokens.primaryHighlight} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">
         SELECTION SORT
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -256,7 +257,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           현재 타겟 범위 (시작: Index {i})
         </text>
-        <text x="170" y="45" fill={isSwapping ? "hsl(24 95% 53%)" : (j !== -1 ? "hsl(189 94% 43%)" : "hsl(160 84% 39%)")} fontSize="14" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isSwapping ? colorTokens.warning : (j !== -1 ? colorTokens.info : colorTokens.success)} fontSize="14" fontWeight="bold" textAnchor="middle">
           {isSwapping ? `가장 작은 값(${array[i] ? array[i].val : ''})을 자리에 배치합니다!` : (j !== -1 && minIndex !== -1 ? `최솟값 후보 변경됨, 계속 탐색을 진행합니다.` : "다음 사이클을 시작합니다.")}
         </text>
       </g>
@@ -264,11 +265,11 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       {/* Area Marker for Sorted/Unsorted */}
       {i < N && (
         <g>
-          <rect x={START_X - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(16, 185, 129, 0.05)" stroke="hsl(160 84% 39%)" strokeDasharray="4" />
-          <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold">정렬 완료 구역</text>
+          <rect x={START_X - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill={colorTokens.successGhost} stroke={colorTokens.success} strokeDasharray="4" />
+          <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill={colorTokens.success} fontSize="12" fontWeight="bold">정렬 완료 구역</text>
 
-          <rect x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(N - i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill="rgba(244, 63, 94, 0.05)" stroke="hsl(347 89% 60%)" strokeDasharray="4" />
-          <text x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING)} y={START_Y - MAX_BAR_HEIGHT - 40} fill="hsl(347 89% 60%)" fontSize="12" fontWeight="bold">미정렬 구역 (최솟값 탐색 대상)</text>
+          <rect x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) - 10} y={START_Y - MAX_BAR_HEIGHT - 30} width={(N - i) * (BLOCK_WIDTH + BLOCK_SPACING)} height={MAX_BAR_HEIGHT + 70} rx="8" fill={colorTokens.destructiveGhost} stroke={colorTokens.destructive} strokeDasharray="4" />
+          <text x={START_X + i * (BLOCK_WIDTH + BLOCK_SPACING)} y={START_Y - MAX_BAR_HEIGHT - 40} fill={colorTokens.destructive} fontSize="12" fontWeight="bold">미정렬 구역 (최솟값 탐색 대상)</text>
         </g>
       )}
 
@@ -295,21 +296,21 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
           let textColor = "hsl(var(--foreground))";
 
           if (isSortedBlock) {
-            fill = "rgba(16, 185, 129, 0.1)";
-            stroke = "hsl(160 84% 39%)";
-            textColor = "hsl(160 84% 39%)";
+            fill = colorTokens.successDim;
+            stroke = colorTokens.success;
+            textColor = colorTokens.success;
           } else if (isSwapTarget) {
-            fill = "rgba(249, 115, 22, 0.1)";
-            stroke = "hsl(24 95% 53%)";
-            textColor = "hsl(24 95% 53%)";
+            fill = colorTokens.warningDim;
+            stroke = colorTokens.warning;
+            textColor = colorTokens.warning;
           } else if (isCurrentMin) {
-            fill = "rgba(6, 182, 212, 0.1)";
-            stroke = "hsl(189 94% 43%)";
-            textColor = "hsl(189 94% 43%)";
+            fill = colorTokens.infoDim;
+            stroke = colorTokens.info;
+            textColor = colorTokens.info;
           } else if (isComparing) {
-            fill = "rgba(168, 85, 247, 0.1)";
-            stroke = "hsl(271 91% 65%)";
-            textColor = "hsl(271 91% 65%)";
+            fill = colorTokens.primaryHighlightDim;
+            stroke = colorTokens.primaryHighlight;
+            textColor = colorTokens.primaryHighlight;
           }
 
           return (
@@ -343,7 +344,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
                     exit={{ opacity: 0, scale: 0.5 }}
                     x={BLOCK_WIDTH / 2}
                     y={-25}
-                    fill="hsl(189 94% 43%)"
+                    fill={colorTokens.info}
                     fontSize="12"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -362,7 +363,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     d={`M ${BLOCK_WIDTH / 2} -35 L ${BLOCK_WIDTH / 2} -10`}
-                    stroke="hsl(271 91% 65%)"
+                    stroke={colorTokens.primaryHighlight}
                     strokeWidth="3"
                     markerEnd="url(#arrow)"
                   />
@@ -381,7 +382,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
               exit={{ opacity: 0 }}
               d={`M ${START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 30} C ${START_X + i * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 90}, ${START_X + minIndex * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 90}, ${START_X + minIndex * (BLOCK_WIDTH + BLOCK_SPACING) + BLOCK_WIDTH/2} ${START_Y - MAX_BAR_HEIGHT - 30}`}
               fill="none"
-              stroke="hsl(24 95% 53%)"
+              stroke={colorTokens.warning}
               strokeWidth="4"
               strokeDasharray="6"
               filter="url(#neon-glow-orange)"
@@ -393,16 +394,16 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
       {/* Legend */}
       <g transform="translate(40, 420)">
         <rect width="400" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <circle cx="20" cy="25" r="5" fill="hsl(271 91% 65%)" />
+        <circle cx="20" cy="25" r="5" fill={colorTokens.primaryHighlight} />
         <text x="35" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">탐색</text>
 
-        <circle cx="85" cy="25" r="5" fill="hsl(189 94% 43%)" />
+        <circle cx="85" cy="25" r="5" fill={colorTokens.info} />
         <text x="100" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">현재 최소값</text>
 
-        <circle cx="185" cy="25" r="5" fill="hsl(24 95% 53%)" />
+        <circle cx="185" cy="25" r="5" fill={colorTokens.warning} />
         <text x="200" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">교환</text>
 
-        <circle cx="255" cy="25" r="5" fill="hsl(160 84% 39%)" />
+        <circle cx="255" cy="25" r="5" fill={colorTokens.success} />
         <text x="270" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">정렬 확정</text>
       </g>
     </svg>

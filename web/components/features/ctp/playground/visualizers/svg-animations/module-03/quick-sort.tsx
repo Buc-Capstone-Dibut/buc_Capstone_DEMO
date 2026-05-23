@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
 export type SortElement = { id: string; val: number };
@@ -173,19 +174,19 @@ export function QuickSortVisualizer({ data }: { data: any }) {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
             </pattern>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="hsl(213 27% 84%)" fontSize="18" fontWeight="bold">Quick Sort</text>
-          <text x="30" y="65" fill="hsl(215 16% 47%)" fontSize="14">{statusHTML}</text>
+          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Quick Sort</text>
+          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{statusHTML}</text>
 
           {/* Action indicator */}
           <g transform={`translate(${svgWidth - 200}, 40)`}>
-            {pivotIdx !== null && <text x="170" y="0" fill="hsl(160 84% 39%)" fontSize="16" fontWeight="bold" textAnchor="end">피벗(Pivot) 선택</text>}
+            {pivotIdx !== null && <text x="170" y="0" fill={colorTokens.success} fontSize="16" fontWeight="bold" textAnchor="end">피벗(Pivot) 선택</text>}
           </g>
 
           {/* Draw Sub-array Range Indicator */}
@@ -195,8 +196,8 @@ export function QuickSortVisualizer({ data }: { data: any }) {
               animate={{ x: getX(low) - 10, width: getX(high) - getX(low) + barWidth + 20 }}
               y={svgHeight - chartHeight - 70}
               height={chartHeight + 60}
-              fill="rgba(59, 130, 246, 0.05)"
-              stroke="rgba(59, 130, 246, 0.3)"
+              fill={colorTokens.primaryBlueGhost}
+              stroke={colorTokens.primaryBlueEdge}
               strokeWidth="2"
               strokeDasharray="4"
               rx={8}
@@ -215,23 +216,23 @@ export function QuickSortVisualizer({ data }: { data: any }) {
               const isSwapping = swapping?.includes(idx);
               const isPivot = idx === pivotIdx;
 
-              let fillColor = "hsl(215 25% 27%)"; // default muted
+              let fillColor = "hsl(var(--muted))"; // default muted
               let opacity = 0.5;
 
               if (isSorted) {
-                fillColor = "hsl(258 90% 66%)"; // sorted purple
+                fillColor = colorTokens.primaryHighlight; // sorted purple
                 opacity = 0.9;
               } else if (isSwapping) {
-                fillColor = "hsl(347 89% 60%)"; // swap red
+                fillColor = colorTokens.destructive; // swap red
                 opacity = 1;
               } else if (isPivot) {
-                fillColor = "hsl(160 84% 39%)"; // pivot green
+                fillColor = colorTokens.success; // pivot green
                 opacity = 1;
               } else if (isComparing) {
-                fillColor = "hsl(45 93% 47%)"; // compare yellow
+                fillColor = colorTokens.warning; // compare yellow
                 opacity = 1;
               } else if (low !== null && high !== null && idx >= low && idx <= high) {
-                fillColor = "hsl(217 91% 60%)"; // active range blue
+                fillColor = colorTokens.primaryBlue; // active range blue
                 opacity = 0.7;
               }
 
@@ -255,7 +256,7 @@ export function QuickSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={-10}
-                    fill={(isSorted || isSwapping || isComparing || isPivot || (low !== null && high !== null && idx >= low && idx <= high)) ? "hsl(0 0% 100%)" : "hsl(215 20% 65%)"}
+                    fill={(isSorted || isSwapping || isComparing || isPivot || (low !== null && high !== null && idx >= low && idx <= high)) ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
                     fontSize="16"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -265,7 +266,7 @@ export function QuickSortVisualizer({ data }: { data: any }) {
                   <text
                     x={barWidth / 2}
                     y={height + 20}
-                    fill="hsl(215 16% 47%)"
+                    fill="hsl(var(--muted-foreground))"
                     fontSize="12"
                     textAnchor="middle"
                   >
@@ -276,12 +277,12 @@ export function QuickSortVisualizer({ data }: { data: any }) {
                       i and j can coincide (when partition first starts) — stack
                       the labels vertically so they never overlap. */}
                   {idx === i && (
-                    <motion.text x={barWidth / 2} y={height + 40} fill="hsl(347 89% 60%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 40} fill={colorTokens.destructive} fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       i
                     </motion.text>
                   )}
                   {idx === j && (
-                    <motion.text x={barWidth / 2} y={height + 60} fill="hsl(45 93% 47%)" fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <motion.text x={barWidth / 2} y={height + 60} fill={colorTokens.warning} fontSize="14" fontWeight="bold" textAnchor="middle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       j
                     </motion.text>
                   )}

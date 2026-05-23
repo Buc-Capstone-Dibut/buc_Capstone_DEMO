@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
 export type SortElement = { id: string; val: number };
@@ -232,7 +233,7 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill="hsl(24 95% 53%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">
+      <text x="40" y="50" fill={colorTokens.warning} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">
         INSERTION SORT
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -245,7 +246,7 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           현재 타겟 범위 (1 ~ {i < N ? i : N - 1})
         </text>
-        <text x="170" y="45" fill={isInserting ? "hsl(160 84% 39%)" : (isKeyActive ? "hsl(189 94% 43%)" : "hsl(var(--foreground))")} fontSize="14" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isInserting ? colorTokens.success : (isKeyActive ? colorTokens.info : "hsl(var(--foreground))")} fontSize="14" fontWeight="bold" textAnchor="middle">
           {isInserting ? `빈 공간에 Key값(${key ? key.val : ''}) 삽입!` : (isKeyActive ? `Key값(${key ? key.val : ''})와 정렬된 원소 비교 중...` : "새로운 값을 기준으로 설정합니다.")}
         </text>
       </g>
@@ -258,12 +259,12 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
           width={(i) * (BLOCK_WIDTH + BLOCK_SPACING)}
           height={MAX_BAR_HEIGHT + 70}
           rx="8"
-          fill="rgba(16, 185, 129, 0.05)"
-          stroke="hsl(160 84% 39%)"
+          fill={colorTokens.successGhost}
+          stroke={colorTokens.success}
           strokeDasharray="4"
         />
       )}
-      <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold">
+      <text x={START_X} y={START_Y - MAX_BAR_HEIGHT - 40} fill={colorTokens.success} fontSize="12" fontWeight="bold">
         {i === 0 ? "초기 상태" : (i <= N ? "정렬된 구역 (사이즈 확장 중)" : "모두 정렬됨")}
       </text>
 
@@ -293,14 +294,14 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
               width={BLOCK_WIDTH}
               height={Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT)}
               rx="4"
-              fill="rgba(6, 182, 212, 0.1)"
-              stroke="hsl(189 94% 43%)"
+              fill={colorTokens.infoDim}
+              stroke={colorTokens.info}
               strokeWidth="3"
             />
-            <text x={BLOCK_WIDTH / 2} y={START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) / 2 + 6} fill="hsl(189 94% 43%)" fontSize="16" fontWeight="bold" textAnchor="middle">
+            <text x={BLOCK_WIDTH / 2} y={START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) / 2 + 6} fill={colorTokens.info} fontSize="16" fontWeight="bold" textAnchor="middle">
               {key ? key.val : ''}
             </text>
-            <text x={BLOCK_WIDTH / 2} y={START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) - 15} fill="hsl(189 94% 43%)" fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-cyan)">
+            <text x={BLOCK_WIDTH / 2} y={START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) - 15} fill={colorTokens.info} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-cyan)">
               Key
             </text>
           </motion.g>
@@ -333,14 +334,14 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
             // It's lifted up
             opacity = 0;
           } else if (isCurrentlyComparing) {
-            fill = "rgba(244, 63, 94, 0.1)";
-            stroke = "hsl(347 89% 60%)";
-            textColor = "hsl(347 89% 60%)";
+            fill = colorTokens.destructiveTrace;
+            stroke = colorTokens.destructive;
+            textColor = colorTokens.destructive;
             y -= 10;
           } else if (isSortedBlock) {
-            fill = "rgba(16, 185, 129, 0.1)";
-            stroke = "hsl(160 84% 39%)";
-            textColor = "hsl(160 84% 39%)";
+            fill = colorTokens.successDim;
+            stroke = colorTokens.success;
+            textColor = colorTokens.success;
           }
 
           const x = START_X + idx * (BLOCK_WIDTH + BLOCK_SPACING);
@@ -377,7 +378,7 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
                     exit={{ opacity: 0 }}
                     x={BLOCK_WIDTH / 2}
                     y={barHeight + 40}
-                    fill="hsl(347 89% 60%)"
+                    fill={colorTokens.destructive}
                     fontSize="12"
                     fontWeight="bold"
                     textAnchor="middle"
@@ -394,13 +395,13 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
       {/* Legend */}
       <g transform="translate(40, 420)">
         <rect width="320" height="50" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-        <circle cx="20" cy="25" r="5" fill="hsl(189 94% 43%)" />
+        <circle cx="20" cy="25" r="5" fill={colorTokens.info} />
         <text x="35" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">Key(삽입값)</text>
 
-        <circle cx="105" cy="25" r="5" fill="hsl(160 84% 39%)" />
+        <circle cx="105" cy="25" r="5" fill={colorTokens.success} />
         <text x="120" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">정렬 구역</text>
 
-        <circle cx="195" cy="25" r="5" fill="hsl(347 89% 60%)" />
+        <circle cx="195" cy="25" r="5" fill={colorTokens.destructive} />
         <text x="210" y="29" fill="hsl(var(--muted-foreground))" fontSize="12">비교 대상(Shift검사)</text>
       </g>
     </svg>

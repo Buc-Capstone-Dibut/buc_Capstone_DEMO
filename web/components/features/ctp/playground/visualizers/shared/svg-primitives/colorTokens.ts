@@ -53,7 +53,10 @@ export const colorTokens = {
 
   // 위험/스왑/충돌 (rose)
   destructive: "hsl(347 89% 60%)",
+  destructiveSoft: "hsla(347, 89%, 60%, 0.2)",
+  destructiveEdge: "hsla(347, 89%, 60%, 0.3)",
   destructiveTrace: "hsla(347, 89%, 60%, 0.1)",
+  destructiveGhost: "hsla(347, 89%, 60%, 0.05)",
 
   // 별도 톤(차분한 빨강) — error / collision / dequeue 강조용
   errorRed: "hsl(0 84% 60%)",
@@ -83,6 +86,7 @@ export const colorTokens = {
   primaryBlueEdge: "hsla(217, 91%, 60%, 0.3)",
   primaryBlueTrace: "hsla(217, 91%, 60%, 0.15)",
   primaryBlueDim: "hsla(217, 91%, 60%, 0.1)",
+  primaryBlueGhost: "hsla(217, 91%, 60%, 0.05)",
 } as const;
 
 export type ColorToken = keyof typeof colorTokens;
