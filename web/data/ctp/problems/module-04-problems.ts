@@ -633,9 +633,9 @@ LeetCode 스타일 레벨 순서 직렬화는 -1(null)에 대해서는 자식 �
     constraints: ["1 ≤ N ≤ 2000"],
     sampleIO: [
       {
-        input: "5\n3 2 1",
+        input: "3\n3 2 1",
         output: "1 2 3",
-        explanation: "원본은 `while cur and stack`이라 시작 시 stack이 비어 즉시 종료됩니다. `while cur or stack`으로 고치면 정상 작동.",
+        explanation: "BST에 3,2,1을 삽입하면 왼쪽 사슬 모양 트리가 됩니다. 중위 순회 결과는 오름차순. 바깥 while 조건이 시작 시점에 만족하는지 추적해 보세요.",
       },
     ],
     testCases: [
@@ -931,7 +931,7 @@ BST의 중위 순회는 오름차순이므로, 중위 순회 도중 카운트가
 n = int(input())
 arr = list(map(int, input().split()))
 if n == 0:
-    print("")
+    pass
 else:
     q = deque([0])
     while q:

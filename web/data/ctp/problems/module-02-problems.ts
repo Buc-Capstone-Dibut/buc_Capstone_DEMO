@@ -477,6 +477,10 @@ DFS를 명시적 스택(LIFO)으로 구현. 재귀 깊이 제한 회피.
       { input: "4", output: "2" },
       { input: "1", output: "1" },
       { input: "5", output: "10" },
+      // N=2: 두 퀸이 항상 같은 열/대각선 → 해 없음
+      { input: "2", output: "0" },
+      // N=3: 마찬가지로 해 없음
+      { input: "3", output: "0" },
     ],
     tags: ["backtracking", "n-queens"],
     referenceSolution: `n = int(input())
