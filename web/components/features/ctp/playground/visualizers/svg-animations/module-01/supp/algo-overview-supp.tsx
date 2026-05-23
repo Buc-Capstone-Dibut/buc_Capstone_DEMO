@@ -88,7 +88,7 @@ function InputOutputDefinition() {
 
         {/* Formatted Data */}
         <text x="70" y="70" textAnchor="middle" fontSize="28" fontWeight="900" fill="hsl(160 84% 39%)">["A", "B", "C"]</text>
-        <text x="70" y="100" textAnchor="middle" fontSize="12" fontWeight="600" fill="hsl(var(--muted-foreground))">정렬된 데이터 🎯</text>
+        <text x="70" y="100" textAnchor="middle" fontSize="12" fontWeight="600" fill="hsl(var(--muted-foreground))">정렬된 데이터 (목표 달성)</text>
       </g>
 
       {/* Code Text Underneath */}
@@ -119,7 +119,8 @@ function RealWorldAnalogy() {
         {/* Ingredients */}
         <g transform="translate(0, 0)" filter="url(#soft-shadow)">
            <circle cx="40" cy="40" r="40" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
-           <text x="40" y="44" textAnchor="middle" fontSize="24">🍅</text>
+           <circle cx="40" cy="40" r="18" fill="hsl(239 84% 67%)" opacity="0.18" />
+           <circle cx="40" cy="40" r="10" fill="hsl(239 84% 67%)" opacity="0.45" />
            <text x="40" y="100" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(var(--foreground))">재료 (Input)</text>
         </g>
 
@@ -140,7 +141,8 @@ function RealWorldAnalogy() {
         {/* Dish */}
         <g transform="translate(440, 0)" filter="url(#soft-shadow)">
            <circle cx="40" cy="40" r="40" fill="url(#surface-grad)" stroke="hsl(160 84% 39%)" strokeWidth="3" />
-           <text x="40" y="44" textAnchor="middle" fontSize="24">🥗</text>
+           <rect x="22" y="26" width="36" height="28" rx="4" fill="hsl(160 84% 39%)" opacity="0.2" />
+           <rect x="22" y="26" width="36" height="6" rx="2" fill="hsl(160 84% 39%)" opacity="0.55" />
            <text x="40" y="100" textAnchor="middle" fontSize="14" fontWeight="800" fill="hsl(160 84% 39%)">요리 (Output)</text>
         </g>
       </g>

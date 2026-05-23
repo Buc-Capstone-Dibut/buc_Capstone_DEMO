@@ -116,7 +116,7 @@ function BaseCaseIdentification() {
         <motion.path d="M 100 60 A 30 30 0 1 1 99.9 60" stroke="hsl(347 89% 60%)" strokeWidth="4" fill="none"
            animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ originX: "100px", originY: "90px" }} />
 
-        <text x="100" y="130" textAnchor="middle" fontSize="20" fontWeight="900" fill="hsl(347 89% 60%)">무한 루프 ☠️</text>
+        <text x="100" y="130" textAnchor="middle" fontSize="18" fontWeight="900" fill="hsl(347 89% 60%)" letterSpacing="1">무한 루프 (DEAD)</text>
       </g>
 
       <path d="M 380 220 L 420 220" stroke="hsl(var(--muted-foreground))" strokeWidth="4" markerEnd="url(#arrow-head)" strokeDasharray="6 6" />

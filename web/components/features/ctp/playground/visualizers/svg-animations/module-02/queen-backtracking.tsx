@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 const N = 4; // 4-Queens problem
 
@@ -63,7 +64,7 @@ export function useQueenBacktrackingSim() {
 
 export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
   const { board, queens, currentRow, isBacktracking, isSolved } = data;
-  const QUEEN_EMOJI = '♛';
+  const QUEEN_LABEL = 'Q';
 
   const CELL_SIZE = 60;
   const BOARD_X = 100;
@@ -73,7 +74,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
     <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
       <defs>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -146,35 +147,56 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
               <rect
                 x={cx + 2} y={cy + 2}
                 width={CELL_SIZE - 4} height={CELL_SIZE - 4}
-                fill={isQueen ? (isSolved ? "rgba(16, 185, 129, 0.2)" : "rgba(6, 182, 212, 0.2)") : isBlocked ? "rgba(249, 115, 22, 0.1)" : isActiveRow ? "rgba(168, 85, 247, 0.1)" : isLightSq ? "hsl(var(--muted))" : "hsl(var(--card))"}
-                stroke={isQueen ? (isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)") : isBlocked ? "rgba(249, 115, 22, 0.4)" : isActiveRow ? "hsl(271 91% 65%)" : "transparent"}
+                fill={isQueen ? (isSolved ? colorTokens.successSoft : colorTokens.infoSoft) : isBlocked ? colorTokens.warningDim : isActiveRow ? colorTokens.primaryHighlightDim : isLightSq ? "hsl(var(--muted))" : "hsl(var(--card))"}
+                stroke={isQueen ? (isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)") : isBlocked ? colorTokens.warningEdge : isActiveRow ? "hsl(271 91% 65%)" : "transparent"}
                 strokeWidth={isQueen ? 2 : 1}
                 rx="6"
               />
 
               {/* Coordinates — moved to top-left so the 32px Queen glyph
                   centered in the cell never overlaps the label */}
-              <text x={cx + 4} y={cy + 10} fill="rgba(255,255,255,0.15)" fontSize="8" textAnchor="start">{ri},{ci}</text>
+              <text x={cx + 4} y={cy + 10} fill={colorTokens.coordinateLabel} fontSize="8" textAnchor="start">{ri},{ci}</text>
 
-              {/* Blocked Marker */}
+              {/* Blocked Marker (diagonal X cross) */}
               {isBlocked && (
-                <text x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 8} fill="rgba(249, 115, 22, 0.4)" fontSize="24" fontWeight="bold" textAnchor="middle">✗</text>
+                <g>
+                  <line
+                    x1={cx + 14} y1={cy + 14}
+                    x2={cx + CELL_SIZE - 14} y2={cy + CELL_SIZE - 14}
+                    stroke={colorTokens.warningEdge} strokeWidth="3" strokeLinecap="round"
+                  />
+                  <line
+                    x1={cx + CELL_SIZE - 14} y1={cy + 14}
+                    x2={cx + 14} y2={cy + CELL_SIZE - 14}
+                    stroke={colorTokens.warningEdge} strokeWidth="3" strokeLinecap="round"
+                  />
+                </g>
               )}
 
-              {/* Queen Icon */}
+              {/* Queen Marker (encircled letter Q) */}
               {isQueen && (
-                <motion.text
-                  x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 12}
-                  fill={isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)"}
-                  fontSize="32"
-                  textAnchor="middle"
-                  initial={{ scale: 0, rotate: -30 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  style={{ filter: isSolved ? 'url(#neon-glow-emerald)' : 'url(#neon-glow-cyan)' }}
+                <motion.g
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  style={{ filter: isSolved ? 'url(#neon-glow-emerald)' : 'url(#neon-glow-cyan)' }}
                 >
-                  {QUEEN_EMOJI}
-                </motion.text>
+                  <circle
+                    cx={cx + CELL_SIZE/2} cy={cy + CELL_SIZE/2}
+                    r="18"
+                    fill={isSolved ? colorTokens.successSoft : colorTokens.infoSoft}
+                    stroke={isSolved ? colorTokens.success : colorTokens.info}
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 8}
+                    fill={isSolved ? colorTokens.success : colorTokens.info}
+                    fontSize="22" fontWeight="900"
+                    textAnchor="middle"
+                  >
+                    {QUEEN_LABEL}
+                  </text>
+                </motion.g>
               )}
             </motion.g>
           );
@@ -196,8 +218,8 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
             <rect
               x="470" y={y}
               width="260" height="40"
-              fill={isPlaced ? "rgba(6, 182, 212, 0.05)" : isActive ? "rgba(168, 85, 247, 0.05)" : "rgba(255,255,255,0.02)"}
-              stroke={isPlaced ? "rgba(6, 182, 212, 0.3)" : isActive ? "rgba(168, 85, 247, 0.3)" : "rgba(255,255,255,0.1)"}
+              fill={isPlaced ? colorTokens.infoGhost : isActive ? colorTokens.primaryHighlightGhost : colorTokens.faintFill}
+              stroke={isPlaced ? colorTokens.infoEdge : isActive ? colorTokens.primaryHighlightEdge : colorTokens.faintEdge}
               strokeWidth="1"
               rx="6"
             />
@@ -207,7 +229,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
             <AnimatePresence mode="wait">
               {isPlaced ? (
                 <text x="715" y={y + 24} fill="hsl(189 94% 43%)" fontSize="12" fontWeight="bold" textAnchor="end">
-                  열(Col) {col}에 {QUEEN_EMOJI}
+                  열(Col) {col}에 {QUEEN_LABEL}
                 </text>
               ) : isActive ? (
                 <text x="715" y={y + 24} fill="hsl(271 91% 65%)" fontSize="12" fontWeight="bold" textAnchor="end">

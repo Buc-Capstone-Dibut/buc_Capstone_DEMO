@@ -117,7 +117,7 @@ function UsageContext() {
         {/* Scenario 1: Unsorted */}
         <rect x="0" y="0" width="180" height="120" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="2" />
         <circle cx="90" cy="30" r="16" fill="hsl(var(--primary)/0.2)" />
-        <text x="90" y="35" textAnchor="middle" fontSize="14" fill="hsl(var(--primary))">🌪️</text>
+        <text x="90" y="35" textAnchor="middle" fontSize="11" fontWeight="900" fill="hsl(var(--primary))" letterSpacing="0.5">RAW</text>
         <text x="90" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Unsorted Data</text>
         <text x="90" y="85" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Sorting costs O(N log N)</text>
         <text x="90" y="100" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Search is only O(N)</text>
@@ -125,7 +125,7 @@ function UsageContext() {
         {/* Scenario 2: Small Data */}
         <rect x="220" y="0" width="180" height="120" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
         <circle cx="310" cy="30" r="16" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.2)" />
-        <text x="310" y="35" textAnchor="middle" fontSize="14" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">🤏</text>
+        <text x="310" y="34" textAnchor="middle" fontSize="11" fontWeight="900" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))" letterSpacing="0.5">N&lt;50</text>
         <text x="310" y="65" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(var(--foreground))">Tiny Arrays (N &lt; 50)</text>
         <text x="310" y="85" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Too small for complex logic</text>
         <text x="310" y="100" textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">Simplicity &gt; Asymptotics</text>

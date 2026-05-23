@@ -24,7 +24,7 @@ export function useRecursionBasicsSim() {
       if (next === 5) { setCallStack([{ id: 1, n: 4, status: 'active' }, { id: 2, n: 3, status: 'active' }, { id: 3, n: 2, status: 'returning' }]); appendLog("[반환] factorial(2): 2 × 1 = 2. 프레임 팝. factorial(3)에 2 반환."); }
       if (next === 6) { setCallStack([{ id: 1, n: 4, status: 'active' }, { id: 2, n: 3, status: 'returning' }]); appendLog("[반환] factorial(3): 3 × 2 = 6. 프레임 팝. factorial(4)에 6 반환."); }
       if (next === 7) { setCallStack([{ id: 1, n: 4, status: 'done' }]); appendLog("[반환] factorial(4): 4 × 6 = 24. 최종 결과: 24."); }
-      if (next === 8) { setCallStack([]); appendLog("[완료] 모든 프레임 처리 완료. factorial(4) = 24 ✓."); }
+      if (next === 8) { setCallStack([]); appendLog("[완료] 모든 프레임 처리 완료. factorial(4) = 24."); }
       return next;
     });
   }, [appendLog]);

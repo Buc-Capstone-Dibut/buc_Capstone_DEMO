@@ -19,7 +19,7 @@ function HashMagic() {
         <rect x="0" y="0" width="120" height="80" rx="12" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.1)" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" />
         <path d="M 40 25 L 50 35 L 60 25 M 60 55 L 70 45 L 80 55" stroke="hsl(var(--emerald-500, hsl(160 84% 39%)))" strokeWidth="2" fill="none" />
         <circle cx="60" cy="40" r="16" fill="hsl(var(--emerald-500, hsl(160 84% 39%))/0.2)" />
-        <text x="60" y="30" textAnchor="middle" fontSize="16">⚙️</text>
+        <text x="60" y="44" textAnchor="middle" fontSize="11" fontWeight="900" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))" letterSpacing="0.5">HASH</text>
         <text x="60" y="65" textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--emerald-500, hsl(160 84% 39%)))">Hash Function</text>
       </g>
 
@@ -88,7 +88,7 @@ function CollisionVisualization() {
           animate={{ x: [-2, 2, -2, 2, 0] }} transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }} />
         <text x="-20" y="55" textAnchor="end" fontSize="12" fontWeight="bold" fill="hsl(var(--destructive))">[3]</text>
 
-        <text x="60" y="55" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--destructive))">💥 COLLISION!</text>
+        <text x="60" y="55" textAnchor="middle" fontSize="11" fontWeight="bold" fill="hsl(var(--destructive))" letterSpacing="1">COLLISION</text>
 
         {/* Index 4 */}
         <rect x="0" y="70" width="120" height="30" rx="4" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
