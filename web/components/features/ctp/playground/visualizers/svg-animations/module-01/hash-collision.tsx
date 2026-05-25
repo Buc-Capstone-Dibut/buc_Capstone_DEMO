@@ -86,7 +86,7 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
 
         {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-w-[300px] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 mb-4 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
@@ -106,6 +106,7 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
                      step === 4 ? 16 + 36 * 3 :
                      16 + 36 * 6,
                 height: (step === 1 || step === 3) ? 36 * 2 :
+                        (step === 2) ? 36 * 2 :
                         (step === 4) ? 36 * 3 :
                         (step === 5) ? 36 * 2 : 36,
                 opacity: step === 0 ? 0 : 1,
@@ -145,8 +146,40 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
 
           <div className="relative z-10 flex gap-12 items-start mt-8 w-full max-w-lg justify-center">
 
+             {/* SVG overlay: Hash Func → Bucket 7 connection (absolute over the row) */}
+             {(step >= 1) && (
+                <svg
+                   className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible"
+                   aria-hidden
+                >
+                   <defs>
+                      <marker id="hash-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                         <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--cyan-500))" />
+                      </marker>
+                      <marker id="hash-arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                         <path d="M 0 0 L 10 5 L 0 10 z" fill="hsl(var(--orange-500))" />
+                      </marker>
+                   </defs>
+                   {/* Curve from bottom-center of Hash Func box to left edge of Bucket 7 (8th bucket).
+                       Hash Func: w-32 (128px) left column → calc box bottom center near (64, 128).
+                       Bucket 7: 8th item in flex-col gap-2, after gap-12 to the right (~176, 356). */}
+                   <motion.path
+                      d="M 64 128 C 64 220, 110 280, 176 356"
+                      fill="none"
+                      stroke={step >= 4 ? "hsl(var(--orange-500))" : "hsl(var(--cyan-500))"}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      markerEnd={`url(#hash-arrow-${step >= 4 ? "orange" : "cyan"})`}
+                      style={{ filter: `drop-shadow(0 0 6px ${step >= 4 ? "hsl(var(--orange-500))" : "hsl(var(--cyan-500))"})` }}
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                   />
+                </svg>
+             )}
+
              {/* Calculation Box */}
-             <div className="w-32 flex flex-col items-center">
+             <div className="w-32 flex flex-col items-center relative z-10">
                 <div className="w-full aspect-square rounded-2xl bg-card border-2 border-dashed border-border flex flex-col items-center justify-center relative shadow-lg">
                    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground absolute top-2">Hash Func</div>
                    <AnimatePresence mode="popLayout">
@@ -162,16 +195,6 @@ export function HashCollisionVisualizer({ data }: { data: { step: number } }) {
                       )}
                    </AnimatePresence>
                 </div>
-
-                {/* Connecting arrow from Hash Func to Bucket 7 */}
-                {(step === 1 || step >= 3) && (
-                   <motion.div
-                      className={`h-16 w-1 mt-2  ${step >= 4 ? 'bg-orange-500' : 'bg-cyan-500'}`}
-                      initial={{ scaleY: 0 }}
-                      animate={{ scaleY: 1 }}
-                      style={{ originY: 0, boxShadow: `0 0 10px ${step >= 4 ? 'hsl(var(--orange-500))' : 'hsl(var(--cyan-500))'}` }}
-                   />
-                )}
              </div>
 
              {/* Hash Table Buckets */}

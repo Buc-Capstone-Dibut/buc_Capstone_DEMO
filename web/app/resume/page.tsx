@@ -19,6 +19,7 @@ export default function ResumePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
+    const [aiCurated, setAiCurated] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
     // 새 이력서 작성 시 1단계 입력 또는 선택한 공고를 저장 시점에 함께 DB로 보내기 위한 보관소
@@ -147,6 +148,9 @@ export default function ResumePage() {
         return () => controller.abort();
     }, [isNewModeFromUrl, isWizardModeFromUrl, searchParams]);
 
+    // 셋업에서 넘어온 정보를 가벼운 셋업만 수행 (제목 prefix + pendingTarget 보관).
+    // 실제 AI 큐레이션은 사용자가 ResumeEditor의 'AI로 회사·직무에 맞게 다듬기' 버튼을 눌렀을 때 실행된다.
+    // sessionStorage 의 resume_creation_target 은 큐레이션 버튼이 다시 읽도록 그대로 유지한다.
     useEffect(() => {
         if (loading || !isNewModeFromUrl || searchParams.get("target") !== "1") return;
         if (tailoredGenerationStartedRef.current) return;
@@ -155,86 +159,154 @@ export default function ResumePage() {
         const rawTarget = sessionStorage.getItem("resume_creation_target");
         if (!rawTarget) return;
 
-        const controller = new AbortController();
-        const { signal } = controller;
-
-        const generateTailoredResume = async () => {
-            setGeneratingTailoredResume(true);
-            try {
-                const target = JSON.parse(rawTarget) as {
-                    company?: string;
-                    division?: string;
-                    role?: string;
-                    deadline?: string;
-                    jobDescription?: string;
-                    jobPostingId?: string | null;
-                };
-                const company = target.company?.trim() || "";
-                const role = target.role?.trim() || "";
-                const division = target.division?.trim() || "";
-                const deadline = target.deadline?.trim() || "";
-                const jobDescription = target.jobDescription?.trim() || "";
-                const titlePrefix = [company, division, role].filter(Boolean).join(" · ");
-                if (titlePrefix) {
-                    setResumeTitle(`${titlePrefix} 맞춤 이력서`);
-                }
-
-                // 저장 시점에 함께 보낼 target 정보 보관 (정규화 FK 또는 free-form)
-                const hasAnyMeta = Boolean(company || division || role || deadline || jobDescription);
-                setPendingTarget({
-                    jobPostingId: target.jobPostingId ?? null,
-                    meta: hasAnyMeta
-                        ? { company, division, role, deadline, jobDescription }
-                        : null,
-                });
-
-                const response = await fetch("/api/career/resumes/generate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        currentPayload: EMPTY_RESUME,
-                        targetCompany: company,
-                        targetRole: role,
-                        jobDescription: [
-                            target.jobDescription,
-                            deadline ? `마감일정: ${deadline}` : "",
-                            division ? `사업부: ${division}` : "",
-                        ].filter(Boolean).join("\n"),
-                    }),
-                    signal,
-                });
-                const json = await response.json().catch(() => null);
-                if (signal.aborted) return;
-                if (!response.ok || !json?.success) {
-                    throw new Error(json?.error || "맞춤형 이력서 생성에 실패했습니다.");
-                }
-
-                setResumePayload(normalizeResumePayload(json.data.resumePayload));
-                if (typeof json.data.title === "string" && json.data.title.trim()) {
-                    setResumeTitle(json.data.title);
-                }
-                sessionStorage.removeItem("resume_creation_target");
-                toast({
-                    title: "맞춤형 이력서 초안 생성 완료",
-                    description: titlePrefix || "지원 대상 정보를 기준으로 이력서를 구성했습니다.",
-                });
-            } catch (error: unknown) {
-                if ((error as Error)?.name === "AbortError") return;
-                const message = error instanceof Error ? error.message : "맞춤형 이력서 생성 중 오류가 발생했습니다.";
-                toast({
-                    title: "맞춤형 생성 실패",
-                    description: `${message} 빈 이력서로 계속 작성할 수 있습니다.`,
-                    variant: "destructive",
-                });
-            } finally {
-                if (!signal.aborted) setGeneratingTailoredResume(false);
+        try {
+            const target = JSON.parse(rawTarget) as {
+                company?: string;
+                division?: string;
+                role?: string;
+                deadline?: string;
+                jobDescription?: string;
+                jobPostingId?: string | null;
+            };
+            const company = target.company?.trim() || "";
+            const role = target.role?.trim() || "";
+            const division = target.division?.trim() || "";
+            const deadline = target.deadline?.trim() || "";
+            const jobDescription = target.jobDescription?.trim() || "";
+            const titlePrefix = [company, division, role].filter(Boolean).join(" · ");
+            if (titlePrefix) {
+                setResumeTitle(`${titlePrefix} 맞춤 이력서`);
             }
-        };
+            const hasAnyMeta = Boolean(company || division || role || deadline || jobDescription);
+            setPendingTarget({
+                jobPostingId: target.jobPostingId ?? null,
+                meta: hasAnyMeta
+                    ? { company, division, role, deadline, jobDescription }
+                    : null,
+            });
+        } catch {
+            // 무시
+        }
+    }, [isNewModeFromUrl, loading, searchParams]);
 
-        void generateTailoredResume();
+    // 사용자가 ResumeEditor에서 'AI로 다듬기'를 눌렀을 때 실행되는 핸들러.
+    // 결과를 받은 뒤 한 번에 교체하지 않고, 주요 텍스트 필드(개인 한 줄 소개·자기소개·각 경력/프로젝트
+    // 설명)를 한 글자씩 채워 넣어 "스트리밍 타이핑"처럼 보이게 만든다.
+    const handleAiCurate = async () => {
+        const target = pendingTarget?.meta;
+        if (!target) {
+            toast({
+                title: "지원 대상 정보가 없습니다",
+                description: "셋업에서 회사·직무를 먼저 입력해 주세요.",
+                variant: "destructive",
+            });
+            return;
+        }
+        setGeneratingTailoredResume(true);
+        try {
+            const response = await fetch("/api/career/resumes/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    currentPayload: resumePayload,
+                    targetCompany: target.company,
+                    targetRole: target.role,
+                    jobDescription: [
+                        target.jobDescription,
+                        target.deadline ? `마감일정: ${target.deadline}` : "",
+                        target.division ? `사업부: ${target.division}` : "",
+                    ].filter(Boolean).join("\n"),
+                }),
+            });
+            const json = await response.json().catch(() => null);
+            if (!response.ok || !json?.success) {
+                throw new Error(json?.error || "AI 큐레이션에 실패했습니다.");
+            }
+            const finalPayload = normalizeResumePayload(json.data.resumePayload);
+            const finalTitle =
+                typeof json.data.title === "string" && json.data.title.trim()
+                    ? json.data.title
+                    : "";
+            // 텍스트 필드만 빈 값으로 시작하는 base를 만들어 먼저 set
+            const blank: ResumePayload = {
+                ...finalPayload,
+                personalInfo: { ...finalPayload.personalInfo, intro: "" },
+                selfIntroduction: "",
+                experience: finalPayload.experience.map((e) => ({
+                    ...e,
+                    description: "",
+                })),
+                projects: finalPayload.projects.map((p) => ({
+                    ...p,
+                    description: "",
+                })),
+            };
+            setResumePayload(blank);
+            if (finalTitle) setResumeTitle(finalTitle);
+            await new Promise((r) => setTimeout(r, 80));
 
-        return () => controller.abort();
-    }, [isNewModeFromUrl, loading, searchParams, toast]);
+            // 한 글자씩 채워 넣기. setResumePayload(prev => ...) 패턴으로
+            // 직전 상태에서 안전하게 한 필드만 갱신.
+            const CHUNK = 6;
+            const SPEED_MS = 18;
+            const typeField = async (
+                fullText: string,
+                update: (prev: ResumePayload, slice: string) => ResumePayload,
+            ) => {
+                if (!fullText) return;
+                for (let i = 0; i <= fullText.length; i += CHUNK) {
+                    const slice = fullText.slice(0, i);
+                    setResumePayload((prev) => update(prev, slice));
+                    await new Promise((r) => setTimeout(r, SPEED_MS));
+                }
+                setResumePayload((prev) => update(prev, fullText));
+            };
+
+            await typeField(finalPayload.personalInfo?.intro || "", (prev, s) => ({
+                ...prev,
+                personalInfo: { ...prev.personalInfo, intro: s },
+            }));
+            await typeField(finalPayload.selfIntroduction || "", (prev, s) => ({
+                ...prev,
+                selfIntroduction: s,
+            }));
+            for (let idx = 0; idx < finalPayload.experience.length; idx++) {
+                const text = finalPayload.experience[idx]?.description || "";
+                await typeField(text, (prev, s) => ({
+                    ...prev,
+                    experience: prev.experience.map((e, i) =>
+                        i === idx ? { ...e, description: s } : e,
+                    ),
+                }));
+            }
+            for (let idx = 0; idx < finalPayload.projects.length; idx++) {
+                const text = finalPayload.projects[idx]?.description || "";
+                await typeField(text, (prev, s) => ({
+                    ...prev,
+                    projects: prev.projects.map((p, i) =>
+                        i === idx ? { ...p, description: s } : p,
+                    ),
+                }));
+            }
+            // 마지막에 누락된 필드 차이를 메우기 위해 한 번 더 통째로 set
+            setResumePayload(finalPayload);
+            setAiCurated(true);
+            toast({
+                title: "AI 다듬기 완료",
+                description:
+                    "회사·직무에 맞춰 이력서를 정리했습니다. 필요하면 직접 수정하세요.",
+            });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "AI 다듬기 실패";
+            toast({
+                title: "다듬기 실패",
+                description: message,
+                variant: "destructive",
+            });
+        } finally {
+            setGeneratingTailoredResume(false);
+        }
+    };
 
     const handleSave = async (silent = false) => {
         setSaving(true);
@@ -293,7 +365,9 @@ export default function ResumePage() {
         }
     };
 
-    if (loading || generatingTailoredResume) {
+    // AI 큐레이션은 ResumeEditor 안에서 버튼 inline 스피너로 표현하므로
+    // 페이지 전체를 가리는 건 초기 데이터 로딩(loading) 한정.
+    if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-slate-50">
                 <div className="relative">
@@ -301,9 +375,7 @@ export default function ResumePage() {
                     <Sparkles className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <p className="text-sm font-medium text-slate-500 animate-pulse">
-                    {generatingTailoredResume
-                        ? "프로젝트와 자소서 기록을 참고해 맞춤형 이력서를 생성하는 중입니다..."
-                        : "저장된 데이터와 이력서를 불러오는 중입니다..."}
+                    저장된 데이터와 이력서를 불러오는 중입니다...
                 </p>
             </div>
         );
@@ -394,6 +466,10 @@ export default function ResumePage() {
                     title={resumeTitle}
                     onTitleChange={setResumeTitle}
                     previewToggleMode
+                    applicationTarget={pendingTarget?.meta ?? null}
+                    onAiCurate={handleAiCurate}
+                    aiCurating={generatingTailoredResume}
+                    aiCurated={aiCurated}
                 />
             </main>
         </div>

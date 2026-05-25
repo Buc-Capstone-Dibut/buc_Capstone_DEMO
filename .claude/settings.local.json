@@ -7,7 +7,8 @@
       "Bash(echo:*)",
       "Bash(pnpm install:*)",
       "Bash(ls:*)",
-      "Bash(npx skills:*)"
+      "Bash(npx skills:*)",
+      "Bash(awk '{print $NF, $5}')"
     ]
   }
 }

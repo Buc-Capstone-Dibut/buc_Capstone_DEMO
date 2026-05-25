@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
 type BMState = {
@@ -25,7 +26,7 @@ type BMState = {
 };
 
 // --- Hook ---
-export function useBoyerMooreSim(text: string, pattern: string) {
+export function useBoyerMooreSearchSim(text: string, pattern: string) {
   const [history, setHistory] = useState<BMState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -137,19 +138,20 @@ export function useBoyerMooreSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
-  // Use meaningful strings for Boyer-Moore demonstration
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const mappedText = data.map(n => chars[(n % 3) + 1]).join("") + "TEST STRING FIND HERE";
-  const searchPattern = "STRING";
-  const { state, controls, progress, isFinished } = useBoyerMooreSim(mappedText, searchPattern);
+// 입력값은 ConceptSpec.simulation.initialState와 정확히 일치시킵니다.
+const BOYER_MOORE_TEXT = "HERE IS A SIMPLE EXAMPLE";
+const BOYER_MOORE_PATTERN = "EXAMPLE";
+
+export function BoyerMooreSearchVisualizer(_props: { data?: unknown }) {
+  const { state, controls, progress, isFinished } = useBoyerMooreSearchSim(BOYER_MOORE_TEXT, BOYER_MOORE_PATTERN);
   const { text, pattern, badCharTable, phase, phaseText, i, j, matchFound, comparing, skipDistance, badCharIndex } = state;
 
   const svgWidth = 840;
   const svgHeight = 500;
 
-  const boxSize = 32;
-  const gap = 6;
+  // Sized so 24-char text fits the 840-wide viewBox: 24 * 32 = 768 px.
+  const boxSize = 28;
+  const gap = 4;
   const totalBoxWidth = boxSize + gap;
 
   return (
@@ -162,54 +164,54 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <pattern id="grid-bm" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
             </pattern>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid-bm)" />
 
-          <text x="30" y="40" fill="#cbd5e1" fontSize="20" fontWeight="bold">Boyer-Moore Search (Bad Character Rule)</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phaseText}</text>
+          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="20" fontWeight="bold">Boyer-Moore Search (Bad Character Rule)</text>
+          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phaseText}</text>
 
           {/* Bad Character Table Visualizer */}
           <g transform="translate(40, 110)">
-             <text x="0" y="-10" fill="#94a3b8" fontSize="12" fontWeight="bold">Bad Character Table (나쁜 문자 표)</text>
+             <text x="0" y="-10" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Bad Character Table (나쁜 문자 표)</text>
              <g transform="translate(0, 5)">
                {Object.keys(badCharTable).map((char, idx) => (
-                 <g key={idx} transform={`translate(${idx * 45}, 0)`}>
-                    <rect width="36" height="36" fill="#1e293b" stroke="#334155" rx="4" />
-                    <text x="18" y="24" fill="#cbd5e1" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
+                 <g key={idx} transform={`translate(${idx * 80}, 0)`}>
+                    <rect width="70" height="36" fill="hsl(var(--muted))" stroke="hsl(var(--muted))" rx="4" />
+                    <text x="35" y="24" fill="hsl(var(--muted-foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">{char} = {badCharTable[char]}</text>
                  </g>
                ))}
                {Object.keys(badCharTable).length === 0 && (
-                 <text x="20" y="24" fill="#64748b" fontSize="14" fontStyle="italic">비어 있음</text>
+                 <text x="20" y="24" fill="hsl(var(--muted-foreground))" fontSize="14" fontStyle="italic">비어 있음</text>
                )}
              </g>
           </g>
 
           {/* Text Section */}
           <g transform="translate(40, 260)" opacity={phase === "BUILD_TABLE" ? 0.3 : 1}>
-            <text x="0" y="0" fill="#94a3b8" fontSize="12" fontWeight="bold">Text</text>
+            <text x="0" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Text</text>
             {text.split('').map((char, idx) => {
                const x = idx * totalBoxWidth;
                const isMatchArea = matchFound && idx >= i && idx < i + pattern.length;
 
-               let tFill = "#1e293b";
+               let tFill = "hsl(var(--muted))";
                let filter = "";
 
                if (isMatchArea) {
-                 tFill = "#10b981"; filter = "url(#glow-bm)";
+                 tFill = colorTokens.success; filter = "url(#glow-bm)";
                } else if (phase === "SEARCH" && comparing && idx === i + j) {
-                 tFill = "#3b82f6";
+                 tFill = colorTokens.primaryBlue;
                } else if (phase === "SEARCH" && !comparing && skipDistance > 0 && idx === i + j) {
-                 tFill = "#ef4444"; // Bad Character
+                 tFill = colorTokens.errorRed; // Bad Character
                }
 
                return (
                  <g key={`bm-t-${idx}`} transform={`translate(${x}, 10)`}>
-                    <rect width={boxSize} height={boxSize} fill={tFill} stroke="rgba(255,255,255,0.05)" rx="4" filter={filter} />
-                    <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
-                    <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="9" textAnchor="middle">{idx}</text>
+                    <rect width={boxSize} height={boxSize} fill={tFill} stroke={colorTokens.gridLine} rx="4" filter={filter} />
+                    <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
+                    <text x={boxSize/2} y={boxSize + 15} fill="hsl(var(--muted-foreground))" fontSize="9" textAnchor="middle">{idx}</text>
                  </g>
                )
             })}
@@ -217,7 +219,7 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
 
           {/* Pattern Section */}
           <g transform="translate(40, 360)" opacity={phase === "BUILD_TABLE" ? 0.3 : 1}>
-            <text x="0" y="-10" fill="#94a3b8" fontSize="12" fontWeight="bold">Pattern (비교 방향 ←)</text>
+            <text x="0" y="-10" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Pattern (비교 방향 ←)</text>
 
             <motion.g
                initial={false}
@@ -229,16 +231,16 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                   const isMatchedSoFar = idx > j && !matchFound && phase === "SEARCH";
                   const isCompareTarget = comparing && idx === j;
 
-                  let pFill = "#334155";
-                  if (matchFound) pFill = "#10b981";
-                  else if (isMatchedSoFar) pFill = "#10b981";
-                  else if (isCompareTarget) pFill = "#3b82f6";
+                  let pFill = "hsl(var(--muted))";
+                  if (matchFound) pFill = colorTokens.success;
+                  else if (isMatchedSoFar) pFill = colorTokens.success;
+                  else if (isCompareTarget) pFill = colorTokens.primaryBlue;
 
                   return (
                      <g key={`bm-p-${idx}`} transform={`translate(${x}, 0)`}>
                         <rect width={boxSize} height={boxSize} fill={pFill} rx="4" />
-                        <text x={boxSize/2} y={boxSize/2 + 5} fill="#fff" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
-                        <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="9" textAnchor="middle">{idx}</text>
+                        <text x={boxSize/2} y={boxSize/2 + 5} fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle">{char}</text>
+                        <text x={boxSize/2} y={boxSize + 15} fill="hsl(var(--muted-foreground))" fontSize="9" textAnchor="middle">{idx}</text>
                      </g>
                   )
                })}
@@ -249,8 +251,8 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                      initial={false}
                      animate={{ x: j * totalBoxWidth }}
                   >
-                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill="#f43f5e" />
-                     <text x={boxSize/2} y="-18" fill="#f43f5e" fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
+                     <path d={`M ${boxSize/2} -5 L ${boxSize/2 + 5} -13 L ${boxSize/2 - 5} -13 Z`} fill={colorTokens.destructive} />
+                     <text x={boxSize/2} y="-18" fill={colorTokens.destructive} fontSize="12" fontWeight="bold" textAnchor="middle">j</text>
                   </motion.g>
                )}
             </motion.g>
@@ -262,9 +264,9 @@ export function BoyerMooreSearchVisualizer({ data }: { data: number[] }) {
                  transform={`translate(${i * totalBoxWidth}, -40)`}
                >
                  {badCharIndex !== -1 ? (
-                    <text x={boxSize/2} y="-10" fill="#f59e0b" fontSize="12" fontWeight="bold">+ {skipDistance}칸 점프 (문자 매칭)</text>
+                    <text x={boxSize/2} y="-10" fill={colorTokens.warning} fontSize="12" fontWeight="bold">+ {skipDistance}칸 점프 (문자 매칭)</text>
                  ) : (
-                    <text x={boxSize/2} y="-10" fill="#ef4444" fontSize="12" fontWeight="bold">+ {skipDistance}칸 대폭 점프! (문자 없음)</text>
+                    <text x={boxSize/2} y="-10" fill={colorTokens.errorRed} fontSize="12" fontWeight="bold">+ {skipDistance}칸 대폭 점프! (문자 없음)</text>
                  )}
                </motion.g>
             )}

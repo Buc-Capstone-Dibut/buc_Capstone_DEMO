@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 import { Difficulty, ProblemBankItem, ProblemType } from "./types";
 
 const difficultyLabel: Record<Difficulty, string> = {
-  bronze: "🥉 Bronze",
-  silver: "🥈 Silver",
-  gold: "🥇 Gold",
+  bronze: "Bronze",
+  silver: "Silver",
+  gold: "Gold",
 };
 
 const typeLabel: Record<ProblemType, string> = {
@@ -44,6 +44,18 @@ export function ProblemCard({ problem, selected = false, onSelect }: ProblemCard
             {typeLabel[problem.type]}
           </Badge>
         </div>
+        {problem.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {problem.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
         <Button className="w-full" size="sm" variant={selected ? "default" : "secondary"} onClick={() => onSelect(problem.id)}>
           {selected ? "선택됨" : "문제 풀기"}
         </Button>

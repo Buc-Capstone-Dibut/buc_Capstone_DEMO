@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // Tower of Hanoi visualizer
 type Disk = { id: number; size: number };
@@ -62,10 +63,72 @@ export function useTowerOfHanoiSim() {
   };
 }
 
+// Lift height used by the 3-stage move keyframe (up → across → down).
+// Higher (smaller y) than the tallest disk position so disks always clear the pole tops.
+const LIFT_Y = 150;
+
+type DiskRenderProps = {
+  id: number;
+  size: number;
+  x: number;
+  y: number;
+  w: number;
+  color: string;
+};
+
+// Single disk renderer that animates new x/y via a 3-stage keyframe
+// (lift → traverse → lower) instead of a straight-line interpolation.
+function HanoiDisk({ id, size, x, y, w, color }: DiskRenderProps) {
+  const prevRef = useRef<{ x: number; y: number } | null>(null);
+  const prev = prevRef.current;
+  prevRef.current = { x, y };
+
+  // First mount: no animation, just place the disk.
+  const animateProp =
+    prev === null
+      ? { x, y }
+      : {
+          // up → across → down: hold x at previous while lifting, then translate
+          // x at the lifted height, then lower at the destination x.
+          x: [prev.x, prev.x, x, x],
+          y: [prev.y, LIFT_Y, LIFT_Y, y],
+        };
+
+  return (
+    <motion.g
+      key={`disk-${id}`}
+      animate={animateProp}
+      transition={{ duration: 0.7, times: [0, 0.35, 0.65, 1], ease: "easeInOut" }}
+    >
+      <rect
+        width={w}
+        height="25"
+        fill={`${color}33`}
+        stroke={color}
+        strokeWidth="2"
+        rx="6"
+        style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
+      />
+      <text
+        x={w / 2}
+        y="17"
+        fill={color}
+        fontSize="12"
+        fontWeight="bold"
+        textAnchor="middle"
+      >
+        Disk {size}
+      </text>
+    </motion.g>
+  );
+}
+
 export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, moveIndex: number, isComplete: boolean, maxMoves: number } }) {
   const { towers, moveIndex, isComplete, maxMoves } = data;
   const PEG_NAMES = ['기둥 A (시작)', '기둥 B (보조)', '기둥 C (목표)'];
-  const DISK_COLORS = ['#ef4444', '#f97316', '#10b981', '#06b6d4', '#a855f7']; // Mapping to red, orange, emerald, cyan, purple
+  // Size-keyed palette: biggest disk (size 3) is red, smallest (size 1) is emerald.
+  // Index = (3 - size): size 3 → 0 (red), size 2 → 1 (orange), size 1 → 2 (emerald).
+  const DISK_COLORS = ['hsl(0 84% 60%)', 'hsl(24 95% 53%)', 'hsl(160 84% 39%)', 'hsl(189 94% 43%)', 'hsl(271 91% 65%)'];
 
   const getPegX = (pegIndex: number) => 150 + pegIndex * 250;
   const getDiskY = (diskIndex: number) => 380 - (diskIndex * 30);
@@ -80,11 +143,11 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
       <defs>
         <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="50%" stopColor={colorTokens.gridMid} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -108,7 +171,7 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill={isComplete ? "#10b981" : "#f97316"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isComplete ? 'emerald' : 'orange'})`}>
+      <text x="40" y="50" fill={isComplete ? "hsl(160 84% 39%)" : "hsl(24 95% 53%)"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isComplete ? 'emerald' : 'orange'})`}>
         하노이의 탑 (TOWER OF HANOI)
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -144,52 +207,35 @@ export function TowerOfHanoiVisualizer({ data }: { data: { towers: TowerState, m
         );
       })}
 
-      {/* Disks */}
+      {/* Disks (size-keyed color: largest = red, smallest = emerald) */}
       {allDisks.map(disk => {
         const w = getDiskWidth(disk.size);
         const x = getPegX(disk.pegIdx) - w / 2;
         const y = getDiskY(disk.idx);
-        const color = DISK_COLORS[disk.size - 1]; // using size strictly for color mapping (1->red, 2->orange, 3->emerald)
-
+        const color = DISK_COLORS[3 - disk.size];
         return (
-          <motion.g
+          <HanoiDisk
             key={`disk-${disk.id}`}
-            animate={{ x, y }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          >
-            <rect
-              width={w}
-              height="25"
-              fill={`${color}33`}
-              stroke={color}
-              strokeWidth="2"
-              rx="6"
-              style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
-            />
-            <text
-              x={w/2}
-              y="17"
-              fill={color}
-              fontSize="12"
-              fontWeight="bold"
-              textAnchor="middle"
-            >
-              Disk {disk.size}
-            </text>
-          </motion.g>
+            id={disk.id}
+            size={disk.size}
+            x={x}
+            y={y}
+            w={w}
+            color={color}
+          />
         );
       })}
 
       {/* Complexity Annotations */}
       <g transform="translate(100, 470)">
         <text x="0" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          알고리즘: <tspan fill="#a855f7" fontWeight="bold">hanoi(n, src, aux, tgt)</tspan>
+          알고리즘: <tspan fill="hsl(271 91% 65%)" fontWeight="bold">hanoi(n, src, aux, tgt)</tspan>
         </text>
         <text x="300" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          시간 복잡도: <tspan fill="#ef4444" fontWeight="bold">O(2^N)</tspan>
+          시간 복잡도: <tspan fill="hsl(0 84% 60%)" fontWeight="bold">O(2^N)</tspan>
         </text>
         <text x="500" y="0" fill="hsl(var(--muted-foreground))" fontSize="12" fontFamily="monospace">
-          공간 복잡도: <tspan fill="#06b6d4" fontWeight="bold">O(N)</tspan> 호출 스택 깊이
+          공간 복잡도: <tspan fill="hsl(189 94% 43%)" fontWeight="bold">O(N)</tspan> 호출 스택 깊이
         </text>
       </g>
     </svg>

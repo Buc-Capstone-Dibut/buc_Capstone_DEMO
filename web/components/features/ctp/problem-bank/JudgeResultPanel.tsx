@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { JudgeResult, Verdict } from "./types";
@@ -34,9 +35,24 @@ export function JudgeResultPanel({ result }: JudgeResultPanelProps) {
   }
 
   const firstFailed = result.cases.find((item) => item.verdict !== "AC");
+  const isAccepted = result.overall === "AC";
 
   return (
     <div className="space-y-4 rounded-md border border-border/60 bg-muted/10 p-4">
+      {isAccepted && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3"
+        >
+          <p className="text-base font-bold text-emerald-600">정답입니다</p>
+          <p className="mt-0.5 text-sm text-emerald-700/90">
+            {result.total}개 테스트 케이스를 모두 통과했습니다.
+          </p>
+        </motion.div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Badge className={cn("border", verdictClass[result.overall])}>{verdictLabel[result.overall]}</Badge>
         <span className="text-sm text-muted-foreground">

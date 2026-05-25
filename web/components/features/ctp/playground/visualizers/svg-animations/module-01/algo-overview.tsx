@@ -84,7 +84,7 @@ export function AlgoOverviewVisualizer({ data }: { data: { step: number } }) {
             className="w-full h-48 border border-border/50 rounded-2xl flex flex-col p-3 gap-2 items-center justify-center relative overflow-hidden backdrop-blur-md"
           >
             <div className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest absolute top-3">Raw Buffer</div>
-            <div className="flex flex-col gap-1.5 mt-4 w-full px-4">
+            <div className="flex flex-col gap-1.5 mt-7 w-full px-4">
               {rawData.map((num, i) => (
                 <motion.div
                   key={`raw-${i}`}

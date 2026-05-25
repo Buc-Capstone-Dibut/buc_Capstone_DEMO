@@ -1,9 +1,17 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import {
+  CyberGrid,
+  NeonGlowFilters,
+  ArrayBox,
+  PointerArrow,
+  IndexLabel,
+  colorTokens,
+} from "@/components/features/ctp/playground/visualizers/shared/svg-primitives";
 
-export function useBinarySearchSim() {
+export function useBasicBinarySearchSim() {
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
     "> SYSTEM INITIALIZED: Binary Search Protocol",
@@ -44,7 +52,7 @@ export function useBinarySearchSim() {
   };
 }
 
-export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
+export function BasicBinarySearchVisualizer({ data }: { data: { step: number } }) {
   const { step } = data;
   const arr = [1, 3, 5, 7, 9, 11, 13];
   const target = 11;
@@ -60,26 +68,17 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
   else if (step === 5) { L = 4; R = 6; M = 5; }
   else if (step >= 6) { L = 4; R = 6; M = 5; isFound = true; }
 
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-20">
-      <div className="absolute inset-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px),
-            linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px'
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-    </div>
-  );
+  // SVG geometry for array visualization
+  const svgWidth = 700;
+  const svgHeight = 260;
+  const boxSize = 64;
+  const boxGap = 12;
+  const totalWidth = arr.length * boxSize + (arr.length - 1) * boxGap;
+  const boxStartX = (svgWidth - totalWidth) / 2;
+  const boxY = 100;
 
   return (
     <div className="w-full flex flex-col items-center bg-background/40 relative font-mono px-4 md:px-8 gap-8 rounded-xl py-8">
-      <CyberGrid />
-
       {/* Narrative Info Header */}
       <motion.div
         className="w-full max-w-5xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl shadow-[0_0_30px_hsla(var(--primary),0.05)]"
@@ -102,7 +101,7 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
       <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
 
         {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-[#0d1117]/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-w-[300px] bg-background/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
           <div className="flex items-center gap-2 mb-4 px-2">
             <div className="w-3 h-3 rounded-full bg-destructive/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
@@ -111,7 +110,6 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
           </div>
 
           <div className="relative text-base h-full flex flex-col py-4 mt-2">
-            {/* Active Highlight Background */}
             <motion.div
               className="absolute left-[-24px] right-[-24px] bg-cyan-500/10 border-l-[3px] border-cyan-500 pointer-events-none z-0"
               initial={{ top: 0, opacity: 0, height: 36 }}
@@ -124,7 +122,7 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
                      step === 5 ? 16 + 36 * 3 :
                      step === 6 ? 16 + 36 * 4 :
                      16 + 36 * 5,
-                height: step === 1 ? 36 * 2 : step === 6 ? 36 * 2 : 36,
+                height: step === 1 ? 36 * 2 : step === 4 ? 36 * 2 : step === 6 ? 36 * 2 : 36,
                 opacity: step === 0 ? 0 : 1,
                 boxShadow: step > 0 ? "0 0 20px hsla(var(--cyan-500), 0.2) inset" : "none"
               }}
@@ -145,12 +143,12 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
           </div>
         </div>
 
-        {/* Array Visualization Panel */}
+        {/* Array Visualization Panel — SVG-based via svg-primitives */}
         <div className="flex-[2] bg-card/40 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-border shadow-2xl relative flex flex-col items-center justify-center overflow-hidden min-h-[400px]">
 
-          <div className="absolute top-6 left-6 flex items-center gap-3">
+          <div className="absolute top-6 left-6 flex items-center gap-3 z-10">
              <div className="px-3 py-1 rounded bg-card/60 border text-[10px] font-black uppercase text-cyan-500 tracking-widest shadow-inner">
-               Target : 11
+               Target : {target}
              </div>
              {M !== -1 && (
                <div className={`px-3 py-1 rounded border text-[10px] font-black uppercase tracking-widest transition-colors ${isFound ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/50' : 'bg-card/60 text-muted-foreground'}`}>
@@ -159,118 +157,98 @@ export function BinarySearchVisualizer({ data }: { data: { step: number } }) {
              )}
           </div>
 
-          {/* Array Container */}
-          <div className="relative z-10 w-full flex justify-center gap-2 mt-12 mb-16">
-             {arr.map((val, i) => {
-               const isInRange = L !== -1 && i >= L && i <= R;
-               const isMid = i === M;
-               const isEliminated = L !== -1 && !isInRange;
-               const isTargetNode = isFound && isMid;
+          <svg
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            width="100%"
+            preserveAspectRatio="xMidYMid meet"
+            className="relative z-0"
+          >
+            <CyberGrid width={svgWidth} height={svgHeight} />
+            <NeonGlowFilters />
 
-               let bgColor = "hsl(var(--card)/0.8)";
-               let borderColor = "hsl(var(--border))";
-               let textColor = "hsl(var(--card-foreground))";
-               let shadow = "none";
-               let scale = 1;
+            {arr.map((val, i) => {
+              const isInRange = L !== -1 && i >= L && i <= R;
+              const isMid = i === M;
+              const isEliminated = L !== -1 && !isInRange;
+              const isTargetNode = isFound && isMid;
 
-               if (isTargetNode) {
-                 bgColor = "hsl(var(--emerald-500)/0.2)";
-                 borderColor = "hsl(var(--emerald-500))";
-                 textColor = "hsl(var(--emerald-500))";
-                 shadow = "0 0 20px hsla(var(--emerald-500), 0.4)";
-                 scale = 1.1;
-               } else if (isMid) {
-                 bgColor = "hsl(var(--cyan-500)/0.2)";
-                 borderColor = "hsl(var(--cyan-500))";
-                 textColor = "hsl(var(--cyan-500))";
-                 shadow = "0 0 20px hsla(var(--cyan-500), 0.4)";
-                 scale = 1.05;
-               } else if (isEliminated) {
-                 bgColor = "hsl(var(--destructive)/0.05)";
-                 borderColor = "hsl(var(--destructive)/0.2)";
-                 textColor = "hsl(var(--muted-foreground)/0.3)";
-               } else if (isInRange) {
-                 borderColor = "hsl(var(--cyan-500)/0.3)";
-               }
+              const status = isTargetNode
+                ? "found"
+                : isMid
+                ? "active"
+                : isEliminated
+                ? "muted"
+                : isInRange
+                ? "comparing"
+                : "default";
 
-               return (
-                 <div key={`bs-cell-${i}`} className="flex flex-col items-center relative min-w-[40px] md:min-w-[56px] lg:min-w-[70px]">
+              const x = boxStartX + i * (boxSize + boxGap);
 
-                   {/* Pointers: L, R, M */}
-                   <AnimatePresence>
-                      {L === i && (
-                        <motion.div initial={{ opacity: 0, scale: 0.5, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.5, y: -10 }} className="absolute -top-12 flex flex-col items-center text-orange-400">
-                           <span className="font-bold text-[10px] tracking-widest bg-card border border-orange-400/30 px-2 py-0.5 rounded shadow-[0_0_10px_currentColor]">LEFT</span>
-                           <div className="w-0.5 h-4 bg-current mt-1 rounded-full" />
-                        </motion.div>
-                      )}
-                      {R === i && (
-                        <motion.div initial={{ opacity: 0, scale: 0.5, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.5, y: -10 }} className="absolute -top-12 flex flex-col items-center text-purple-400">
-                           <span className="font-bold text-[10px] tracking-widest bg-card border border-purple-400/30 px-2 py-0.5 rounded shadow-[0_0_10px_currentColor]">RIGHT</span>
-                           <div className="w-0.5 h-4 bg-current mt-1 rounded-full" />
-                        </motion.div>
-                      )}
-                      {isMid && (
-                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`absolute -bottom-14 flex flex-col items-center ${isFound ? 'text-emerald-500' : 'text-cyan-500'}`}>
-                           <div className="w-0.5 h-4 bg-current mb-1 rounded-full" />
-                           <span className="font-bold text-[10px] tracking-widest bg-card border px-2 py-0.5 rounded shadow-[0_0_10px_currentColor]">MID</span>
-                         </motion.div>
-                      )}
-                   </AnimatePresence>
+              return (
+                <g key={`bs-cell-${i}`} opacity={isEliminated ? 0.5 : 1}>
+                  <ArrayBox
+                    x={x}
+                    y={boxY}
+                    width={boxSize}
+                    height={boxSize}
+                    value={val}
+                    status={status}
+                    showGlow={isMid || isTargetNode}
+                  />
+                  <IndexLabel
+                    x={x + boxSize / 2}
+                    y={boxY + boxSize + 18}
+                    index={i}
+                  />
+                  {/* Eliminated cells: explicit X strike so the discarded range is unambiguous. */}
+                  {isEliminated && (
+                    <g stroke="hsl(var(--destructive))" strokeWidth={3} strokeLinecap="round" opacity={0.85}>
+                      <line x1={x + 10} y1={boxY + 10} x2={x + boxSize - 10} y2={boxY + boxSize - 10} />
+                      <line x1={x + boxSize - 10} y1={boxY + 10} x2={x + 10} y2={boxY + boxSize - 10} />
+                    </g>
+                  )}
+                </g>
+              );
+            })}
 
-                   {/* Main Cell */}
-                   <motion.div
-                     animate={{
-                       backgroundColor: bgColor,
-                       borderColor: borderColor,
-                       color: textColor,
-                       boxShadow: shadow,
-                       scale,
-                       opacity: isEliminated ? 0.4 : 1
-                     }}
-                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                     className="w-10 h-10 md:w-14 md:h-14 lg:w-16 lg:h-16 flex items-center justify-center text-lg md:text-xl lg:text-2xl font-black rounded-lg border-2 relative overflow-hidden"
-                   >
-                     {/* Scanning Effect for Mid */}
-                     {isMid && !isTargetNode && (
-                       <motion.div
-                         className="absolute inset-y-0 w-1 bg-cyan-400/60 blur-sm"
-                         animate={{ left: ['-50%', '150%'] }}
-                         transition={{ duration: 1, repeat: Infinity }}
-                       />
-                     )}
-
-                     {/* Success Pulse */}
-                     {isTargetNode && (
-                        <motion.div
-                          className="absolute inset-0 bg-emerald-400/30"
-                          initial={{ scale: 0, opacity: 1 }}
-                          animate={{ scale: 2, opacity: 0 }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        />
-                     )}
-
-                     <span className="relative z-10">{val}</span>
-                   </motion.div>
-
-                   {/* Subscript Index */}
-                   <div className="mt-3 text-[10px] font-mono font-bold text-muted-foreground/60">
-                     [{i}]
-                   </div>
-
-                 </div>
-               );
-             })}
-
-             {/* Dimming overlay over eliminated segments */}
-             {L !== -1 && (
-                <div className="absolute inset-x-0 bottom-8 h-20 -z-10 pointer-events-none flex">
-                   {L > 0 && <div className="bg-destructive/10 border-b-2 border-l-2 border-destructive/20 rounded-bl-lg" style={{ width: `${(L / arr.length) * 100}%` }} />}
-                   <div className="flex-1" />
-                   {R < arr.length - 1 && <div className="bg-destructive/10 border-b-2 border-r-2 border-destructive/20 rounded-br-lg" style={{ width: `${((arr.length - 1 - R) / arr.length) * 100}%` }} />}
-                </div>
-             )}
-          </div>
+            {/* L / R / M Pointers via PointerArrow primitive */}
+            {L !== -1 && L === R && (
+              <PointerArrow
+                x={boxStartX + L * (boxSize + boxGap) + boxSize / 2}
+                y={boxY - 12}
+                label="L=R"
+                color={colorTokens.pointer}
+                direction="down"
+              />
+            )}
+            {L !== -1 && L !== R && (
+              <>
+                <PointerArrow
+                  x={boxStartX + L * (boxSize + boxGap) + boxSize / 2}
+                  y={boxY - 12}
+                  label="LEFT"
+                  color={colorTokens.pointer}
+                  direction="down"
+                />
+                <PointerArrow
+                  x={boxStartX + R * (boxSize + boxGap) + boxSize / 2}
+                  y={boxY - 12}
+                  label="RIGHT"
+                  color="hsl(var(--primary))"
+                  direction="down"
+                />
+              </>
+            )}
+            {M !== -1 && (
+              <PointerArrow
+                x={boxStartX + M * (boxSize + boxGap) + boxSize / 2}
+                y={boxY + boxSize + 44}
+                label="MID"
+                color={isFound ? colorTokens.found : colorTokens.active}
+                direction="up"
+              />
+            )}
+          </svg>
         </div>
       </div>
     </div>

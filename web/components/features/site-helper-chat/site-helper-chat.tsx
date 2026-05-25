@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Bot,
   Loader2,
-  MessageCircle,
   RotateCcw,
   Send,
   Square,
@@ -80,6 +79,8 @@ export function SiteHelperChat() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  // 한 번 호버해서 링이 가득 차면 이후엔 다시 애니메이션이 돌지 않도록 잠금
+  const [ringFilledOnce, setRingFilledOnce] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -473,15 +474,38 @@ export function SiteHelperChat() {
           <TooltipTrigger asChild>
             <Button
               type="button"
+              variant="ghost"
               size="icon"
-              className="h-12 w-12 rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90"
+              className={cn(
+                "site-helper-chat-trigger group relative h-[95px] w-[95px] overflow-visible rounded-full bg-transparent p-0 text-[#3D5A22] shadow-none hover:bg-transparent focus-visible:ring-primary/40",
+                ringFilledOnce && "is-filled",
+              )}
               onClick={() => setOpen((value) => !value)}
-              aria-label="Dibut 사이트 도우미 열기"
+              onAnimationEnd={(event) => {
+                if (event.animationName === "site-helper-ring-fill") {
+                  setRingFilledOnce(true);
+                }
+              }}
+              aria-label={open ? "Dibut 사이트 도우미 닫기" : "Dibut 사이트 도우미 열기"}
+              aria-expanded={open}
             >
-              {open ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <MessageCircle className="h-5 w-5" />
+              <span
+                aria-hidden="true"
+                className="absolute inset-[5px] rounded-full bg-white/95 shadow-[0_14px_34px_rgba(61,90,34,0.18)] transition-transform duration-200 group-hover:scale-[1.03]"
+              />
+              <img
+                src="/images/site-helper-ai-chat.png"
+                alt=""
+                className="site-helper-chat-mascot pointer-events-none relative z-10 h-[85px] w-[85px] object-contain transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105"
+                draggable={false}
+              />
+              {open && (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-0.5 top-0.5 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-white bg-primary text-white shadow-md"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </span>
               )}
             </Button>
           </TooltipTrigger>

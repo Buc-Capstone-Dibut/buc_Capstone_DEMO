@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
 const N = 4; // 4-Queens problem
 
@@ -17,7 +18,7 @@ const STEPS: QueenState[] = [
   { board: Array.from({ length: N }, () => Array(N).fill(false)), queens: [-1, -1, -1, -1], currentRow: 0, attemptCol: 0, isBacktracking: false, isSolved: false },
   { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; return b; })(), queens: [0, -1, -1, -1], currentRow: 1, attemptCol: 0, isBacktracking: false, isSolved: false },
   { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; b[1][2] = true; return b; })(), queens: [0, 2, -1, -1], currentRow: 2, attemptCol: 0, isBacktracking: false, isSolved: false },
-  { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; b[1][2] = true; b[2][0] = null; b[2][1] = null; return b; })(), queens: [0, 2, -1, -1], currentRow: 2, attemptCol: 3, isBacktracking: true, isSolved: false },
+  { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; b[1][2] = true; b[2][0] = null; b[2][1] = null; b[2][2] = null; b[2][3] = null; return b; })(), queens: [0, 2, -1, -1], currentRow: 2, attemptCol: 3, isBacktracking: true, isSolved: false },
   { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; b[1][3] = true; return b; })(), queens: [0, 3, -1, -1], currentRow: 2, attemptCol: 0, isBacktracking: false, isSolved: false },
   { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][0] = true; b[1][3] = true; b[2][1] = true; return b; })(), queens: [0, 3, 1, -1], currentRow: 3, attemptCol: 0, isBacktracking: false, isSolved: false },
   { board: (() => { const b = Array.from({ length: N }, () => Array(N).fill(false)); b[0][1] = true; b[1][3] = true; b[2][0] = true; b[3][2] = true; return b; })(), queens: [1, 3, 0, 2], currentRow: 3, attemptCol: 2, isBacktracking: false, isSolved: true },
@@ -63,7 +64,7 @@ export function useQueenBacktrackingSim() {
 
 export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
   const { board, queens, currentRow, isBacktracking, isSolved } = data;
-  const QUEEN_EMOJI = '♛';
+  const QUEEN_LABEL = 'Q';
 
   const CELL_SIZE = 60;
   const BOARD_X = 100;
@@ -73,7 +74,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
     <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
       <defs>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
         <filter id="neon-glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
@@ -102,7 +103,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill={isSolved ? "#10b981" : isBacktracking ? "#f97316" : "#06b6d4"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isSolved ? 'emerald' : isBacktracking ? 'orange' : 'cyan'})`}>
+      <text x="40" y="50" fill={isSolved ? "hsl(160 84% 39%)" : isBacktracking ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"} fontSize="24" fontWeight="bold" letterSpacing="2" filter={`url(#neon-glow-${isSolved ? 'emerald' : isBacktracking ? 'orange' : 'cyan'})`}>
         {isSolved ? "해결 완료!" : isBacktracking ? "백트래킹 중" : "N-QUEEN 백트래킹"}
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
@@ -115,7 +116,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
         <text x="170" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" textAnchor="middle">
           {isSolved ? "모든 4개의 퀸이 공격받지 않는 위치에 배치되었습니다." : isBacktracking ? "이 행에는 가능한 위치가 없습니다. 이전 행으로 돌아갑니다." : "유망하지 않은 경로를 가지치기하며 탐색 공간을 줄입니다."}
         </text>
-        <text x="170" y="45" fill={isSolved ? "#10b981" : isBacktracking ? "#f97316" : "#06b6d4"} fontSize="13" fontWeight="bold" textAnchor="middle">
+        <text x="170" y="45" fill={isSolved ? "hsl(160 84% 39%)" : isBacktracking ? "hsl(24 95% 53%)" : "hsl(189 94% 43%)"} fontSize="13" fontWeight="bold" textAnchor="middle">
           {isSolved ? "성공!" : isBacktracking ? "이전 행으로 되돌아가는 중..." : "안전한 위치 탐색 중..."}
         </text>
       </g>
@@ -146,34 +147,56 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
               <rect
                 x={cx + 2} y={cy + 2}
                 width={CELL_SIZE - 4} height={CELL_SIZE - 4}
-                fill={isQueen ? (isSolved ? "rgba(16, 185, 129, 0.2)" : "rgba(6, 182, 212, 0.2)") : isBlocked ? "rgba(249, 115, 22, 0.1)" : isActiveRow ? "rgba(168, 85, 247, 0.1)" : isLightSq ? "hsl(var(--muted))" : "hsl(var(--card))"}
-                stroke={isQueen ? (isSolved ? "#10b981" : "#06b6d4") : isBlocked ? "rgba(249, 115, 22, 0.4)" : isActiveRow ? "#a855f7" : "transparent"}
+                fill={isQueen ? (isSolved ? colorTokens.successSoft : colorTokens.infoSoft) : isBlocked ? colorTokens.warningDim : isActiveRow ? colorTokens.primaryHighlightDim : isLightSq ? "hsl(var(--muted))" : "hsl(var(--card))"}
+                stroke={isQueen ? (isSolved ? "hsl(160 84% 39%)" : "hsl(189 94% 43%)") : isBlocked ? colorTokens.warningEdge : isActiveRow ? "hsl(271 91% 65%)" : "transparent"}
                 strokeWidth={isQueen ? 2 : 1}
                 rx="6"
               />
 
-              {/* Coordinates */}
-              <text x={cx + CELL_SIZE - 6} y={cy + CELL_SIZE - 6} fill="rgba(255,255,255,0.15)" fontSize="8" textAnchor="end">{ri},{ci}</text>
+              {/* Coordinates — moved to top-left so the 32px Queen glyph
+                  centered in the cell never overlaps the label */}
+              <text x={cx + 4} y={cy + 10} fill={colorTokens.coordinateLabel} fontSize="8" textAnchor="start">{ri},{ci}</text>
 
-              {/* Blocked Marker */}
+              {/* Blocked Marker (diagonal X cross) */}
               {isBlocked && (
-                <text x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 8} fill="rgba(249, 115, 22, 0.4)" fontSize="24" fontWeight="bold" textAnchor="middle">✗</text>
+                <g>
+                  <line
+                    x1={cx + 14} y1={cy + 14}
+                    x2={cx + CELL_SIZE - 14} y2={cy + CELL_SIZE - 14}
+                    stroke={colorTokens.warningEdge} strokeWidth="3" strokeLinecap="round"
+                  />
+                  <line
+                    x1={cx + CELL_SIZE - 14} y1={cy + 14}
+                    x2={cx + 14} y2={cy + CELL_SIZE - 14}
+                    stroke={colorTokens.warningEdge} strokeWidth="3" strokeLinecap="round"
+                  />
+                </g>
               )}
 
-              {/* Queen Icon */}
+              {/* Queen Marker (encircled letter Q) */}
               {isQueen && (
-                <motion.text
-                  x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 12}
-                  fill={isSolved ? "#10b981" : "#06b6d4"}
-                  fontSize="32"
-                  textAnchor="middle"
-                  initial={{ scale: 0, rotate: -30 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  style={{ filter: isSolved ? 'url(#neon-glow-emerald)' : 'url(#neon-glow-cyan)' }}
+                <motion.g
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  style={{ filter: isSolved ? 'url(#neon-glow-emerald)' : 'url(#neon-glow-cyan)' }}
                 >
-                  {QUEEN_EMOJI}
-                </motion.text>
+                  <circle
+                    cx={cx + CELL_SIZE/2} cy={cy + CELL_SIZE/2}
+                    r="18"
+                    fill={isSolved ? colorTokens.successSoft : colorTokens.infoSoft}
+                    stroke={isSolved ? colorTokens.success : colorTokens.info}
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={cx + CELL_SIZE/2} y={cy + CELL_SIZE/2 + 8}
+                    fill={isSolved ? colorTokens.success : colorTokens.info}
+                    fontSize="22" fontWeight="900"
+                    textAnchor="middle"
+                  >
+                    {QUEEN_LABEL}
+                  </text>
+                </motion.g>
               )}
             </motion.g>
           );
@@ -195,8 +218,8 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
             <rect
               x="470" y={y}
               width="260" height="40"
-              fill={isPlaced ? "rgba(6, 182, 212, 0.05)" : isActive ? "rgba(168, 85, 247, 0.05)" : "rgba(255,255,255,0.02)"}
-              stroke={isPlaced ? "rgba(6, 182, 212, 0.3)" : isActive ? "rgba(168, 85, 247, 0.3)" : "rgba(255,255,255,0.1)"}
+              fill={isPlaced ? colorTokens.infoGhost : isActive ? colorTokens.primaryHighlightGhost : colorTokens.faintFill}
+              stroke={isPlaced ? colorTokens.infoEdge : isActive ? colorTokens.primaryHighlightEdge : colorTokens.faintEdge}
               strokeWidth="1"
               rx="6"
             />
@@ -205,11 +228,11 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
 
             <AnimatePresence mode="wait">
               {isPlaced ? (
-                <text x="715" y={y + 24} fill="#06b6d4" fontSize="12" fontWeight="bold" textAnchor="end">
-                  열(Col) {col}에 {QUEEN_EMOJI}
+                <text x="715" y={y + 24} fill="hsl(189 94% 43%)" fontSize="12" fontWeight="bold" textAnchor="end">
+                  열(Col) {col}에 {QUEEN_LABEL}
                 </text>
               ) : isActive ? (
-                <text x="715" y={y + 24} fill="#a855f7" fontSize="12" fontWeight="bold" textAnchor="end">
+                <text x="715" y={y + 24} fill="hsl(271 91% 65%)" fontSize="12" fontWeight="bold" textAnchor="end">
                   ← 현재 (Current)
                 </text>
               ) : (
@@ -224,7 +247,7 @@ export function QueenBacktrackingVisualizer({ data }: { data: QueenState }) {
 
       {/* Key Concept Note */}
       <g transform="translate(450, 440)">
-        <text x="0" y="0" fill="#f97316" fontSize="12" fontWeight="bold">핵심 개념:</text>
+        <text x="0" y="0" fill="hsl(24 95% 53%)" fontSize="12" fontWeight="bold">핵심 개념:</text>
         <text x="70" y="0" fill="hsl(var(--muted-foreground))" fontSize="12">백트래킹은 제약 조건을 위반하는</text>
         <text x="0" y="18" fill="hsl(var(--muted-foreground))" fontSize="12">순간 그 경로를 포기하여(가지치기),</text>
         <text x="0" y="36" fill="hsl(var(--muted-foreground))" fontSize="12">탐색 공간(Search Space)을 기하급수적으로 줄입니다.</text>

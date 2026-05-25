@@ -30,30 +30,19 @@
 | `web/components/features/ctp/contents/**` | 실제 학습 컨텐츠(overview, config, logic, registry) |
 | `web/components/features/ctp/common/**` | 공통 타입, 모듈 로더, 컨트롤러 |
 | `web/components/features/ctp/playground/**` | 코드 에디터/플레이백/UI + visualizer |
-| `web/components/features/ctp/adapters/**` | Python globals -> visualizer payload 변환 |
 | `web/components/features/ctp/store/use-ctp-store.ts` | step 기반 실행 상태 전역 관리 |
-| `web/hooks/use-skulpt-engine.ts` | Worker 연동 + step 생성 |
-| `web/public/workers/skulpt.worker.js` | Skulpt 실행/trace 캡처 |
+| `web/public/workers/skulpt.worker.js` | Skulpt 실행/trace 캡처 (현재는 Problem Bank 채점 경로에서만 사용) |
 
 ## 3) 컨텐츠 구조 규약
 
-개별 서브컨셉 기본 단위:
+### 컨셉 정의 단위
 
-```text
-.../sub-concepts/<subConceptId>/
-  config.ts   # 문서/학습 메타 + mode/code
-  logic.ts    # runSimulation 구현 (Skulpt or local state)
-  (optional) visualizer.tsx  # 특수 시각화 전용
-```
+현재 구조 (2026-02 신규 커리큘럼 도입 후):
 
-컨셉 레벨:
-
-```text
-.../concepts/<conceptId>/
-  index.tsx             # CTPContentController 연결
-  <concept>-registry.ts # subConcept key -> { config, useSim, Visualizer }
-  components/*Overview.tsx
-```
+- `web/components/features/ctp/contents/categories/modules/module-XX-*.tsx`: 한 모듈당 단일 파일.
+  내부에서 `createInteractiveTemplateModules([...])` 호출로 sub-concept 모듈 객체 배열 생성.
+- 각 sub-concept은 `useSim` 훅 + `Visualizer` 컴포넌트 1쌍을 가지며, 둘 다 `svg-animations/module-XX/<id>.tsx`에 정의.
+- 보조 일러스트(supp)는 `svg-animations/module-XX/supp/<id>-supp.tsx`에 4개 SVG export.
 
 ## 4) Layout/Navigation 계약
 
@@ -75,10 +64,6 @@
 
 ## 6) Known Structural Notes
 
-- DFS/BFS 알고리즘 컨텐츠는 실제 소스가 `algorithms/concepts/dfs-bfs/sub-concepts/*`에 공용으로 존재하고,
-  - `algorithms/concepts/dfs/dfs-registry.ts`
-  - `algorithms/concepts/bfs/bfs-registry.ts`
-  에서 재사용한다.
 - `ctp-content-expansion.ts`는 `activeKey` 기준으로 story/features/guide/implementation을 후처리로 확장한다.
   - 따라서 `config.ts`가 간결해도 최종 렌더는 확장된 콘텐츠일 수 있다.
 

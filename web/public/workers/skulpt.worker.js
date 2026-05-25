@@ -187,7 +187,7 @@ async function runSkulpt(pythonCode, judgeOptions) {
     }
     ctx.postMessage({ type: "STATUS", status: "completed" });
   } catch (e) {
-    const serializedError = normalizeWorkerError(e);
+    const serializedError = normalizeWorkerError(e, preambleLineCount);
     ctx.postMessage({
       type: "ERROR",
       message: serializedError.message,
@@ -205,18 +205,32 @@ function createExecutionError(code, message) {
   return error;
 }
 
-function normalizeWorkerError(error) {
+function adjustErrorLineNumbers(message, preambleLineCount) {
+  if (!preambleLineCount || preambleLineCount <= 0) return message;
+  // Skulpt error messages embed "<stdin>, line N" — subtract preamble lines so the
+  // learner sees the line number that matches their own source.
+  return message.replace(
+    /(<stdin>,\s*line\s+)(\d+)/g,
+    (match, prefix, lineStr) => {
+      const adjusted = Math.max(1, parseInt(lineStr, 10) - preambleLineCount);
+      return prefix + adjusted;
+    },
+  );
+}
+
+function normalizeWorkerError(error, preambleLineCount) {
   const raw = error?.toString?.() ?? String(error);
+  const message = adjustErrorLineNumbers(raw, preambleLineCount);
   if (error?.ctpCode) {
-    return { message: raw, code: error.ctpCode };
+    return { message, code: error.ctpCode };
   }
   if (raw.includes("Execution Time Limit Exceeded")) {
-    return { message: raw, code: "TLE" };
+    return { message, code: "TLE" };
   }
   if (raw.includes("Output Limit Exceeded")) {
-    return { message: raw, code: "OLE" };
+    return { message, code: "OLE" };
   }
-  return { message: raw, code: "RTE" };
+  return { message, code: "RTE" };
 }
 
 function buildInputPreamble(lines) {

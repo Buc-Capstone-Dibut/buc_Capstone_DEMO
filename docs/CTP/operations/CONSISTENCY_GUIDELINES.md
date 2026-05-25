@@ -24,10 +24,11 @@
 1. `Intro`
 2. `Features`
 3. `Visualization`
-4. `Complexity`
-5. `Implementation` (옵션)
-6. `Practice` (옵션)
+4. `Implementation` (옵션)
+5. `Practice` (옵션)
 - 섹션을 생략할 수는 있지만, 순서를 바꾸지 않는다.
+- 주의: 옛 `Complexity` 섹션은 `CTPComplexity` 컴포넌트 dead 상태로 결락됨.
+  현재 정책은 `features` 또는 expansion guide에서 시간복잡도를 다룬다.
 - 챕터 페이지(`?view` 없음)는 항상 아래 구조를 유지한다.
 1. Module 라벨 + Chapter 제목 + 설명
 2. 학습 가이드(번호 목록)

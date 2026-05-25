@@ -111,20 +111,23 @@ export function CodeEditor({
     }
 
     // Monaco type definitions can differ by version; guard optional API at runtime.
-    const setHiddenAreas = (
-      editor as MonacoEditorInstance & {
-        setHiddenAreas?: (
-          ranges: {
-            startLineNumber: number;
-            startColumn: number;
-            endLineNumber: number;
-            endColumn: number;
-          }[],
-        ) => void;
+    // Must invoke as method on editor — extracting the reference loses `this` binding and triggers `_modelData` undefined.
+    const editorWithHidden = editor as MonacoEditorInstance & {
+      setHiddenAreas?: (
+        ranges: {
+          startLineNumber: number;
+          startColumn: number;
+          endLineNumber: number;
+          endColumn: number;
+        }[],
+      ) => void;
+    };
+    if (typeof editorWithHidden.setHiddenAreas === "function") {
+      try {
+        editorWithHidden.setHiddenAreas(ranges);
+      } catch {
+        // editor may be mid-dispose; safe to ignore
       }
-    ).setHiddenAreas;
-    if (typeof setHiddenAreas === "function") {
-      setHiddenAreas(ranges);
     }
   }, [value, hiddenLinePatterns, hideFromMarker]);
 

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
+import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
 type SearchState = {
@@ -17,7 +18,7 @@ type SearchState = {
 };
 
 // --- Hook ---
-export function useBruteForceSim(text: string, pattern: string) {
+export function useBruteForceSearchSim(text: string, pattern: string) {
   const [history, setHistory] = useState<SearchState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -102,21 +103,20 @@ export function useBruteForceSim(text: string, pattern: string) {
 }
 
 // --- Visualizer Component ---
-export function BruteForceVisualizer({ data }: { data: number[] }) {
-  // We use data array indirectly, let's map it to string for visualizer compatibility
-  // In a real scenario, string visualizers might take string props, but for CTP we just map numbers to chars for consistency
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const mappedText = data.map(n => chars[n % chars.length]).join("") || "ABCABCDABCE";
-  const searchPattern = mappedText.substring(3, 6) || "ABC";
+// 입력값은 ConceptSpec.simulation.initialState와 정확히 일치시킵니다.
+const BRUTE_FORCE_TEXT = "ABABCABABCABCABABA";
+const BRUTE_FORCE_PATTERN = "ABABCAB";
 
-  const { state, controls, progress, isFinished } = useBruteForceSim(mappedText, searchPattern);
+export function BruteForceSearchVisualizer(_props: { data?: unknown }) {
+  const { state, controls, progress, isFinished } = useBruteForceSearchSim(BRUTE_FORCE_TEXT, BRUTE_FORCE_PATTERN);
   const { text, pattern, i, j, comparing, matchFound, phase } = state;
 
   const svgWidth = 800;
   const svgHeight = 400;
 
-  const boxSize = 40;
-  const gap = 8;
+  // Sized so 18-char text fits the 800-wide viewBox: 18 * 34 = 612 px.
+  const boxSize = 30;
+  const gap = 4;
   const totalBoxWidth = boxSize + gap;
 
   // Center alignment offset
@@ -137,37 +137,37 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
             </pattern>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Status Text overlay */}
-          <text x="30" y="40" fill="#cbd5e1" fontSize="18" fontWeight="bold">Brute Force Search</text>
-          <text x="30" y="65" fill="#64748b" fontSize="14">{phase}</text>
+          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Brute Force Search</text>
+          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
 
           {/* Text Array */}
-          <text x="50" y="140" fill="#94a3b8" fontSize="12" fontWeight="bold">Text</text>
+          <text x="50" y="140" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Text</text>
           {text.split('').map((char, idx) => {
             const x = textStartX + idx * totalBoxWidth;
             const isMatchArea = matchFound && idx >= i && idx < i + pattern.length;
             const isComparing = comparing && idx === i + j;
 
-            let strokeColor = "rgba(255,255,255,0.1)";
-            let fillColor = "#1e293b";
-            let textColor = "#94a3b8";
+            let strokeColor: string = colorTokens.gridMid;
+            let fillColor = "hsl(var(--muted))";
+            let textColor = "hsl(var(--muted-foreground))";
             let filter = "";
 
             if (isMatchArea) {
-              fillColor = "#10b981";
-              strokeColor = "#10b981";
-              textColor = "#ffffff";
+              fillColor = colorTokens.success;
+              strokeColor = colorTokens.success;
+              textColor = "hsl(var(--foreground))";
               filter = "url(#glow-match)";
             } else if (isComparing) {
-              fillColor = "#3b82f6";
-              strokeColor = "#3b82f6";
-              textColor = "#ffffff";
+              fillColor = colorTokens.primaryBlue;
+              strokeColor = colorTokens.primaryBlue;
+              textColor = "hsl(var(--foreground))";
               filter = "url(#glow-compare)";
             }
 
@@ -175,13 +175,13 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
               <g key={`text-${idx}`} transform={`translate(${x}, 160)`}>
                 <rect width={boxSize} height={boxSize} fill={fillColor} stroke={strokeColor} strokeWidth="2" rx="6" filter={filter} />
                 <text x={boxSize/2} y={boxSize/2 + 6} fill={textColor} fontSize="20" fontWeight="bold" textAnchor="middle">{char}</text>
-                <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="12" textAnchor="middle">{idx}</text>
+                <text x={boxSize/2} y={boxSize + 15} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">{idx}</text>
               </g>
             );
           })}
 
           {/* Pattern Array */}
-          <text x="50" y="260" fill="#94a3b8" fontSize="12" fontWeight="bold">Pattern</text>
+          <text x="50" y="260" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Pattern</text>
 
           <motion.g
             initial={false}
@@ -194,23 +194,23 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
               const isComparing = comparing && idx === j;
               const isFailed = !comparing && idx === j && !matchFound && j < pattern.length && progress > 0;
 
-              let fillColor = "#334155";
-              let textColor = "#cbd5e1";
+              let fillColor = "hsl(var(--muted))";
+              let textColor = "hsl(var(--muted-foreground))";
               let filter = "";
 
               if (matchFound) {
-                fillColor = "#10b981";
-                textColor = "#ffffff";
+                fillColor = colorTokens.success;
+                textColor = "hsl(var(--foreground))";
                 filter = "url(#glow-match)";
               } else if (isFailed) {
-                fillColor = "#ef4444";
-                textColor = "#ffffff";
+                fillColor = colorTokens.errorRed;
+                textColor = "hsl(var(--foreground))";
               } else if (isMatchedSoFar) {
-                fillColor = "#10b981"; // Darker green for matching prefix
-                textColor = "#ffffff";
+                fillColor = colorTokens.success; // Darker green for matching prefix
+                textColor = "hsl(var(--foreground))";
               } else if (isComparing) {
-                fillColor = "#3b82f6";
-                textColor = "#ffffff";
+                fillColor = colorTokens.primaryBlue;
+                textColor = "hsl(var(--foreground))";
                 filter = "url(#glow-compare)";
               }
 
@@ -218,7 +218,7 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
                 <g key={`pattern-${idx}`} transform={`translate(${rectX}, 240)`}>
                   <rect width={boxSize} height={boxSize} fill={fillColor} rx="6" filter={filter} />
                   <text x={boxSize/2} y={boxSize/2 + 6} fill={textColor} fontSize="20" fontWeight="bold" textAnchor="middle">{char}</text>
-                  <text x={boxSize/2} y={boxSize + 15} fill="#475569" fontSize="12" textAnchor="middle">{idx}</text>
+                  <text x={boxSize/2} y={boxSize + 15} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">{idx}</text>
                 </g>
               );
             })}
@@ -226,11 +226,11 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
             {/* Pointer i (Base of Pattern) */}
             <motion.path
               d={`M ${boxSize/2} -15 L ${boxSize/2 + 5} -25 L ${boxSize/2 - 5} -25 Z`}
-              fill="#ef4444"
+              fill={colorTokens.errorRed}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             />
-            <text x={boxSize/2} y="-30" fill="#ef4444" fontSize="14" fontWeight="bold" textAnchor="middle">i</text>
+            <text x={boxSize/2} y="-30" fill={colorTokens.errorRed} fontSize="14" fontWeight="bold" textAnchor="middle">i</text>
 
             {/* Pointer j (Current match pos) */}
             {!matchFound && j < pattern.length && (
@@ -239,8 +239,8 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
                  animate={{ x: j * totalBoxWidth }}
                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
               >
-                <path d={`M ${boxSize/2} -10 L ${boxSize/2 + 5} -20 L ${boxSize/2 - 5} -20 Z`} fill="#3b82f6" />
-                <text x={boxSize/2} y="-25" fill="#3b82f6" fontSize="14" fontWeight="bold" textAnchor="middle">j</text>
+                <path d={`M ${boxSize/2} -10 L ${boxSize/2 + 5} -20 L ${boxSize/2 - 5} -20 Z`} fill={colorTokens.primaryBlue} />
+                <text x={boxSize/2} y="-25" fill={colorTokens.primaryBlue} fontSize="14" fontWeight="bold" textAnchor="middle">j</text>
               </motion.g>
             )}
           </motion.g>
@@ -252,7 +252,7 @@ export function BruteForceVisualizer({ data }: { data: number[] }) {
                 y1="240"
                 x2={textStartX + (i + j) * totalBoxWidth + boxSize/2}
                 y2="200"
-                stroke="#3b82f6" strokeWidth="2" strokeDasharray="4"
+                stroke={colorTokens.primaryBlue} strokeWidth="2" strokeDasharray="4"
              />
           )}
 

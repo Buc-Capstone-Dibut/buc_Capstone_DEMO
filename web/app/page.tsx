@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/hooks/use-auth";
@@ -12,6 +13,8 @@ const coreServices = [
     desc: '최신 기술 트렌드와 기술 블로그, 대외활동 정보를 통해 깊이 있는 인사이트를 얻습니다.',
     link: '/insights/tech-blog',
     comingSoon: false,
+    image: '/images/landing/mascot/beaver-coding.png',
+    imageAlt: '코딩하며 학습 기록을 정리하는 디벗 비버',
   },
   {
     id: 'community',
@@ -19,6 +22,8 @@ const coreServices = [
     desc: '동료들과 정보를 공유하고 목표가 같은 팀원을 찾아보세요.',
     link: '/community',
     comingSoon: false,
+    image: '/images/landing/mascot/beaver-discussion.png',
+    imageAlt: '테이블에서 함께 토론하는 디벗 비버들',
   },
   {
     id: 'workspace',
@@ -26,6 +31,8 @@ const coreServices = [
     desc: '결성된 팀이 효율적으로 협업하고 프로젝트를 완성하는 전용 공간을 제공합니다.',
     link: '/workspace',
     comingSoon: false,
+    image: '/images/landing/mascot/beaver-laptop.png',
+    imageAlt: '노트북으로 협업하는 디벗 비버',
   },
   {
     id: 'interview',
@@ -33,6 +40,8 @@ const coreServices = [
     desc: '실전 같은 연습과 맞춤형 피드백을 통해 면접에 완벽히 대비하세요.',
     link: '/interview',
     comingSoon: false,
+    image: '/images/landing/mascot/beaver-presentation.png',
+    imageAlt: '발표를 준비하는 디벗 비버',
   },
 ];
 
@@ -229,30 +238,40 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.9 }}
             variants={staggerContainer}
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-100 border border-neutral-100 overflow-hidden rounded-[2rem]"
+            className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
           >
             {coreServices.map((service, i) => (
               <motion.div
                 key={service.id}
                 variants={fadeInUp}
-                className="group relative bg-white p-10 flex flex-col min-h-[400px] transition-colors hover:bg-neutral-50"
+                className="group relative flex min-h-[440px] min-w-0 flex-col overflow-hidden rounded-[2rem] border border-neutral-100 bg-white p-7 transition-all duration-500 hover:-translate-y-1 hover:border-primary/20"
               >
-                <div className="mb-auto">
-                  <span className="block text-[14px] font-mono text-neutral-300 mb-6 group-hover:text-primary transition-colors">
-                    0{i + 1}
-                  </span>
-                  <h3 className="mb-6 text-[24px] font-bold tracking-tight text-neutral-900 leading-tight">
-                    {service.title}
-                  </h3>
-                  <p className="text-[14px] leading-relaxed text-neutral-500 font-medium">
-                    {service.desc}
-                  </p>
+                <div className="relative mb-8 flex h-56 items-end justify-center overflow-visible rounded-[1.5rem] bg-transparent">
+                  <Image
+                    src={service.image}
+                    alt={service.imageAlt}
+                    width={420}
+                    height={320}
+                    sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
+                    className="relative z-10 h-[120%] w-[120%] max-w-none object-contain object-bottom p-4 transition-transform duration-500 group-hover:scale-105"
+                    priority={i === 0}
+                  />
                 </div>
 
-                <div className="mt-12">
+                <div className="flex flex-1 flex-col">
+                  <span className="mb-4 block text-[13px] font-mono text-neutral-300 transition-colors group-hover:text-primary">
+                    0{i + 1}
+                  </span>
+                  <h3 className="mb-4 text-[24px] font-bold leading-tight tracking-tight text-neutral-900">
+                    {service.title}
+                  </h3>
+                  <p className="text-[14px] font-medium leading-relaxed text-neutral-500 transition-all duration-300 ease-in-out xl:line-clamp-1 xl:group-hover:line-clamp-none">
+                    {service.desc}
+                  </p>
+
                   <Link
                     href={service.link}
-                    className="inline-flex items-center text-[13px] font-bold transition-all text-neutral-400 group-hover:text-neutral-900"
+                    className="mt-auto inline-flex items-center pt-8 text-[13px] font-bold text-neutral-400 transition-all group-hover:text-neutral-900"
                   >
                     EXPLORE
                     <svg className="ml-2 h-3 w-3 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
