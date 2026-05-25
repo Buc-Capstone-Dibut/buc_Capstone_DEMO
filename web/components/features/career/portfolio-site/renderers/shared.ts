@@ -22,6 +22,8 @@ export type RendererProps = {
   disableKeyboardNav?: boolean;
   /** 편집기에선 숨김 페이지도 표시 */
   includeHiddenPages?: boolean;
+  /** PDF 저장 버튼 클릭 — 상위 wrapper 가 모든 페이지 stack 렌더 후 print */
+  onPrintRequest?: () => void;
 };
 
 export const PAGE_LABEL: Record<PortfolioSitePageType, string> = {

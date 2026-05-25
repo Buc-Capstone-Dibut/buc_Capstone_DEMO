@@ -16,7 +16,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ChevronLeft, ChevronRight, Layers3, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileDown, Layers3, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PortfolioDocument, PortfolioSitePage } from "@/lib/career-portfolios";
 import type { RendererProps } from "./shared";
@@ -37,6 +37,8 @@ type RendererShellProps = {
   hideHeader?: boolean;
   hideThumbnails?: boolean;
   disableKeyboardNav?: boolean;
+  /** PDF 출력 모드 진입 트리거 — 부모(renderer) 가 모든 페이지 stack 렌더 */
+  onPrintRequest?: () => void;
 };
 
 export function RendererShell({
@@ -49,6 +51,7 @@ export function RendererShell({
   hideHeader,
   hideThumbnails,
   disableKeyboardNav,
+  onPrintRequest,
 }: RendererShellProps) {
   // 키보드 네비 — input/textarea 포커스 시 무시
   useEffect(() => {
@@ -79,6 +82,31 @@ export function RendererShell({
       return () => window.document.removeEventListener("fullscreenchange", onFsChange);
     }
   }, []);
+
+  // ─── Fullscreen 스케일 계산 ───
+  // 슬라이드는 1120×630 (16:9) 기준 디자인. fullscreen 에서 viewport 에 맞춰
+  // transform: scale() 로 시각적 확대만 — 내부 폰트/패딩/레이아웃 모두 비례 확대.
+  // (단순히 width/height 만 키우면 내용은 그대로라 빈 여백만 늘어남)
+  useEffect(() => {
+    if (!isFullscreen || typeof window === "undefined") return;
+    const BASE_W = 1120;
+    const BASE_H = 630;
+    const el = sectionRef.current;
+    if (!el) return;
+    const update = () => {
+      const scale = Math.min(
+        window.innerWidth / BASE_W,
+        window.innerHeight / BASE_H,
+      );
+      el.style.setProperty("--fs-scale", String(scale));
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      el.style.removeProperty("--fs-scale");
+    };
+  }, [isFullscreen]);
 
   const toggleFullscreen = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -160,6 +188,23 @@ export function RendererShell({
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
             <span className="mx-1 h-4 w-px" style={{ backgroundColor: SHELL_BORDER }} />
+            {onPrintRequest ? (
+              <button
+                type="button"
+                onClick={onPrintRequest}
+                className="flex h-7 items-center gap-1 rounded-md px-2 text-[10.5px] font-bold transition hover:bg-slate-50"
+                style={{
+                  border: `1px solid ${SHELL_BORDER}`,
+                  color: SHELL_HEADING,
+                  backgroundColor: SHELL_CARD,
+                }}
+                aria-label="PDF로 저장"
+                title="PDF로 저장 (브라우저 인쇄 → PDF 저장)"
+              >
+                <FileDown className="h-3 w-3" />
+                PDF
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void toggleFullscreen()}
@@ -175,13 +220,13 @@ export function RendererShell({
         ) : null}
 
         {/* 슬라이드 캔버스 영역 — 각 렌더러가 채움 */}
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
+        <div className="portfolio-renderer-canvas flex min-h-0 flex-1 items-center justify-center py-6">
           {children}
         </div>
 
         {/* 썸네일 */}
         {!hideThumbnails ? (
-        <div className="flex h-12 items-center gap-1.5 overflow-x-auto">
+        <div className="portfolio-renderer-thumbnails flex h-12 items-center gap-1.5 overflow-x-auto">
           {pages.map((p, i) => (
             <button
               key={p.id}

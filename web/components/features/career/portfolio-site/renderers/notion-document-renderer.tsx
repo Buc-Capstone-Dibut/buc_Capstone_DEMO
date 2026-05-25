@@ -50,6 +50,7 @@ export function NotionDocumentRenderer({
   hideThumbnails,
   disableKeyboardNav,
   includeHiddenPages,
+  onPrintRequest,
 }: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
@@ -72,6 +73,7 @@ export function NotionDocumentRenderer({
       hideHeader={hideHeader}
       hideThumbnails={hideThumbnails}
       disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className="relative w-full overflow-hidden rounded-lg border bg-white shadow-md"

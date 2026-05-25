@@ -47,6 +47,7 @@ export function BrutalistTechRenderer({
   hideThumbnails,
   disableKeyboardNav,
   includeHiddenPages,
+  onPrintRequest,
 }: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
@@ -81,6 +82,7 @@ export function BrutalistTechRenderer({
       hideHeader={hideHeader}
       hideThumbnails={hideThumbnails}
       disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className="relative w-full border-[5px] shadow-[8px_8px_0_0_#000000]"

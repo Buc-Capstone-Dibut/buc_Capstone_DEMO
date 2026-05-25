@@ -2,12 +2,15 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   getPortfolioTemplate,
   type PortfolioDocument,
@@ -66,6 +69,8 @@ type PortfolioSiteRendererProps = {
   editingEnabled?: boolean;
   /** 활성 페이지의 특정 path 를 업데이트 — 편집기에서 제공 */
   onPatchActivePage?: (path: (string | number)[], value: unknown) => void;
+  /** 마운트 직후 자동으로 print 트리거 — /print 페이지에서 사용 */
+  autoPrint?: boolean;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -1352,7 +1357,13 @@ function renderSlide(page: PortfolioSitePage) {
 // 별도 렌더러 컴포넌트를 사용. 없으면 기존 inner 렌더러 사용.
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+/**
+ * Dispatch — rendererId 에 맞는 디자인 렌더러를 골라 렌더.
+ * onPrintRequest 가 주어지면 각 렌더러의 RendererShell 헤더 PDF 버튼에 노출됨.
+ */
+function PortfolioSiteRendererDispatch(
+  props: PortfolioSiteRendererProps & { onPrintRequest?: () => void },
+) {
   const rendererId = props.document.rendererId;
   const shared = {
     document: props.document,
@@ -1363,30 +1374,101 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
     hideThumbnails: props.hideThumbnails,
     disableKeyboardNav: props.disableKeyboardNav,
     includeHiddenPages: props.includeHiddenPages,
+    onPrintRequest: props.onPrintRequest,
   };
 
-  let body: ReactNode;
-  if (rendererId === "minimal-mono") body = <MinimalMonoRenderer {...shared} />;
-  else if (rendererId === "editorial-magazine") body = <EditorialMagazineRenderer {...shared} />;
-  else if (rendererId === "brutalist-tech") body = <BrutalistTechRenderer {...shared} />;
-  else if (rendererId === "soft-pastel-card") body = <SoftPastelCardRenderer {...shared} />;
-  else if (rendererId === "terminal-code") body = <TerminalCodeRenderer {...shared} />;
-  else if (rendererId === "notion-document") body = <NotionDocumentRenderer {...shared} />;
-  else if (rendererId === "gallery-mood") body = <GalleryMoodRenderer {...shared} />;
-  else {
-    body = (
-      <RendererContext.Provider value={{ templateId: props.document.templateId }}>
-        <PortfolioSiteRendererInner {...props} />
-      </RendererContext.Provider>
-    );
-  }
+  if (rendererId === "minimal-mono") return <MinimalMonoRenderer {...shared} />;
+  if (rendererId === "editorial-magazine") return <EditorialMagazineRenderer {...shared} />;
+  if (rendererId === "brutalist-tech") return <BrutalistTechRenderer {...shared} />;
+  if (rendererId === "soft-pastel-card") return <SoftPastelCardRenderer {...shared} />;
+  if (rendererId === "terminal-code") return <TerminalCodeRenderer {...shared} />;
+  if (rendererId === "notion-document") return <NotionDocumentRenderer {...shared} />;
+  if (rendererId === "gallery-mood") return <GalleryMoodRenderer {...shared} />;
+  return (
+    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+      <PortfolioSiteRendererInner {...props} onPrintRequest={props.onPrintRequest} />
+    </RendererContext.Provider>
+  );
+}
+
+export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+  // ─── PDF 출력 ───
+  // 클릭 → printing=true → 모든 페이지 stack 렌더 → window.print()
+  // afterprint 이벤트로 다시 false. CSS 가 print 시 chrome 숨기고 페이지 break 처리.
+  const [printing, setPrinting] = useState(false);
+  const pagesForPrint = useMemo(() => {
+    const all = props.document.pages || [];
+    return all.filter((p) => p.visible !== false);
+  }, [props.document.pages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onAfter = () => setPrinting(false);
+    window.addEventListener("afterprint", onAfter);
+    return () => window.removeEventListener("afterprint", onAfter);
+  }, []);
+
+  const triggerPrint = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    setPrinting(true);
+    // 두 번 RAF — 모든 print-deck 자식 mount + style 적용 보장
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    // 폰트 로딩 완료 대기 — 안 그러면 PDF 에 폰트 깨질 수 있음
+    try {
+      await (window.document as Document & { fonts?: { ready?: Promise<void> } }).fonts
+        ?.ready;
+    } catch {
+      /* fonts API 없을 수도 — 무시 */
+    }
+    try {
+      window.print();
+    } catch (e) {
+      console.error("print failed", e);
+      setPrinting(false);
+    }
+  }, []);
+
+  // autoPrint — 마운트 직후 자동 트리거
+  useEffect(() => {
+    if (!props.autoPrint) return;
+    // 디자인/폰트 안정화 시간 — 약간 대기 후 print
+    const t = window.setTimeout(() => {
+      void triggerPrint();
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [props.autoPrint, triggerPrint]);
 
   return (
     <EditableProvider
       enabled={Boolean(props.editingEnabled)}
       patch={props.onPatchActivePage}
     >
-      {body}
+      {/* 화면용 — 평소엔 보임, 인쇄 시 CSS 로 숨김. */}
+      <PortfolioSiteRendererDispatch {...props} />
+
+      {/* 인쇄용 — body 직계로 portal. 그래야 print CSS 가 다른 body 자식을
+          display:none 으로 완전히 layout 공간까지 제거 가능 (visibility:hidden 만
+          하면 공간이 남아서 빈 페이지가 잔뜩 생김). */}
+      {printing && typeof window !== "undefined"
+        ? createPortal(
+            <div className="portfolio-renderer-print-deck" aria-hidden>
+              {pagesForPrint.map((p, i) => (
+                <div key={p.id} className="portfolio-renderer-print-page">
+                  <PortfolioSiteRendererDispatch
+                    document={props.document}
+                    activeIndex={i}
+                    hideHeader
+                    hideThumbnails
+                    disableKeyboardNav
+                  />
+                </div>
+              ))}
+            </div>,
+            window.document.body,
+          )
+        : null}
     </EditableProvider>
   );
 }
@@ -1400,7 +1482,8 @@ function PortfolioSiteRendererInner({
   hideThumbnails,
   disableKeyboardNav,
   includeHiddenPages,
-}: PortfolioSiteRendererProps) {
+  onPrintRequest,
+}: PortfolioSiteRendererProps & { onPrintRequest?: () => void }) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
@@ -1466,6 +1549,7 @@ function PortfolioSiteRendererInner({
       hideHeader={hideHeader}
       hideThumbnails={hideThumbnails}
       disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className={cn(

@@ -27,6 +27,8 @@ import {
 import { cn } from "@/lib/utils";
 import { seedCareerSampleDataAction } from "../sample-data/actions";
 import type { UnifiedPortfolioItem } from "./types";
+import { PortfolioPdfPrinter } from "@/components/features/career/portfolio-editor/portfolio-pdf-printer";
+import { PortfolioLivePreview } from "@/components/features/career/portfolio-editor/portfolio-live-preview";
 
 type PortfoliosClientProps = {
   initialPortfolios: UnifiedPortfolioItem[];
@@ -258,12 +260,20 @@ export default function PortfoliosClient({
     router.push(`/career/portfolios/${portfolio.id}/edit`);
   };
 
-  const handleExportPptx = (portfolio: PortfolioListItem) => {
+  /**
+   * PDF 다운로드 — 현재 페이지에서 인쇄 대화상자 직접 띄움.
+   * 새 탭 안 열고 PortfolioPdfPrinter 가 화면 밖에 마운트되어 native print 트리거.
+   * 사용자는 그 대화상자에서 "PDF로 저장" 선택.
+   * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
+   */
+  const [pdfPortfolioId, setPdfPortfolioId] = useState<string | null>(null);
+  const handleExportPdf = (portfolio: PortfolioListItem) => {
     setBusyExportId(portfolio.id);
-    window.location.href = `/api/career/portfolios/${portfolio.id}/export/pptx`;
-    window.setTimeout(() => {
-      setBusyExportId((current) => (current === portfolio.id ? null : current));
-    }, 1800);
+    setPdfPortfolioId(portfolio.id);
+  };
+  const handlePdfDone = () => {
+    setPdfPortfolioId(null);
+    setBusyExportId(null);
   };
 
   const handleDelete = async (portfolio: PortfolioListItem) => {
@@ -377,6 +387,10 @@ export default function PortfoliosClient({
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-24 pt-10 sm:px-8 md:pt-16">
+      {/* PDF 출력 — 클릭 시 마운트되어 native print 대화상자 띄움. 끝나면 unmount */}
+      {pdfPortfolioId ? (
+        <PortfolioPdfPrinter portfolioId={pdfPortfolioId} onDone={handlePdfDone} />
+      ) : null}
       <div className="mb-8 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -524,7 +538,7 @@ export default function PortfoliosClient({
                 busyDeleteId={busyDeleteId}
                 busyExportId={busyExportId}
                 busyPublishId={busyPublishId}
-                onExportPptx={handleExportPptx}
+                onExportPdf={handleExportPdf}
                 onOpenWorkspace={handleOpenWorkspace}
                 onDelete={handleDelete}
                 onTogglePublish={handleTogglePublish}
@@ -684,7 +698,7 @@ function PortfolioDetail({
   busyDeleteId,
   busyExportId,
   busyPublishId,
-  onExportPptx,
+  onExportPdf,
   onOpenWorkspace,
   onDelete,
   onTogglePublish,
@@ -695,7 +709,7 @@ function PortfolioDetail({
   busyDeleteId: string | null;
   busyExportId: string | null;
   busyPublishId: string | null;
-  onExportPptx: (portfolio: PortfolioListItem) => void;
+  onExportPdf: (portfolio: PortfolioListItem) => void;
   onOpenWorkspace: (portfolio: PortfolioListItem) => void;
   onDelete: (portfolio: PortfolioListItem) => void;
   onTogglePublish: (portfolio: PortfolioListItem) => void;
@@ -779,10 +793,10 @@ function PortfolioDetail({
           <span className="hidden xl:inline">워크스페이스</span>
         </button>
         <button
-          onClick={() => onExportPptx(portfolio)}
+          onClick={() => onExportPdf(portfolio)}
           disabled={busyExportId === portfolio.id}
-          title="PPTX 다운로드"
-          aria-label="PPTX 다운로드"
+          title="PDF 다운로드 (브라우저 인쇄 → PDF로 저장)"
+          aria-label="PDF 다운로드"
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
         >
           {busyExportId === portfolio.id ? (
@@ -790,7 +804,7 @@ function PortfolioDetail({
           ) : (
             <Download className="h-3.5 w-3.5" />
           )}
-          <span className="hidden md:inline">PPTX</span>
+          <span className="hidden md:inline">PDF</span>
         </button>
         <button
           onClick={() => onDelete(portfolio)}
@@ -931,32 +945,19 @@ function PortfolioDetail({
 
           <section className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h4 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                포트폴리오 미리보기
-              </h4>
+              <div className="flex items-baseline gap-2">
+                <h4 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  포트폴리오 미리보기
+                </h4>
+                <span className="text-[11px] font-medium text-slate-400">
+                  · 실제 디자인으로 표시
+                </span>
+              </div>
               <span className="text-[12px] font-semibold text-slate-500">
-                {previewPages.length}개
+                {pageCount}개 페이지
               </span>
             </div>
-            {previewPages.length ? (
-              <div className="space-y-6">
-                {previewPages.map((page, index) => (
-                  <PortfolioPagePreview
-                    key={page.id || `${portfolio.id}-${index}`}
-                    portfolio={portfolio}
-                    page={page}
-                    index={index}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 text-center">
-                <FileText className="mb-3 h-9 w-9 text-slate-300" />
-                <p className="text-sm font-semibold text-slate-500">
-                  표시할 미리보기가 없습니다.
-                </p>
-              </div>
-            )}
+            <PortfolioLivePreview portfolioId={portfolio.id} format={portfolio.format} />
           </section>
         </div>
       </div>

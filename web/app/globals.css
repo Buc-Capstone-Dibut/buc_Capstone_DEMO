@@ -745,18 +745,188 @@ body {
   max-width: 100vw !important;
   padding: 0 !important;
 }
-/* 헤더 완전 숨김 */
+/* 헤더 / 썸네일 완전 숨김 — 명시적 selector (위치 의존 X) */
 .portfolio-renderer-shell:fullscreen header {
   display: none !important;
 }
-/* 하단 썸네일 완전 숨김 (마지막 div) */
-.portfolio-renderer-shell:fullscreen > div > div:last-child {
+.portfolio-renderer-shell:fullscreen .portfolio-renderer-thumbnails {
   display: none !important;
 }
-/* 슬라이드 캔버스 영역이 viewport 전체 활용 */
-.portfolio-renderer-shell:fullscreen > div > div {
+/* 슬라이드 캔버스 영역이 viewport 전체 활용 + 슬라이드를 중앙에 배치 */
+.portfolio-renderer-shell:fullscreen .portfolio-renderer-canvas {
   padding: 0 !important;
   height: 100vh !important;
+  max-height: 100vh !important;
+  width: 100vw !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+/* 슬라이드 컨테이너 — 1120×630 base 크기로 고정 + transform: scale() 로 시각 확대.
+   내부 폰트/패딩/레이아웃이 비례 확대돼서 빈 여백 없이 진짜 16:9 PPT 처럼 보임.
+   --fs-scale 은 RendererShell 의 useEffect 가 viewport 변화에 맞춰 set. */
+.portfolio-renderer-shell:fullscreen .portfolio-renderer-canvas > * {
+  width: 1120px !important;
+  max-width: 1120px !important;
+  min-width: 1120px !important;
+  flex: 0 0 auto !important;
+  transform: scale(var(--fs-scale, 1)) !important;
+  transform-origin: center center !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* 웹슬라이드 — PDF 출력 모드                                              */
+/* 슬라이드(1120×630)와 페이지(297×167mm ≈ 1122×631px @96dpi)가 거의 동일  */
+/* 하므로 추가 스케일 없이 그대로 들어맞음. 각 슬라이드 = PDF 한 페이지.    */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* 라이브 미리보기 (관리 페이지) — 실제 렌더러를 1120×630 으로 고정 후       */
+/* 부모가 transform: scale 로 축소. 내부 min-h-screen 등 제거.              */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+.portfolio-mini-preview .portfolio-renderer-shell {
+  min-height: 0 !important;
+  width: 1120px !important;
+  height: 630px !important;
+  background: transparent !important;
+}
+.portfolio-mini-preview .portfolio-renderer-shell > div {
+  min-height: 0 !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  width: 1120px !important;
+  height: 630px !important;
+}
+.portfolio-mini-preview header,
+.portfolio-mini-preview .portfolio-renderer-thumbnails {
+  display: none !important;
+}
+.portfolio-mini-preview .portfolio-renderer-canvas {
+  padding: 0 !important;
+  width: 1120px !important;
+  height: 630px !important;
+  max-height: 630px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.portfolio-mini-preview .portfolio-renderer-canvas > * {
+  width: 1120px !important;
+  max-width: 1120px !important;
+  min-width: 1120px !important;
+  flex: 0 0 auto !important;
+}
+
+/* pdf-host 는 평소엔 화면에 안 보이도록 숨김 (인쇄 시 portal 된 print-deck 만 보임) */
+@media screen {
+  .portfolio-renderer-pdf-host {
+    position: fixed !important;
+    top: -99999px !important;
+    left: -99999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+  }
+  /* print-deck 도 평소엔 숨김 — body 직계로 portal 되어 있음 */
+  body > .portfolio-renderer-print-deck {
+    display: none !important;
+  }
+}
+
+@page {
+  size: 297mm 167mm; /* 16:9 — A4 가로 폭에 맞춰 자른 형태 */
+  margin: 0;
+}
+
+@media print {
+  /* 인쇄 시 — html/body 의 sizing 제한 제거 */
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* body 직계 자식 중 print-deck 만 보임. 다른 건 display:none 으로 layout 공간 완전히 제거.
+     visibility:hidden 만 쓰면 공간이 남아서 빈 페이지가 잔뜩 생김. */
+  body > *:not(.portfolio-renderer-print-deck) {
+    display: none !important;
+  }
+  body > .portfolio-renderer-print-deck {
+    display: block !important;
+    position: static !important;
+    width: 297mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    visibility: visible !important;
+    overflow: visible !important;
+  }
+
+  /* 각 슬라이드 = PDF 한 페이지. block flow + page-break 둘 다 지정 (브라우저별) */
+  .portfolio-renderer-print-page {
+    display: block !important;
+    width: 297mm !important;
+    height: 167mm !important;
+    max-height: 167mm !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    break-after: page !important;
+    break-inside: avoid !important;
+    position: relative !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .portfolio-renderer-print-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* 각 슬라이드 안 renderer-shell — chrome 제거 + 페이지 크기 강제 */
+  .portfolio-renderer-print-page .portfolio-renderer-shell {
+    min-height: 0 !important;
+    width: 297mm !important;
+    height: 167mm !important;
+    background: white !important;
+    background-image: none !important;
+  }
+  .portfolio-renderer-print-page .portfolio-renderer-shell > div {
+    min-height: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    width: 297mm !important;
+    height: 167mm !important;
+  }
+  /* 헤더 / 썸네일은 hideHeader/hideThumbnails props 로도 빠지지만 안전망 */
+  .portfolio-renderer-print-page header,
+  .portfolio-renderer-print-page .portfolio-renderer-thumbnails {
+    display: none !important;
+  }
+  /* 슬라이드 캔버스 = 페이지 전체 */
+  .portfolio-renderer-print-page .portfolio-renderer-canvas {
+    padding: 0 !important;
+    width: 297mm !important;
+    height: 167mm !important;
+    max-height: 167mm !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+  }
+  /* 슬라이드 컨테이너 — 1120×630 디자인 그대로. 페이지 크기와 거의 일치 */
+  .portfolio-renderer-print-page .portfolio-renderer-canvas > * {
+    width: 1120px !important;
+    max-width: 1120px !important;
+    min-width: 1120px !important;
+    flex: 0 0 auto !important;
+  }
 }
 
 /* "전체화면 종료" 떠 있는 작은 버튼 — 마우스 hover 시 우상단에 살짝 보임 */

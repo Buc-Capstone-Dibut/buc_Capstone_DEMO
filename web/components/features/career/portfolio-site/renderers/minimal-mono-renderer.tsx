@@ -46,6 +46,7 @@ export function MinimalMonoRenderer({
   hideThumbnails,
   disableKeyboardNav,
   includeHiddenPages,
+  onPrintRequest,
 }: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
@@ -68,6 +69,7 @@ export function MinimalMonoRenderer({
       hideHeader={hideHeader}
       hideThumbnails={hideThumbnails}
       disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className="relative w-full border bg-white"
