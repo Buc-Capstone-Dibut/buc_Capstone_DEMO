@@ -177,23 +177,38 @@ export async function POST(
         .join("\n")}\n`
     : "";
 
-  // 활성 페이지 + 모든 블록 컨텍스트 (블록 ops 결정에 필요)
+  // 활성 페이지 + 모든 블록 컨텍스트 (블록 ops 결정에 필요).
+  // AI 가 "X 빼" 같은 요청을 처리하려면 X 의 위치 (emphasis vs items) 를 알아야 함.
+  // 그래서 각 block 의 items 전체 + content/caption 전체를 노출 (적당히 truncate).
   const activePageBlocks = activePage
     ? activePage.blocks.map((b) => ({
         id: b.id,
         type: b.type,
         label: b.label,
         value: b.value,
-        preview:
-          b.content?.slice(0, 60) ||
-          (Array.isArray(b.items) ? b.items.slice(0, 3).join(" / ") : "") ||
-          b.caption,
+        caption: b.caption,
+        content: b.content ? b.content.slice(0, 200) : undefined,
+        items: Array.isArray(b.items) ? b.items.slice(0, 12) : undefined,
       }))
     : [];
 
   const activePageAllowedBlockTypes = activePage
     ? PAGE_TYPE_BLOCKS[activePage.type] || []
     : [];
+
+  // 활성 페이지의 페이지 단위 텍스트 필드 — emphasis 가 여기에 있어야 AI 가 "키워드 X 빼" 처리 가능
+  const activePageTextFields = activePage
+    ? {
+        title: activePage.title,
+        subtitle: activePage.subtitle,
+        eyebrow: activePage.eyebrow,
+        intent: activePage.intent,
+        narrative: activePage.narrative
+          ? activePage.narrative.slice(0, 300)
+          : undefined,
+        emphasis: activePage.emphasis || [],
+      }
+    : null;
 
   const prompt = `너는 한국 채용용 웹 슬라이드 포트폴리오 편집 어시스턴트다.
 사용자의 한국어 명령을 분석해 patches 배열로 응답한다.
@@ -241,7 +256,24 @@ ${Object.entries(PAGE_TYPE_BLOCKS)
 - 사용자가 "줄여줘", "더 짧게" 같은 톤 명령이면 narrative/subtitle 등 글자 줄이기.
 - 사실 없는 정보는 만들지 않는다. 모르는 수치/회사는 빈칸 유지.
 - emphasis 는 문자열 배열만.
-- 사용자가 "이 페이지에 metric 추가" 같이 말하면 → add_block, type=metric, label/value 는 사용자 의도 추측 (없으면 빈 값. 사용자가 직접 채울 것).
+
+[⭐ "X 항목 빼" / "X 빼줘" 처리 가이드 — 가장 흔한 케이스]
+사용자가 특정 텍스트 항목을 제거하라고 할 때 — X 가 어디 있는지 *컨텍스트에서 정확히 찾고* 그 위치에 맞는 op 사용:
+
+1. X 가 활성 페이지의 emphasis 배열에 있으면:
+   → patch_page, fields: { emphasis: [현재 배열에서 X 제외한 새 배열 전체] }
+
+2. X 가 어떤 block 의 items 배열에 있으면 (flow/timeline/matrix/tags):
+   → update_block_items, blockId: <그 block id>, items: [현재 items 에서 X 제외한 새 배열]
+
+3. X 가 어떤 block 의 label/value/content 자체이면:
+   → 블록 통째로 삭제 의도이면 delete_block
+
+⚠️ "X 빼" 요청에서 patches 가 비어 있으면 안 됨. 아래 컨텍스트의 emphasis 와 모든 block.items 를 *반드시 모두 훑어* X 를 찾을 것.
+만약 모든 곳을 봐도 X 가 없으면 reply 에 "X 항목을 못 찾았어요" 라고 명시.
+
+[기타 op 예시]
+- 사용자가 "이 페이지에 metric 추가" 같이 말하면 → add_block, type=metric, label/value 는 사용자 의도 추측 (없으면 빈 값).
 - 사용자가 "callout 빼" → delete_block, 활성 페이지의 첫 callout 블록 id.
 - 사용자가 "흐름 4단계로 정리" → update_block_items, 활성 페이지의 flow 블록의 items 를 4개로.
 
@@ -250,6 +282,7 @@ ${activePage ? JSON.stringify({
   id: activePage.id,
   type: activePage.type,
   title: activePage.title,
+  텍스트필드: activePageTextFields,
   허용블록타입: activePageAllowedBlockTypes,
   현재블록수: activePage.blocks.length,
   blocks: activePageBlocks,

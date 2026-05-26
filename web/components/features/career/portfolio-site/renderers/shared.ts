@@ -26,6 +26,45 @@ export type RendererProps = {
   onPrintRequest?: () => void;
 };
 
+/**
+ * 텍스트 길이 기반 자동 font-size — AI 가 생성한 긴 title/narrative 가
+ * 거대한 폰트로 그려져 슬라이드 깨지는 문제 방지.
+ * 짧은 텍스트는 원래 디자인 의도대로 큰 폰트, 긴 텍스트는 자동 축소.
+ */
+export function fluidTitleSize(
+  text?: string,
+  base = 52,
+  mid = 40,
+  small = 32,
+  tiny = 26,
+): number {
+  const len = (text || "").length;
+  // 공격적 thresholds — 20자 넘으면 빠르게 축소 (이전 35/55/80 은 너무 느슨해서
+  // 37자 텍스트가 mid 폰트로 여전히 큼)
+  if (len > 60) return tiny;
+  if (len > 35) return small;
+  if (len > 18) return mid;
+  return base;
+}
+
+export function fluidNarrativeSize(
+  text?: string,
+  base = 17,
+  mid = 15,
+  small = 14,
+  tiny = 13,
+): number {
+  const len = (text || "").length;
+  if (len > 240) return tiny;
+  if (len > 160) return small;
+  if (len > 90) return mid;
+  return base;
+}
+
+export function fluidLeading(text?: string, base = 1.04, longer = 1.18): number {
+  return (text || "").length > 35 ? longer : base;
+}
+
 export const PAGE_LABEL: Record<PortfolioSitePageType, string> = {
   cover: "표지",
   profile: "프로필",

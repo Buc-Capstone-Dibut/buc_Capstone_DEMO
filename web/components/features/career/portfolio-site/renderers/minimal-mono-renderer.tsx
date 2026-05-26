@@ -26,6 +26,8 @@ import {
   plainText,
   textBlocks,
   timelineItems,
+  fluidTitleSize,
+  fluidLeading,
   type RendererProps,
 } from "./shared";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderer-shell";
@@ -140,7 +142,13 @@ function CoverSlide({ page }: { page: PortfolioSitePage }) {
             fieldKey="intent"
           />
         </p>
-        <h1 className="mt-4 break-keep text-[52px] font-black leading-[1.02] tracking-tight">
+        <h1
+          className="mt-4 break-keep font-black tracking-tight"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 52, 42, 34, 28)}px`,
+            lineHeight: fluidLeading(page.title, 1.02, 1.18),
+          }}
+        >
           <EditableText
             value={page.title}
             onChange={(v) => patch(["title"], v)}
@@ -239,7 +247,10 @@ function ProfileSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1fr] gap-12">
       <div className="flex flex-col justify-center">
-        <h2 className="break-keep text-[44px] font-black leading-tight tracking-tight">
+        <h2
+          className="break-keep font-black leading-tight tracking-tight"
+          style={{ fontSize: `${fluidTitleSize(page.title, 44, 36, 30, 26)}px` }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
         </h2>
         <p className="mt-5 whitespace-pre-line break-keep text-[15px] font-medium leading-7" style={{ color: TEXT }}>
@@ -282,7 +293,10 @@ function SkillsSlide({ page }: { page: PortfolioSitePage }) {
   return (
     <div className="grid h-full grid-cols-[1fr_1.4fr] gap-12">
       <div className="flex flex-col justify-center">
-        <h2 className="break-keep text-[40px] font-black leading-tight tracking-tight">
+        <h2
+          className="break-keep font-black leading-tight tracking-tight"
+          style={{ fontSize: `${fluidTitleSize(page.title, 40, 34, 28, 24)}px` }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
         </h2>
         <p className="mt-5 whitespace-pre-line break-keep text-[14px] font-medium leading-7" style={{ color: MUTED }}>
@@ -319,7 +333,10 @@ function IndexSlide({ page }: { page: PortfolioSitePage }) {
         .map((value) => ({ value, onChange: undefined as ((v: string) => void) | undefined }));
   return (
     <div className="flex h-full flex-col gap-8">
-      <h2 className="break-keep text-[40px] font-black leading-tight tracking-tight">
+      <h2
+        className="break-keep font-black leading-tight tracking-tight"
+        style={{ fontSize: `${fluidTitleSize(page.title, 40, 34, 28, 24)}px` }}
+      >
         <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
       </h2>
       <div className="grid flex-1 grid-cols-3 gap-6">
@@ -466,7 +483,13 @@ function ContactSlide({ page }: { page: PortfolioSitePage }) {
         <p className="text-[11px] font-bold uppercase tracking-[0.28em]" style={{ color: ACCENT }}>
           <EditableText value={page.eyebrow} onChange={(v) => patch(["eyebrow"], v)} maxLength={40} placeholder="CONTACT" fieldKey="eyebrow" />
         </p>
-        <h1 className="mt-5 break-keep text-[48px] font-black leading-[1.05] tracking-tight">
+        <h1
+          className="mt-5 break-keep font-black tracking-tight"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 48, 40, 32, 26)}px`,
+            lineHeight: fluidLeading(page.title, 1.05, 1.18),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={80} placeholder="제목" fieldKey="title" />
         </h1>
         <p className="mt-7 whitespace-pre-line break-keep text-[16px] font-medium leading-8" style={{ color: TEXT }}>

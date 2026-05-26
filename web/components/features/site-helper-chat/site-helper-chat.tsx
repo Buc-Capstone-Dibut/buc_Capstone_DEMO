@@ -263,7 +263,9 @@ export function SiteHelperChat() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="fixed bottom-24 right-4 z-40 md:bottom-6 md:right-6">
+      {/* z-[145] — 편집기 로딩 오버레이(z-[140]) 위에도 캐릭터가 보이게.
+          백그라운드 작업 toast 가 캐릭터 위에 뜨는 자연스러운 흐름. */}
+      <div className="fixed bottom-24 right-4 z-[145] md:bottom-6 md:right-6">
         {open && (
           <section
             className={cn(

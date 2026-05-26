@@ -29,7 +29,6 @@ import { Input } from "@/components/ui/input";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
   getPortfolioPagePreset,
-  getPortfolioTemplate,
   normalizePortfolioDocument,
   withPortfolioSampleImages,
   type PortfolioAsset,
@@ -53,7 +52,6 @@ import {
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
-import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import { PortfolioSiteAiChat, type AiPatch } from "./portfolio-site-ai-chat";
@@ -961,17 +959,6 @@ export function PortfolioEditorClient({
               onChange={(nextId) =>
                 setDocument((current) => ({ ...current, rendererId: nextId }))
               }
-            />
-            <TemplatePicker
-              templateId={document.templateId}
-              onChange={(nextId) => {
-                const nextTemplate = getPortfolioTemplate(nextId);
-                setDocument((current) => ({
-                  ...current,
-                  templateId: nextId,
-                  theme: nextTemplate.theme,
-                }));
-              }}
             />
             <span className="h-6 w-px bg-[#d8e4d0]" />
             {publicUrl ? (

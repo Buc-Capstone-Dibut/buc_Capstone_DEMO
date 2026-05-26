@@ -12,7 +12,9 @@
  *     - 한국어 IME composition 이벤트 정확히 처리
  *     - Enter (single) / Shift+Enter (multi) commit · Esc cancel · blur commit
  *  4. **저장**: onChange 호출 → 부모가 document 업데이트. 부모는 debounce 자동 저장.
- *  5. **truncate (보기)**: maxLength 가 있으면 view 모드에서 `…` 으로 자름. 편집 시 전체.
+ *  5. **maxLength**: 편집 시 추천 길이 hint (실제로 자르진 않음). View 모드에서도
+ *     "…" 으로 자르지 않고 글자 그대로 표시 — fluidTitleSize 로 폰트가 자동 축소되고
+ *     정말 길면 부모 컨테이너의 overflow 가 처리. ("…" 가 어색해 보인다는 피드백 반영)
  */
 
 import {
@@ -142,13 +144,9 @@ export function useItemsSourceOrFallback(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// 텍스트 truncate (보기 모드에서만)
+// (이전엔 truncate 로 "..." 표시했지만 어색해 보여서 제거.
+//  view 모드는 글자 그대로 표시, fluidTitleSize 가 폰트 자동 축소.)
 // ──────────────────────────────────────────────────────────────────────────
-
-function truncate(text: string, max?: number): string {
-  if (!max || text.length <= max) return text;
-  return `${text.slice(0, max).trim()}…`;
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 // EditableText — 인라인 편집 가능한 한 줄 텍스트 (또는 narrative 같은 멀티라인)
@@ -173,7 +171,7 @@ export type EditableTextProps = {
 export function EditableText({
   value,
   onChange,
-  maxLength,
+  // maxLength 는 prop 으로 받지만 view truncate 가 제거되어 더 이상 사용 안 함 (hint 만)
   multiline,
   placeholder,
   className,
@@ -207,10 +205,9 @@ export function EditableText({
 
   // ─── View 전용 모드 (편집기 아님) ───
   if (!enabled) {
-    const shown = truncate(value || "", maxLength);
     return (
       <span className={className} style={style} data-field-key={fieldKey}>
-        {shown}
+        {value || ""}
       </span>
     );
   }
@@ -280,7 +277,7 @@ export function EditableText({
 
   // ─── 호버 가능 상태 (편집 활성, 아직 클릭 안 함) ───
   const display = value || "";
-  const shown = truncate(display, maxLength);
+  const shown = display;
   const empty = !display.trim();
 
   return (
