@@ -29,6 +29,8 @@ import { seedCareerSampleDataAction } from "../sample-data/actions";
 import type { UnifiedPortfolioItem } from "./types";
 import { PortfolioPdfPrinter } from "@/components/features/career/portfolio-editor/portfolio-pdf-printer";
 import { PortfolioLivePreview } from "@/components/features/career/portfolio-editor/portfolio-live-preview";
+import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
+import { toast } from "sonner";
 
 type PortfoliosClientProps = {
   initialPortfolios: UnifiedPortfolioItem[];
@@ -183,6 +185,11 @@ export default function PortfoliosClient({
 }: PortfoliosClientProps) {
   const router = useRouter();
   const [portfolios, setPortfolios] = useState(initialPortfolios);
+  // router.refresh() 후 서버에서 새 props 가 흘러오면 client state 동기화 — 안 그러면
+  // useState 가 초기값에 갇혀서 "생성 중" 배지가 계속 보임.
+  useEffect(() => {
+    setPortfolios(initialPortfolios);
+  }, [initialPortfolios]);
   const [selectedId, setSelectedId] = useState(initialPortfolios[0]?.id || "");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"recent" | "title">("recent");
@@ -191,6 +198,11 @@ export default function PortfoliosClient({
   const [busyExportId, setBusyExportId] = useState<string | null>(null);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
   const [copiedPortfolioId, setCopiedPortfolioId] = useState<string | null>(null);
+  // 백그라운드 작업 활성 portfolio id 집합 — 리스트 카드에 "생성 중" 배지 표시용.
+  // selector 에서 Object.keys() 하면 매 렌더마다 새 array → Zustand re-render 무한루프.
+  // raw 객체를 받아 컴포넌트에서 keys 계산.
+  const activeJobsMap = useBackgroundJobsStore((s) => s.activeJobs);
+  const activeJobIds = useMemo(() => Object.keys(activeJobsMap), [activeJobsMap]);
   const [isSeedingSample, setIsSeedingSample] = useState(false);
   const hasSourceData =
     sourceStats.projects + sourceStats.workExperiences + sourceStats.skills > 0;
@@ -469,6 +481,9 @@ export default function PortfoliosClient({
             ) : (
               filteredPortfolios.map((portfolio) => {
                 const isActive = selectedPortfolio?.id === portfolio.id;
+                const isGenerating =
+                  portfolio.legacy?.generationStatus === "running" ||
+                  activeJobIds.includes(portfolio.id);
                 const subtitleText =
                   portfolio.kind === "showcase"
                     ? portfolio.showcase?.templateLabel || "디자인 템플릿"
@@ -499,12 +514,20 @@ export default function PortfoliosClient({
                       >
                         {portfolio.title || "(제목 없음)"}
                       </h3>
-                      <Badge
-                        variant={portfolio.isPublic ? "default" : "secondary"}
-                        className="shrink-0 rounded-full text-[10px]"
-                      >
-                        {portfolio.isPublic ? "공개" : "비공개"}
-                      </Badge>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {isGenerating ? (
+                          <Badge className="rounded-full border-amber-200 bg-amber-50 text-[10px] font-bold text-amber-700">
+                            <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
+                            생성 중
+                          </Badge>
+                        ) : null}
+                        <Badge
+                          variant={portfolio.isPublic ? "default" : "secondary"}
+                          className="rounded-full text-[10px]"
+                        >
+                          {portfolio.isPublic ? "공개" : "비공개"}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <PortfolioTypeBadge item={portfolio} />
@@ -718,6 +741,38 @@ function PortfolioDetail({
 }) {
   const sourceProjects = getProjectSummaries(portfolio);
   const isUrlCopied = copiedPortfolioId === portfolio.id;
+
+  // ─── 백그라운드 생성 상태 ───
+  // generationStatus="running" 이거나 store 의 activeJobs 에 있으면 진행 중으로 간주
+  const activeJob = useBackgroundJobsStore((s) => s.activeJobs[portfolio.id]);
+  const removeActiveJob = useBackgroundJobsStore((s) => s.removeActive);
+  const isGenerating = portfolio.generationStatus === "running" || Boolean(activeJob);
+  const [cancelling, setCancelling] = useState(false);
+  const router = useRouter();
+
+  const handleCancelGeneration = async () => {
+    if (!confirm("생성 중인 작업을 취소할까요?")) return;
+    setCancelling(true);
+    try {
+      const response = await fetch(`/api/career/portfolios/${portfolio.id}/cancel`, {
+        method: "POST",
+      });
+      if (response.status === 409) {
+        toast.info("이미 완료된 작업이에요");
+      } else if (!response.ok) {
+        throw new Error("취소 실패");
+      } else {
+        toast.success("작업이 취소됐어요");
+      }
+      removeActiveJob(portfolio.id);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "취소 중 오류");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const previewPages =
     portfolio.publicSummary.previewPages?.length
       ? portfolio.publicSummary.previewPages
@@ -734,12 +789,42 @@ function PortfolioDetail({
 
   return (
     <div className="flex h-full flex-col animate-in fade-in">
+      {/* 생성 중 배너 — 진행 중일 때만 표시 */}
+      {isGenerating ? (
+        <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-6 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-600" />
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-bold text-amber-800">
+                백그라운드에서 생성 중
+                {activeJob?.stage?.label ? (
+                  <span className="ml-1.5 font-medium text-amber-700">
+                    · {activeJob.stage.label}
+                  </span>
+                ) : null}
+              </p>
+              <p className="text-[11px] font-medium text-amber-700/80">
+                완료되면 알림으로 알려드려요
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleCancelGeneration}
+            disabled={cancelling}
+            className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2.5 text-[11px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+          >
+            {cancelling ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            취소
+          </button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 px-6 py-3">
         <div className="group relative shrink-0">
           <button
             type="button"
             onClick={() => onTogglePublish(portfolio)}
-            disabled={busyPublishId === portfolio.id}
+            disabled={busyPublishId === portfolio.id || isGenerating}
             aria-label={portfolio.isPublic ? "포트폴리오 비공개로 전환" : "포트폴리오 공개하기"}
             className={cn(
               "flex h-8 w-[116px] items-center justify-between rounded-lg border px-2.5 text-[12px] font-semibold transition-colors disabled:opacity-60",
@@ -794,8 +879,8 @@ function PortfolioDetail({
         </button>
         <button
           onClick={() => onExportPdf(portfolio)}
-          disabled={busyExportId === portfolio.id}
-          title="PDF 다운로드 (브라우저 인쇄 → PDF로 저장)"
+          disabled={busyExportId === portfolio.id || isGenerating}
+          title={isGenerating ? "생성 완료 후 가능합니다" : "PDF 다운로드 (브라우저 인쇄 → PDF로 저장)"}
           aria-label="PDF 다운로드"
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
         >
@@ -808,8 +893,8 @@ function PortfolioDetail({
         </button>
         <button
           onClick={() => onDelete(portfolio)}
-          disabled={busyDeleteId === portfolio.id}
-          title="포트폴리오 삭제"
+          disabled={busyDeleteId === portfolio.id || isGenerating}
+          title={isGenerating ? "생성 완료 후 가능합니다" : "포트폴리오 삭제"}
           aria-label="포트폴리오 삭제"
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60"
         >

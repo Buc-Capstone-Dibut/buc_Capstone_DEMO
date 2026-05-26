@@ -58,6 +58,8 @@ import { RendererPicker } from "./renderer-picker";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import { PortfolioSiteAiChat, type AiPatch } from "./portfolio-site-ai-chat";
 import { PortfolioPdfPrinter } from "./portfolio-pdf-printer";
+import { toast } from "sonner";
+import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -1022,7 +1024,7 @@ export function PortfolioEditorClient({
               editingEnabled={!generation.active}
               onPatchActivePage={patchActivePage}
             />
-            <GenerationStatusOverlay generation={generation} document={document} />
+            <GenerationStatusOverlay generation={generation} document={document} portfolioId={portfolio.id} portfolioTitle={title || portfolio.title} />
           </main>
         </div>
         <PortfolioSiteAiChat
@@ -1152,7 +1154,7 @@ export function PortfolioEditorClient({
             </div>
           </div>
 
-          <GenerationStatusOverlay generation={generation} document={document} />
+          <GenerationStatusOverlay generation={generation} document={document} portfolioId={portfolio.id} portfolioTitle={title || portfolio.title} />
 
           <SlideThumbnailStrip
             document={document}
@@ -1183,10 +1185,41 @@ function getGenerationProgress(generation: GenerationState) {
 function GenerationStatusOverlay({
   generation,
   document,
+  portfolioId,
+  portfolioTitle,
 }: {
   generation: GenerationState;
   document: PortfolioDocument;
+  portfolioId: string;
+  portfolioTitle: string;
 }) {
+  const router = useRouter();
+  const startJob = useBackgroundJobsStore((s) => s.startJob);
+  const canStartMore = useBackgroundJobsStore((s) => s.canStartMore);
+
+  const handleSendToBackground = () => {
+    if (!canStartMore() && !useBackgroundJobsStore.getState().activeJobs[portfolioId]) {
+      toast.warning("동시 백그라운드 작업은 3개까지만 가능해요", {
+        description: "다른 작업이 끝나면 다시 시도해주세요",
+      });
+      return;
+    }
+    const ok = startJob({
+      portfolioId,
+      title: portfolioTitle || "포트폴리오",
+      format: document.format || "site",
+      startedAt: new Date().toISOString(),
+      stage: { label: generation.stage || "생성 중", progress: getGenerationProgress(generation) },
+    });
+    if (!ok) {
+      toast.warning("동시 백그라운드 작업은 3개까지만 가능해요");
+      return;
+    }
+    toast.success("백그라운드에서 계속 생성합니다", {
+      description: "사이트 도우미 위젯에서 진행 상황을 확인할 수 있어요",
+    });
+    router.push("/career/portfolios");
+  };
   if (!generation.active && !generation.error && generation.stage !== "AI 생성 완료") return null;
   const completed = generation.stage === "AI 생성 완료" && !generation.error;
   const progress = getGenerationProgress(generation);
@@ -1333,6 +1366,22 @@ function GenerationStatusOverlay({
                 ) : (
                   <Check className="h-4 w-4 text-primary" />
                 )}
+              </div>
+            ) : null}
+
+            {/* 백그라운드 모드 진입 — 생성 중일 때만 노출 (에러/완료 아님) */}
+            {generation.active && !generation.error && !completed ? (
+              <div className="mt-4 border-t border-[#e6ede0] pt-4">
+                <button
+                  type="button"
+                  onClick={handleSendToBackground}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#d8e4d0] bg-white px-4 py-2.5 text-[12.5px] font-bold text-slate-700 transition hover:border-primary/40 hover:bg-[#f8faf5] hover:text-primary"
+                >
+                  백그라운드에서 계속하기
+                </button>
+                <p className="mt-2 text-center text-[11px] font-medium leading-5 text-slate-400">
+                  사이트 도우미 위젯에서 진행 상황을 확인하고, 완료되면 알림으로 알려드려요
+                </p>
               </div>
             ) : null}
           </div>

@@ -14,13 +14,20 @@ import {
 import {
   ArrowRight,
   Bot,
+  Briefcase,
   Loader2,
+  MessageSquare,
   RotateCcw,
   Send,
   Square,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BackgroundJobsPanel } from "@/components/features/career/background-jobs/background-jobs-panel";
+import {
+  useBackgroundJobsStore,
+  useVisibleCompletedJobs,
+} from "@/components/features/career/background-jobs/use-background-jobs-store";
 import {
   Tooltip,
   TooltipContent,
@@ -76,8 +83,26 @@ function getSourceHint(source: SiteHelperSource) {
 export function SiteHelperChat() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"chat" | "tasks">("chat");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // 백그라운드 작업 카운트 — 탭 배지 / 닫힌 위젯 dot 용
+  const activeJobsCount = useBackgroundJobsStore(
+    (s) => Object.keys(s.activeJobs).length,
+  );
+  const completedJobs = useVisibleCompletedJobs();
+  const totalTaskCount = activeJobsCount + completedJobs.length;
+
+  // 새 작업이 생기면 자동으로 작업 탭 열어주고 위젯 열기 (toast 와 별도로 직관적 피드백)
+  const previousActiveCountRef = useRef(activeJobsCount);
+  useEffect(() => {
+    if (activeJobsCount > previousActiveCountRef.current && !open) {
+      // 작업 늘었지만 위젯 닫혀 있음 → 그대로. (toast 가 알림 역할)
+      // 자동 오픈은 의도와 어긋날 수 있으므로 비활성. 사용자가 직접 열면 작업 탭으로 가도록만 처리.
+    }
+    previousActiveCountRef.current = activeJobsCount;
+  }, [activeJobsCount, open]);
   const [isStreaming, setIsStreaming] = useState(false);
   // 한 번 호버해서 링이 가득 차면 이후엔 다시 애니메이션이 돌지 않도록 잠금
   const [ringFilledOnce, setRingFilledOnce] = useState(false);
@@ -297,6 +322,58 @@ export function SiteHelperChat() {
               </div>
             </div>
 
+            {/* 탭 — 채팅 / 백그라운드 작업 */}
+            <div className="flex shrink-0 items-center gap-0.5 border-b border-neutral-200 px-2">
+              <button
+                type="button"
+                onClick={() => setTab("chat")}
+                className={cn(
+                  "relative flex h-9 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-bold transition",
+                  tab === "chat"
+                    ? "text-primary"
+                    : "text-neutral-500 hover:text-neutral-700",
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                채팅
+                {tab === "chat" ? (
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+                ) : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("tasks")}
+                className={cn(
+                  "relative flex h-9 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-bold transition",
+                  tab === "tasks"
+                    ? "text-primary"
+                    : "text-neutral-500 hover:text-neutral-700",
+                )}
+              >
+                <Briefcase className="h-3.5 w-3.5" />
+                작업
+                {totalTaskCount > 0 ? (
+                  <span
+                    className={cn(
+                      "ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-black tabular-nums",
+                      activeJobsCount > 0
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-neutral-100 text-neutral-500",
+                    )}
+                  >
+                    {totalTaskCount}
+                  </span>
+                ) : null}
+                {tab === "tasks" ? (
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+                ) : null}
+              </button>
+            </div>
+
+            {tab === "tasks" ? (
+              <BackgroundJobsPanel onClose={() => setOpen(false)} />
+            ) : (
+            <>
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {messages.length === 0 ? (
                 <div className="space-y-4">
@@ -467,6 +544,8 @@ export function SiteHelperChat() {
                 사이트 안내 전용입니다. 개인 문서나 워크스페이스 내용은 읽지 않습니다.
               </p>
             </form>
+            </>
+            )}
           </section>
         )}
 
@@ -507,6 +586,15 @@ export function SiteHelperChat() {
                   <X className="h-3.5 w-3.5" />
                 </span>
               )}
+              {/* 진행 중 백그라운드 작업 dot — 위젯 닫혀 있을 때만 */}
+              {!open && activeJobsCount > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1 top-1 z-20 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-amber-500 px-1 text-[10px] font-black tabular-nums text-white shadow-md"
+                >
+                  {activeJobsCount}
+                </span>
+              ) : null}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="left">Dibut 사이트 도우미</TooltipContent>
