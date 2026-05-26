@@ -322,7 +322,10 @@ export function CommentSection({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {canAcceptAnswer && !comment.is_accepted && (
+                    {/* 채택 버튼 — 자기 자신 댓글은 채택 불가 (악용 방지) */}
+                    {canAcceptAnswer &&
+                      !comment.is_accepted &&
+                      comment.author_id !== currentUserId && (
                       <Button
                         type="button"
                         variant="outline"
@@ -468,7 +471,10 @@ export function CommentSection({
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          {canAcceptAnswer && !reply.is_accepted && (
+                          {/* 채택 버튼 — 자기 자신 답글은 채택 불가 */}
+                          {canAcceptAnswer &&
+                            !reply.is_accepted &&
+                            reply.author_id !== currentUserId && (
                             <Button
                               type="button"
                               variant="outline"

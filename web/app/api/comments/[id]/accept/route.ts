@@ -92,6 +92,14 @@ export async function POST(
       );
     }
 
+    // 자기 자신 댓글은 채택 불가 (악용 방지 + 자기 평판 부풀리기 방지)
+    if (targetComment.author_id === session.user.id) {
+      return NextResponse.json(
+        { error: "본인이 작성한 답변은 채택할 수 없습니다." },
+        { status: 403 },
+      );
+    }
+
     const existingAccepted = await prisma.comments.findFirst({
       where: {
         post_id: post.id,
@@ -124,11 +132,8 @@ export async function POST(
         },
       });
 
-      // Self-accept is allowed functionally, but no reputation is granted.
-      if (
-        targetComment.author_id &&
-        targetComment.author_id !== session.user.id
-      ) {
+      // 위에서 self-accept 는 이미 차단됨 — 여기는 항상 author !== actor
+      if (targetComment.author_id) {
         await tryApplyReputationEvent({
           tx,
           userId: targetComment.author_id,
