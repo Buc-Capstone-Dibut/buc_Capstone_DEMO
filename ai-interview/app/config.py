@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         alias="VOICE_VAD_SHORT_UTTERANCE_SILENCE_MS",
     )
     voice_max_segment_ms: int = Field(default=24000, alias="VOICE_MAX_SEGMENT_MS")
+    # 수동 턴 모드 — True 면 사용자가 "전송" 누를 때까지 자동 종료 안 함.
+    # max_segment_ms 안전망은 유지 (너무 길면 강제 끊기). 기본 True (사용자 요구).
+    voice_manual_turn_mode: bool = Field(default=True, alias="VOICE_MANUAL_TURN_MODE")
+    # 수동 모드의 max_segment 안전망 — 기본 단일 segment 기준 너무 짧으면 long 발화 잘림
+    voice_manual_max_segment_ms: int = Field(default=180000, alias="VOICE_MANUAL_MAX_SEGMENT_MS")
     voice_turn_end_grace_ms: int = Field(default=90, alias="VOICE_TURN_END_GRACE_MS")
     voice_short_answer_max_duration_ms: int = Field(
         default=2400,
