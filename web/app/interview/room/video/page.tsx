@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
-import { TalkingHeadInterviewer } from "@/components/features/interview/avatar/talking-head-interviewer";
+import dynamic from "next/dynamic";
 import {
   buildInterviewResultPath,
   shouldRouteToSetupOnReconnectTimeout,
@@ -149,6 +149,17 @@ const mergeCommittedUserCaption = (
     provider: provider || previousProvider || prev?.provider,
   };
 };
+
+// The TalkingHead avatar (Three.js/WebGL @met4citizen/talkinghead) only matters
+// once the interview UI is shown. Load the wrapper client-side so it's not in
+// the video route's initial JS / hydration path. ssr:false — WebGL is client-only.
+const TalkingHeadInterviewer = dynamic(
+  () =>
+    import("@/components/features/interview/avatar/talking-head-interviewer").then(
+      (m) => m.TalkingHeadInterviewer,
+    ),
+  { ssr: false },
+);
 
 export default function InterviewVideoRoomPage() {
   const router = useRouter();

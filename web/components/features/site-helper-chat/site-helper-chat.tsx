@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import {
   FormEvent,
   KeyboardEvent,
@@ -54,6 +54,11 @@ const HIDDEN_PATH_PREFIXES = [
   // 공개 포트폴리오 페이지(/p/...)는 standalone — 도우미 chat 숨김
   "/p/",
 ];
+
+// react-markdown + its unified/remark/micromark pipeline (~50KB gz) was pulled
+// into the global bundle because this chat mounts in the root layout. Load it
+// only when a markdown message actually renders. ssr:false — client-only chat.
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
 function createMessageId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
