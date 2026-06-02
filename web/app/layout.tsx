@@ -11,6 +11,7 @@ import Script from "next/script";
 import { AppSWRProvider } from "@/components/providers/swr-provider";
 import { VoiceManager } from "@/components/features/workspace/voice/voice-manager";
 import { SiteHelperChat } from "@/components/features/site-helper-chat/site-helper-chat";
+import { BackgroundJobsRunner } from "@/components/features/career/background-jobs/background-jobs-runner";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dibut.dev";
 
@@ -140,6 +141,7 @@ export default function RootLayout({
                 <div className="flex flex-1 flex-col">{children}</div>
                 <GlobalMobileNav />
                 <SiteHelperChat />
+                <BackgroundJobsRunner />
               </div>
             </VoiceManager>
             <Toaster />

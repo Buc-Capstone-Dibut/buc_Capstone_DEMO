@@ -13,7 +13,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircle, Send, Sparkles, Undo2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PortfolioSitePage, PortfolioSitePageType } from "@/lib/career-portfolios";
+import type {
+  PortfolioSiteBlock,
+  PortfolioSiteBlockType,
+  PortfolioSitePage,
+  PortfolioSitePageType,
+} from "@/lib/career-portfolios";
 
 export type AiPatch =
   | { op: "patch_page"; pageId: string; fields: Partial<PortfolioSitePage> }
@@ -23,7 +28,22 @@ export type AiPatch =
       op: "add_page";
       newPage: Partial<PortfolioSitePage> & { type: PortfolioSitePageType };
       insertAfterPageId?: string;
-    };
+    }
+  // ── 블록 단위 ops (v3) ─────────────────────────────────────
+  | {
+      op: "add_block";
+      pageId: string;
+      /** id 는 서버/클라이언트에서 생성 — 입력 무시 */
+      block: Omit<PortfolioSiteBlock, "id"> & { type: PortfolioSiteBlockType };
+    }
+  | { op: "delete_block"; pageId: string; blockId: string }
+  | {
+      op: "update_block_items";
+      pageId: string;
+      blockId: string;
+      items: string[];
+    }
+  | { op: "reorder_blocks"; pageId: string; blockIds: string[] };
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -59,7 +79,7 @@ export function PortfolioSiteAiChat({
     {
       role: "assistant",
       content:
-        "안녕하세요! 슬라이드를 어떻게 고치고 싶은지 한국어로 말해주세요.\n예: \"표지 톤 부드럽게\", \"마지막 페이지 숨겨\", \"프로필 narrative 줄여줘\"\n\n블록 내용 (metric/callout 등) 은 슬라이드에서 직접 클릭해 편집할 수 있어요.",
+        "안녕하세요! 슬라이드를 어떻게 고치고 싶은지 한국어로 말해주세요.\n예:\n• \"표지 톤 부드럽게\"\n• \"마지막 페이지 숨겨\"\n• \"이 페이지에 핵심 지표 카드 하나 추가해줘\"\n• \"callout 빼줘\"\n• \"흐름 단계를 4개로 정리\"\n\n블록 내용 글자는 슬라이드에서 직접 클릭해도 편집할 수 있어요.",
     },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);

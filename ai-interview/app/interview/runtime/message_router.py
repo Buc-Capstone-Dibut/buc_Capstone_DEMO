@@ -133,6 +133,15 @@ async def handle_client_message(
             )
         return
 
+    # 사용자가 "다시 말하기" 클릭 — 누적 audio buffer + 실시간 transcript 폐기, mic ON 유지
+    if msg_type == "reset-audio":
+        if not state.session_id:
+            return
+        state.vad.reset()
+        deps.reset_realtime_user_transcript(state)
+        await deps.send_json(ws, {"type": "audio-reset-ack"})
+        return
+
     if msg_type in AUDIO_END_MESSAGE_TYPES:
         if not state.session_id:
             return

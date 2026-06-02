@@ -167,6 +167,28 @@ export function useOpenLLM({
     }
   }, []);
 
+  /**
+   * 수동 턴 제어 — 사용자가 "전송" 버튼 클릭 시 호출.
+   * - 마이크 일시정지 (mic-audio-end 신호는 백엔드가 처리 시작 시 보내옴)
+   * - flush-audio 로 누적된 audio segment 종료 → 백엔드가 Gemini 에 audio_stream_end 전송
+   * - AI 응답 시작
+   */
+  const submitTurn = useCallback(() => {
+    // pauseMic(true) 이미 flush-audio 보냄
+    pauseMic(true);
+  }, [pauseMic]);
+
+  /**
+   * 다시 말하기 — 사용자가 발화 중에 "다시 말하기" 클릭 시 호출.
+   * - 백엔드의 누적 audio buffer 폐기 (reset-audio 메시지)
+   * - 마이크는 ON 상태 유지 — 사용자가 처음부터 다시 말할 수 있도록
+   */
+  const cancelTurn = useCallback(() => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "reset-audio" }));
+    }
+  }, []);
+
   const clearPendingMicRestart = useCallback(() => {
     if (pendingMicRestartTimerRef.current === null) return;
     window.clearTimeout(pendingMicRestartTimerRef.current);
@@ -800,6 +822,8 @@ export function useOpenLLM({
     prepareAudio,
     startMic,
     stopMic,
+    submitTurn,
+    cancelTurn,
     isConnected,
     isMicOn,
     isAIProcessing,

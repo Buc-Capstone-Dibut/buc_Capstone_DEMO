@@ -51,6 +51,13 @@ def _effective_turn_end_grace_sec() -> float:
 
 
 def build_vad_segmenter() -> VadSegmenter:
+    manual = bool(getattr(settings, "voice_manual_turn_mode", False))
+    # 수동 모드면 max segment 안전망만 적용 + 더 큰 max (장발화 허용)
+    max_segment = (
+        int(getattr(settings, "voice_manual_max_segment_ms", 180000))
+        if manual
+        else settings.voice_max_segment_ms
+    )
     return VadSegmenter(
         sample_rate=16000,
         threshold=_effective_voice_vad_threshold(),
@@ -59,7 +66,8 @@ def build_vad_segmenter() -> VadSegmenter:
         min_speech_ms=settings.voice_min_speech_ms,
         min_utterance_ms=_effective_voice_vad_min_utterance_ms(),
         short_utterance_silence_ms=_effective_voice_vad_short_utterance_silence_ms(),
-        max_segment_ms=settings.voice_max_segment_ms,
+        max_segment_ms=max_segment,
+        manual_mode=manual,
     )
 
 

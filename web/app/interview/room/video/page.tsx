@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, WifiOff } from "lucide-react";
+import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import dynamic from "next/dynamic";
 import {
@@ -513,6 +513,8 @@ export default function InterviewVideoRoomPage() {
     prepareAudio,
     startMic,
     stopMic,
+    submitTurn,
+    cancelTurn,
     isConnected,
     isMicOn,
     isAIProcessing,
@@ -1059,6 +1061,28 @@ export default function InterviewVideoRoomPage() {
     setStatusMessage("마이크를 활성화했습니다.");
   };
 
+  // 수동 턴 제어 — 전송: 누적된 발화를 AI 에 보냄.
+  // 빈 발화 (volume = 0 인 상태로만 누른 경우) 차단해 실수로 빈 답변 가는 거 방지.
+  const handleSubmitTurn = () => {
+    if (isReconnecting || isAISpeaking || isAIProcessing) return;
+    if (!isMicOn) return;
+    // user caption / volume / activeUserCaption 셋 다 비어 있으면 발화 없음
+    const hasSpoken = Boolean((activeUserCaption || "").trim()) || volume > 0.01;
+    if (!hasSpoken) {
+      setStatusMessage("말씀해 주신 후 전송해 주세요.");
+      return;
+    }
+    submitTurn();
+    setStatusMessage("답변을 전송했습니다.");
+  };
+
+  // 수동 턴 제어 — 다시 말하기: 누적된 발화 폐기, 마이크 ON 유지
+  const handleCancelTurn = () => {
+    if (isReconnecting) return;
+    cancelTurn();
+    setStatusMessage("다시 말씀해 주세요. 처음부터 듣고 있어요.");
+  };
+
   const handlePrimeAudio = async () => {
     if (isPrimingAudio) return;
     setIsPrimingAudio(true);
@@ -1351,17 +1375,18 @@ export default function InterviewVideoRoomPage() {
            {/* Right-Aligned Primary Buttons */}
            <div className="flex gap-2.5 items-center w-full md:w-auto justify-end">
              
-             {/* Unified Mic + Audio Status Button */}
+             {/* Unified Mic + Audio Status Button — AI 응답 중엔 비활성 (끼어들기 차단) */}
              <Button
                 size="default"
                 variant={isMicOn ? "default" : "outline"}
                 className={`h-11 px-3.5 sm:px-4 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${
-                  isMicOn 
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" 
+                  isMicOn
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent"
                     : "bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-muted border-border/60"
                 }`}
-                disabled={isReconnecting}
+                disabled={isReconnecting || isAISpeaking || isAIProcessing}
                 onClick={handleMicToggle}
+                title={isAISpeaking || isAIProcessing ? "AI 가 답변 중입니다" : (isMicOn ? "마이크 일시 중지" : "마이크 켜기")}
               >
                 {isAIProcessing ? (
                   <>
@@ -1379,13 +1404,38 @@ export default function InterviewVideoRoomPage() {
                 )}
              </Button>
 
+             {/* 답변 전송 (수동 턴 제어) — mic ON 이고 AI 응답 중이 아닐 때만 활성 */}
+             <Button
+                size="default"
+                variant="default"
+                className="h-11 rounded-xl px-3.5 sm:px-4 font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border-transparent disabled:bg-muted disabled:text-muted-foreground"
+                onClick={handleSubmitTurn}
+                disabled={!isMicOn || isAISpeaking || isAIProcessing || isReconnecting}
+                title="답변을 AI 에게 전송합니다"
+              >
+                <Send className="h-4.5 w-4.5" />
+                <span className="hidden sm:inline-block text-sm tracking-wide">전송</span>
+             </Button>
+
+             {/* 다시 말하기 — 진행 중인 발화 폐기, 마이크 계속 ON */}
+             <Button
+                size="icon"
+                variant="outline"
+                className="h-11 w-11 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0 bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-muted border-border/60 disabled:opacity-40"
+                onClick={handleCancelTurn}
+                disabled={!isMicOn || isAISpeaking || isAIProcessing || isReconnecting}
+                title="처음부터 다시 말하기"
+              >
+                <RotateCcw className="h-4.5 w-4.5" />
+             </Button>
+
              {/* CC Toggle */}
              <Button
                 size="icon"
                 variant={showCaption ? "default" : "outline"}
                 className={`h-11 w-11 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0 ${
-                  showCaption 
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-transparent' 
+                  showCaption
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-transparent'
                     : 'bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-muted border-border/60'
                 }`}
                 onClick={() => setShowCaption((prev) => !prev)}

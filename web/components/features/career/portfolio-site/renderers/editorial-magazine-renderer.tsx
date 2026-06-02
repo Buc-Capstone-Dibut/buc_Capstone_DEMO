@@ -50,6 +50,7 @@ export function EditorialMagazineRenderer({
   hideThumbnails,
   disableKeyboardNav,
   includeHiddenPages,
+  onPrintRequest,
 }: RendererProps) {
   const pages = useMemo(
     () => (document.pages || []).filter((p) => includeHiddenPages || p.visible !== false),
@@ -84,6 +85,7 @@ export function EditorialMagazineRenderer({
       hideHeader={hideHeader}
       hideThumbnails={hideThumbnails}
       disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className="relative w-full border-[3px] shadow-[0_24px_70px_rgba(124,45,18,0.18)]"
