@@ -320,7 +320,9 @@ export function DocsView({
   } as const;
   const docsSWRConfig = {
     ...swrOptions,
-    refreshInterval: 5_000,
+    // Doc list changes rarely; 30s eventual consistency is plenty and avoids
+    // re-rendering this 3.4k-line editor shell every 5s while the user types.
+    refreshInterval: 30_000,
   } as const;
 
   const { data: workspaceMeta } = useSWR<WorkspaceMeta>(
@@ -439,7 +441,10 @@ export function DocsView({
     {
       ...swrOptions,
       dedupingInterval: 1_500,
-      refreshInterval: activeDocId ? 2_000 : 0,
+      // Live collaborative edits flow through the y-websocket channel, so the
+      // active doc body does not need a 2s HTTP poll fighting the editor for the
+      // main thread. Keep a slow background refetch as a safety net only.
+      refreshInterval: activeDocId ? 30_000 : 0,
     },
   );
 
