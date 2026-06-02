@@ -154,7 +154,8 @@ async def start_session(
     user_id = _require_authenticated_user(x_user_id)
     target_duration_sec = _clamp_target_duration(payload.targetDurationSec)
     closing_threshold_sec = _clamp_closing_threshold(payload.closingThresholdSec)
-    session = service.create_session(
+    session = await asyncio.to_thread(
+        service.create_session,
         user_id=user_id,
         mode=payload.mode,
         personality=payload.personality,
@@ -207,7 +208,8 @@ async def list_sessions(
     limit: int = 20,
 ):
     user_id = _require_authenticated_user(x_user_id)
-    sessions = service.list_sessions_for_user(
+    sessions = await asyncio.to_thread(
+        service.list_sessions_for_user,
         user_id=user_id,
         limit=min(limit, 50),
         session_type=session_type if session_type in ("live_interview", "portfolio_defense") else None,
@@ -221,7 +223,7 @@ async def get_session(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    detail = service.get_session_detail(session_id, user_id=user_id)
+    detail = await asyncio.to_thread(service.get_session_detail, session_id, user_id=user_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Session not found")
     return detail
@@ -233,7 +235,7 @@ async def prepare_session_opening(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -241,7 +243,7 @@ async def prepare_session_opening(
     if session_status == "completed":
         raise HTTPException(status_code=409, detail="Completed session only")
 
-    turns = service.get_turns(session_id)
+    turns = await asyncio.to_thread(service.get_turns, session_id)
     if turns:
         return {
             "success": True,
@@ -281,13 +283,14 @@ async def retry_session_report(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if str(session.get("status") or "") != "completed":
         raise HTTPException(status_code=409, detail="Completed session only")
 
-    job = service.enqueue_report_job(
+    job = await asyncio.to_thread(
+        service.enqueue_report_job,
         session_id=session_id,
         session_type=str(session.get("session_type") or "live_interview"),
         force=True,
@@ -301,17 +304,18 @@ async def complete_session(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     if str(session.get("status") or "") != "completed":
-        service.update_session_status(session_id, "completed", "closing")
-        session = service.get_session(session_id, user_id=user_id, require_owner=True) or session
+        await asyncio.to_thread(service.update_session_status, session_id, "completed", "closing")
+        session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True) or session
 
-    report_job = service.get_report_job(session_id)
+    report_job = await asyncio.to_thread(service.get_report_job, session_id)
     if not report_job or str(report_job.get("status") or "") == "failed":
-        report_job = service.enqueue_report_job(
+        report_job = await asyncio.to_thread(
+            service.enqueue_report_job,
             session_id=session_id,
             session_type=str(session.get("session_type") or "live_interview"),
         )
@@ -384,7 +388,8 @@ async def portfolio_session_start(
         "detectedTopics": payload.detectedTopics,
     }
 
-    session = service.create_session(
+    session = await asyncio.to_thread(
+        service.create_session,
         user_id=user_id,
         mode=payload.mode,
         personality="professional",
@@ -398,7 +403,8 @@ async def portfolio_session_start(
 
     if payload.readmeSummary or payload.treeSummary or payload.infraHypotheses:
         try:
-            service.save_portfolio_source(
+            await asyncio.to_thread(
+                service.save_portfolio_source,
                 session_id=session["id"],
                 repo_url=payload.repoUrl,
                 readme_snapshot=payload.readmeSummary,
