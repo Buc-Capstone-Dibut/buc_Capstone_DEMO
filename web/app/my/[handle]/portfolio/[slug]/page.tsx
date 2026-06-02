@@ -7,7 +7,16 @@ import {
 import { PortfolioRenderer } from "@/components/features/career/portfolio-editor/portfolio-renderer";
 import { PortfolioSiteRenderer } from "@/components/features/career/portfolio-site/portfolio-site-renderer";
 
-export const dynamic = "force-dynamic";
+// Public, anonymous-facing portfolio keyed by stable handle+slug (is_public).
+// ISR: cache the render + DB reads for 60s so shared/social links don't hit
+// Postgres on every view, while edits still surface within a minute.
+export const revalidate = 60;
+
+// Prerender none at build; generate + cache each public portfolio on first
+// request (on-demand ISR), then serve the cached render for `revalidate`s.
+export function generateStaticParams() {
+  return [];
+}
 
 export default async function PublicPortfolioPage({
   params,
