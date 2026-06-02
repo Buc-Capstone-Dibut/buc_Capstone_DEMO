@@ -13,6 +13,15 @@ type SquadWithActivity = {
   [key: string]: unknown;
 };
 
+// Hoisted to module scope so React cache() actually dedups the dev-events
+// file parse within a single request. Previously this was re-created inside
+// each function call, which discarded the cache on every invocation.
+const getEventMap = cache(async () => {
+  const { fetchDevEvents } = await import("./dev-events");
+  const { events } = await fetchDevEvents();
+  return new Map(events.map((event: EventRecord) => [event.id, event.title]));
+});
+
 export async function fetchRecentSquads(limit = 9) {
   const supabase = await createClient();
 
@@ -74,12 +83,7 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all", activityI
     return { squads: [], totalCount: 0, totalPages: 0 };
   }
 
-  // 3. Map Activity — cache()로 같은 요청 내 중복 파일 파싱 방지
-  const getEventMap = cache(async () => {
-    const { fetchDevEvents } = await import("./dev-events");
-    const { events } = await fetchDevEvents();
-    return new Map(events.map((event: EventRecord) => [event.id, event.title]));
-  });
+  // 3. Map Activity — module-level cache() dedups the file parse per request.
   const eventMap = await getEventMap();
   const safeSquads = (squads ?? []) as SquadWithActivity[];
 
@@ -130,12 +134,7 @@ export async function fetchSquadsByActivityId(activityId: string, limit?: number
     return [];
   }
 
-  // Enhance with activity info (using cache helper as in fetchSquads)
-  const getEventMap = cache(async () => {
-    const { fetchDevEvents } = await import("./dev-events");
-    const { events } = await fetchDevEvents();
-    return new Map(events.map((event: EventRecord) => [event.id, event.title]));
-  });
+  // Enhance with activity info (module-level cache() dedups the file parse).
   const eventMap = await getEventMap();
   const safeSquads = (squads ?? []) as SquadWithActivity[];
 
