@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from functools import lru_cache
 from typing import Any
 
@@ -68,8 +69,12 @@ async def parse_job(payload: ParseJobRequest):
     clean_context = ""
     try:
         gemini = get_gemini_service()
-        clean_context = gemini.fetch_url_text(payload.url)
-        data = gemini.parse_job_from_text(payload.url, clean_context)
+        # Offload blocking httpx fetch + Gemini calls to a worker thread so the
+        # asyncio event loop stays free for other concurrent requests.
+        clean_context = await asyncio.to_thread(gemini.fetch_url_text, payload.url)
+        data = await asyncio.to_thread(
+            gemini.parse_job_from_text, payload.url, clean_context
+        )
 
         return {
             "success": True,
@@ -117,14 +122,16 @@ async def parse_resume(
             file_bytes = await file.read()
             file_name = (file.filename or "").lower()
             if file.content_type == "application/pdf" or file_name.endswith(".pdf"):
-                raw_text = gemini.extract_text_from_pdf(file_bytes)
+                raw_text = await asyncio.to_thread(
+                    gemini.extract_text_from_pdf, file_bytes
+                )
             else:
                 raw_text = file_bytes.decode("utf-8", errors="ignore")
 
         if not raw_text:
             raise HTTPException(status_code=400, detail="이력서 텍스트를 추출하지 못했습니다.")
 
-        data = gemini.parse_resume_from_text(raw_text)
+        data = await asyncio.to_thread(gemini.parse_resume_from_text, raw_text)
 
         return {
             "success": True,
@@ -345,7 +352,7 @@ async def livekit_token(
 async def portfolio_analyze_public_repo(payload: PortfolioAnalyzeRequest):
     try:
         gemini = get_gemini_service()
-        result = gemini.analyze_public_repo(payload.repoUrl)
+        result = await asyncio.to_thread(gemini.analyze_public_repo, payload.repoUrl)
         return {"success": True, "data": result}
     except RepoAnalysisError as exc:
         return {"success": False, "error": exc.code}
