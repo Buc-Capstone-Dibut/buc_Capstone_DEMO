@@ -1051,24 +1051,27 @@ export default function InterviewVideoRoomPage() {
   };
 
   // 수동 턴 제어 — 전송: 누적된 발화를 AI 에 보냄.
-  // 빈 발화 (volume = 0 인 상태로만 누른 경우) 차단해 실수로 빈 답변 가는 거 방지.
+  // 백엔드 VAD 가 너무 짧은 발화는 어차피 거부하므로 클라이언트 차단은 최소화 (mic 만 켜져 있으면 통과).
   const handleSubmitTurn = () => {
     if (isReconnecting || isAISpeaking || isAIProcessing) return;
-    if (!isMicOn) return;
-    // user caption / volume / activeUserCaption 셋 다 비어 있으면 발화 없음
-    const hasSpoken = Boolean((activeUserCaption || "").trim()) || volume > 0.01;
-    if (!hasSpoken) {
-      setStatusMessage("말씀해 주신 후 전송해 주세요.");
+    if (!isMicOn) {
+      setStatusMessage("마이크가 꺼져 있어요. 켜고 답변해 주세요.");
       return;
     }
     submitTurn();
     setStatusMessage("답변을 전송했습니다.");
   };
 
-  // 수동 턴 제어 — 다시 말하기: 누적된 발화 폐기, 마이크 ON 유지
+  // 수동 턴 제어 — 다시 말하기: 누적된 발화 폐기, 마이크 ON 유지.
+  // 백엔드 (vad.reset + transcript reset) 는 cancelTurn 이 처리.
+  // 클라이언트는 화면의 자막 state 도 직접 clear 해야 — 안 그러면 이전 발화 자막이 남음.
   const handleCancelTurn = () => {
     if (isReconnecting) return;
     cancelTurn();
+    setStreamingUserCaption("");
+    setStreamingUserTurnId("");
+    setStreamingUserProvider("");
+    setCommittedUserCaption(null);
     setStatusMessage("다시 말씀해 주세요. 처음부터 듣고 있어요.");
   };
 

@@ -144,6 +144,11 @@ export function useOpenLLM({
   }, []);
 
   const pauseMic = useCallback((flush: boolean = true) => {
+    // audioProcessor 도 stop + null — 그래야 다음 startMic 가 새로 시작.
+    // (예전엔 살려뒀는데, startMic 의 early return 때문에 audio chunk 가 다시 안 흘러
+    //  마이크 초록색이지만 volume=0 / 자막 없는 상태가 됐음)
+    audioProcessorRef.current?.stop();
+    audioProcessorRef.current = null;
     isMicStreamingRef.current = false;
     pendingStartMicRef.current = false;
     setIsMicOn(false);
@@ -438,11 +443,16 @@ export function useOpenLLM({
         await unlockAudioContext(true);
       }
 
+      // 기존에 살아있는 processor 가 있으면 stop + null — 항상 새로 만들어 .start() 보장.
+      // (예전엔 early-return 으로 isMicOn 만 set 했는데, processor 가 실제 동작 안 하면
+      //  마이크 초록인데 audio 안 흐르는 버그 발생)
       if (audioProcessorRef.current) {
-        isMicStreamingRef.current = true;
-        setIsMicOn(true);
-        setIsAIProcessing(false);
-        return;
+        try {
+          audioProcessorRef.current.stop();
+        } catch {
+          // 무시
+        }
+        audioProcessorRef.current = null;
       }
 
       audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
@@ -471,6 +481,18 @@ export function useOpenLLM({
       setIsAIProcessing(false);
     } catch (error) {
       console.error("Mic start failed", error);
+      // 실패 시 state 완전 리셋 — 안 그러면 isMicStreamingRef=true 상태로 stuck.
+      // 다음 startMic 호출이 line 438 의 early-return 타서 영영 회복 불가.
+      try {
+        audioProcessorRef.current?.stop();
+      } catch {
+        // 무시
+      }
+      audioProcessorRef.current = null;
+      isMicStreamingRef.current = false;
+      pendingStartMicRef.current = false;
+      setIsMicOn(false);
+      setVolume(0);
       const isPermissionError =
         error instanceof DOMException &&
         (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
@@ -623,6 +645,21 @@ export function useOpenLLM({
         const turnSeq = extractTurnSeq(event.turnId);
         if (turnSeq > 0) {
           latestAiTurnSeqRef.current = Math.max(latestAiTurnSeqRef.current, turnSeq);
+        }
+      }
+      // user 의 실시간 partial transcript (parallel STT) — 자막에 표시되도록 forward
+      if (event.role === "user") {
+        const accumulated =
+          typeof event.accumulatedText === "string" && event.accumulatedText
+            ? event.accumulatedText
+            : typeof event.delta === "string"
+              ? event.delta
+              : "";
+        if (accumulated.trim()) {
+          onTranscriptRef.current?.(accumulated, "user", {
+            turnId: typeof event.turnId === "string" ? event.turnId : "",
+            provider: typeof event.provider === "string" ? event.provider : "",
+          });
         }
       }
       return;

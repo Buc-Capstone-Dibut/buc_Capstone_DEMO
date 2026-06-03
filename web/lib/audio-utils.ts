@@ -16,15 +16,10 @@ export class AudioProcessor {
 
   async start() {
     try {
+      // Chrome 자동 처리에 맡김 — 16000 sampleRate 강제 / 모든 constraint 명시 시
+      // 일부 Mac 환경에서 mic 가 무음만 보내는 케이스가 있어 audio: true 로 단순화.
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: false,
-          channelCount: 1,
-          sampleRate: DEFAULT_CAPTURE_SAMPLE_RATE,
-          sampleSize: 16,
-        },
+        audio: true,
       });
 
       const AudioContextClass =
@@ -34,8 +29,9 @@ export class AudioProcessor {
         throw new Error("AudioContext is not supported in this browser.");
       }
 
+      // AudioContext sampleRate 강제 제거 — device native rate 그대로 사용.
+      // 16000 강제 시 일부 Mac/Chrome 조합에서 resample 이 무음 만들어내는 케이스 있음.
       this.audioContext = new AudioContextClass({
-        sampleRate: DEFAULT_CAPTURE_SAMPLE_RATE,
         latencyHint: "interactive",
       });
 

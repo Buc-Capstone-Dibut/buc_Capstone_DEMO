@@ -62,6 +62,12 @@ const HIDDEN_PATH_PREFIXES = [
   "/p/",
 ];
 
+// 동적 segment 가 있어 prefix 매칭 안 되는 경로들 — 정규식으로 처리
+const HIDDEN_PATH_PATTERNS: RegExp[] = [
+  // 포트폴리오 편집기: /career/portfolios/{id}/edit — AI 편집 popup 과 우하단 겹침 방지
+  /^\/career\/portfolios\/[^/]+\/edit/,
+];
+
 function createMessageId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -109,7 +115,9 @@ export function SiteHelperChat() {
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  const hidden = HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
+  const hidden =
+    HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
+    HIDDEN_PATH_PATTERNS.some((pattern) => pattern.test(pathname || ""));
   const currentPage = useMemo(() => findCurrentSiteHelperPage(pathname), [pathname]);
 
   useEffect(() => {
