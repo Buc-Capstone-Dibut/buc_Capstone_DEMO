@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import {
   FormEvent,
   KeyboardEvent,
@@ -67,6 +67,11 @@ const HIDDEN_PATH_PATTERNS: RegExp[] = [
   // 포트폴리오 편집기: /career/portfolios/{id}/edit — AI 편집 popup 과 우하단 겹침 방지
   /^\/career\/portfolios\/[^/]+\/edit/,
 ];
+
+// react-markdown + its unified/remark/micromark pipeline (~50KB gz) was pulled
+// into the global bundle because this chat mounts in the root layout. Load it
+// only when a markdown message actually renders. ssr:false — client-only chat.
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
 function createMessageId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

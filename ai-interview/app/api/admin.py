@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import math
 import wave
@@ -47,20 +48,21 @@ def _make_silence_wav(duration_sec: float = 1.0, sample_rate: int = 24000) -> by
 
 @router.get("/health")
 async def health():
+    active_sessions = await asyncio.to_thread(service.count_active_sessions)
     return {
         "status": "ok",
-        "active_sessions": service.count_active_sessions(),
+        "active_sessions": active_sessions,
     }
 
 
 @router.get("/sessions")
 async def sessions():
-    return service.list_sessions(limit=200)
+    return await asyncio.to_thread(service.list_sessions, limit=200)
 
 
 @router.get("/sessions/{session_id}")
 async def session_detail(session_id: str):
-    detail = service.get_session_detail(session_id)
+    detail = await asyncio.to_thread(service.get_session_detail, session_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Session not found")
     return detail

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from functools import lru_cache
 from typing import Any
 
@@ -68,8 +69,12 @@ async def parse_job(payload: ParseJobRequest):
     clean_context = ""
     try:
         gemini = get_gemini_service()
-        clean_context = gemini.fetch_url_text(payload.url)
-        data = gemini.parse_job_from_text(payload.url, clean_context)
+        # Offload blocking httpx fetch + Gemini calls to a worker thread so the
+        # asyncio event loop stays free for other concurrent requests.
+        clean_context = await asyncio.to_thread(gemini.fetch_url_text, payload.url)
+        data = await asyncio.to_thread(
+            gemini.parse_job_from_text, payload.url, clean_context
+        )
 
         return {
             "success": True,
@@ -117,14 +122,16 @@ async def parse_resume(
             file_bytes = await file.read()
             file_name = (file.filename or "").lower()
             if file.content_type == "application/pdf" or file_name.endswith(".pdf"):
-                raw_text = gemini.extract_text_from_pdf(file_bytes)
+                raw_text = await asyncio.to_thread(
+                    gemini.extract_text_from_pdf, file_bytes
+                )
             else:
                 raw_text = file_bytes.decode("utf-8", errors="ignore")
 
         if not raw_text:
             raise HTTPException(status_code=400, detail="이력서 텍스트를 추출하지 못했습니다.")
 
-        data = gemini.parse_resume_from_text(raw_text)
+        data = await asyncio.to_thread(gemini.parse_resume_from_text, raw_text)
 
         return {
             "success": True,
@@ -147,7 +154,8 @@ async def start_session(
     user_id = _require_authenticated_user(x_user_id)
     target_duration_sec = _clamp_target_duration(payload.targetDurationSec)
     closing_threshold_sec = _clamp_closing_threshold(payload.closingThresholdSec)
-    session = service.create_session(
+    session = await asyncio.to_thread(
+        service.create_session,
         user_id=user_id,
         mode=payload.mode,
         personality=payload.personality,
@@ -200,7 +208,8 @@ async def list_sessions(
     limit: int = 20,
 ):
     user_id = _require_authenticated_user(x_user_id)
-    sessions = service.list_sessions_for_user(
+    sessions = await asyncio.to_thread(
+        service.list_sessions_for_user,
         user_id=user_id,
         limit=min(limit, 50),
         session_type=session_type if session_type in ("live_interview", "portfolio_defense") else None,
@@ -214,7 +223,7 @@ async def get_session(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    detail = service.get_session_detail(session_id, user_id=user_id)
+    detail = await asyncio.to_thread(service.get_session_detail, session_id, user_id=user_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Session not found")
     return detail
@@ -226,7 +235,7 @@ async def prepare_session_opening(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -234,7 +243,7 @@ async def prepare_session_opening(
     if session_status == "completed":
         raise HTTPException(status_code=409, detail="Completed session only")
 
-    turns = service.get_turns(session_id)
+    turns = await asyncio.to_thread(service.get_turns, session_id)
     if turns:
         return {
             "success": True,
@@ -274,13 +283,14 @@ async def retry_session_report(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if str(session.get("status") or "") != "completed":
         raise HTTPException(status_code=409, detail="Completed session only")
 
-    job = service.enqueue_report_job(
+    job = await asyncio.to_thread(
+        service.enqueue_report_job,
         session_id=session_id,
         session_type=str(session.get("session_type") or "live_interview"),
         force=True,
@@ -294,17 +304,18 @@ async def complete_session(
     x_user_id: str | None = Header(default=None),
 ):
     user_id = _require_authenticated_user(x_user_id)
-    session = service.get_session(session_id, user_id=user_id, require_owner=True)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     if str(session.get("status") or "") != "completed":
-        service.update_session_status(session_id, "completed", "closing")
-        session = service.get_session(session_id, user_id=user_id, require_owner=True) or session
+        await asyncio.to_thread(service.update_session_status, session_id, "completed", "closing")
+        session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True) or session
 
-    report_job = service.get_report_job(session_id)
+    report_job = await asyncio.to_thread(service.get_report_job, session_id)
     if not report_job or str(report_job.get("status") or "") == "failed":
-        report_job = service.enqueue_report_job(
+        report_job = await asyncio.to_thread(
+            service.enqueue_report_job,
             session_id=session_id,
             session_type=str(session.get("session_type") or "live_interview"),
         )
@@ -345,7 +356,7 @@ async def livekit_token(
 async def portfolio_analyze_public_repo(payload: PortfolioAnalyzeRequest):
     try:
         gemini = get_gemini_service()
-        result = gemini.analyze_public_repo(payload.repoUrl)
+        result = await asyncio.to_thread(gemini.analyze_public_repo, payload.repoUrl)
         return {"success": True, "data": result}
     except RepoAnalysisError as exc:
         return {"success": False, "error": exc.code}
@@ -377,7 +388,8 @@ async def portfolio_session_start(
         "detectedTopics": payload.detectedTopics,
     }
 
-    session = service.create_session(
+    session = await asyncio.to_thread(
+        service.create_session,
         user_id=user_id,
         mode=payload.mode,
         personality="professional",
@@ -391,7 +403,8 @@ async def portfolio_session_start(
 
     if payload.readmeSummary or payload.treeSummary or payload.infraHypotheses:
         try:
-            service.save_portfolio_source(
+            await asyncio.to_thread(
+                service.save_portfolio_source,
                 session_id=session["id"],
                 repo_url=payload.repoUrl,
                 readme_snapshot=payload.readmeSummary,
