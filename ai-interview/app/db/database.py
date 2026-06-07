@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 
 import psycopg
@@ -7,17 +8,53 @@ from psycopg.rows import dict_row
 
 from app.config import settings
 
+# Optional connection pooling. Each get_connection() otherwise opens a brand-new
+# TCP+TLS+auth connection to Postgres (Supabase). A pool reuses warm connections.
+# Kept OFF by default for safety: enable with DB_POOL_ENABLED=true AND install
+# psycopg's pool extra (psycopg[pool], already declared in pyproject). If either
+# is missing, we fall back to the original per-call connection — identical
+# behavior, zero regression.
+_POOL_ENABLED = os.getenv("DB_POOL_ENABLED", "").strip().lower() in ("1", "true", "yes")
+try:
+    from psycopg_pool import ConnectionPool
+except ImportError:
+    ConnectionPool = None  # type: ignore[assignment, misc]
+    _POOL_ENABLED = False
+
+_pool: "ConnectionPool | None" = None
+
+
+def _get_pool() -> "ConnectionPool":
+    global _pool
+    if _pool is None:
+        assert ConnectionPool is not None
+        _pool = ConnectionPool(
+            settings.database_url,
+            min_size=1,
+            max_size=int(os.getenv("DB_POOL_MAX", "10")),
+            kwargs={"row_factory": dict_row},
+            open=True,
+        )
+    return _pool
+
 
 @contextmanager
 def get_connection():
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not set")
 
-    conn = psycopg.connect(settings.database_url, row_factory=dict_row)
-    try:
-        yield conn
-    finally:
-        conn.close()
+    if _POOL_ENABLED:
+        # Check out a pooled connection (no per-call handshake). Returned to the
+        # pool on block exit.
+        with _get_pool().connection() as conn:
+            yield conn
+    else:
+        # Default / fallback: per-call connection (original behavior).
+        conn = psycopg.connect(settings.database_url, row_factory=dict_row)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 
 def init_db() -> None:
