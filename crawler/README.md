@@ -45,8 +45,3 @@ uv run python -m src.apps.dev_event.cli --limit 10
 | `WEB_DATA_DIR` | 선택 | JSON 출력 경로 변경 |
 | `DEV_EVENT_JSON_PATH` | 선택 | 이벤트 파일 경로 변경 |
 | `SUPABASE_BLOGS_TABLE` | 선택 | 테이블명 커스텀 |
-
-## 참고 문서
-
-- `docs/refactoring-plan.md`
-- `docs/migration-map.md`
