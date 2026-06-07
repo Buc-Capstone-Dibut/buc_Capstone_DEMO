@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { TalkingHead } from "@met4citizen/talkinghead";
 import { cn } from "@/lib/utils";
 import {
@@ -28,7 +28,12 @@ const setMorphTargetValue = (
   target.needsUpdate = true;
 };
 
-export function TalkingHeadInterviewer({
+// memo: the page's 1s elapsed-time timer updates runtimeMeta every second; the
+// avatar's props (state/className) don't change on that tick, so memo lets the
+// WebGL avatar skip re-rendering ~1200 times per interview.
+export const TalkingHeadInterviewer = memo(TalkingHeadInterviewerImpl);
+
+function TalkingHeadInterviewerImpl({
   state,
   className,
   model = DEFAULT_INTERVIEWER_AVATAR,

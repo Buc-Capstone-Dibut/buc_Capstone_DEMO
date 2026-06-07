@@ -204,7 +204,7 @@ export function TeamChat({ projectId, onNavigateToDoc }: TeamChatProps) {
     createChannel,
   } = useSocketStore();
   const { user } = useAuth({ loadProfile: false });
-  const { setActiveTaskId } = useWorkspaceStore();
+  const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
   const router = useRouter();
 
   const activeChannel = channels.find((c) => c.id === activeChannelId);

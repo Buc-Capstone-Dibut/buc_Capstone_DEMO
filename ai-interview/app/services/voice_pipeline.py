@@ -101,6 +101,7 @@ class VadSegmenter:
         min_utterance_ms: int = 1200,
         short_utterance_silence_ms: int = 1800,
         max_segment_ms: int = 10000,
+        manual_mode: bool = False,
     ):
         self.sample_rate = sample_rate
         self.threshold = threshold
@@ -110,6 +111,10 @@ class VadSegmenter:
         self.min_utterance_ms = min_utterance_ms
         self.short_utterance_silence_ms = max(short_utterance_silence_ms, silence_ms)
         self.max_segment_ms = max_segment_ms
+        # manual_mode: True 면 silence/short-utterance 기반 자동 종료 비활성.
+        # 사용자가 명시적으로 "전송" 누를 때만 flush() 로 segment 종료.
+        # max_segment_ms 의 안전망(과도하게 길면 강제 끊기)은 유지.
+        self.manual_mode = bool(manual_mode)
 
         self._buffer: list[float] = []
         self._candidate_buffer: list[float] = []
@@ -211,17 +216,22 @@ class VadSegmenter:
             effective_silence_ms += 20
             effective_short_silence_ms += 40
 
-        ready_by_silence = (
-            self._speech_started
-            and self._trailing_silence_ms > effective_silence_ms
-            and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
-            and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
-        )
-        ready_by_short_utterance_silence = (
-            self._speech_started
-            and self._trailing_silence_ms >= effective_short_silence_ms
-            and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
-        )
+        # manual_mode: silence/short-utterance 기반 자동 종료 비활성. max 안전망만 작동.
+        if self.manual_mode:
+            ready_by_silence = False
+            ready_by_short_utterance_silence = False
+        else:
+            ready_by_silence = (
+                self._speech_started
+                and self._trailing_silence_ms > effective_silence_ms
+                and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
+                and len(self._buffer) >= int(self.sample_rate * self.min_utterance_ms / 1000.0)
+            )
+            ready_by_short_utterance_silence = (
+                self._speech_started
+                and self._trailing_silence_ms >= effective_short_silence_ms
+                and len(self._buffer) >= int(self.sample_rate * self.min_speech_ms / 1000.0)
+            )
         ready_by_max = len(self._buffer) >= int(self.sample_rate * self.max_segment_ms / 1000.0)
 
         if not (ready_by_silence or ready_by_short_utterance_silence or ready_by_max):
@@ -232,6 +242,15 @@ class VadSegmenter:
         elif ready_by_short_utterance_silence:
             reason = "short_utterance_silence"
         return self._finalize_segment(reason=reason, rms=rms)
+
+    def reset(self) -> None:
+        """누적된 buffer 모두 폐기. 사용자가 '다시 말하기' 누를 때 사용."""
+        self._buffer.clear()
+        self._candidate_buffer.clear()
+        self._candidate_speech_ms = 0.0
+        self._speech_started = False
+        self._trailing_silence_ms = 0.0
+        self.last_segment_info = {}
 
     def flush(self) -> bytes | None:
         if not self._buffer:

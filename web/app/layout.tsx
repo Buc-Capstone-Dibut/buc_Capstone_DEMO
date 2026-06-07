@@ -11,6 +11,7 @@ import Script from "next/script";
 import { AppSWRProvider } from "@/components/providers/swr-provider";
 import { VoiceManager } from "@/components/features/workspace/voice/voice-manager";
 import { SiteHelperChat } from "@/components/features/site-helper-chat/site-helper-chat";
+import { BackgroundJobsRunner } from "@/components/features/career/background-jobs/background-jobs-runner";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dibut.dev";
 
@@ -54,6 +55,13 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
+        {/* Preconnect to the font CDNs so DNS + TLS handshakes run in parallel
+            with HTML parse, shaving a round-trip off first text paint. The
+            stylesheet <link>s below are render-blocking and on third-party
+            origins, so this is a pure, zero-visual-change speed win. */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
           as="style"
@@ -133,6 +141,7 @@ export default function RootLayout({
                 <div className="flex flex-1 flex-col">{children}</div>
                 <GlobalMobileNav />
                 <SiteHelperChat />
+                <BackgroundJobsRunner />
               </div>
             </VoiceManager>
             <Toaster />

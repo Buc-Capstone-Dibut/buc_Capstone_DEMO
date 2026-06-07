@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -91,8 +92,12 @@ function buildPopularTopics(
     .map((item) => ({ tag: item.tag, count: item.count }));
 }
 
-export async function GET() {
-  try {
+// Popular topics + recruiting squads are fully public, non-personalized data
+// (no cookies/auth). Cache the DB scan (up to 300 posts) for 5 minutes and
+// share the result across all users, instead of re-querying on every sidebar
+// mount. Bust on demand via revalidateTag("community-sidebar").
+const getSidebarData = unstable_cache(
+  async () => {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const [recentRows, recruitingSquads] = await Promise.all([
@@ -139,7 +144,7 @@ export async function GET() {
       popularTopics = buildPopularTopics(fallbackRows, 6);
     }
 
-    const payload = {
+    return {
       popularTopics,
       recruitingSquads: recruitingSquads as RecruitingSquadItem[],
       meta: {
@@ -147,7 +152,14 @@ export async function GET() {
         popularTopicsMaxPosts: 300,
       },
     };
+  },
+  ["community-sidebar"],
+  { revalidate: 300, tags: ["community-sidebar"] },
+);
 
+export async function GET() {
+  try {
+    const payload = await getSidebarData();
     return NextResponse.json(payload);
   } catch (error: unknown) {
     console.error("API: Community sidebar error", error);

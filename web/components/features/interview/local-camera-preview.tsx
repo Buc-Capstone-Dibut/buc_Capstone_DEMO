@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { CameraOff } from "lucide-react";
 
 interface LocalCameraPreviewProps {
@@ -9,7 +9,11 @@ interface LocalCameraPreviewProps {
   maxHeight?: number;
 }
 
-export function LocalCameraPreview({
+// memo: props are constant on the video page (enabled/fill), so the camera
+// preview skips re-rendering on the page's 1s elapsed-time timer tick.
+export const LocalCameraPreview = memo(LocalCameraPreviewImpl);
+
+function LocalCameraPreviewImpl({
   enabled,
   fill = false,
   maxHeight = 220,

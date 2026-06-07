@@ -30,9 +30,23 @@ import {
   toPortfolioPageSize,
   type PortfolioRow,
 } from "@/lib/server/career-portfolios";
+import {
+  registerJob,
+  unregisterJob,
+} from "@/lib/server/portfolio-generation-jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * 사용자 취소 신호를 던지는 예외 — finally 블록에서 status="failed" + cancelReason 으로 기록.
+ */
+class GenerationCancelledError extends Error {
+  constructor() {
+    super("generation_cancelled");
+    this.name = "GenerationCancelledError";
+  }
+}
 
 function toTemplateId(value: unknown): PortfolioTemplateId {
   if (
@@ -620,12 +634,39 @@ export async function GET(
     return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
   }
 
+  // 백그라운드 작업 등록 — 사용자가 cancel 요청하면 handle.shouldAbort() true
+  const jobHandle = registerJob(user.id, row.id);
+  const throwIfCancelled = () => {
+    if (jobHandle.shouldAbort()) throw new GenerationCancelledError();
+  };
+
+  // DB 에 현재 stage 기록 — polling 클라이언트가 진행률 확인 가능.
+  // fire and forget (await X) — 메인 work 흐름 막지 않음.
+  const persistStage = (label: string, progress: number, format?: string, pageSize?: string) => {
+    void portfolioDelegate()
+      .update({
+        where: { id: row.id },
+        data: {
+          generation_quality: {
+            stage: "running",
+            currentStage: { label, progress },
+            format: format || (row.format as string) || "site",
+            pageSize: pageSize || (row.page_size as string) || "screen-16-9",
+          },
+          updated_at: new Date(),
+        },
+      })
+      .catch(() => undefined);
+  };
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let streamClosed = false;
+      // SSE 전송만 멈춤 — work 자체는 계속. 백그라운드 모드 핵심.
+      // (이전엔 request.signal.aborted 시 work 도 중단되었음)
       const send = (event: string, data: unknown) => {
-        if (streamClosed || request.signal.aborted) return false;
+        if (streamClosed) return false;
         try {
           controller.enqueue(encoder.encode(encodeSse(event, data)));
           return true;
@@ -635,23 +676,26 @@ export async function GET(
         }
       };
 
-      // 긴 AI 호출 동안 SSE 연결이 idle로 끊기지 않도록 주기 신호 송신.
-      // SSE comment(`:`로 시작)는 클라이언트 이벤트로 노출되지 않으면서 연결만 유지한다.
+      // 클라이언트가 disconnect 하면 SSE controller 가 망가지므로 발견 즉시 streamClosed 표시.
+      // 그래야 send() 가 더 이상 시도하지 않음. work 는 계속 진행.
+      const onAbort = () => {
+        streamClosed = true;
+      };
+      request.signal.addEventListener("abort", onAbort);
+
+      // 긴 AI 호출 동안 SSE 연결이 idle 로 끊기지 않도록 주기 신호 송신.
+      // SSE comment(`:`로 시작) 는 클라이언트 이벤트로 노출되지 않으면서 연결만 유지.
       const heartbeat = setInterval(() => {
-        if (streamClosed || request.signal.aborted) {
-          clearInterval(heartbeat);
-          return;
-        }
+        if (streamClosed) return;
         try {
           controller.enqueue(encoder.encode(": keep-alive\n\n"));
         } catch {
           streamClosed = true;
-          clearInterval(heartbeat);
         }
       }, 7000);
 
       try {
-        if (request.signal.aborted) return;
+        throwIfCancelled();
         const templateId = toTemplateId(row.template_id);
         const format = toPortfolioFormat(row.format);
         const pageSize = toPortfolioPageSize(row.page_size, format);
@@ -670,6 +714,7 @@ export async function GET(
         });
 
         send("stage", { label: "프로젝트 데이터 분석 중", progress: 12 });
+        persistStage("프로젝트 데이터 분석 중", 12, format, pageSize);
         const plan = await generatePortfolioPlan({
           source,
           templateId,
@@ -678,12 +723,16 @@ export async function GET(
           generationPreset,
         });
         send("plan", { plan });
+        throwIfCancelled();
 
         send("stage", { label: "프로젝트 근거 보강 중", progress: 28 });
+        persistStage("프로젝트 근거 보강 중", 28, format, pageSize);
         const evidenceBrief = await generatePortfolioEvidenceBrief({ source, plan });
         send("evidence", { evidenceBrief });
+        throwIfCancelled();
 
         send("stage", { label: "핵심 경험 정리 중", progress: 42 });
+        persistStage("핵심 경험 정리 중", 42, format, pageSize);
         const baseDocument = polishPortfolioDocument(
           withPortfolioSampleImages(
             createDefaultPortfolioDocument(templateId, source, {
@@ -696,12 +745,13 @@ export async function GET(
           ),
         );
         send("document", { document: baseDocument });
+        throwIfCancelled();
 
         send("stage", { label: "대표 이미지 선택 중", progress: 52 });
-        send("stage", {
-          label: format === "site" ? "웹 슬라이드 페이지 구성 중" : "슬라이드 구성 설계 중",
-          progress: 64,
-        });
+        persistStage("대표 이미지 선택 중", 52, format, pageSize);
+        const stage64Label = format === "site" ? "웹 슬라이드 페이지 구성 중" : "슬라이드 구성 설계 중";
+        send("stage", { label: stage64Label, progress: 64 });
+        persistStage(stage64Label, 64, format, pageSize);
         const generatedDocument =
           format === "site"
             ? await generatePortfolioSiteDraft({
@@ -719,24 +769,27 @@ export async function GET(
                 evidenceBrief,
               });
         const polishedDocument = polishPortfolioDocument(withPortfolioSampleImages(generatedDocument));
+        throwIfCancelled();
 
-        send("stage", {
-          label: format === "site" ? "HTML 렌더링 블록 정돈 중" : "인포그래픽 배치 중",
-          progress: 82,
-        });
+        const stage82Label = format === "site" ? "HTML 렌더링 블록 정돈 중" : "인포그래픽 배치 중";
+        send("stage", { label: stage82Label, progress: 82 });
+        persistStage(stage82Label, 82, format, pageSize);
         send("stage", { label: "디자인 자동 정돈 중", progress: 90 });
+        persistStage("디자인 자동 정돈 중", 90, format, pageSize);
         if (polishedDocument.format !== "site") {
           for (const [index, section] of polishedDocument.sections.entries()) {
-            if (!send("section", {
+            // send 실패해도 (client disconnect) work 자체는 진행. break 안 함.
+            send("section", {
               index,
               total: polishedDocument.sections.length,
               section,
-            })) break;
+            });
             await sleep(110);
           }
         }
 
         send("stage", { label: "저장 중", progress: 96 });
+        persistStage("저장 중", 96, format, pageSize);
         const publicSummary = buildPortfolioPublicSummary(polishedDocument);
         const generationQuality = buildGenerationQuality({
           source,
@@ -770,24 +823,43 @@ export async function GET(
           quality: generationQuality,
         });
       } catch (error) {
-        console.error("Portfolio stream generation failed", error);
-        await portfolioDelegate().update({
-          where: { id: row.id },
-          data: {
-            generation_status: "failed",
-            generation_quality: {
-              stage: "failed",
-              error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
+        if (error instanceof GenerationCancelledError) {
+          // 사용자 취소 — 별도 status 로 기록 (failed 로 두되 reason 명시)
+          await portfolioDelegate().update({
+            where: { id: row.id },
+            data: {
+              generation_status: "failed",
+              generation_quality: {
+                stage: "cancelled",
+                cancelReason: "user_cancelled",
+                cancelledAt: new Date().toISOString(),
+              },
+              updated_at: new Date(),
             },
-            updated_at: new Date(),
-          },
-        }).catch(() => undefined);
-        send("portfolio-error", {
-          error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
-        });
+          }).catch(() => undefined);
+          send("portfolio-error", { error: "사용자가 취소한 작업입니다.", cancelled: true });
+        } else {
+          console.error("Portfolio stream generation failed", error);
+          await portfolioDelegate().update({
+            where: { id: row.id },
+            data: {
+              generation_status: "failed",
+              generation_quality: {
+                stage: "failed",
+                error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
+              },
+              updated_at: new Date(),
+            },
+          }).catch(() => undefined);
+          send("portfolio-error", {
+            error: error instanceof Error ? error.message : "포트폴리오 생성에 실패했습니다.",
+          });
+        }
       } finally {
         clearInterval(heartbeat);
         streamClosed = true;
+        request.signal.removeEventListener("abort", onAbort);
+        unregisterJob(jobHandle);
         try {
           controller.close();
         } catch {
@@ -795,7 +867,10 @@ export async function GET(
         }
       }
     },
-    cancel() {},
+    cancel() {
+      // ReadableStream cancel — client 가 끊을 때 호출됨.
+      // 여기서 unregisterJob 안 함 — work 는 계속 진행되어야 하고 finally 가 정리.
+    },
   });
 
   return new Response(stream, {

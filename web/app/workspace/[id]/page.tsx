@@ -186,7 +186,8 @@ export default function WorkspaceDetailPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const projectId = params.id as string;
-  const { activeTaskId, setActiveTaskId } = useWorkspaceStore();
+  const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
+  const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
   const [activeTab, setActiveTab] = useState(() =>
     normalizeTab(searchParams.get("tab")),
   );

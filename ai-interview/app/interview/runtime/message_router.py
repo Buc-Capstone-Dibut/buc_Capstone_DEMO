@@ -88,10 +88,12 @@ async def handle_client_message(
             normalized_sample_rate = int(state.vad.sample_rate or 16000)
         state.vad.sample_rate = normalized_sample_rate
 
-        if (
-            (deps.runtime_architecture or "").strip().lower() == "live-only"
-            and not state.processing_audio
-        ):
+        # live-only 또는 manual_mode VAD 에서는 매 audio chunk 를 실시간 시스템으로 흘려보냄.
+        # manual_mode 의 경우 VAD 가 segment 자동 종료를 안 하므로, 자막용 parallel STT 가
+        # 실시간 transcript 를 받으려면 여기서 audio 가 직접 흘러가야 함.
+        architecture = (deps.runtime_architecture or "").strip().lower()
+        manual_vad = bool(getattr(state.vad, "manual_mode", False))
+        if (architecture == "live-only" or manual_vad) and not state.processing_audio:
             live_input_ready = state.live_input_turn_active
             if deps.begin_live_input_stream is not None and not live_input_ready:
                 live_input_ready = await deps.begin_live_input_stream(ws, state)
@@ -131,6 +133,15 @@ async def handle_client_message(
                 vad_meta=state.last_vad_event,
                 flush_now=False,
             )
+        return
+
+    # 사용자가 "다시 말하기" 클릭 — 누적 audio buffer + 실시간 transcript 폐기, mic ON 유지
+    if msg_type == "reset-audio":
+        if not state.session_id:
+            return
+        state.vad.reset()
+        deps.reset_realtime_user_transcript(state)
+        await deps.send_json(ws, {"type": "audio-reset-ack"})
         return
 
     if msg_type in AUDIO_END_MESSAGE_TYPES:

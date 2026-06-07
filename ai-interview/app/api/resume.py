@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -75,7 +76,8 @@ async def normalize_resume(request: ResumeNormalizeRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"AI 서비스 초기화 실패: {exc}")
 
     try:
-        raw_result = gemini.normalize_resume_payload(
+        raw_result = await asyncio.to_thread(
+            gemini.normalize_resume_payload,
             payload=original_payload,
             options=options,
             retries=1,

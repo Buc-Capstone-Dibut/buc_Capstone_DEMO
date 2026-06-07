@@ -8,7 +8,8 @@ import { Briefcase, FileText, CheckSquare, Plus, MoreHorizontal } from "lucide-r
 import { Card } from "@/components/ui/card";
 
 export function MyBriefcase() {
-  const { privateDocs, tasks } = useWorkspaceStore(); // Simplified: using tasks store for private todos mock for now or adding local state
+  const privateDocs = useWorkspaceStore((s) => s.privateDocs);
+  const tasks = useWorkspaceStore((s) => s.tasks); // Simplified: using tasks store for private todos mock for now or adding local state
 
   // Mock Personal Todos (Local state for simplicity in demo)
   const personalTodos = [

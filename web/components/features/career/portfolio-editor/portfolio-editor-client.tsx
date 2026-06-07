@@ -29,7 +29,6 @@ import { Input } from "@/components/ui/input";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
   getPortfolioPagePreset,
-  getPortfolioTemplate,
   normalizePortfolioDocument,
   withPortfolioSampleImages,
   type PortfolioAsset,
@@ -53,10 +52,12 @@ import {
   type PortfolioElementAction,
 } from "./portfolio-renderer";
 import { PortfolioSiteRenderer } from "../portfolio-site/portfolio-site-renderer";
-import { TemplatePicker } from "./template-picker";
 import { RendererPicker } from "./renderer-picker";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import { PortfolioSiteAiChat, type AiPatch } from "./portfolio-site-ai-chat";
+import { PortfolioPdfPrinter } from "./portfolio-pdf-printer";
+import { toast } from "sonner";
+import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 
 type PortfolioEditorClientProps = {
   portfolio: PortfolioListItem;
@@ -577,9 +578,12 @@ export function PortfolioEditorClient({
   // 웹슬라이드(site) 포맷 — 페이지 helpers + 인라인 편집
   // ──────────────────────────────────────────────────────────────────────
   const sitePages = useMemo(() => document.pages || [], [document.pages]);
-  const [activeSitePageId, setActiveSitePageId] = useState<string>(
-    () => sitePages[0]?.id || "",
-  );
+  // ?page=<pageId> 쿼리 파라미터로 진입 시 그 페이지를 활성화 (라이브 미리보기에서 클릭으로 진입)
+  const [activeSitePageId, setActiveSitePageId] = useState<string>(() => {
+    const requested = searchParams.get("page");
+    if (requested && sitePages.some((p) => p.id === requested)) return requested;
+    return sitePages[0]?.id || "";
+  });
 
   useEffect(() => {
     if (!sitePages.length) {
@@ -740,6 +744,56 @@ export function PortfolioEditorClient({
           }
           next = { ...next, pages };
           setActiveSitePageId(newId);
+        } else if (p.op === "add_block") {
+          const newBlockId = `block-${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)}`;
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) => {
+              if (pg.id !== p.pageId) return pg;
+              return {
+                ...pg,
+                blocks: [...pg.blocks, { ...p.block, id: newBlockId }],
+              };
+            }),
+          };
+        } else if (p.op === "delete_block") {
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) => {
+              if (pg.id !== p.pageId) return pg;
+              return {
+                ...pg,
+                blocks: pg.blocks.filter((b) => b.id !== p.blockId),
+              };
+            }),
+          };
+        } else if (p.op === "update_block_items") {
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) => {
+              if (pg.id !== p.pageId) return pg;
+              return {
+                ...pg,
+                blocks: pg.blocks.map((b) =>
+                  b.id === p.blockId ? { ...b, items: p.items } : b,
+                ),
+              };
+            }),
+          };
+        } else if (p.op === "reorder_blocks") {
+          next = {
+            ...next,
+            pages: (next.pages || []).map((pg) => {
+              if (pg.id !== p.pageId) return pg;
+              const byId = new Map(pg.blocks.map((b) => [b.id, b]));
+              const reordered = p.blockIds
+                .map((id) => byId.get(id))
+                .filter((b): b is PortfolioSitePage["blocks"][number] => !!b);
+              // 누락된 게 있으면 안전하게 원본 유지
+              if (reordered.length !== pg.blocks.length) return pg;
+              return { ...pg, blocks: reordered };
+            }),
+          };
         }
       }
       return next;
@@ -847,15 +901,30 @@ export function PortfolioEditorClient({
     }
   };
 
-  const handleExportPptx = async () => {
+  /**
+   * PDF 다운로드 — 저장 후 현재 페이지에서 native print 대화상자 띄움.
+   * PortfolioPdfPrinter 가 화면 밖에 마운트되어 자동으로 window.print() 호출.
+   * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
+   */
+  const [pdfPrinting, setPdfPrinting] = useState(false);
+  const handleExportPdf = async () => {
     setIsExporting(true);
+    let saved = false;
     try {
-      const saved = await handleSave();
-      if (!saved) return;
-      window.location.href = `/api/career/portfolios/${portfolio.id}/export/pptx`;
-    } finally {
-      window.setTimeout(() => setIsExporting(false), 1200);
+      saved = await handleSave();
+    } catch {
+      saved = false;
     }
+    if (!saved) {
+      setIsExporting(false);
+      return;
+    }
+    // 저장 성공 → PdfPrinter 마운트. 끝나면 handlePdfDone 가 isExporting 복귀.
+    setPdfPrinting(true);
+  };
+  const handlePdfDone = () => {
+    setPdfPrinting(false);
+    setIsExporting(false);
   };
 
   if (document.format === "site") {
@@ -890,17 +959,6 @@ export function PortfolioEditorClient({
               onChange={(nextId) =>
                 setDocument((current) => ({ ...current, rendererId: nextId }))
               }
-            />
-            <TemplatePicker
-              templateId={document.templateId}
-              onChange={(nextId) => {
-                const nextTemplate = getPortfolioTemplate(nextId);
-                setDocument((current) => ({
-                  ...current,
-                  templateId: nextId,
-                  theme: nextTemplate.theme,
-                }));
-              }}
             />
             <span className="h-6 w-px bg-[#d8e4d0]" />
             {publicUrl ? (
@@ -953,7 +1011,7 @@ export function PortfolioEditorClient({
               editingEnabled={!generation.active}
               onPatchActivePage={patchActivePage}
             />
-            <GenerationStatusOverlay generation={generation} document={document} />
+            <GenerationStatusOverlay generation={generation} document={document} portfolioId={portfolio.id} portfolioTitle={title || portfolio.title} />
           </main>
         </div>
         <PortfolioSiteAiChat
@@ -964,6 +1022,10 @@ export function PortfolioEditorClient({
           canUndo={canUndoAi}
           disabled={generation.active}
         />
+        {/* PDF 출력 — PDF 버튼 클릭 시 마운트되어 native print 대화상자 띄움 */}
+        {pdfPrinting ? (
+          <PortfolioPdfPrinter portfolioId={portfolio.id} onDone={handlePdfDone} />
+        ) : null}
       </div>
     );
   }
@@ -1013,11 +1075,12 @@ export function PortfolioEditorClient({
           <Button
             variant="outline"
             className="h-9 gap-2 rounded-xl border-[#d8e4d0] bg-white/72 text-slate-700 hover:bg-white"
-            onClick={() => void handleExportPptx()}
+            onClick={() => void handleExportPdf()}
             disabled={isSaving || isExporting || generation.active}
+            title="PDF 다운로드 (브라우저 인쇄 → PDF로 저장)"
           >
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            PPTX
+            PDF
           </Button>
           <Button
             className="h-9 gap-2 rounded-xl"
@@ -1078,7 +1141,7 @@ export function PortfolioEditorClient({
             </div>
           </div>
 
-          <GenerationStatusOverlay generation={generation} document={document} />
+          <GenerationStatusOverlay generation={generation} document={document} portfolioId={portfolio.id} portfolioTitle={title || portfolio.title} />
 
           <SlideThumbnailStrip
             document={document}
@@ -1109,10 +1172,41 @@ function getGenerationProgress(generation: GenerationState) {
 function GenerationStatusOverlay({
   generation,
   document,
+  portfolioId,
+  portfolioTitle,
 }: {
   generation: GenerationState;
   document: PortfolioDocument;
+  portfolioId: string;
+  portfolioTitle: string;
 }) {
+  const router = useRouter();
+  const startJob = useBackgroundJobsStore((s) => s.startJob);
+  const canStartMore = useBackgroundJobsStore((s) => s.canStartMore);
+
+  const handleSendToBackground = () => {
+    if (!canStartMore() && !useBackgroundJobsStore.getState().activeJobs[portfolioId]) {
+      toast.warning("동시 백그라운드 작업은 3개까지만 가능해요", {
+        description: "다른 작업이 끝나면 다시 시도해주세요",
+      });
+      return;
+    }
+    const ok = startJob({
+      portfolioId,
+      title: portfolioTitle || "포트폴리오",
+      format: document.format || "site",
+      startedAt: new Date().toISOString(),
+      stage: { label: generation.stage || "생성 중", progress: getGenerationProgress(generation) },
+    });
+    if (!ok) {
+      toast.warning("동시 백그라운드 작업은 3개까지만 가능해요");
+      return;
+    }
+    toast.success("백그라운드에서 계속 생성합니다", {
+      description: "사이트 도우미 위젯에서 진행 상황을 확인할 수 있어요",
+    });
+    router.push("/career/portfolios");
+  };
   if (!generation.active && !generation.error && generation.stage !== "AI 생성 완료") return null;
   const completed = generation.stage === "AI 생성 완료" && !generation.error;
   const progress = getGenerationProgress(generation);
@@ -1259,6 +1353,22 @@ function GenerationStatusOverlay({
                 ) : (
                   <Check className="h-4 w-4 text-primary" />
                 )}
+              </div>
+            ) : null}
+
+            {/* 백그라운드 모드 진입 — 생성 중일 때만 노출 (에러/완료 아님) */}
+            {generation.active && !generation.error && !completed ? (
+              <div className="mt-4 border-t border-[#e6ede0] pt-4">
+                <button
+                  type="button"
+                  onClick={handleSendToBackground}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#d8e4d0] bg-white px-4 py-2.5 text-[12.5px] font-bold text-slate-700 transition hover:border-primary/40 hover:bg-[#f8faf5] hover:text-primary"
+                >
+                  백그라운드에서 계속하기
+                </button>
+                <p className="mt-2 text-center text-[11px] font-medium leading-5 text-slate-400">
+                  사이트 도우미 위젯에서 진행 상황을 확인하고, 완료되면 알림으로 알려드려요
+                </p>
               </div>
             ) : null}
           </div>

@@ -144,6 +144,11 @@ export function useOpenLLM({
   }, []);
 
   const pauseMic = useCallback((flush: boolean = true) => {
+    // audioProcessor 도 stop + null — 그래야 다음 startMic 가 새로 시작.
+    // (예전엔 살려뒀는데, startMic 의 early return 때문에 audio chunk 가 다시 안 흘러
+    //  마이크 초록색이지만 volume=0 / 자막 없는 상태가 됐음)
+    audioProcessorRef.current?.stop();
+    audioProcessorRef.current = null;
     isMicStreamingRef.current = false;
     pendingStartMicRef.current = false;
     setIsMicOn(false);
@@ -164,6 +169,28 @@ export function useOpenLLM({
 
     if (flush && socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "flush-audio" }));
+    }
+  }, []);
+
+  /**
+   * 수동 턴 제어 — 사용자가 "전송" 버튼 클릭 시 호출.
+   * - 마이크 일시정지 (mic-audio-end 신호는 백엔드가 처리 시작 시 보내옴)
+   * - flush-audio 로 누적된 audio segment 종료 → 백엔드가 Gemini 에 audio_stream_end 전송
+   * - AI 응답 시작
+   */
+  const submitTurn = useCallback(() => {
+    // pauseMic(true) 이미 flush-audio 보냄
+    pauseMic(true);
+  }, [pauseMic]);
+
+  /**
+   * 다시 말하기 — 사용자가 발화 중에 "다시 말하기" 클릭 시 호출.
+   * - 백엔드의 누적 audio buffer 폐기 (reset-audio 메시지)
+   * - 마이크는 ON 상태 유지 — 사용자가 처음부터 다시 말할 수 있도록
+   */
+  const cancelTurn = useCallback(() => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "reset-audio" }));
     }
   }, []);
 
@@ -416,11 +443,16 @@ export function useOpenLLM({
         await unlockAudioContext(true);
       }
 
+      // 기존에 살아있는 processor 가 있으면 stop + null — 항상 새로 만들어 .start() 보장.
+      // (예전엔 early-return 으로 isMicOn 만 set 했는데, processor 가 실제 동작 안 하면
+      //  마이크 초록인데 audio 안 흐르는 버그 발생)
       if (audioProcessorRef.current) {
-        isMicStreamingRef.current = true;
-        setIsMicOn(true);
-        setIsAIProcessing(false);
-        return;
+        try {
+          audioProcessorRef.current.stop();
+        } catch {
+          // 무시
+        }
+        audioProcessorRef.current = null;
       }
 
       audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
@@ -449,6 +481,18 @@ export function useOpenLLM({
       setIsAIProcessing(false);
     } catch (error) {
       console.error("Mic start failed", error);
+      // 실패 시 state 완전 리셋 — 안 그러면 isMicStreamingRef=true 상태로 stuck.
+      // 다음 startMic 호출이 line 438 의 early-return 타서 영영 회복 불가.
+      try {
+        audioProcessorRef.current?.stop();
+      } catch {
+        // 무시
+      }
+      audioProcessorRef.current = null;
+      isMicStreamingRef.current = false;
+      pendingStartMicRef.current = false;
+      setIsMicOn(false);
+      setVolume(0);
       const isPermissionError =
         error instanceof DOMException &&
         (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
@@ -601,6 +645,21 @@ export function useOpenLLM({
         const turnSeq = extractTurnSeq(event.turnId);
         if (turnSeq > 0) {
           latestAiTurnSeqRef.current = Math.max(latestAiTurnSeqRef.current, turnSeq);
+        }
+      }
+      // user 의 실시간 partial transcript (parallel STT) — 자막에 표시되도록 forward
+      if (event.role === "user") {
+        const accumulated =
+          typeof event.accumulatedText === "string" && event.accumulatedText
+            ? event.accumulatedText
+            : typeof event.delta === "string"
+              ? event.delta
+              : "";
+        if (accumulated.trim()) {
+          onTranscriptRef.current?.(accumulated, "user", {
+            turnId: typeof event.turnId === "string" ? event.turnId : "",
+            provider: typeof event.provider === "string" ? event.provider : "",
+          });
         }
       }
       return;
@@ -800,6 +859,8 @@ export function useOpenLLM({
     prepareAudio,
     startMic,
     stopMic,
+    submitTurn,
+    cancelTurn,
     isConnected,
     isMicOn,
     isAIProcessing,

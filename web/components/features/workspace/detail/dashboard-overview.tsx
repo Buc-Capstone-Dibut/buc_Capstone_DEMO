@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { ProjectHero } from "./overview/project-hero";
 import { WorkspaceResultCard } from "./overview/workspace-result-card";
 import { TeamPulse } from "./overview/team-pulse";
-import { DashboardCalendar } from "./overview/dashboard-calendar";
+import dynamic from "next/dynamic";
 
 interface DashboardOverviewProps {
   projectId: string;
@@ -37,6 +37,22 @@ type BoardData = {
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+// FullCalendar (~250KB: react adapter + core + daygrid + interaction) is the
+// heaviest dependency on the workspace route and was pulled into the eager
+// page bundle through this overview. Load it client-side after paint so it no
+// longer blocks initial render. ssr:false — FullCalendar is browser-only.
+const DashboardCalendar = dynamic(
+  () => import("./overview/dashboard-calendar").then((m) => m.DashboardCalendar),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[480px] items-center justify-center rounded-xl border bg-card">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 export function DashboardOverview({ projectId }: DashboardOverviewProps) {
   const swrOptions = {

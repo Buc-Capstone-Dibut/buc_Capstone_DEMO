@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -9,6 +10,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   getPortfolioTemplate,
   type PortfolioDocument,
@@ -28,6 +30,7 @@ import { TerminalCodeRenderer } from "./renderers/terminal-code-renderer";
 import { NotionDocumentRenderer } from "./renderers/notion-document-renderer";
 import { GalleryMoodRenderer } from "./renderers/gallery-mood-renderer";
 import { RendererEmptyState, RendererShell, useRendererPageIndex } from "./renderers/renderer-shell";
+import { fluidTitleSize, fluidNarrativeSize, fluidLeading } from "./renderers/shared";
 import { EditableProvider, EditableText, useItemsSourceOrFallback, usePatchActivePage } from "./renderers/editable-text";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -67,6 +70,8 @@ type PortfolioSiteRendererProps = {
   editingEnabled?: boolean;
   /** 활성 페이지의 특정 path 를 업데이트 — 편집기에서 제공 */
   onPatchActivePage?: (path: (string | number)[], value: unknown) => void;
+  /** 마운트 직후 자동으로 print 트리거 — /print 페이지에서 사용 */
+  autoPrint?: boolean;
 };
 
 type RenderPattern = NonNullable<PortfolioSitePage["composition"]>["pattern"];
@@ -251,6 +256,7 @@ function multilineText(value?: string, max = 360) {
 function blockText(block: PortfolioSiteBlock, max = 240) {
   return multilineText(block.content || block.caption || block.value, max);
 }
+
 
 function pageNarrative(page: PortfolioSitePage, max = 260) {
   return multilineText(
@@ -456,7 +462,10 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--portfolio-accent)]">
               <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
             </p>
-            <p className="mt-2 break-keep text-[64px] font-black leading-none tracking-tighter text-white">
+            <p
+              className="mt-2 break-keep font-black leading-none tracking-tighter text-white"
+              style={{ fontSize: `${fluidTitleSize(metric.value, 64, 48, 36, 28)}px` }}
+            >
               <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
             </p>
             <p className="mt-2 max-w-[180px] break-keep text-[12px] font-bold leading-5 text-slate-300">
@@ -477,7 +486,10 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
             <p className="font-serif text-[11px] font-medium italic tracking-[0.18em] text-slate-500">
               <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
             </p>
-            <p className="mt-1 break-keep font-serif text-[44px] font-bold leading-tight text-[var(--portfolio-primary)]">
+            <p
+              className="mt-1 break-keep font-serif font-bold leading-tight text-[var(--portfolio-primary)]"
+              style={{ fontSize: `${fluidTitleSize(metric.value, 44, 34, 26, 22)}px` }}
+            >
               <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
             </p>
             <p className="mt-1 max-w-[200px] break-keep font-serif text-[12px] font-medium italic leading-5 text-slate-600">
@@ -497,7 +509,10 @@ function MetricLine({ page }: { page: PortfolioSitePage }) {
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
             <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={30} placeholder="Metric" fieldKey={`block-${metric.id}-label`} />
           </p>
-          <p className="mt-1 break-keep text-[40px] font-black leading-tight tracking-tight text-[var(--portfolio-primary)]">
+          <p
+            className="mt-1 break-keep font-black leading-tight tracking-tight text-[var(--portfolio-primary)]"
+            style={{ fontSize: `${fluidTitleSize(metric.value, 40, 32, 26, 22)}px` }}
+          >
             <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={24} placeholder="-" fieldKey={`block-${metric.id}-value`} />
           </p>
           <p className="mt-1 max-w-[170px] break-keep text-[11px] font-semibold leading-5 text-slate-500">
@@ -798,7 +813,13 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
             — <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={88} placeholder="(선택)" fieldKey="intent" /> —
           </p>
         ) : null}
-        <h1 className="mt-4 break-keep font-serif text-[44px] font-bold leading-[1.1] tracking-tight text-slate-950">
+        <h1
+          className="mt-4 break-keep font-serif font-bold tracking-tight text-slate-950"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 44, 36, 30, 26)}px`,
+            lineHeight: fluidLeading(page.title, 1.1, 1.2),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={90} placeholder="제목" fieldKey="title" />
         </h1>
         <span className="mt-4 inline-block h-[2px] w-16 bg-[var(--portfolio-primary)]" />
@@ -820,7 +841,13 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
             <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={88} placeholder="(선택)" fieldKey="intent" />
           </p>
         ) : null}
-        <h1 className="mt-4 break-keep text-[52px] font-black leading-[0.95] tracking-tighter text-white">
+        <h1
+          className="mt-4 break-keep font-black tracking-tighter text-white"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 52, 42, 34, 28)}px`,
+            lineHeight: fluidLeading(page.title, 0.95, 1.1),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={90} placeholder="제목" fieldKey="title" />
         </h1>
         {page.subtitle ? (
@@ -840,7 +867,13 @@ function TitleBlock({ page }: { page: PortfolioSitePage }) {
           <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={88} placeholder="(선택)" fieldKey="intent" />
         </p>
       ) : null}
-      <h1 className="mt-3 break-keep text-[40px] font-black leading-[1.06] tracking-tight text-slate-950">
+      <h1
+        className="mt-3 break-keep font-black tracking-tight text-slate-950"
+        style={{
+          fontSize: `${fluidTitleSize(page.title, 40, 34, 28, 24)}px`,
+          lineHeight: fluidLeading(page.title, 1.06, 1.18),
+        }}
+      >
         <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={90} placeholder="제목" fieldKey="title" />
       </h1>
       {page.subtitle ? (
@@ -922,10 +955,19 @@ function HeroStatementCompositionSlide({ page }: { page: PortfolioSitePage }) {
     <div className="grid h-full grid-cols-[1.12fr_0.88fr] gap-12 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
-        <h1 className="mt-5 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
+        <h1
+          className="mt-5 break-keep font-black text-slate-950"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 52, 42, 34, 28)}px`,
+            lineHeight: fluidLeading(page.title, 1.04, 1.18),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={86} placeholder="제목" fieldKey="title" />
         </h1>
-        <p className="mt-7 max-w-[620px] whitespace-pre-line break-keep text-[17px] font-bold leading-8 text-slate-700">
+        <p
+          className="mt-7 max-w-[620px] whitespace-pre-line break-keep font-bold leading-8 text-slate-700"
+          style={{ fontSize: `${fluidNarrativeSize(page.narrative, 17, 15, 14, 13)}px` }}
+        >
           <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={320} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <div className="mt-10">
@@ -1017,13 +1059,26 @@ function MetricSpotlightCompositionSlide({ page }: { page: PortfolioSitePage }) 
     <div className="grid h-full grid-cols-[0.9fr_1.1fr] gap-12 overflow-hidden px-14 pb-6 pt-14">
       <div className="flex min-w-0 flex-col justify-center">
         <CompositionNote page={page} />
-        <p className="text-[106px] font-black leading-none text-[var(--portfolio-primary)]">
-          {metric ? (
-            <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={14} placeholder={fallbackValue} fieldKey={`block-${metric.id}-value`} />
-          ) : (
-            <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={14} placeholder={fallbackValue} fieldKey="intent" />
-          )}
-        </p>
+        {(() => {
+          // 거대 폰트 슬롯 — metric value (보통 "32%" 같이 짧음) 는 106px,
+          // intent fallback (긴 설명문) 은 공격적으로 축소.
+          const slotText = (metric ? metric.value : page.intent) || "";
+          const len = slotText.length;
+          const slotSize =
+            len <= 8 ? 106 : len <= 16 ? 64 : len <= 28 ? 40 : len <= 50 ? 28 : 22;
+          return (
+            <p
+              className="font-black leading-tight text-[var(--portfolio-primary)]"
+              style={{ fontSize: `${slotSize}px` }}
+            >
+              {metric ? (
+                <EditableText value={metric.value} onChange={(v) => patch(["blocks", metric.id, "value"], v)} maxLength={14} placeholder={fallbackValue} fieldKey={`block-${metric.id}-value`} />
+              ) : (
+                <EditableText value={page.intent} onChange={(v) => patch(["intent"], v)} maxLength={14} placeholder={fallbackValue} fieldKey="intent" />
+              )}
+            </p>
+          );
+        })()}
         <p className="mt-3 text-[14px] font-black uppercase tracking-[0.16em] text-slate-500">
           {metric ? (
             <EditableText value={metric.label} onChange={(v) => patch(["blocks", metric.id, "label"], v)} maxLength={48} placeholder="라벨" fieldKey={`block-${metric.id}-label`} />
@@ -1139,7 +1194,13 @@ function ClosingSignalCompositionSlide({ page }: { page: PortfolioSitePage }) {
     <div className="flex h-full flex-col justify-center overflow-hidden px-16 pb-6 pt-14">
       <div className="max-w-[820px]">
         <CompositionNote page={page} />
-        <h1 className="mt-6 break-keep text-[52px] font-black leading-[1.04] text-slate-950">
+        <h1
+          className="mt-6 break-keep font-black text-slate-950"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 52, 42, 34, 28)}px`,
+            lineHeight: fluidLeading(page.title, 1.04, 1.18),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={90} placeholder="제목" fieldKey="title" />
         </h1>
         <p className="mt-7 whitespace-pre-line break-keep border-l-[10px] border-[var(--portfolio-primary)] pl-8 text-[18px] font-bold leading-8 text-slate-700">
@@ -1315,10 +1376,19 @@ function ClosingSlide({ page }: { page: PortfolioSitePage }) {
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--portfolio-primary)]">
           <EditableText value={page.eyebrow} onChange={(v) => patch(["eyebrow"], v)} maxLength={60} placeholder="Contact" fieldKey="eyebrow" />
         </p>
-        <h1 className="mt-6 break-keep text-[48px] font-black leading-[1.04] text-slate-950">
+        <h1
+          className="mt-6 break-keep font-black text-slate-950"
+          style={{
+            fontSize: `${fluidTitleSize(page.title, 48, 40, 32, 26)}px`,
+            lineHeight: fluidLeading(page.title, 1.04, 1.18),
+          }}
+        >
           <EditableText value={page.title} onChange={(v) => patch(["title"], v)} maxLength={90} placeholder="제목" fieldKey="title" />
         </h1>
-        <p className="mt-8 whitespace-pre-line break-keep text-[18px] font-bold leading-9 text-slate-700">
+        <p
+          className="mt-8 whitespace-pre-line break-keep font-bold leading-9 text-slate-700"
+          style={{ fontSize: `${fluidNarrativeSize(page.narrative, 18, 16, 14, 13)}px` }}
+        >
           <EditableText value={page.narrative} onChange={(v) => patch(["narrative"], v)} maxLength={300} multiline placeholder="본문" fieldKey="narrative" />
         </p>
         <div className="mt-10">
@@ -1353,7 +1423,13 @@ function renderSlide(page: PortfolioSitePage) {
 // 별도 렌더러 컴포넌트를 사용. 없으면 기존 inner 렌더러 사용.
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+/**
+ * Dispatch — rendererId 에 맞는 디자인 렌더러를 골라 렌더.
+ * onPrintRequest 가 주어지면 각 렌더러의 RendererShell 헤더 PDF 버튼에 노출됨.
+ */
+function PortfolioSiteRendererDispatch(
+  props: PortfolioSiteRendererProps & { onPrintRequest?: () => void },
+) {
   const rendererId = props.document.rendererId;
   const shared = {
     document: props.document,
@@ -1364,49 +1440,128 @@ export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
     hideThumbnails: props.hideThumbnails,
     disableKeyboardNav: props.disableKeyboardNav,
     includeHiddenPages: props.includeHiddenPages,
+    onPrintRequest: props.onPrintRequest,
   };
 
-  let body: ReactNode;
-  if (rendererId === "minimal-mono") body = <MinimalMonoRenderer {...shared} />;
-  else if (rendererId === "editorial-magazine") body = <EditorialMagazineRenderer {...shared} />;
-  else if (rendererId === "brutalist-tech") body = <BrutalistTechRenderer {...shared} />;
-  else if (rendererId === "soft-pastel-card") body = <SoftPastelCardRenderer {...shared} />;
-  else if (rendererId === "terminal-code") body = <TerminalCodeRenderer {...shared} />;
-  else if (rendererId === "notion-document") body = <NotionDocumentRenderer {...shared} />;
-  else if (rendererId === "gallery-mood") body = <GalleryMoodRenderer {...shared} />;
-  else {
-    body = (
-      <RendererContext.Provider value={{ templateId: props.document.templateId }}>
-        <PortfolioSiteRendererInner {...props} />
-      </RendererContext.Provider>
-    );
-  }
+  if (rendererId === "minimal-mono") return <MinimalMonoRenderer {...shared} />;
+  if (rendererId === "editorial-magazine") return <EditorialMagazineRenderer {...shared} />;
+  if (rendererId === "brutalist-tech") return <BrutalistTechRenderer {...shared} />;
+  if (rendererId === "soft-pastel-card") return <SoftPastelCardRenderer {...shared} />;
+  if (rendererId === "terminal-code") return <TerminalCodeRenderer {...shared} />;
+  if (rendererId === "notion-document") return <NotionDocumentRenderer {...shared} />;
+  if (rendererId === "gallery-mood") return <GalleryMoodRenderer {...shared} />;
+  return (
+    <RendererContext.Provider value={{ templateId: props.document.templateId }}>
+      <PortfolioSiteRendererInner {...props} onPrintRequest={props.onPrintRequest} />
+    </RendererContext.Provider>
+  );
+}
+
+export function PortfolioSiteRenderer(props: PortfolioSiteRendererProps) {
+  // ─── PDF 출력 ───
+  // 클릭 → printing=true → 모든 페이지 stack 렌더 → window.print()
+  // afterprint 이벤트로 다시 false. CSS 가 print 시 chrome 숨기고 페이지 break 처리.
+  const [printing, setPrinting] = useState(false);
+  const pagesForPrint = useMemo(() => {
+    const all = props.document.pages || [];
+    return all.filter((p) => p.visible !== false);
+  }, [props.document.pages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onAfter = () => setPrinting(false);
+    window.addEventListener("afterprint", onAfter);
+    return () => window.removeEventListener("afterprint", onAfter);
+  }, []);
+
+  const triggerPrint = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    setPrinting(true);
+    // 두 번 RAF — 모든 print-deck 자식 mount + style 적용 보장
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    // 폰트 로딩 완료 대기 — 안 그러면 PDF 에 폰트 깨질 수 있음
+    try {
+      await (window.document as Document & { fonts?: { ready?: Promise<void> } }).fonts
+        ?.ready;
+    } catch {
+      /* fonts API 없을 수도 — 무시 */
+    }
+    try {
+      window.print();
+    } catch (e) {
+      console.error("print failed", e);
+      setPrinting(false);
+    }
+  }, []);
+
+  // autoPrint — 마운트 직후 자동 트리거
+  useEffect(() => {
+    if (!props.autoPrint) return;
+    // 디자인/폰트 안정화 시간 — 약간 대기 후 print
+    const t = window.setTimeout(() => {
+      void triggerPrint();
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [props.autoPrint, triggerPrint]);
 
   return (
     <EditableProvider
       enabled={Boolean(props.editingEnabled)}
       patch={props.onPatchActivePage}
     >
-      {body}
+      {/* 화면용 — 평소엔 보임, 인쇄 시 CSS 로 숨김. */}
+      <PortfolioSiteRendererDispatch {...props} />
+
+      {/* 인쇄용 — body 직계로 portal. 그래야 print CSS 가 다른 body 자식을
+          display:none 으로 완전히 layout 공간까지 제거 가능 (visibility:hidden 만
+          하면 공간이 남아서 빈 페이지가 잔뜩 생김). */}
+      {printing && typeof window !== "undefined"
+        ? createPortal(
+            <div className="portfolio-renderer-print-deck" aria-hidden>
+              {pagesForPrint.map((p, i) => (
+                <div key={p.id} className="portfolio-renderer-print-page">
+                  <PortfolioSiteRendererDispatch
+                    document={props.document}
+                    activeIndex={i}
+                    hideHeader
+                    hideThumbnails
+                    disableKeyboardNav
+                  />
+                </div>
+              ))}
+            </div>,
+            window.document.body,
+          )
+        : null}
     </EditableProvider>
   );
 }
 
-function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRendererProps) {
+function PortfolioSiteRendererInner({
+  document,
+  className,
+  activeIndex,
+  onActiveIndexChange,
+  hideHeader,
+  hideThumbnails,
+  disableKeyboardNav,
+  includeHiddenPages,
+  onPrintRequest,
+}: PortfolioSiteRendererProps & { onPrintRequest?: () => void }) {
   const pages = useMemo(
     () =>
       (document.pages?.length ? document.pages : document.sections.map(sectionToSitePage)).filter(
-        (page) => page.visible !== false,
+        (page) => includeHiddenPages || page.visible !== false,
       ),
-    [document.pages, document.sections],
+    [document.pages, document.sections, includeHiddenPages],
   );
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useRendererPageIndex(
+    { activeIndex, onActiveIndexChange },
+    pages.length,
+  );
   const page = pages[Math.min(currentIndex, Math.max(0, pages.length - 1))];
-
-  useEffect(() => {
-    if (currentIndex <= pages.length - 1) return;
-    setCurrentIndex(Math.max(0, pages.length - 1));
-  }, [currentIndex, pages.length]);
 
   const template = getPortfolioTemplate(document.templateId);
   const visualStyle: PortfolioTemplateVisualStyle = template.blueprint.visualStyle || {
@@ -1457,6 +1612,10 @@ function PortfolioSiteRendererInner({ document, className }: PortfolioSiteRender
       index={currentIndex}
       setIndex={setCurrentIndex}
       className={className}
+      hideHeader={hideHeader}
+      hideThumbnails={hideThumbnails}
+      disableKeyboardNav={disableKeyboardNav}
+      onPrintRequest={onPrintRequest}
     >
       <div
         className={cn(

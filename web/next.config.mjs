@@ -58,6 +58,41 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Avatar GLBs (talkinghead-avaturn.glb is ~13MB and effectively never
+        // changes). Default public/ headers are short-lived, so repeat
+        // interview-room visits re-download/revalidate. Promote to immutable.
+        source: "/interview/avatar/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        // Interview room background images — stable binaries.
+        source: "/interview/backgrounds/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        // Portfolio background images — stable binaries.
+        source: "/portfolio-backgrounds/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        // Other public images: cache a day with stale-while-revalidate so
+        // repeat views skip refetch while content updates still propagate
+        // (avoids the stale-forever risk of immutable on same-filename swaps).
+        source: "/images/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
     ];
   },
 };

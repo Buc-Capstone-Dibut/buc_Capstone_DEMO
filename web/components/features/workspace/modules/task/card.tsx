@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   useWorkspaceStore,
   Task,
@@ -41,7 +42,7 @@ interface TaskCardProps {
   onDelete?: () => void;
 }
 
-export function TaskCard({
+function TaskCardImpl({
   task,
   isOverlay,
   showTags = true,
@@ -53,7 +54,10 @@ export function TaskCard({
   onEdit,
   onDelete,
 }: TaskCardProps) {
-  const { tags, priorities } = useWorkspaceStore();
+  // Slice selectors instead of subscribing to the whole store, so a card does
+  // NOT re-render when unrelated store slices change (e.g. activeTaskId on click).
+  const tags = useWorkspaceStore((s) => s.tags);
+  const priorities = useWorkspaceStore((s) => s.priorities);
   const taskWithDocuments = task as Task & {
     primaryDocument?: {
       id: string;
@@ -322,3 +326,8 @@ export function TaskCard({
     </Card>
   );
 }
+
+// Memoized so a parent re-render (e.g. the board re-rendering) with unchanged
+// props doesn't re-render every card. Combined with the slice selectors above,
+// a card only re-renders when its own task/props or tags/priorities change.
+export const TaskCard = memo(TaskCardImpl);

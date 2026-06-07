@@ -49,11 +49,20 @@ class ReportAgent:
         self._service.enqueue_report_job(session_id=session_id, session_type=session_type)
 
     def _run_loop(self) -> None:
+        # Back off the poll interval when the queue is empty (the steady state)
+        # so the agent doesn't open a fresh Postgres connection every second
+        # while idle. Reset to the base interval as soon as work appears.
+        idle_interval = self._poll_interval_sec
+        max_idle_interval = 10.0
         while not self._stop_event.is_set():
             job = self._service.reserve_next_report_job()
             if not job:
-                time.sleep(self._poll_interval_sec)
+                # stop_event.wait() returns early on shutdown (more responsive
+                # than time.sleep) and otherwise sleeps the backoff window.
+                self._stop_event.wait(idle_interval)
+                idle_interval = min(idle_interval * 2, max_idle_interval)
                 continue
+            idle_interval = self._poll_interval_sec
 
             job_id = job["id"]
             session_id = job.get("session_id")

@@ -49,3 +49,12 @@ web/public/fonts/
 
 # Project-scope MCP server config (개인 인증 토큰 사용, 공유하지 않음)
 .mcp.json
+
+# 생성/스크래치 산출물 (PPT 이미지·아키텍처 다이어그램 원본·발표 자산 등 — 레포에 커밋 금지)
+outputs/
+assets/
+.runlogs/
+.vercel/
+
+# Python 패키징 메타데이터 (빌드 시 재생성)
+*.egg-info/

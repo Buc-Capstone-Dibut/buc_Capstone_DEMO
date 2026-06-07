@@ -9,22 +9,8 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
+import dynamic from "next/dynamic";
 import { CopyPlus, MoreHorizontal, Move, Trash2, WandSparkles } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  PolarAngleAxis,
-  PolarGrid,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -42,6 +28,19 @@ import {
   type PortfolioImageSlot,
   type PortfolioSection,
 } from "@/lib/career-portfolios";
+
+const TrendAreaChart = dynamic(
+  () => import("./portfolio-charts").then((m) => m.TrendAreaChart),
+  { ssr: false, loading: () => <div className="h-full w-full" /> },
+);
+const ImpactBarChart = dynamic(
+  () => import("./portfolio-charts").then((m) => m.ImpactBarChart),
+  { ssr: false, loading: () => <div className="h-full w-full" /> },
+);
+const MetricRadarChart = dynamic(
+  () => import("./portfolio-charts").then((m) => m.MetricRadarChart),
+  { ssr: false, loading: () => <div className="h-full w-full" /> },
+);
 
 const FALLBACK_CANVAS_WIDTH = 960;
 const FALLBACK_CANVAS_HEIGHT = 540;
@@ -1107,28 +1106,7 @@ function PortfolioCanvasShadcnBlock({
         </CardHeader>
         <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1.25fr_0.75fr] gap-3 px-4 pb-4 pt-0">
           <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-2 py-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
-                <defs>
-                  <linearGradient id={`portfolio-trend-${element.id}`} x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor={accent} stopOpacity={0.42} />
-                    <stop offset="95%" stopColor={accent} stopOpacity={0.04} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: theme.muted }} />
-                <YAxis hide domain={[0, 100]} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={accent}
-                  strokeWidth={3}
-                  fill={`url(#portfolio-trend-${element.id})`}
-                  dot={{ r: 4, strokeWidth: 2, fill: "#ffffff", stroke: accent }}
-                  activeDot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <TrendAreaChart data={data} accent={accent} mutedColor={theme.muted} gradientId={`portfolio-trend-${element.id}`} />
           </div>
           <div className="space-y-2 overflow-hidden">
             {trendItems.slice(0, 3).map((item, index) => (
@@ -1244,18 +1222,7 @@ function PortfolioCanvasShadcnBlock({
         </CardHeader>
         <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1.15fr_0.85fr] gap-3 px-4 pb-4 pt-0">
           <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-2 py-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} layout="vertical" margin={{ left: 4, right: 10, top: 4, bottom: 4 }}>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" hide domain={[0, 100]} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: theme.muted }} width={46} />
-                <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={14}>
-                  {data.map((item) => (
-                    <Cell key={item.name} fill={item.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ImpactBarChart data={data} mutedColor={theme.muted} />
           </div>
           <div className="grid min-h-0 grid-cols-1 gap-2">
             {matrixItems.slice(0, 3).map((item, index) => (
@@ -1348,13 +1315,7 @@ function PortfolioCanvasShadcnBlock({
         </CardHeader>
         <CardContent className="grid h-[calc(100%-44px)] grid-cols-[1fr_0.9fr] gap-3 px-4 pb-4 pt-0">
           <div className="min-h-0 rounded-xl border border-slate-200/80 bg-white/82 px-1 py-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={data} outerRadius="72%" margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                <PolarGrid stroke="#dbe5d0" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fill: theme.muted }} />
-                <Radar dataKey="value" stroke={accent} fill={accent} fillOpacity={0.28} strokeWidth={2.5} dot />
-              </RadarChart>
-            </ResponsiveContainer>
+            <MetricRadarChart data={data} accent={accent} mutedColor={theme.muted} />
           </div>
           <div className="space-y-1.5 overflow-hidden">
             {radarItems.map((item, index) => (
