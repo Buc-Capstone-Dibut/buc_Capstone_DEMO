@@ -30,6 +30,7 @@ export default function InterviewAnalysisPage() {
   const [sourceSessions, setSourceSessions] = useState<AnalysisHubSourceSession[]>([]);
   const [displayName, setDisplayName] = useState("회원");
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
+  const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
 
   useEffect(() => {
@@ -188,11 +189,13 @@ export default function InterviewAnalysisPage() {
             techStack,
           });
           setRecommendedBlogs(ranked.recommendedBlogs);
+          setRecommendationTags(ranked.resolvedRecommendationTags ?? []);
         }
       } catch (error) {
         console.error("추천 기술 블로그를 불러오지 못했습니다.", error);
         if (!cancelled) {
           setRecommendedBlogs([]);
+          setRecommendationTags([]);
         }
       } finally {
         if (!cancelled) {
@@ -228,6 +231,7 @@ export default function InterviewAnalysisPage() {
       dominantAxesText={dominantAxesText}
       interviewTypeStats={interviewTypeStats}
       blogs={recommendedBlogs}
+      recommendationTags={recommendationTags}
       onNavigate={(href) => router.push(href)}
     />
   );

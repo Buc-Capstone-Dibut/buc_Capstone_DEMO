@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
+import { InterviewDeviceCheck } from "@/components/features/interview/interview-device-check";
 import dynamic from "next/dynamic";
 import {
   buildInterviewResultPath,
@@ -211,6 +212,11 @@ export default function InterviewVideoRoomPage() {
   const [isAudioPrimed, setIsAudioPrimed] = useState(() => isInterviewPlaybackAudioReady());
   const [isPrimingAudio, setIsPrimingAudio] = useState(false);
   const [hasConfirmedInterviewStart, setHasConfirmedInterviewStart] = useState(false);
+  const [deviceMicReady, setDeviceMicReady] = useState(false);
+  // 재접속/이어하기 감지: 이미 진행 중(in_progress)인 세션이면 기기 점검을 건너뛴다.
+  const [resumeState, setResumeState] = useState<"unknown" | "fresh" | "resume">(
+    requestedSessionId ? "unknown" : "fresh",
+  );
   const [isFinishingSession, setIsFinishingSession] = useState(false);
 
   const startedRef = useRef(false);
@@ -789,6 +795,29 @@ export default function InterviewVideoRoomPage() {
     sessionType,
   ]);
 
+  // 진입 시 세션 상태를 조회해 '신규 시작'인지 '진행 중 재접속'인지 결정.
+  // in_progress = 이미 면접이 시작된 세션 → 기기 점검 스킵(이어하기). 그 외/실패 = 신규(기기 점검).
+  useEffect(() => {
+    if (!requestedSessionId) return; // sessionId 없으면 신규(기본 fresh)
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/interview/sessions/${encodeURIComponent(requestedSessionId)}`,
+          { cache: "no-store" },
+        );
+        const json = await res.json().catch(() => null);
+        const status = json?.data?.status;
+        if (!cancelled) setResumeState(status === "in_progress" ? "resume" : "fresh");
+      } catch {
+        if (!cancelled) setResumeState("fresh"); // 조회 실패 시 안전하게 기기 점검을 노출
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedSessionId]);
+
   useEffect(() => {
     connect();
     return () => disconnect();
@@ -1258,7 +1287,7 @@ export default function InterviewVideoRoomPage() {
             지원자
           </div>
           <div className="h-full w-full overflow-hidden bg-muted/40 [&>video]:object-cover [&>video]:scale-105">
-            <LocalCameraPreview enabled fill />
+            {hasConfirmedInterviewStart && <LocalCameraPreview enabled fill />}
           </div>
           {isUserSpeaking && (
             <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1 z-20">
@@ -1328,28 +1357,80 @@ export default function InterviewVideoRoomPage() {
         </div>
       )}
 
-      {/* Audio Priming Modal */}
+      {/* 면접 전 다이얼로그(룸 내 모달): 신규=기기 점검 / 재접속(in_progress)=이어하기.
+          확정(handlePrimeAudio) 전엔 init/세션생성이 나가지 않아 면접은 시작되지 않는다. */}
       {!hasConfirmedInterviewStart && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-           <div className="mx-4 w-full max-w-md flex flex-col items-center text-center overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-xl">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary mb-5">
-               <Mic className="h-6 w-6" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-3">면접 시작 준비</h3>
-            <p className="text-sm text-muted-foreground mb-8">
-              {isAudioPrimed
-                ? "준비는 완료되었습니다. 면접 시작을 누르면 첫 질문이 바로 재생됩니다."
-                : "첫 질문 음성이 브라우저 자동재생 제한에 막히지 않도록, 시작 전에 한 번 눌러 오디오를 활성화합니다."}
-            </p>
-            <Button
-              size="lg"
-              className="w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-              onClick={handlePrimeAudio}
-              disabled={isPrimingAudio}
-            >
-              {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              {isPrimingAudio ? "준비 중..." : "면접 시작하기"}
-            </Button>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
+            {resumeState === "unknown" ? (
+              <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground">
+                <Loader2 className="h-7 w-7 animate-spin" />
+                <p className="text-sm">면접 연결 준비 중...</p>
+              </div>
+            ) : resumeState === "resume" ? (
+              <>
+                <div className="mb-5 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <RotateCcw className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">면접 이어하기</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    진행 중이던 면접에 다시 연결되었습니다. 기기 점검은 건너뛰고 이어서 진행합니다.
+                  </p>
+                </div>
+                <div className="mb-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${isConnected ? "bg-primary" : "bg-muted-foreground/40 animate-pulse"}`}
+                  />
+                  {isConnected ? "면접 서버 연결됨" : "면접 서버 연결 중..."}
+                </div>
+                <Button
+                  size="lg"
+                  className="w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                  onClick={handlePrimeAudio}
+                  disabled={isPrimingAudio}
+                >
+                  {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                  {isPrimingAudio ? "준비 중..." : "이어하기"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="mb-5 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Mic className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">면접 시작 준비</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    면접 전에 카메라와 마이크가 정상 동작하는지 확인하세요. 말을 하면 마이크 표시가 움직입니다.
+                  </p>
+                </div>
+
+                <InterviewDeviceCheck onMicReady={setDeviceMicReady} />
+
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${isConnected ? "bg-primary" : "bg-muted-foreground/40 animate-pulse"}`}
+                  />
+                  {isConnected ? "면접 서버 연결됨" : "면접 서버 연결 중..."}
+                </div>
+
+                <Button
+                  size="lg"
+                  className="mt-5 w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                  onClick={handlePrimeAudio}
+                  disabled={isPrimingAudio || !deviceMicReady}
+                >
+                  {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                  {isPrimingAudio ? "준비 중..." : !deviceMicReady ? "마이크 확인 중..." : "면접 시작하기"}
+                </Button>
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  {isAudioPrimed
+                    ? "준비 완료 — 시작을 누르면 첫 질문이 바로 재생됩니다."
+                    : "시작을 누르면 첫 질문 음성이 바로 재생됩니다. (브라우저 자동재생 활성화)"}
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
