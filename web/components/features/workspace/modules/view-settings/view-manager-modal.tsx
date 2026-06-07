@@ -29,7 +29,9 @@ export function ViewManagerModal({
   onUpdateView,
   onDeleteView,
 }: ViewManagerModalProps) {
-  const { updateView, deleteView, tags } = useWorkspaceStore();
+  const updateView = useWorkspaceStore((s) => s.updateView);
+  const deleteView = useWorkspaceStore((s) => s.deleteView);
+  const tags = useWorkspaceStore((s) => s.tags);
   const [viewName, setViewName] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedIcon, setSelectedIcon] = useState("");

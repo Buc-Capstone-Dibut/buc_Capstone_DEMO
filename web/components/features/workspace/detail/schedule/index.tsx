@@ -13,7 +13,7 @@ interface ScheduleViewProps {
 }
 
 export function ScheduleView({ projectId }: ScheduleViewProps) {
-  const { tasks } = useWorkspaceStore();
+  const tasks = useWorkspaceStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Filter tasks with dueDate and belongs to project

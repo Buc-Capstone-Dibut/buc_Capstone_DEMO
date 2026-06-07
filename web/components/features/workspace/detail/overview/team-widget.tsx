@@ -13,7 +13,7 @@ interface TeamWidgetProps {
 }
 
 export function TeamWidget({ projectId }: TeamWidgetProps) {
-  const { projects } = useWorkspaceStore();
+  const projects = useWorkspaceStore((s) => s.projects);
   const project = projects.find(p => p.id === projectId);
 
   if (!project) return null;

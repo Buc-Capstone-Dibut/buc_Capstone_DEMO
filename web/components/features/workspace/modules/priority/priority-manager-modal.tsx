@@ -40,7 +40,11 @@ const PRIORITY_COLORS = [
 ];
 
 export function PriorityManagerModal({ isOpen, onClose }: PriorityManagerModalProps) {
-  const { priorities, createPriority, updatePriority, deletePriority, reorderPriorities } = useWorkspaceStore();
+  const priorities = useWorkspaceStore((s) => s.priorities);
+  const createPriority = useWorkspaceStore((s) => s.createPriority);
+  const updatePriority = useWorkspaceStore((s) => s.updatePriority);
+  const deletePriority = useWorkspaceStore((s) => s.deletePriority);
+  const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");

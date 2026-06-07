@@ -237,17 +237,15 @@ type PendingBoardAction = {
 };
 
 export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
-  const {
-    tags,
-    priorities,
-    reorderPriorities,
-    reorderTags,
-    activeTaskId,
-    setActiveTaskId,
-    projects,
-    tasks: storeTasks,
-    syncProjectData,
-  } = useWorkspaceStore();
+  const tags = useWorkspaceStore((s) => s.tags);
+  const priorities = useWorkspaceStore((s) => s.priorities);
+  const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
+  const reorderTags = useWorkspaceStore((s) => s.reorderTags);
+  const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
+  const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
+  const projects = useWorkspaceStore((s) => s.projects);
+  const storeTasks = useWorkspaceStore((s) => s.tasks);
+  const syncProjectData = useWorkspaceStore((s) => s.syncProjectData);
 
   const { data: boardData, error, isLoading } = useSWR<{
     columns?: BoardColumnResponse[];
