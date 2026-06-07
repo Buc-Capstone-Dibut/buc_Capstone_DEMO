@@ -200,6 +200,8 @@ export interface AnalysisHubViewProps {
   dominantAxesText: string;
   interviewTypeStats: Array<{ visual: InterviewTypeVisual; count: number }>;
   blogs: RecommendedBlog[];
+  /** 추천 엔진이 도출한 사용자 태그 조합(상위 N개) — '더 보기' 필터에 사용 */
+  recommendationTags: string[];
   onNavigate: (href: string) => void;
   /** 미경험 유형 기본 펼침 (프리뷰/스크린샷용) */
   defaultShowUncovered?: boolean;
@@ -224,6 +226,7 @@ export function AnalysisHubView({
   dominantAxesText,
   interviewTypeStats,
   blogs,
+  recommendationTags,
   onNavigate,
   defaultShowUncovered = false,
 }: AnalysisHubViewProps) {
@@ -242,6 +245,11 @@ export function AnalysisHubView({
   const covered = interviewTypeStats.filter((t) => t.count > 0);
   const uncovered = interviewTypeStats.filter((t) => t.count === 0);
   const coveragePct = Math.round((covered.length / TYPE_TOTAL) * 100);
+
+  const moreBlogsHref =
+    recommendationTags.length > 0
+      ? `/insights/tech-blog?tags=${encodeURIComponent(recommendationTags.join(","))}&from=analysis`
+      : "/insights/tech-blog";
 
   const heroSummary = hasSessions
     ? `${representativeVisual.reportLens} 최근 ${Math.min(totalSessions, 6)}개 세션에서는 ${dominantAxesText} 축이 가장 강하게 드러났습니다.`
@@ -503,28 +511,40 @@ export function AnalysisHubView({
           ) : null}
         </section>
 
-        {/* ── 블록 D: 추천 블로그 ── */}
+        {/* ── 블록 D: 추천 블로그 (컴팩트 4개 + 더 보기) ── */}
         <section className={cn(CARD, "p-6")}>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <Eyebrow>{displayName}님 추천 기술 블로그</Eyebrow>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Eyebrow>{displayName}님 추천 기술 블로그</Eyebrow>
+              </div>
+              <p className="mt-1.5 text-sm text-muted-foreground">최근 세션 맥락과 답변 성향을 바탕으로 바로 읽어볼 만한 글을 골랐습니다.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate(moreBlogsHref)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#e7ecf2] bg-[#fbfcfe] px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-white"
+            >
+              더 보기
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
-          <p className="mt-1.5 text-sm text-muted-foreground">최근 세션 맥락과 답변 성향을 바탕으로 바로 읽어볼 만한 글을 골랐습니다.</p>
 
           <div className="mt-5">
             {blogsLoading ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="min-h-[230px] rounded-xl border border-[#e7ecf2] bg-[#fbfcfe] p-4">
-                    <div className="h-24 rounded-lg bg-muted/70" />
-                    <div className="mt-4 h-3 w-20 rounded-full bg-primary/10" />
-                    <div className="mt-3 h-4 w-3/4 rounded-full bg-muted" />
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-[#e7ecf2] bg-[#fbfcfe] p-3">
+                    <div className="h-20 rounded-lg bg-muted/70" />
+                    <div className="mt-3 h-3 w-16 rounded-full bg-primary/10" />
+                    <div className="mt-2 h-3.5 w-3/4 rounded-full bg-muted" />
                   </div>
                 ))}
               </div>
             ) : blogs.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                {blogs.slice(0, 3).map((blog) => (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {blogs.slice(0, 4).map((blog) => (
                   <a
                     key={blog.id}
                     href={blog.external_url}
@@ -532,25 +552,24 @@ export function AnalysisHubView({
                     rel="noreferrer"
                     className="group flex flex-col overflow-hidden rounded-xl border border-[#e7ecf2] bg-white transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm"
                   >
-                    <div className="relative flex h-32 items-center justify-center overflow-hidden bg-[#f6f9fc]">
+                    <div className="relative flex h-24 items-center justify-center overflow-hidden bg-[#f6f9fc]">
                       {blog.thumbnail_url ? (
-                        <Image src={blog.thumbnail_url} alt="" fill unoptimized sizes="(min-width:768px) 33vw, 100vw" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                        <Image src={blog.thumbnail_url} alt="" fill unoptimized sizes="(min-width:1024px) 25vw, 50vw" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
                       ) : (
                         <InterviewTypeArtwork visual={representativeVisual} size="sm" />
                       )}
-                      <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#172033] shadow-sm">{blog.author}</div>
                     </div>
-                    <div className="flex flex-1 flex-col p-4">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(blog.tags ?? []).slice(0, 3).map((tag) => (
-                          <span key={`${blog.id}-${tag}`} className="rounded-full bg-[#f4f6fa] px-2 py-0.5 text-[11px] font-medium text-muted-foreground">#{tag}</span>
+                    <div className="flex flex-1 flex-col p-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {(blog.tags ?? []).slice(0, 2).map((tag) => (
+                          <span key={`${blog.id}-${tag}`} className="rounded-full bg-[#f4f6fa] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">#{tag}</span>
                         ))}
                       </div>
-                      <p className="mt-2.5 line-clamp-2 text-sm font-bold leading-5 text-foreground">{blog.title}</p>
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{blog.recommendationReason}</p>
-                      <div className="mt-auto flex items-center justify-between border-t border-[#eef2f6] pt-3">
-                        <span className="text-xs font-medium text-muted-foreground">{formatPublishedDate(blog.published_at)}</span>
-                        <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-primary">원문 읽기<ExternalLink className="h-3.5 w-3.5" /></span>
+                      <p className="mt-2 line-clamp-2 text-[13px] font-bold leading-5 text-foreground">{blog.title}</p>
+                      <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{blog.recommendationReason}</p>
+                      <div className="mt-auto flex items-center justify-between pt-2.5">
+                        <span className="truncate text-[11px] font-medium text-muted-foreground">{formatPublishedDate(blog.published_at)}</span>
+                        <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-primary">원문<ExternalLink className="h-3 w-3" /></span>
                       </div>
                     </div>
                   </a>

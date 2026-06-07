@@ -9,6 +9,8 @@ interface UseBlogDataParams {
   searchQuery?: string;
   tagCategory?: string;
   selectedSubTags?: string[];
+  /** 분석 페이지 '더 보기'에서 넘어온 추천 태그 조합 — 하나라도 포함하면(OR) 노출 */
+  recommendedTags?: string[];
   page?: number;
 }
 
@@ -41,6 +43,11 @@ export function useBlogData(params: UseBlogDataParams) {
 
         if (params.selectedSubTags && params.selectedSubTags.length > 0) {
           query = query.contains("tags", params.selectedSubTags);
+        }
+
+        // 추천 태그 조합: 하나라도 겹치면 노출(OR). 분석 페이지 '더 보기' 진입용.
+        if (params.recommendedTags && params.recommendedTags.length > 0) {
+          query = query.overlaps("tags", params.recommendedTags);
         }
 
         if (params.searchQuery) {
@@ -84,6 +91,7 @@ export function useBlogData(params: UseBlogDataParams) {
     params.searchQuery,
     params.tagCategory,
     params.selectedSubTags,
+    params.recommendedTags,
     params.page,
   ]);
 
