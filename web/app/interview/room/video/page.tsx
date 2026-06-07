@@ -1330,15 +1330,16 @@ export default function InterviewVideoRoomPage() {
         </div>
       )}
 
-      {/* 면접 전 기기 준비 페이지 (풀스크린) — 카메라/마이크 직접 확인 후 시작 */}
+      {/* 면접 전 기기 점검 다이얼로그 (룸 내 모달) — 카메라/마이크 직접 확인 후 시작.
+          확정(handlePrimeAudio) 전엔 init/세션생성이 나가지 않아 면접은 시작되지 않는다. */}
       {!hasConfirmedInterviewStart && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-background px-4 py-8">
-          <div className="w-full max-w-lg">
-            <div className="mb-6 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Mic className="h-6 w-6" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">면접 시작 준비</h2>
+              <h3 className="text-xl font-bold text-foreground">면접 시작 준비</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 면접 전에 카메라와 마이크가 정상 동작하는지 확인하세요. 말을 하면 마이크 표시가 움직입니다.
               </p>
@@ -1355,7 +1356,7 @@ export default function InterviewVideoRoomPage() {
 
             <Button
               size="lg"
-              className="mt-6 w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+              className="mt-5 w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
               onClick={handlePrimeAudio}
               disabled={isPrimingAudio || !deviceMicReady}
             >

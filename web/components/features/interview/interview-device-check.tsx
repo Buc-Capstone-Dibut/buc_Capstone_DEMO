@@ -55,6 +55,9 @@ export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) 
           (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctor();
         audioCtxRef.current = ctx;
+        // autoplay 정책상 사용자 제스처 전엔 suspended로 시작할 수 있어 레벨미터가
+        // 멈춘다 → resume()으로 분석 컨텍스트를 깨운다(소리 출력은 없음).
+        if (ctx.state === "suspended") void ctx.resume().catch(() => undefined);
         const source = ctx.createMediaStreamSource(stream);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 512;
