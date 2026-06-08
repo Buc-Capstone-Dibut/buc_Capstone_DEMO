@@ -255,6 +255,46 @@ export function AnalysisHubView({
     ? `${representativeVisual.reportLens} 최근 ${Math.min(totalSessions, 6)}개 세션에서는 ${dominantAxesText} 축이 가장 강하게 드러났습니다.`
     : "아직 분석할 세션이 없어 공고 적합도 면접을 기본 기준으로 표시합니다.";
 
+  // 세션 로딩 중에는 빈 데이터로 렌더하지 않고 스켈레톤을 보여준다.
+  // (콜드스타트 등으로 응답이 느려도 '비어 보임/고장난 것처럼 보임'을 방지)
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f5f7fa] text-foreground">
+        <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 md:px-8">
+          <header className="space-y-2">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+                <LayoutDashboard className="h-5 w-5 text-primary" />
+              </span>
+              <h1 className="text-2xl font-black tracking-tight md:text-3xl">나의 인터뷰 분석</h1>
+              <Badge variant="outline" className="ml-1 rounded-full border-[#e5eaf1] text-[11px] text-muted-foreground">
+                불러오는 중…
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">인터뷰 기록을 불러오고 있습니다. 처음 열 때는 잠시 걸릴 수 있어요.</p>
+          </header>
+
+          <div aria-hidden="true" className="flex flex-col gap-6">
+            {[
+              { lead: 200, rows: 2 },
+              { lead: 160, rows: 3 },
+              { lead: 140, rows: 1 },
+            ].map((block, i) => (
+              <section key={i} className={cn(CARD, "p-6")}>
+                <div className="h-3.5 animate-pulse rounded bg-muted" style={{ width: block.lead }} />
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {Array.from({ length: block.rows * 2 }).map((_, j) => (
+                    <div key={j} className="h-24 animate-pulse rounded-xl bg-muted/55" />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f5f7fa] text-foreground">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 md:px-8">
@@ -266,9 +306,6 @@ export function AnalysisHubView({
             </span>
             <h1 className="text-2xl font-black tracking-tight md:text-3xl">나의 인터뷰 분석</h1>
             <Badge variant="secondary" className="ml-1 rounded-full text-[11px]">실세션 기반</Badge>
-            {loading ? (
-              <Badge variant="outline" className="rounded-full border-[#e5eaf1] text-[11px] text-muted-foreground">불러오는 중</Badge>
-            ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
             실제 모의면접과 포트폴리오 디펜스 결과로 내 4축 성향과 최근 면접 흐름을 한눈에 확인합니다.
