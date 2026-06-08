@@ -10,6 +10,7 @@ import PostViewer from "@/components/features/community/post-viewer";
 import { CommentSection } from "@/components/features/community/comment-section";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Heart } from "lucide-react";
+import { TierBadge } from "@/components/shared/tier-badge";
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -27,22 +28,6 @@ const isQnaCategory = (category: string | null | undefined) => {
     normalized === "질문게시판" ||
     normalized === "질문/답변"
   );
-};
-
-const AUTHOR_TIER_STYLE: Record<string, string> = {
-  씨앗: "border-zinc-300/70 text-zinc-700 bg-zinc-50",
-  새싹: "border-lime-400/70 text-lime-700 bg-lime-50",
-  묘목: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
-  나무: "border-green-500/70 text-green-700 bg-green-50",
-  숲: "border-teal-500/70 text-teal-700 bg-teal-50",
-  거목: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
-
-  // Backward compatibility for rows not migrated yet
-  Bronze: "border-lime-400/70 text-lime-700 bg-lime-50",
-  Silver: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
-  Gold: "border-green-500/70 text-green-700 bg-green-50",
-  Platinum: "border-teal-500/70 text-teal-700 bg-teal-50",
-  Diamond: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
 };
 
 export default async function PostDetailPage({ params }: PostDetailPageProps) {
@@ -113,11 +98,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                       {post.author?.nickname || "익명"}
                     </div>
                     {post.author?.tier ? (
-                      <span
-                        className={`rounded border px-1.5 py-0 text-[10px] font-medium ${AUTHOR_TIER_STYLE[post.author.tier] ?? "border-muted text-muted-foreground"}`}
-                      >
-                        {post.author.tier}
-                      </span>
+                      <TierBadge tier={post.author.tier} size="sm" />
                     ) : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -145,11 +126,7 @@ export default async function PostDetailPage({ params }: PostDetailPageProps) {
                       {post.author?.nickname || "익명"}
                     </div>
                     {post.author?.tier ? (
-                      <span
-                        className={`rounded border px-1.5 py-0 text-[10px] font-medium ${AUTHOR_TIER_STYLE[post.author.tier] ?? "border-muted text-muted-foreground"}`}
-                      >
-                        {post.author.tier}
-                      </span>
+                      <TierBadge tier={post.author.tier} size="sm" />
                     ) : null}
                   </div>
                   <div className="text-xs text-muted-foreground">

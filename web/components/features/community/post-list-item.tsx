@@ -7,6 +7,7 @@ import { ko } from "date-fns/locale";
 import { Database } from "@/lib/database.types";
 import { Eye, Heart, MessageSquare, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TierBadge } from "@/components/shared/tier-badge";
 
 type Post = Omit<
   Database["public"]["Tables"]["posts"]["Row"],
@@ -38,22 +39,6 @@ interface PostListItemProps {
   href: string;
   className?: string;
 }
-
-const AUTHOR_TIER_STYLE: Record<string, string> = {
-  씨앗: "border-zinc-300/70 text-zinc-700 bg-zinc-50",
-  새싹: "border-lime-400/70 text-lime-700 bg-lime-50",
-  묘목: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
-  나무: "border-green-500/70 text-green-700 bg-green-50",
-  숲: "border-teal-500/70 text-teal-700 bg-teal-50",
-  거목: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
-
-  // Backward compatibility for rows not migrated yet
-  Bronze: "border-lime-400/70 text-lime-700 bg-lime-50",
-  Silver: "border-emerald-400/70 text-emerald-700 bg-emerald-50",
-  Gold: "border-green-500/70 text-green-700 bg-green-50",
-  Platinum: "border-teal-500/70 text-teal-700 bg-teal-50",
-  Diamond: "border-cyan-500/70 text-cyan-700 bg-cyan-50",
-};
 
 export function PostListItem({ post, href, className }: PostListItemProps) {
   const router = useRouter();
@@ -111,15 +96,7 @@ export function PostListItem({ post, href, className }: PostListItemProps) {
                 <span>{post.author?.nickname || "익명"}</span>
               )}
             {post.author?.tier ? (
-              <span
-                className={cn(
-                  "rounded border px-1.5 py-0 text-[10px] font-medium",
-                  AUTHOR_TIER_STYLE[post.author.tier] ??
-                    "border-muted text-muted-foreground",
-                )}
-              >
-                {post.author.tier}
-              </span>
+              <TierBadge tier={post.author.tier} size="xs" />
             ) : null}
             <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/30" />
             <span>

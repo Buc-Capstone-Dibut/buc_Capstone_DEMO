@@ -59,6 +59,8 @@ import type {
   TabKey,
 } from "./profile-types";
 import { formatDate } from "./profile-utils";
+import { TierBadge, getTierLevel } from "@/components/shared/tier-badge";
+import Image from "next/image";
 
 const PostsTab = dynamic(() =>
   import("./tabs/posts-tab").then((module) => module.PostsTab),
@@ -212,31 +214,6 @@ function OverviewShortcutRow({
     </button>
   );
 }
-
-const TIER_BADGE: Record<string, string> = {
-  씨앗:
-    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
-  새싹:
-    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
-  묘목:
-    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
-  나무:
-    "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
-  숲: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
-  거목:
-    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
-
-  Unranked:
-    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
-  Bronze:
-    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
-  Silver:
-    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
-  Gold: "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
-  Platinum: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
-  Diamond:
-    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
-};
 
 const NAV_ITEMS: {
   key: TabKey;
@@ -648,9 +625,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     }
   };
 
-  const tierStyle =
-    TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
-
   const displayStats = stats;
   const contentCount = stats.postCount + stats.commentCount;
   const renderLoadMoreButton = (key: ProfileDataKey, itemCount: number) => {
@@ -704,12 +678,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Badge>
                   )}
                   {profile.tier && (
-                    <Badge
-                      variant="outline"
-                      className={`h-5 px-1.5 text-[10px] font-normal ${tierStyle}`}
-                    >
-                      ★ {profile.tier}
-                    </Badge>
+                    <TierBadge tier={profile.tier} size="md" />
                   )}
                   <Badge
                     variant="outline"
@@ -804,19 +773,21 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border bg-muted/20 px-4 py-6 text-center">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Rank
-                    </p>
-                    <div className="mt-3 flex justify-center">
-                      <Badge
-                        variant="outline"
-                        className={`h-8 px-3 text-sm font-medium ${tierStyle}`}
-                      >
-                        ★ {profile.tier}
-                      </Badge>
+                <CardContent>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative aspect-square w-full max-w-[200px]">
+                      <Image
+                        src={`/level-icons/level-${getTierLevel(profile.tier)}.jpg`}
+                        alt={`레벨 ${getTierLevel(profile.tier)} ${profile.tier || "씨앗"}`}
+                        fill
+                        sizes="(max-width: 768px) 60vw, 200px"
+                        className="object-contain"
+                        priority
+                      />
                     </div>
+                    <span className="text-xl font-extrabold tracking-tight text-slate-900">
+                      {profile.tier || "씨앗"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>

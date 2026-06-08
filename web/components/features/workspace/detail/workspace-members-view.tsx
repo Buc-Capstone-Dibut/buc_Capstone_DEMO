@@ -11,6 +11,7 @@ import { WorkspaceUserAvatar } from "@/components/features/workspace/common/work
 import { InviteMemberModal } from "@/components/features/workspace/dialogs/invite-member-modal";
 import { normalizeWorkspaceTeamRole } from "@/lib/workspace-team-roles";
 import { TeamRolePickerDialog } from "@/components/features/workspace/dialogs/team-role-picker-dialog";
+import { TierBadge } from "@/components/shared/tier-badge";
 
 type WorkspaceMember = {
   id: string;
@@ -18,6 +19,7 @@ type WorkspaceMember = {
   nickname?: string | null;
   email?: string | null;
   avatar?: string | null;
+  tier?: string | null;
   role: string;
   team_role?: string | null;
   joined_at?: string | null;
@@ -222,9 +224,17 @@ export function WorkspaceMembersView({ projectId }: { projectId: string }) {
                         fallbackClassName="bg-primary/5 text-primary text-xs font-medium"
                       />
                       <div className="flex flex-col min-w-0">
-                        <span className="font-medium text-sm text-foreground truncate">
-                          {member.nickname || member.name || "Unknown"}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {member.nickname || member.name || "Unknown"}
+                          </span>
+                          <TierBadge
+                            tier={member.tier}
+                            size="xs"
+                            showLabel={false}
+                            className="shrink-0"
+                          />
+                        </div>
                         <span className="text-xs text-muted-foreground truncate">
                           {member.email || (
                             <span className="italic opacity-70">이메일 없음</span>
