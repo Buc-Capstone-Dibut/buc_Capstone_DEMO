@@ -12,13 +12,13 @@ import {
   ClipboardCheck,
   FileText,
   Lightbulb,
-  Loader2,
   MessageSquareQuote,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalHeader } from "@/components/layout/global-header";
+import { DibutLoading } from "@/components/shared/dibut-loading";
 import {
   buildSessionInterviewDetailModel,
   type CoreResponseEntry,
@@ -253,11 +253,13 @@ function getCoachingSourceBadge(source: "question_finding" | "generated") {
 
 function ResultStatePanel({
   icon,
+  media,
   title,
   description,
   children,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
+  media?: ReactNode;
   title: string;
   description: string;
   children?: ReactNode;
@@ -267,9 +269,13 @@ function ResultStatePanel({
       <GlobalHeader />
       <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-3xl items-center justify-center px-6 py-8">
         <section className="w-full border-y border-[#dfe5ec] bg-white px-6 py-10 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-[#f4f7fb]">
-            {icon}
-          </div>
+          {media ? (
+            <div className="mx-auto flex items-center justify-center">{media}</div>
+          ) : (
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-[#f4f7fb]">
+              {icon}
+            </div>
+          )}
           <h2 className="mt-5 text-2xl font-bold">{title}</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-muted-foreground">{description}</p>
           {children ? <div className="mt-6 flex flex-col items-center justify-center gap-2 sm:flex-row">{children}</div> : null}
@@ -1232,7 +1238,7 @@ export default function InterviewResultPage() {
 
     return (
       <ResultStatePanel
-        icon={<Loader2 className="h-7 w-7 animate-spin text-primary" />}
+        media={<DibutLoading className="w-44" />}
         title="면접 결과를 디벗 리포트로 정리하고 있습니다"
         description="답변 흐름과 직무 연결성을 다시 읽어 상세 리포트를 생성하는 중입니다."
       />

@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DibutLoading } from "@/components/shared/dibut-loading";
 import { AxisEvidencePanel } from "@/components/features/interview/report/axis-evidence-panel";
 import { AxisProfileBoard } from "@/components/features/interview/report/axis-profile-board";
 import { InterviewReportScreen } from "@/components/features/interview/report/interview-report-screen";
@@ -193,7 +194,7 @@ export default function PortfolioDefenseReportPage() {
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-4xl items-center justify-center px-6 py-8">
           <div className="space-y-4 text-center">
-            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+            <DibutLoading className="mx-auto w-44" />
             <h2 className="text-2xl font-bold">포트폴리오 디펜스 리포트를 불러오는 중입니다</h2>
             <p className="text-muted-foreground">세션 리포트와 타임라인을 기반으로 화면을 구성하고 있습니다.</p>
           </div>
