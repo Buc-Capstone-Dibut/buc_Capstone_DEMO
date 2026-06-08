@@ -59,6 +59,7 @@ import type {
   TabKey,
 } from "./profile-types";
 import { formatDate } from "./profile-utils";
+import { TierBadge } from "@/components/shared/tier-badge";
 
 const PostsTab = dynamic(() =>
   import("./tabs/posts-tab").then((module) => module.PostsTab),
@@ -212,31 +213,6 @@ function OverviewShortcutRow({
     </button>
   );
 }
-
-const TIER_BADGE: Record<string, string> = {
-  씨앗:
-    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
-  새싹:
-    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
-  묘목:
-    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
-  나무:
-    "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
-  숲: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
-  거목:
-    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
-
-  Unranked:
-    "border-zinc-300/70 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/30",
-  Bronze:
-    "border-lime-400/70 text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20",
-  Silver:
-    "border-emerald-400/70 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20",
-  Gold: "border-green-500/70 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20",
-  Platinum: "border-teal-500/70 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20",
-  Diamond:
-    "border-cyan-500/70 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/20",
-};
 
 const NAV_ITEMS: {
   key: TabKey;
@@ -648,9 +624,6 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
     }
   };
 
-  const tierStyle =
-    TIER_BADGE[profile.tier] ?? "border-muted text-muted-foreground";
-
   const displayStats = stats;
   const contentCount = stats.postCount + stats.commentCount;
   const renderLoadMoreButton = (key: ProfileDataKey, itemCount: number) => {
@@ -704,12 +677,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Badge>
                   )}
                   {profile.tier && (
-                    <Badge
-                      variant="outline"
-                      className={`h-5 px-1.5 text-[10px] font-normal ${tierStyle}`}
-                    >
-                      ★ {profile.tier}
-                    </Badge>
+                    <TierBadge tier={profile.tier} size="md" />
                   )}
                   <Badge
                     variant="outline"
@@ -810,12 +778,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                       Rank
                     </p>
                     <div className="mt-3 flex justify-center">
-                      <Badge
-                        variant="outline"
-                        className={`h-8 px-3 text-sm font-medium ${tierStyle}`}
-                      >
-                        ★ {profile.tier}
-                      </Badge>
+                      <TierBadge tier={profile.tier} size="lg" />
                     </div>
                   </div>
                 </CardContent>
