@@ -773,26 +773,21 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Link>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border bg-muted/20 px-4 py-6 text-center">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Rank
-                    </p>
-                    <div className="mt-3 flex flex-col items-center gap-3">
-                      <div className="relative aspect-square w-full max-w-[220px]">
-                        <Image
-                          src={`/level-icons/level-${getTierLevel(profile.tier)}.jpg`}
-                          alt={`레벨 ${getTierLevel(profile.tier)} ${profile.tier || "씨앗"}`}
-                          fill
-                          sizes="(max-width: 768px) 60vw, 220px"
-                          className="rounded-2xl object-cover ring-1 ring-slate-200 shadow-sm"
-                          priority
-                        />
-                      </div>
-                      <span className="text-lg font-bold text-slate-900">
-                        {profile.tier || "씨앗"}
-                      </span>
+                <CardContent>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative aspect-square w-full max-w-[200px]">
+                      <Image
+                        src={`/level-icons/level-${getTierLevel(profile.tier)}.jpg`}
+                        alt={`레벨 ${getTierLevel(profile.tier)} ${profile.tier || "씨앗"}`}
+                        fill
+                        sizes="(max-width: 768px) 60vw, 200px"
+                        className="object-contain"
+                        priority
+                      />
                     </div>
+                    <span className="text-xl font-extrabold tracking-tight text-slate-900">
+                      {profile.tier || "씨앗"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
