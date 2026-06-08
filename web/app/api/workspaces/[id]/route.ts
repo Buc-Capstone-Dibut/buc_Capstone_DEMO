@@ -80,6 +80,7 @@ export async function GET(
                 id: true,
                 nickname: true,
                 avatar_url: true,
+                tier: true,
                 users: {
                   select: {
                     email: true,
@@ -145,6 +146,7 @@ export async function GET(
         nickname: wm.user?.nickname || "Unknown",
         email: wm.user?.users?.email || null,
         avatar: wm.user?.avatar_url,
+        tier: wm.user?.tier ?? null,
         role: wm.role,
         team_role: wm.team_role,
         joined_at: wm.joined_at,

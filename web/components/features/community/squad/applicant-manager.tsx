@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Check, X, UserPlus, MessageSquare } from "lucide-react";
+import { TierBadge } from "@/components/shared/tier-badge";
 
 interface Applicant {
   id: string; // Application ID
@@ -187,9 +188,7 @@ export default function ApplicantManager({
                           <p className="font-semibold text-sm">
                             {app.user.nickname}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {app.user.tier}
-                          </p>
+                          <TierBadge tier={app.user.tier} size="sm" />
                         </div>
                       </Link>
                     ) : (
@@ -202,9 +201,7 @@ export default function ApplicantManager({
                           <p className="font-semibold text-sm">
                             {app.user.nickname}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {app.user.tier}
-                          </p>
+                          <TierBadge tier={app.user.tier} size="sm" />
                         </div>
                       </>
                     )}
