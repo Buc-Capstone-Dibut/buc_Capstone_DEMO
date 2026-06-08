@@ -59,7 +59,8 @@ import type {
   TabKey,
 } from "./profile-types";
 import { formatDate } from "./profile-utils";
-import { TierBadge } from "@/components/shared/tier-badge";
+import { TierBadge, getTierLevel } from "@/components/shared/tier-badge";
+import Image from "next/image";
 
 const PostsTab = dynamic(() =>
   import("./tabs/posts-tab").then((module) => module.PostsTab),
@@ -777,8 +778,20 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                       Rank
                     </p>
-                    <div className="mt-3 flex justify-center">
-                      <TierBadge tier={profile.tier} size="lg" />
+                    <div className="mt-3 flex flex-col items-center gap-3">
+                      <div className="relative aspect-square w-full max-w-[220px]">
+                        <Image
+                          src={`/level-icons/level-${getTierLevel(profile.tier)}.jpg`}
+                          alt={`레벨 ${getTierLevel(profile.tier)} ${profile.tier || "씨앗"}`}
+                          fill
+                          sizes="(max-width: 768px) 60vw, 220px"
+                          className="rounded-2xl object-cover ring-1 ring-slate-200 shadow-sm"
+                          priority
+                        />
+                      </div>
+                      <span className="text-lg font-bold text-slate-900">
+                        {profile.tier || "씨앗"}
+                      </span>
                     </div>
                   </div>
                 </CardContent>

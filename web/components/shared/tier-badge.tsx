@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-const TIER_TO_LEVEL: Record<string, number> = {
+export const TIER_TO_LEVEL: Record<string, number> = {
   "씨앗": 1,
   "새싹": 2,
   "묘목": 3,
@@ -11,6 +11,10 @@ const TIER_TO_LEVEL: Record<string, number> = {
   "숲": 5,
   "거목": 6,
 };
+
+export function getTierLevel(tier?: string | null): number {
+  return tier && TIER_TO_LEVEL[tier] ? TIER_TO_LEVEL[tier] : 1;
+}
 
 const SIZE = {
   xs: { icon: 16, gap: "gap-1", label: "text-[10px]" },
