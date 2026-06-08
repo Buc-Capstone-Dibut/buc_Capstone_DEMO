@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TierBadge } from "@/components/shared/tier-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -94,13 +95,21 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col space-y-1.5">
             <p className="text-sm font-medium leading-none">
               {profile?.nickname || user?.user_metadata?.full_name || "사용자"}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {user?.email}
             </p>
+            {profile && (
+              <div className="flex items-center gap-2 pt-1">
+                <TierBadge tier={profile.tier} size="sm" />
+                <span className="text-xs font-medium text-muted-foreground">
+                  {profile.reputation ?? 0}pt
+                </span>
+              </div>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
