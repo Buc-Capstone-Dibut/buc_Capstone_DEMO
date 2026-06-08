@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { ArrowRight } from "lucide-react";
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 const tierProfiles = [
   {
     name: "씨앗",
+    level: 1,
     range: "0 ~ 29점",
     accentClass: "text-zinc-600",
     slotClass:
@@ -27,6 +29,7 @@ const tierProfiles = [
   },
   {
     name: "새싹",
+    level: 2,
     range: "30 ~ 149점",
     accentClass: "text-lime-700",
     slotClass:
@@ -41,6 +44,7 @@ const tierProfiles = [
   },
   {
     name: "묘목",
+    level: 3,
     range: "150 ~ 399점",
     accentClass: "text-emerald-700",
     slotClass:
@@ -55,6 +59,7 @@ const tierProfiles = [
   },
   {
     name: "나무",
+    level: 4,
     range: "400 ~ 899점",
     accentClass: "text-green-700",
     slotClass:
@@ -69,6 +74,7 @@ const tierProfiles = [
   },
   {
     name: "숲",
+    level: 5,
     range: "900 ~ 1799점",
     accentClass: "text-teal-700",
     slotClass:
@@ -83,6 +89,7 @@ const tierProfiles = [
   },
   {
     name: "거목",
+    level: 6,
     range: "1800점 이상",
     accentClass: "text-cyan-700",
     slotClass:
@@ -195,20 +202,22 @@ export default function TierSystemPage() {
                 <div key={tier.name} className="space-y-2">
                   <div
                     className={cn(
-                      "flex aspect-[1/1] items-center justify-center rounded-[28px] border border-dashed text-center",
+                      "flex aspect-[1/1] items-center justify-center rounded-[28px] border bg-white p-3",
                       tier.slotClass,
                     )}
                   >
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold tracking-[0.18em]">
-                        {tier.name}
-                      </p>
-                      <p className="text-[10px] uppercase tracking-[0.2em] opacity-70">
-                        SVG SLOT
-                      </p>
-                    </div>
+                    <Image
+                      src={`/level-icons/level-${tier.level}.jpg`}
+                      alt={`레벨 ${tier.level} ${tier.name}`}
+                      width={120}
+                      height={120}
+                      className="h-full w-full rounded-2xl object-cover"
+                    />
                   </div>
-                  <p className={cn("text-center text-xs font-medium", tier.accentClass)}>
+                  <p className={cn("text-center text-xs font-semibold", tier.accentClass)}>
+                    {tier.name}
+                  </p>
+                  <p className={cn("text-center text-[11px]", tier.accentClass, "opacity-80")}>
                     {tier.range}
                   </p>
                 </div>
@@ -234,16 +243,17 @@ export default function TierSystemPage() {
                 <div className="flex items-start md:justify-center">
                   <div
                     className={cn(
-                      "flex h-20 w-20 shrink-0 items-center justify-center rounded-[26px] border border-dashed text-center",
+                      "flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[26px] border bg-white p-2",
                       tier.slotClass,
                     )}
                   >
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em]">
-                        Slot
-                      </p>
-                      <p className="text-[10px] opacity-70">IMG / SVG</p>
-                    </div>
+                    <Image
+                      src={`/level-icons/level-${tier.level}.jpg`}
+                      alt={`레벨 ${tier.level} ${tier.name}`}
+                      width={80}
+                      height={80}
+                      className="h-full w-full rounded-2xl object-cover"
+                    />
                   </div>
                 </div>
 

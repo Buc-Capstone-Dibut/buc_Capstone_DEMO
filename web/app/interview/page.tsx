@@ -1,16 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  BriefcaseBusiness,
   Camera,
   CheckCircle2,
   Clock3,
-  FileSearch,
-  Github,
   Mic2,
   Sparkles,
   Video,
@@ -18,48 +15,32 @@ import {
 
 import { Footer } from "@/components/layout/footer";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const INTERVIEW_MODES = [
   {
     title: "공고 기반 모의면접",
-    subtitle: "실제 지원 공고에 맞춘 질문",
     description: "채용공고와 이력서를 함께 분석해 JD 요구사항 중심의 면접 흐름을 만듭니다.",
-    image: "/images/interview/mode-posting.png",
+    image: "/images/interview/generated/mode-posting-beaver.png",
     href: "/interview/posting/setup",
     actionLabel: "공고로 시작",
-    icon: FileSearch,
-    stage: "bg-[#dceecf]",
-    accent: "from-white to-[#f6fbf2]",
     border: "hover:border-[#9ac56a]",
-    badges: ["JD 분석", "이력서 매칭", "맞춤 질문"],
   },
   {
     title: "직무 기반 모의면접",
-    subtitle: "목표 직무 역량 훈련",
     description: "공고 없이도 백엔드, 프론트엔드, AI/데이터 등 직무별 핵심 질문을 연습합니다.",
-    image: "/images/interview/mode-role.png",
+    image: "/images/interview/generated/mode-role-beaver.png",
     href: "/interview/role/setup",
     actionLabel: "직무 선택",
-    icon: BriefcaseBusiness,
-    stage: "bg-[#d5efeb]",
-    accent: "from-white to-[#f2faf8]",
     border: "hover:border-[#7fc9c1]",
-    badges: ["직무 선택", "역량 질문", "기초-심화"],
   },
   {
     title: "포트폴리오 디펜스",
-    subtitle: "프로젝트 설명력 강화",
     description: "GitHub 레포를 분석해 설계 의도, 기술 선택, 개선 방향을 설명하는 면접을 진행합니다.",
-    image: "/images/interview/mode-portfolio.png",
+    image: "/images/interview/generated/mode-portfolio-beaver.png",
     href: "/interview/training/setup",
     actionLabel: "디펜스 셋업",
-    icon: Github,
-    stage: "bg-[#d8e9f5]",
-    accent: "from-white to-[#f3f8fc]",
     border: "hover:border-[#83b7d8]",
-    badges: ["GitHub 분석", "설계 의도", "기술 설명"],
   },
 ] as const;
 
@@ -73,8 +54,6 @@ const READINESS_ITEMS = [
 ] as const;
 
 export default function InterviewPage() {
-  const router = useRouter();
-
   return (
     <div className="min-h-screen bg-[#f3f6fa] text-foreground">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-5 py-8 md:px-8 lg:px-10">
@@ -95,125 +74,144 @@ export default function InterviewPage() {
         </section>
 
         <section className="grid gap-5 lg:grid-cols-3">
-          {INTERVIEW_MODES.map((mode, index) => {
-            const ModeIcon = mode.icon;
-
-            return (
-              <motion.article
-                key={mode.title}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                whileHover={{ y: -4 }}
-                className={cn(
-                  "group relative flex min-h-[500px] flex-col overflow-hidden rounded-xl border border-[#dfe7ef] bg-white shadow-sm transition-colors duration-200",
-                  mode.border
-                )}
-              >
-                <div className="relative h-60 overflow-hidden bg-transparent">
-                  <div className={cn("absolute left-1/2 top-5 h-40 w-[82%] -translate-x-1/2 rounded-[36px] opacity-55 blur-3xl", mode.stage)} />
-                  <div className="absolute left-1/2 bottom-5 h-12 w-[58%] -translate-x-1/2 rounded-full bg-[#172033]/[0.08] blur-2xl transition-opacity duration-300 group-hover:opacity-80" />
-                  <div className="absolute left-1/2 top-12 h-20 w-[72%] -translate-x-1/2 rounded-[999px] bg-white/55 blur-xl" />
-                  <div className="absolute left-5 top-5 z-20 flex items-center gap-2 rounded-lg border border-[#dfe7ef]/70 bg-white/75 px-3 py-1.5 text-xs font-bold text-[#4f5b6b] shadow-sm backdrop-blur">
-                    <ModeIcon className="h-3.5 w-3.5 text-[#75a843]" />
-                    {mode.subtitle}
-                  </div>
+          {INTERVIEW_MODES.map((mode, index) => (
+            <motion.div
+              key={mode.title}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: index * 0.08 }}
+              whileHover={{ y: -4 }}
+              className={cn(
+                "group relative min-h-[520px] overflow-hidden rounded-[2rem] border border-[#dfe7ef] bg-white transition-colors duration-300",
+                mode.border
+              )}
+            >
+              <Link href={mode.href} className="flex h-full min-h-[520px] flex-col p-7">
+                <div className="relative mb-8 flex h-60 items-end justify-center overflow-visible rounded-[1.5rem] bg-transparent">
+                  <div className="absolute bottom-2 left-1/2 h-12 w-[58%] -translate-x-1/2 rounded-full bg-[#172033]/[0.08] blur-2xl transition-opacity duration-300 group-hover:opacity-80" />
                   <Image
                     src={mode.image}
                     alt={mode.title}
-                    width={340}
-                    height={340}
+                    width={420}
+                    height={420}
+                    sizes="(min-width: 1024px) 33vw, 100vw"
                     priority
-                    className="absolute left-1/2 top-1 z-10 h-64 w-64 -translate-x-1/2 object-contain drop-shadow-[0_24px_22px_rgba(23,32,51,0.15)] transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.04]"
+                    className="relative z-10 h-[118%] w-[118%] max-w-none object-contain object-bottom p-3 drop-shadow-[0_24px_20px_rgba(23,32,51,0.12)] transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
 
-                <div className="relative z-0 flex flex-1 flex-col p-5 pt-4">
-                  <div className="space-y-3">
-                    <h2 className="text-2xl font-black tracking-tight text-[#172033]">{mode.title}</h2>
-                    <p className="min-h-[72px] text-sm leading-6 text-[#5f6b7a]">{mode.description}</p>
+                <div className="flex flex-1 flex-col">
+                  <span className="mb-4 block font-mono text-[13px] font-bold text-[#9fca7c] transition-colors duration-300 group-hover:text-[#75a843]">
+                    0{index + 1}
+                  </span>
+                  <h2 className="mb-4 text-[26px] font-black leading-tight tracking-tight text-[#172033]">
+                    {mode.title}
+                  </h2>
+                  <p className="text-[15px] font-medium leading-7 text-[#6d7888]">
+                    {mode.description}
+                  </p>
 
-                    <div className="flex flex-wrap gap-2">
-                      {mode.badges.map((badge) => (
-                        <span
-                          key={badge}
-                          className="rounded-lg border border-[#dfe7ef] bg-[#f8fafc] px-2.5 py-1 text-xs font-bold text-[#5f6b7a]"
-                        >
-                          {badge}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-auto flex flex-col gap-2 pt-5">
-                    <Button
-                      className="h-11 rounded-lg bg-[#7cad46] text-sm font-bold text-white hover:bg-[#6f9f3b]"
-                      onClick={() => router.push(mode.href)}
-                    >
-                      {mode.actionLabel}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </div>
+                  <span className="mt-auto inline-flex items-center pt-8 text-[13px] font-black text-[#8b96a5] transition-colors duration-300 group-hover:text-[#172033]">
+                    {mode.actionLabel}
+                    <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  </span>
                 </div>
-              </motion.article>
-            );
-          })}
+
+                <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-[#7cad46] transition-all duration-500 group-hover:w-full" />
+              </Link>
+            </motion.div>
+          ))}
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <div className="rounded-xl border border-[#dfe7ef] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-lg font-black text-[#172033]">면접 전 확인</p>
-                <p className="mt-1 text-sm text-[#6d7888]">실제 방 입장 전에 오디오와 세션을 준비합니다.</p>
-              </div>
-              <CheckCircle2 className="h-6 w-6 text-[#7cad46]" />
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {READINESS_ITEMS.map((item) => {
-                const ItemIcon = item.icon;
-
-                return (
-                  <div key={item.label} className="rounded-lg border border-[#e3eaf1] bg-[#fbfcfe] p-3">
-                    <div className="flex items-center gap-2">
-                      <ItemIcon className="h-4 w-4 text-[#75a843]" />
-                      <p className="text-sm font-bold text-[#172033]">{item.label}</p>
-                    </div>
-                    <p className="mt-1 text-xs font-medium text-[#6d7888]">{item.value}</p>
-                  </div>
-                );
-              })}
-            </div>
+        <section className="border-t border-[#dfe7ef] pt-10">
+          <div className="mb-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-[#dfe7ef]" />
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-[#8b96a5]">Interview Guide</span>
+            <span className="h-px flex-1 bg-[#dfe7ef]" />
           </div>
 
-          <div className="rounded-xl border border-[#dfe7ef] bg-[#172033] p-5 text-white shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-[#b9dca0]">
+          <div className="space-y-12">
+            <div className="grid items-center gap-6 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,1fr)]">
+              <div className="relative flex justify-center lg:justify-start">
+                <div className="absolute bottom-6 left-1/2 h-14 w-56 -translate-x-1/2 rounded-full bg-[#172033]/[0.08] blur-3xl lg:left-[45%]" />
+                <Image
+                  src="/images/interview/generated/support-readiness-beaver.png"
+                  alt="면접 전 오디오와 카메라를 점검하는 디벗 비버"
+                  width={560}
+                  height={373}
+                  className="relative z-10 h-72 w-auto max-w-full object-contain drop-shadow-[0_26px_24px_rgba(23,32,51,0.12)]"
+                />
+              </div>
+
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 text-[12px] font-black text-[#6f9f3b]">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  입장 전 점검
+                </div>
+                <h2 className="mt-3 text-2xl font-black leading-tight text-[#172033] md:text-3xl">
+                  면접 전 확인
+                </h2>
+                <p className="mt-3 max-w-2xl text-[15px] font-medium leading-7 text-[#6d7888]">
+                  시작 직전에 음성, 시간, 마이크, 카메라 상태를 확인해 면접 흐름이 끊기지 않도록 준비합니다.
+                </p>
+
+                <dl className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                  {READINESS_ITEMS.map((item) => {
+                    const ItemIcon = item.icon;
+
+                    return (
+                      <div key={item.label} className="flex min-w-0 items-center gap-2.5">
+                        <ItemIcon className="h-4 w-4 shrink-0 text-[#75a843]" />
+                        <dt className="text-sm font-black text-[#172033]">{item.label}</dt>
+                        <dd className="truncate text-sm font-medium text-[#8b96a5]">{item.value}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </div>
+            </div>
+
+            <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]">
+              <div className="order-2 min-w-0 lg:order-1">
+                <div className="flex items-center gap-2 text-[#75a843]">
                   <Sparkles className="h-4 w-4" />
                   <p className="text-xs font-black uppercase tracking-[0.16em]">DIBEOT REPORT</p>
                 </div>
-                <h2 className="mt-2 text-xl font-black">면접 후 답변 성향을 4축으로 정리합니다</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#c6ced8]">
-                  정답 여부만 보지 않고, 문제 접근 방식과 설명 흐름이 어떤 개발자 인상으로 남는지 요약합니다.
+                <h2
+                  className="mt-3 text-[26px] font-black leading-tight text-[#172033] md:text-3xl"
+                  aria-label="면접 후 답변 성향을 4축으로 정리합니다"
+                >
+                  <span aria-hidden="true" className="block">
+                    면접 후 답변 성향을
+                  </span>
+                  <span aria-hidden="true" className="block">
+                    4축으로 정리합니다
+                  </span>
+                </h2>
+                <p className="mt-3 max-w-2xl text-[15px] font-medium leading-7 text-[#6d7888]">
+                  답변의 정답 여부보다 문제를 바라보는 방식, 생각의 폭, 결정 근거, 설명 흐름을 요약해 다음 연습 방향을 잡습니다.
                 </p>
-              </div>
-              <Button
-                variant="outline"
-                className="h-10 shrink-0 rounded-lg border-white/20 bg-white/10 text-sm font-bold text-white hover:bg-white/15"
-                onClick={() => router.push("/interview/analysis")}
-              >
-                분석 예시 보기
-              </Button>
-            </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-4">
-              {DIBEOT_AXES.map((axis, index) => (
-                <div key={axis} className="rounded-lg border border-white/10 bg-white/[0.08] p-3">
-                  <p className="text-xs font-black text-[#b9dca0]">0{index + 1}</p>
-                  <p className="mt-2 text-sm font-bold">{axis}</p>
-                </div>
-              ))}
+                <ol className="mt-5 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  {DIBEOT_AXES.map((axis, index) => (
+                    <li key={axis} className="flex items-center gap-2 text-sm font-bold text-[#4f5b6b]">
+                      <span className="font-mono text-[13px] font-black text-[#75a843]">0{index + 1}</span>
+                      {axis}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="relative order-1 flex justify-center lg:order-2 lg:justify-end">
+                <div className="absolute bottom-7 left-1/2 h-16 w-60 -translate-x-1/2 rounded-full bg-[#172033]/[0.11] blur-3xl lg:left-[55%]" />
+                <Image
+                  src="/images/interview/generated/support-report-beaver.png"
+                  alt="면접 답변 성향 리포트를 분석하는 디벗 비버"
+                  width={600}
+                  height={400}
+                  className="relative z-10 h-72 w-auto max-w-full object-contain drop-shadow-[0_28px_28px_rgba(23,32,51,0.18)]"
+                />
+              </div>
             </div>
           </div>
         </section>

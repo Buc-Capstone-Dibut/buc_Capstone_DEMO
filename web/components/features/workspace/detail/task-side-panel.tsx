@@ -18,7 +18,8 @@ interface TaskSidePanelProps {
 }
 
 export function TaskSidePanel({ taskId, open, onOpenChange, onNavigateToDoc }: TaskSidePanelProps) {
-  const { tasks, updateTask } = useWorkspaceStore();
+  const tasks = useWorkspaceStore((s) => s.tasks);
+  const updateTask = useWorkspaceStore((s) => s.updateTask);
   const task = tasks.find(t => t.id === taskId);
 
   if (!task) return null;

@@ -42,7 +42,8 @@ export function ViewCreationWizard({
   availableColors: availableColorsProp,
   onCreateView,
 }: ViewCreationWizardProps) {
-  const { addView, tags } = useWorkspaceStore();
+  const addView = useWorkspaceStore((s) => s.addView);
+  const tags = useWorkspaceStore((s) => s.tags);
   const [viewName, setViewName] = useState("");
   const viewType: "kanban" | "list" | "calendar" = "kanban";
   const [grouping, setGrouping] = useState<'status' | 'assignee' | 'priority' | 'dueDate' | 'tag'>('status');

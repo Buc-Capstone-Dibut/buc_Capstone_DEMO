@@ -103,13 +103,17 @@ export function KanbanColumn({
     transform,
     transition,
     isDragging,
+    isOver,
   } = useSortable({
     id: id,
     data: {
       type: "Column",
       column: { id, title },
     },
-    disabled: groupBy !== "status", // Disable column DnD if not grouping by status
+    // status 외 그룹핑에서는 "컬럼 재정렬"만 막고, 컬럼을 드롭 대상으로는 유지한다.
+    // (이전엔 disabled:true가 droppable까지 꺼서 우선순위·담당자·태그 뷰의 빈 컬럼에
+    //  task를 떨어뜨릴 수 없었음 — 빈 컬럼 이동 버그의 근본 원인)
+    disabled: { draggable: groupBy !== "status", droppable: false },
   });
 
   const style = {
@@ -160,6 +164,8 @@ export function KanbanColumn({
         "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
         colorConfig.value,
         colorConfig.border,
+        // 드래그 중인 task가 이 컬럼 위에 올라오면 드롭 대상임을 시각적으로 표시
+        isOver && "ring-2 ring-primary/50 ring-offset-1",
         className,
       )}
       {...(groupBy === "status" ? attributes : {})}
@@ -337,6 +343,11 @@ export function KanbanColumn({
             />
           ))}
         </SortableContext>
+        {tasks.length === 0 && (
+          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 py-6 text-xs text-muted-foreground/50 select-none">
+            여기로 드롭하여 이동
+          </div>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start text-muted-foreground/50 hover:text-muted-foreground h-8 text-sm"

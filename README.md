@@ -6,19 +6,13 @@
 - 실시간 워크스페이스(화이트보드/문서/채팅)
 - 기술 블로그/개발 이벤트 수집
 
-## 프로젝트 한눈에 보기
+## 아키텍처 & 인프라
 
-```mermaid
-flowchart LR
-    U[User Browser] --> W[web / Next.js]
-    W -->|REST| A[ai-interview / FastAPI]
-    W -->|WSS| S[workspace-server / Node]
-    A --> DB[(Supabase Postgres)]
-    S --> DB
-    A --> G[Google Gemini]
-    A --> O[OpenAI STT/TTS]
-    C[crawler / Python] --> DB
-```
+<p align="center">
+  <img src="docs/images/dibut-architecture.png" alt="Dibut Architecture & Infrastructure" width="840">
+</p>
+
+사용자 트래픽은 **Vercel**에 배포된 `web`(Next.js)으로 들어오고, REST/WSS로 **Render**의 두 백엔드와 통신합니다 — 면접 엔진 `ai-interview`(FastAPI)와 실시간 협업 `workspace-server`(Node). 데이터와 인증은 **Supabase**(Postgres + Auth)가 맡습니다. 면접·생성 파이프라인은 Gemini·OpenAI·LiveKit·GitHub API·Socket.IO 등 외부 서비스를 사용하며, `crawler`(Python)는 수집 결과를 Postgres에 JSON 캐시로 적재합니다.
 
 ## 모노레포 구성
 
@@ -57,15 +51,13 @@ cd workspace-server && npm install && npm run dev
 cd crawler && uv sync
 ```
 
-## 배포 구조
+## 배포 & CI/CD
 
-```mermaid
-flowchart TB
-    V[Vercel - web] --> R1[Render - ai-interview]
-    V --> R2[Render - workspace-server]
-    R1 --> DB[(Supabase)]
-    R2 --> DB
-```
+<p align="center">
+  <img src="docs/images/dibut-backend-cicd.png" alt="Dibut BackEnd CI / CD" width="840">
+</p>
+
+개발자가 GitHub 레포에 푸시하면 연동된 Git Hook이 각 플랫폼의 빌드를 트리거합니다. `web`은 **Vercel Git Hook**으로, `ai-interview`/`workspace-server`는 **Render Git Hook**으로 자동 배포됩니다. 빌드 시 Vercel은 백엔드 API/WSS URL을, Render 서비스들은 `DATABASE_URL`과 외부 API 키(Gemini·OpenAI·LiveKit·Socket.IO)를 환경변수로 주입받습니다.
 
 현재 Render 서비스 URL 예시:
 
@@ -85,3 +77,5 @@ flowchart TB
 - AI 면접 서버: [ai-interview/README.md](ai-interview/README.md)
 - 워크스페이스 서버: [workspace-server/README.md](workspace-server/README.md)
 - 크롤러: [crawler/README.md](crawler/README.md)
+- 성능 최적화·QA 검증 보고서: [docs/reports/2026-06-03-performance-optimization-report.md](docs/reports/2026-06-03-performance-optimization-report.md)
+- 회귀 테스트 계획서: [docs/qa/2026-06-03-regression-test-plan.md](docs/qa/2026-06-03-regression-test-plan.md)

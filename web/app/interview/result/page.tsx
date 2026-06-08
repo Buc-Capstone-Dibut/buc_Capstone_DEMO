@@ -12,13 +12,13 @@ import {
   ClipboardCheck,
   FileText,
   Lightbulb,
-  Loader2,
   MessageSquareQuote,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalHeader } from "@/components/layout/global-header";
+import { DibutLoading } from "@/components/shared/dibut-loading";
 import {
   buildSessionInterviewDetailModel,
   type CoreResponseEntry,
@@ -253,11 +253,13 @@ function getCoachingSourceBadge(source: "question_finding" | "generated") {
 
 function ResultStatePanel({
   icon,
+  media,
   title,
   description,
   children,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
+  media?: ReactNode;
   title: string;
   description: string;
   children?: ReactNode;
@@ -267,9 +269,13 @@ function ResultStatePanel({
       <GlobalHeader />
       <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-3xl items-center justify-center px-6 py-8">
         <section className="w-full border-y border-[#dfe5ec] bg-white px-6 py-10 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-[#f4f7fb]">
-            {icon}
-          </div>
+          {media ? (
+            <div className="mx-auto flex items-center justify-center">{media}</div>
+          ) : (
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-[#f4f7fb]">
+              {icon}
+            </div>
+          )}
           <h2 className="mt-5 text-2xl font-bold">{title}</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-muted-foreground">{description}</p>
           {children ? <div className="mt-6 flex flex-col items-center justify-center gap-2 sm:flex-row">{children}</div> : null}
@@ -280,18 +286,20 @@ function ResultStatePanel({
 }
 
 function DocumentSection({
+  id,
   index,
   title,
   description,
   children,
 }: {
+  id?: string;
   index: string;
   title: string;
   description?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="border-t border-[#dfe5ec] py-12 md:py-14">
+    <section id={id} className="scroll-mt-[160px] border-t border-[#dfe5ec] py-12 md:py-14 md:scroll-mt-32">
       <div className="grid gap-7 lg:grid-cols-[170px_minmax(0,1fr)]">
         <aside>
           <p className="text-xs font-semibold uppercase text-muted-foreground">{index}</p>
@@ -538,7 +546,8 @@ function TimelineDocument({
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <ol className="border-l border-[#dfe5ec]">
+      <div className="max-h-[70vh] overflow-y-auto overscroll-contain pl-2 pr-2">
+        <ol className="border-l border-[#dfe5ec]">
         {items.map((item, index) => {
           const selected = selectedIndex === index;
           return (
@@ -562,9 +571,10 @@ function TimelineDocument({
             </li>
           );
         })}
-      </ol>
+        </ol>
+      </div>
 
-      <aside className="border-l border-[#dfe5ec] pl-6 lg:sticky lg:top-24 lg:self-start">
+      <aside className="border-l border-[#dfe5ec] pl-6 lg:sticky lg:top-32 lg:self-start">
         {activeItem ? (
           <div className="space-y-6">
             <div>
@@ -861,6 +871,83 @@ function ActionPlanDocument({
   );
 }
 
+const REPORT_SECTIONS = [
+  { id: "summary", label: "요약" },
+  { id: "profile", label: "DIBEOT 프로필" },
+  { id: "timeline", label: "질문 타임라인" },
+  { id: "core", label: "대표 답변" },
+  { id: "growth", label: "성장 가이드" },
+  { id: "actions", label: "다음 액션" },
+] as const;
+
+// 긴 리포트(질문이 많을수록 길어짐)의 스크롤 부담을 줄이는 sticky 목차.
+// 스크롤 스파이로 현재 섹션을 강조하고, 클릭/해시로 섹션 딥링크를 지원한다.
+function ReportTableOfContents() {
+  const [active, setActive] = useState<string>(REPORT_SECTIONS[0].id);
+  const visibleRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          visibleRef.current[entry.target.id] = entry.isIntersecting;
+        });
+        const current = REPORT_SECTIONS.find((section) => visibleRef.current[section.id]);
+        if (current) setActive(current.id);
+      },
+      { rootMargin: "-160px 0px -60% 0px", threshold: 0 },
+    );
+    REPORT_SECTIONS.forEach((section) => {
+      const el = document.getElementById(section.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // 진입 URL에 해시(#timeline 등)가 있으면 해당 섹션으로 이동(딥링크)
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash && REPORT_SECTIONS.some((section) => section.id === hash)) {
+      const el = document.getElementById(hash);
+      if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+    }
+  }, []);
+
+  const jump = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${id}`);
+  };
+
+  return (
+    <nav
+      aria-label="리포트 섹션 바로가기"
+      className="sticky top-24 z-30 border-b border-[#dfe5ec] bg-[#f7f8fa]/95 backdrop-blur md:top-14"
+    >
+      <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6 py-3 md:px-10">
+        {REPORT_SECTIONS.map((section, index) => (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => jump(section.id)}
+            aria-current={active === section.id ? "true" : undefined}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+              active === section.id
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-black/5 hover:text-foreground"
+            }`}
+          >
+            <span className="mr-1.5 text-xs font-bold opacity-60">{String(index + 1).padStart(2, "0")}</span>
+            {section.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export default function InterviewResultPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1151,7 +1238,7 @@ export default function InterviewResultPage() {
 
     return (
       <ResultStatePanel
-        icon={<Loader2 className="h-7 w-7 animate-spin text-primary" />}
+        media={<DibutLoading className="w-44" />}
         title="면접 결과를 디벗 리포트로 정리하고 있습니다"
         description="답변 흐름과 직무 연결성을 다시 읽어 상세 리포트를 생성하는 중입니다."
       />
@@ -1216,8 +1303,11 @@ export default function InterviewResultPage() {
           interviewVisual={interviewVisual}
         />
 
+        <ReportTableOfContents />
+
         <article className="mx-auto max-w-7xl px-6 md:px-10">
           <DocumentSection
+            id="summary"
             index="01"
             title="요약"
             description="이번 면접에서 먼저 읽어야 할 강점, 보완점, 다음 행동입니다."
@@ -1259,6 +1349,7 @@ export default function InterviewResultPage() {
           </DocumentSection>
 
           <DocumentSection
+            id="profile"
             index="02"
             title="DIBEOT 프로필"
             description={
@@ -1275,6 +1366,7 @@ export default function InterviewResultPage() {
           </DocumentSection>
 
           <DocumentSection
+            id="timeline"
             index="03"
             title="질문 타임라인"
             description="질문과 답변 흐름을 시간순으로 읽고, 선택한 응답의 분석과 코칭을 확인합니다."
@@ -1288,6 +1380,7 @@ export default function InterviewResultPage() {
           </DocumentSection>
 
           <DocumentSection
+            id="core"
             index="04"
             title="대표 답변 분석"
             description="실제 분석과 AI 코칭을 분리해, 어떤 답변을 어떻게 고치면 좋을지 보여줍니다."
@@ -1301,6 +1394,7 @@ export default function InterviewResultPage() {
           </DocumentSection>
 
           <DocumentSection
+            id="growth"
             index="05"
             title="성장 가이드"
             description="이번 리포트가 면접관에게 남긴 인상과 다음 연습 방향입니다."
@@ -1309,6 +1403,7 @@ export default function InterviewResultPage() {
           </DocumentSection>
 
           <DocumentSection
+            id="actions"
             index="06"
             title="다음 액션"
             description="리포트의 마지막은 다시 연습할 때 바로 쓸 수 있는 체크리스트로 끝냅니다."

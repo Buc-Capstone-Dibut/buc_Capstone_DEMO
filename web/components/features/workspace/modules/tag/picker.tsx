@@ -43,7 +43,11 @@ function getBgColor(color: string) {
 type ViewState = 'list' | 'create' | 'edit';
 
 export function SmartTagPicker({ selectedTagIds = [], onToggleTag, trigger }: SmartTagPickerProps) {
-  const { tags, createTag, updateTag, deleteTag, reorderTags } = useWorkspaceStore();
+  const tags = useWorkspaceStore((s) => s.tags);
+  const createTag = useWorkspaceStore((s) => s.createTag);
+  const updateTag = useWorkspaceStore((s) => s.updateTag);
+  const deleteTag = useWorkspaceStore((s) => s.deleteTag);
+  const reorderTags = useWorkspaceStore((s) => s.reorderTags);
   const [view, setView] = useState<ViewState>('list');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
 

@@ -19,7 +19,8 @@ interface ViewBuilderModalProps {
 }
 
 export function ViewBuilderModal({ projectId, isOpen, onClose, onCreated, initialView }: ViewBuilderModalProps) {
-  const { addView, updateView } = useWorkspaceStore();
+  const addView = useWorkspaceStore((s) => s.addView);
+  const updateView = useWorkspaceStore((s) => s.updateView);
   const [step, setStep] = useState(1);
 
   // Initialize state with initialView if provided

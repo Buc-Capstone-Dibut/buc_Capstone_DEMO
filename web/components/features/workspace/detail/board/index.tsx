@@ -97,27 +97,25 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
-  const {
-    tasks,
-    projects,
-    createTask,
-    updateTaskStatus,
-    updateTask,
-    addColumnToView,
-    renameColumnInView,
-    deleteColumnFromView,
-    updateColumnInView,
-    moveColumnInView,
-    tags,
-    priorities,
-    reorderPriorities,
-    reorderTags,
-    updateViewCardProperties,
-    updateView,
-    deleteView,
-    activeTaskId,
-    setActiveTaskId,
-  } = useWorkspaceStore();
+  const tasks = useWorkspaceStore((s) => s.tasks);
+  const projects = useWorkspaceStore((s) => s.projects);
+  const createTask = useWorkspaceStore((s) => s.createTask);
+  const updateTaskStatus = useWorkspaceStore((s) => s.updateTaskStatus);
+  const updateTask = useWorkspaceStore((s) => s.updateTask);
+  const addColumnToView = useWorkspaceStore((s) => s.addColumnToView);
+  const renameColumnInView = useWorkspaceStore((s) => s.renameColumnInView);
+  const deleteColumnFromView = useWorkspaceStore((s) => s.deleteColumnFromView);
+  const updateColumnInView = useWorkspaceStore((s) => s.updateColumnInView);
+  const moveColumnInView = useWorkspaceStore((s) => s.moveColumnInView);
+  const tags = useWorkspaceStore((s) => s.tags);
+  const priorities = useWorkspaceStore((s) => s.priorities);
+  const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
+  const reorderTags = useWorkspaceStore((s) => s.reorderTags);
+  const updateViewCardProperties = useWorkspaceStore((s) => s.updateViewCardProperties);
+  const updateView = useWorkspaceStore((s) => s.updateView);
+  const deleteView = useWorkspaceStore((s) => s.deleteView);
+  const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
+  const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
   const project = projects.find((p) => p.id === projectId);
 
   // View Settings State

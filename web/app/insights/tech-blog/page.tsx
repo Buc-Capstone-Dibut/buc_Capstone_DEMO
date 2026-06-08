@@ -24,7 +24,21 @@ export default function TechBlogPage() {
     const [page, setPage] = useState(1);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [popularBlogs, setPopularBlogs] = useState<Blog[]>([]);
+    const [recommendedTags, setRecommendedTags] = useState<string[]>([]);
+    const [showRecBanner, setShowRecBanner] = useState(false);
     const { tagCounts, loading: tagCountsLoading } = useTagCounts(tagCategory, selectedBlog);
+
+    // 분석 페이지 '더 보기'로 진입 시 추천 태그 조합을 URL에서 읽어 필터 적용
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sp = new URLSearchParams(window.location.search);
+        const tagsParam = sp.get("tags");
+        if (!tagsParam) return;
+        const tags = tagsParam.split(",").map((t) => t.trim()).filter(Boolean);
+        if (tags.length === 0) return;
+        setRecommendedTags(tags);
+        if (sp.get("from") === "analysis") setShowRecBanner(true);
+    }, []);
 
     useEffect(() => {
         const loadPopular = async () => {
@@ -42,6 +56,7 @@ export default function TechBlogPage() {
         searchQuery,
         tagCategory,
         selectedSubTags,
+        recommendedTags,
         page,
     });
 
@@ -73,6 +88,39 @@ export default function TechBlogPage() {
 
             {/* Main Content */}
             <div className="container mx-auto px-4 max-w-7xl py-8">
+                {/* 분석 페이지 추천 태그 진입 안내 배너 */}
+                {showRecBanner && recommendedTags.length > 0 && (
+                    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold text-foreground">디벗이 추천한 태그로 필터링했어요</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                최근 면접 성향을 기반으로 한 추천 태그가 하나라도 포함된 글만 모았습니다.
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {recommendedTags.map((tag) => (
+                                    <span
+                                        key={tag}
+                                        className="rounded-full border border-primary/20 bg-background px-2 py-0.5 text-[11px] font-semibold text-primary"
+                                    >
+                                        #{tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRecommendedTags([]);
+                                setShowRecBanner(false);
+                                setPage(1);
+                            }}
+                            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted"
+                        >
+                            필터 해제 · 전체 보기
+                        </button>
+                    </div>
+                )}
+
                 {/* Filter, Search, and ViewToggle Row */}
                 <div className="mb-8 space-y-4">
                     <CompanyLogoFilter

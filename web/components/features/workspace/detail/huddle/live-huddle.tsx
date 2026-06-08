@@ -12,7 +12,7 @@ interface LiveHuddleProps {
 }
 
 export function LiveHuddle({ projectId, onClose }: LiveHuddleProps) {
-  const { projects } = useWorkspaceStore();
+  const projects = useWorkspaceStore((s) => s.projects);
   const project = projects.find(p => p.id === projectId);
 
   const [micOn, setMicOn] = useState(true);

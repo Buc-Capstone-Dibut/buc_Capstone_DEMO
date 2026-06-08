@@ -1323,9 +1323,8 @@ evaluationSignals: {json.dumps(plan_item.evaluationSignals, ensure_ascii=False)}
             if readme_resp.status_code == 200:
                 readme_text = readme_resp.text[:8000]
 
-        # 파일 트리 가져오기
-        tree_text = ""
-        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            # 파일 트리: README와 같은 client 재사용 (같은 호스트 keep-alive)
+            tree_text = ""
             tree_resp = client.get(
                 f"{api_base}/git/trees/{default_branch}?recursive=1",
                 headers=self._github_headers("application/vnd.github+json"),

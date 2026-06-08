@@ -19,7 +19,10 @@ interface DocsViewProps {
 }
 
 export function DocsView({ projectId }: DocsViewProps) {
-  const { docs, createDoc, updateDoc, projects } = useWorkspaceStore();
+  const docs = useWorkspaceStore((s) => s.docs);
+  const createDoc = useWorkspaceStore((s) => s.createDoc);
+  const updateDoc = useWorkspaceStore((s) => s.updateDoc);
+  const projects = useWorkspaceStore((s) => s.projects);
   const project = projects.find(p => p.id === projectId);
   const projectDocs = docs.filter(d => d.projectId === projectId);
 

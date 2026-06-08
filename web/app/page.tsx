@@ -152,12 +152,12 @@ export default function HomePage() {
           >
             <div className="overflow-hidden">
               <motion.span variants={maskSlideUp} className="block">
-                취준부터
+                개발자의 취준의
               </motion.span>
             </div>
             <div className="overflow-hidden">
               <motion.span variants={maskSlideUp} className="block text-primary">
-                팀 빌딩 <span className="text-neutral-900">까지 한번에.</span>
+                시작부터 합격까지,
               </motion.span>
             </div>
           </motion.h1>
@@ -166,8 +166,7 @@ export default function HomePage() {
             variants={fadeInUp}
             className="mt-8 text-[clamp(1rem,2.5vw,1.25rem)] leading-relaxed text-neutral-500 max-w-2xl mx-auto"
           >
-            Dibut은 학습, 커리어 탐색, 활발한 커뮤니티와 팀 협업, 그리고 면접 대비까지
-            개발자의 모든 성장 과정을 지원하는 통합 플랫폼입니다.
+            기술 학습부터 팀 프로젝트 협업, 팀원 모집, 이력서·자기소개서·포트폴리오, 그리고 AI 모의 면접까지 — 흩어진 도구를 옮겨 다닐 필요 없이 개발자의 취업 준비 전 과정을 한 플랫폼에서 끝냅니다.
           </motion.p>
 
           <motion.div
