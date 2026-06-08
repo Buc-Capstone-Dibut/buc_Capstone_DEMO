@@ -58,7 +58,10 @@ class Settings(BaseSettings):
         default=None,
         alias="GOOGLE_SERVICE_ACCOUNT_JSON_B64",
     )
-    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    # Text generation 모델 — gemini-3.5-flash (2026-05-19 출시) 가 최신.
+    # thinking 안 쓰고 temperature 만 사용 → drop-in 호환. (temperature 는 silently ignored
+    # 되지만 동작은 OK)
+    gemini_model: str = Field(default="gemini-3.5-flash", alias="GEMINI_MODEL")
     openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
     google_cloud_stt_model: str = Field(default="latest_long", alias="GOOGLE_CLOUD_STT_MODEL")
     google_cloud_stt_language_code: str = Field(default="ko-KR", alias="GOOGLE_CLOUD_STT_LANGUAGE_CODE")
