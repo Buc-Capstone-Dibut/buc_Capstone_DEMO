@@ -173,7 +173,7 @@ export function CommunitySidebar() {
 
       {/* Footer / Copyright */}
       <div className="text-xs text-muted-foreground px-1">
-        © 2026 Dibut Community
+        © 2026 Debut Community
       </div>
     </div>
   );

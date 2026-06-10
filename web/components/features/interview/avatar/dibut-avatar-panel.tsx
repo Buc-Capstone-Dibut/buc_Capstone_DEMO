@@ -29,7 +29,7 @@ const STATE_COLOR: Record<AvatarState, string> = {
   speaking: "bg-blue-100 text-blue-800",
 };
 
-interface DibutAvatarPanelProps {
+interface DebutAvatarPanelProps {
   state?: AvatarState;
   wsUrl?: string;
   sessionId?: string;
@@ -37,13 +37,13 @@ interface DibutAvatarPanelProps {
   defaultMinimized?: boolean;
 }
 
-export function DibutAvatarPanel({
+export function DebutAvatarPanel({
   state: externalState,
   wsUrl,
   sessionId,
   className,
   defaultMinimized = false,
-}: DibutAvatarPanelProps) {
+}: DebutAvatarPanelProps) {
   const [avatarState, setAvatarState] = useState<AvatarState>(externalState ?? "idle");
   const [isMinimized, setIsMinimized] = useState(defaultMinimized);
   const [renderError, setRenderError] = useState(false);
@@ -156,7 +156,7 @@ export function DibutAvatarPanel({
             {!renderError ? (
               <Image
                 src={imgSrc}
-                alt={`Dibut ${avatarState}`}
+                alt={`Debut ${avatarState}`}
                 width={48}
                 height={48}
                 className="w-full h-full object-cover"
@@ -168,7 +168,7 @@ export function DibutAvatarPanel({
               </div>
             )}
           </div>
-          <span className="text-[9px] text-muted-foreground font-medium">Dibut</span>
+          <span className="text-[9px] text-muted-foreground font-medium">Debut</span>
         </div>
       ) : (
         /* 펼쳐진 상태: 풀 패널 */
@@ -176,7 +176,7 @@ export function DibutAvatarPanel({
           {/* 헤더 */}
           <div className="px-4 py-2.5 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">Dibut Interviewer</span>
+              <span className="text-sm font-semibold">Debut Interviewer</span>
               <Badge variant="outline" className="text-[9px] border-primary/20 text-primary px-1.5 py-0">
                 LiveKit Beta
               </Badge>
@@ -191,7 +191,7 @@ export function DibutAvatarPanel({
             {!renderError ? (
               <Image
                 src={imgSrc}
-                alt={`Dibut interviewer - ${avatarState}`}
+                alt={`Debut interviewer - ${avatarState}`}
                 width={180}
                 height={216}
                 priority

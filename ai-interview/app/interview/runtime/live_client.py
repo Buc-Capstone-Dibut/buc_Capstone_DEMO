@@ -55,7 +55,7 @@ def build_live_session_instruction(
         )
     target_min = max(1, int(state.target_duration_sec // 60))
     return (
-        "당신은 한국어 AI 면접관 Dibut입니다.\n"
+        "당신은 한국어 AI 면접관 Debut입니다.\n"
         "절대 규칙:\n"
         "1) 매 턴 기본적으로 질문 1개만 한다(질문은 마지막 문장에 위치). 단, 운영 메모에 질문 없이 종료하라고 명시된 종료 턴은 예외다.\n"
         "2) 메타발화(예: 지시/프롬프트 설명/영어 문장/마크다운/별표) 금지.\n"

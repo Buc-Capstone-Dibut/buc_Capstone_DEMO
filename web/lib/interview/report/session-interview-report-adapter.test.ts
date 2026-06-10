@@ -48,7 +48,7 @@ test("session interview adapter prefers report view fields over fallback analysi
   const model = buildSessionInterviewReportModel({
     analysis,
     reportView: {
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       summary: "리포트 요약 우선",
       strengths: ["리포트 강점 1", "리포트 강점 2"],
@@ -104,11 +104,11 @@ test("session interview adapter falls back to analysis and feedback when report 
   const model = buildSessionInterviewReportModel({
     analysis,
     reportView: {
-      company: "Dibut",
+      company: "Debut",
       role: "Platform Engineer",
     },
     session: {
-      company: "Dibut",
+      company: "Debut",
       role: "Platform Engineer",
       createdAt: 1710000000,
     },
@@ -127,7 +127,7 @@ test("session interview adapter builds summary-only report when analysis is miss
     reportView: {
       sessionType: "live_interview",
       analysisMode: "summary",
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       summary: "질문 흐름 중심의 요약 리포트입니다.",
       strengths: ["구조적인 답변 흐름"],
@@ -135,7 +135,7 @@ test("session interview adapter builds summary-only report when analysis is miss
       nextActions: ["프로젝트 답변을 STAR 형식으로 다시 정리하기"],
     },
     session: {
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1710000000,
       schemaVersion: "v2",
@@ -188,7 +188,7 @@ test("session interview adapter prefers backend profile when report view already
     reportView: {
       sessionType: "live_interview",
       analysisMode: "full",
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       summary: "백엔드 확정 프로필 기반 리포트입니다.",
       deliveryInsights: ["문제 해결 근거가 선명했습니다.", "JD 요구사항 2개가 직접 확인됐습니다."],
@@ -219,7 +219,7 @@ test("session interview adapter prefers backend profile when report view already
       },
     },
     session: {
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1710000000,
       schemaVersion: "v2",

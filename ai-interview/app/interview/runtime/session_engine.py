@@ -90,7 +90,7 @@ async def _request_retry_for_silent_turn(
 def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
     if state.session_type == "portfolio_defense":
         return (
-            "안녕하세요. Dibut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
+            "안녕하세요. Debut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
             "먼저 이 프로젝트를 간단히 소개해 주시고, 본인이 가장 주도적으로 맡은 부분을 함께 말씀해 주세요."
         )
 
@@ -99,16 +99,16 @@ def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
     role = str(job_data.get("role") or "").strip()
     if company and role:
         return (
-            f"안녕하세요. Dibut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 포지션에 지원한 이유를 말씀해 주세요."
         )
     if role:
         return (
-            f"안녕하세요. Dibut입니다. {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 직무에 지원한 이유를 말씀해 주세요."
         )
     return (
-        "안녕하세요. Dibut입니다. 면접을 시작하겠습니다. "
+        "안녕하세요. Debut입니다. 면접을 시작하겠습니다. "
         "먼저 간단한 자기소개와 지원 동기를 함께 말씀해 주세요."
     )
 

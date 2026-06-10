@@ -14,7 +14,7 @@ export function Footer() {
         <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
           <div className="text-center md:text-left">
             <span className="text-[20px] font-black tracking-tight text-neutral-900">
-              Dibut
+              Debut
             </span>
             <p className="mt-2 text-[13px] text-neutral-400">
               개발자 성장 통합 플랫폼
@@ -34,7 +34,7 @@ export function Footer() {
           </nav>
 
           <p className="text-center text-[12px] text-neutral-300 md:text-right">
-            © 2026 Dibut. All rights reserved.
+            © 2026 Debut. All rights reserved.
           </p>
         </div>
       </div>

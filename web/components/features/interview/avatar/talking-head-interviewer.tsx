@@ -234,7 +234,7 @@ function TalkingHeadInterviewerImpl({
         <div className="absolute inset-0 flex items-center justify-center px-6">
           <Image
             src={fallbackImage}
-            alt="Dibut interviewer fallback"
+            alt="Debut interviewer fallback"
             width={420}
             height={520}
             className="h-auto w-full max-w-[360px] object-contain drop-shadow-[0_18px_50px_rgba(15,23,42,0.55)]"

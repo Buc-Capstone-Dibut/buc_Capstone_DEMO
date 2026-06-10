@@ -5,8 +5,8 @@ import { CommonHeader } from "@/components/layout/common-header";
 import { Footer } from "@/components/layout/footer";
 
 export const metadata: Metadata = {
-  title: "개인정보 처리방침 - Dibut",
-  description: "Dibut 개인정보 처리방침을 확인하세요.",
+  title: "개인정보 처리방침 - Debut",
+  description: "Debut 개인정보 처리방침을 확인하세요.",
 };
 
 export default function PrivacyPage() {
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         <Card className="max-w-4xl mx-auto">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              Dibut 개인정보 처리방침
+              Debut 개인정보 처리방침
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 text-slate-700 dark:text-slate-300">
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
                 1. 개인정보의 처리 목적
               </h2>
               <p className="leading-relaxed mb-3">
-                Dibut(이하 "회사")는 다음의 목적을 위하여 개인정보를 처리하고
+                Debut(이하 "회사")는 다음의 목적을 위하여 개인정보를 처리하고
                 있으며, 다음의 목적 이외의 용도로는 이용하지 않습니다.
               </p>
               <div className="space-y-2">

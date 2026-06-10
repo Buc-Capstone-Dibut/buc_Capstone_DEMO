@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "티어시스템 안내",
   description:
-    "Dibut 티어시스템의 단계, 점수 기준, 현재 반영 중인 활동 규칙을 확인하세요.",
+    "Debut 티어시스템의 단계, 점수 기준, 현재 반영 중인 활동 규칙을 확인하세요.",
 };
 
 const tierProfiles = [
@@ -158,7 +158,7 @@ export default function TierSystemPage() {
         <div className="mx-auto max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
         <section className="grid gap-14 border-b border-slate-200 pb-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="space-y-6">
-            <SectionEyebrow>DIBUT TIER AND SCORES</SectionEyebrow>
+            <SectionEyebrow>DEBUT TIER AND SCORES</SectionEyebrow>
             <div className="space-y-5">
               <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 디벗 유저 티어 및 점수 시스템
@@ -226,7 +226,7 @@ export default function TierSystemPage() {
         </section>
 
         <section id="tier-system" className="scroll-mt-24 pt-20">
-          <SectionEyebrow>DIBUT TIER AND SCORES</SectionEyebrow>
+          <SectionEyebrow>DEBUT TIER AND SCORES</SectionEyebrow>
           <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             유저 티어 및 점수 시스템
           </h2>
@@ -297,7 +297,7 @@ export default function TierSystemPage() {
           id="score-system"
           className="scroll-mt-24 border-t border-slate-200 pt-20"
         >
-          <SectionEyebrow>DIBUT SCORING SYSTEM</SectionEyebrow>
+          <SectionEyebrow>DEBUT SCORING SYSTEM</SectionEyebrow>
           <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             유저 점수 시스템
           </h2>

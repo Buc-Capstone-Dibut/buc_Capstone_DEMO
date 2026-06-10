@@ -4,15 +4,15 @@ export const SITE_HELPER_KNOWLEDGE: SiteHelperKnowledgeItem[] = [
   {
     id: "home",
     category: "core",
-    title: "Dibut 홈",
+    title: "Debut 홈",
     route: "/",
     summary:
-      "Dibut의 주요 영역인 인사이트, 커뮤니티, 워크스페이스, AI 면접, 커리어 관리를 한눈에 둘러보는 시작 페이지입니다.",
+      "Debut의 주요 영역인 인사이트, 커뮤니티, 워크스페이스, AI 면접, 커리어 관리를 한눈에 둘러보는 시작 페이지입니다.",
     keywords: ["홈", "메인", "처음", "시작", "서비스", "디벗", "dibut", "뭐부터", "전체 기능", "사이트 소개"],
     commonQuestions: [
       "처음인데 뭐부터 하면 돼?",
       "이 사이트는 뭐 하는 곳이야?",
-      "Dibut에서 어떤 기능을 쓸 수 있어?",
+      "Debut에서 어떤 기능을 쓸 수 있어?",
     ],
     details: [
       "상단 메뉴에서 인사이트, 커뮤니티, 워크스페이스, 커리어 관리, AI 면접으로 이동할 수 있습니다.",
@@ -540,7 +540,7 @@ export const SITE_HELPER_KNOWLEDGE: SiteHelperKnowledgeItem[] = [
     title: "약관과 개인정보",
     route: "/privacy",
     summary:
-      "Dibut의 개인정보 처리방침과 서비스 이용약관을 확인하는 안내 페이지입니다.",
+      "Debut의 개인정보 처리방침과 서비스 이용약관을 확인하는 안내 페이지입니다.",
     keywords: ["개인정보", "약관", "서비스 이용약관", "정책", "privacy", "terms", "데이터 저장", "보안"],
     commonQuestions: [
       "개인정보 처리방침은 어디서 봐?",

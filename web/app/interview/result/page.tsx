@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalHeader } from "@/components/layout/global-header";
-import { DibutLoading } from "@/components/shared/dibut-loading";
+import { DebutLoading } from "@/components/shared/dibut-loading";
 import {
   buildSessionInterviewDetailModel,
   type CoreResponseEntry,
@@ -1238,7 +1238,7 @@ export default function InterviewResultPage() {
 
     return (
       <ResultStatePanel
-        media={<DibutLoading className="w-44" />}
+        media={<DebutLoading className="w-44" />}
         title="면접 결과를 디벗 리포트로 정리하고 있습니다"
         description="답변 흐름과 직무 연결성을 다시 읽어 상세 리포트를 생성하는 중입니다."
       />

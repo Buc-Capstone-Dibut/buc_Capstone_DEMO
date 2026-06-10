@@ -43,7 +43,7 @@ export async function createSiteHelperStreamResponse({
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
-        "X-Dibut-AI-Provider": "static-fallback",
+        "X-Debut-AI-Provider": "static-fallback",
       },
     });
   }
@@ -64,7 +64,7 @@ export async function createSiteHelperStreamResponse({
   return result.toTextStreamResponse({
     headers: {
       "Cache-Control": "no-store",
-      "X-Dibut-AI-Provider": "gemini",
+      "X-Debut-AI-Provider": "gemini",
     },
   });
 }

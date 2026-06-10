@@ -1,1 +1,1 @@
-"""Dibut AI Interview FastAPI app package."""
+"""Debut AI Interview FastAPI app package."""

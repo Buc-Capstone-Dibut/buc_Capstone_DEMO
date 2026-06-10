@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { signIn, signUp, signInWithGoogle, signInWithGithub } from "@/lib/auth";
 import { Loader2, Mail, Lock, Eye, EyeOff, Github } from "lucide-react";
-import { DibutMascot } from "@/components/auth/dibut-mascot";
+import { DebutMascot } from "@/components/auth/dibut-mascot";
 
 interface AuthModalProps {
   open: boolean;
@@ -131,7 +131,7 @@ export function AuthModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-xl font-bold">
-            Dibut에 오신 것을 환영합니다
+            Debut에 오신 것을 환영합니다
           </DialogTitle>
         </DialogHeader>
 
@@ -146,7 +146,7 @@ export function AuthModal({
 
           <TabsContent value="login" className="space-y-4">
             {/* 디벗 마스코트 */}
-            <DibutMascot
+            <DebutMascot
               isEmailFocused={focusedField === "email"}
               emailLength={formData.email.length}
               isCovering={focusedField === "password"}
@@ -264,7 +264,7 @@ export function AuthModal({
 
           <TabsContent value="signup" className="space-y-4">
             {/* 디벗 마스코트 */}
-            <DibutMascot
+            <DebutMascot
               isEmailFocused={focusedField === "email"}
               emailLength={formData.email.length}
               isCovering={focusedField === "password"}

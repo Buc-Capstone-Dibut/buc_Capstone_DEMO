@@ -104,7 +104,7 @@ export function GlobalHeader() {
             href="/"
             className="text-[15px] font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-80"
           >
-            Dibut
+            Debut
           </Link>
 
           {/* Desktop Main Navigation - Center */}

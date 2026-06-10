@@ -39,7 +39,7 @@ def _normalize_optional_secret(value: str | None) -> str | None:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Dibut AI Interview API"
+    app_name: str = "Debut AI Interview API"
     app_version: str = "0.1.0"
 
     database_url: str | None = Field(default=None, alias="DATABASE_URL")

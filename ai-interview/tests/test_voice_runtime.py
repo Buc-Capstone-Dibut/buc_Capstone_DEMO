@@ -235,8 +235,8 @@ def _session_engine_deps(
 
 class QuestionTypeTests(unittest.TestCase):
     def test_infer_interview_track_uses_explicit_job_data(self) -> None:
-        self.assertEqual(infer_interview_track({"interviewTrack": "posting", "company": "Dibut"}), "posting")
-        self.assertEqual(infer_interview_track({"interviewTrack": "role", "company": "Dibut"}), "role")
+        self.assertEqual(infer_interview_track({"interviewTrack": "posting", "company": "Debut"}), "posting")
+        self.assertEqual(infer_interview_track({"interviewTrack": "role", "company": "Debut"}), "role")
         self.assertEqual(infer_interview_track({"company": "직무 기반 모의면접"}), "role")
 
     def test_resolve_interview_level_uses_resume_experience(self) -> None:
@@ -261,7 +261,7 @@ class QuestionTypeTests(unittest.TestCase):
 
     def test_select_opening_question_type_is_self_intro_for_posting_track(self) -> None:
         state = VoiceWsState()
-        state.job_data = {"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"}
+        state.job_data = {"interviewTrack": "posting", "company": "Debut", "role": "백엔드 개발자"}
 
         self.assertEqual(select_opening_question_type(state), "self_intro")
 
@@ -649,7 +649,7 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         state = VoiceWsState(
             session_id="session-1",
             session_type="live_interview",
-            job_data={"company": "Dibut", "role": "백엔드 개발자"},
+            job_data={"company": "Debut", "role": "백엔드 개발자"},
         )
         persist_turn = AsyncMock(return_value={"id": "turn-1"})
         send_json = AsyncMock(return_value=True)
@@ -1071,7 +1071,7 @@ class OpeningTextTests(unittest.TestCase):
         texts = {
             build_opening_turn_text(
                 session_type="live_interview",
-                company="Dibut",
+                company="Debut",
                 role="서비스 백엔드 개발자",
                 job_data={"techStack": ["WebSocket", "Redis"]},
                 resume_data={"skills": ["Kafka", "Spring Boot"]},
@@ -1088,7 +1088,7 @@ class OpeningTextTests(unittest.TestCase):
     def test_build_opening_turn_text_can_reference_focus_term(self) -> None:
         text = build_opening_turn_text(
             session_type="live_interview",
-            company="Dibut",
+            company="Debut",
             role="서비스 백엔드 개발자",
             job_data={"techStack": ["WebSocket"]},
             seed_text="session-focus",
@@ -1099,13 +1099,13 @@ class OpeningTextTests(unittest.TestCase):
     def test_posting_opening_asks_real_interview_self_intro(self) -> None:
         text = build_opening_turn_text(
             session_type="live_interview",
-            company="Dibut",
+            company="Debut",
             role="백엔드 개발자",
-            job_data={"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"},
+            job_data={"interviewTrack": "posting", "company": "Debut", "role": "백엔드 개발자"},
             seed_text="posting-opening",
         )
 
-        self.assertIn("Dibut 백엔드 개발자", text)
+        self.assertIn("Debut 백엔드 개발자", text)
         self.assertTrue("자기소개" in text or "소개" in text)
 
     def test_role_opening_does_not_ask_company_motivation(self) -> None:
@@ -1320,7 +1320,7 @@ class SessionInitTests(unittest.IsolatedAsyncioTestCase):
             "status": "created",
             "target_duration_sec": 420,
             "closing_threshold_sec": 60,
-            "job_payload": {"company": "Dibut", "role": "백엔드 개발자"},
+            "job_payload": {"company": "Debut", "role": "백엔드 개발자"},
         }
         deps = _session_engine_deps(
             get_session=lambda session_id: session,
@@ -2378,7 +2378,7 @@ class ReportDocumentTests(unittest.TestCase):
             "session_type": "live_interview",
             "target_duration_sec": 600,
             "paused_duration_sec": 15,
-            "job_payload": {"company": "Dibut", "role": "Backend Engineer"},
+            "job_payload": {"company": "Debut", "role": "Backend Engineer"},
         }
         turns = [
             {"role": "model", "content": "질문입니다.", "created_at": datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)},
@@ -2400,7 +2400,7 @@ class ReportDocumentTests(unittest.TestCase):
 
         self.assertEqual(document["schemaVersion"], REPORT_SCHEMA_VERSION)
         self.assertEqual(document["compatAnalysis"]["summary"], compat_analysis["summary"])
-        self.assertEqual(document["reportView"]["company"], "Dibut")
+        self.assertEqual(document["reportView"]["company"], "Debut")
         self.assertEqual(document["reportView"]["strengths"], ["근거 기반 설명"])
         self.assertEqual(document["generationMeta"]["timelineCount"], 1)
         self.assertEqual(document["timeline"][0]["answer"], "답변입니다.")

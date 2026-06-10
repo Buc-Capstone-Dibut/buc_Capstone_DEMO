@@ -18,7 +18,7 @@ test("analysis hub builds live and defense sessions from real session payloads",
       sessionType: "live_interview",
       mode: "video",
       targetDurationSec: 600,
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1713000000,
       analysis: {
@@ -128,7 +128,7 @@ test("analysis hub computes representative axes, trends, weaknesses, and actions
       sessionType: "live_interview",
       mode: "video",
       targetDurationSec: 600,
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1713000000,
       analysis: {
@@ -157,7 +157,7 @@ test("analysis hub computes representative axes, trends, weaknesses, and actions
       sessionType: "live_interview",
       mode: "video",
       targetDurationSec: 600,
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1712000000,
       analysis: {

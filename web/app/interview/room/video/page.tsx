@@ -1255,12 +1255,12 @@ export default function InterviewVideoRoomPage() {
         {/* AI Interviewer View */}
         <section className={`relative flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 ${
           isAISpeaking 
-            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]' // Using Dibut Green
+            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]' // Using Debut Green
             : 'border-border shadow-sm'
         }`}>
           <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-md bg-background/90 px-3 py-1.5 text-xs font-bold text-foreground shadow-sm border border-border/50">
             <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
-            Dibut 면접관
+            Debut 면접관
           </div>
           <div
             className="relative flex h-full w-full items-center justify-center overflow-hidden bg-cover bg-center"
@@ -1310,14 +1310,14 @@ export default function InterviewVideoRoomPage() {
                 <div ref={captionScrollRef} className="flex flex-col items-center gap-0.5 max-h-[8rem] overflow-y-auto overscroll-contain px-2">
                   {secondaryCaption && (
                     <p className="text-[10px] font-bold text-muted-foreground/80 tracking-widest line-clamp-1 uppercase">
-                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
+                      {secondaryCaption.role === "ai" ? "Debut" : "나"}: {secondaryCaption.text}
                     </p>
                   )}
                   {resolvedCaptionText && (
                     <div className="flex w-full justify-center mt-0.5">
                       <div className="flex items-start text-left text-[13px] md:text-[14px] font-bold leading-relaxed tracking-tight text-foreground drop-shadow-sm max-w-full">
                         <span className={`shrink-0 mr-2 font-extrabold mt-[0.5px] ${resolvedCaptionRole === "ai" ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)_/_0.3)]" : "text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"}`}>
-                          {resolvedCaptionRole === "ai" ? "Dibut" : "나"}
+                          {resolvedCaptionRole === "ai" ? "Debut" : "나"}
                         </span>
                         <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                           {resolvedCaptionText}

@@ -117,7 +117,7 @@ export function buildFallbackSiteHelperAnswer(result: SiteHelperRetrieveResult) 
 
   if (!primary) {
     return [
-      "Dibut 사이트 기능 안에서 정확히 맞는 항목을 찾지 못했습니다.",
+      "Debut 사이트 기능 안에서 정확히 맞는 항목을 찾지 못했습니다.",
       "",
       "다시 물어볼 때는 이런 식으로 적어보세요.",
       "- 게시글 작성",

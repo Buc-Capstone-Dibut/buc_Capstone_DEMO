@@ -4,8 +4,8 @@ import { CommonHeader } from "@/components/layout/common-header";
 import { Footer } from "@/components/layout/footer";
 
 export const metadata: Metadata = {
-  title: "서비스 이용약관 - Dibut",
-  description: "Dibut 서비스 이용약관을 확인하세요.",
+  title: "서비스 이용약관 - Debut",
+  description: "Debut 서비스 이용약관을 확인하세요.",
 };
 
 export default function TermsPage() {
@@ -26,7 +26,7 @@ export default function TermsPage() {
         <Card className="max-w-4xl mx-auto">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              Dibut 서비스 이용약관
+              Debut 서비스 이용약관
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 text-slate-700 dark:text-slate-300">
@@ -35,7 +35,7 @@ export default function TermsPage() {
                 제1조 (목적)
               </h2>
               <p className="leading-relaxed">
-                본 약관은 Dibut(이하 "회사")가 제공하는 기술 블로그
+                본 약관은 Debut(이하 "회사")가 제공하는 기술 블로그
                 아그리게이터 서비스(이하 "서비스")의 이용과 관련하여 회사와
                 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
               </p>

@@ -9,7 +9,7 @@ export function CommonHeader() {
         <div className="flex items-center justify-between">
           <Link href="/" className="hover:opacity-80 transition-opacity">
             <h1 className="text-2xl font-black text-blue-600">
-              Dibut
+              Debut
             </h1>
           </Link>
         </div>

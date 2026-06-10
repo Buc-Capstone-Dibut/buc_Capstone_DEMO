@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * 리포트 생성처럼 풀스크린으로 기다리는 큰 대기 화면에 사용한다.
  * (인라인 버튼/리스트의 작은 스피너 대체용은 아님.)
  */
-export function DibutLoading({ className }: { className?: string }) {
+export function DebutLoading({ className }: { className?: string }) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {

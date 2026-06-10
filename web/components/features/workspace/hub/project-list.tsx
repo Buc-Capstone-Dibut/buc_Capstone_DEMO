@@ -208,7 +208,7 @@ export function ProjectList() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <EditWorkspaceDialog workspace={{ id: 'demo', name: 'Dibut 사이드 프로젝트', category: 'Demo Project', description: '개발자 커리어 플랫폼 클론 코딩 및 협업 도구 시연 프로젝트입니다.' }}>
+                    <EditWorkspaceDialog workspace={{ id: 'demo', name: 'Debut 사이드 프로젝트', category: 'Demo Project', description: '개발자 커리어 플랫폼 클론 코딩 및 협업 도구 시연 프로젝트입니다.' }}>
                       <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                         <Pencil className="mr-2 h-4 w-4" />
                         정보 수정
@@ -246,7 +246,7 @@ export function ProjectList() {
 
                 <div className="space-y-1.5">
                   <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
-                    Dibut 사이드 프로젝트
+                    Debut 사이드 프로젝트
                   </CardTitle>
                   <CardDescription className="line-clamp-2 text-sm text-muted-foreground h-10">
                     개발자 커리어 플랫폼 클론 코딩 및 협업 도구 시연 프로젝트입니다.

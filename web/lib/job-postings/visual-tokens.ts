@@ -100,7 +100,7 @@ export const STATUS_LABEL: Record<JobPostingStatus, string> = {
 };
 
 /**
- * 캘린더 이벤트 도트 / 강조 컬러. Dibut의 차분한 톤에 맞춰 500 → 400 한 단계 부드럽게.
+ * 캘린더 이벤트 도트 / 강조 컬러. Debut의 차분한 톤에 맞춰 500 → 400 한 단계 부드럽게.
  * 막대 배경은 KIND_TONE (bg-*-50)으로 깔고, 이 색은 작은 도트와 호버 액센트에만 사용.
  */
 export const KIND_COLOR: Record<ScheduleKind, string> = {

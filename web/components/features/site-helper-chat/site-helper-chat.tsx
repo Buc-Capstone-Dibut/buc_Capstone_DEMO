@@ -290,7 +290,7 @@ export function SiteHelperChat() {
               "mb-3 flex h-[min(620px,calc(100vh-8rem))] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl",
               "md:h-[620px] md:w-[400px]",
             )}
-            aria-label="Dibut 사이트 도우미"
+            aria-label="Debut 사이트 도우미"
           >
             <div className="flex h-14 items-center justify-between border-b border-neutral-200 px-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -299,7 +299,7 @@ export function SiteHelperChat() {
                 </div>
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-bold text-neutral-950">
-                    Dibut 사이트 도우미
+                    Debut 사이트 도우미
                   </h2>
                   <p className="truncate text-xs text-neutral-500">
                     {currentPage
@@ -402,7 +402,7 @@ export function SiteHelperChat() {
                       어떤 기능을 찾고 계신가요?
                     </p>
                     <p className="mt-2 text-sm leading-6 text-neutral-600">
-                      Dibut의 페이지 위치, 기능 사용 흐름, 다음에 눌러야 할 메뉴를
+                      Debut의 페이지 위치, 기능 사용 흐름, 다음에 눌러야 할 메뉴를
                       안내해드립니다.
                     </p>
                   </div>
@@ -585,7 +585,7 @@ export function SiteHelperChat() {
                   setRingFilledOnce(true);
                 }
               }}
-              aria-label={open ? "Dibut 사이트 도우미 닫기" : "Dibut 사이트 도우미 열기"}
+              aria-label={open ? "Debut 사이트 도우미 닫기" : "Debut 사이트 도우미 열기"}
               aria-expanded={open}
             >
               <span
@@ -617,7 +617,7 @@ export function SiteHelperChat() {
               ) : null}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">Dibut 사이트 도우미</TooltipContent>
+          <TooltipContent side="left">Debut 사이트 도우미</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>

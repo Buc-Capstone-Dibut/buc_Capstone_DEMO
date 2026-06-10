@@ -339,7 +339,7 @@ export default function HomePage() {
             </h2>
             <p className="text-[18px] leading-relaxed text-neutral-500 mb-10">
               해커톤 참가부터 공모전 팀 빌딩, 실시간 채용 공고까지.
-              개발자에게 필요한 모든 커리어 기회들을 Dibut이 엄선하여 제공합니다.
+              개발자에게 필요한 모든 커리어 기회들을 Debut이 엄선하여 제공합니다.
               나의 가능성을 증명할 다음 무대를 찾아보세요.
             </p>
             <Link
@@ -397,7 +397,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="p-8 font-mono text-[13px] text-white/60 space-y-2">
-                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DibutSuccess</span>() {'{'}</div>
+                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DebutSuccess</span>() {'{'}</div>
                 <div className="flex gap-4 animate-pulse bg-primary/10"><span className="text-white/20">02</span>  <span className="text-primary/70">const</span> status = <span className="text-green-400">'GROWING'</span>;</div>
                 <div className="flex gap-4"><span className="text-white/20">03</span>  <span className="text-primary/70">return</span> <span className="text-yellow-400">learnAndBuild</span>(status);</div>
                 <div className="flex gap-4"><span className="text-white/20">04</span> {'}'}</div>
@@ -453,7 +453,7 @@ export default function HomePage() {
               </h2>
               <p className="text-[18px] leading-relaxed text-neutral-500 mb-10">
                 목표가 같은 동료를 찾는 것에서 그치지 마세요.
-                Dibut은 커뮤니티에서 모집한 팀원과 즉시 협업할 수 있는
+                Debut은 커뮤니티에서 모집한 팀원과 즉시 협업할 수 있는
                 최적의 환경을 제공합니다.
               </p>
               <Link
