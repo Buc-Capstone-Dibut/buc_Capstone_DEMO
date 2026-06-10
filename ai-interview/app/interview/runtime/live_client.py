@@ -215,10 +215,10 @@ async def request_live_spoken_text_turn(
         sample_rate=result.sample_rate,
         provider=result.provider,
     )
-    authoritative_text = deps.sanitize_ai_turn_text(payload_text)
-    if authoritative_text:
-        return authoritative_text, prepared, result.provider
-    return (result.ai_text or "").strip(), prepared, result.provider
+    spoken_text = deps.sanitize_ai_turn_text((result.ai_text or "").strip())
+    if spoken_text:
+        return spoken_text, prepared, result.provider
+    return deps.sanitize_ai_turn_text(payload_text), prepared, result.provider
 
 
 async def request_live_audio_turn(
@@ -263,6 +263,44 @@ async def request_live_audio_turn(
         prepared,
         result.provider,
     )
+
+
+async def request_live_generated_question_turn(
+    state: VoiceWsState,
+    *,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
+    extra_instruction: str = "",
+    deps: LiveClientDeps,
+) -> tuple[str, PreparedTtsAudio | None, str]:
+    """사용자 답변 텍스트(Cloud STT)로 다음 면접관 질문을 생성한다.
+
+    native-audio 모델에 오디오를 buffered 로 보내면 입력을 제대로 처리하지 못해(input_len=0)
+    질문 생성이 실패한다. 대신 신뢰할 수 있는 Cloud STT 전사 텍스트를 turn_prompt 에 담아
+    텍스트 턴으로 질문을 생성한다(질문 + 음성 반환).
+    """
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled:
+        return "", None, ""
+    result = await live.request_text_turn(
+        session_instruction=deps.build_session_instruction(state),
+        turn_prompt=deps.build_turn_prompt(
+            state,
+            question_type=question_type,
+            answer_quality_hint=answer_quality_hint,
+            user_text=prompt_user_text,
+            extra_instruction=extra_instruction,
+        ),
+        text="",
+    )
+    prepared = deps.to_prepared_tts_audio_from_pcm(
+        result.audio_pcm_bytes,
+        sample_rate=result.sample_rate,
+        provider=result.provider,
+    )
+    ai_text = deps.sanitize_ai_turn_text(result.ai_text or "") or (result.ai_text or "").strip()
+    return ai_text, prepared, result.provider
 
 
 async def begin_live_audio_input_stream(

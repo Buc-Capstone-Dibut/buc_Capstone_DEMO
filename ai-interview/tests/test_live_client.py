@@ -46,7 +46,7 @@ from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 
 
 class LiveClientTests(unittest.IsolatedAsyncioTestCase):
-    async def test_request_live_spoken_text_turn_prefers_input_text_as_caption(self) -> None:
+    async def test_request_live_spoken_text_turn_uses_provider_transcription_as_caption(self) -> None:
         state = VoiceWsState(session_id="session-1")
         state.live_interview = _DummyLiveSession(model="gemini-live")
 
@@ -73,7 +73,7 @@ class LiveClientTests(unittest.IsolatedAsyncioTestCase):
             deps=deps,
         )
 
-        self.assertEqual(ai_text, expected_text)
+        self.assertEqual(ai_text, "짧게 잘린 provider 전사")
         self.assertIsNotNone(prepared_audio)
         self.assertEqual(provider, "gemini-live")
 

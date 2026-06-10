@@ -1239,11 +1239,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     prompt = (turn_prompt or "").strip()
                     if types is not None and hasattr(types, "ActivityStart"):
                         await self._session.send_realtime_input(activity_start=types.ActivityStart())
-                    if prompt:
-                        await self._session.send_realtime_input(text=prompt)
+                    # 음성을 먼저, prompt 를 나중에 (prompt 가 음성보다 먼저면 native-audio 모델이
+                    # 음성 처리 전에 응답 생성 → 전사 누락 + 답변 무관 질문).
                     await self._session.send_realtime_input(
                         audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                     )
+                    if prompt:
+                        await self._session.send_realtime_input(text=prompt)
                     if types is not None and hasattr(types, "ActivityEnd"):
                         await self._session.send_realtime_input(activity_end=types.ActivityEnd())
                     else:
@@ -1337,11 +1339,14 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                 prompt = (turn_prompt or "").strip()
                 if types is not None and hasattr(types, "ActivityStart"):
                     await self._session.send_realtime_input(activity_start=types.ActivityStart())
-                if prompt:
-                    await self._session.send_realtime_input(text=prompt)
+                # 사용자 음성을 먼저 보낸 뒤 prompt 를 보낸다.
+                # prompt(텍스트)를 음성보다 먼저 보내면 native-audio 모델이 음성을 처리하기 전에
+                # 곧바로 응답을 생성한다 → 사용자 전사 누락(input_len=0) + 답변과 무관한 질문.
                 await self._session.send_realtime_input(
                     audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                 )
+                if prompt:
+                    await self._session.send_realtime_input(text=prompt)
                 if types is not None and hasattr(types, "ActivityEnd"):
                     await self._session.send_realtime_input(activity_end=types.ActivityEnd())
                 else:

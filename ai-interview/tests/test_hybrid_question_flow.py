@@ -211,9 +211,10 @@ class HybridQuestionPlannerTests(unittest.TestCase):
 
 
 class HybridExecutorTests(unittest.IsolatedAsyncioTestCase):
-    async def test_execute_followup_turn_uses_planned_question_text_as_authoritative_caption(self) -> None:
+    async def test_execute_followup_turn_uses_live_transcription_as_authoritative_caption(self) -> None:
         state = VoiceWsState(session_id="session-2", current_phase="technical")
         planned_text = "방금 말씀하신 kafka 재처리 전략에서 어떤 지표로 성과를 검증하셨나요?"
+        spoken_text = "Kafka 재처리 과정에서 성과를 확인한 핵심 지표는 무엇이었나요?"
         prepared_audio = PreparedTtsAudio(
             chunks=["chunk"],
             sample_rate=24000,
@@ -260,8 +261,8 @@ class HybridExecutorTests(unittest.IsolatedAsyncioTestCase):
                 strategy="followup",
             ),
             next_turn_id="session-2:3",
-            live_ai_text=planned_text,
-            prepared_live_audio=None,
+            live_ai_text=spoken_text,
+            prepared_live_audio=prepared_audio,
             provider_name="gemini-live",
             active_live_provider="gemini-live",
             utterance_duration_ms=2400.0,
@@ -271,9 +272,9 @@ class HybridExecutorTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(generated)
-        deps.request_live_spoken_text_turn.assert_awaited_once()
+        deps.request_live_spoken_text_turn.assert_not_awaited()
         deps.request_live_text_turn.assert_not_awaited()
-        self.assertEqual(send_transcript.await_args.args[3], planned_text)
+        self.assertEqual(send_transcript.await_args.args[3], spoken_text)
         self.assertIn(
             call(
                 ANY,

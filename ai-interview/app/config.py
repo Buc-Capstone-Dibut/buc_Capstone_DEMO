@@ -110,6 +110,13 @@ class Settings(BaseSettings):
         default=False,
         alias="VOICE_PARALLEL_STT_ENABLED",
     )
+    # 사용자가 말하는 동안 Gemini Live 입력 스트림을 미리 열어 실시간 자막을 받는 기능.
+    # Vertex native-audio 모델은 스트림이 열리면 사용자 답변 전에 다음 질문을 자동 생성해버려
+    # (질문 연속 중복 + 답변 유실) False 로 끄고, 답변 전체를 buffered turn 으로 한 번에 보낸다.
+    voice_live_input_streaming_enabled: bool = Field(
+        default=True,
+        alias="VOICE_LIVE_INPUT_STREAMING_ENABLED",
+    )
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)
     voice_vad_threshold: float = Field(default=0.017, alias="VOICE_VAD_THRESHOLD")

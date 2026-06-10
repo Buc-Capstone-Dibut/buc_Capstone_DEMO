@@ -558,7 +558,7 @@ async def execute_opening_live_turn(
     ai_text = " ".join((spec.prompt or _build_fallback_opening_text(state)).split()).strip()
     spoken_provider = spoken_provider_override
     if prepared_delivery_plan is None:
-        _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+        spoken_text, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
             text=ai_text,
         )
@@ -579,6 +579,7 @@ async def execute_opening_live_turn(
             )
             return False
 
+        ai_text = " ".join((spoken_text or ai_text).split()).strip()
         delivery_plan = await deps.build_ai_delivery_plan(
             ws,
             text=ai_text,
@@ -719,7 +720,7 @@ async def execute_resume_live_turn(
     ai_text = " ".join((spec.prompt or "").split()).strip()
     if not ai_text:
         return False
-    _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+    spoken_text, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
         state,
         text=ai_text,
     )
@@ -740,6 +741,7 @@ async def execute_resume_live_turn(
         )
         return False
 
+    ai_text = " ".join((spoken_text or ai_text).split()).strip()
     if spec.should_announce_closing:
         await deps.set_closing_announced(state.session_id)
         state.closing_announced = True
@@ -896,12 +898,13 @@ async def execute_live_user_followup_turn(
     audio_already_streamed = audio_already_streamed or max(0, int(streamed_audio_chunk_count or 0)) > 0
 
     if spec.completion_reason:
-        ai_text = _normalize_completion_turn_text(
+        planned_completion_text = _normalize_completion_turn_text(
             state,
             text="",
             user_text=user_request.prompt_user_text,
             extra_instruction=user_request.extra_instruction,
         )
+        ai_text = " ".join((live_ai_text or planned_completion_text).split()).strip()
         state.current_phase = "closing"
         await deps.update_session_status(state.session_id, "completed", "closing")
         deps.mark_session_status(state, "completed", phase="closing")
@@ -915,7 +918,7 @@ async def execute_live_user_followup_turn(
         )
     else:
         state.current_phase = spec.phase
-        ai_text = " ".join((user_request.planned_question_text or live_ai_text or "").split()).strip()
+        ai_text = " ".join((live_ai_text or user_request.planned_question_text or "").split()).strip()
         if spec.should_announce_closing:
             await deps.set_closing_announced(state.session_id)
             state.closing_announced = True
@@ -946,11 +949,13 @@ async def execute_live_user_followup_turn(
                 },
             )
     if prepared_audio is None and ai_text and not audio_already_streamed:
-        _, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+        spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
             text=ai_text,
         )
         provider_name = spoken_provider or provider_name
+        if prepared_audio is not None and spoken_text:
+            ai_text = " ".join(spoken_text.split()).strip()
         if prepared_audio is None:
             recovered_text, recovered_audio = await _recover_live_audio_for_ai_text(
                 state,

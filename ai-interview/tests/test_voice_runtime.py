@@ -996,7 +996,13 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(generated)
         request_live_text_turn.assert_not_awaited()
         repair_ai_turn_if_truncated.assert_not_awaited()
-        self.assertEqual(send_transcript.await_args.args[3], "면접을 시작하세요.")
+        self.assertEqual(
+            send_transcript.await_args.args[3],
+            (
+                "안녕하세요. 지원자님의 경험을 확인하고자 합니다. 특히 대용량 트래픽 처리 경험이 있다고 하셨는데, "
+                "그 과정에서 가장 어려웠던 문제와 해결 방식을 말씀해 주세요."
+            ),
+        )
 
     async def test_opening_turn_falls_back_to_deterministic_completion_when_repairs_stay_incomplete(self) -> None:
         state = VoiceWsState(session_id="session-4", session_type="live_interview")
@@ -1981,8 +1987,10 @@ class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(generated)
         request_live_text_turn.assert_not_awaited()
-        self.assertIn("redis", send_transcript.await_args.args[3].lower())
-        self.assertIn("p95", send_transcript.await_args.args[3].lower())
+        self.assertEqual(
+            send_transcript.await_args.args[3],
+            "다음으로 협업 경험을 말씀해 주세요.",
+        )
 
     async def test_execute_live_user_followup_turn_falls_back_for_empty_closing_turn(self) -> None:
         state = VoiceWsState(session_id="session-closing", current_phase="closing")
