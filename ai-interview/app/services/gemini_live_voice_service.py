@@ -69,9 +69,16 @@ class LiveInterviewTurnResult:
 
 
 class _GeminiLiveBaseService:
-    def __init__(self, api_key: str | None, provider: str = "gemini-live"):
+    def __init__(
+        self,
+        api_key: str | None,
+        provider: str = "gemini-live",
+        client: Any | None = None,
+    ):
         self.provider = provider
-        self._client = genai.Client(api_key=api_key) if api_key and genai is not None else None
+        self._client = client
+        if self._client is None and api_key and genai is not None:
+            self._client = genai.Client(api_key=api_key)
 
     @property
     def enabled(self) -> bool:
@@ -546,8 +553,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         voice: str = "Kore",
         timeout_sec: float = 18.0,
         output_sample_rate: int = 24000,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key, provider="gemini-live-single")
+        super().__init__(
+            api_key=api_key,
+            provider="gemini-live-single",
+            client=client,
+        )
         self.model = (model or "").strip() or "gemini-2.5-flash-native-audio-latest"
         self._active_model = self.model
         self.voice = voice

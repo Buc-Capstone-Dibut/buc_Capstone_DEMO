@@ -1,18 +1,92 @@
 from __future__ import annotations
 
+import base64
+import json
+import logging
 from datetime import datetime, timezone
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from app.config import settings
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
+
+logger = logging.getLogger("debut.session_support")
 
 if TYPE_CHECKING:
     from app.services.gemini_live_voice_service import GeminiLiveSttService, GeminiLiveTtsService
     from app.services.stt_service import GoogleCloudSttService
 
 
+def _build_vertex_live_client() -> tuple[Any, str]:
+    from google import genai
+    from google.oauth2 import service_account
+
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    credentials = None
+
+    service_account_json_base64 = (
+        (settings.google_service_account_json_b64 or "").strip()
+        or (settings.gemini_service_account_json_base64 or "").strip()
+    )
+    if service_account_json_base64:
+        decoded = base64.b64decode(service_account_json_base64)
+        info = json.loads(decoded.decode("utf-8"))
+        credentials = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=scopes,
+        )
+    elif settings.google_application_credentials:
+        credential_path = Path(settings.google_application_credentials).expanduser()
+        credentials = service_account.Credentials.from_service_account_file(
+            str(credential_path),
+            scopes=scopes,
+        )
+    else:
+        raise RuntimeError("Vertex AI requires a Google service account credential")
+
+    project_id = (
+        (settings.google_cloud_project or "").strip()
+        or (getattr(credentials, "project_id", None) or "").strip()
+    )
+    if not project_id:
+        raise RuntimeError("Vertex AI project ID is missing")
+
+    location = (settings.google_cloud_location or "").strip() or "us-central1"
+    client = genai.Client(
+        vertexai=True,
+        project=project_id,
+        location=location,
+        credentials=credentials,
+    )
+    logger.info(
+        "gemini live client configured for Vertex AI (project=%s, location=%s)",
+        project_id,
+        location,
+    )
+    return client, project_id
+
+
 def create_live_interview_session() -> GeminiLiveInterviewSession:
+    if settings.google_genai_use_vertexai:
+        try:
+            client, _project_id = _build_vertex_live_client()
+        except Exception:
+            logger.exception(
+                "failed to configure Vertex AI Gemini Live client; falling back to API key"
+            )
+        else:
+            return GeminiLiveInterviewSession(
+                api_key=None,
+                client=client,
+                model=(
+                    (settings.gemini_vertex_live_model or "").strip()
+                    or "gemini-live-2.5-flash-native-audio"
+                ),
+                voice=(settings.gemini_live_tts_voice or "Kore"),
+                timeout_sec=30.0,
+            )
+
     model_name = (settings.gemini_live_stt_model or "").strip() or "gemini-2.5-flash-native-audio-latest"
     return GeminiLiveInterviewSession(
         api_key=settings.gemini_api_key,

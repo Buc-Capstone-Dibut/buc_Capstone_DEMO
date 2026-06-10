@@ -58,6 +58,14 @@ class Settings(BaseSettings):
         default=None,
         alias="GOOGLE_SERVICE_ACCOUNT_JSON_B64",
     )
+    google_genai_use_vertexai: bool = Field(
+        default=True,
+        alias="GOOGLE_GENAI_USE_VERTEXAI",
+    )
+    google_cloud_location: str = Field(
+        default="us-central1",
+        alias="GOOGLE_CLOUD_LOCATION",
+    )
     # Text generation 모델 — gemini-3.5-flash (2026-05-19 출시) 가 최신.
     # thinking 안 쓰고 temperature 만 사용 → drop-in 호환. (temperature 는 silently ignored
     # 되지만 동작은 OK)
@@ -84,6 +92,10 @@ class Settings(BaseSettings):
     gemini_live_tts_model: str = Field(
         default="gemini-2.5-flash-native-audio-latest",
         alias="GEMINI_LIVE_TTS_MODEL",
+    )
+    gemini_vertex_live_model: str = Field(
+        default="gemini-live-2.5-flash-native-audio",
+        alias="GEMINI_VERTEX_LIVE_MODEL",
     )
     gemini_tts_model: str = Field(
         default="gemini-2.5-flash-preview-tts",
