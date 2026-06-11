@@ -149,6 +149,13 @@ export const useBackgroundJobsStore = create<State & Actions>()(
             ? { ...existing, ...job, stage: existing.stage || job.stage }
             : job;
         }
+        // 면접 리포트 작업은 sync 엔드포인트(포트폴리오 전용)가 모름 —
+        // 클라이언트 항목을 유지하고 완료/실패 정리는 polling runner 가 한다.
+        for (const [id, job] of Object.entries(currentActive)) {
+          if (job.format === "interview-report" && !map[id]) {
+            map[id] = job;
+          }
+        }
         // 서버에서 사라진 (이미 끝난) 작업 — completeJob 으로 옮기는 건 polling runner 가 함
         set({ activeJobs: map });
       },

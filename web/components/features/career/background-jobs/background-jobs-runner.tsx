@@ -73,11 +73,13 @@ export function BackgroundJobsRunner() {
         try {
           const jobFormat = useBackgroundJobsStore.getState().activeJobs[id]?.format;
           // 경량 /status endpoint — status + stage 만 반환 (전체 document 안 가져옴)
-          // 디자인 템플릿(showcase)은 별도 테이블/엔드포인트를 쓴다.
+          // 디자인 템플릿(showcase)·면접 리포트는 각자의 엔드포인트를 쓴다.
           const statusUrl =
             jobFormat === "showcase"
               ? `/api/career/portfolios/showcase/${id}/status`
-              : `/api/career/portfolios/${id}/status`;
+              : jobFormat === "interview-report"
+                ? `/api/interview/sessions/${id}/report-status`
+                : `/api/career/portfolios/${id}/status`;
           const response = await fetch(statusUrl);
           if (!response.ok) return;
           const payload = (await response.json()) as StatusResponse;
@@ -85,32 +87,49 @@ export function BackgroundJobsRunner() {
 
           if (status === "completed") {
             const job = useBackgroundJobsStore.getState().activeJobs[id];
+            const isInterviewReport = job?.format === "interview-report";
             completeJob(id, "success");
-            toast.success(`"${job?.title || "포트폴리오"}" 생성 완료`, {
-              description: "관리 페이지에서 확인할 수 있어요",
-              icon: <CheckCircle2 className="h-4 w-4" />,
-              action: {
-                label: "열기",
-                onClick: () => {
-                  window.location.href =
-                    job?.format === "showcase"
-                      ? `/career/portfolios/showcase-wizard?id=${id}`
-                      : `/career/portfolios/${id}/edit`;
+            toast.success(
+              isInterviewReport
+                ? `"${job?.title || "AI 면접"}" 리포트 완성`
+                : `"${job?.title || "포트폴리오"}" 생성 완료`,
+              {
+                description: isInterviewReport
+                  ? "지금 바로 리포트를 확인할 수 있어요"
+                  : "관리 페이지에서 확인할 수 있어요",
+                icon: <CheckCircle2 className="h-4 w-4" />,
+                action: {
+                  label: "열기",
+                  onClick: () => {
+                    window.location.href = isInterviewReport
+                      ? `/interview/result?id=${id}`
+                      : job?.format === "showcase"
+                        ? `/career/portfolios/showcase-wizard?id=${id}`
+                        : `/career/portfolios/${id}/edit`;
+                  },
                 },
               },
-            });
+            );
             // 서버 컴포넌트 데이터 (포트폴리오 리스트의 generationStatus 등) refresh
             // — "생성 중" 배지가 자동으로 사라짐
             router.refresh();
           } else if (status === "failed") {
             const job = useBackgroundJobsStore.getState().activeJobs[id];
             const isCancelled = payload.cancelReason === "user_cancelled";
+            const isInterviewReport = job?.format === "interview-report";
             completeJob(id, isCancelled ? "cancelled" : "failed", payload.cancelReason || undefined);
             if (!isCancelled) {
-              toast.error(`"${job?.title || "포트폴리오"}" 생성 실패`, {
-                description: "다시 시도하거나 관리 페이지에서 확인하세요",
-                icon: <XCircle className="h-4 w-4" />,
-              });
+              toast.error(
+                isInterviewReport
+                  ? `"${job?.title || "AI 면접"}" 리포트 생성 실패`
+                  : `"${job?.title || "포트폴리오"}" 생성 실패`,
+                {
+                  description: isInterviewReport
+                    ? "결과 페이지에서 리포트를 다시 생성할 수 있어요"
+                    : "다시 시도하거나 관리 페이지에서 확인하세요",
+                  icon: <XCircle className="h-4 w-4" />,
+                },
+              );
             }
             router.refresh();
           } else if (status === "running" && payload.stage) {

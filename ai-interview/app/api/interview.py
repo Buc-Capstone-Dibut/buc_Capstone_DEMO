@@ -277,6 +277,41 @@ async def prepare_session_opening(
     }
 
 
+@router.get("/sessions/{session_id}/report-status")
+async def session_report_status(
+    session_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    """리포트 생성 상태 — 백그라운드 작업 polling 용 경량 엔드포인트.
+
+    웹의 BackgroundJobsRunner 가 5초마다 호출한다.
+    반환 형태는 포트폴리오 status 엔드포인트와 동일: {status, stage, cancelReason}
+    """
+    user_id = _require_authenticated_user(x_user_id)
+    session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    job = await asyncio.to_thread(service.get_report_job, session_id)
+    # report job 상태 값: pending / running / done / failed (reporting/repository.py)
+    job_status = str((job or {}).get("status") or "")
+    if job_status in {"pending", "running"}:
+        status = "running"
+    elif job_status == "done":
+        status = "completed"
+    elif job_status == "failed":
+        status = "failed"
+    else:
+        # job 이 아직 enqueue 되지 않은 직후 구간 — 분석이 이미 붙어 있으면 완료로 본다.
+        status = "completed" if session.get("analysis") else "running"
+
+    return {
+        "status": status,
+        "stage": {"label": "리포트 생성 중", "progress": None} if status == "running" else None,
+        "cancelReason": None,
+    }
+
+
 @router.post("/sessions/{session_id}/retry-report")
 async def retry_session_report(
     session_id: str,

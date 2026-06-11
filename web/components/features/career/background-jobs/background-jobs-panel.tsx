@@ -145,8 +145,8 @@ function ActiveJobCard({ job }: { job: ActiveJob }) {
             시작 {relativeTime(job.startedAt)}
           </p>
         </div>
-        {/* showcase(디자인 템플릿)는 단일 AI 호출이라 취소 API 가 없음 — 버튼 숨김 */}
-        {job.format !== "showcase" ? (
+        {/* showcase(디자인 템플릿)·면접 리포트는 취소 API 가 없음 — 버튼 숨김 */}
+        {job.format !== "showcase" && job.format !== "interview-report" ? (
           <button
             type="button"
             onClick={handleCancel}
@@ -177,9 +177,11 @@ function CompletedJobCard({
 
   const handleOpen = () => {
     router.push(
-      job.format === "showcase"
-        ? `/career/portfolios/showcase-wizard?id=${job.portfolioId}`
-        : `/career/portfolios/${job.portfolioId}/edit`,
+      job.format === "interview-report"
+        ? `/interview/result?id=${job.portfolioId}`
+        : job.format === "showcase"
+          ? `/career/portfolios/showcase-wizard?id=${job.portfolioId}`
+          : `/career/portfolios/${job.portfolioId}/edit`,
     );
     onOpen?.();
   };
