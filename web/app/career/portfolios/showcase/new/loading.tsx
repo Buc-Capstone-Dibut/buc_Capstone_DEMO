@@ -21,12 +21,12 @@ export default function ShowcaseNewLoading() {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0A0A0A] text-[#F0F0F0]">
-      {/* Neon green spinner ring */}
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#fbfcf8] text-[#1a2b18]">
+      {/* Debut green spinner ring */}
       <div className="relative h-16 w-16">
-        <div className="absolute inset-0 rounded-full border-2 border-[#222]" />
+        <div className="absolute inset-0 rounded-full border-2 border-[#dde7d2]" />
         <div
-          className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#39FF14] animate-spin"
+          className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#82B84C] animate-spin"
           style={{ animationDuration: "1s" }}
         />
       </div>
@@ -34,7 +34,7 @@ export default function ShowcaseNewLoading() {
       <h2 className="mt-8 text-2xl font-black tracking-tight">
         디자인 포트폴리오를 만들고 있어요
       </h2>
-      <p className="mt-3 text-sm text-[#888]">
+      <p className="mt-3 text-sm text-[#5c6b58]">
         AI가 선택하신 프로젝트로 초안을 작성하고 있습니다 · 보통 3~5초 걸려요
       </p>
 
@@ -53,10 +53,10 @@ export default function ShowcaseNewLoading() {
               <span
                 className={`flex h-4 w-4 items-center justify-center rounded-full ${
                   done
-                    ? "bg-[#39FF14] text-black"
+                    ? "bg-[#82B84C] text-white"
                     : active
-                      ? "border border-[#39FF14] bg-transparent"
-                      : "border border-[#444] bg-transparent"
+                      ? "border border-[#82B84C] bg-transparent"
+                      : "border border-[#c9d6bd] bg-transparent"
                 }`}
               >
                 {done ? (
@@ -64,10 +64,10 @@ export default function ShowcaseNewLoading() {
                     <path d="M2.5 6.5L5 9L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : active ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#39FF14] animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#82B84C] animate-pulse" />
                 ) : null}
               </span>
-              <span className={done || active ? "" : "text-[#666]"}>{label}</span>
+              <span className={done || active ? "" : "text-[#8a9684]"}>{label}</span>
             </li>
           );
         })}

@@ -69,14 +69,31 @@ export function NeonEditorialTemplate({
 }: NeonEditorialTemplateProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
+  // bg 토큰별 팔레트 — light 는 Debut 사이트 톤(밝은 바탕 + 그린 어센트), dark 는 기존 네온.
+  const palette =
+    tokens.bg === "dark"
+      ? {
+          ["--bg"]: "#0A0A0A",
+          ["--bg-alt"]: "#111111",
+          ["--bg-card"]: "#161616",
+          ["--text-primary"]: "#F0F0F0",
+          ["--text-secondary"]: "#888888",
+          ["--border"]: "#222222",
+          ["--grid-line"]: "rgba(240,240,240,0.04)",
+        }
+      : {
+          ["--bg"]: "#fbfcf8",
+          ["--bg-alt"]: "#f1f6ea",
+          ["--bg-card"]: "#ffffff",
+          ["--text-primary"]: "#1a2b18",
+          ["--text-secondary"]: "#5c6b58",
+          ["--border"]: "#dde7d2",
+          ["--grid-line"]: "rgba(26,43,24,0.05)",
+        };
+
   const styleVars = {
     ["--accent"]: tokens.accent,
-    ["--bg"]: "#0A0A0A",
-    ["--bg-alt"]: "#111111",
-    ["--bg-card"]: "#161616",
-    ["--text-primary"]: "#F0F0F0",
-    ["--text-secondary"]: "#888888",
-    ["--border"]: "#222222",
+    ...palette,
   } as CSSProperties;
 
   const hasAbout =

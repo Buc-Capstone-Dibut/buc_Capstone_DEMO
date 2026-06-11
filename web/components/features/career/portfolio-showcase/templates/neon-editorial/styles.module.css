@@ -51,7 +51,7 @@
 }
 .root :global(.cursor-ring) {
   width: 36px; height: 36px;
-  border: 1.5px solid rgba(57, 255, 20, 0.5);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent);
   border-radius: 50%;
   opacity: 0;
   transition: width 0.3s ease, height 0.3s ease,
@@ -82,8 +82,8 @@
   flex-direction: column;
   justify-content: space-between;
   background-image:
-    repeating-linear-gradient(to right,  rgba(240,240,240,0.04) 0 1px, transparent 1px 80px),
-    repeating-linear-gradient(to bottom, rgba(240,240,240,0.04) 0 1px, transparent 1px 80px);
+    repeating-linear-gradient(to right,  var(--grid-line, rgba(240,240,240,0.04)) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(to bottom, var(--grid-line, rgba(240,240,240,0.04)) 0 1px, transparent 1px 80px);
 }
 .root :global(.hero-top),
 .root :global(.hero-bottom) {
@@ -290,7 +290,7 @@
 /* Empty placeholder: large outline number */
 .root :global(.work-thumb.is-empty) {
   background:
-    linear-gradient(135deg, rgba(57,255,20,0.05), transparent),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent),
     var(--bg-card);
   display: flex;
   align-items: center;
