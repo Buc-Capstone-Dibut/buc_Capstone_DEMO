@@ -71,8 +71,14 @@ export function BackgroundJobsRunner() {
       if (pollers.has(id)) continue;
       const pollOnce = async () => {
         try {
+          const jobFormat = useBackgroundJobsStore.getState().activeJobs[id]?.format;
           // 경량 /status endpoint — status + stage 만 반환 (전체 document 안 가져옴)
-          const response = await fetch(`/api/career/portfolios/${id}/status`);
+          // 디자인 템플릿(showcase)은 별도 테이블/엔드포인트를 쓴다.
+          const statusUrl =
+            jobFormat === "showcase"
+              ? `/api/career/portfolios/showcase/${id}/status`
+              : `/api/career/portfolios/${id}/status`;
+          const response = await fetch(statusUrl);
           if (!response.ok) return;
           const payload = (await response.json()) as StatusResponse;
           const status = payload.status;
@@ -86,7 +92,10 @@ export function BackgroundJobsRunner() {
               action: {
                 label: "열기",
                 onClick: () => {
-                  window.location.href = `/career/portfolios/${id}/edit`;
+                  window.location.href =
+                    job?.format === "showcase"
+                      ? `/career/portfolios/showcase-wizard?id=${id}`
+                      : `/career/portfolios/${id}/edit`;
                 },
               },
             });

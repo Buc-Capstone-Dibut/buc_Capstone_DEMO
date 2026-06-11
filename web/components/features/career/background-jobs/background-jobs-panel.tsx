@@ -145,15 +145,18 @@ function ActiveJobCard({ job }: { job: ActiveJob }) {
             시작 {relativeTime(job.startedAt)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={cancelling}
-          className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2 text-[10.5px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
-        >
-          {cancelling ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
-          취소
-        </button>
+        {/* showcase(디자인 템플릿)는 단일 AI 호출이라 취소 API 가 없음 — 버튼 숨김 */}
+        {job.format !== "showcase" ? (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2 text-[10.5px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+          >
+            {cancelling ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+            취소
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -173,7 +176,11 @@ function CompletedJobCard({
   const isCancelled = job.result === "cancelled";
 
   const handleOpen = () => {
-    router.push(`/career/portfolios/${job.portfolioId}/edit`);
+    router.push(
+      job.format === "showcase"
+        ? `/career/portfolios/showcase-wizard?id=${job.portfolioId}`
+        : `/career/portfolios/${job.portfolioId}/edit`,
+    );
     onOpen?.();
   };
 
