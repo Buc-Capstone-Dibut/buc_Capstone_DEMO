@@ -62,9 +62,12 @@ const STARTER_QUESTIONS = [
 export const VISIBLE_MAIN_PATHS = [
   "/insights",      // 인사이트 (header 는 /insights/tech-blog 로 link 됨)
   "/insights/tech-blog",
-  "/community",     // 커뮤니티
+  "/community",        // 커뮤니티 (실제로는 /community/board 로 redirect)
+  "/community/board",  // 커뮤니티 기본 탭 — 게시판
+  "/community/squad",  // 커뮤니티 스쿼드 탭
   "/workspace",     // 워크스페이스
-  "/career",        // 커리어 관리
+  "/career",           // 커리어 관리 (실제로는 /career/projects 로 redirect)
+  "/career/projects",  // 커리어 관리 기본 탭 — 프로젝트 보관함
   "/interview",     // AI 면접
 ];
 
