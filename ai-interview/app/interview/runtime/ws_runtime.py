@@ -391,6 +391,7 @@ def _client_message_router_deps():
         coerce_audio_chunk=runtime_coerce_audio_chunk,
         enqueue_user_segment=_enqueue_user_segment,
         live_input_streaming_enabled=settings.voice_live_input_streaming_enabled,
+        reset_audio_buffers=_clear_live_input_stream_state,
         begin_live_input_stream=_begin_live_input_stream,
         push_live_input_audio_chunk=_push_live_input_audio_chunk,
         push_parallel_stt_audio_chunk=_push_parallel_stt_audio_chunk,

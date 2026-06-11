@@ -227,6 +227,7 @@ def build_client_message_router_deps(
     coerce_audio_chunk: Callable[[Any], list[float]],
     enqueue_user_segment: Callable[..., Awaitable[None]],
     live_input_streaming_enabled: bool = True,
+    reset_audio_buffers: Callable[[VoiceWsState], None] | None = None,
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None,
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None,
     push_parallel_stt_audio_chunk: Callable[[Any, VoiceWsState, list[float], int], Awaitable[bool]] | None,
@@ -237,6 +238,7 @@ def build_client_message_router_deps(
     return ClientMessageRouterDeps(
         runtime_architecture=runtime_architecture,
         live_input_streaming_enabled=live_input_streaming_enabled,
+        reset_audio_buffers=reset_audio_buffers,
         send_json=send_json,
         send_avatar_state=send_avatar_state,
         handle_session_init=handle_session_init,
