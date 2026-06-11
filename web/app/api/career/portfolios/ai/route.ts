@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateGeminiText } from "@/lib/ai/gemini-text";
 import {
   createDefaultPortfolioDocument,
   getDefaultPortfolioPageSize,
@@ -101,15 +101,8 @@ function preserveGeneratedMedia(
 }
 
 async function generateText(prompt: string) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  // Vertex(GCP 크레딧) 우선, 없으면 AI Studio 키로 폴백 (gemini-text 어댑터)
+  return generateGeminiText({ model: "gemini-2.5-flash", prompt });
 }
 
 export async function POST(request: Request) {

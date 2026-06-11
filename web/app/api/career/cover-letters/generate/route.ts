@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { streamText } from "ai";
+import { streamText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
 
 const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL_ID = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
@@ -90,28 +91,21 @@ function buildServerChain(): UpstreamServer[] {
 }
 
 async function streamWith429Backoff({
-  server,
-  modelId,
+  model,
   system,
   messages,
 }: {
-  server: UpstreamServer;
-  modelId: string;
+  model: LanguageModel;
   system: string;
   messages: unknown[];
 }) {
-  const provider = createGoogleGenerativeAI({
-    apiKey: server.apiKey,
-    baseURL: server.baseURL,
-  });
-
   let attempt = 0;
   while (true) {
     try {
       return await streamText({
-        model: provider(modelId),
+        model,
         system,
-        messages,
+        messages: messages as never,
         temperature: 0.45,
         maxRetries: 0,
       });
@@ -122,7 +116,7 @@ async function streamWith429Backoff({
       const backoff =
         BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 160);
       console.warn(
-        `[cover-letter-generate] ${modelId} transient error, retrying in ${backoff}ms (attempt ${attempt + 1}/${MODEL_RETRY_COUNT})`,
+        `[cover-letter-generate] transient error, retrying in ${backoff}ms (attempt ${attempt + 1}/${MODEL_RETRY_COUNT})`,
       );
       await sleep(backoff);
       attempt += 1;
@@ -143,7 +137,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    if (serverChain.length === 0) {
+    const vertexEnabled = isVertexEnabled();
+    if (serverChain.length === 0 && !vertexEnabled) {
       return NextResponse.json(
         {
           success: false,
@@ -333,22 +328,30 @@ ready=no
 
     const systemPrompt = isIntroOperation ? introSystemPrompt : defaultSystemPrompt;
 
-    let lastError: unknown = null;
+    // 시도 순서: Vertex(GCP 크레딧) → AI Studio 서버 체인
+    const attempts: Array<{ id: string; model: LanguageModel }> = [];
+    if (vertexEnabled) {
+      attempts.push({ id: "vertex", model: getVertex()(DEFAULT_MODEL_ID) });
+    }
     for (const server of serverChain) {
+      attempts.push({
+        id: `${server.id}(${server.baseURL})`,
+        model: createGoogleGenerativeAI({ apiKey: server.apiKey, baseURL: server.baseURL })(DEFAULT_MODEL_ID),
+      });
+    }
+
+    let lastError: unknown = null;
+    for (const attempt of attempts) {
       try {
         const result = await streamWith429Backoff({
-          server,
-          modelId: DEFAULT_MODEL_ID,
+          model: attempt.model,
           system: systemPrompt,
           messages,
         });
         return result.toTextStreamResponse();
       } catch (error) {
         lastError = error;
-        console.warn(
-          `[cover-letter-generate] ${server.id}(${server.baseURL}) failed`,
-          error,
-        );
+        console.warn(`[cover-letter-generate] ${attempt.id} failed`, error);
         if (!isTransientModelError(error)) {
           break;
         }

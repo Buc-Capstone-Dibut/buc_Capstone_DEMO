@@ -1,5 +1,6 @@
 import { streamText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
 
 const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL_ID =
@@ -38,7 +39,9 @@ export async function createSiteHelperStreamResponse({
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   fallbackText: string;
 }) {
-  if (!DEFAULT_API_KEY) {
+  // Vertex(GCP 크레딧) 우선 → AI Studio 키 → 정적 폴백
+  const vertexEnabled = isVertexEnabled();
+  if (!vertexEnabled && !DEFAULT_API_KEY) {
     return new Response(createPlainTextStream(fallbackText), {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -48,13 +51,12 @@ export async function createSiteHelperStreamResponse({
     });
   }
 
-  const google = createGoogleGenerativeAI({
-    apiKey: DEFAULT_API_KEY,
-    baseURL: DEFAULT_BASE_URL,
-  });
+  const model = vertexEnabled
+    ? getVertex()(DEFAULT_MODEL_ID)
+    : createGoogleGenerativeAI({ apiKey: DEFAULT_API_KEY, baseURL: DEFAULT_BASE_URL })(DEFAULT_MODEL_ID);
 
   const result = await streamText({
-    model: google(DEFAULT_MODEL_ID),
+    model,
     system,
     messages: messages as never,
     temperature: 0.25,
@@ -64,7 +66,7 @@ export async function createSiteHelperStreamResponse({
   return result.toTextStreamResponse({
     headers: {
       "Cache-Control": "no-store",
-      "X-Debut-AI-Provider": "gemini",
+      "X-Debut-AI-Provider": vertexEnabled ? "vertex" : "gemini",
     },
   });
 }

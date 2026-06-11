@@ -1,6 +1,6 @@
 import "server-only";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import type { NeonEditorialContent } from "../templates/neon-editorial/types";
 import type { ProjectSnapshot } from "../shared/project-snapshot-types";
 
@@ -33,8 +33,7 @@ export async function aiFillNeonEditorialContent(input: {
   source: SeedSource;
   snapshots: ProjectSnapshot[];
 }): Promise<NeonEditorialContent> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return input.content;
+  if (!hasGeminiTextBackend()) return input.content;
 
   // If the user has no projects selected, the LLM has nothing to work with
   // — return input unchanged so the user can fill manually in the editor.
@@ -42,10 +41,8 @@ export async function aiFillNeonEditorialContent(input: {
 
   try {
     const prompt = buildPrompt(input);
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    // Vertex(GCP 크레딧) 우선, 없으면 AI Studio 키로 폴백
+    const text = await generateGeminiText({ model: "gemini-2.5-flash", prompt });
     const parsed = extractJsonObject(text);
     if (!parsed) return input.content;
     return mergeIntoContent(input.content, parsed);

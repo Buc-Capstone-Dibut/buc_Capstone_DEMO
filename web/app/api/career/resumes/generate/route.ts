@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { normalizeResumePayload } from "@/app/my/[handle]/profile-utils";
 import { getPortfolioSourceData } from "@/lib/server/career-portfolios";
@@ -84,12 +84,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const apiKey =
-      process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
-
-    if (!apiKey) {
+    if (!hasGeminiTextBackend()) {
       return NextResponse.json(
-        { success: false, error: "GEMINI_API_KEY is not configured" },
+        { success: false, error: "AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다." },
         { status: 500 },
       );
     }
@@ -109,8 +106,6 @@ export async function POST(req: Request) {
     }
 
     const source = await getPortfolioSourceData(session.user.id);
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL_ID });
 
     const prompt = `너는 개발자 채용 이력서 전문 컨설턴트다.
 사용자의 기존 이력서, 커리어 허브에 저장된 프로젝트/경력/자기소개서 기록을 모두 참고하여 지원 회사와 직무에 맞춘 한국식 A4 이력서를 JSON으로 재구성하라.
@@ -160,8 +155,8 @@ ${compact(
   "fitSummary": ["이 회사/직무에 맞춰 조정한 핵심 포인트 3~5개"]
 }`;
 
-    const result = await model.generateContent(prompt);
-    const parsed = extractJsonObject(result.response.text());
+    const responseText = await generateGeminiText({ model: MODEL_ID, prompt });
+    const parsed = extractJsonObject(responseText);
     if (!parsed) {
       return NextResponse.json(
         { success: false, error: "AI 응답을 이력서 JSON으로 해석하지 못했습니다." },

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import {
   type PortfolioDocument,
   type PortfolioSiteBlock,
@@ -146,10 +146,9 @@ export async function POST(
   const message = (body.message || "").trim();
   if (!message) return NextResponse.json({ error: "메시지가 비어 있습니다." }, { status: 400 });
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) {
+  if (!hasGeminiTextBackend()) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY 가 설정되지 않았습니다." },
+      { error: "AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다." },
       { status: 503 },
     );
   }
@@ -303,14 +302,14 @@ JSON 하나만 반환:
 }`;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
+    // 블록 단위 ops 는 구조적 작업 — temperature 낮춰 결정적으로. Vertex 우선.
+    const responseText = await generateGeminiText({
       model: "gemini-2.5-flash",
-      // 블록 단위 ops 는 구조적 작업 — temperature 낮춰 결정적으로
-      generationConfig: { temperature: 0.3, topP: 0.85 },
+      prompt,
+      temperature: 0.3,
+      topP: 0.85,
     });
-    const result = await model.generateContent(prompt);
-    const parsed = extractJsonObject(result.response.text());
+    const parsed = extractJsonObject(responseText);
     if (!parsed) {
       return NextResponse.json(
         { error: "AI 응답을 파싱하지 못했습니다." },

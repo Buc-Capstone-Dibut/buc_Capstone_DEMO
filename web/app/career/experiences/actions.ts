@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
+import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
@@ -25,13 +26,14 @@ type MutableResumePayload = Partial<ResumePayload> &
     timeline?: ExperienceInput[];
   };
 
+// Vertex(GCP 크레딧) 우선, 없으면 AI Studio 키로 폴백.
 const googleApiKey =
   process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-const google = googleApiKey
-  ? createGoogleGenerativeAI({
-      apiKey: googleApiKey,
-    })
-  : null;
+const google = isVertexEnabled()
+  ? getVertex()
+  : googleApiKey
+    ? createGoogleGenerativeAI({ apiKey: googleApiKey })
+    : null;
 
 const workspaceDraftSchema = z.object({
   description: z.string().max(500).optional(),

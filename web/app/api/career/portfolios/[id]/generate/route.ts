@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,
   buildPortfolioPublicSummary,
@@ -139,8 +139,7 @@ async function generatePortfolioEvidenceBrief(input: {
   plan: PortfolioGenerationPlan;
 }): Promise<PortfolioEvidenceBrief> {
   const fallback = createFallbackPortfolioEvidenceBrief(input.source, input.plan);
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return fallback;
+  if (!hasGeminiTextBackend()) return fallback;
 
   const prompt = `너는 개발자 채용 포트폴리오를 만들기 전에 프로젝트를 면접용 케이스스터디로 해부하는 커리어 분석가다.
 목표는 빈약한 입력을 가능한 선에서 풍부하게 보강하되, 사용자가 제공하지 않은 사실/수치/성과/기술은 절대 만들지 않는 것이다.
@@ -185,10 +184,8 @@ JSON 하나만 반환:
 }`;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const parsed = extractJsonObject(result.response.text());
+    const responseText = await generateGeminiText({ model: "gemini-2.5-flash", prompt });
+    const parsed = extractJsonObject(responseText);
     return normalizePortfolioEvidenceBrief(parsed?.evidenceBrief || parsed, fallback);
   } catch (error) {
     console.error("Portfolio evidence brief generation failed", error);
@@ -203,8 +200,7 @@ async function generatePortfolioDraft(input: {
   plan: PortfolioGenerationPlan;
   evidenceBrief: PortfolioEvidenceBrief;
 }) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return input.baseDocument;
+  if (!hasGeminiTextBackend()) return input.baseDocument;
 
   const formatLabel =
     input.baseDocument.format === "document"
@@ -247,10 +243,8 @@ JSON 하나만 반환:
   }
 }`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  const result = await model.generateContent(prompt);
-  const parsed = extractJsonObject(result.response.text());
+  const responseText = await generateGeminiText({ model: "gemini-2.5-flash", prompt });
+  const parsed = extractJsonObject(responseText);
   const normalized = polishPortfolioDocument(
     withPortfolioSampleImages(
       normalizePortfolioDocument(
@@ -282,8 +276,7 @@ async function generatePortfolioSiteDraft(input: {
   plan: PortfolioGenerationPlan;
   evidenceBrief: PortfolioEvidenceBrief;
 }) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return input.baseDocument;
+  if (!hasGeminiTextBackend()) return input.baseDocument;
 
   // 템플릿별 가이드 — 같은 데이터라도 템플릿이 바뀌면 슬라이드 톤/구도가 달라야 한다.
   const templateGuide =
@@ -392,13 +385,13 @@ JSON 하나만 반환:
 }`;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
+    const responseText = await generateGeminiText({
       model: "gemini-2.5-flash",
-      generationConfig: { temperature: 0.95, topP: 0.95 },
+      prompt,
+      temperature: 0.95,
+      topP: 0.95,
     });
-    const result = await model.generateContent(prompt);
-    const parsed = extractJsonObject(result.response.text());
+    const parsed = extractJsonObject(responseText);
     const normalized = polishPortfolioDocument(
       withPortfolioSampleImages(
         normalizePortfolioDocument(
@@ -441,8 +434,7 @@ async function generatePortfolioPlan(input: {
   generationPreset: PortfolioDocument["generationPreset"];
 }): Promise<PortfolioGenerationPlan> {
   const fallbackPlan = createFallbackPortfolioGenerationPlan(input.source);
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return fallbackPlan;
+  if (!hasGeminiTextBackend()) return fallbackPlan;
 
   const template = getPortfolioTemplate(input.templateId);
   const formatLabel =
@@ -510,10 +502,8 @@ JSON 하나만 반환:
 }`;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const parsed = extractJsonObject(result.response.text());
+    const responseText = await generateGeminiText({ model: "gemini-2.5-flash", prompt });
+    const parsed = extractJsonObject(responseText);
     if (!parsed || typeof parsed !== "object") return fallbackPlan;
     return {
       ...fallbackPlan,

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { streamGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
+
+const AI_COACH_MODEL = "gemini-2.5-pro";
 
 export async function POST(req: Request) {
     try {
@@ -16,13 +18,9 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { action, payload, message, backgroundContext } = body;
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            throw new Error("GEMINI_API_KEY is not configured");
+        if (!hasGeminiTextBackend()) {
+            throw new Error("AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다.");
         }
-
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
         if (action === "stadri-structure") {
             const { s, t, a, d, r, i } = payload;
@@ -50,14 +48,11 @@ ${backgroundContext ? `[참고용 배경 지식 (사용자가 선택한 프로�
 5. 스토리텔링: 어떤 배경과 목표에서 출발했고, 어떤 구체적이고 전문적인 행동으로 난관을 극복했는지, 그리고 그 결과가 비즈니스나 프로젝트의 완성도에 어떻게 기여했는지를 전문가의 뉘앙스로 설득력 있게 풀어내세요.
 `;
 
-            const result = await model.generateContentStream(prompt);
-
             const stream = new ReadableStream({
                 async start(controller) {
                     const encoder = new TextEncoder();
                     try {
-                        for await (const chunk of result.stream) {
-                            const chunkText = chunk.text();
+                        for await (const chunkText of streamGeminiText({ model: AI_COACH_MODEL, prompt })) {
                             controller.enqueue(encoder.encode(chunkText));
                         }
                     } catch (err) {
@@ -93,14 +88,12 @@ ${message}
 2. **출력 제한**: 인사말, 헤더("### 수정본" 등), 부연 설명은 절대 포함하지 마세요. 바로 수정된 자기소개서 본문의 첫 문장으로 시작하고 끝나야 합니다.
 3. **핵심**: 이전 답변의 훌륭한 문장 구조와 전문성을 보존하면서, 사용자의 피드백 포인트만 자연스럽게 녹여내세요.`;
 
-            const refineResult = await model.generateContentStream(refinePrompt);
-
             const refineStream = new ReadableStream({
                 async start(controller) {
                     const encoder = new TextEncoder();
                     try {
-                        for await (const chunk of refineResult.stream) {
-                            controller.enqueue(encoder.encode(chunk.text()));
+                        for await (const chunkText of streamGeminiText({ model: AI_COACH_MODEL, prompt: refinePrompt })) {
+                            controller.enqueue(encoder.encode(chunkText));
                         }
                     } catch (err) {
                         console.error("Refine streaming error:", err);
