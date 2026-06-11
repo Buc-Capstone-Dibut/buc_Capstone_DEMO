@@ -316,8 +316,9 @@ class GeminiLiveSttService(_GeminiLiveBaseService):
         api_key: str | None,
         model: str = "gemini-2.5-flash-native-audio-latest",
         timeout_sec: float = 2.5,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key)
+        super().__init__(api_key=api_key, client=client)
         self.model = model
         self.timeout_sec = timeout_sec
 
@@ -403,8 +404,9 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         output_sample_rate: int = 24000,
         timeout_sec: float = 20.0,
         quota_cooldown_sec: int = 300,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key, provider="gemini-live-tts")
+        super().__init__(api_key=api_key, provider="gemini-live-tts", client=client)
         # Keep `model` and `generate_model` for compatibility with existing callers/configs.
         self.model = model
         self.generate_model = (generate_model or model).strip() or "gemini-2.5-flash-preview-tts"

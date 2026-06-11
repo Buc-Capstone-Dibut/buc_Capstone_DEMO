@@ -67,6 +67,25 @@ def _build_vertex_live_client() -> tuple[Any, str]:
     return client, project_id
 
 
+@lru_cache(maxsize=1)
+def _shared_vertex_live_client() -> Any | None:
+    """STT/TTS 등 여러 서비스가 공유할 Vertex genai 클라이언트.
+
+    google_genai_use_vertexai 가 꺼져 있거나 자격증명이 없으면 None → 호출 측이
+    AI Studio api_key 로 폴백한다.
+    """
+    if not settings.google_genai_use_vertexai:
+        return None
+    try:
+        client, _project_id = _build_vertex_live_client()
+        return client
+    except Exception:
+        logger.exception(
+            "failed to configure shared Vertex AI client; falling back to API key"
+        )
+        return None
+
+
 def create_live_interview_session() -> GeminiLiveInterviewSession:
     if settings.google_genai_use_vertexai:
         try:
@@ -100,9 +119,21 @@ def create_live_interview_session() -> GeminiLiveInterviewSession:
 def get_fallback_tts_service() -> GeminiLiveTtsService:
     from app.services.gemini_live_voice_service import GeminiLiveTtsService
 
-    model_name = (settings.gemini_tts_model or settings.gemini_live_tts_model or "").strip() or "gemini-2.5-flash-preview-tts"
+    # Vertex 모드면 native-audio live 모델을, 아니면 기존 AI Studio TTS 모델을 쓴다.
+    vertex_client = _shared_vertex_live_client()
+    if vertex_client is not None:
+        model_name = (
+            (settings.gemini_vertex_live_model or "").strip()
+            or "gemini-live-2.5-flash-native-audio"
+        )
+    else:
+        model_name = (
+            (settings.gemini_tts_model or settings.gemini_live_tts_model or "").strip()
+            or "gemini-2.5-flash-preview-tts"
+        )
     return GeminiLiveTtsService(
         api_key=settings.gemini_api_key,
+        client=vertex_client,
         model=model_name,
         generate_model=model_name,
         voice=(settings.gemini_live_tts_voice or "Kore"),
@@ -114,9 +145,20 @@ def get_fallback_tts_service() -> GeminiLiveTtsService:
 def get_live_stt_service() -> GeminiLiveSttService:
     from app.services.gemini_live_voice_service import GeminiLiveSttService
 
-    model_name = (settings.gemini_live_stt_model or "").strip() or "gemini-2.5-flash-native-audio-latest"
+    vertex_client = _shared_vertex_live_client()
+    if vertex_client is not None:
+        model_name = (
+            (settings.gemini_vertex_live_model or "").strip()
+            or "gemini-live-2.5-flash-native-audio"
+        )
+    else:
+        model_name = (
+            (settings.gemini_live_stt_model or "").strip()
+            or "gemini-2.5-flash-native-audio-latest"
+        )
     return GeminiLiveSttService(
         api_key=settings.gemini_api_key,
+        client=vertex_client,
         model=model_name,
         timeout_sec=6.0,
     )
