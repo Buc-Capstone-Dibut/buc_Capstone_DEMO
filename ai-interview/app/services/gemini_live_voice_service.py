@@ -1156,7 +1156,9 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        for attempt in range(1, 2):
+        # native-audio 모델이 텍스트 턴에 간헐적으로 빈 응답(output_len=0)을 준다.
+        # 같은 호출을 fresh 세션으로 재시도하면 대부분 성공하므로 3회까지 시도.
+        for attempt in range(1, 4):
             connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 logger.warning(

@@ -27,7 +27,6 @@ class _DummyLiveSession:
 
 
 _live_stub.GeminiLiveInterviewSession = _DummyLiveSession
-sys.modules["app.services.gemini_live_voice_service"] = _live_stub
 
 _interview_stub = types.ModuleType("app.services.interview_service")
 
@@ -39,69 +38,105 @@ class _DummyInterviewService:
 
 _interview_stub.InterviewService = _DummyInterviewService
 _interview_stub.get_connection = Mock()
-sys.modules.setdefault("app.services.interview_service", _interview_stub)
 
-from app.interview.domain.interview_memory import (
-    build_memory_snapshot,
-    derive_question_type_preference,
-    record_question_type,
-    remember_model_turn,
-    remember_user_turn,
-    select_opening_question_type,
-    select_question_strategy,
-    select_next_question_type,
-)
-from app.interview.domain.interview_level import resolve_interview_level
-from app.interview.domain.question_bank import infer_interview_track
-from app.interview.domain.turn_text import (
-    build_answer_quality_hint,
-    build_opening_turn_text,
-    compose_ai_question_text,
-    looks_like_complete_ai_question,
-    sanitize_ai_turn_text,
-    sanitize_user_turn_text,
-)
-from app.interview.reporting.document import (
-    REPORT_SCHEMA_VERSION,
-    build_report_document,
-    build_timeline_entries,
-    coerce_report_document,
-)
-from app.interview.runtime.executor import (
-    RuntimeExecutorDeps,
-    execute_live_user_followup_turn,
-    execute_opening_live_turn,
-)
-from app.interview.runtime.live_client import LiveClientDeps, repair_ai_turn_if_truncated, request_live_text_turn
-from app.interview.runtime.live_turns import (
-    LiveUserFollowupSpec,
-    LiveUserRequestSpec,
-    OpeningTurnSpec,
-    prepare_live_user_request,
-)
-from app.interview.runtime.message_router import ClientMessageRouterDeps, handle_client_message
-from app.interview.runtime.session_interaction import is_probable_ai_echo
-from app.interview.runtime.session_engine import (
-    SessionEngineDeps,
-    enqueue_user_segment,
-    handle_session_init,
-    process_user_utterance,
-)
-from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
-from app.interview.runtime.state import (
-    AiDeliveryPlan,
-    PendingUserSegment,
-    PreparedDeliverySegment,
-    PreparedTtsAudio,
-    VoiceWsState,
-)
-from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
-from app.interview.runtime.vad_policy import retune_vad_for_next_turn
-from app.interview.transcript.session_state import (
-    hydrate_state_from_session_row,
-    mark_session_status,
-)
-from app.services.voice_pipeline import VadSegmenter, wav_bytes_to_float_samples
+# unittest discover 는 테스트 실행 전에 모든 테스트 모듈을 import 하므로, stub 과 그 아래에서
+# import 된 app 모듈을 sys.modules 에 남기면 뒤에 import 되는 테스트 모듈로 누수된다.
+# import 직후 stub 키를 원상 복구하고 새로 import 된 app 모듈은 따로 보관해 두었다가,
+# 이 모듈의 테스트가 실행되는 동안에만 setUpModule/tearDownModule 로 캐시에 되돌린다
+# (문자열 대상 mock.patch 와 lazy import 가 같은 모듈 세대를 보게 하기 위함).
+_ORIGINAL_LIVE_MODULE = sys.modules.get("app.services.gemini_live_voice_service")
+_ORIGINAL_INTERVIEW_MODULE = sys.modules.get("app.services.interview_service")
+_MODULES_BEFORE_STUB_IMPORTS = set(sys.modules)
+sys.modules["app.services.gemini_live_voice_service"] = _live_stub
+sys.modules.setdefault("app.services.interview_service", _interview_stub)
+try:
+    from app.interview.domain.interview_memory import (
+        build_memory_snapshot,
+        derive_question_type_preference,
+        record_question_type,
+        remember_model_turn,
+        remember_user_turn,
+        select_opening_question_type,
+        select_question_strategy,
+        select_next_question_type,
+    )
+    from app.interview.domain.interview_level import resolve_interview_level
+    from app.interview.domain.question_bank import infer_interview_track
+    from app.interview.domain.turn_text import (
+        build_answer_quality_hint,
+        build_opening_turn_text,
+        compose_ai_question_text,
+        looks_like_complete_ai_question,
+        sanitize_ai_turn_text,
+        sanitize_user_turn_text,
+    )
+    from app.interview.reporting.document import (
+        REPORT_SCHEMA_VERSION,
+        build_report_document,
+        build_timeline_entries,
+        coerce_report_document,
+    )
+    from app.interview.runtime.executor import (
+        RuntimeExecutorDeps,
+        execute_live_user_followup_turn,
+        execute_opening_live_turn,
+    )
+    from app.interview.runtime.live_client import LiveClientDeps, repair_ai_turn_if_truncated, request_live_text_turn
+    from app.interview.runtime.live_turns import (
+        LiveUserFollowupSpec,
+        LiveUserRequestSpec,
+        OpeningTurnSpec,
+        prepare_live_user_request,
+    )
+    from app.interview.runtime.message_router import ClientMessageRouterDeps, handle_client_message
+    from app.interview.runtime.session_interaction import is_probable_ai_echo
+    from app.interview.runtime.session_engine import (
+        SessionEngineDeps,
+        enqueue_user_segment,
+        handle_session_init,
+        process_user_utterance,
+    )
+    from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
+    from app.interview.runtime.state import (
+        AiDeliveryPlan,
+        PendingUserSegment,
+        PreparedDeliverySegment,
+        PreparedTtsAudio,
+        VoiceWsState,
+    )
+    from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
+    from app.interview.runtime.vad_policy import retune_vad_for_next_turn
+    from app.interview.transcript.session_state import (
+        hydrate_state_from_session_row,
+        mark_session_status,
+    )
+    from app.services.voice_pipeline import VadSegmenter, wav_bytes_to_float_samples
+finally:
+    _STUB_SCOPED_APP_MODULES = {}
+    for _name in set(sys.modules) - _MODULES_BEFORE_STUB_IMPORTS:
+        if _name == "app" or _name.startswith("app."):
+            _STUB_SCOPED_APP_MODULES[_name] = sys.modules.pop(_name)
+    if _ORIGINAL_LIVE_MODULE is not None:
+        sys.modules["app.services.gemini_live_voice_service"] = _ORIGINAL_LIVE_MODULE
+    if _ORIGINAL_INTERVIEW_MODULE is not None:
+        sys.modules["app.services.interview_service"] = _ORIGINAL_INTERVIEW_MODULE
+
+_MODULES_DISPLACED_DURING_RUN: dict[str, types.ModuleType | None] = {}
+
+
+def setUpModule() -> None:
+    for _name, _module in _STUB_SCOPED_APP_MODULES.items():
+        _MODULES_DISPLACED_DURING_RUN[_name] = sys.modules.get(_name)
+        sys.modules[_name] = _module
+
+
+def tearDownModule() -> None:
+    for _name, _original in _MODULES_DISPLACED_DURING_RUN.items():
+        if _original is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _original
+    _MODULES_DISPLACED_DURING_RUN.clear()
 
 
 def _resume_deps(

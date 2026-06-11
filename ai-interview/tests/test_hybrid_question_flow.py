@@ -26,7 +26,6 @@ class _DummyLiveSession:
 
 
 _live_stub.GeminiLiveInterviewSession = _DummyLiveSession
-sys.modules["app.services.gemini_live_voice_service"] = _live_stub
 
 _interview_stub = types.ModuleType("app.services.interview_service")
 
@@ -37,13 +36,50 @@ class _DummyInterviewService:
 
 
 _interview_stub.InterviewService = _DummyInterviewService
-sys.modules["app.services.interview_service"] = _interview_stub
 
-from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
-from app.interview.runtime.live_turns import LiveUserFollowupSpec, LiveUserRequestSpec, prepare_live_user_request
-from app.interview.runtime.session_engine import SessionEngineDeps, _segment_drain_delay_sec, process_user_utterance
-from app.interview.domain.turn_text import sanitize_user_turn_text
-from app.interview.runtime.state import AiDeliveryPlan, PreparedDeliverySegment, PreparedTtsAudio, VoiceWsState
+# unittest discover 는 테스트 실행 전에 모든 테스트 모듈을 import 하므로, stub 과 그 아래에서
+# import 된 app 모듈을 sys.modules 에 남기면 뒤에 import 되는 테스트 모듈로 누수된다.
+# import 직후 stub 키를 원상 복구하고 새로 import 된 app 모듈은 따로 보관해 두었다가,
+# 이 모듈의 테스트가 실행되는 동안에만 setUpModule/tearDownModule 로 캐시에 되돌린다
+# (문자열 대상 mock.patch 와 lazy import 가 같은 모듈 세대를 보게 하기 위함).
+_STUBBED_MODULES = {
+    "app.services.gemini_live_voice_service": _live_stub,
+    "app.services.interview_service": _interview_stub,
+}
+_ORIGINAL_MODULES = {name: sys.modules.get(name) for name in _STUBBED_MODULES}
+_MODULES_BEFORE_STUB_IMPORTS = set(sys.modules)
+sys.modules.update(_STUBBED_MODULES)
+try:
+    from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
+    from app.interview.runtime.live_turns import LiveUserFollowupSpec, LiveUserRequestSpec, prepare_live_user_request
+    from app.interview.runtime.session_engine import SessionEngineDeps, _segment_drain_delay_sec, process_user_utterance
+    from app.interview.domain.turn_text import sanitize_user_turn_text
+    from app.interview.runtime.state import AiDeliveryPlan, PreparedDeliverySegment, PreparedTtsAudio, VoiceWsState
+finally:
+    _STUB_SCOPED_APP_MODULES = {}
+    for _name in set(sys.modules) - _MODULES_BEFORE_STUB_IMPORTS:
+        if _name == "app" or _name.startswith("app."):
+            _STUB_SCOPED_APP_MODULES[_name] = sys.modules.pop(_name)
+    for _name, _original in _ORIGINAL_MODULES.items():
+        if _original is not None:
+            sys.modules[_name] = _original
+
+_MODULES_DISPLACED_DURING_RUN: dict[str, types.ModuleType | None] = {}
+
+
+def setUpModule() -> None:
+    for _name, _module in _STUB_SCOPED_APP_MODULES.items():
+        _MODULES_DISPLACED_DURING_RUN[_name] = sys.modules.get(_name)
+        sys.modules[_name] = _module
+
+
+def tearDownModule() -> None:
+    for _name, _original in _MODULES_DISPLACED_DURING_RUN.items():
+        if _original is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _original
+    _MODULES_DISPLACED_DURING_RUN.clear()
 
 
 def _runtime_executor_deps(

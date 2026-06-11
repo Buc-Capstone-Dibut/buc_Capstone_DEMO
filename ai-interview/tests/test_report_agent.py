@@ -17,9 +17,41 @@ class _DummyGeminiService:
 
 
 _gemini_stub.GeminiService = _DummyGeminiService
-sys.modules["app.services.llm_gemini"] = _gemini_stub
 
-from app.interview.reporting.agent import ReportAgent
+# unittest discover 는 테스트 실행 전에 모든 테스트 모듈을 import 하므로, stub 과 그 아래에서
+# import 된 app 모듈을 sys.modules 에 남기면 뒤에 import 되는 테스트 모듈로 누수된다.
+# import 직후 stub 키를 원상 복구하고 새로 import 된 app 모듈은 따로 보관해 두었다가,
+# 이 모듈의 테스트가 실행되는 동안에만 setUpModule/tearDownModule 로 캐시에 되돌린다
+# (문자열 대상 mock.patch 와 lazy import 가 같은 모듈 세대를 보게 하기 위함).
+_ORIGINAL_GEMINI_MODULE = sys.modules.get("app.services.llm_gemini")
+_MODULES_BEFORE_STUB_IMPORTS = set(sys.modules)
+sys.modules["app.services.llm_gemini"] = _gemini_stub
+try:
+    from app.interview.reporting.agent import ReportAgent
+finally:
+    _STUB_SCOPED_APP_MODULES = {}
+    for _name in set(sys.modules) - _MODULES_BEFORE_STUB_IMPORTS:
+        if _name == "app" or _name.startswith("app."):
+            _STUB_SCOPED_APP_MODULES[_name] = sys.modules.pop(_name)
+    if _ORIGINAL_GEMINI_MODULE is not None:
+        sys.modules["app.services.llm_gemini"] = _ORIGINAL_GEMINI_MODULE
+
+_MODULES_DISPLACED_DURING_RUN: dict[str, types.ModuleType | None] = {}
+
+
+def setUpModule() -> None:
+    for _name, _module in _STUB_SCOPED_APP_MODULES.items():
+        _MODULES_DISPLACED_DURING_RUN[_name] = sys.modules.get(_name)
+        sys.modules[_name] = _module
+
+
+def tearDownModule() -> None:
+    for _name, _original in _MODULES_DISPLACED_DURING_RUN.items():
+        if _original is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _original
+    _MODULES_DISPLACED_DURING_RUN.clear()
 
 
 class _FakeInterviewService:

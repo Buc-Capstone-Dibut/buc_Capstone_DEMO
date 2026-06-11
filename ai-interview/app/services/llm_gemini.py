@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import re
 from typing import Any, Iterator, Type
 from urllib.parse import urlparse
@@ -15,6 +16,8 @@ from pypdf import PdfReader
 from app.config import settings
 from app.interview.domain.question_bank import infer_interview_track
 from app.schemas.interview import InterviewPhase, NextQuestionDraft, QuestionPlanItem, QuestionPlanResponse
+
+logger = logging.getLogger("debut.llm_gemini")
 
 
 PHASE_BY_SLOT: dict[int, InterviewPhase] = {
@@ -182,13 +185,61 @@ class RepoAnalysisError(Exception):
         self.code = code
 
 
+class _VertexGenerativeModel:
+    """google-genai(신 SDK) Vertex 클라이언트를 구 GenerativeModel 인터페이스로 감싼다.
+
+    이 파일의 호출부는 generate_content(prompt) / (prompt, generation_config=...) /
+    (prompt, stream=True) 세 형태만 사용하므로 그 시그니처만 맞춘다.
+    응답/청크 모두 .text 를 노출해 _response_text 와 호환.
+    """
+
+    def __init__(self, client: Any, model_name: str):
+        self._client = client
+        self._model_name = model_name
+
+    def generate_content(
+        self,
+        prompt: Any,
+        generation_config: dict[str, Any] | None = None,
+        stream: bool = False,
+    ) -> Any:
+        config = dict(generation_config) if generation_config else None
+        if stream:
+            return self._client.models.generate_content_stream(
+                model=self._model_name,
+                contents=prompt,
+                config=config,
+            )
+        return self._client.models.generate_content(
+            model=self._model_name,
+            contents=prompt,
+            config=config,
+        )
+
+
 class GeminiService:
     def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is missing")
+        self.model: Any = None
+        # Vertex AI 우선 — GCP 크레딧으로 과금되고 AI Studio prepayment 와 무관.
+        # (live 음성과 동일한 서비스 계정/프로젝트 규칙: vertex_genai.build_vertex_genai_client)
+        if settings.google_genai_use_vertexai:
+            try:
+                from app.services.vertex_genai import build_vertex_genai_client
 
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+                client, _project_id = build_vertex_genai_client()
+                self.model = _VertexGenerativeModel(client, model_name)
+                logger.info("gemini text service: vertex ai mode (model=%s)", model_name)
+            except Exception:
+                logger.exception(
+                    "vertex genai client init failed; falling back to AI Studio key"
+                )
+
+        if self.model is None:
+            if not api_key:
+                raise RuntimeError("GEMINI_API_KEY is missing")
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(model_name)
+            logger.info("gemini text service: ai studio mode (model=%s)", model_name)
 
     def _response_text(self, response: Any) -> str:
         text = getattr(response, "text", None)
@@ -196,6 +247,9 @@ class GeminiService:
             return text
         if callable(text):
             return text()
+        if text is None:
+            # 신 SDK 스트리밍 청크는 텍스트 없는 청크(.text=None)를 보낼 수 있다.
+            return ""
         return str(response)
 
     def fetch_url_text(self, url: str) -> str:
