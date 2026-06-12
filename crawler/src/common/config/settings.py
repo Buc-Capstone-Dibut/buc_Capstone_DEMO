@@ -27,6 +27,7 @@ def _resolve_path(path_value: str | None, default_path: Path, base_dir: Path) ->
 def _load_dotenv_files(project_root: Path, crawler_root: Path) -> Path | None:
     dotenv_paths = [
         project_root / ".env",
+        project_root / "web" / ".env",
         project_root / "web" / ".env.local",
         crawler_root / ".env",
     ]

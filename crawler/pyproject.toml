@@ -14,7 +14,8 @@ dependencies = [
     "google-generativeai",
     "apscheduler",
     "loguru",
-    "firecrawl-py"
+    "firecrawl-py",
+    "google-genai>=2.8.0",
 ]
 
 [tool.setuptools]
