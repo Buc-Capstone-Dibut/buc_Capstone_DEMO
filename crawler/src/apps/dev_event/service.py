@@ -89,7 +89,7 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
 
 def save_events_to_json(events, repository: DevEventRepository):
     try:
-        data = [event.model_dump() for event in events]
+        data = [event.model_dump(mode="json") for event in events]
 
         seen_ids = set()
         for item in data:
