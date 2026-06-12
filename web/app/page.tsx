@@ -152,21 +152,22 @@ export default function HomePage() {
           >
             <div className="overflow-hidden">
               <motion.span variants={maskSlideUp} className="block">
-                개발자의 취준의
+                개발자 취업 준비,
               </motion.span>
             </div>
             <div className="overflow-hidden">
-              <motion.span variants={maskSlideUp} className="block text-primary">
-                시작부터 합격까지,
+              <motion.span variants={maskSlideUp} className="block">
+                <span className="text-primary">시작부터 끝까지 디벗에서</span>
               </motion.span>
             </div>
           </motion.h1>
 
           <motion.p
             variants={fadeInUp}
-            className="mt-8 text-[clamp(1rem,2.5vw,1.25rem)] leading-relaxed text-neutral-500 max-w-2xl mx-auto"
+            className="mt-8 text-[clamp(0.95rem,2vw,1.15rem)] leading-relaxed text-neutral-500 max-w-3xl mx-auto break-keep"
           >
-            기술 학습부터 팀 프로젝트 협업, 팀원 모집, 이력서·자기소개서·포트폴리오, 그리고 AI 모의 면접까지 — 흩어진 도구를 옮겨 다닐 필요 없이 개발자의 취업 준비 전 과정을 한 플랫폼에서 끝냅니다.
+            여러 개의 도구를 번갈아 쓰던 번거로움은 이제 그만.<br className="hidden sm:block" />
+            학습부터 이력서, 실전 AI 면접까지 개발자 취업의 모든 과정을 하나의 플랫폼에서 완성하세요.
           </motion.p>
 
           <motion.div
