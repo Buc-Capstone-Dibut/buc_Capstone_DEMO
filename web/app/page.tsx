@@ -35,6 +35,15 @@ const coreServices = [
     imageAlt: '노트북으로 협업하는 디벗 비버',
   },
   {
+    id: 'career',
+    title: '커리어 관리',
+    desc: '프로젝트, 포트폴리오, 이력서와 자소서를 한 곳에서 정리하고 관리합니다.',
+    link: '/career',
+    comingSoon: false,
+    image: '/images/landing/mascot/beaver-career.png',
+    imageAlt: '커리어 기록과 포트폴리오를 관리하는 디벗 비버',
+  },
+  {
     id: 'interview',
     title: 'AI 면접',
     desc: '실전 같은 연습과 맞춤형 피드백을 통해 면접에 완벽히 대비하세요.',
@@ -77,15 +86,6 @@ const fadeInRight: Variants = {
   }
 };
 
-const scaleUp: Variants = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 1.5, ease: [0.21, 0.47, 0.32, 0.98] }
-  }
-};
-
 const zoomIn: Variants = {
   hidden: { opacity: 0, scale: 0.95 },
   visible: {
@@ -96,15 +96,6 @@ const zoomIn: Variants = {
       stiffness: 100,
       damping: 20
     }
-  }
-};
-
-const blurIn: Variants = {
-  hidden: { filter: 'blur(10px)', opacity: 0 },
-  visible: {
-    filter: 'blur(0px)',
-    opacity: 1,
-    transition: { duration: 1.8, ease: [0.21, 0.47, 0.32, 0.98] }
   }
 };
 
@@ -222,7 +213,7 @@ export default function HomePage() {
                 className="text-[clamp(2rem,5vw,3.5rem)] font-black tracking-tight leading-[1.1]"
               >
                 개발자의 성장이 일어나는 <br />
-                <span className="text-primary">4가지</span> 기록의 조각들
+                <span className="text-primary">5가지</span> 기록의 조각들
               </motion.h2>
             </div>
             <motion.p
@@ -238,7 +229,7 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.9 }}
             variants={staggerContainer}
-            className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
+            className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           >
             {coreServices.map((service, i) => (
               <motion.div
@@ -252,7 +243,7 @@ export default function HomePage() {
                     alt={service.imageAlt}
                     width={420}
                     height={320}
-                    sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
+                    sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                     className="relative z-10 h-[120%] w-[120%] max-w-none object-contain object-bottom p-4 transition-transform duration-500 group-hover:scale-105"
                     priority={i === 0}
                   />
@@ -398,8 +389,8 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="p-8 font-mono text-[13px] text-white/60 space-y-2">
-                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DebutSuccess</span>() {'{'}</div>
-                <div className="flex gap-4 animate-pulse bg-primary/10"><span className="text-white/20">02</span>  <span className="text-primary/70">const</span> status = <span className="text-green-400">'GROWING'</span>;</div>
+                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DibutSuccess</span>() {'{'}</div>
+                <div className="flex gap-4 animate-pulse bg-primary/10"><span className="text-white/20">02</span>  <span className="text-primary/70">const</span> status = <span className="text-green-400">&apos;GROWING&apos;</span>;</div>
                 <div className="flex gap-4"><span className="text-white/20">03</span>  <span className="text-primary/70">return</span> <span className="text-yellow-400">learnAndBuild</span>(status);</div>
                 <div className="flex gap-4"><span className="text-white/20">04</span> {'}'}</div>
               </div>
@@ -546,7 +537,7 @@ export default function HomePage() {
                   <span className="text-[14px] font-bold text-neutral-800">AI Expert Feedback</span>
                 </div>
                 <p className="text-[13px] text-neutral-500 leading-relaxed italic">
-                  "답변의 구조는 매우 체계적이나, 복잡한 로직 설명 시 비유를 더 활용한다면 면접관에게 훨씬 직관적인 깊이를 전달할 수 있습니다."
+                  &quot;답변의 구조는 매우 체계적이나, 복잡한 로직 설명 시 비유를 더 활용한다면 면접관에게 훨씬 직관적인 깊이를 전달할 수 있습니다.&quot;
                 </p>
               </div>
             </div>
