@@ -135,12 +135,14 @@ export async function getAllEventTags(category?: string) {
 
 // 개발자 행사 상세 조회
 export async function fetchDevEventById(id: string) {
-  const { events } = await fetchDevEvents();
-  return events.find((e) => e.id === id) || null;
+  // 단건 조회는 페이지네이션(12개)에 의존하면 안 됨 — 전체 목록에서 찾는다.
+  const all = await loadDevEvents();
+  return all.find((e) => e.id === id) || null;
 }
 // 마감 임박 행사 조회 (7일 이내)
 export async function fetchClosingSoonEvents(days = 7) {
-  const { events } = await fetchDevEvents();
+  // 마감 임박 판정은 전체 이벤트 대상 — 페이지네이션(12개)에 의존하지 않는다.
+  const events = await loadDevEvents();
   const now = new Date();
   const targetDate = new Date();
   targetDate.setDate(now.getDate() + days);
