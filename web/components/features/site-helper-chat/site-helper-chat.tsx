@@ -60,6 +60,7 @@ const STARTER_QUESTIONS = [
 // 쿼리스트링은 무시하고 pathname 만 정확 매칭.
 // export — 토스트 시스템이 도우미 위치에 맞춰 offset 동적 조정 시 참조.
 export const VISIBLE_MAIN_PATHS = [
+  "/",              // 랜딩(홈) — 로그인 전후 모두 노출
   "/insights",      // 인사이트 (header 는 /insights/tech-blog 로 link 됨)
   "/insights/tech-blog",
   "/community",        // 커뮤니티 (실제로는 /community/board 로 redirect)

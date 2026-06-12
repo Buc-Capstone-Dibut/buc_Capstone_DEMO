@@ -1,9 +1,7 @@
-import os
 import time
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-from src.common.config.settings import GEMINI_API_KEY, TAG_RETRY_BASE_MS
+from src.common.config.settings import TAG_RETRY_BASE_MS
+from src.common.genai_client import get_genai_client
 
 ALLOWED_TAGS = [
     # 프론트엔드
@@ -52,27 +50,28 @@ Output Format: Comma-separated list only. No extra text.
 """.strip()
 
 def generate_with_gemini(prompt, retry_count=0):
-    if not GEMINI_API_KEY:
-        print("⚠️ GEMINI_API_KEY is missing via config.")
+    client = get_genai_client()
+    if client is None:
+        print("⚠️ Gemini 백엔드 없음 (Vertex/AI Studio 모두 미설정).")
         return ""
 
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.5-flash")
-
-        response = model.generate_content(
-            prompt,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            }
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={
+                "safety_settings": [
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ],
+            },
         )
-        return response.text
+        return response.text or ""
     except Exception as e:
         error_msg = str(e)
-        if "429" in error_msg or "quota" in error_msg.lower():
+        if "429" in error_msg or "quota" in error_msg.lower() or "resource_exhausted" in error_msg.lower():
             if retry_count < 3:
                 wait_time = (2 ** retry_count) * TAG_RETRY_BASE_MS / 1000.0
                 print(f"⏳ Rate Limit hit. Retrying in {wait_time}s... (Attempt {retry_count + 1}/3)")
@@ -127,8 +126,8 @@ def generate_tags_for_article(article):
     """
     article 딕셔너리는 반드시 title, summary, author를 포함해야 합니다.
     """
-    if not GEMINI_API_KEY:
-        print("⚠️ GEMINI_API_KEY missing - using fallback.")
+    if get_genai_client() is None:
+        print("⚠️ Gemini 백엔드 없음 - 폴백 태그 사용.")
         return generate_tags_fallback(article.get("title", ""), article.get("summary", ""), article.get("author", ""))
 
     try:
