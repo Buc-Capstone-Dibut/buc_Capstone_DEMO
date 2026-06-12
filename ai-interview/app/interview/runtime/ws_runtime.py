@@ -107,6 +107,7 @@ from app.interview.runtime.live_client import (
     push_live_audio_input_chunk as runtime_push_live_audio_input_chunk,
     repair_ai_turn_if_truncated as runtime_repair_ai_turn_if_truncated,
     request_live_audio_turn as runtime_request_live_audio_turn,
+    request_live_generated_question_turn as runtime_request_live_generated_question_turn,
     request_live_spoken_text_turn as runtime_request_live_spoken_text_turn,
     request_live_text_turn as runtime_request_live_text_turn,
     stream_live_audio_turn as runtime_stream_live_audio_turn,
@@ -336,6 +337,7 @@ def _session_engine_deps():
         derive_question_type_preference=domain_derive_question_type_preference,
         select_next_question_type=domain_select_next_question_type,
         request_live_audio_turn=_request_live_audio_turn,
+        request_live_generated_question_turn=_request_live_generated_question_turn,
         stream_live_audio_turn=_stream_live_audio_turn,
         fallback_transcribe_user_audio=None,
         transcribe_user_audio=_transcribe_user_audio,
@@ -388,6 +390,8 @@ def _client_message_router_deps():
         ),
         coerce_audio_chunk=runtime_coerce_audio_chunk,
         enqueue_user_segment=_enqueue_user_segment,
+        live_input_streaming_enabled=settings.voice_live_input_streaming_enabled,
+        reset_audio_buffers=_clear_live_input_stream_state,
         begin_live_input_stream=_begin_live_input_stream,
         push_live_input_audio_chunk=_push_live_input_audio_chunk,
         push_parallel_stt_audio_chunk=_push_parallel_stt_audio_chunk,
@@ -797,6 +801,9 @@ async def _finalize_parallel_stt_stream(
             await asyncio.sleep(delay)
         else:
             await asyncio.sleep(0)
+    # 턴 종료 → turn_id 비워 다음 사용자 발화가 새 Cloud STT 스트림으로 시작되게 한다.
+    # (streaming 모드에선 begin_live_input_stream 이 다음 턴에 다시 set)
+    state.parallel_stt_turn_id = ""
     return bool(state.parallel_stt_final_text or state.parallel_stt_best_text)
 
 
@@ -867,8 +874,21 @@ async def _push_parallel_stt_audio_chunk(
         return False
     if not audio_chunk:
         return False
-    if not state.live_input_turn_active or not state.parallel_stt_turn_id:
+    if not state.session_id:
         return False
+    # Gemini live input stream 과 독립적으로 동작한다.
+    # parallel_stt_turn_id 가 없으면(스트림 OFF 모드) 여기서 새 사용자 턴으로 초기화 →
+    # 사용자가 말하는 동안 Cloud STT 가 실시간 전사(자막 + 다음 질문용 텍스트).
+    if not (state.parallel_stt_turn_id or "").strip():
+        _clear_parallel_stt_realtime_state(state, cancel_task=True)
+        state.parallel_stt_turn_id = _next_ai_turn_id(state.session_id)
+        state.parallel_stt_samples = []
+        state.parallel_stt_best_text = ""
+        state.parallel_stt_final_text = ""
+        state.parallel_stt_provider = ""
+        state.parallel_stt_has_emitted = False
+        state.parallel_stt_stream_started_at = 0.0
+        state.parallel_stt_last_requested_sample_count = 0
 
     if state.parallel_stt_stream is not None and not _parallel_stt_stream_is_active(state):
         try:
@@ -965,6 +985,24 @@ async def _request_live_audio_turn(
     return await runtime_request_live_audio_turn(
         state,
         wav_bytes=wav_bytes,
+        question_type=question_type,
+        answer_quality_hint=answer_quality_hint,
+        prompt_user_text=prompt_user_text,
+        extra_instruction=extra_instruction,
+        deps=_live_client_deps(),
+    )
+
+
+async def _request_live_generated_question_turn(
+    state: VoiceWsState,
+    *,
+    question_type: str | None = None,
+    answer_quality_hint: str = "",
+    prompt_user_text: str = "",
+    extra_instruction: str = "",
+) -> tuple[str, PreparedTtsAudio | None, str]:
+    return await runtime_request_live_generated_question_turn(
+        state,
         question_type=question_type,
         answer_quality_hint=answer_quality_hint,
         prompt_user_text=prompt_user_text,

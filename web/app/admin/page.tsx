@@ -36,7 +36,7 @@ export default function AdminDashboard() {
     <div className="p-8 bg-slate-50 min-h-screen text-slate-900">
       <header className="mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-indigo-700">Dibut AI Admin</h1>
+          <h1 className="text-3xl font-bold text-indigo-700">Debut AI Admin</h1>
           <p className="text-slate-500">Real-time Debugging & Monitoring</p>
         </div>
 
@@ -299,7 +299,7 @@ function DebugTools() {
   const [sttResult, setSttResult] = useState("");
   const [sttLoading, setSttLoading] = useState(false);
 
-  const [ttsText, setTtsText] = useState("Hello, this is a test from Dibut AI.");
+  const [ttsText, setTtsText] = useState("Hello, this is a test from Debut AI.");
   const [ttsUrl, setTtsUrl] = useState("");
   const [ttsLoading, setTtsLoading] = useState(false);
 

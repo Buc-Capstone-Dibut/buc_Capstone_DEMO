@@ -314,6 +314,32 @@ export default function PortfoliosClient({
     }
   };
 
+  const handleDeleteShowcase = async (item: UnifiedPortfolioItem) => {
+    if (!confirm(`"${item.title || "(제목 없음)"}" 포트폴리오를 삭제할까요?`)) return;
+    setBusyDeleteId(item.id);
+    try {
+      const response = await fetch(`/api/career/portfolios/showcase/${item.id}`, {
+        method: "DELETE",
+      });
+      const payload = (await readJsonResponse(response).catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "삭제 실패");
+      }
+      setPortfolios((prev) => {
+        const next = prev.filter((entry) => entry.id !== item.id);
+        if (selectedId === item.id) setSelectedId(next[0]?.id || "");
+        return next;
+      });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "삭제에 실패했습니다.");
+    } finally {
+      setBusyDeleteId(null);
+    }
+  };
+
   const handleTogglePublish = async (portfolio: PortfolioListItem) => {
     const nextIsPublic = !portfolio.isPublic;
     setBusyPublishId(portfolio.id);
@@ -552,8 +578,10 @@ export default function PortfoliosClient({
               <ShowcaseDetail
                 item={selectedPortfolio}
                 copiedPortfolioId={copiedPortfolioId}
+                busyDeleteId={busyDeleteId}
                 onOpenEditor={handleOpenShowcaseEditor}
                 onCopyPublicUrl={handleCopyShowcaseUrl}
+                onDelete={handleDeleteShowcase}
               />
             ) : selectedPortfolio.legacy ? (
               <PortfolioDetail
@@ -609,13 +637,17 @@ export default function PortfoliosClient({
 function ShowcaseDetail({
   item,
   copiedPortfolioId,
+  busyDeleteId,
   onOpenEditor,
   onCopyPublicUrl,
+  onDelete,
 }: {
   item: UnifiedPortfolioItem;
   copiedPortfolioId: string | null;
+  busyDeleteId: string | null;
   onOpenEditor: (item: UnifiedPortfolioItem) => void;
   onCopyPublicUrl: (item: UnifiedPortfolioItem) => void;
+  onDelete: (item: UnifiedPortfolioItem) => void;
 }) {
   const isUrlCopied = copiedPortfolioId === item.id;
   const publicHref = item.publicUrl || "";
@@ -629,6 +661,21 @@ function ShowcaseDetail({
         >
           <ExternalLink className="h-3.5 w-3.5" />
           에디터 열기
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(item)}
+          disabled={busyDeleteId === item.id}
+          title="포트폴리오 삭제"
+          aria-label="포트폴리오 삭제"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60"
+        >
+          {busyDeleteId === item.id ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden xl:inline">삭제</span>
         </button>
       </div>
 

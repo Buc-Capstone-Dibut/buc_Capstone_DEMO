@@ -172,7 +172,7 @@ export interface Doc {
 //
 // 워크스페이스 detail 화면은 마운트 직후 `syncProjectData(projectId, dbData)` 로
 // 서버 데이터를 store 에 채운다. 그 전 mount 순간에 mock 프로젝트/태스크/문서/태그가
-// 보이지 않도록 모든 초기값을 빈 배열로 둔다. (이전엔 "Dibut 사이드 프로젝트" 등
+// 보이지 않도록 모든 초기값을 빈 배열로 둔다. (이전엔 "Debut 사이드 프로젝트" 등
 // 데모 데이터가 모든 사용자에게 동일하게 노출되는 버그가 있었다.)
 
 export const MOCK_PROJECTS: Project[] = [];

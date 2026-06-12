@@ -30,7 +30,7 @@ test("blog recommendations prioritize weakness and action matches over generic t
       sessionType: "live_interview",
       mode: "video",
       targetDurationSec: 600,
-      company: "Dibut",
+      company: "Debut",
       role: "Backend Engineer",
       createdAt: 1713000000,
       analysis: {
@@ -69,7 +69,7 @@ test("blog recommendations prioritize weakness and action matches over generic t
       tags: ["case-study", "monitoring"],
       published_at: "2026-04-01T00:00:00.000Z",
       external_url: "https://example.com/1",
-      author: "Dibut",
+      author: "Debut",
     }),
     createCompanyBlog({
       id: 2,
@@ -78,7 +78,7 @@ test("blog recommendations prioritize weakness and action matches over generic t
       tags: ["react", "frontend", "typescript"],
       published_at: "2026-04-02T00:00:00.000Z",
       external_url: "https://example.com/2",
-      author: "Dibut",
+      author: "Debut",
     }),
   ];
 
@@ -103,7 +103,7 @@ test("blog recommendations surface action and weakness derived tags before fallb
       sessionType: "live_interview",
       mode: "video",
       targetDurationSec: 600,
-      company: "Dibut",
+      company: "Debut",
       role: "Platform Engineer",
       createdAt: 1714000000,
       analysis: {
@@ -142,7 +142,7 @@ test("blog recommendations surface action and weakness derived tags before fallb
       tags: ["monitoring", "sre", "case-study"],
       published_at: "2026-03-20T00:00:00.000Z",
       external_url: "https://example.com/10",
-      author: "Dibut",
+      author: "Debut",
     }),
     createCompanyBlog({
       id: 11,
@@ -151,7 +151,7 @@ test("blog recommendations surface action and weakness derived tags before fallb
       tags: ["culture"],
       published_at: "2026-04-05T00:00:00.000Z",
       external_url: "https://example.com/11",
-      author: "Dibut",
+      author: "Debut",
     }),
   ];
 

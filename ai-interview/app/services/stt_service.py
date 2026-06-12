@@ -458,9 +458,10 @@ class GoogleCloudSttService:
                 )
             ]
 
+        # sample_rate_hertz 를 생략 → Google STT 가 WAV 헤더의 실제 rate 를 읽는다.
+        # (하드코딩 16000 은 브라우저 native 48000 WAV 와 불일치해 400 에러 발생)
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
             language_code=(language or self.language_code or "ko-KR").strip(),
             model=self.model,
             max_alternatives=self.max_alternatives,

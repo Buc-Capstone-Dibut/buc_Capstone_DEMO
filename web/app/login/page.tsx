@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,10 +18,17 @@ export default function LoginPage() {
     return next;
   }, [searchParams]);
 
-  const handleOpenChange = (nextOpen: boolean) => {
+  /**
+   * 모달이 닫힐 때 — 로그인 성공인지 그냥 X 닫기인지 구분 필요.
+   * - 로그인 성공: session 존재 → nextPath 로 이동 (원래 가려던 페이지)
+   * - X 닫기 (로그인 안 함): session 없음 → 홈으로 이동
+   *   (nextPath 로 가면 protected 페이지 → 다시 /login → 무한 루프!)
+   */
+  const handleOpenChange = async (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) {
-      router.replace(nextPath);
+      const { data: { session } } = await supabase.auth.getSession();
+      router.replace(session ? nextPath : "/");
     }
   };
 

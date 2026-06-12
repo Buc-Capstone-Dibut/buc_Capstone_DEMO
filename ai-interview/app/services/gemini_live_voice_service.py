@@ -69,9 +69,16 @@ class LiveInterviewTurnResult:
 
 
 class _GeminiLiveBaseService:
-    def __init__(self, api_key: str | None, provider: str = "gemini-live"):
+    def __init__(
+        self,
+        api_key: str | None,
+        provider: str = "gemini-live",
+        client: Any | None = None,
+    ):
         self.provider = provider
-        self._client = genai.Client(api_key=api_key) if api_key and genai is not None else None
+        self._client = client
+        if self._client is None and api_key and genai is not None:
+            self._client = genai.Client(api_key=api_key)
 
     @property
     def enabled(self) -> bool:
@@ -309,8 +316,9 @@ class GeminiLiveSttService(_GeminiLiveBaseService):
         api_key: str | None,
         model: str = "gemini-2.5-flash-native-audio-latest",
         timeout_sec: float = 2.5,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key)
+        super().__init__(api_key=api_key, client=client)
         self.model = model
         self.timeout_sec = timeout_sec
 
@@ -396,8 +404,9 @@ class GeminiLiveTtsService(_GeminiLiveBaseService):
         output_sample_rate: int = 24000,
         timeout_sec: float = 20.0,
         quota_cooldown_sec: int = 300,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key, provider="gemini-live-tts")
+        super().__init__(api_key=api_key, provider="gemini-live-tts", client=client)
         # Keep `model` and `generate_model` for compatibility with existing callers/configs.
         self.model = model
         self.generate_model = (generate_model or model).strip() or "gemini-2.5-flash-preview-tts"
@@ -546,8 +555,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         voice: str = "Kore",
         timeout_sec: float = 18.0,
         output_sample_rate: int = 24000,
+        client: Any | None = None,
     ):
-        super().__init__(api_key=api_key, provider="gemini-live-single")
+        super().__init__(
+            api_key=api_key,
+            provider="gemini-live-single",
+            client=client,
+        )
         self.model = (model or "").strip() or "gemini-2.5-flash-native-audio-latest"
         self._active_model = self.model
         self.voice = voice
@@ -1144,7 +1158,9 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
         if not prompt:
             return LiveInterviewTurnResult("", "", b"", self.output_sample_rate, self.provider)
 
-        for attempt in range(1, 2):
+        # native-audio 모델이 텍스트 턴에 간헐적으로 빈 응답(output_len=0)을 준다.
+        # 같은 호출을 fresh 세션으로 재시도하면 대부분 성공하므로 3회까지 시도.
+        for attempt in range(1, 4):
             connected = await self._ensure_connected(session_instruction)
             if not connected or self._session is None:
                 logger.warning(
@@ -1227,11 +1243,13 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                     prompt = (turn_prompt or "").strip()
                     if types is not None and hasattr(types, "ActivityStart"):
                         await self._session.send_realtime_input(activity_start=types.ActivityStart())
-                    if prompt:
-                        await self._session.send_realtime_input(text=prompt)
+                    # 음성을 먼저, prompt 를 나중에 (prompt 가 음성보다 먼저면 native-audio 모델이
+                    # 음성 처리 전에 응답 생성 → 전사 누락 + 답변 무관 질문).
                     await self._session.send_realtime_input(
                         audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                     )
+                    if prompt:
+                        await self._session.send_realtime_input(text=prompt)
                     if types is not None and hasattr(types, "ActivityEnd"):
                         await self._session.send_realtime_input(activity_end=types.ActivityEnd())
                     else:
@@ -1325,11 +1343,14 @@ class GeminiLiveInterviewSession(_GeminiLiveBaseService):
                 prompt = (turn_prompt or "").strip()
                 if types is not None and hasattr(types, "ActivityStart"):
                     await self._session.send_realtime_input(activity_start=types.ActivityStart())
-                if prompt:
-                    await self._session.send_realtime_input(text=prompt)
+                # 사용자 음성을 먼저 보낸 뒤 prompt 를 보낸다.
+                # prompt(텍스트)를 음성보다 먼저 보내면 native-audio 모델이 음성을 처리하기 전에
+                # 곧바로 응답을 생성한다 → 사용자 전사 누락(input_len=0) + 답변과 무관한 질문.
                 await self._session.send_realtime_input(
                     audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={normalized_rate}")
                 )
+                if prompt:
+                    await self._session.send_realtime_input(text=prompt)
                 if types is not None and hasattr(types, "ActivityEnd"):
                     await self._session.send_realtime_input(activity_end=types.ActivityEnd())
                 else:

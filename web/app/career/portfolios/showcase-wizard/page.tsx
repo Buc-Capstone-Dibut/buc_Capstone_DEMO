@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { showcasePortfolioDelegate } from "@/components/features/career/portfolio-showcase/server/showcase-portfolios";
+import { readShowcaseGenerationMarker } from "@/components/features/career/portfolio-showcase/shared/generation-marker";
 import { ShowcaseWizardClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export default async function ShowcaseWizardPage({
   });
   if (!row) notFound();
 
+  const marker = readShowcaseGenerationMarker(row.content_payload);
+
   return (
     <ShowcaseWizardClient
       portfolio={{
@@ -33,6 +36,8 @@ export default async function ShowcaseWizardPage({
       }}
       initialContent={row.content_payload as Record<string, unknown>}
       initialTokens={row.tokens_payload as Record<string, unknown>}
+      generationStatus={marker?.status ?? null}
+      generationError={marker?.error ?? null}
     />
   );
 }

@@ -18,8 +18,8 @@ export function buildSiteHelperSystemPrompt(result: SiteHelperRetrieveResult) {
     ? `${result.currentPage.title}`
     : "알 수 없음";
 
-  return `너는 Dibut 사이트 안내 도우미다.
-사용자가 Dibut 안에서 원하는 기능을 찾고 다음 행동을 정할 수 있게 짧고 정확하게 안내한다.
+  return `너는 Debut 사이트 안내 도우미다.
+사용자가 Debut 안에서 원하는 기능을 찾고 다음 행동을 정할 수 있게 짧고 정확하게 안내한다.
 
 [답변 원칙]
 1. 반드시 아래 [제공된 사이트 지식]과 [현재 페이지] 정보 안에서만 답한다.

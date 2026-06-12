@@ -15,10 +15,12 @@ import {
   MessageSquareQuote,
   Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GlobalHeader } from "@/components/layout/global-header";
-import { DibutLoading } from "@/components/shared/dibut-loading";
+import { DebutLoading } from "@/components/shared/dibut-loading";
+import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 import {
   buildSessionInterviewDetailModel,
   type CoreResponseEntry,
@@ -960,6 +962,34 @@ export default function InterviewResultPage() {
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
+  const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
+  const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
+
+  /** 리포트 생성을 백그라운드 작업으로 등록하고 면접 기록으로 이동.
+   *  실제 생성은 이미 서버(report job)에서 돌고 있으므로 polling 등록만 하면 된다. */
+  const handleBackgroundReport = () => {
+    if (!resolvedSessionId) return;
+    if (!canStartMoreJobs()) {
+      toast.warning("동시 백그라운드 작업은 3개까지만 가능해요", {
+        description: "진행 중인 작업이 끝나면 다시 시도해 주세요",
+      });
+      return;
+    }
+    const company = sessionDetail?.report_view?.company || sessionDetail?.job_payload?.company || "";
+    const role = sessionDetail?.report_view?.role || sessionDetail?.job_payload?.role || "";
+    const label = [company, role].filter(Boolean).join(" ") || "AI 면접";
+    startBackgroundJob({
+      portfolioId: resolvedSessionId,
+      title: `${label} 리포트`,
+      format: "interview-report",
+      startedAt: new Date().toISOString(),
+      stage: { label: "리포트 생성 중" },
+    });
+    toast.success("백그라운드에서 리포트를 만들어요", {
+      description: "완료되면 알림으로 알려드릴게요",
+    });
+    router.push("/interview/analysis");
+  };
   const effectiveAnalysis = useMemo(
     () => coerceSessionAnalysisPayload(sessionDetail?.analysis ?? null),
     [sessionDetail?.analysis],
@@ -1238,10 +1268,19 @@ export default function InterviewResultPage() {
 
     return (
       <ResultStatePanel
-        media={<DibutLoading className="w-44" />}
+        media={<DebutLoading className="w-44" />}
         title="면접 결과를 디벗 리포트로 정리하고 있습니다"
         description="답변 흐름과 직무 연결성을 다시 읽어 상세 리포트를 생성하는 중입니다."
-      />
+      >
+        <div className="flex flex-col items-center gap-2">
+          <Button variant="outline" className="rounded-md px-6" onClick={handleBackgroundReport}>
+            백그라운드에서 계속하기
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            다른 작업을 하셔도 돼요 — 완료되면 알림으로 알려드릴게요
+          </p>
+        </div>
+      </ResultStatePanel>
     );
   }
 

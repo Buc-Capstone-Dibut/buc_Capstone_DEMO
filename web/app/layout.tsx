@@ -17,8 +17,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dibut.dev";
 
 export const metadata: Metadata = {
   title: {
-    default: "Dibut (디벗_Buddy for Developers)",
-    template: "%s | Dibut",
+    default: "Debut (디벗_Buddy for Developers)",
+    template: "%s | Debut",
   },
   description:
     "Integrated platform for Tech Blogs, AI Interview Practice, and Project Collaboration.",
@@ -26,13 +26,13 @@ export const metadata: Metadata = {
     "Tech Blog",
     "AI Interview",
     "Developer Tools",
-    "Dibut",
+    "Debut",
     "디벗",
     "Collaboration",
   ],
-  authors: [{ name: "Dibut Team" }],
-  creator: "Dibut",
-  publisher: "Dibut",
+  authors: [{ name: "Debut Team" }],
+  creator: "Debut",
+  publisher: "Debut",
   robots: {
     index: true,
     follow: true,
@@ -41,9 +41,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ko_KR",
     url: SITE_URL,
-    title: "Dibut (디벗_Buddy for Developers)",
+    title: "Debut (디벗_Buddy for Developers)",
     description: "Developer Productivity Platform",
-    siteName: "Dibut",
+    siteName: "Debut",
   },
 };
 

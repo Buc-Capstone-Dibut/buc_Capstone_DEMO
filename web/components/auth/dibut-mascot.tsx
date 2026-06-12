@@ -2,7 +2,7 @@
 
 import { CSSProperties } from "react";
 
-interface DibutMascotProps {
+interface DebutMascotProps {
   /** true면 이메일 필드 포커스 상태 — 눈동자 기본 방향이 왼쪽 아래 */
   isEmailFocused: boolean;
   /** 이메일 입력값 길이 — 포커스 중 타이핑 추적에 사용 */
@@ -15,7 +15,7 @@ interface DibutMascotProps {
 
 const MAX_TRACK = 6; // 타이핑 추적 최대 이동량
 
-export function DibutMascot({ isEmailFocused, emailLength, isCovering }: DibutMascotProps) {
+export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMascotProps) {
   // 눈동자 방향 계산
   // 이메일 포커스 시: 기본 방향(왼쪽 아래) + 타이핑에 따른 좌우 추적
   const trackX = Math.max(-MAX_TRACK, Math.min(MAX_TRACK, (emailLength - 8) * 0.6));

@@ -49,7 +49,7 @@ FOLLOWUP_GROUNDING_STOPWORDS = {
 def _build_fallback_opening_text(state: VoiceWsState) -> str:
     if state.session_type == "portfolio_defense":
         return (
-            "안녕하세요. Dibut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
+            "안녕하세요. Debut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
             "먼저 이 프로젝트를 한 문단 정도로 소개해 주시고, 본인이 가장 주도적으로 맡은 부분을 함께 말씀해 주세요."
         )
 
@@ -58,16 +58,16 @@ def _build_fallback_opening_text(state: VoiceWsState) -> str:
     role = str(job_data.get("role") or "").strip()
     if company and role:
         return (
-            f"안녕하세요. Dibut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 포지션에 지원한 이유를 말씀해 주세요."
         )
     if role:
         return (
-            f"안녕하세요. Dibut입니다. {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 직무에 지원한 이유를 말씀해 주세요."
         )
     return (
-        "안녕하세요. Dibut입니다. 면접을 시작하겠습니다. "
+        "안녕하세요. Debut입니다. 면접을 시작하겠습니다. "
         "먼저 간단한 자기소개와 지원 동기를 함께 말씀해 주세요."
     )
 
@@ -558,7 +558,7 @@ async def execute_opening_live_turn(
     ai_text = " ".join((spec.prompt or _build_fallback_opening_text(state)).split()).strip()
     spoken_provider = spoken_provider_override
     if prepared_delivery_plan is None:
-        _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+        spoken_text, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
             text=ai_text,
         )
@@ -579,6 +579,7 @@ async def execute_opening_live_turn(
             )
             return False
 
+        ai_text = " ".join((spoken_text or ai_text).split()).strip()
         delivery_plan = await deps.build_ai_delivery_plan(
             ws,
             text=ai_text,
@@ -719,7 +720,7 @@ async def execute_resume_live_turn(
     ai_text = " ".join((spec.prompt or "").split()).strip()
     if not ai_text:
         return False
-    _, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+    spoken_text, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
         state,
         text=ai_text,
     )
@@ -740,6 +741,7 @@ async def execute_resume_live_turn(
         )
         return False
 
+    ai_text = " ".join((spoken_text or ai_text).split()).strip()
     if spec.should_announce_closing:
         await deps.set_closing_announced(state.session_id)
         state.closing_announced = True
@@ -896,12 +898,13 @@ async def execute_live_user_followup_turn(
     audio_already_streamed = audio_already_streamed or max(0, int(streamed_audio_chunk_count or 0)) > 0
 
     if spec.completion_reason:
-        ai_text = _normalize_completion_turn_text(
+        planned_completion_text = _normalize_completion_turn_text(
             state,
             text="",
             user_text=user_request.prompt_user_text,
             extra_instruction=user_request.extra_instruction,
         )
+        ai_text = " ".join((live_ai_text or planned_completion_text).split()).strip()
         state.current_phase = "closing"
         await deps.update_session_status(state.session_id, "completed", "closing")
         deps.mark_session_status(state, "completed", phase="closing")
@@ -915,7 +918,7 @@ async def execute_live_user_followup_turn(
         )
     else:
         state.current_phase = spec.phase
-        ai_text = " ".join((user_request.planned_question_text or live_ai_text or "").split()).strip()
+        ai_text = " ".join((live_ai_text or user_request.planned_question_text or "").split()).strip()
         if spec.should_announce_closing:
             await deps.set_closing_announced(state.session_id)
             state.closing_announced = True
@@ -946,11 +949,13 @@ async def execute_live_user_followup_turn(
                 },
             )
     if prepared_audio is None and ai_text and not audio_already_streamed:
-        _, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+        spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
             text=ai_text,
         )
         provider_name = spoken_provider or provider_name
+        if prepared_audio is not None and spoken_text:
+            ai_text = " ".join(spoken_text.split()).strip()
         if prepared_audio is None:
             recovered_text, recovered_audio = await _recover_live_audio_for_ai_text(
                 state,

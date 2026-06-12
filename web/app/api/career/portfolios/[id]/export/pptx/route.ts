@@ -366,8 +366,8 @@ async function createPptxBuffer(document: PortfolioDocument, title: string) {
   const slideHeight = document.pageSize === "a4" ? 10.607 : 7.5;
   pptx.defineLayout({ name: "PORTFOLIO_CANVAS", width: slideWidth, height: slideHeight });
   pptx.layout = "PORTFOLIO_CANVAS";
-  pptx.author = "Dibut";
-  pptx.company = "Dibut";
+  pptx.author = "Debut";
+  pptx.company = "Debut";
   pptx.subject = "AI generated developer portfolio";
   pptx.title = title;
   pptx.theme = {

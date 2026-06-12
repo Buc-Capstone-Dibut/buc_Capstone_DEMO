@@ -39,14 +39,46 @@ class _DummyLiveSession:
 
 
 _live_stub.GeminiLiveInterviewSession = _DummyLiveSession
-sys.modules["app.services.gemini_live_voice_service"] = _live_stub
 
-from app.interview.runtime.live_client import LiveClientDeps, request_live_spoken_text_turn
-from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
+# unittest discover 는 테스트 실행 전에 모든 테스트 모듈을 import 하므로, stub 과 그 아래에서
+# import 된 app 모듈을 sys.modules 에 남기면 뒤에 import 되는 테스트 모듈로 누수된다.
+# import 직후 stub 키를 원상 복구하고 새로 import 된 app 모듈은 따로 보관해 두었다가,
+# 이 모듈의 테스트가 실행되는 동안에만 setUpModule/tearDownModule 로 캐시에 되돌린다
+# (문자열 대상 mock.patch 와 lazy import 가 같은 모듈 세대를 보게 하기 위함).
+_ORIGINAL_LIVE_MODULE = sys.modules.get("app.services.gemini_live_voice_service")
+_MODULES_BEFORE_STUB_IMPORTS = set(sys.modules)
+sys.modules["app.services.gemini_live_voice_service"] = _live_stub
+try:
+    from app.interview.runtime.live_client import LiveClientDeps, request_live_spoken_text_turn
+    from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
+finally:
+    _STUB_SCOPED_APP_MODULES = {}
+    for _name in set(sys.modules) - _MODULES_BEFORE_STUB_IMPORTS:
+        if _name == "app" or _name.startswith("app."):
+            _STUB_SCOPED_APP_MODULES[_name] = sys.modules.pop(_name)
+    if _ORIGINAL_LIVE_MODULE is not None:
+        sys.modules["app.services.gemini_live_voice_service"] = _ORIGINAL_LIVE_MODULE
+
+_MODULES_DISPLACED_DURING_RUN: dict[str, types.ModuleType | None] = {}
+
+
+def setUpModule() -> None:
+    for _name, _module in _STUB_SCOPED_APP_MODULES.items():
+        _MODULES_DISPLACED_DURING_RUN[_name] = sys.modules.get(_name)
+        sys.modules[_name] = _module
+
+
+def tearDownModule() -> None:
+    for _name, _original in _MODULES_DISPLACED_DURING_RUN.items():
+        if _original is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _original
+    _MODULES_DISPLACED_DURING_RUN.clear()
 
 
 class LiveClientTests(unittest.IsolatedAsyncioTestCase):
-    async def test_request_live_spoken_text_turn_prefers_input_text_as_caption(self) -> None:
+    async def test_request_live_spoken_text_turn_uses_provider_transcription_as_caption(self) -> None:
         state = VoiceWsState(session_id="session-1")
         state.live_interview = _DummyLiveSession(model="gemini-live")
 
@@ -73,7 +105,7 @@ class LiveClientTests(unittest.IsolatedAsyncioTestCase):
             deps=deps,
         )
 
-        self.assertEqual(ai_text, expected_text)
+        self.assertEqual(ai_text, "짧게 잘린 provider 전사")
         self.assertIsNotNone(prepared_audio)
         self.assertEqual(provider, "gemini-live")
 

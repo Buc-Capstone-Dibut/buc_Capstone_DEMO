@@ -47,7 +47,7 @@ body {
 
 @layer base {
   :root {
-    /* Dibut 브랜드 컬러 - 초록색 테마 */
+    /* Debut 브랜드 컬러 - 초록색 테마 */
     --background: 216 33% 96%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -55,7 +55,7 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary: Dibut 그린 */
+    /* Primary: Debut 그린 */
     --primary: 90 43% 51%;
     --primary-foreground: 210 40% 98%;
 
@@ -101,7 +101,7 @@ body {
   }
 
   .dark {
-    /* 다크 모드 - Dibut 다크 테마 */
+    /* 다크 모드 - Debut 다크 테마 */
     color-scheme: dark;
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -477,7 +477,7 @@ body {
 
 /* ─────────────────────────────────────────
    Excalidraw 브랜드 컬러 오버라이드
-   Dibut 그린: hsl(90, 43%, 51%) = #82B84C
+   Debut 그린: hsl(90, 43%, 51%) = #82B84C
    ───────────────────────────────────────── */
 
 /* 라이트 모드 */
@@ -509,7 +509,7 @@ body {
 }
 
 /* ─────────────────────────────────────────
-   FullCalendar — Dibut 톤 오버라이드
+   FullCalendar — Debut 톤 오버라이드
    채용공고 캘린더(/my/job-postings)의 .fc-* 기본 스타일을 한 톤 부드럽게.
    ───────────────────────────────────────── */
 .fc {
@@ -626,7 +626,7 @@ body {
   color: hsl(214 55% 52%);
 }
 
-/* 오늘 — Dibut 그린 옅은 톤 */
+/* 오늘 — Debut 그린 옅은 톤 */
 .fc .fc-day-today {
   background: hsl(var(--primary) / 0.07) !important;
 }

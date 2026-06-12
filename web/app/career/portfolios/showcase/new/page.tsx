@@ -11,6 +11,14 @@ import { getShowcaseTemplate } from "@/components/features/career/portfolio-show
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 디자인 템플릿(showcase) 포트폴리오 생성 진입점.
+ *
+ * 웹 슬라이드와 같은 백그라운드 패턴을 위해 여기서는 AI 채움을 하지 않는다:
+ * 1) 기본 콘텐츠 + _generation(pending) 마커로 행을 즉시 생성
+ * 2) 곧바로 위저드로 redirect
+ * 3) 위저드가 /generate 를 호출해 AI 채움 (사용자는 그동안 백그라운드로 보낼 수 있음)
+ */
 export default async function NewShowcasePage({
   searchParams,
 }: {
@@ -47,15 +55,6 @@ export default async function NewShowcasePage({
   const content = template.createDefaultContent({ name: displayName, projects: snapshots });
   content.contact.email = source.personalInfo?.email ?? "";
 
-  const { aiFillNeonEditorialContent } = await import(
-    "@/components/features/career/portfolio-showcase/server/ai-fill"
-  );
-  const filledContent = await aiFillNeonEditorialContent({
-    content,
-    source,
-    snapshots,
-  });
-
   const slug = await createUniqueShowcaseSlug(session.user.id, title);
   const row = await showcasePortfolioDelegate().create({
     data: {
@@ -63,7 +62,15 @@ export default async function NewShowcasePage({
       slug,
       title,
       template_id: templateKey,
-      content_payload: filledContent,
+      // _generation 마커는 위저드/상태 API 가 읽는다. (콘텐츠 zod 파싱 시 자동 제거되는 메타 필드)
+      content_payload: {
+        ...content,
+        _generation: {
+          status: "pending",
+          projectIds,
+          startedAt: new Date().toISOString(),
+        },
+      },
       tokens_payload: template.createDefaultTokens(),
       is_public: false,
     },

@@ -34,6 +34,8 @@ class ClientMessageRouterDeps:
     resume_listening: Callable[..., Awaitable[Any]]
     cancel_playback_resume_task: Callable[[VoiceWsState], None]
     runtime_architecture: str = ""
+    live_input_streaming_enabled: bool = True
+    reset_audio_buffers: Callable[[VoiceWsState], None] | None = None
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None = _noop_begin_live_input_stream
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None = _noop_push_live_audio_chunk
     push_parallel_stt_audio_chunk: Callable[[WebSocket, VoiceWsState, list[float], int], Awaitable[bool]] | None = _noop_push_live_audio_chunk
@@ -93,13 +95,23 @@ async def handle_client_message(
         # 실시간 transcript 를 받으려면 여기서 audio 가 직접 흘러가야 함.
         architecture = (deps.runtime_architecture or "").strip().lower()
         manual_vad = bool(getattr(state.vad, "manual_mode", False))
-        if (architecture == "live-only" or manual_vad) and not state.processing_audio:
-            live_input_ready = state.live_input_turn_active
-            if deps.begin_live_input_stream is not None and not live_input_ready:
-                live_input_ready = await deps.begin_live_input_stream(ws, state)
-            if deps.push_live_input_audio_chunk is not None and live_input_ready:
-                await deps.push_live_input_audio_chunk(state, audio_chunk, normalized_sample_rate)
-            if deps.push_parallel_stt_audio_chunk is not None and live_input_ready:
+        audio_routing_active = (
+            (architecture == "live-only" or manual_vad) and not state.processing_audio
+        )
+        if audio_routing_active:
+            # (A) Gemini Live 입력 스트림 — 실시간 AI 응답 생성용.
+            #     native-audio 모델이 답변 전에 다음 질문을 미리 생성하는 문제 때문에
+            #     live_input_streaming_enabled=False 로 끄면, 답변은 VAD 버퍼에 쌓였다가
+            #     "전송" 시 buffered turn 으로 한 번에 처리된다(질문 1개만 생성).
+            if deps.live_input_streaming_enabled:
+                live_input_ready = state.live_input_turn_active
+                if deps.begin_live_input_stream is not None and not live_input_ready:
+                    live_input_ready = await deps.begin_live_input_stream(ws, state)
+                if deps.push_live_input_audio_chunk is not None and live_input_ready:
+                    await deps.push_live_input_audio_chunk(state, audio_chunk, normalized_sample_rate)
+            # (B) Cloud STT 실시간 전사 — 사용자 자막 + 다음 질문용 텍스트.
+            #     Gemini 스트림과 독립적으로 항상 실행한다(스트림 OFF 여도 실시간 전사 유지).
+            if deps.push_parallel_stt_audio_chunk is not None:
                 await deps.push_parallel_stt_audio_chunk(ws, state, audio_chunk, normalized_sample_rate)
 
         if (
@@ -140,6 +152,10 @@ async def handle_client_message(
         if not state.session_id:
             return
         state.vad.reset()
+        # Cloud STT 실시간 스트림 + live-input 누적 전사까지 폐기해야 이전 발화가
+        # 다음 발화에 prefix 로 부활하지 않는다(다시 말하기가 실제로 동작).
+        if deps.reset_audio_buffers is not None:
+            deps.reset_audio_buffers(state)
         deps.reset_realtime_user_transcript(state)
         await deps.send_json(ws, {"type": "audio-reset-ack"})
         return

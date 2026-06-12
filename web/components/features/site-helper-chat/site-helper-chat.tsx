@@ -55,18 +55,26 @@ const STARTER_QUESTIONS = [
   "팀원 모집은 어디서 해?",
 ];
 
-const HIDDEN_PATH_PREFIXES = [
-  "/interview/room",
-  "/interview/training/portfolio/room",
-  // 공개 포트폴리오 페이지(/p/...)는 standalone — 도우미 chat 숨김
-  "/p/",
+// 화이트리스트 — 5개 메인 탭의 "메인 화면" 에서만 도우미 표시.
+// 다른 페이지에선 사이드 패널/모달 등을 가리므로 숨김.
+// 쿼리스트링은 무시하고 pathname 만 정확 매칭.
+// export — 토스트 시스템이 도우미 위치에 맞춰 offset 동적 조정 시 참조.
+export const VISIBLE_MAIN_PATHS = [
+  "/insights",      // 인사이트 (header 는 /insights/tech-blog 로 link 됨)
+  "/insights/tech-blog",
+  "/community",        // 커뮤니티 (실제로는 /community/board 로 redirect)
+  "/community/board",  // 커뮤니티 기본 탭 — 게시판
+  "/community/squad",  // 커뮤니티 스쿼드 탭
+  "/workspace",     // 워크스페이스
+  "/career",           // 커리어 관리 (실제로는 /career/projects 로 redirect)
+  "/career/projects",  // 커리어 관리 기본 탭 — 프로젝트 보관함
+  "/interview",     // AI 면접
 ];
 
-// 동적 segment 가 있어 prefix 매칭 안 되는 경로들 — 정규식으로 처리
-const HIDDEN_PATH_PATTERNS: RegExp[] = [
-  // 포트폴리오 편집기: /career/portfolios/{id}/edit — AI 편집 popup 과 우하단 겹침 방지
-  /^\/career\/portfolios\/[^/]+\/edit/,
-];
+/** pathname 이 도우미 챗봇이 보이는 메인 페이지인지 — 토스트가 위치 조정 시 사용 */
+export function isSiteHelperVisible(pathname: string | null | undefined): boolean {
+  return VISIBLE_MAIN_PATHS.includes(pathname || "");
+}
 
 // react-markdown + its unified/remark/micromark pipeline (~50KB gz) was pulled
 // into the global bundle because this chat mounts in the root layout. Load it
@@ -120,9 +128,8 @@ export function SiteHelperChat() {
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  const hidden =
-    HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
-    HIDDEN_PATH_PATTERNS.some((pattern) => pattern.test(pathname || ""));
+  // 화이트리스트 정확 매칭 — pathname 이 VISIBLE_MAIN_PATHS 에 정확히 있을 때만 노출
+  const hidden = !isSiteHelperVisible(pathname);
   const currentPage = useMemo(() => findCurrentSiteHelperPage(pathname), [pathname]);
 
   useEffect(() => {
@@ -276,16 +283,17 @@ export function SiteHelperChat() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      {/* z-[145] — 편집기 로딩 오버레이(z-[140]) 위에도 캐릭터가 보이게.
-          백그라운드 작업 toast 가 캐릭터 위에 뜨는 자연스러운 흐름. */}
-      <div className="fixed bottom-24 right-4 z-[145] md:bottom-6 md:right-6">
+      {/* z-30 — header(z-50) / Sheet/Drawer(z-50) / 사이드 패널(z-[55]) 보다 뒤.
+          사이드 패널 열리면 도우미가 가려짐 (덜 거슬리는 자연스러운 깊이감).
+          편집기 로딩 오버레이는 이제 화이트리스트로 화면 자체에서 도우미 숨김 처리. */}
+      <div className="fixed bottom-24 right-4 z-30 md:bottom-6 md:right-6">
         {open && (
           <section
             className={cn(
               "mb-3 flex h-[min(620px,calc(100vh-8rem))] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl",
               "md:h-[620px] md:w-[400px]",
             )}
-            aria-label="Dibut 사이트 도우미"
+            aria-label="Debut 사이트 도우미"
           >
             <div className="flex h-14 items-center justify-between border-b border-neutral-200 px-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -294,7 +302,7 @@ export function SiteHelperChat() {
                 </div>
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-bold text-neutral-950">
-                    Dibut 사이트 도우미
+                    Debut 사이트 도우미
                   </h2>
                   <p className="truncate text-xs text-neutral-500">
                     {currentPage
@@ -397,7 +405,7 @@ export function SiteHelperChat() {
                       어떤 기능을 찾고 계신가요?
                     </p>
                     <p className="mt-2 text-sm leading-6 text-neutral-600">
-                      Dibut의 페이지 위치, 기능 사용 흐름, 다음에 눌러야 할 메뉴를
+                      Debut의 페이지 위치, 기능 사용 흐름, 다음에 눌러야 할 메뉴를
                       안내해드립니다.
                     </p>
                   </div>
@@ -580,7 +588,7 @@ export function SiteHelperChat() {
                   setRingFilledOnce(true);
                 }
               }}
-              aria-label={open ? "Dibut 사이트 도우미 닫기" : "Dibut 사이트 도우미 열기"}
+              aria-label={open ? "Debut 사이트 도우미 닫기" : "Debut 사이트 도우미 열기"}
               aria-expanded={open}
             >
               <span
@@ -612,7 +620,7 @@ export function SiteHelperChat() {
               ) : null}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="left">Dibut 사이트 도우미</TooltipContent>
+          <TooltipContent side="left">Debut 사이트 도우미</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>

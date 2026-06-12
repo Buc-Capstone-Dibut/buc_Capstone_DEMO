@@ -27,7 +27,6 @@ class _DummyLiveSession:
 
 
 _live_stub.GeminiLiveInterviewSession = _DummyLiveSession
-sys.modules["app.services.gemini_live_voice_service"] = _live_stub
 
 _interview_stub = types.ModuleType("app.services.interview_service")
 
@@ -39,69 +38,105 @@ class _DummyInterviewService:
 
 _interview_stub.InterviewService = _DummyInterviewService
 _interview_stub.get_connection = Mock()
-sys.modules.setdefault("app.services.interview_service", _interview_stub)
 
-from app.interview.domain.interview_memory import (
-    build_memory_snapshot,
-    derive_question_type_preference,
-    record_question_type,
-    remember_model_turn,
-    remember_user_turn,
-    select_opening_question_type,
-    select_question_strategy,
-    select_next_question_type,
-)
-from app.interview.domain.interview_level import resolve_interview_level
-from app.interview.domain.question_bank import infer_interview_track
-from app.interview.domain.turn_text import (
-    build_answer_quality_hint,
-    build_opening_turn_text,
-    compose_ai_question_text,
-    looks_like_complete_ai_question,
-    sanitize_ai_turn_text,
-    sanitize_user_turn_text,
-)
-from app.interview.reporting.document import (
-    REPORT_SCHEMA_VERSION,
-    build_report_document,
-    build_timeline_entries,
-    coerce_report_document,
-)
-from app.interview.runtime.executor import (
-    RuntimeExecutorDeps,
-    execute_live_user_followup_turn,
-    execute_opening_live_turn,
-)
-from app.interview.runtime.live_client import LiveClientDeps, repair_ai_turn_if_truncated, request_live_text_turn
-from app.interview.runtime.live_turns import (
-    LiveUserFollowupSpec,
-    LiveUserRequestSpec,
-    OpeningTurnSpec,
-    prepare_live_user_request,
-)
-from app.interview.runtime.message_router import ClientMessageRouterDeps, handle_client_message
-from app.interview.runtime.session_interaction import is_probable_ai_echo
-from app.interview.runtime.session_engine import (
-    SessionEngineDeps,
-    enqueue_user_segment,
-    handle_session_init,
-    process_user_utterance,
-)
-from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
-from app.interview.runtime.state import (
-    AiDeliveryPlan,
-    PendingUserSegment,
-    PreparedDeliverySegment,
-    PreparedTtsAudio,
-    VoiceWsState,
-)
-from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
-from app.interview.runtime.vad_policy import retune_vad_for_next_turn
-from app.interview.transcript.session_state import (
-    hydrate_state_from_session_row,
-    mark_session_status,
-)
-from app.services.voice_pipeline import VadSegmenter, wav_bytes_to_float_samples
+# unittest discover 는 테스트 실행 전에 모든 테스트 모듈을 import 하므로, stub 과 그 아래에서
+# import 된 app 모듈을 sys.modules 에 남기면 뒤에 import 되는 테스트 모듈로 누수된다.
+# import 직후 stub 키를 원상 복구하고 새로 import 된 app 모듈은 따로 보관해 두었다가,
+# 이 모듈의 테스트가 실행되는 동안에만 setUpModule/tearDownModule 로 캐시에 되돌린다
+# (문자열 대상 mock.patch 와 lazy import 가 같은 모듈 세대를 보게 하기 위함).
+_ORIGINAL_LIVE_MODULE = sys.modules.get("app.services.gemini_live_voice_service")
+_ORIGINAL_INTERVIEW_MODULE = sys.modules.get("app.services.interview_service")
+_MODULES_BEFORE_STUB_IMPORTS = set(sys.modules)
+sys.modules["app.services.gemini_live_voice_service"] = _live_stub
+sys.modules.setdefault("app.services.interview_service", _interview_stub)
+try:
+    from app.interview.domain.interview_memory import (
+        build_memory_snapshot,
+        derive_question_type_preference,
+        record_question_type,
+        remember_model_turn,
+        remember_user_turn,
+        select_opening_question_type,
+        select_question_strategy,
+        select_next_question_type,
+    )
+    from app.interview.domain.interview_level import resolve_interview_level
+    from app.interview.domain.question_bank import infer_interview_track
+    from app.interview.domain.turn_text import (
+        build_answer_quality_hint,
+        build_opening_turn_text,
+        compose_ai_question_text,
+        looks_like_complete_ai_question,
+        sanitize_ai_turn_text,
+        sanitize_user_turn_text,
+    )
+    from app.interview.reporting.document import (
+        REPORT_SCHEMA_VERSION,
+        build_report_document,
+        build_timeline_entries,
+        coerce_report_document,
+    )
+    from app.interview.runtime.executor import (
+        RuntimeExecutorDeps,
+        execute_live_user_followup_turn,
+        execute_opening_live_turn,
+    )
+    from app.interview.runtime.live_client import LiveClientDeps, repair_ai_turn_if_truncated, request_live_text_turn
+    from app.interview.runtime.live_turns import (
+        LiveUserFollowupSpec,
+        LiveUserRequestSpec,
+        OpeningTurnSpec,
+        prepare_live_user_request,
+    )
+    from app.interview.runtime.message_router import ClientMessageRouterDeps, handle_client_message
+    from app.interview.runtime.session_interaction import is_probable_ai_echo
+    from app.interview.runtime.session_engine import (
+        SessionEngineDeps,
+        enqueue_user_segment,
+        handle_session_init,
+        process_user_utterance,
+    )
+    from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
+    from app.interview.runtime.state import (
+        AiDeliveryPlan,
+        PendingUserSegment,
+        PreparedDeliverySegment,
+        PreparedTtsAudio,
+        VoiceWsState,
+    )
+    from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
+    from app.interview.runtime.vad_policy import retune_vad_for_next_turn
+    from app.interview.transcript.session_state import (
+        hydrate_state_from_session_row,
+        mark_session_status,
+    )
+    from app.services.voice_pipeline import VadSegmenter, wav_bytes_to_float_samples
+finally:
+    _STUB_SCOPED_APP_MODULES = {}
+    for _name in set(sys.modules) - _MODULES_BEFORE_STUB_IMPORTS:
+        if _name == "app" or _name.startswith("app."):
+            _STUB_SCOPED_APP_MODULES[_name] = sys.modules.pop(_name)
+    if _ORIGINAL_LIVE_MODULE is not None:
+        sys.modules["app.services.gemini_live_voice_service"] = _ORIGINAL_LIVE_MODULE
+    if _ORIGINAL_INTERVIEW_MODULE is not None:
+        sys.modules["app.services.interview_service"] = _ORIGINAL_INTERVIEW_MODULE
+
+_MODULES_DISPLACED_DURING_RUN: dict[str, types.ModuleType | None] = {}
+
+
+def setUpModule() -> None:
+    for _name, _module in _STUB_SCOPED_APP_MODULES.items():
+        _MODULES_DISPLACED_DURING_RUN[_name] = sys.modules.get(_name)
+        sys.modules[_name] = _module
+
+
+def tearDownModule() -> None:
+    for _name, _original in _MODULES_DISPLACED_DURING_RUN.items():
+        if _original is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _original
+    _MODULES_DISPLACED_DURING_RUN.clear()
 
 
 def _resume_deps(
@@ -235,8 +270,8 @@ def _session_engine_deps(
 
 class QuestionTypeTests(unittest.TestCase):
     def test_infer_interview_track_uses_explicit_job_data(self) -> None:
-        self.assertEqual(infer_interview_track({"interviewTrack": "posting", "company": "Dibut"}), "posting")
-        self.assertEqual(infer_interview_track({"interviewTrack": "role", "company": "Dibut"}), "role")
+        self.assertEqual(infer_interview_track({"interviewTrack": "posting", "company": "Debut"}), "posting")
+        self.assertEqual(infer_interview_track({"interviewTrack": "role", "company": "Debut"}), "role")
         self.assertEqual(infer_interview_track({"company": "직무 기반 모의면접"}), "role")
 
     def test_resolve_interview_level_uses_resume_experience(self) -> None:
@@ -261,7 +296,7 @@ class QuestionTypeTests(unittest.TestCase):
 
     def test_select_opening_question_type_is_self_intro_for_posting_track(self) -> None:
         state = VoiceWsState()
-        state.job_data = {"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"}
+        state.job_data = {"interviewTrack": "posting", "company": "Debut", "role": "백엔드 개발자"}
 
         self.assertEqual(select_opening_question_type(state), "self_intro")
 
@@ -649,7 +684,7 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         state = VoiceWsState(
             session_id="session-1",
             session_type="live_interview",
-            job_data={"company": "Dibut", "role": "백엔드 개발자"},
+            job_data={"company": "Debut", "role": "백엔드 개발자"},
         )
         persist_turn = AsyncMock(return_value={"id": "turn-1"})
         send_json = AsyncMock(return_value=True)
@@ -996,7 +1031,13 @@ class OpeningFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(generated)
         request_live_text_turn.assert_not_awaited()
         repair_ai_turn_if_truncated.assert_not_awaited()
-        self.assertEqual(send_transcript.await_args.args[3], "면접을 시작하세요.")
+        self.assertEqual(
+            send_transcript.await_args.args[3],
+            (
+                "안녕하세요. 지원자님의 경험을 확인하고자 합니다. 특히 대용량 트래픽 처리 경험이 있다고 하셨는데, "
+                "그 과정에서 가장 어려웠던 문제와 해결 방식을 말씀해 주세요."
+            ),
+        )
 
     async def test_opening_turn_falls_back_to_deterministic_completion_when_repairs_stay_incomplete(self) -> None:
         state = VoiceWsState(session_id="session-4", session_type="live_interview")
@@ -1071,7 +1112,7 @@ class OpeningTextTests(unittest.TestCase):
         texts = {
             build_opening_turn_text(
                 session_type="live_interview",
-                company="Dibut",
+                company="Debut",
                 role="서비스 백엔드 개발자",
                 job_data={"techStack": ["WebSocket", "Redis"]},
                 resume_data={"skills": ["Kafka", "Spring Boot"]},
@@ -1088,7 +1129,7 @@ class OpeningTextTests(unittest.TestCase):
     def test_build_opening_turn_text_can_reference_focus_term(self) -> None:
         text = build_opening_turn_text(
             session_type="live_interview",
-            company="Dibut",
+            company="Debut",
             role="서비스 백엔드 개발자",
             job_data={"techStack": ["WebSocket"]},
             seed_text="session-focus",
@@ -1099,13 +1140,13 @@ class OpeningTextTests(unittest.TestCase):
     def test_posting_opening_asks_real_interview_self_intro(self) -> None:
         text = build_opening_turn_text(
             session_type="live_interview",
-            company="Dibut",
+            company="Debut",
             role="백엔드 개발자",
-            job_data={"interviewTrack": "posting", "company": "Dibut", "role": "백엔드 개발자"},
+            job_data={"interviewTrack": "posting", "company": "Debut", "role": "백엔드 개발자"},
             seed_text="posting-opening",
         )
 
-        self.assertIn("Dibut 백엔드 개발자", text)
+        self.assertIn("Debut 백엔드 개발자", text)
         self.assertTrue("자기소개" in text or "소개" in text)
 
     def test_role_opening_does_not_ask_company_motivation(self) -> None:
@@ -1320,7 +1361,7 @@ class SessionInitTests(unittest.IsolatedAsyncioTestCase):
             "status": "created",
             "target_duration_sec": 420,
             "closing_threshold_sec": 60,
-            "job_payload": {"company": "Dibut", "role": "백엔드 개발자"},
+            "job_payload": {"company": "Debut", "role": "백엔드 개발자"},
         }
         deps = _session_engine_deps(
             get_session=lambda session_id: session,
@@ -1981,8 +2022,10 @@ class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(generated)
         request_live_text_turn.assert_not_awaited()
-        self.assertIn("redis", send_transcript.await_args.args[3].lower())
-        self.assertIn("p95", send_transcript.await_args.args[3].lower())
+        self.assertEqual(
+            send_transcript.await_args.args[3],
+            "다음으로 협업 경험을 말씀해 주세요.",
+        )
 
     async def test_execute_live_user_followup_turn_falls_back_for_empty_closing_turn(self) -> None:
         state = VoiceWsState(session_id="session-closing", current_phase="closing")
@@ -2378,7 +2421,7 @@ class ReportDocumentTests(unittest.TestCase):
             "session_type": "live_interview",
             "target_duration_sec": 600,
             "paused_duration_sec": 15,
-            "job_payload": {"company": "Dibut", "role": "Backend Engineer"},
+            "job_payload": {"company": "Debut", "role": "Backend Engineer"},
         }
         turns = [
             {"role": "model", "content": "질문입니다.", "created_at": datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)},
@@ -2400,7 +2443,7 @@ class ReportDocumentTests(unittest.TestCase):
 
         self.assertEqual(document["schemaVersion"], REPORT_SCHEMA_VERSION)
         self.assertEqual(document["compatAnalysis"]["summary"], compat_analysis["summary"])
-        self.assertEqual(document["reportView"]["company"], "Dibut")
+        self.assertEqual(document["reportView"]["company"], "Debut")
         self.assertEqual(document["reportView"]["strengths"], ["근거 기반 설명"])
         self.assertEqual(document["generationMeta"]["timelineCount"], 1)
         self.assertEqual(document["timeline"][0]["answer"], "답변입니다.")

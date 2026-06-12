@@ -90,7 +90,7 @@ async def _request_retry_for_silent_turn(
 def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
     if state.session_type == "portfolio_defense":
         return (
-            "안녕하세요. Dibut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
+            "안녕하세요. Debut입니다. 포트폴리오 디펜스를 시작하겠습니다. "
             "먼저 이 프로젝트를 간단히 소개해 주시고, 본인이 가장 주도적으로 맡은 부분을 함께 말씀해 주세요."
         )
 
@@ -99,16 +99,16 @@ def _build_session_fallback_opening_text(state: VoiceWsState) -> str:
     role = str(job_data.get("role") or "").strip()
     if company and role:
         return (
-            f"안녕하세요. Dibut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {company} {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 포지션에 지원한 이유를 말씀해 주세요."
         )
     if role:
         return (
-            f"안녕하세요. Dibut입니다. {role} 포지션 면접을 시작하겠습니다. "
+            f"안녕하세요. Debut입니다. {role} 포지션 면접을 시작하겠습니다. "
             "먼저 간단한 자기소개와 함께, 이 직무에 지원한 이유를 말씀해 주세요."
         )
     return (
-        "안녕하세요. Dibut입니다. 면접을 시작하겠습니다. "
+        "안녕하세요. Debut입니다. 면접을 시작하겠습니다. "
         "먼저 간단한 자기소개와 지원 동기를 함께 말씀해 주세요."
     )
 
@@ -236,10 +236,11 @@ def _has_captured_live_input_stream_result(
     audio_duration_sec: float,
     audio_chunk_count: int,
 ) -> bool:
+    # "캡처된 결과"는 AI 응답(질문 텍스트 또는 음성)이 실제로 생성됐을 때만 인정한다.
+    # 사용자 전사(user_text)만 있는 경우(Cloud STT 실시간 전사 only, Gemini 스트림 OFF)는
+    # 아직 질문이 없으므로 False → 아래에서 텍스트 기반 질문 생성 경로로 가야 한다.
     return bool(
-        turn_id
-        or user_text
-        or ai_text
+        ai_text
         or audio_duration_sec > 0
         or audio_chunk_count > 0
     )
@@ -393,8 +394,10 @@ async def _maybe_promote_parallel_user_text_before_followup(
     if refine_fn is None or not wav_bytes:
         return
 
+    # 실시간 Cloud STT 가 이미 텍스트를 채웠으면 위에서 early-return 되므로, 여기는
+    # 실시간 전사가 비었을 때의 안전망(전체 wav 1회 전사)이다. 짧게 대기.
     try:
-        refined_text, _ = await asyncio.wait_for(refine_fn(state, wav_bytes), timeout=0.22)
+        refined_text, _ = await asyncio.wait_for(refine_fn(state, wav_bytes), timeout=2.5)
     except asyncio.TimeoutError:
         return
     except asyncio.CancelledError:
@@ -533,6 +536,7 @@ class SessionEngineDeps:
     finalize_parallel_stt_stream: Callable[[VoiceWsState], Awaitable[bool]] | None = None
     runtime_architecture: str = "hybrid"
     stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None
+    request_live_generated_question_turn: Callable[..., Awaitable[tuple[str, PreparedTtsAudio | None, str]]] | None = None
     update_turn_content: Callable[..., Awaitable[Any]] | None = None
     parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None
 
@@ -851,7 +855,20 @@ async def process_user_utterance(
                     select_next_question_type=deps.select_next_question_type,
                     prompt_user_text=hint_text,
                 )
-                if deps.stream_live_audio_turn is not None:
+                if deps.request_live_generated_question_turn is not None and hint_text:
+                    # Cloud STT 가 사용자 답변을 신뢰성 있게 전사 → 그 텍스트로 질문을 생성한다.
+                    # (native-audio 모델은 buffered 오디오를 입력으로 제대로 못 써서 질문 생성 실패하므로
+                    #  오디오 대신 텍스트로 생성. 질문 품질이 답변을 제대로 반영하게 됨.)
+                    live_ai_text, prepared_live_audio, followup_provider_name = await deps.request_live_generated_question_turn(
+                        state,
+                        question_type=live_request.planned_question_type or None,
+                        answer_quality_hint=live_request.answer_quality_hint,
+                        prompt_user_text=live_request.prompt_user_text,
+                        extra_instruction=live_request.extra_instruction,
+                    )
+                    live_user_text = hint_text
+                    audio_already_streamed = False
+                elif deps.stream_live_audio_turn is not None:
                     (
                         live_user_text,
                         live_ai_text,

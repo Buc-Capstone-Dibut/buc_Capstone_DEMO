@@ -1900,7 +1900,7 @@ function buildA4SectionCanvas(section: PortfolioSection, theme: PortfolioTheme) 
       canvasTextElement("subtitle", "subtitle", section.subtitle || "프로젝트와 경험을 문서형으로 정리합니다.", 178, 324, 452, 70, 20, 700, theme.muted),
       canvasImageElement("image", section.image, 466, 470, 210, 210),
       canvasTextElement("body", "body", section.body || "", 176, 760, 438, 126, 17, 600, theme.text),
-      canvasTextElement("footer", "label", "Dibut Portfolio", 176, 1028, 180, 24, 12, 800, theme.muted),
+      canvasTextElement("footer", "label", "Debut Portfolio", 176, 1028, 180, 24, 12, 800, theme.muted),
     ], pageSize);
   }
 

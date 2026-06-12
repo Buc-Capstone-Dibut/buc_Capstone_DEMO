@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
+import { Camera, CameraOff, Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { InterviewDeviceCheck } from "@/components/features/interview/interview-device-check";
 import dynamic from "next/dynamic";
@@ -213,6 +213,8 @@ export default function InterviewVideoRoomPage() {
   const [isPrimingAudio, setIsPrimingAudio] = useState(false);
   const [hasConfirmedInterviewStart, setHasConfirmedInterviewStart] = useState(false);
   const [deviceMicReady, setDeviceMicReady] = useState(false);
+  // 준비 화면의 카메라 토글 선택이 본 면접 화면의 카메라 초기 상태로 이어진다. 기본 꺼짐.
+  const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   // 재접속/이어하기 감지: 이미 진행 중(in_progress)인 세션이면 기기 점검을 건너뛴다.
   const [resumeState, setResumeState] = useState<"unknown" | "fresh" | "resume">(
     requestedSessionId ? "unknown" : "fresh",
@@ -1135,7 +1137,6 @@ export default function InterviewVideoRoomPage() {
   };
 
   const completeSession = useCallback(async ({
-    interruptAudio = false,
     status,
   }: {
     interruptAudio?: boolean;
@@ -1150,30 +1151,18 @@ export default function InterviewVideoRoomPage() {
 
     setIsFinishingSession(true);
     setStatusMessage(status);
-    try {
-      if (interruptAudio) {
-        disconnect();
-      }
-      const response = await fetch(`/api/interview/sessions/${activeSessionId}/complete`, {
-        method: "POST",
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || "면접 종료 처리에 실패했습니다.");
-      }
-      completionRedirectedRef.current = true;
-      if (!interruptAudio) {
-        disconnect();
-      }
-      router.push(buildResultPath(activeSessionId));
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "면접 종료 처리에 실패했습니다.";
-      setStatusMessage(message);
-      return false;
-    } finally {
-      setIsFinishingSession(false);
-    }
+    completionRedirectedRef.current = true;
+    disconnect();
+    // 종료 API(상태 갱신 + 리포트 enqueue)는 멱등이고, 결과 페이지가
+    // 미완료 세션을 스스로 복구(/complete 재호출 + polling)하므로 응답을 기다리지 않는다.
+    // keepalive 로 네비게이션 후에도 요청이 전송되도록 보장. (이전엔 Supabase 왕복
+    // 5회를 기다리느라 종료 후 면접 화면에 수 초 머무는 문제가 있었음)
+    void fetch(`/api/interview/sessions/${activeSessionId}/complete`, {
+      method: "POST",
+      keepalive: true,
+    }).catch(() => {});
+    router.push(buildResultPath(activeSessionId));
+    return true;
   }, [activeSessionId, buildResultPath, disconnect, isFinishingSession, routeToSetup, router]);
 
   const handleFinish = async () => {
@@ -1255,12 +1244,12 @@ export default function InterviewVideoRoomPage() {
         {/* AI Interviewer View */}
         <section className={`relative flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 ${
           isAISpeaking 
-            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]' // Using Dibut Green
+            ? 'border-primary ring-2 ring-primary/20 shadow-[0_4px_20px_rgba(130,184,76,0.15)]' // Using Debut Green
             : 'border-border shadow-sm'
         }`}>
           <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-md bg-background/90 px-3 py-1.5 text-xs font-bold text-foreground shadow-sm border border-border/50">
             <div className={`h-2 w-2 rounded-full ${isAISpeaking ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
-            Dibut 면접관
+            Debut 면접관
           </div>
           <div
             className="relative flex h-full w-full items-center justify-center overflow-hidden bg-cover bg-center"
@@ -1287,8 +1276,24 @@ export default function InterviewVideoRoomPage() {
             지원자
           </div>
           <div className="h-full w-full overflow-hidden bg-muted/40 [&>video]:object-cover [&>video]:scale-105">
-            {hasConfirmedInterviewStart && <LocalCameraPreview enabled fill />}
+            {hasConfirmedInterviewStart && <LocalCameraPreview enabled={isCameraEnabled} fill />}
+            {hasConfirmedInterviewStart && !isCameraEnabled && (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <CameraOff className="h-7 w-7" />
+                <p className="text-xs">카메라 꺼짐 — 음성으로 진행 중</p>
+              </div>
+            )}
           </div>
+          {hasConfirmedInterviewStart && (
+            <button
+              type="button"
+              onClick={() => setIsCameraEnabled((v) => !v)}
+              className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/80 px-3 py-1.5 text-xs font-bold text-foreground backdrop-blur transition-colors hover:bg-muted"
+            >
+              {isCameraEnabled ? <CameraOff className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
+              {isCameraEnabled ? "카메라 끄기" : "카메라 켜기"}
+            </button>
+          )}
           {isUserSpeaking && (
             <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-end gap-1 z-20">
               {[3, 6, 9, 6, 3].map((height, index) => (
@@ -1310,14 +1315,14 @@ export default function InterviewVideoRoomPage() {
                 <div ref={captionScrollRef} className="flex flex-col items-center gap-0.5 max-h-[8rem] overflow-y-auto overscroll-contain px-2">
                   {secondaryCaption && (
                     <p className="text-[10px] font-bold text-muted-foreground/80 tracking-widest line-clamp-1 uppercase">
-                      {secondaryCaption.role === "ai" ? "Dibut" : "나"}: {secondaryCaption.text}
+                      {secondaryCaption.role === "ai" ? "Debut" : "나"}: {secondaryCaption.text}
                     </p>
                   )}
                   {resolvedCaptionText && (
                     <div className="flex w-full justify-center mt-0.5">
                       <div className="flex items-start text-left text-[13px] md:text-[14px] font-bold leading-relaxed tracking-tight text-foreground drop-shadow-sm max-w-full">
                         <span className={`shrink-0 mr-2 font-extrabold mt-[0.5px] ${resolvedCaptionRole === "ai" ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)_/_0.3)]" : "text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"}`}>
-                          {resolvedCaptionRole === "ai" ? "Dibut" : "나"}
+                          {resolvedCaptionRole === "ai" ? "Debut" : "나"}
                         </span>
                         <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                           {resolvedCaptionText}
@@ -1406,7 +1411,10 @@ export default function InterviewVideoRoomPage() {
                   </p>
                 </div>
 
-                <InterviewDeviceCheck onMicReady={setDeviceMicReady} />
+                <InterviewDeviceCheck
+                  onMicReady={setDeviceMicReady}
+                  onCameraPreferenceChange={setIsCameraEnabled}
+                />
 
                 <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <span

@@ -188,7 +188,7 @@ export default function IdeaBoardSDK({
             <WelcomeScreen.Center>
               <WelcomeScreen.Center.Logo>
                 <span style={{ fontSize: 28, fontWeight: 700, color: "#82B84C", letterSpacing: "-0.5px" }}>
-                  Dibut
+                  Debut
                 </span>
               </WelcomeScreen.Center.Logo>
               <WelcomeScreen.Center.Heading>

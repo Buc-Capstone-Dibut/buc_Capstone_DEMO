@@ -4,7 +4,7 @@ import type { ProjectSnapshot } from "../../shared/project-snapshot-types";
 // Tokens — design-system knobs the user can change in the "디자인" tab.
 export const NeonEditorialTokensSchema = z.object({
   accent: z.string().regex(/^#[0-9a-fA-F]{3,8}$/),  // hex color
-  bg: z.enum(["dark"]),                              // dark-only in v1
+  bg: z.enum(["light", "dark"]),                     // light = Debut 톤(기본), dark = 네온
   fontPair: z.enum(["pretendard"]),                  // 1 option in v1
   density: z.enum(["spacious", "balanced", "compact"]),
 });
@@ -68,10 +68,11 @@ export const NeonEditorialContentSchema = z.object({
 export type NeonEditorialContent = z.infer<typeof NeonEditorialContentSchema>;
 
 // Defaults — used when creating a new portfolio before user edits.
+// Debut 사이트 톤(라이트 + 그린)을 기본으로. 다크+네온은 디자인 탭에서 선택.
 export function createDefaultNeonEditorialTokens(): NeonEditorialTokens {
   return {
-    accent: "#39FF14",
-    bg: "dark",
+    accent: "#82B84C",
+    bg: "light",
     fontPair: "pretendard",
     density: "spacious",
   };

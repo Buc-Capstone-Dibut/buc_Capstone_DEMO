@@ -380,7 +380,7 @@ function DeckShell({
           isDark ? "text-slate-500" : "text-slate-400",
         )}
       >
-        <span>Dibut Portfolio</span>
+        <span>Debut Portfolio</span>
         <span>
           {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
         </span>

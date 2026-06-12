@@ -39,7 +39,7 @@ def _normalize_optional_secret(value: str | None) -> str | None:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Dibut AI Interview API"
+    app_name: str = "Debut AI Interview API"
     app_version: str = "0.1.0"
 
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
@@ -58,7 +58,18 @@ class Settings(BaseSettings):
         default=None,
         alias="GOOGLE_SERVICE_ACCOUNT_JSON_B64",
     )
-    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    google_genai_use_vertexai: bool = Field(
+        default=True,
+        alias="GOOGLE_GENAI_USE_VERTEXAI",
+    )
+    google_cloud_location: str = Field(
+        default="us-central1",
+        alias="GOOGLE_CLOUD_LOCATION",
+    )
+    # Text generation 모델 — gemini-3.5-flash (2026-05-19 출시) 가 최신.
+    # thinking 안 쓰고 temperature 만 사용 → drop-in 호환. (temperature 는 silently ignored
+    # 되지만 동작은 OK)
+    gemini_model: str = Field(default="gemini-3.5-flash", alias="GEMINI_MODEL")
     openai_stt_model: str = Field(default="whisper-1", alias="OPENAI_STT_MODEL")
     google_cloud_stt_model: str = Field(default="latest_long", alias="GOOGLE_CLOUD_STT_MODEL")
     google_cloud_stt_language_code: str = Field(default="ko-KR", alias="GOOGLE_CLOUD_STT_LANGUAGE_CODE")
@@ -82,6 +93,10 @@ class Settings(BaseSettings):
         default="gemini-2.5-flash-native-audio-latest",
         alias="GEMINI_LIVE_TTS_MODEL",
     )
+    gemini_vertex_live_model: str = Field(
+        default="gemini-live-2.5-flash-native-audio",
+        alias="GEMINI_VERTEX_LIVE_MODEL",
+    )
     gemini_tts_model: str = Field(
         default="gemini-2.5-flash-preview-tts",
         alias="GEMINI_TTS_MODEL",
@@ -94,6 +109,13 @@ class Settings(BaseSettings):
     voice_parallel_stt_enabled: bool = Field(
         default=False,
         alias="VOICE_PARALLEL_STT_ENABLED",
+    )
+    # 사용자가 말하는 동안 Gemini Live 입력 스트림을 미리 열어 실시간 자막을 받는 기능.
+    # Vertex native-audio 모델은 스트림이 열리면 사용자 답변 전에 다음 질문을 자동 생성해버려
+    # (질문 연속 중복 + 답변 유실) False 로 끄고, 답변 전체를 buffered turn 으로 한 번에 보낸다.
+    voice_live_input_streaming_enabled: bool = Field(
+        default=True,
+        alias="VOICE_LIVE_INPUT_STREAMING_ENABLED",
     )
 
     # Simple RMS-based VAD controls (milliseconds / normalized float threshold)

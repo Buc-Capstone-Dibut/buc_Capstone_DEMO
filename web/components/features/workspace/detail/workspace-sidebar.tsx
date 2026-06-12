@@ -415,7 +415,7 @@ export function WorkspaceSidebar({
         {/* Unified Project Switcher */}
         {(() => {
           const currentWorkspace = workspaces?.find((ws) => ws.id === projectId) || project;
-          const displayProjectName = currentWorkspace?.name || (isLoading ? "불러오는 중..." : "Dibut 사이드 프로젝트");
+          const displayProjectName = currentWorkspace?.name || (isLoading ? "불러오는 중..." : "Debut 사이드 프로젝트");
           const displayChar = displayProjectName.charAt(0) || "?";
 
           return (

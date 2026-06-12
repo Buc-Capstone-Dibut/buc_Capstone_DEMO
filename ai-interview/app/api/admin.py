@@ -9,22 +9,19 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from app.config import settings
+from app.interview.runtime.session_support import (
+    get_fallback_tts_service,
+    get_live_stt_service,
+)
 from app.schemas.interview import TtsRequest
-from app.services.gemini_live_voice_service import GeminiLiveSttService, GeminiLiveTtsService
 from app.services.interview_service import InterviewService
 from app.services.voice_pipeline import float_samples_to_wav_bytes, pcm16le_bytes_to_float_samples
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 service = InterviewService()
-stt_service = GeminiLiveSttService(
-    api_key=settings.gemini_api_key,
-    model=settings.gemini_live_stt_model,
-)
-tts_service = GeminiLiveTtsService(
-    api_key=settings.gemini_api_key,
-    model=settings.gemini_live_tts_model,
-    voice=settings.gemini_live_tts_voice,
-)
+# Vertex/AI Studio 라우팅은 session_support 게터가 처리 (lru_cache 공유)
+stt_service = get_live_stt_service()
+tts_service = get_fallback_tts_service()
 
 
 def _make_silence_wav(duration_sec: float = 1.0, sample_rate: int = 24000) -> bytes:

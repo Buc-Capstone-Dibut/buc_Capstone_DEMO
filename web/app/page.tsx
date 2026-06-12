@@ -152,21 +152,22 @@ export default function HomePage() {
           >
             <div className="overflow-hidden">
               <motion.span variants={maskSlideUp} className="block">
-                개발자의 취준의
+                개발자 취업 준비,
               </motion.span>
             </div>
             <div className="overflow-hidden">
-              <motion.span variants={maskSlideUp} className="block text-primary">
-                시작부터 합격까지,
+              <motion.span variants={maskSlideUp} className="block">
+                <span className="text-primary">시작부터 끝까지 디벗에서</span>
               </motion.span>
             </div>
           </motion.h1>
 
           <motion.p
             variants={fadeInUp}
-            className="mt-8 text-[clamp(1rem,2.5vw,1.25rem)] leading-relaxed text-neutral-500 max-w-2xl mx-auto"
+            className="mt-8 text-[clamp(0.95rem,2vw,1.15rem)] leading-relaxed text-neutral-500 max-w-3xl mx-auto break-keep"
           >
-            기술 학습부터 팀 프로젝트 협업, 팀원 모집, 이력서·자기소개서·포트폴리오, 그리고 AI 모의 면접까지 — 흩어진 도구를 옮겨 다닐 필요 없이 개발자의 취업 준비 전 과정을 한 플랫폼에서 끝냅니다.
+            여러 개의 도구를 번갈아 쓰던 번거로움은 이제 그만.<br className="hidden sm:block" />
+            학습부터 이력서, 실전 AI 면접까지 개발자 취업의 모든 과정을 하나의 플랫폼에서 완성하세요.
           </motion.p>
 
           <motion.div
@@ -339,7 +340,7 @@ export default function HomePage() {
             </h2>
             <p className="text-[18px] leading-relaxed text-neutral-500 mb-10">
               해커톤 참가부터 공모전 팀 빌딩, 실시간 채용 공고까지.
-              개발자에게 필요한 모든 커리어 기회들을 Dibut이 엄선하여 제공합니다.
+              개발자에게 필요한 모든 커리어 기회들을 Debut이 엄선하여 제공합니다.
               나의 가능성을 증명할 다음 무대를 찾아보세요.
             </p>
             <Link
@@ -397,7 +398,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="p-8 font-mono text-[13px] text-white/60 space-y-2">
-                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DibutSuccess</span>() {'{'}</div>
+                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DebutSuccess</span>() {'{'}</div>
                 <div className="flex gap-4 animate-pulse bg-primary/10"><span className="text-white/20">02</span>  <span className="text-primary/70">const</span> status = <span className="text-green-400">'GROWING'</span>;</div>
                 <div className="flex gap-4"><span className="text-white/20">03</span>  <span className="text-primary/70">return</span> <span className="text-yellow-400">learnAndBuild</span>(status);</div>
                 <div className="flex gap-4"><span className="text-white/20">04</span> {'}'}</div>
@@ -453,7 +454,7 @@ export default function HomePage() {
               </h2>
               <p className="text-[18px] leading-relaxed text-neutral-500 mb-10">
                 목표가 같은 동료를 찾는 것에서 그치지 마세요.
-                Dibut은 커뮤니티에서 모집한 팀원과 즉시 협업할 수 있는
+                Debut은 커뮤니티에서 모집한 팀원과 즉시 협업할 수 있는
                 최적의 환경을 제공합니다.
               </p>
               <Link

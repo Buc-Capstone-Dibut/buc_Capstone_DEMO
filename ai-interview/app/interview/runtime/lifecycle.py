@@ -35,7 +35,7 @@ async def send_connection_handshake(
         {
             "type": "ready",
             "status": "ok",
-            "message": "Dibut interview ws connected",
+            "message": "Debut interview ws connected",
         },
     ):
         return False

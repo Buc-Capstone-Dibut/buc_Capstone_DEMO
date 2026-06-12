@@ -136,6 +136,7 @@ def build_session_engine_deps(
     select_next_question_type: Callable[..., str],
     request_live_audio_turn: Callable[..., Awaitable[tuple[str, str, PreparedTtsAudio | None, str]]],
     stream_live_audio_turn: Callable[..., Awaitable[tuple[str, str, str, float, int]]] | None = None,
+    request_live_generated_question_turn: Callable[..., Awaitable[tuple[str, PreparedTtsAudio | None, str]]] | None = None,
     fallback_transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None,
     transcribe_user_audio: Callable[[bytes], Awaitable[tuple[str, str]]] | None,
     runtime_architecture: str,
@@ -188,6 +189,7 @@ def build_session_engine_deps(
         select_next_question_type=select_next_question_type,
         request_live_audio_turn=request_live_audio_turn,
         stream_live_audio_turn=stream_live_audio_turn,
+        request_live_generated_question_turn=request_live_generated_question_turn,
         fallback_transcribe_user_audio=fallback_transcribe_user_audio,
         transcribe_user_audio=transcribe_user_audio,
         emit_realtime_user_delta=emit_realtime_user_delta,
@@ -224,6 +226,8 @@ def build_client_message_router_deps(
     handle_session_init: Callable[..., Awaitable[None]],
     coerce_audio_chunk: Callable[[Any], list[float]],
     enqueue_user_segment: Callable[..., Awaitable[None]],
+    live_input_streaming_enabled: bool = True,
+    reset_audio_buffers: Callable[[VoiceWsState], None] | None = None,
     begin_live_input_stream: Callable[..., Awaitable[bool]] | None,
     push_live_input_audio_chunk: Callable[[VoiceWsState, list[float], int], Awaitable[bool]] | None,
     push_parallel_stt_audio_chunk: Callable[[Any, VoiceWsState, list[float], int], Awaitable[bool]] | None,
@@ -233,6 +237,8 @@ def build_client_message_router_deps(
 ) -> ClientMessageRouterDeps:
     return ClientMessageRouterDeps(
         runtime_architecture=runtime_architecture,
+        live_input_streaming_enabled=live_input_streaming_enabled,
+        reset_audio_buffers=reset_audio_buffers,
         send_json=send_json,
         send_avatar_state=send_avatar_state,
         handle_session_init=handle_session_init,

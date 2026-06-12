@@ -1,45 +1,53 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CameraOff, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, Camera, CameraOff, CheckCircle2, Loader2 } from "lucide-react";
 
-type DeviceStatus = "checking" | "ready" | "audio-only" | "denied";
+type MicStatus = "checking" | "ready" | "denied";
+type CameraStatus = "off" | "starting" | "on" | "error";
 
 interface InterviewDeviceCheckProps {
   /** 마이크 사용 가능(권한 허용) 여부가 바뀔 때 호출 — 부모의 '시작' 버튼 활성화에 사용 */
   onMicReady?: (ready: boolean) => void;
+  /** 카메라 토글 상태가 바뀔 때 호출 — 본 면접 화면의 카메라 초기 상태로 이어진다 */
+  onCameraPreferenceChange?: (on: boolean) => void;
 }
 
 /**
  * 면접 시작 전 풀스크린 준비 페이지에서 쓰는 최소 기기 점검 위젯.
- * - 카메라 미리보기(선택) + 마이크 입력 레벨 미터(필수)
- * - getUserMedia 권한/장치 상태를 시각적으로 보여줌(카메라 없으면 음성 전용으로 폴백)
+ * - 마이크 입력 레벨 미터(필수) — 마운트 시 자동 점검
+ * - 카메라는 기본 꺼짐(선택) — 사용자가 켜기 버튼으로 미리보기 테스트 가능
  * - 언마운트 시 모든 트랙을 정리해 실제 면접 파이프라인이 깨끗하게 장치를 잡도록 함
  */
-export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) {
+export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange }: InterviewDeviceCheckProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
   const onMicReadyRef = useRef(onMicReady);
   onMicReadyRef.current = onMicReady;
+  const onCameraPreferenceChangeRef = useRef(onCameraPreferenceChange);
+  onCameraPreferenceChangeRef.current = onCameraPreferenceChange;
 
-  const [status, setStatus] = useState<DeviceStatus>("checking");
-  const [hasVideo, setHasVideo] = useState(false);
+  const [micStatus, setMicStatus] = useState<MicStatus>("checking");
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("off");
+  const [cameraError, setCameraError] = useState("");
   const [level, setLevel] = useState(0);
   const [attempt, setAttempt] = useState(0);
 
+  // ── 마이크: 마운트 시 자동 점검 ──
   useEffect(() => {
     let cancelled = false;
 
-    const stopAll = () => {
+    const stopMicSide = () => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop());
+        micStreamRef.current = null;
       }
       if (audioCtxRef.current) {
         void audioCtxRef.current.close().catch(() => undefined);
@@ -80,54 +88,28 @@ export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) 
       }
     };
 
-    const attach = async (stream: MediaStream, withVideo: boolean) => {
-      streamRef.current = stream;
-      const showVideo = withVideo && stream.getVideoTracks().length > 0;
-      setHasVideo(showVideo);
-      if (showVideo && videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => undefined);
-      }
-      startLevelMeter(stream);
-    };
-
     const run = async () => {
-      setStatus("checking");
+      setMicStatus("checking");
       if (!navigator?.mediaDevices?.getUserMedia) {
         if (!cancelled) {
-          setStatus("denied");
+          setMicStatus("denied");
           onMicReadyRef.current?.(false);
         }
         return;
       }
-      // 1) 카메라 + 마이크
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (cancelled) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        await attach(s, true);
-        setStatus("ready");
-        onMicReadyRef.current?.(true);
-        return;
-      } catch {
-        // 카메라 거부/없음 → 음성만 재시도
-      }
-      // 2) 마이크만 (카메라는 선택 사항)
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true });
         if (cancelled) {
           s.getTracks().forEach((t) => t.stop());
           return;
         }
-        await attach(s, false);
-        setStatus("audio-only");
+        micStreamRef.current = s;
+        startLevelMeter(s);
+        setMicStatus("ready");
         onMicReadyRef.current?.(true);
-        return;
       } catch {
         if (!cancelled) {
-          setStatus("denied");
+          setMicStatus("denied");
           onMicReadyRef.current?.(false);
         }
       }
@@ -136,46 +118,132 @@ export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) 
     void run();
     return () => {
       cancelled = true;
-      stopAll();
+      stopMicSide();
     };
   }, [attempt]);
 
-  const micOk = status === "ready" || status === "audio-only";
+  // ── 카메라: 기본 꺼짐, 토글로 미리보기 테스트 ──
+  const stopCamera = () => {
+    if (camStreamRef.current) {
+      camStreamRef.current.getTracks().forEach((t) => t.stop());
+      camStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const turnCameraOn = async () => {
+    if (cameraStatus === "starting" || cameraStatus === "on") return;
+    setCameraStatus("starting");
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      camStreamRef.current = s;
+      setCameraStatus("on");
+      onCameraPreferenceChangeRef.current?.(true);
+      // setState 후 video 엘리먼트가 그려진 다음 srcObject 연결
+      requestAnimationFrame(() => {
+        if (videoRef.current && camStreamRef.current) {
+          videoRef.current.srcObject = camStreamRef.current;
+          void videoRef.current.play().catch(() => undefined);
+        }
+      });
+    } catch {
+      stopCamera();
+      setCameraStatus("error");
+      onCameraPreferenceChangeRef.current?.(false);
+    }
+  };
+
+  const turnCameraOff = () => {
+    stopCamera();
+    setCameraStatus("off");
+    onCameraPreferenceChangeRef.current?.(false);
+  };
+
+  // 언마운트 시 카메라 트랙 정리
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const micOk = micStatus === "ready";
+  const cameraOn = cameraStatus === "on";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      {/* 카메라 미리보기 */}
+      {/* 카메라 미리보기 (기본 꺼짐) */}
       <div className="relative flex aspect-video w-full items-center justify-center bg-muted/50">
-        {hasVideo ? (
+        {cameraOn ? (
           <video ref={videoRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
         ) : (
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            {status === "checking" ? <Loader2 className="h-7 w-7 animate-spin" /> : <CameraOff className="h-7 w-7" />}
-            <p className="text-xs">
-              {status === "checking" ? "카메라 확인 중..." : "카메라 없이 음성으로 진행됩니다"}
-            </p>
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            {cameraStatus === "starting" ? (
+              <>
+                <Loader2 className="h-7 w-7 animate-spin" />
+                <p className="text-xs">카메라 켜는 중...</p>
+              </>
+            ) : (
+              <>
+                <CameraOff className="h-7 w-7" />
+                <p className="text-xs">
+                  {cameraStatus === "error"
+                    ? "카메라를 사용할 수 없습니다 — 권한과 연결을 확인해 주세요"
+                    : "카메라가 꺼져 있습니다 (면접은 음성으로 진행돼요)"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void turnCameraOn()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  {cameraStatus === "error" ? "카메라 다시 시도" : "카메라 켜고 테스트"}
+                </button>
+              </>
+            )}
           </div>
+        )}
+        {cameraOn && (
+          <button
+            type="button"
+            onClick={turnCameraOff}
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/80 px-3 py-1.5 text-xs font-bold text-foreground backdrop-blur transition-colors hover:bg-muted"
+          >
+            <CameraOff className="h-3.5 w-3.5" />
+            카메라 끄기
+          </button>
         )}
       </div>
 
       {/* 상태 + 마이크 레벨 */}
       <div className="space-y-3 p-4">
-        <div className="flex items-center gap-2 text-sm">
-          {hasVideo ? (
-            <CheckCircle2 className="h-4 w-4 text-primary" />
-          ) : (
-            <CameraOff className="h-4 w-4 text-muted-foreground" />
-          )}
-          <span className={hasVideo ? "font-medium text-foreground" : "text-muted-foreground"}>
-            카메라 {hasVideo ? "정상" : "꺼짐 (선택 사항)"}
-          </span>
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-2">
+            {cameraOn ? (
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+            ) : (
+              <CameraOff className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span className={cameraOn ? "font-medium text-foreground" : "text-muted-foreground"}>
+              카메라 {cameraOn ? "정상" : "꺼짐 (선택 사항)"}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => (cameraOn ? turnCameraOff() : void turnCameraOn())}
+            disabled={cameraStatus === "starting"}
+            className="rounded-md border border-border px-2 py-1 text-[11px] font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {cameraOn ? "끄기" : cameraStatus === "starting" ? "켜는 중..." : "켜기"}
+          </button>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             {micOk ? (
               <CheckCircle2 className="h-4 w-4 text-primary" />
-            ) : status === "checking" ? (
+            ) : micStatus === "checking" ? (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             ) : (
               <AlertCircle className="h-4 w-4 text-destructive" />
@@ -183,7 +251,7 @@ export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) 
             <span className={micOk ? "font-medium text-foreground" : "text-muted-foreground"}>
               {micOk
                 ? "마이크 인식됨 — 말해보세요"
-                : status === "checking"
+                : micStatus === "checking"
                   ? "마이크 확인 중..."
                   : "마이크 권한이 필요합니다"}
             </span>
@@ -196,7 +264,7 @@ export function InterviewDeviceCheck({ onMicReady }: InterviewDeviceCheckProps) 
           </div>
         </div>
 
-        {status === "denied" && (
+        {micStatus === "denied" && (
           <button
             type="button"
             onClick={() => setAttempt((a) => a + 1)}
