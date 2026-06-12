@@ -58,6 +58,10 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
 
         needs_crawl = not event.content or not event.summary
         if needs_crawl and processed_count < limit:
+            # limit 은 "시도 횟수" 기준 — deep_crawl 1회 = Firecrawl 1크레딧 + 대기.
+            # 성공(if result)에서만 세면 실패(404/스크랩 실패)가 limit 을 안 깎아
+            # 모든 이벤트를 다 처리해 버리는 버그가 있었다.
+            processed_count += 1
             try:
                 logger.info(f"🧠 Generating content for: {event.title}")
                 result = deep_crawl_event(event)
@@ -79,8 +83,6 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
                     event.fee = result.get("fee")
                     event.schedule = ensure_list(result.get("schedule"))
                     event.benefits = ensure_list(result.get("benefits"))
-
-                    processed_count += 1
             except Exception as e:
                 logger.error(f"Deep crawl failed for {event.title}: {e}")
 
