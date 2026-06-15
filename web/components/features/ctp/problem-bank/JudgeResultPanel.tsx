@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { JudgeResult, Verdict } from "./types";
 
+export type ReputationStatus = "applied" | "duplicated";
+
 interface JudgeResultPanelProps {
   result: JudgeResult | null;
+  reputationStatus?: ReputationStatus | null;
 }
 
 const verdictLabel: Record<Verdict, string> = {
@@ -25,7 +28,7 @@ const verdictClass: Record<Verdict, string> = {
   OLE: "bg-orange-500/10 text-orange-600 border-orange-500/30",
 };
 
-export function JudgeResultPanel({ result }: JudgeResultPanelProps) {
+export function JudgeResultPanel({ result, reputationStatus }: JudgeResultPanelProps) {
   if (!result) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">
@@ -50,6 +53,16 @@ export function JudgeResultPanel({ result }: JudgeResultPanelProps) {
           <p className="mt-0.5 text-sm text-emerald-700/90">
             {result.total}개 테스트 케이스를 모두 통과했습니다.
           </p>
+          {reputationStatus === "applied" && (
+            <p className="mt-1.5 text-xs font-medium text-emerald-700/90">
+              레벨 점수에 반영되었습니다.
+            </p>
+          )}
+          {reputationStatus === "duplicated" && (
+            <p className="mt-1.5 text-xs font-medium text-emerald-700/80">
+              이미 레벨 점수에 반영된 문제입니다.
+            </p>
+          )}
         </motion.div>
       )}
 

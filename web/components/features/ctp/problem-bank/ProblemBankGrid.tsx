@@ -6,10 +6,16 @@ import { ProblemCard } from "./ProblemCard";
 interface ProblemBankGridProps {
   problems: ProblemBankItem[];
   selectedProblemId?: string;
+  solvedIds?: Set<string>;
   onSelectProblem: (problemId: string) => void;
 }
 
-export function ProblemBankGrid({ problems, selectedProblemId, onSelectProblem }: ProblemBankGridProps) {
+export function ProblemBankGrid({
+  problems,
+  selectedProblemId,
+  solvedIds,
+  onSelectProblem,
+}: ProblemBankGridProps) {
   if (!problems.length) {
     return (
       <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
@@ -25,6 +31,7 @@ export function ProblemBankGrid({ problems, selectedProblemId, onSelectProblem }
           key={problem.id}
           problem={problem}
           selected={selectedProblemId === problem.id}
+          solved={solvedIds?.has(problem.id) ?? false}
           onSelect={onSelectProblem}
         />
       ))}

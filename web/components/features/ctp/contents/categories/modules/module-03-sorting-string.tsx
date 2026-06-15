@@ -41,8 +41,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "sorting-overview",
     title: "06-1 정렬 알고리즘 개요",
-    description: "정렬의 분류 축(안정성·내외부·비교/비비교)과 데이터 특성에 따른 알고리즘 선택 기준을 학습합니다.",
-    sampleData: [9, 4, 1, 7, 3],
+    description: "정렬의 분류 축(안정성·내외부·비교/비비교)을 정리하고, 단계 슬라이더로 비교 기반 정렬의 이론적 하한 `O(N log N)`을 결정 트리로 증명하는 과정을 따라갑니다.",
+    sampleData: [8, 3, 5, 1, 9, 2, 7, 4, 6],
     story: {
       problem:
         "수만 건의 로그, 학생 명부, 검색 결과처럼 한 번에 다뤄야 할 데이터가 무작위로 섞여 있다면 원하는 값을 빠르게 찾거나 통계를 내기 어렵습니다. 정렬 자체가 목적이 아니더라도, 검색·중복 제거·범위 질의 같은 후속 작업의 효율은 데이터가 미리 정렬되어 있는지에 크게 좌우됩니다.",
@@ -71,9 +71,9 @@ const SORTING_MODULES = createInteractiveTemplateModules([
         SupplementaryVisualizer: SortingOverviewSupplementaryOptions[2],
       },
       {
-        title: "O(N log N) 고급 알고리즘",
+        title: "O(N log N) 하한과 결정 트리",
         description:
-          "퀵·병합·힙 정렬은 분할 정복이나 힙 구조를 활용해 효율을 끌어올립니다. 비교 기반 알고리즘의 이론적 한계인 `O(N log N)`에 도달하는 대표 그룹입니다.",
+          "퀵·병합·힙 정렬이 도달하는 `O(N log N)`은 우연이 아닙니다. 슬라이더 후반부에서 N개 원소의 순열(잎 N!개)과 결정 트리 높이(log₂N!)를 단계별로 펼쳐, 어떤 비교 기반 정렬도 그보다 빠를 수 없는 이유를 보여 줍니다.",
         SupplementaryVisualizer: SortingOverviewSupplementaryOptions[3],
       },
     ],
@@ -83,7 +83,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "bubble-sort",
     title: "06-2 버블 정렬",
-    description: "인접 교환 기반 정렬을 시각화로 학습합니다.",
+    description: "인접한 두 원소를 비교·교환하는 과정을 단계 슬라이더로 따라가며, 한 Pass 동안 교환이 없으면 멈추는 조기 종료(Early Exit)까지 관찰합니다.",
     sampleData: [6, 2, 8, 1, 5],
     story: {
       problem: "단순히 인접한 두 원소만 비교해서 가장 큰 원소를 끝으로 밀어내는 방식으로 정렬할 수 있을까요?",
@@ -102,8 +102,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "selection-sort",
     title: "06-3 선택 정렬",
-    description: "최솟값 선택 반복 패턴을 실습합니다.",
-    sampleData: [7, 3, 9, 2, 4],
+    description: "미정렬 구역에서 최솟값을 골라 맨 앞과 교환하는 패턴을 실습합니다. 같은 값(8a·8b)에 라벨을 붙여, 먼 자리와 교환할 때 상대 순서가 뒤집히는 불안정성을 직접 확인합니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem: "버블 정렬은 너무 잦은 교환(Swap)이 발생합니다. 교환 횟수를 크게 줄일 방법은 없을까요?",
       definition: "선택 정렬(Selection Sort)은 정렬되지 않은 영역에서 '가장 작은 값'을 찾아, 그 값을 정렬되지 않은 부분의 '맨 앞'과 교환하는 알고리즘입니다.",
@@ -113,7 +113,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
       { title: "최솟값 탐색", description: "미정렬 구역을 끝까지 스캔하여 가장 작은 값의 '위치'를 기억합니다.", SupplementaryVisualizer: SelectionSortSupplementaryOptions[0] },
       { title: "영역의 분리", description: "배열은 점점 커지는 정렬된 구역과 작아지는 미정렬 구역으로 나뉩니다.", SupplementaryVisualizer: SelectionSortSupplementaryOptions[1] },
       { title: "교환(Swap) 최소화", description: "아무리 데이터가 엉망이어도 1 Pass 당 Swap은 단 1번만 일어납니다.", SupplementaryVisualizer: SelectionSortSupplementaryOptions[2] },
-      { title: "불안정 정렬 (Unstable)", description: "멀리 떨어진 원소와 자리를 바꾸기 때문에, 동일한 값의 순서가 뒤집힐 수 있습니다.", SupplementaryVisualizer: SelectionSortSupplementaryOptions[3] },
+      { title: "불안정 정렬 (Unstable)", description: "멀리 떨어진 원소와 자리를 바꾸므로 같은 값의 입력 순서가 보존되지 않습니다. 8a·8b 라벨이 정렬 후 뒤바뀌는 순간이 시각적으로 강조됩니다.", SupplementaryVisualizer: SelectionSortSupplementaryOptions[3] },
     ],
     useSim: useSelectionSortSim,
     Visualizer: SelectionSortVisualizer,
@@ -121,8 +121,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "insertion-sort",
     title: "06-4 삽입 정렬",
-    description: "정렬된 구간 삽입 패턴을 이해합니다.",
-    sampleData: [5, 1, 4, 2, 8],
+    description: "정렬된 구역에 원소를 끼워 넣는 패턴을 익힙니다. 무작위 입력을 정렬한 뒤 같은 데이터의 정렬된 입력을 이어서 재생해, 슬라이더 하나로 평균 케이스와 `O(N)` 최선 케이스를 나란히 대조합니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem: "배열의 앞부분이 이미 어느 정도 정렬되어 있다면, 처음부터 다시 비교하는 것은 낭비 아닐까요?",
       definition: "삽입 정렬(Insertion Sort)은 아직 정렬되지 않은 임의의 데이터를 이미 정렬된 구역의 올바른 위치에 '삽입'해 나가는 알고리즘입니다.",
@@ -132,7 +132,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
       { title: "적절한 위치 탐색", description: "정렬된 구역을 뒤에서부터 거꾸로 스캔하며 내 자리를 찾습니다.", SupplementaryVisualizer: InsertionSortSupplementaryOptions[0] },
       { title: "데이터 밀어내기", description: "자리를 만들기 위해 나보다 큰 원소들은 오른쪽으로 한 칸씩 이동(Shift)시킵니다.", SupplementaryVisualizer: InsertionSortSupplementaryOptions[1] },
       { title: "점진적 확장", description: "왼쪽부터 시작해 정렬된 구역의 너비가 1씩 늘어납니다.", SupplementaryVisualizer: InsertionSortSupplementaryOptions[2] },
-      { title: "O(N) Best Case", description: "이미 정렬된 데이터의 경우 비교만 1번씩 수행하고 통과하여 로켓처럼 빠릅니다.", SupplementaryVisualizer: InsertionSortSupplementaryOptions[3] },
+      { title: "O(N) Best Case", description: "이미 정렬된 입력에서는 각 원소가 직전 값과 단 1번만 비교되고 이동 없이 통과합니다. 후반 데모 구간에서 N-1번 비교 = O(N)이 카운트되는 모습을 확인하세요.", SupplementaryVisualizer: InsertionSortSupplementaryOptions[3] },
     ],
     useSim: useInsertionSortSim,
     Visualizer: InsertionSortVisualizer,
@@ -140,8 +140,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "shell-sort",
     title: "06-5 셸 정렬",
-    description: "간격(gap)을 두고 부분 정렬을 반복해 삽입 정렬의 O(N²) 한계를 O(N^1.5)까지 끌어내리는 알고리즘을 학습합니다.",
-    sampleData: [10, 3, 7, 1, 9],
+    description: "간격(gap)을 두고 부분 정렬을 반복해 삽입 정렬의 O(N²) 한계를 O(N^1.5)까지 끌어내리는 알고리즘을 학습합니다. Shell의 원래 수열(N/2, N/4, …, 1)이 단계마다 줄어드는 과정을 슬라이더로 따라갑니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem:
         "삽입 정렬은 거의 정렬된 데이터에서 빠르지만, 큰 값이 맨 앞에 있는 무작위 입력에서는 그 값을 끝까지 한 칸씩 밀어내야 합니다. 한 원소를 N번에 가깝게 이동시키는 비용이 누적되면 전체 시간복잡도가 `O(N²)`에 묶입니다. 한 번에 멀리 이동시키는 방법은 없을까요?",
@@ -182,8 +182,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "quick-sort",
     title: "06-6 퀵 정렬",
-    description: "분할 정복 정렬의 핵심 패턴을 익힙니다.",
-    sampleData: [15, 8, 20, 2, 11],
+    description: "피벗 기준 분할을 재귀적으로 반복하는 분할 정복 패턴을 익힙니다. 호출 트리(recursion tree)를 함께 그려, 균형 분할이면 깊이가 log N, 한쪽으로 쏠리면 N에 가까워지며 최악 O(N²)가 되는 이유를 보여 줍니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem: "정렬 속도를 극대화하려면 어떻게 해야 할까요? 전체를 한 번에 정렬하는 대신 기준을 세워 반으로 뚝 자르면 빠르지 않을까요?",
       definition: "퀵 정렬(Quick Sort)은 기준점(Pivot)을 정해 이보다 작은 값은 왼쪽, 큰 값은 오른쪽으로 모으는 과정을 재귀적으로 반복하는 알고리즘입니다.",
@@ -193,7 +193,7 @@ const SORTING_MODULES = createInteractiveTemplateModules([
       { title: "피벗(Pivot)의 선택", description: "배열의 기준점이 되는 하나의 원소를 잡습니다. 이 피벗이 운명을 결정합니다.", SupplementaryVisualizer: QuickSortSupplementaryOptions[0] },
       { title: "분할 (Partitioning)", description: "피벗을 기준으로 작은 값은 왼쪽, 큰 값은 오른쪽으로 모읍니다.", SupplementaryVisualizer: QuickSortSupplementaryOptions[1] },
       { title: "분할 정복 (Divide & Conquer)", description: "나뉘어진 파티션에 대해 동일한 작업을 쪼갤 수 없을 때까지 재귀적으로 반복합니다.", SupplementaryVisualizer: QuickSortSupplementaryOptions[2] },
-      { title: "치명적인 약점 O(N²)", description: "이미 정렬된 상태에서 최솟값/최댓값을 피벗으로 잡으면 트리가 한쪽으로 쏠립니다.", SupplementaryVisualizer: QuickSortSupplementaryOptions[3] },
+      { title: "치명적인 약점 O(N²)", description: "이미 정렬된 입력에서 끝 원소를 피벗으로 잡으면 호출 트리가 한쪽으로 쏠려 깊이가 N에 가까워집니다. 트리 깊이 표시로 균형/편향을 한눈에 비교할 수 있습니다.", SupplementaryVisualizer: QuickSortSupplementaryOptions[3] },
     ],
     useSim: useQuickSortSim,
     Visualizer: QuickSortVisualizer,
@@ -201,8 +201,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "merge-sort",
     title: "06-7 병합 정렬",
-    description: "병합 단계 중심의 안정 정렬을 실습합니다.",
-    sampleData: [6, 2, 9, 3, 5],
+    description: "분할 후 병합으로 정렬하는 과정을 실습합니다. 같은 값은 원본 인덱스 첨자(#1·#5 등)로 표기해 상대 순서를 추적하며, 동일값을 만났을 때 왼쪽 부분 배열을 먼저 꺼내 입력 순서를 지키는 안정성과 병합에 필요한 O(N) 추가 메모리를 함께 확인합니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem: "퀵 정렬은 최악의 경우 O(N²)로 느려집니다. 어떤 데이터가 들어와도 무조건 빠르고(O(N log N)), 1등과 2등의 순서(안정성)도 유지할 수 없을까요?",
       definition: "병합 정렬(Merge Sort)은 배열을 반으로 계속 쪼개어 원소가 하나가 될 때까지 분할한 뒤, 정렬하면서 하나로 합쳐 나가는(Merge) 알고리즘입니다.",
@@ -210,9 +210,9 @@ const SORTING_MODULES = createInteractiveTemplateModules([
     },
     features: [
       { title: "정확한 분할 (Divide)", description: "배열의 크기가 1이 될 때까지 무조건 정확히 반으로 쪼갭니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[0] },
-      { title: "체계적인 병합 (Merge)", description: "정렬된 두 부분 배열의 맨 앞만 비교하며 하나로 합칩니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[1] },
+      { title: "체계적인 병합 (Merge)", description: "정렬된 두 부분 배열의 맨 앞만 비교하며 하나로 합칩니다. 값이 같을 때 왼쪽을 먼저 꺼내 입력 순서를 보존하므로 안정 정렬입니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[1] },
       { title: "흔들리지 않는 편안함 O(N log N)", description: "초기 상태가 극악이라도 트리의 깊이는 항상 일정합니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[2] },
-      { title: "메모리의 대가 O(N)", description: "데이터를 합칠 때 원래 배열 크기만큼의 추가 도화지(배열)가 반드시 필요합니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[3] },
+      { title: "메모리의 대가 O(N)", description: "데이터를 합칠 때 원래 배열 크기만큼의 추가 배열이 필요합니다. 사용 중인 임시 슬롯의 최대치(peak)가 표시되어 O(N) 보조 공간을 눈으로 확인할 수 있습니다.", SupplementaryVisualizer: MergeSortSupplementaryOptions[3] },
     ],
     useSim: useMergeSortSim,
     Visualizer: MergeSortVisualizer,
@@ -220,8 +220,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "heap-sort",
     title: "06-8 힙 정렬",
-    description: "우선순위 큐(Max Heap)를 기반으로 하여 항상 O(N log N)의 일정한 성능을 내는 정렬 알고리즘입니다.",
-    sampleData: [12, 6, 4, 10, 2],
+    description: "우선순위 큐(Max Heap)를 기반으로 항상 O(N log N)의 일정한 성능을 내는 제자리 정렬입니다. 배열을 힙으로 만든 뒤 루트를 뒤로 빼는 각 단계(build → heapify → 추출)를 슬라이더로 따라갑니다.",
+    sampleData: [15, 8, 20, 2, 11, 8, 5, 18, 9, 14],
     story: {
       problem: "가장 큰 값만 지속적으로 빠르게 뽑아내고 싶을 때 매번 O(N)으로 전체를 검색하면 너무 느립니다. 어떻게 해야 O(log N)만에 큰 값을 찾고 유지할 수 있을까요?",
       definition: "힙 정렬(Heap Sort)은 배열을 최대 힙(Max Heap)이라는 완전 이진 트리 형태로 구성한 다음, 가장 큰 값인 루트 노드를 뒤로 빼면서 정렬하는 제자리 정렬(In-place Sort) 기법입니다.",
@@ -239,8 +239,8 @@ const SORTING_MODULES = createInteractiveTemplateModules([
   {
     id: "counting-sort",
     title: "06-9 도수 정렬",
-    description: "비교 없이 도수 분포표와 누적 도수로 위치를 결정해 O(N+K)에 정렬하는 비비교 기반 알고리즘을 학습합니다.",
-    sampleData: [3, 1, 4, 1, 5, 9, 2, 6, 5],
+    description: "비교 없이 도수 분포표와 누적 도수로 위치를 결정해 O(N+K)에 정렬하는 비비교 기반 알고리즘을 학습합니다. 입력을 뒤에서부터 배치하는 단계까지 슬라이더로 따라가며 안정성이 보장되는 이유를 확인합니다.",
+    sampleData: [5, 2, 8, 3, 9, 1, 5, 4, 2, 7],
     story: {
       problem:
         "비교 기반 정렬은 정보 이론적으로 `O(N log N)`보다 빨라질 수 없다는 한계가 있습니다. 그러나 \"학생 시험 점수(0~100)\", \"투표 결과(후보 ID 10명)\"처럼 값의 범위가 좁고 미리 알려진 데이터를 정렬할 때 매번 비교를 반복하는 것은 비효율로 느껴집니다. 비교를 거치지 않고 곧장 자리를 정할 수는 없을까요?",
@@ -285,7 +285,6 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
     id: "brute-force-search",
     title: "07-1 브루트 포스",
     description: "텍스트의 모든 시작 위치에서 패턴을 한 글자씩 대조하는 전수 탐색의 흐름과 O(NM) 한계를 학습합니다.",
-    sampleData: [2, 5, 2, 5, 2],
     story: {
       problem:
         "긴 글에서 특정 단어를 찾거나, 로그 파일에서 에러 키워드를 추출하는 작업처럼 문자열 안에서 패턴을 찾는 일은 매일 마주치는 기본 과제입니다. 가장 단순하게 떠올릴 수 있는 방법은 \"텍스트의 모든 위치에서 한 글자씩 패턴과 비교한다\"입니다. 이 직관적인 풀이가 어디까지 통하고 어디서 한계를 만나는지 정리할 필요가 있습니다.",
@@ -327,7 +326,6 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
     id: "kmp-search",
     title: "07-2 KMP (Knuth-Morris-Pratt)",
     description: "LPS 테이블로 패턴 내부 접두사·접미사 정보를 활용해 텍스트 포인터를 되돌리지 않고 O(N+M)에 검색합니다.",
-    sampleData: [1, 2, 1, 2, 1, 2],
     story: {
       problem:
         "브루트 포스 검색은 불일치가 발생할 때마다 텍스트 포인터 `i`를 다음 칸으로 되돌리고 패턴을 처음부터 다시 비교합니다. 그런데 텍스트와 패턴이 일정 부분 일치한 뒤에 실패한 경우, 그 일치한 부분은 이미 우리가 알고 있는 정보입니다. 이미 비교한 결과를 다음 검사에 활용하지 않으면 같은 위치를 여러 번 비교하는 낭비가 생깁니다.",
@@ -369,7 +367,6 @@ const STRING_SEARCH_MODULES = createInteractiveTemplateModules([
     id: "boyer-moore-search",
     title: "07-3 보이어-무어 (Boyer-Moore)",
     description: "패턴을 뒤에서 앞으로 비교하면서 Bad Character·Good Suffix 규칙으로 큰 보폭의 점프를 수행합니다.",
-    sampleData: [9, 7, 5, 7, 9],
     story: {
       problem:
         "KMP는 텍스트를 한 글자도 건너뛰지 않고 모두 읽으면서 선형 시간을 보장합니다. 그러나 실전 환경에서는 \"읽지 않아도 되는 글자는 아예 건너뛰자\"는 더 과감한 발상이 가능합니다. 패턴과 닮지 않은 텍스트 영역을 통째로 건너뛸 수 있다면, 실제 비교 횟수를 더 줄일 여지가 있습니다.",

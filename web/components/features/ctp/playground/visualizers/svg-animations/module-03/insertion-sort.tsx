@@ -14,13 +14,20 @@ type Step = {
   key: SortElement | null; // Value being inserted
   isInserting: boolean; // True when `key` finds its spot and is being written
   msg: string;
+  // 'main' = 무작위 입력 일반 케이스, 'bestcase' = 이미 정렬된 입력 Best Case O(N).
+  // 빌드 중 개별 push 에서는 생략하고, 반환 직전 .map() 으로 일괄 스탬프한다.
+  phase?: 'main' | 'bestcase';
+  // bestcase 구간에서 이번 key 가 단 1번의 비교로 통과했는지(=이동 0) 표시
+  instantPass?: boolean;
 };
 
 const DEFAULT_INSERTION_DATA = [15, 8, 20, 2, 11, 8, 5, 18, 9, 14];
 
 // Note: Insertion sort operates slightly differently. It extracts array[i] as `key`,
 // shifts elements that are > key to the right, and then inserts `key`.
-function generateInsertionSortSteps(initialArray: number[]): Step[] {
+// `phase` 는 생성된 모든 스텝에 일괄 스탬프되어 일반 케이스('main')와
+// Best Case 데모('bestcase')를 한 시퀀스 안에서 구분한다.
+function generateInsertionSortSteps(initialArray: number[], phase: 'main' | 'bestcase' = 'main'): Step[] {
   const steps: Step[] = [];
   // Build initial array of objects
   const arr: SortElement[] = initialArray.map((val, idx) => ({ id: `id-${val}-${idx}`, val }));
@@ -32,7 +39,10 @@ function generateInsertionSortSteps(initialArray: number[]): Step[] {
     j: -1,
     key: null,
     isInserting: false,
-    msg: "삽입 정렬을 시작합니다. 첫 번째 원소는 이미 정렬된 것으로 간주합니다.",
+    msg: phase === 'bestcase'
+      ? "Best Case 데모: 이미 정렬된 입력입니다. 각 원소가 몇 번 비교되는지 세어 봅시다."
+      : "삽입 정렬을 시작합니다. 첫 번째 원소는 이미 정렬된 것으로 간주합니다.",
+    phase: 'main',
   });
 
   for (let i = 1; i < n; i++) {
@@ -122,10 +132,23 @@ function generateInsertionSortSteps(initialArray: number[]): Step[] {
     j: -1,
     key: null,
     isInserting: false,
-    msg: "모든 데이터의 삽입이 완료되어 정렬 종료!",
+    msg: phase === 'bestcase'
+      ? "정렬 완료! 모든 원소가 단 1번씩만 비교되고 이동 0 → 총 N-1번 비교 = O(N) Best Case."
+      : "모든 데이터의 삽입이 완료되어 정렬 종료!",
   });
 
-  return steps;
+  // 모든 스텝에 phase 를 일괄 스탬프한다.
+  // bestcase 에서 key 가 바로 직전 원소보다 크거나 같아(이동 없이) 통과한
+  // "비교 후 중단" 스텝은 instantPass 로 표시해 즉시비교(O(1)/원소)를 강조한다.
+  return steps.map((s) => {
+    const instantPass =
+      phase === 'bestcase' &&
+      s.key !== null &&
+      !s.isInserting &&
+      s.j === s.i - 1 &&
+      s.msg.startsWith('비교:');
+    return { ...s, phase, ...(instantPass ? { instantPass: true } : {}) };
+  });
 }
 
 export function useInsertionSortSim(initialData: number[] = DEFAULT_INSERTION_DATA) {
@@ -134,8 +157,12 @@ export function useInsertionSortSim(initialData: number[] = DEFAULT_INSERTION_DA
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
-    const generated = generateInsertionSortSteps(initialData);
-    setSteps(generated);
+    // 1) 무작위 입력 일반 케이스 → 2) 같은 데이터를 정렬한 입력에 대한 Best Case O(N) 데모.
+    // 두 구간을 한 시퀀스로 이어 붙여, 슬라이더/자동재생만으로 최선/평균을 대조할 수 있게 한다.
+    const mainSteps = generateInsertionSortSteps(initialData, 'main');
+    const sortedInput = [...initialData].sort((a, b) => a - b);
+    const bestSteps = generateInsertionSortSteps(sortedInput, 'bestcase');
+    setSteps([...mainSteps, ...bestSteps]);
     setStepIdx(0);
     setLogs(["> 시스템 초기화: 삽입 정렬 대기 중... Step을 눌러 시작하세요."]);
   }, [initialData]);
@@ -187,7 +214,8 @@ export function useInsertionSortSim(initialData: number[] = DEFAULT_INSERTION_DA
 // --- Visualizer Component ---
 export function InsertionSortVisualizer({ data }: { data: any }) {
   if (!data) return null;
-  const { array, i, j, key, isInserting } = data as Step;
+  const { array, i, j, key, isInserting, phase = 'main', instantPass = false } = data as Step;
+  const isBestCase = phase === 'bestcase';
 
   const N = array.length;
   const BLOCK_WIDTH = 50;
@@ -233,12 +261,28 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
       <rect width="800" height="500" fill="url(#grid)" />
 
       {/* Title */}
-      <text x="40" y="50" fill={colorTokens.warning} fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-orange)">
+      <text x="40" y="50" fill={isBestCase ? colorTokens.success : colorTokens.warning} fontSize="24" fontWeight="bold" letterSpacing="2" filter={isBestCase ? "url(#neon-glow-cyan)" : "url(#neon-glow-orange)"}>
         INSERTION SORT
       </text>
       <text x="40" y="75" fill="hsl(var(--muted-foreground))" fontSize="12" letterSpacing="1">
         정렬된 구역에서 자신의 위치를 찾아 삽입하여 구역을 넓혀갑니다.
       </text>
+
+      {/* Phase 배지: 일반 케이스 ↔ Best Case O(N) 데모 */}
+      <g transform="translate(40, 90)">
+        <rect
+          width={isBestCase ? 320 : 210}
+          height="26"
+          rx="13"
+          fill={isBestCase ? colorTokens.successGhost : colorTokens.warningGhost}
+          stroke={isBestCase ? colorTokens.success : colorTokens.warning}
+          strokeWidth="1.5"
+        />
+        <circle cx="16" cy="13" r="5" fill={isBestCase ? colorTokens.success : colorTokens.warning} />
+        <text x="30" y="17" fill={isBestCase ? colorTokens.success : colorTokens.warning} fontSize="12" fontWeight="bold">
+          {isBestCase ? "Best Case (정렬된 입력) — 즉시비교 O(N)" : "일반 케이스 (무작위 입력)"}
+        </text>
+      </g>
 
       {/* Status Panel (Top Right) */}
       <g transform="translate(420, 25)">
@@ -304,6 +348,21 @@ export function InsertionSortVisualizer({ data }: { data: any }) {
             <text x={BLOCK_WIDTH / 2} y={START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) - 15} fill={colorTokens.info} fontSize="14" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-cyan)">
               Key
             </text>
+
+            {/* Best Case: 단 1번의 비교로 자리 확정 → 즉시 통과 배지 */}
+            <AnimatePresence>
+              {instantPass && (
+                <motion.g
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transform={`translate(${BLOCK_WIDTH / 2}, ${START_Y - Math.max(20, (key ? key.val / maxVal : 0) * MAX_BAR_HEIGHT) - 40})`}
+                >
+                  <rect x="-44" y="-16" width="88" height="22" rx="11" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="1.5" />
+                  <text x="0" y="-1" fill={colorTokens.success} fontSize="11" fontWeight="bold" textAnchor="middle">1회 비교 ✓</text>
+                </motion.g>
+              )}
+            </AnimatePresence>
           </motion.g>
         )}
       </AnimatePresence>

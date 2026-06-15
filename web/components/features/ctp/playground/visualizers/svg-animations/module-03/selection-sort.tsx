@@ -5,7 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Simulation Hook ---
-export type SortElement = { id: string; val: number };
+// `tag` 은 동일 값(중복) 원소를 구분하기 위한 라벨(a, b, ...). 안정성(stability)
+// 시각화에 쓰인다. `origIdx` 는 입력 배열에서의 원래 위치로, 정렬이 끝난 뒤
+// 같은 값끼리의 상대 순서가 보존됐는지(=안정성) 판정하는 근거다.
+export type SortElement = { id: string; val: number; origIdx: number; tag?: string };
 
 type Step = {
   array: SortElement[];
@@ -15,14 +18,47 @@ type Step = {
   isSwapping: boolean;
   isSorted: boolean[];
   msg: string;
+  // 직전 swap 으로 같은 값의 상대 순서가 뒤집힌 원소들의 id (불안정성 강조용)
+  instabilityIds?: string[];
 };
 
 const DEFAULT_SELECTION_DATA = [15, 8, 20, 2, 11, 8, 5, 18, 9, 14];
 
+// 같은 값이 2번 이상 등장하면 a, b, c... 라벨을 붙여 시각적으로 구분한다.
+function tagDuplicates(values: number[]): SortElement[] {
+  const counts = new Map<number, number>();
+  values.forEach((v) => counts.set(v, (counts.get(v) ?? 0) + 1));
+  const seen = new Map<number, number>();
+  return values.map((val, idx) => {
+    const total = counts.get(val) ?? 1;
+    let tag: string | undefined;
+    if (total > 1) {
+      const order = seen.get(val) ?? 0;
+      seen.set(val, order + 1);
+      tag = String.fromCharCode(97 + order); // a, b, c ...
+    }
+    return { id: `id-${val}-${idx}`, val, origIdx: idx, tag };
+  });
+}
+
+// 같은 값끼리의 상대 순서가 입력 대비 뒤집힌 원소들의 id 집합을 찾는다.
+function detectInstability(arr: SortElement[]): string[] {
+  const bad = new Set<string>();
+  for (let a = 0; a < arr.length; a++) {
+    for (let b = a + 1; b < arr.length; b++) {
+      if (arr[a].val === arr[b].val && arr[a].origIdx > arr[b].origIdx) {
+        bad.add(arr[a].id);
+        bad.add(arr[b].id);
+      }
+    }
+  }
+  return [...bad];
+}
+
 function generateSelectionSortSteps(initialArray: number[]): Step[] {
   const steps: Step[] = [];
-  // Build initial array of objects
-  const arr: SortElement[] = initialArray.map((val, idx) => ({ id: `id-${val}-${idx}`, val }));
+  // Build initial array of objects (중복 값에 a/b 태그 부여)
+  const arr: SortElement[] = tagDuplicates(initialArray);
   const n = arr.length;
   const isSorted = new Array(n).fill(false);
 
@@ -89,6 +125,7 @@ function generateSelectionSortSteps(initialArray: number[]): Step[] {
       arr[i] = arr[minIdx];
       arr[minIdx] = temp;
 
+      const flipped = detectInstability(arr);
       steps.push({
         array: [...arr],
         i: i,
@@ -96,7 +133,10 @@ function generateSelectionSortSteps(initialArray: number[]): Step[] {
         minIndex: minIdx,
         isSwapping: false,
         isSorted: [...isSorted],
-        msg: `교환 완료.`,
+        msg: flipped.length > 0
+          ? `교환 완료. ⚠️ 멀리 떨어진 자리와 바꾸면서 같은 값의 순서가 뒤집혔습니다 (불안정).`
+          : `교환 완료.`,
+        instabilityIds: flipped,
       });
     } else {
       steps.push({
@@ -123,6 +163,7 @@ function generateSelectionSortSteps(initialArray: number[]): Step[] {
   }
 
   isSorted[n - 1] = true;
+  const finalFlipped = detectInstability(arr);
   steps.push({
     array: [...arr],
     i: n,
@@ -130,7 +171,10 @@ function generateSelectionSortSteps(initialArray: number[]): Step[] {
     minIndex: -1,
     isSwapping: false,
     isSorted: [...isSorted],
-    msg: "모든 데이터가 정렬되었습니다!",
+    msg: finalFlipped.length > 0
+      ? "정렬 완료! 단, 같은 값(8a·8b)의 상대 순서가 입력과 달라졌습니다 → 선택 정렬은 불안정(Unstable) 정렬입니다."
+      : "모든 데이터가 정렬되었습니다!",
+    instabilityIds: finalFlipped,
   });
 
   return steps;
@@ -195,7 +239,9 @@ export function useSelectionSortSim(initialData: number[] = DEFAULT_SELECTION_DA
 // --- Visualizer Component ---
 export function SelectionSortVisualizer({ data }: { data: any }) {
   if (!data) return null;
-  const { array, i, j, minIndex, isSwapping, isSorted } = data as Step;
+  const { array, i, j, minIndex, isSwapping, isSorted, instabilityIds = [] } = data as Step;
+  const flippedSet = new Set(instabilityIds);
+  const hasInstability = flippedSet.size > 0;
 
   const N = array.length;
   const BLOCK_WIDTH = 50;
@@ -280,6 +326,7 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
           const isCurrentMin = idx === minIndex;
           const isComparing = idx === j && !isSwapping;
           const isSwapTarget = isSwapping && (idx === i || idx === minIndex);
+          const isFlipped = flippedSet.has(item.id);
 
           const x = START_X + idx * (BLOCK_WIDTH + BLOCK_SPACING);
 
@@ -331,9 +378,44 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
               <text x={BLOCK_WIDTH / 2} y={barHeight / 2 + 6} fill={textColor} fontSize="16" fontWeight="bold" textAnchor="middle">
                 {item.val}
               </text>
+              {/* 중복 값 구분 라벨 (a/b) — 안정성 추적용 */}
+              {item.tag && (
+                <text
+                  x={BLOCK_WIDTH / 2}
+                  y={barHeight / 2 + 22}
+                  fill={isFlipped ? colorTokens.destructive : "hsl(var(--muted-foreground))"}
+                  fontSize="11"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {item.val}{item.tag}
+                </text>
+              )}
               <text x={BLOCK_WIDTH / 2} y={barHeight + 20} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">
                 [{idx}]
               </text>
+
+              {/* 불안정성: 같은 값의 상대 순서가 뒤집힌 원소를 빨간 점선 링으로 강조 */}
+              <AnimatePresence>
+                {isFlipped && (
+                  <motion.rect
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: [0.5, 1, 0.5], scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                    x={-5}
+                    y={-5}
+                    width={BLOCK_WIDTH + 10}
+                    height={barHeight + 10}
+                    rx="6"
+                    fill="none"
+                    stroke={colorTokens.destructive}
+                    strokeWidth="2.5"
+                    strokeDasharray="5"
+                    style={{ transformOrigin: 'center' }}
+                  />
+                )}
+              </AnimatePresence>
 
               {/* Min tag */}
               <AnimatePresence>
@@ -390,6 +472,26 @@ export function SelectionSortVisualizer({ data }: { data: any }) {
           )}
         </AnimatePresence>
       </g>
+
+      {/* 불안정 정렬 경고 배너 — 같은 값의 순서가 뒤집힌 순간 표시 */}
+      <AnimatePresence>
+        {hasInstability && (
+          <motion.g
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transform="translate(470, 420)"
+          >
+            <rect width="290" height="50" rx="8" fill={colorTokens.destructiveGhost} stroke={colorTokens.destructive} strokeWidth="2" />
+            <text x="16" y="22" fill={colorTokens.destructive} fontSize="13" fontWeight="bold" filter="url(#neon-glow-orange)">
+              ⚠ 불안정 정렬 (Unstable)
+            </text>
+            <text x="16" y="40" fill="hsl(var(--muted-foreground))" fontSize="11">
+              같은 값 8a · 8b 의 상대 순서가 뒤집혔습니다
+            </text>
+          </motion.g>
+        )}
+      </AnimatePresence>
 
       {/* Legend */}
       <g transform="translate(40, 420)">

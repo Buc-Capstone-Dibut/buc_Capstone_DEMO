@@ -13,6 +13,10 @@ function SharedDefs() {
         <stop offset="0%" stopColor="hsl(160 84% 39%)" />
         <stop offset="100%" stopColor="hsl(160 84% 39%)" />
       </linearGradient>
+      <linearGradient id="destructive-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="hsl(347 89% 60%)" />
+        <stop offset="100%" stopColor="hsl(347 89% 60%)" />
+      </linearGradient>
       <linearGradient id="surface-grad" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stopColor="hsl(var(--card))" stopOpacity="1" />
         <stop offset="100%" stopColor="hsl(var(--muted))" stopOpacity="0.5" />

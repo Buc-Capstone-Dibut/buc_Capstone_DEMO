@@ -1,118 +1,197 @@
+"use client";
+
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { colorTokens } from "../../shared/svg-primitives";
 
 const CAPACITY = 6;
 
-export function useCircularQueueSim() {
-  const [items, setItems] = useState<(number | null)[]>([10, 20, null, null, null, null]);
-  const [front, setFront] = useState(0);
-  const [rear, setRear] = useState(1);
-  const [size, setSize] = useState(2);
-  const [logs, setLogs] = useState<string[]>([
-    "> 시스템 초기화: 원형 큐(Circular Ring Buffer Queue)",
-    "> [대기] 모듈러 연산(%)을 통해 공간을 재사용합니다. (rear + 1) % capacity"
-  ]);
-  const [action, setAction] = useState<{ type: "IDLE" | "ENQUEUE" | "DEQUEUE" | "PEEK" | "ERROR", val?: number, index?: number }>({ type: "IDLE" });
+// ── Step model ───────────────────────────────────────────────────────────────
+type CircularActionType = "IDLE" | "ENQUEUE" | "DEQUEUE" | "PEEK" | "ERROR";
+type CircularStep = {
+  items: (number | null)[];
+  front: number;
+  rear: number;
+  size: number;
+  action: { type: CircularActionType; val?: number; index?: number };
+  capacity: number;
+  msg: string;
+  formula: string; // 화면에 표시할 모듈러 불변식 수치 (rear=(rear+1)%cap=...)
+};
 
-  const appendLog = useCallback((msg: string) => setLogs(l => [`> ${msg}`, ...l]), []);
+const DEFAULT_CIRCULAR_SEED = [10, 20];
+// 시나리오 (capacity=6, seed=[10,20] → front=0,rear=1):
+//   1) ENQUEUE 30,40,50,60 → rear 1→5, size 6 (FULL)
+//   2) DEQUEUE ×2          → front 0→2, index 0·1 비움 (size 4)
+//   3) ENQUEUE 70,80       → newRear=(5+1)%6=0, (0+1)%6=1 → wrap! 비워진 0·1번 재사용
+// 이로써 rear 가 capacity-1 을 넘겨 0 으로 되돌아오는 wrap-around 가 실제로 발생한다.
+const CIRCULAR_FILL_VALUES = [30, 40, 50, 60];
+const CIRCULAR_WRAP_VALUES = [70, 80];
 
-  const push = useCallback(() => { // enqueue
-    if (size >= CAPACITY) {
-      setAction({ type: "ERROR" });
-      appendLog("[오버플로] 링 버퍼가 가득 찼습니다! 데이터를 추가할 수 없습니다.");
+function buildCircularSteps(seed: number[], capacity: number): CircularStep[] {
+  const steps: CircularStep[] = [];
+  const items: (number | null)[] = Array.from({ length: capacity }, (_, i) => seed[i] ?? null);
+  let front = 0;
+  let rear = seed.length - 1;
+  let size = seed.length;
+
+  const snapshot = (action: CircularStep["action"], msg: string, formula: string): CircularStep => ({
+    items: [...items],
+    front,
+    rear,
+    size,
+    action,
+    capacity,
+    msg,
+    formula,
+  });
+
+  const enqueue = (val: number) => {
+    if (size >= capacity) {
+      steps.push(snapshot(
+        { type: "ERROR" },
+        `[오버플로] 링 버퍼가 가득 참(${size}/${capacity}). ${val} 삽입 불가.`,
+        `size(${size}) == capacity(${capacity}) → FULL`
+      ));
       return;
     }
-    const newRear = (rear + 1) % CAPACITY;
-    const val = Math.floor(Math.random() * 90) + 10;
-    setItems(prev => {
-      const next = [...prev];
-      next[newRear] = val;
-      return next;
-    });
-    setRear(newRear);
-    setSize(s => s + 1);
-    setAction({ type: "ENQUEUE", val, index: newRear });
-    appendLog(`[ENQUEUE] 인덱스 ${newRear}에 ${val} 삽입됨. Rear → ${newRear} (모듈로 회전). 크기: ${size + 1}.`);
-  }, [appendLog, rear, size]);
+    const newRear = (rear + 1) % capacity;
+    const formula = `rear = (${rear} + 1) % ${capacity} = ${newRear}`;
+    items[newRear] = val;
+    const wrapped = newRear < rear; // 끝 → 0 으로 되돌아옴
+    rear = newRear;
+    size += 1;
+    steps.push(snapshot(
+      { type: "ENQUEUE", val, index: newRear },
+      `[ENQUEUE] ${formula}. index ${newRear} 에 ${val} 저장${wrapped ? " (← wrap! 끝에서 0번으로 순환, 비워진 칸 재사용)" : ""}. 크기 ${size}/${capacity}`,
+      formula
+    ));
+  };
 
-  const pop = useCallback(() => { // dequeue
-    if (size === 0) {
-      setAction({ type: "ERROR" });
-      appendLog("[언더플로] 링 버퍼가 비어 있습니다.");
-      return;
-    }
+  const dequeue = () => {
+    if (size === 0) return;
     const val = items[front];
-    setItems(prev => {
-      const next = [...prev];
-      next[front] = null;
-      return next;
-    });
-    const newFront = (front + 1) % CAPACITY;
-    setFront(newFront);
-    setSize(s => s - 1);
-    setAction({ type: "DEQUEUE", val: val ?? undefined, index: front });
-    appendLog(`[DEQUEUE] 인덱스 ${front}에서 ${val} 제거됨. Front → ${newFront} (모듈로 회전). 크기: ${size - 1}.`);
-  }, [appendLog, front, size, items]);
+    items[front] = null;
+    const newFront = (front + 1) % capacity;
+    const formula = `front = (${front} + 1) % ${capacity} = ${newFront}`;
+    const oldFront = front;
+    front = newFront;
+    size -= 1;
+    steps.push(snapshot(
+      { type: "DEQUEUE", val: val ?? undefined, index: oldFront },
+      `[DEQUEUE] ${formula}. index ${oldFront} 의 ${val} 제거 → 그 칸은 재사용 가능. 크기 ${size}/${capacity}`,
+      formula
+    ));
+  };
 
-  const peek = useCallback(() => {
-    if (size === 0) {
-      setAction({ type: "ERROR" });
-      appendLog("[PEEK] 버퍼가 비어 있습니다.");
-      return;
-    }
-    setAction({ type: "PEEK", val: items[front] ?? undefined, index: front });
-    appendLog(`[PEEK] Front 데이터는 인덱스 ${front}의 ${items[front]} 입니다.`);
-  }, [appendLog, front, size, items]);
+  steps.push(snapshot(
+    { type: "IDLE" },
+    `초기 링 버퍼: Front=${front}, Rear=${rear}, 크기=${size}/${capacity}.`,
+    `rear = (rear + 1) % ${capacity}`
+  ));
 
-  const reset = useCallback(() => {
-    setItems([10, 20, null, null, null, null]);
-    setFront(0); setRear(1); setSize(2);
-    setAction({ type: "IDLE" });
-    setLogs(["> 시스템 리셋: 링 버퍼 초기화 완료."]);
-  }, []);
+  // 1) ENQUEUE 로 끝까지 채워 FULL 도달 (rear 1→5)
+  for (const val of CIRCULAR_FILL_VALUES) enqueue(val);
+
+  // 2) DEQUEUE ×2 로 앞쪽 index 0·1 을 비워 재사용 가능 칸 확보 (front 0→2)
+  dequeue();
+  dequeue();
+
+  // 3) ENQUEUE 로 wrap-around 발생: newRear=(5+1)%6=0, (0+1)%6=1 → 비워진 0·1번 재사용
+  for (const val of CIRCULAR_WRAP_VALUES) enqueue(val);
+
+  // PEEK 마무리
+  if (size > 0) {
+    steps.push(snapshot(
+      { type: "PEEK", val: items[front] ?? undefined, index: front },
+      `[PEEK] Front(index ${front}) = ${items[front]}, Rear=${rear}. 선형 큐와 달리 빈 앞 칸을 모듈로로 자동 재활용.`,
+      `front = ${front}, rear = ${rear}, size = ${size}`
+    ));
+  }
+
+  return steps;
+}
+
+export function useCircularQueueSim(seed: number[] = DEFAULT_CIRCULAR_SEED) {
+  const [steps, setSteps] = useState<CircularStep[]>([]);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [logs, setLogs] = useState<string[]>([
+    "> 시스템 초기화: 원형 큐(Circular Ring Buffer)",
+    "> ▶︎ 또는 Push 버튼으로 진행 — (rear+1)%capacity 모듈러 회전을 수치로 확인하세요.",
+  ]);
 
   useEffect(() => {
-    if (action.type !== "IDLE") {
-      const timer = setTimeout(() => setAction({ type: "IDLE" }), 1500);
-      return () => clearTimeout(timer);
+    const generated = buildCircularSteps(seed, CAPACITY);
+    setSteps(generated);
+    setStepIdx(0);
+    setLogs([
+      "> 시스템 초기화: 원형 큐(Circular Ring Buffer)",
+      "> ▶︎ 또는 Push 버튼으로 진행 — (rear+1)%capacity 모듈러 회전을 수치로 확인하세요.",
+    ]);
+  }, [seed]);
+
+  const handleSetStep = useCallback((newStep: number) => {
+    if (newStep < 0 || newStep >= steps.length) return;
+    setStepIdx(newStep);
+    const base = ["> 시스템 초기화: 원형 큐(Circular Ring Buffer)"];
+    const collected: string[] = [];
+    for (let i = 1; i <= newStep; i++) {
+      collected.unshift(`> [Step ${i}] ${steps[i].msg}`);
     }
-  }, [action]);
+    setLogs([...collected, ...base]);
+  }, [steps]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx(prev => {
+      const next = prev >= steps.length - 1 ? prev : prev + 1;
+      if (next !== prev) handleSetStep(next);
+      return next;
+    });
+  }, [steps.length, handleSetStep]);
+
+  const reset = useCallback(() => {
+    handleSetStep(0);
+  }, [handleSetStep]);
+
+  const currentState = steps[stepIdx] || null;
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { items, front, rear, size, action, capacity: CAPACITY },
+      visualData: currentState,
       logs,
-      handlers: { push, pop, peek, reset, clear: reset }
-    }
+      handlers: {
+        push: nextStep,
+        clear: reset,
+      },
+      currentStep: stepIdx,
+      maxSteps: steps.length,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
+    },
   };
 }
 
-export function CircularQueueVisualizer({ data }: { data: { items: (number | null)[], front: number, rear: number, size: number, action: { type: string, val?: number, index?: number }, capacity: number } }) {
-  const { items, front, rear, size, action, capacity } = data;
+export function CircularQueueVisualizer({ data }: { data: CircularStep | null }) {
+  if (!data) return null;
+  const { items, front, rear, size, action, capacity, formula } = data;
   const isError = action.type === "ERROR";
 
-  const cx = 400, cy = 250, r = 130;
+  const VB_W = 800;
+  const VB_H = 500;
+  const cx = VB_W / 2;
+  const cy = 250;
+  const r = 130;
   const angleStep = (2 * Math.PI) / capacity;
   const cellPositions = Array.from({ length: capacity }, (_, i) => {
-    // start top (-PI/2), go clockwise
-    const angle = i * angleStep - Math.PI / 2;
-    return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
-      angle
-    };
+    const angle = i * angleStep - Math.PI / 2; // top start, clockwise
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle), angle };
   });
 
   return (
-    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+    <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="w-full h-full font-mono">
       <defs>
-        <linearGradient id="grid-fade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor={colorTokens.gridMid} />
-          <stop offset="100%" stopColor="transparent" />
-        </linearGradient>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.gridLine} strokeWidth="1" />
         </pattern>
@@ -154,7 +233,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       </defs>
 
       {/* Background */}
-      <rect width="800" height="500" fill="url(#grid)" />
+      <rect width={VB_W} height={VB_H} fill="url(#grid)" />
 
       {/* Title & Core Concept */}
       <text x="40" y="50" fill="hsl(271 91% 65%)" fontSize="24" fontWeight="bold" letterSpacing="2" filter="url(#neon-glow-purple)">원형 큐 (Circular Queue)</text>
@@ -164,6 +243,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
       <AnimatePresence>
         {action.type !== "IDLE" && (
           <motion.text
+            key={`action-${action.type}-${action.val ?? "x"}`}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -181,7 +261,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         )}
       </AnimatePresence>
 
-      {/* Center size display (lowered + smaller so F/R labels above don't overlap) */}
+      {/* Center size display */}
       <text x={cx} y={cy + 20} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(var(--muted-foreground))">크기 (SIZE)</text>
       <text x={cx} y={cy + 50} textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(271 91% 65%)" filter="url(#neon-glow-purple)">{size}/{capacity}</text>
 
@@ -206,7 +286,6 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
           const isFront = i === front && val !== null;
           const isRear = i === rear && val !== null;
           const isEmpty = val === null;
-
           const isActivelyDequeuing = action.type === "DEQUEUE" && action.index === i;
           const isActivelyEnqueuing = action.type === "ENQUEUE" && action.index === i;
 
@@ -217,7 +296,6 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              {/* Item Circle */}
               <motion.circle
                 cx={x}
                 cy={y}
@@ -228,8 +306,6 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 strokeDasharray={isEmpty ? "4 4" : "0"}
                 filter={isActivelyDequeuing ? "url(#neon-glow-destructive)" : (isActivelyEnqueuing ? "url(#neon-glow-emerald)" : (!isEmpty ? "url(#neon-glow-cyan)" : undefined))}
               />
-
-              {/* Value */}
               <motion.text
                 x={x}
                 y={y + 6}
@@ -241,8 +317,7 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 {val !== null ? val : "·"}
               </motion.text>
 
-              {/* Index Outline Label — pushed further out (r+75) to leave
-                  room for F/R pointer labels that sit at r+30 (cell-outside) */}
+              {/* Index Outline Label */}
               <text
                 x={cx + (r + 75) * Math.cos(angle)}
                 y={cy + (r + 75) * Math.sin(angle) + 4}
@@ -253,63 +328,21 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
                 [{i}]
               </text>
 
-              {/* Pointers — placed OUTSIDE the cell ring (r+30) so they never
-                  overlap with the centered SIZE text or the cell glyph itself */}
+              {/* Pointers */}
               <AnimatePresence>
                 {isFront && !isRear && (
-                  <motion.g
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <text
-                      x={cx + (r + 30) * Math.cos(angle)}
-                      y={cy + (r + 30) * Math.sin(angle) + 4}
-                      fill="hsl(0 84% 60%)"
-                      fontSize="13"
-                      fontWeight="bold"
-                      textAnchor="middle"
-                      filter="url(#neon-glow-destructive)"
-                    >
-                      F
-                    </text>
+                  <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <text x={cx + (r + 30) * Math.cos(angle)} y={cy + (r + 30) * Math.sin(angle) + 4} fill="hsl(0 84% 60%)" fontSize="13" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-destructive)">F</text>
                   </motion.g>
                 )}
                 {isRear && !isFront && (
-                  <motion.g
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <text
-                      x={cx + (r + 30) * Math.cos(angle)}
-                      y={cy + (r + 30) * Math.sin(angle) + 4}
-                      fill="hsl(160 84% 39%)"
-                      fontSize="13"
-                      fontWeight="bold"
-                      textAnchor="middle"
-                      filter="url(#neon-glow-emerald)"
-                    >
-                      R
-                    </text>
+                  <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <text x={cx + (r + 30) * Math.cos(angle)} y={cy + (r + 30) * Math.sin(angle) + 4} fill="hsl(160 84% 39%)" fontSize="13" fontWeight="bold" textAnchor="middle" filter="url(#neon-glow-emerald)">R</text>
                   </motion.g>
                 )}
                 {isFront && isRear && (
-                  <motion.g
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <text
-                      x={cx + (r + 30) * Math.cos(angle)}
-                      y={cy + (r + 30) * Math.sin(angle) + 4}
-                      fill="hsl(38 92% 50%)"
-                      fontSize="13"
-                      fontWeight="bold"
-                      textAnchor="middle"
-                    >
-                      F=R
-                    </text>
+                  <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <text x={cx + (r + 30) * Math.cos(angle)} y={cy + (r + 30) * Math.sin(angle) + 4} fill="hsl(38 92% 50%)" fontSize="13" fontWeight="bold" textAnchor="middle">F=R</text>
                   </motion.g>
                 )}
               </AnimatePresence>
@@ -318,27 +351,42 @@ export function CircularQueueVisualizer({ data }: { data: { items: (number | nul
         })}
       </AnimatePresence>
 
-      {/* Info Panel on bottom left */}
-      <g transform="translate(40, 390)">
-        <rect x="0" y="0" width="220" height="70" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
-        <text x="15" y="25" fill="hsl(var(--muted-foreground))" fontSize="11" fontWeight="bold" letterSpacing="1">모듈러 로직 (MODULO LOGIC)</text>
-        <rect x="15" y="35" width="190" height="25" fill="hsl(var(--muted))" rx="4" />
-        <text x="25" y="52" fill="hsl(271 91% 65%)" fontSize="11" fontFamily="monospace">rear = (rear + 1) % size</text>
+      {/* Modulo invariant panel — 현재 스텝의 수치 계산을 그대로 노출 */}
+      <g transform="translate(40, 380)">
+        <rect x="0" y="0" width="300" height="80" fill="hsl(var(--card))" opacity="0.7" stroke={isError ? "hsl(0 84% 60%)" : "hsl(271 91% 65%)"} strokeWidth="1.5" rx="8" />
+        <text x="15" y="24" fill="hsl(var(--muted-foreground))" fontSize="11" fontWeight="bold" letterSpacing="1">모듈러 불변식 (MODULO INVARIANT)</text>
+        <rect x="15" y="34" width="270" height="30" fill="hsl(var(--muted))" rx="4" />
+        <motion.text
+          key={`formula-${formula}`}
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          x="28"
+          y="54"
+          fill="hsl(271 91% 65%)"
+          fontSize="13"
+          fontWeight="bold"
+          fontFamily="monospace"
+          filter="url(#neon-glow-purple)"
+        >
+          {formula}
+        </motion.text>
       </g>
 
-      {/* Info Panel on bottom right */}
-      <g transform="translate(620, 390)">
-        <rect x="0" y="0" width="140" height="70" fill="hsl(var(--card))" opacity="0.6" stroke="hsl(var(--border))" rx="8" />
-
+      {/* Front/Rear/Size panel */}
+      <g transform="translate(600, 390)">
+        <rect x="0" y="0" width="160" height="70" fill="hsl(var(--card))" opacity="0.7" stroke="hsl(var(--border))" rx="8" />
         <text x="15" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">Front:</text>
         <text x="55" y="25" fill="hsl(0 84% 60%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-destructive)">{front}</text>
-
         <text x="15" y="45" fill="hsl(var(--muted-foreground))" fontSize="11">Rear:</text>
         <text x="55" y="45" fill="hsl(160 84% 39%)" fontSize="12" fontWeight="bold" filter="url(#neon-glow-emerald)">{rear}</text>
-
-        <text x="90" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">최대:</text>
-        <text x="120" y="25" fill="hsl(var(--foreground))" fontSize="11">{capacity}</text>
+        <text x="90" y="25" fill="hsl(var(--muted-foreground))" fontSize="11">용량:</text>
+        <text x="130" y="25" fill="hsl(var(--foreground))" fontSize="11">{capacity}</text>
+        <text x="90" y="45" fill="hsl(var(--muted-foreground))" fontSize="11">크기:</text>
+        <text x="130" y="45" fill="hsl(271 91% 65%)" fontSize="11" fontWeight="bold">{size}</text>
       </g>
+
+      {/* Step narration (very bottom) */}
+      <text x="40" y={VB_H - 8} fill="hsl(var(--muted-foreground))" fontSize="11">{data.msg}</text>
     </svg>
   );
 }

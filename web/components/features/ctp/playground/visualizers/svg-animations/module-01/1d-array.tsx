@@ -1,306 +1,188 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
+
+const ARR = ["A", "B", "C", "D", "E", "F"];
+
+// Each step is a directly-addressable array operation. The slider scrubs
+// across operations (= direct manipulation of which index/slice is shown).
+type Op =
+  | { kind: "idle" }
+  | { kind: "access"; index: number }
+  | { kind: "slice"; from: number; to: number } // [from, to)
+  | { kind: "oob"; index: number };
+
+type Step = { op: Op; code: string; msg: string };
+
+const STEPS: Step[] = [
+  { op: { kind: "idle" }, code: "const arr = ['A','B','C','D','E','F'];", msg: "1차원 배열은 연속된 메모리 블록입니다. Step / 슬라이더로 인덱스·슬라이싱을 조작하세요." },
+  { op: { kind: "access", index: 0 }, code: "arr[0]            // 'A'", msg: "인덱스 0 접근. 오프셋을 직접 계산 → O(1)." },
+  { op: { kind: "access", index: 5 }, code: "arr[arr.length-1] // 'F'", msg: "마지막 인덱스 5 접근. 위치와 무관하게 O(1)." },
+  { op: { kind: "access", index: 2 }, code: "arr[2]            // 'C'", msg: "임의 인덱스 2 접근. 모든 인덱스 접근 비용은 동일." },
+  { op: { kind: "slice", from: 1, to: 4 }, code: "arr.slice(1, 4)   // ['B','C','D']", msg: "슬라이싱 [1,4): 새 배열로 복사 → O(N)." },
+  { op: { kind: "slice", from: 3, to: 6 }, code: "arr.slice(3, 6)   // ['D','E','F']", msg: "슬라이싱 [3,6): 끝까지 복사." },
+  { op: { kind: "oob", index: 6 }, code: "arr[6]            // out of bounds", msg: "범위(0~5)를 벗어난 인덱스 6 접근 → undefined / 경계 오류." },
+];
 
 export function use1DArraySim() {
-  const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "> SYSTEM INITIALIZED: 1D Array Structure (Linear Memory allocation)",
-    "> [AWAITING COMMAND] >> press 'Step Forward' to trace memory access."
-  ]);
-  const maxSteps = 4;
+  const [stepIdx, setStepIdx] = useState(0);
+  const [logs, setLogs] = useState<string[]>(["> 1D Array 준비 완료. Step을 눌러 메모리 접근을 추적하세요."]);
+  const maxSteps = STEPS.length;
 
-  const appendLog = useCallback((msg: string) => setLogs(p => [`> ${msg}`, ...p]), []);
-
-  const peek = useCallback(() => {
-    setStep(prev => {
-      const next = prev >= maxSteps ? 1 : prev + 1;
-      if (next === 1) appendLog("[SUCCESS] ptr = arr[0] -> Accessing index 0 (O(1)). Value: 'A'");
-      if (next === 2) appendLog("[SUCCESS] ptr = arr[5] -> Accessing tail element (O(1)). Value: 'F'");
-      if (next === 3) appendLog("[ALLOCATE] ptr = arr.slice(1, 4) -> Copying indices 1-3 into new memory segment.");
-      if (next === 4) appendLog("[SEGFAULT] ptr = arr[6] -> FATAL: Memory Violation! Out of Bounds access at requested offset.");
-      return next;
-    });
-  }, [appendLog]);
-
-  const reset = useCallback(() => {
-    setStep(0);
-    setLogs(["> SYSTEM RESET: Memory footprint cleared. Waiting for allocation."]);
+  const rebuild = useCallback((t: number) => {
+    const arr = ["> 1D Array 준비 완료. Step을 눌러 메모리 접근을 추적하세요."];
+    for (let i = 1; i <= t; i++) arr.unshift(`[Step ${i}] ${STEPS[i].msg}`);
+    setLogs(arr);
   }, []);
+
+  const handleSetStep = useCallback((s: number) => {
+    if (s < 0 || s >= maxSteps) return;
+    setStepIdx(s);
+    rebuild(s);
+  }, [maxSteps, rebuild]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx((p) => {
+      const n = p >= maxSteps - 1 ? p : p + 1;
+      if (n !== p) rebuild(n);
+      return n;
+    });
+  }, [maxSteps, rebuild]);
+
+  const reset = useCallback(() => handleSetStep(0), [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: STEPS[stepIdx],
       logs,
-      handlers: { peek, reset, clear: reset }
-    }
+      handlers: { push: nextStep, clear: reset },
+      currentStep: stepIdx,
+      maxSteps,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
+    },
   };
 }
 
-export function OneDArrayVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
-  const arr = ["A", "B", "C", "D", "E", "F"];
+export function OneDArrayVisualizer({ data }: { data: Step | null }) {
+  const op = data?.op ?? { kind: "idle" as const };
 
-  // Cyber Background Grid
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-20">
-      <div className="absolute inset-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px),
-            linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px'
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-    </div>
-  );
+  const cell = 70;
+  const gap = 14;
+  const startX = 70;
+  const rowY = 210;
+
+  const sliceMembers =
+    op.kind === "slice"
+      ? Array.from({ length: op.to - op.from }, (_, k) => op.from + k)
+      : [];
 
   return (
-    <div className="w-full flex flex-col items-center bg-background/40 relative font-mono px-8 gap-8 rounded-xl py-8">
-      <CyberGrid />
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <filter id="oa-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
 
-      {/* Narrative Info Header */}
-      <motion.div
-        className="w-full max-w-5xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl shadow-[0_0_30px_hsla(var(--primary),0.05)]"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-        <p className="text-sm font-medium tracking-wide">
-          {step === 0 && "1D Arrays are contiguous blocks of memory. Access is O(1)."}
-          {step === 1 && "Access via index '0'. Offset calculation is instantaneous."}
-          {step === 2 && "Access via length offset. Also an O(1) operation."}
-          {step === 3 && ".slice() creates a shallow copy, allocating new memory. O(N)."}
-          {step === 4 && "Access beyond capacity triggers a bounds error or returns undefined."}
-        </p>
-      </motion.div>
+      <text x="40" y="40" fontSize="16" fontWeight="bold" fill={colorTokens.info}>1차원 배열 — 인덱스 접근 & 슬라이싱</text>
 
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10">
+      {/* code line */}
+      <rect x="40" y="62" width="720" height="40" rx="8" fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+      <text x="56" y="87" fontSize="14" fill={colorTokens.text}>{data?.code ?? STEPS[0].code}</text>
 
-        {/* Code Execution Panel */}
-        <div className="flex-1 min-w-[300px] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
-          <div className="flex items-center gap-2 mb-4 px-2">
-            <div className="w-3 h-3 rounded-full bg-destructive/80" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-            <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-            <span className="ml-2 text-muted-foreground text-xs uppercase tracking-widest font-semibold flex-1 text-center">Execution Context</span>
-          </div>
+      {/* slice bracket */}
+      <AnimatePresence>
+        {op.kind === "slice" && (
+          <motion.g initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <rect x={startX + op.from * (cell + gap) - 6} y={rowY - 56} rx="8"
+              width={(op.to - op.from) * (cell + gap) - gap + 12} height="44"
+              fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="1.5" strokeDasharray="5 4" />
+            <text x={startX + op.from * (cell + gap)} y={rowY - 64} fontSize="11" fontWeight="bold" fill={colorTokens.success}>
+              new array sub[] = slice({op.from}, {op.to})
+            </text>
+          </motion.g>
+        )}
+      </AnimatePresence>
 
-          <div className="relative text-base h-full flex flex-col justify-center py-4">
-            {/* Active Highlight Background */}
-            <motion.div
-              className="absolute left-[-24px] right-[-24px] h-[36px] bg-primary/10 border-l-[3px] border-primary pointer-events-none z-0"
-              initial={{ top: 0, opacity: 0 }}
+      {/* main array */}
+      {ARR.map((ch, i) => {
+        const x = startX + i * (cell + gap);
+        const isAccess = (op.kind === "access" && op.index === i);
+        const inSlice = sliceMembers.includes(i);
+        let fill: string = colorTokens.faintFill, stroke: string = colorTokens.border, txt: string = colorTokens.text, sw = 1.5;
+        if (isAccess) { fill = colorTokens.infoDim; stroke = colorTokens.info; txt = colorTokens.info; sw = 3; }
+        else if (inSlice) { fill = colorTokens.successDim; stroke = colorTokens.success; txt = colorTokens.success; sw = 2.5; }
+        return (
+          <g key={i}>
+            {isAccess && (
+              <motion.g initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <text x={x + cell / 2} y={rowY - 18} textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.info}>INDEX {i} ↓</text>
+              </motion.g>
+            )}
+            <motion.rect x={x} y={rowY} width={cell} height={cell} rx="10" initial={false}
+              animate={{ y: inSlice ? rowY - 6 : rowY }}
+              fill={fill} stroke={stroke} strokeWidth={sw}
+              filter={isAccess ? "url(#oa-glow)" : undefined} />
+            <text x={x + cell / 2} y={rowY + cell / 2 + 8} textAnchor="middle" fontSize="26" fontWeight="bold" fill={txt}>{ch}</text>
+            <text x={x + cell / 2} y={rowY + cell + 22} textAnchor="middle" fontSize="12" fill={colorTokens.muted}>[{i}]</text>
+            <text x={x + cell / 2} y={rowY + cell + 38} textAnchor="middle" fontSize="9" fill={colorTokens.muted}>0x{(0x1000 + i * 4).toString(16).toUpperCase()}</text>
+          </g>
+        );
+      })}
+
+      {/* out of bounds ghost cell */}
+      {(() => {
+        const i = ARR.length;
+        const x = startX + i * (cell + gap) + 10;
+        const isOob = op.kind === "oob";
+        return (
+          <g>
+            <line x1={x - 12} y1={rowY - 8} x2={x - 12} y2={rowY + cell + 8} stroke={colorTokens.border} strokeWidth="1.5" strokeDasharray="4 4" />
+            {isOob && (
+              <motion.text x={x + cell / 2} y={rowY - 18} textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.destructive}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}>INDEX 6 ↓</motion.text>
+            )}
+            <motion.rect x={x} y={rowY} width={cell} height={cell} rx="10" initial={false}
               animate={{
-                top: 16 + (step * 36), // 16px is the padding top of the container
-                opacity: step === 0 ? 0 : 1,
-                boxShadow: step > 0 ? "0 0 20px hsla(var(--primary), 0.2) inset" : "none"
+                stroke: isOob ? colorTokens.destructive : colorTokens.border,
+                rotate: isOob ? [0, -3, 3, 0] : 0,
               }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            />
+              style={{ transformOrigin: `${x + cell / 2}px ${rowY + cell / 2}px` }}
+              fill={isOob ? colorTokens.destructiveTrace : "transparent"} strokeWidth="2" strokeDasharray="5 4"
+              filter={isOob ? "url(#oa-glow)" : undefined} />
+            <text x={x + cell / 2} y={rowY + cell / 2 + 8} textAnchor="middle" fontSize={isOob ? 16 : 26} fontWeight="bold"
+              fill={isOob ? colorTokens.destructive : colorTokens.muted}>{isOob ? "ERR" : "?"}</text>
+            <text x={x + cell / 2} y={rowY + cell + 22} textAnchor="middle" fontSize="12" fill={isOob ? colorTokens.destructive : colorTokens.muted}>[6]</text>
+          </g>
+        );
+      })()}
 
-            <div className="relative z-10 flex flex-col gap-[12px]">
-              <div className={`h-[24px] flex items-center ${step === 0 ? "text-primary font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span><span className="text-blue-400">const</span> arr = ['A', 'B', 'C', 'D', 'E', 'F'];</span>
-              </div>
-              <div className={`h-[24px] flex items-center ${step === 1 ? "text-foreground font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span><span className="text-yellow-300">console</span>.log(arr[<span className="text-blue-400">0</span>]); <span className="text-muted-foreground text-xs">// 'A'</span></span>
-              </div>
-              <div className={`h-[24px] flex items-center ${step === 2 ? "text-foreground font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span><span className="text-yellow-300">console</span>.log(arr[<span className="text-blue-400">arr.length-1</span>]); <span className="text-muted-foreground text-xs">// 'F'</span></span>
-              </div>
-              <div className={`h-[24px] flex items-center ${step === 3 ? "text-foreground font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span><span className="text-blue-400">const</span> sub = arr.<span className="text-emerald-400">slice</span>(1, 4); <span className="text-muted-foreground text-xs">// ['B', 'C', 'D']</span></span>
-              </div>
-              <div className={`h-[24px] flex items-center ${step === 4 ? "text-foreground font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span><span className="text-yellow-300">console</span>.log(arr[<span className="text-destructive">6</span>]); <span className="text-muted-foreground text-xs">// Out Of Bounds</span></span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* slice extraction preview (copied out) */}
+      <AnimatePresence>
+        {op.kind === "slice" && (
+          <motion.g initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <text x="70" y="360" fontSize="11" fontWeight="bold" fill={colorTokens.success}>복사된 새 배열 (별도 메모리):</text>
+            {sliceMembers.map((idx, k) => {
+              const x = 70 + k * (cell + gap);
+              return (
+                <g key={k}>
+                  <rect x={x} y="372" width={cell} height={cell} rx="10" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="2" />
+                  <text x={x + cell / 2} y={372 + cell / 2 + 8} textAnchor="middle" fontSize="24" fontWeight="bold" fill={colorTokens.success}>{ARR[idx]}</text>
+                  <text x={x + cell / 2} y={372 + cell + 18} textAnchor="middle" fontSize="11" fill={colorTokens.muted}>[{k}]</text>
+                </g>
+              );
+            })}
+          </motion.g>
+        )}
+      </AnimatePresence>
 
-        {/* Memory Hardware Interface */}
-        <div className="flex-[2] bg-card/40 backdrop-blur-sm rounded-2xl p-8 border border-border shadow-2xl relative flex flex-col items-center justify-center overflow-hidden min-h-[350px]">
-          {/* Decorative Memory Trace Lines */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20" preserveAspectRatio="none">
-            <path d="M 0,50 L 50,50 L 100,100 L 400,100" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 4" />
-            <path d="M 0,200 L 80,200 L 150,150 L 400,150" fill="none" stroke="hsl(var(--destructive))" strokeWidth="2" strokeDasharray="4 4" />
-          </svg>
-
-          <div className="text-xs font-black uppercase tracking-widest text-muted-foreground bg-muted px-4 py-1 rounded-full mb-12 z-10 border border-border shadow-inner">
-            Linear Memory Segment: 0x00A1F
-          </div>
-
-          <div className="relative z-10 w-full flex justify-center">
-            {/* Main Array Strip */}
-            <div className="flex relative bg-muted/20 p-4 rounded-xl border border-primary/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-md">
-              {arr.map((char, i) => {
-                const isTargetStep1 = step === 1 && i === 0;
-                const isTargetStep2 = step === 2 && i === 5;
-                const isSliced = step === 3 && i >= 1 && i < 4;
-
-                let bgColor = "hsl(var(--card))";
-                let borderColor = "hsl(var(--border))";
-                let textColor = "hsl(var(--card-foreground))";
-                let shadowColor = "none";
-                let yOffset = 0;
-
-                if (isTargetStep1) {
-                  bgColor = "hsl(var(--primary)/0.2)";
-                  borderColor = "hsl(var(--primary))";
-                  textColor = "hsl(var(--primary))";
-                  shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
-                } else if (isTargetStep2) {
-                  bgColor = "hsl(var(--primary)/0.2)";
-                  borderColor = "hsl(var(--primary))";
-                  textColor = "hsl(var(--primary))";
-                  shadowColor = "0 0 20px hsla(var(--primary), 0.4)";
-                } else if (isSliced) {
-                  bgColor = "hsl(var(--emerald-500)/0.2)";
-                  borderColor = "hsl(var(--emerald-500))";
-                  textColor = "hsl(var(--emerald-500))";
-                  shadowColor = "0 0 15px hsla(var(--emerald-500), 0.3)";
-                  yOffset = -8;
-                }
-
-                return (
-                  <div key={`arr-node-${i}`} className="flex flex-col items-center relative mx-1 md:mx-1.5 min-w-[48px] md:min-w-[64px]">
-                    {/* Visual Pointer for Targeting */}
-                    <AnimatePresence>
-                      {(isTargetStep1 || isTargetStep2) && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -20, scale: 0.8 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -20, scale: 0.8 }}
-                          className={`absolute -top-12 flex flex-col items-center z-40 text-primary`}
-                        >
-                          <span className="font-bold text-[10px] tracking-widest bg-card border px-2 py-0.5 rounded shadow-[0_0_10px_currentColor] whitespace-nowrap">
-                            INDEX {i}
-                          </span>
-                          <div className="w-0.5 h-4 bg-current mt-1 rounded-full" />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Array Cell */}
-                    <motion.div
-                      animate={{
-                        y: yOffset,
-                        backgroundColor: bgColor,
-                        color: textColor,
-                        borderColor: borderColor,
-                        boxShadow: shadowColor,
-                        scale: (isTargetStep1 || isTargetStep2 || isSliced) ? 1.05 : 1
-                      }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className="w-12 h-14 md:w-16 md:h-16 border-2 flex items-center justify-center text-xl md:text-2xl font-black rounded-lg relative z-20 overflow-hidden"
-                    >
-                      {/* Inner glare */}
-                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/20 pointer-events-none" />
-                      {char}
-                    </motion.div>
-
-                    {/* Memory Address / Index beneath */}
-                    <div className="flex flex-col items-center mt-3 gap-1">
-                      <span className="text-[9px] md:text-[10px] text-muted-foreground/50 font-mono tracking-tighter">0x{(1000 + i * 4).toString(16).toUpperCase()}</span>
-                      <span className="text-xs text-muted-foreground font-bold px-2 py-0.5 rounded-sm bg-background border border-border/50 shadow-inner w-full text-center">
-                        [{i}]
-                      </span>
-                    </div>
-
-                    {/* Sliced copy extracting */}
-                    <AnimatePresence>
-                      {isSliced && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, y: -80, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.8, y: -40 }}
-                          transition={{ type: "spring", stiffness: 200, damping: 20, delay: (i-1) * 0.1 }}
-                          className="absolute top-0 w-12 h-14 md:w-16 md:h-16 border-y-2 border-emerald-500/50 bg-emerald-500/10 backdrop-blur-md text-emerald-400 flex items-center justify-center text-xl md:text-2xl font-black rounded-lg shadow-[0_0_20px_hsla(var(--emerald-500),0.3)] z-30 pointer-events-none"
-                        >
-                          {char}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })}
-
-              {/* Ghost Segment for Out of Bounds (Index 6) */}
-              <div className="flex flex-col items-center relative pl-2 md:pl-4 ml-2 md:ml-4 border-l-2 border-dashed border-border/50 min-w-[48px] md:min-w-[64px]">
-                 <AnimatePresence>
-                    {step === 4 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -20, scale: 0.8 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -20, scale: 0.8 }}
-                        className="absolute -top-12 flex flex-col items-center text-destructive z-40"
-                      >
-                        <span className="font-bold text-[10px] tracking-widest bg-destructive/10 border border-destructive/30 px-2 py-0.5 rounded shadow-[0_0_15px_hsla(var(--destructive),0.5)] whitespace-nowrap">
-                          INDEX 6
-                        </span>
-                        <div className="w-0.5 h-4 bg-current mt-1 rounded-full animate-pulse" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                <motion.div
-                  animate={{
-                    borderColor: step === 4 ? "hsl(var(--destructive))" : "hsl(var(--border)/0.3)",
-                    backgroundColor: step === 4 ? "hsl(var(--destructive)/0.1)" : "transparent",
-                    rotate: step === 4 ? [0, -3, 3, -3, 3, 0] : 0,
-                    boxShadow: step === 4 ? "0 0 30px hsla(var(--destructive), 0.4) inset" : "none"
-                  }}
-                  transition={{ duration: 0.4 }}
-                  className={`w-12 h-14 md:w-16 md:h-16 border-2 border-dashed flex items-center justify-center font-black rounded-lg relative z-20 overflow-hidden ${step === 4 ? "text-destructive text-sm" : "text-muted-foreground/30 text-xl"}`}
-                >
-                  {step === 4 ? (
-                    <motion.span animate={{ opacity: [1, 0.2, 1] }} transition={{ repeat: Infinity, duration: 0.2 }}>ERR_</motion.span>
-                  ) : "?"}
-
-                  {/* Matrix Glitch Overlay Line */}
-                  {step === 4 && (
-                    <motion.div
-                      className="absolute inset-x-0 h-0.5 bg-destructive/50"
-                      animate={{ top: ['0%', '100%'] }}
-                      transition={{ duration: 0.5, repeat: Infinity, ease: 'linear' }}
-                    />
-                  )}
-                </motion.div>
-
-                <div className="flex flex-col items-center mt-3 gap-1">
-                  <span className="text-[9px] md:text-[10px] text-destructive/50 font-mono tracking-tighter hidden md:block">UNALLOCATED</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-sm border w-full text-center ${step === 4 ? "bg-destructive/20 text-destructive border-destructive/50" : "bg-transparent text-muted-foreground border-transparent"}`}>
-                    [6]
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Slice Container Highlight Box */}
-            <AnimatePresence>
-              {step === 3 && (
-                <motion.div
-                  initial={{ opacity: 0, scaleX: 0.8 }}
-                  animate={{ opacity: 1, scaleX: 1 }}
-                  exit={{ opacity: 0, scaleX: 0.8 }}
-                  transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-                  className="absolute top-[-92px] left-[52px] md:left-[64px] w-[168px] md:w-[228px] h-20 border border-emerald-500/30 bg-emerald-500/5 rounded-xl -z-10 pointer-events-none"
-                >
-                  <span className="absolute -top-6 left-2 text-[10px] uppercase font-bold tracking-widest text-emerald-500 whitespace-nowrap">New Array Allocated: sub[]</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-          </div>
-        </div>
-      </div>
-    </div>
+      <text x="40" y="485" fontSize="12" fill={colorTokens.text}>{data?.msg ?? STEPS[0].msg}</text>
+    </svg>
   );
 }
