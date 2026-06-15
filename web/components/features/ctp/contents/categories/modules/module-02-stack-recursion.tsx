@@ -77,8 +77,8 @@ const STACK_QUEUE_MODULES = createInteractiveTemplateModules([
   {
     id: "queue-overview",
     title: "04-2 큐 개요",
-    description: "FIFO 처리 철학과 대기열 시스템에서의 공정성/처리량 균형을 학습합니다.",
-    sampleData: [4, 8, 2, 10],
+    description: "FIFO 처리 철학과 enqueue/dequeue 흐름에서의 공정성/처리량 균형을 학습합니다.",
+    sampleData: [10, 20, 30],
     story: {
       problem:
         "서버 요청, 프린터 작업, 고객 상담 대기열처럼 먼저 도착한 작업을 먼저 처리하지 않으면 시스템 신뢰도가 급격히 떨어집니다. 최신 요청만 우대하면 오래 기다린 작업이 굶주리는 Starvation이 발생하고, 전체 사용자 경험이 붕괴합니다.",
@@ -120,7 +120,7 @@ const STACK_QUEUE_MODULES = createInteractiveTemplateModules([
     id: "linear-queue",
     title: "04-3 배열 기반 큐",
     description: "Front/Rear 포인터와 빈 슬롯 누적 문제를 포함한 배열 큐 구현의 현실 제약을 학습합니다.",
-    sampleData: [1, 5, 7, 11],
+    sampleData: [10, 20],
     story: {
       problem:
         "배열 한 칸씩만 믿고 큐를 구현하면 `dequeue` 이후 앞쪽 빈 공간이 계속 남아도 rear가 끝에 도달해 '더 이상 못 넣는 것처럼 보이는 가짜 포화(False Overflow)'가 생깁니다. 자료구조 개념은 맞는데 구현이 망가지는 전형적인 케이스입니다.",
@@ -162,7 +162,7 @@ const STACK_QUEUE_MODULES = createInteractiveTemplateModules([
     id: "circular-queue",
     title: "04-4 링 버퍼 큐",
     description: "모듈러 인덱싱으로 고정 배열을 재활용하는 원형 큐 설계를 학습합니다.",
-    sampleData: [2, 4, 6, 8],
+    sampleData: [10, 20],
     story: {
       problem:
         "실시간 로그 처리, 오디오 버퍼, 네트워크 패킷 큐처럼 일정 메모리 안에서 계속 데이터를 받고 내보내야 하는 시스템은 선형 큐의 공간 낭비를 허용할 수 없습니다. 메모리 재할당이 잦아지면 지연 시간이 튀고 안정성이 떨어집니다.",
@@ -322,7 +322,7 @@ const RECURSION_MODULES = createInteractiveTemplateModules([
       {
         title: "성장 속도 체감",
         description:
-          "`n` 증가에 따른 이동 횟수 증가를 비교해 지수 복잡도의 위험성을 실제 숫자로 체감합니다.",
+          "최소 이동 횟수 `2^n - 1`이 `n`에 따라 어떻게 커지는지 수식으로 확인하며 지수 복잡도의 위험성을 체감합니다.",
         SupplementaryVisualizer: TowerOfHanoiSupplementaryOptions[3]
       },
     ],

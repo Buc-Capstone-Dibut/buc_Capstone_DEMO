@@ -1,330 +1,234 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
+
+// Trace of `for (let x = 0; x < 3; x++) print(x)` modelled as discrete steps.
+type Branch = "none" | "true" | "false";
+type Step = {
+  node: "start" | "init" | "cond" | "body" | "update" | "end";
+  x: number | null; // control variable value (null before init)
+  branch: Branch; // result of the most recent condition test
+  output: string[]; // console output accumulated
+  msg: string;
+};
+
+const STEPS: Step[] = [
+  { node: "start", x: null, branch: "none", output: [], msg: "프로그램이 시작되었습니다." },
+  { node: "init", x: 0, branch: "none", output: [], msg: "제어 변수 x를 0으로 초기화합니다." },
+  { node: "cond", x: 0, branch: "true", output: [], msg: "조건 x<3 → 0<3 = TRUE. 본문으로 진입합니다." },
+  { node: "body", x: 0, branch: "true", output: ["x is 0"], msg: "본문 실행: print(0)." },
+  { node: "update", x: 1, branch: "true", output: ["x is 0"], msg: "x++ → x=1. 조건으로 회귀합니다." },
+  { node: "cond", x: 1, branch: "true", output: ["x is 0"], msg: "조건 1<3 = TRUE." },
+  { node: "body", x: 1, branch: "true", output: ["x is 0", "x is 1"], msg: "본문 실행: print(1)." },
+  { node: "update", x: 2, branch: "true", output: ["x is 0", "x is 1"], msg: "x++ → x=2." },
+  { node: "cond", x: 2, branch: "true", output: ["x is 0", "x is 1"], msg: "조건 2<3 = TRUE." },
+  { node: "body", x: 2, branch: "true", output: ["x is 0", "x is 1", "x is 2"], msg: "본문 실행: print(2)." },
+  { node: "update", x: 3, branch: "true", output: ["x is 0", "x is 1", "x is 2"], msg: "x++ → x=3." },
+  { node: "cond", x: 3, branch: "false", output: ["x is 0", "x is 1", "x is 2"], msg: "조건 3<3 = FALSE. 거짓 분기로 루프를 탈출합니다." },
+  { node: "end", x: 3, branch: "false", output: ["x is 0", "x is 1", "x is 2"], msg: "루프 종료. 제어권을 반환합니다." },
+];
 
 export function useConditionLoopSim() {
-  const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "[SYSTEM] Control_Flow 엔진 준비 완료.",
-    "[SYSTEM] Peek 버튼을 눌러 라우팅 경로를 확인하세요."
-  ]);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [logs, setLogs] = useState<string[]>(["> Control_Flow 엔진 준비 완료. Step을 눌러 시작하세요."]);
+  const maxSteps = STEPS.length;
 
-  const maxSteps = 6;
-
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const rebuild = useCallback((t: number) => {
+    const arr = ["> Control_Flow 엔진 준비 완료. Step을 눌러 시작하세요."];
+    for (let i = 1; i <= t; i++) arr.unshift(`[Step ${i}] ${STEPS[i].msg}`);
+    setLogs(arr);
   }, []);
 
-  const peek = useCallback(() => {
-    setStep((prev) => {
-      const next = prev >= maxSteps ? 1 : prev + 1;
-      let logMsg = "";
-      if (next === 1) logMsg = "Step 1: [START] 메인 스레드가 진입점에 도달했습니다.";
-      if (next === 2) logMsg = "Step 2: [INIT] 메모리 할당: 제어 변수 x가 0으로 초기화되었습니다.";
-      if (next === 3) logMsg = "Step 3: [CONDITION] 분기점 도달. 조건(x < 3)을 평가 중입니다...";
-      if (next === 4) logMsg = "Step 4: [BODY] 조건 평가 결과 TRUE. 루프 본문 연산이 실행됩니다.";
-      if (next === 5) logMsg = "Step 5: [UPDATE] 제어 변수 업데이트 (x++). 평가 지점으로 회귀합니다.";
-      if (next === 6) logMsg = "Step 6: [EXIT] 조건 평가 결과 FALSE. 메인 스레드로 제어권을 반환합니다.";
-      appendLog(logMsg);
-      return next;
+  const handleSetStep = useCallback((s: number) => {
+    if (s < 0 || s >= maxSteps) return;
+    setStepIdx(s);
+    rebuild(s);
+  }, [maxSteps, rebuild]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx((p) => {
+      const n = p >= maxSteps - 1 ? p : p + 1;
+      if (n !== p) rebuild(n);
+      return n;
     });
-  }, [appendLog]);
+  }, [maxSteps, rebuild]);
 
-  const reset = useCallback(() => {
-    setStep(0);
-    setLogs(["[SYSTEM] 메모리 초기화 및 포인터 리셋 완료."]);
-  }, []);
+  const reset = useCallback(() => handleSetStep(0), [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: STEPS[stepIdx],
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: nextStep, clear: reset },
+      currentStep: stepIdx,
+      maxSteps,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
     },
   };
 }
 
-export function ConditionLoopVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+// All coordinates relative to a 800x500 viewBox (defect 2: no hardcoded px).
+const VB = { w: 800, h: 500 };
+const CX = 300; // flow column center
+// node anchor geometry
+const NODE = {
+  start: { cy: 50, w: 150, h: 40, shape: "pill" },
+  init: { cy: 130, w: 170, h: 44, shape: "rect" },
+  cond: { cy: 240, r: 64, shape: "diamond" },
+  body: { cy: 360, w: 200, h: 46, shape: "rect" },
+  end: { cy: 450, w: 150, h: 40, shape: "pill" },
+} as const;
 
-  // Simulate variable state based on step
-  const getVariableX = () => {
-    if (step < 2) return "null";
-    if (step >= 2 && step <= 4) return "0";
-    if (step === 5) return "1";
-    if (step === 6) return "3";
-    return "0";
-  };
+export function ConditionLoopVisualizer({ data }: { data: Step | null }) {
+  const s = data;
+  const node = s?.node ?? "start";
+  const branch = s?.branch ?? "none";
+  const xVal = s?.x;
+  const output = s?.output ?? [];
 
-  const getLogOutput = () => {
-    if (step < 4) return "None";
-    if (step >= 4 && step <= 5) return "x is 0";
-    if (step === 6) return "x is 0\\nx is 1\\nx is 2";
-    return "";
-  };
+  const isActive = (n: string) => node === n;
+  const diamondPts = (cy: number, r: number) =>
+    `${CX},${cy - r} ${CX + r},${cy} ${CX},${cy + r} ${CX - r},${cy}`;
+
+  const edgeColor = (on: boolean, c: string) => (on ? c : colorTokens.border);
 
   return (
-    <div className="w-full flex flex-col bg-background/50 font-mono rounded-xl overflow-hidden">
-       {/* Background Cyber Grid */}
-       <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-        <defs>
-          <pattern id="cl-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(var(--primary))" strokeWidth="0.5" strokeOpacity="0.3" />
-            <circle cx="20" cy="20" r="1" fill="hsl(var(--primary))" opacity="0.3" />
-          </pattern>
-          <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#cl-grid)" />
-        <rect width="100%" height="100%" fill="url(#center-glow)" />
-      </svg>
+    <svg viewBox={`0 0 ${VB.w} ${VB.h}`} className="w-full h-full font-mono">
+      <defs>
+        <filter id="cl-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <marker id="cl-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill={colorTokens.muted} />
+        </marker>
+      </defs>
 
-      <div className="relative w-full max-w-5xl flex flex-row items-center justify-between px-8 py-8 z-10">
+      <text x="40" y="34" fontSize="16" fontWeight="bold" fill={colorTokens.info}>조건문 + 반복문 흐름 추적</text>
+      <text x="40" y="54" fontSize="11" fill={colorTokens.muted}>for (let x = 0; x &lt; 3; x++) print(x)</text>
 
-        {/* Left: Memory & Output Panel */}
-        <div className="w-64 flex flex-col gap-6">
-          <motion.div
-            animate={{
-              boxShadow: step === 2 || step === 5 ? "0 0 20px hsla(var(--primary), 0.3)" : "none",
-              borderColor: step === 2 || step === 5 ? "hsl(var(--primary))" : "hsl(var(--border))"
-            }}
-            className="w-full bg-card/80 border border-border/50 rounded-2xl p-5 shadow-lg backdrop-blur-md"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Memory Block</h4>
-            </div>
-            <div className="bg-background/80 p-3 rounded-lg border border-border flex justify-between items-center">
-              <span className="text-primary/70 font-bold text-sm">let x =</span>
-              <span className="text-2xl font-black font-mono text-foreground">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={getVariableX()}
-                    initial={{ opacity: 0, y: -10, color: "hsl(var(--primary))" }}
-                    animate={{ opacity: 1, y: 0, color: "hsl(var(--foreground))" }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.2 }}
-                    className="inline-block"
-                  >
-                    {getVariableX()}
-                  </motion.span>
-                </AnimatePresence>
-              </span>
-            </div>
-          </motion.div>
+      {/* ── edges (computed anchors) ── */}
+      {/* start -> init */}
+      <line x1={CX} y1={NODE.start.cy + NODE.start.h / 2} x2={CX} y2={NODE.init.cy - NODE.init.h / 2}
+        stroke={edgeColor(node !== "start", colorTokens.info)} strokeWidth="3" markerEnd="url(#cl-arrow)" />
+      {/* init -> cond */}
+      <line x1={CX} y1={NODE.init.cy + NODE.init.h / 2} x2={CX} y2={NODE.cond.cy - NODE.cond.r}
+        stroke={edgeColor(node === "cond" || node === "body" || node === "update" || node === "end", colorTokens.info)} strokeWidth="3" markerEnd="url(#cl-arrow)" />
 
-          <motion.div
-             animate={{
-              boxShadow: step === 4 ? "0 0 20px hsla(var(--emerald-500), 0.2)" : "none",
-              borderColor: step === 4 ? "hsl(var(--emerald-500)/0.5)" : "hsl(var(--border))"
-            }}
-            className="w-full h-40 bg-card/80 border border-border/50 rounded-2xl p-5 shadow-lg backdrop-blur-md flex flex-col"
-          >
-             <div className="flex items-center gap-2 mb-3">
-              <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Console Output</h4>
-            </div>
-            <div className="flex-1 bg-black/40 rounded-lg p-3 overflow-hidden border border-border/30 font-mono text-xs text-emerald-400 whitespace-pre">
-              {getLogOutput()}
-              {step >= 4 && step < 6 && <motion.span animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}>_</motion.span>}
-            </div>
-          </motion.div>
-        </div>
+      {/* cond -(TRUE)-> body */}
+      <line x1={CX} y1={NODE.cond.cy + NODE.cond.r} x2={CX} y2={NODE.body.cy - NODE.body.h / 2}
+        stroke={edgeColor(branch === "true" && (node === "cond" || node === "body"), colorTokens.success)} strokeWidth="3" markerEnd="url(#cl-arrow)"
+        filter={branch === "true" && node === "cond" ? "url(#cl-glow)" : undefined} />
+      <text x={CX + 12} y={(NODE.cond.cy + NODE.cond.r + NODE.body.cy - NODE.body.h / 2) / 2} fontSize="11" fontWeight="bold"
+        fill={branch === "true" ? colorTokens.success : colorTokens.muted}>TRUE</text>
 
-        {/* Right: Flowchart SVG Canvas */}
-        <div className="relative w-[500px] h-[450px]">
-          {/* Neon Glow Filters */}
-          <svg className="absolute w-0 h-0">
-            <defs>
-              <filter id="flow-glow-primary">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-              <filter id="flow-glow-destructive">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-            </defs>
-          </svg>
+      {/* loop back: body left -> up -> cond left apex (computed rail at xRail) */}
+      {(() => {
+        const xRail = 110;
+        const bodyLeft = CX - NODE.body.w / 2;
+        const bodyMidY = NODE.body.cy;
+        const condLeft = CX - NODE.cond.r;
+        const on = node === "update";
+        const d = `M ${bodyLeft} ${bodyMidY} L ${xRail} ${bodyMidY} L ${xRail} ${NODE.cond.cy} L ${condLeft} ${NODE.cond.cy}`;
+        return (
+          <g>
+            <path d={d} fill="none" stroke={edgeColor(on, colorTokens.info)} strokeWidth="3" strokeLinejoin="round" markerEnd="url(#cl-arrow)"
+              filter={on ? "url(#cl-glow)" : undefined} />
+            <text x={xRail + 8} y={(bodyMidY + NODE.cond.cy) / 2} fontSize="11" fontWeight="bold"
+              fill={on ? colorTokens.info : colorTokens.muted}>x++ LOOP</text>
+          </g>
+        );
+      })()}
 
-          {/* Paths connecting nodes.
-              Diamond (Node 3) is a CSS-rotated 96x96 square at top-[170px] (parent 500x450).
-              Container center: (250, 234). Rotated 45deg, the visible corners are at
-              (250, 166)=top, (318, 234)=right, (250, 302)=bottom, (182, 234)=left
-              (half-diagonal = 96/√2 × √2 / 2 ≈ 67.88). Paths below snap to these. */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
-            {/* 1 to 2 (Start → Init) */}
-            <path d="M 250 40 L 250 90" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <motion.path d="M 250 40 L 250 90" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
-              opacity={step >= 1 ? 1 : 0} strokeDasharray={step === 1 ? "4 4" : "0"}
-              animate={step === 1 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
+      {/* cond -(FALSE)-> end via right rail */}
+      {(() => {
+        const xRail = 520;
+        const condRight = CX + NODE.cond.r;
+        const on = branch === "false";
+        const d = `M ${condRight} ${NODE.cond.cy} L ${xRail} ${NODE.cond.cy} L ${xRail} ${NODE.end.cy} L ${CX + NODE.end.w / 2} ${NODE.end.cy}`;
+        return (
+          <g>
+            <path d={d} fill="none" stroke={edgeColor(on, colorTokens.destructive)} strokeWidth="3" strokeLinejoin="round" markerEnd="url(#cl-arrow)"
+              filter={on ? "url(#cl-glow)" : undefined} />
+            <text x={condRight + 14} y={NODE.cond.cy - 8} fontSize="11" fontWeight="bold"
+              fill={on ? colorTokens.destructive : colorTokens.muted}>FALSE</text>
+          </g>
+        );
+      })()}
 
-            {/* 2 to 3 (Init bottom → Condition diamond top apex) */}
-            <path d="M 250 130 L 250 166" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <motion.path d="M 250 130 L 250 166" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
-              opacity={step >= 2 ? 1 : 0} strokeDasharray={step === 2 || step === 5 ? "4 4" : "0"}
-              animate={step === 2 || step === 5 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
+      {/* ── nodes ── */}
+      {/* start */}
+      <motion.rect x={CX - NODE.start.w / 2} y={NODE.start.cy - NODE.start.h / 2} rx={NODE.start.h / 2}
+        width={NODE.start.w} height={NODE.start.h} initial={false}
+        animate={{ stroke: isActive("start") ? colorTokens.info : colorTokens.border, strokeWidth: isActive("start") ? 3 : 1.5 }}
+        fill={colorTokens.card} />
+      <text x={CX} y={NODE.start.cy + 5} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.text}>START</text>
 
-            {/* 3 to 4 (Diamond bottom apex → Loop Body top) — TRUE Branch */}
-            <path d="M 250 302 L 250 310" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
-            <motion.path d="M 250 302 L 250 310" fill="none" stroke="hsl(var(--emerald-500))" strokeWidth="4"
-              opacity={step >= 3 && step < 6 ? 1 : 0} strokeDasharray={step === 3 || step === 4 ? "4 4" : "0"}
-              animate={step === 3 || step === 4 ? { strokeDashoffset: -20 } : {}} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              filter="url(#flow-glow-primary)"
-            />
-            <text x="258" y="308" className={`text-[10px] font-bold ${step >= 3 && step < 6 ? "fill-emerald-500" : "fill-muted-foreground"}`}>TRUE</text>
+      {/* init */}
+      <motion.rect x={CX - NODE.init.w / 2} y={NODE.init.cy - NODE.init.h / 2} rx="8"
+        width={NODE.init.w} height={NODE.init.h} initial={false}
+        animate={{ stroke: isActive("init") ? colorTokens.info : colorTokens.border, strokeWidth: isActive("init") ? 3 : 1.5 }}
+        fill={colorTokens.card} />
+      <text x={CX} y={NODE.init.cy + 5} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.text}>let x = 0</text>
 
-            {/* 4 to 5 to 3 (Loop Back: Body left side → left rail → diamond left apex)
-                Body Node at top-[310px] h-12: bottom at y=358, left edge at x=178.
-                Route: leave body left side mid-height, up left rail, in to diamond left apex (182, 234). */}
-            <path d="M 178 334 L 80 334 L 80 234 L 182 234" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
-            <motion.path d="M 178 334 L 80 334 L 80 234 L 182 234" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" strokeLinejoin="round"
-              opacity={step >= 4 && step < 6 ? 1 : 0} strokeDasharray={step === 4 || step === 5 ? "4 4" : "0"}
-              animate={step === 4 || step === 5 ? { strokeDashoffset: 40 } : {}} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            />
-            {/* Loop-back arrow tip at diamond left apex */}
-            <polygon points="175,230 182,234 175,238" fill={step >= 4 && step < 6 ? "hsl(var(--primary))" : "hsl(var(--border))"} />
-            <text x="90" y="290" className={`text-xs font-bold ${step >= 4 && step < 6 ? "fill-primary" : "fill-muted-foreground"}`}>LOOP</text>
+      {/* cond diamond */}
+      <motion.polygon points={diamondPts(NODE.cond.cy, NODE.cond.r)} initial={false}
+        animate={{
+          stroke: isActive("cond") ? (branch === "false" ? colorTokens.destructive : colorTokens.info) : colorTokens.border,
+          strokeWidth: isActive("cond") ? 3 : 1.5,
+        }}
+        fill={colorTokens.card} filter={isActive("cond") ? "url(#cl-glow)" : undefined} />
+      <text x={CX} y={NODE.cond.cy - 2} textAnchor="middle" fontSize="14" fontWeight="bold" fill={colorTokens.text}>x &lt; 3 ?</text>
+      {/* live comparison readout — clarifies BOTH branches (defect 2) */}
+      <text x={CX} y={NODE.cond.cy + 18} textAnchor="middle" fontSize="11"
+        fill={branch === "false" ? colorTokens.destructive : branch === "true" ? colorTokens.success : colorTokens.muted}>
+        {xVal === null ? "" : `${xVal} < 3 = ${branch === "false" ? "FALSE" : branch === "true" ? "TRUE" : "?"}`}
+      </text>
 
+      {/* body */}
+      <motion.rect x={CX - NODE.body.w / 2} y={NODE.body.cy - NODE.body.h / 2} rx="8"
+        width={NODE.body.w} height={NODE.body.h} initial={false}
+        animate={{ stroke: isActive("body") ? colorTokens.success : colorTokens.border, strokeWidth: isActive("body") ? 3 : 1.5 }}
+        fill={colorTokens.card} />
+      <text x={CX} y={NODE.body.cy + 5} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.text}>print(x)</text>
 
-            {/* 3 to 6 (Diamond right apex → End) — FALSE Branch */}
-            <path d="M 318 234 L 420 234 L 420 400 L 250 400" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeLinejoin="round" />
-            <motion.path d="M 318 234 L 420 234 L 420 400 L 250 400" fill="none" stroke="hsl(var(--destructive))" strokeWidth="4" strokeLinejoin="round"
-              opacity={step === 6 ? 1 : 0} strokeDasharray={step === 6 ? "4 4" : "0"}
-              animate={step === 6 ? { strokeDashoffset: -60 } : {}} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              filter="url(#flow-glow-destructive)"
-            />
-            <polygon points="260,396 250,400 260,404" fill={step === 6 ? "hsl(var(--destructive))" : "hsl(var(--border))"} />
-            <text x="340" y="224" className={`text-xs font-bold ${step === 6 ? "fill-destructive" : "fill-muted-foreground"}`}>FALSE</text>
-          </svg>
+      {/* update chip on the loop rail */}
+      <motion.g initial={false} animate={{ opacity: node === "update" ? 1 : 0.35 }}>
+        <rect x={86} y={NODE.body.cy - 16} width="48" height="32" rx="6"
+          fill={colorTokens.card} stroke={node === "update" ? colorTokens.info : colorTokens.border} strokeWidth={node === "update" ? 2.5 : 1} />
+        <text x={110} y={NODE.body.cy + 5} textAnchor="middle" fontSize="13" fontWeight="bold"
+          fill={node === "update" ? colorTokens.info : colorTokens.muted}>x++</text>
+      </motion.g>
 
-          {/* Nodes (z-index 10) */}
-          <div className="absolute inset-0 pointer-events-none z-10 flex flex-col items-center">
+      {/* end */}
+      <motion.rect x={CX - NODE.end.w / 2} y={NODE.end.cy - NODE.end.h / 2} rx={NODE.end.h / 2}
+        width={NODE.end.w} height={NODE.end.h} initial={false}
+        animate={{ stroke: isActive("end") ? colorTokens.destructive : colorTokens.border, strokeWidth: isActive("end") ? 3 : 1.5 }}
+        fill={colorTokens.card} />
+      <text x={CX} y={NODE.end.cy + 5} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.text}>END</text>
 
-            {/* Node 1: Start */}
-            <motion.div
-              animate={{
-                scale: step === 1 ? 1.05 : 1,
-                borderColor: step === 1 ? "hsl(var(--primary))" : step > 1 ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))",
-                boxShadow: step === 1 ? "0 0 20px hsla(var(--primary), 0.4)" : "none",
-                backgroundColor: step === 1 ? "hsl(var(--primary)/0.1)" : "hsl(var(--card))"
-              }}
-              className="absolute top-[0px] w-36 h-10 rounded-full border-2 flex items-center justify-center backdrop-blur-md"
-            >
-              <span className="font-bold text-sm text-foreground tracking-widest">START</span>
-            </motion.div>
+      {/* ── right side: memory + console ── */}
+      <g transform="translate(600, 90)">
+        <rect width="170" height="80" rx="10" fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+        <text x="14" y="24" fontSize="11" fontWeight="bold" fill={colorTokens.muted}>MEMORY</text>
+        <text x="14" y="56" fontSize="14" fill={colorTokens.text}>let x =</text>
+        <text x="156" y="56" textAnchor="end" fontSize="22" fontWeight="bold" fill={colorTokens.info}>{xVal === null ? "—" : xVal}</text>
+      </g>
+      <g transform="translate(600, 190)">
+        <rect width="170" height="160" rx="10" fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+        <text x="14" y="24" fontSize="11" fontWeight="bold" fill={colorTokens.muted}>CONSOLE</text>
+        {output.map((line, i) => (
+          <text key={i} x="14" y={48 + i * 22} fontSize="13" fill={colorTokens.success}>{line}</text>
+        ))}
+        {output.length === 0 && <text x="14" y="48" fontSize="12" fill={colorTokens.muted}>(empty)</text>}
+      </g>
 
-            {/* Node 2: Init */}
-            <motion.div
-              animate={{
-                scale: step === 2 ? 1.05 : 1,
-                borderColor: step === 2 ? "hsl(var(--primary))" : step > 2 ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))",
-                boxShadow: step === 2 ? "0 0 20px hsla(var(--primary), 0.4)" : "none",
-                backgroundColor: step === 2 ? "hsl(var(--primary)/0.1)" : "hsl(var(--card))"
-              }}
-              className="absolute top-[90px] w-36 h-10 rounded-lg border-2 flex items-center justify-center backdrop-blur-md"
-            >
-              <span className="font-bold text-sm text-foreground font-mono">let x = 0</span>
-            </motion.div>
-
-            {/* Node 3: Condition (Diamond Shape using CSS) */}
-            <div className="absolute top-[170px] w-32 h-32 flex items-center justify-center">
-              <motion.div
-                animate={{
-                  rotate: 45,
-                  scale: step === 3 ? 1.1 : 1,
-                  borderColor: step === 3 ? "hsl(var(--destructive))" : step > 3 ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))",
-                  boxShadow: step === 3 ? "0 0 30px hsla(var(--destructive), 0.4)" : "none",
-                  backgroundColor: step === 3 ? "hsl(var(--destructive)/0.1)" : "hsl(var(--card))"
-                }}
-                className="w-24 h-24 border-2 absolute backdrop-blur-md"
-              />
-               <span className="font-black text-sm z-10 text-foreground">x &lt; 3 ?</span>
-            </div>
-
-            {/* Node 4: Loop Body */}
-            <motion.div
-              animate={{
-                scale: step === 4 ? 1.05 : 1,
-                borderColor: step === 4 ? "hsl(var(--emerald-500))" : step > 4 && step < 6 ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))",
-                boxShadow: step === 4 ? "0 0 20px hsla(var(--emerald-500), 0.4)" : "none",
-                backgroundColor: step === 4 ? "hsl(var(--emerald-500)/0.1)" : "hsl(var(--card))"
-              }}
-              className="absolute top-[310px] w-36 h-12 rounded-lg border-2 flex items-center justify-center backdrop-blur-md"
-            >
-              <span className="font-bold text-sm text-foreground font-mono">print("x is ", x)</span>
-            </motion.div>
-
-            {/* Node 5: UPDATE — sits on the loop-back vertical rail at x≈80 (y range 234..334) */}
-            <motion.div
-               animate={{
-                scale: step === 5 ? 1.1 : 1,
-                borderColor: step === 5 ? "hsl(var(--primary))" : "hsl(var(--border))",
-                boxShadow: step === 5 ? "0 0 20px hsla(var(--primary), 0.4)" : "none",
-                backgroundColor: step === 5 ? "hsl(var(--primary)/0.1)" : "hsl(var(--card))",
-                opacity: step >= 4 && step < 6 ? 1 : 0.3
-              }}
-              className="absolute top-[270px] left-[48px] w-16 h-8 rounded border-2 flex flex-col items-center justify-center backdrop-blur-md z-20"
-            >
-               <span className="font-bold text-[10px] text-foreground font-mono">x++</span>
-            </motion.div>
-
-             {/* Node 6: End */}
-             <motion.div
-              animate={{
-                scale: step === 6 ? 1.05 : 1,
-                borderColor: step === 6 ? "hsl(var(--destructive))" : "hsl(var(--border))",
-                boxShadow: step === 6 ? "0 0 20px hsla(var(--destructive), 0.4)" : "none",
-                backgroundColor: step === 6 ? "hsl(var(--destructive)/0.1)" : "hsl(var(--card))"
-              }}
-              className="absolute top-[380px] w-36 h-10 rounded-full border-2 flex items-center justify-center backdrop-blur-md"
-            >
-              <span className="font-bold text-sm text-foreground tracking-widest">END</span>
-            </motion.div>
-          </div>
-        </div>
-      </div>
-
-      {/* Narrative Footer — placed below the visualizer in normal document flow */}
-      <motion.div
-        key={`desc-${step}`}
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="w-full px-6 pb-5 pt-3 border-t border-border/40 bg-card/60 backdrop-blur-md"
-      >
-        <div className="text-[11px] font-bold text-primary mb-1 uppercase tracking-widest">
-          {step === 0 && "System Idle"}
-          {step === 1 && "Start Execution"}
-          {step === 2 && "Memory Allocation"}
-          {step === 3 && "Condition Evaluation"}
-          {step === 4 && "Loop Execution"}
-          {step === 5 && "State Update"}
-          {step === 6 && "Loop Exit"}
-        </div>
-        <p className="text-sm font-medium text-foreground/80 leading-relaxed">
-          {step === 0 && "조건문(If)은 분기를 만들고, 반복문(Loop)은 특정 로직을 되풀이합니다. 시스템을 가동하세요."}
-          {step === 1 && "메인 프로세스가 시작되었습니다. 변수를 초기화할 준비를 합니다."}
-          {step === 2 && "루프를 제어할 기준 변수 x를 메모리에 할당하고 0으로 초기화했습니다."}
-          {step === 3 && "다이아몬드 노드에서 x < 3 인지 검사합니다. 분기가 결정되는 핵심 지점입니다."}
-          {step === 4 && "조건이 참(TRUE)입니다! 루프 내부로 진입하여 지정된 명령(출력)을 수행합니다."}
-          {step === 5 && "한 번의 사이클이 끝났습니다. 다음 평가를 위해 x의 값을 1 증가시키고 되돌아갑니다."}
-          {step === 6 && "x가 3에 도달했습니다. 조건이 거짓(FALSE)이 되어 루프를 탈출하고 종료됩니다."}
-        </p>
-      </motion.div>
-    </div>
+      <text x="40" y="478" fontSize="13" fill={colorTokens.text}>{s?.msg ?? STEPS[0].msg}</text>
+    </svg>
   );
 }

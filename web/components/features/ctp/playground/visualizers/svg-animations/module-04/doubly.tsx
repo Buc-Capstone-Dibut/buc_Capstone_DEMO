@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   CyberGrid,
   NeonGlowFilters,
@@ -103,26 +104,39 @@ function buildState(step: number): DoublyState {
   };
 }
 
+const BASE_LOG = "> 이중 연결 리스트 초기화: A ⇄ B ⇄ C (head=A, tail=C)";
+
+// step 별 로그 메시지 (advance·슬라이더가 공유 → 파생 상태 동기화 기준).
+const STEP_MSG: Record<number, string> = {
+  1: "[PREV] B.prev로 A 즉시 접근. 한 노드만 알아도 뒤쪽으로 이동 가능.",
+  2: "[NEXT] 같은 B에서 next로 C 즉시 접근. 양방향 자유 이동이 핵심.",
+  3: "[INSERT] B와 C 사이 X 삽입. X.prev/next + B.next + C.prev 네 포인터 갱신.",
+  4: "[DELETE] B 제거. A.next=X, X.prev=A 두 포인터로 양옆 재연결.",
+};
+
 export function useDoublySim() {
   const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "> 이중 연결 리스트 초기화: A ⇄ B ⇄ C (head=A, tail=C)",
-  ]);
+  const [logs, setLogs] = useState<string[]>([BASE_LOG]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  // 슬라이더 드래그/임의 step 점프 시 logs 를 해당 step 까지 재계산해 동기화.
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const next = [BASE_LOG];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
       const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[PREV] B.prev로 A 즉시 접근. 한 노드만 알아도 뒤쪽으로 이동 가능.");
-      if (next === 2) appendLog("[NEXT] 같은 B에서 next로 C 즉시 접근. 양방향 자유 이동이 핵심.");
-      if (next === 3) appendLog("[INSERT] B와 C 사이 X 삽입. X.prev/next + B.next + C.prev 네 포인터 갱신.");
-      if (next === 4) appendLog("[DELETE] B 제거. A.next=X, X.prev=A 두 포인터로 양옆 재연결.");
+      if (next === prev) return prev;
+      if (STEP_MSG[next]) setLogs((l) => [`> ${STEP_MSG[next]}`, ...l]);
       return next;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -134,16 +148,19 @@ export function useDoublySim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      // push: 자동재생(▶︎)·슬라이더 구동용 advance. peek: 기존 Operation Panel 버튼 호환 alias.
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function DoublyVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function DoublyVisualizer({ data }: { data?: { step: number } | null }) {
+  const step = data?.step ?? 0;
   const state = buildState(step);
 
   const svgWidth = 800;
@@ -187,7 +204,8 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
         {step === 4 && "Delete: B 제거. A↔X 양방향 재연결로 O(1)"}
       </text>
 
-      {/* Forward edges (next, upper) — y offset 16 으로 prev 와 분리 + label */}
+      {/* Forward edges (next, upper) — y offset 16 으로 prev 와 분리 + label.
+          step 3 삽입 시 highlight 된 next 포인터를 먼저(0s) 띄워 prev 보다 앞서 갱신되는 인상을 준다. */}
       {state.nodes
         .filter((n) => n.next !== null)
         .map((n) => {
@@ -197,20 +215,19 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
             state.highlights.includes(n.id) && state.highlights.includes(n.next!);
           const status: ColorToken = isHighlighted ? "active" : "pointer";
           return (
-            <EdgeLine
-              key={`next-${n.id}`}
-              x1={fromX}
-              y1={cy - 16}
-              x2={toX}
-              y2={cy - 16}
-              status={status}
-              arrow
-              label="next"
-            />
+            <motion.g
+              key={`next-${n.id}-${n.next}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: isHighlighted ? 0 : 0 }}
+            >
+              <EdgeLine x1={fromX} y1={cy - 16} x2={toX} y2={cy - 16} status={status} arrow label="next" />
+            </motion.g>
           );
         })}
 
-      {/* Backward edges (prev, lower) — y offset 16 으로 next 와 분리 + label */}
+      {/* Backward edges (prev, lower) — y offset 16 으로 next 와 분리 + label.
+          highlight 된 prev 포인터는 next 보다 0.25s 늦게 띄워 "네 포인터 순차 갱신"을 시각화. */}
       {state.nodes
         .filter((n) => n.prev !== null)
         .map((n) => {
@@ -220,16 +237,14 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
             state.highlights.includes(n.id) && state.highlights.includes(n.prev!);
           const status: ColorToken = isHighlighted ? "active" : "comparing";
           return (
-            <EdgeLine
-              key={`prev-${n.id}`}
-              x1={fromX}
-              y1={cy + 16}
-              x2={toX}
-              y2={cy + 16}
-              status={status}
-              arrow
-              label="prev"
-            />
+            <motion.g
+              key={`prev-${n.id}-${n.prev}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: isHighlighted ? 0.25 : 0 }}
+            >
+              <EdgeLine x1={fromX} y1={cy + 16} x2={toX} y2={cy + 16} status={status} arrow label="prev" />
+            </motion.g>
           );
         })}
 
@@ -261,10 +276,10 @@ export function DoublyVisualizer({ data }: { data: { step: number } }) {
         direction="down"
       />
 
-      {/* tail pointer */}
+      {/* tail pointer — head 와 다른 노드를 가리키면 같은 높이, 같은 노드면 라벨 충돌 방지로 한 단 위에 표기 */}
       <PointerArrow
         x={xOf(state.tail)}
-        y={cy - r - 8}
+        y={state.tail === state.head ? cy - r - 30 : cy - r - 8}
         label="tail"
         color={colorTokens.pointer}
         direction="down"

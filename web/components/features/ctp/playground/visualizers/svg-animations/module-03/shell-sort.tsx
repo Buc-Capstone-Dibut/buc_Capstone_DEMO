@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, RotateCcw, StepForward, StepBack } from "lucide-react";
 import { colorTokens } from "../../shared/svg-primitives";
 
 // --- Types ---
@@ -16,54 +15,68 @@ type SortState = {
   comparing: [number, number] | null;
   swapping: [number, number] | null;
   isSorted: boolean;
+  // 이번 단계에서 사용할(또는 사용 중인) gap 수열 전체와 현재 gap 의 위치
+  gapSeq: number[];
+  gapSeqIdx: number;
+  msg: string;
 };
 
 const DEFAULT_SHELL_DATA = [15, 8, 20, 2, 11, 8, 5, 18, 9, 14];
+
+// Shell 의 원래 수열: N/2, N/4, ... , 1 (내림차순)
+function buildShellSequence(n: number): number[] {
+  const seq: number[] = [];
+  let gap = Math.floor(n / 2);
+  while (gap > 0) {
+    seq.push(gap);
+    gap = Math.floor(gap / 2);
+  }
+  return seq;
+}
 
 // --- Hook ---
 export function useShellSortSim(initialData: number[] = DEFAULT_SHELL_DATA) {
   const [history, setHistory] = useState<SortState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
+  const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
     const steps: SortState[] = [];
     const arr: SortElement[] = initialData.map((val, idx) => ({ id: `id-${val}-${idx}`, val }));
     const n = arr.length;
+    const gapSeq = buildShellSequence(n);
 
-    steps.push({ array: [...arr], gap: -1, i: null, j: null, comparing: null, swapping: null, isSorted: false });
+    steps.push({ array: [...arr], gap: -1, i: null, j: null, comparing: null, swapping: null, isSorted: false, gapSeq, gapSeqIdx: -1, msg: `셸 정렬 시작. gap 수열(N/2 방식): [${gapSeq.join(", ")}]` });
 
-    // Hibbard sequence (1, 3, 7, 15...) or simple n/2
-    let gap = Math.floor(n / 2);
-
-    while (gap > 0) {
-      steps.push({ array: [...arr], gap, i: null, j: null, comparing: null, swapping: null, isSorted: false });
+    gapSeq.forEach((gap, gapSeqIdx) => {
+      steps.push({ array: [...arr], gap, i: null, j: null, comparing: null, swapping: null, isSorted: false, gapSeq, gapSeqIdx, msg: `gap = ${gap} 로 부분 배열 정렬을 시작합니다. 같은 색이 한 부분 배열입니다.` });
 
       for (let i = gap; i < n; i++) {
-        steps.push({ array: [...arr], gap, i, j: null, comparing: null, swapping: null, isSorted: false });
+        steps.push({ array: [...arr], gap, i, j: null, comparing: null, swapping: null, isSorted: false, gapSeq, gapSeqIdx, msg: `기준 원소 A[${i}] = ${arr[i].val} 를 같은 그룹 안에서 비교합니다.` });
 
         let temp = arr[i];
         let j = i;
 
         while (j >= gap) {
-          steps.push({ array: [...arr], gap, i, j, comparing: [j - gap, j], swapping: null, isSorted: false });
+          steps.push({ array: [...arr], gap, i, j, comparing: [j - gap, j], swapping: null, isSorted: false, gapSeq, gapSeqIdx, msg: `비교: A[${j - gap}] = ${arr[j - gap].val} vs ${temp.val}` });
 
           if (arr[j - gap].val > temp.val) {
-             steps.push({ array: [...arr], gap, i, j, comparing: null, swapping: [j - gap, j], isSorted: false });
+             steps.push({ array: [...arr], gap, i, j, comparing: null, swapping: [j - gap, j], isSorted: false, gapSeq, gapSeqIdx, msg: `${arr[j - gap].val} > ${temp.val} → ${gap}칸 떨어진 자리로 장거리 교환!` });
              arr[j] = arr[j - gap];
              j -= gap;
              arr[j] = temp; // effectively swap visualization
-             steps.push({ array: [...arr], gap, i, j, comparing: null, swapping: null, isSorted: false });
+             steps.push({ array: [...arr], gap, i, j, comparing: null, swapping: null, isSorted: false, gapSeq, gapSeqIdx, msg: `교환 후 위치 갱신.` });
           } else {
              break;
           }
         }
       }
-      gap = Math.floor(gap / 2);
-    }
+    });
 
-    steps.push({ array: [...arr], gap: 0, i: null, j: null, comparing: null, swapping: null, isSorted: true });
+    steps.push({ array: [...arr], gap: 0, i: null, j: null, comparing: null, swapping: null, isSorted: true, gapSeq, gapSeqIdx: gapSeq.length, msg: `gap = 1 까지 마쳐 정렬 완료!` });
     setHistory(steps);
     setStepIndex(0);
+    setLogs(["> 시스템 초기화: 셸 정렬 대기 중... Step을 눌러 시작하세요."]);
   }, [initialData]);
 
   const currentState = history[stepIndex] || {
@@ -74,26 +87,38 @@ export function useShellSortSim(initialData: number[] = DEFAULT_SHELL_DATA) {
     comparing: null,
     swapping: null,
     isSorted: false,
+    gapSeq: buildShellSequence(initialData.length),
+    gapSeqIdx: -1,
+    msg: "",
   };
 
   const handleSetStep = useCallback((newStep: number) => {
-    if (newStep >= 0 && newStep < history.length) {
-      setStepIndex(newStep);
+    if (newStep < 0 || newStep >= history.length) return;
+    setStepIndex(newStep);
+    const newLogs = ["> 시스템 초기화: 셸 정렬 대기 중... Step을 눌러 시작하세요."];
+    for (let s = 1; s <= newStep; s++) {
+      newLogs.unshift(`[Step ${s}] ${history[s].msg}`);
     }
-  }, [history.length]);
+    setLogs(newLogs);
+  }, [history]);
 
   const nextStep = useCallback(() => {
-    setStepIndex((prev) => Math.min(prev + 1, history.length - 1));
-  }, [history.length]);
+    setStepIndex((prev) => {
+      const next = prev >= history.length - 1 ? prev : prev + 1;
+      if (next !== prev) handleSetStep(next);
+      return next;
+    });
+  }, [history.length, handleSetStep]);
 
   const reset = useCallback(() => {
-    setStepIndex(0);
-  }, []);
+    handleSetStep(0);
+  }, [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
       visualData: currentState,
+      logs,
       handlers: {
         push: nextStep,
         clear: reset,
@@ -108,10 +133,21 @@ export function useShellSortSim(initialData: number[] = DEFAULT_SHELL_DATA) {
 }
 
 // --- Visualizer Component ---
+// gap 으로 나뉜 부분 배열(그룹)마다 뚜렷이 구분되는 색을 부여한다.
+// idx % gap 이 그룹 번호이며, 순환 팔레트로 인접 그룹이 항상 다른 색이 되게 한다.
+const GROUP_PALETTE = [
+  colorTokens.primaryBlue,
+  colorTokens.primaryHighlight,
+  colorTokens.info,
+  colorTokens.warning,
+  colorTokens.success,
+  colorTokens.destructive,
+];
+
 export function ShellSortVisualizer({ data }: { data: any }) {
   if (!data) return null;
   const state = data;
-  const { array, gap, i, j, comparing, swapping, isSorted } = state;
+  const { array, gap, i, j, comparing, swapping, isSorted, gapSeq = [], gapSeqIdx = -1 } = state;
 
   const maxVal = Math.max(...array.map((el: any) => el.val), 1);
   const svgWidth = 800;
@@ -161,6 +197,38 @@ export function ShellSortVisualizer({ data }: { data: any }) {
             {!comparing && !swapping && gap > 0 && <text x="170" y="0" fill={colorTokens.primaryBlue} fontSize="16" fontWeight="bold" textAnchor="end">부분 리스트 탐색</text>}
           </g>
 
+          {/* gap 수열 선택 리본: N/2 → ... → 1 진행 상황을 한눈에. 현재 gap 이 활성 칩으로 표시됨 */}
+          {gapSeq.length > 0 && (
+            <g transform="translate(30, 84)">
+              <text x="0" y="-2" fill="hsl(var(--muted-foreground))" fontSize="11">gap 수열 (N/2 방식)</text>
+              {gapSeq.map((g: number, k: number) => {
+                const chipW = 34;
+                const x = k * (chipW + 24);
+                const active = k === gapSeqIdx;
+                const done = gapSeqIdx > k || isSorted;
+                const chipColor = active ? colorTokens.primaryBlue : done ? colorTokens.success : colorTokens.muted;
+                return (
+                  <g key={k} transform={`translate(${x}, 6)`}>
+                    <motion.rect
+                      width={chipW} height="22" rx="11"
+                      fill={active ? colorTokens.primaryBlueDim : done ? colorTokens.successDim : "hsl(var(--card))"}
+                      stroke={chipColor}
+                      strokeWidth={active ? 2.5 : 1.5}
+                      animate={{ scale: active ? 1.08 : 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      style={{ transformOrigin: "center" }}
+                      filter={active ? "url(#glow-gap)" : ""}
+                    />
+                    <text x={chipW / 2} y="15" fill={chipColor} fontSize="12" fontWeight="bold" textAnchor="middle">{g}</text>
+                    {k < gapSeq.length - 1 && (
+                      <text x={chipW + 12} y="16" fill="hsl(var(--muted-foreground))" fontSize="13" textAnchor="middle">›</text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          )}
+
           {/* Draw Array Bars */}
           <AnimatePresence>
             {array.map((item: any, idx: number) => {
@@ -171,7 +239,10 @@ export function ShellSortVisualizer({ data }: { data: any }) {
               const isComparing = comparing?.includes(idx);
               const isSwapping = swapping?.includes(idx);
               const isCurrentI = i === idx;
-              const isGapGroup = gap > 0 && i !== null && (idx % gap === i % gap) && idx <= i;
+              // 현재 gap 기준, 모든 원소가 속한 그룹 번호 (idx % gap)
+              const groupId = gap > 0 ? idx % gap : -1;
+              // 지금 활성화된(=기준 i 가 속한) 그룹인지
+              const isActiveGroup = gap > 0 && i !== null && groupId === (i % gap);
 
               let fillColor = "hsl(var(--muted))"; // default muted
               let opacity = 0.5;
@@ -188,9 +259,10 @@ export function ShellSortVisualizer({ data }: { data: any }) {
               } else if (isCurrentI) {
                 fillColor = colorTokens.primaryBlue; // pointer blue
                 opacity = 1;
-              } else if (isGapGroup) {
-                fillColor = colorTokens.primaryHighlight; // gap group purple
-                opacity = 0.8;
+              } else if (gap > 0) {
+                // 모든 부분 배열을 그룹별 고유 색으로 칠해 구조를 한눈에 보이게 한다.
+                fillColor = GROUP_PALETTE[groupId % GROUP_PALETTE.length];
+                opacity = isActiveGroup ? 0.85 : 0.4;
               }
 
               return (
@@ -206,14 +278,14 @@ export function ShellSortVisualizer({ data }: { data: any }) {
                     fill={fillColor}
                     opacity={opacity}
                     rx={4}
-                    filter={(isSwapping || isComparing) ? `url(#glow-${isSwapping ? 'swap' : 'compare'})` : isGapGroup ? "url(#glow-gap)" : ""}
+                    filter={(isSwapping || isComparing) ? `url(#glow-${isSwapping ? 'swap' : 'compare'})` : isActiveGroup ? "url(#glow-gap)" : ""}
                     animate={{ fill: fillColor, opacity }}
                     transition={{ duration: 0.3 }}
                   />
                   <text
                     x={barWidth / 2}
                     y={-10}
-                    fill={isSorted || isSwapping || isComparing || isCurrentI || isGapGroup ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
+                    fill={isSorted || isSwapping || isComparing || isCurrentI || gap > 0 ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
                     fontSize="16"
                     fontWeight="bold"
                     textAnchor="middle"

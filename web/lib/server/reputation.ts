@@ -7,6 +7,7 @@ export const REPUTATION_EVENT_TYPES = {
   qnaAnswerAccepted: "qna_answer_accepted",
   workspaceTaskCompleted: "workspace_task_completed",
   workspaceCompleted: "workspace_completed",
+  ctpProblemSolved: "ctp_problem_solved",
 } as const;
 
 export const REPUTATION_DELTAS = {
@@ -14,6 +15,7 @@ export const REPUTATION_DELTAS = {
   qnaAnswerAccepted: 25,
   workspaceTaskCompleted: 1,
   workspaceCompleted: 20,
+  ctpProblemSolved: 5,
 } as const;
 
 type ReputationClient = Prisma.TransactionClient | typeof prisma;

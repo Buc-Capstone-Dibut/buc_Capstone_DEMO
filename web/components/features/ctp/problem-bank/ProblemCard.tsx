@@ -20,10 +20,11 @@ const typeLabel: Record<ProblemType, string> = {
 interface ProblemCardProps {
   problem: ProblemBankItem;
   selected?: boolean;
+  solved?: boolean;
   onSelect: (id: string) => void;
 }
 
-export function ProblemCard({ problem, selected = false, onSelect }: ProblemCardProps) {
+export function ProblemCard({ problem, selected = false, solved = false, onSelect }: ProblemCardProps) {
   return (
     <Card
       className={cn(
@@ -32,7 +33,14 @@ export function ProblemCard({ problem, selected = false, onSelect }: ProblemCard
       )}
     >
       <CardHeader className="pb-3">
-        <CardTitle className="text-base leading-tight">{problem.id}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base leading-tight">
+          {solved && (
+            <Badge className="border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0 text-emerald-600">
+              ✓
+            </Badge>
+          )}
+          {problem.id}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="line-clamp-2 min-h-10 text-sm font-medium text-foreground">{problem.title}</p>

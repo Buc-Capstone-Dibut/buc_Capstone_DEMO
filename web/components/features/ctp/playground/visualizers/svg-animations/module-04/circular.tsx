@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   CyberGrid,
   NeonGlowFilters,
@@ -106,26 +107,39 @@ function buildState(step: number): CircState {
   };
 }
 
+const BASE_LOG = "> 원형 이중 연결 리스트 초기화: A ⇄ B ⇄ C ⇄ A (head=A)";
+
+// step 별 로그 메시지 (advance·슬라이더가 공유 → 파생 상태 동기화 기준).
+const STEP_MSG: Record<number, string> = {
+  1: "[TRAVERSE] B에서 next를 따라 C로 이동. 임의 출발점에서 순회 시작.",
+  2: "[WRAP-AROUND] C에서 next를 따라가니 head A로 되돌아옴. 원형 결합 확인.",
+  3: "[INSERT] C와 A 사이 X 삽입. 끝-시작 경계가 자연스럽게 처리됨.",
+  4: "[DELETE] B 제거. A.next=C, C.prev=A로 양옆 재연결. 원형 유지.",
+};
+
 export function useCircularSim() {
   const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "> 원형 이중 연결 리스트 초기화: A ⇄ B ⇄ C ⇄ A (head=A)",
-  ]);
+  const [logs, setLogs] = useState<string[]>([BASE_LOG]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  // 슬라이더 드래그/임의 step 점프 시 logs 를 해당 step 까지 재계산해 동기화.
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const next = [BASE_LOG];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
       const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[TRAVERSE] B에서 next를 따라 C로 이동. 임의 출발점에서 순회 시작.");
-      if (next === 2) appendLog("[WRAP-AROUND] C에서 next를 따라가니 head A로 되돌아옴. 원형 결합 확인.");
-      if (next === 3) appendLog("[INSERT] C와 A 사이 X 삽입. 끝-시작 경계가 자연스럽게 처리됨.");
-      if (next === 4) appendLog("[DELETE] B 제거. A.next=C, C.prev=A로 양옆 재연결. 원형 유지.");
+      if (next === prev) return prev;
+      if (STEP_MSG[next]) setLogs((l) => [`> ${STEP_MSG[next]}`, ...l]);
       return next;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -137,16 +151,19 @@ export function useCircularSim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      // push: 자동재생(▶︎)·슬라이더 구동용 advance. peek: 기존 Operation Panel 버튼 호환 alias.
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function CircularVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function CircularVisualizer({ data }: { data?: { step: number } | null }) {
+  const step = data?.step ?? 0;
   const state = buildState(step);
 
   const svgWidth = 800;
@@ -218,6 +235,21 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
       <CyberGrid width={svgWidth} height={svgHeight} />
       <NeonGlowFilters />
 
+      {/* 회전하는 가이드 링 — 노드는 고정, 점선 링만 천천히 돌아 "원형 회전 벨트" 모션을 준다 */}
+      <motion.circle
+        cx={cx0}
+        cy={cy0}
+        r={ringRadius}
+        fill="none"
+        stroke={colorTokens.muted}
+        strokeWidth={1}
+        strokeDasharray="3 10"
+        opacity={0.25}
+        style={{ transformOrigin: `${cx0}px ${cy0}px` }}
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, ease: "linear", duration: 18 }}
+      />
+
       <text x={svgWidth / 2} y={32} textAnchor="middle" fontSize={16} fontWeight={700} fill="hsl(var(--foreground))">
         Circular Doubly Linked List · 끝과 시작이 결합
       </text>
@@ -229,6 +261,26 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
         {step === 3 && "Insert: C와 A 사이 X 삽입 (끝-시작 경계 처리 없음)"}
         {step === 4 && "Delete: B 제거. 양옆 재연결로 원형 유지"}
       </text>
+
+      {/* prev edges (역방향, 안쪽 호) — bulge 음수로 링 안쪽에 그려 next 와 겹치지 않게.
+          이중(doubly) 연결임을 드러내는 핵심: 모든 노드가 prev 로도 묶여 있음. */}
+      {state.nodes.map((node) => {
+        const from = posOf(node.id);
+        const to = posOf(node.prev);
+        const color = colorTokens.comparing;
+        return (
+          <g key={`prev-edge-${node.id}-${node.prev}`} opacity={0.5}>
+            <path
+              d={arcPath(from, to, -16)}
+              stroke={color}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              fill="none"
+            />
+            {arrowHead(to, from, color)}
+          </g>
+        );
+      })}
 
       {/* next edges (호) — wrap-around (C→A 또는 X→A) 만 strokeWidth=3, bulge=30 으로 강조 */}
       {state.nodes.map((node) => {
@@ -243,7 +295,12 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
         const strokeW = isWrap ? 3 : 2;
         const bulge = isWrap ? 30 : 18;
         return (
-          <g key={`edge-${node.id}-${node.next}`}>
+          <motion.g
+            key={`edge-${node.id}-${node.next}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <path
               d={arcPath(from, to, bulge)}
               stroke={color}
@@ -251,7 +308,7 @@ export function CircularVisualizer({ data }: { data: { step: number } }) {
               fill="none"
             />
             {arrowHead(to, from, color)}
-          </g>
+          </motion.g>
         );
       })}
 

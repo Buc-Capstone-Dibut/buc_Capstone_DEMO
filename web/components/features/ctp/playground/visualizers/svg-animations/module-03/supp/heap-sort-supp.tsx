@@ -16,7 +16,7 @@ export function CompleteBinaryTreeSVG() {
       <rect width="100%" height="100%" fill="url(#grid-heap-1)" />
 
       <text x="30" y="40" className="fill-slate-800 dark:fill-slate-200" fontSize="24" fontWeight="bold">완전 이진 트리와 배열</text>
-      <text x="30" y="65" className="fill-slate-600 dark:fill-slate-400" fontSize="14">트리의 노드들을 레벨 순서대로 배열에 빈틈없이 매핑합니다.</text>
+      <text x="30" y="65" className="fill-slate-600 dark:fill-slate-400" fontSize="14">노드 i의 자식은 2i+1(왼쪽)·2i+2(오른쪽), 부모는 (i-1)/2 인덱스입니다.</text>
 
       <g transform="translate(100, 100)">
         {/* Edges */}

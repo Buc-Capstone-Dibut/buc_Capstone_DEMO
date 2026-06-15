@@ -1,297 +1,194 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
+
+// Trace of: sum = 0; for (i=1; i<=3; i++) sum += i; console.log(sum)
+type Row = { i: string; sum: string; note: string; line: number };
+type Step = {
+  line: number; // active source line (1..5), 0 = idle
+  rows: Row[]; // cumulative trace timeline up to this step
+  msg: string;
+};
+
+const CODE = [
+  "let sum = 0;",
+  "for (let i = 1; i <= 3; i++) {",
+  "  sum += i;",
+  "}",
+  "console.log(sum);",
+];
+
+// Build the full cumulative trace once.
+const TRACE: Row[] = [
+  { line: 1, i: "—", sum: "0", note: "sum 초기화" },
+  { line: 2, i: "1", sum: "0", note: "1<=3 TRUE" },
+  { line: 3, i: "1", sum: "1", note: "sum += 1" },
+  { line: 2, i: "2", sum: "1", note: "2<=3 TRUE" },
+  { line: 3, i: "2", sum: "3", note: "sum += 2" },
+  { line: 2, i: "3", sum: "3", note: "3<=3 TRUE" },
+  { line: 3, i: "3", sum: "6", note: "sum += 3" },
+  { line: 2, i: "4", sum: "6", note: "4<=3 FALSE → exit" },
+  { line: 5, i: "4", sum: "6", note: "출력: 6" },
+].map((r) => ({ ...r }));
+
+const STEPS: Step[] = [
+  { line: 0, rows: [], msg: "흐름 추적 대기 중. Step을 눌러 한 줄씩 실행하며 변수 변화를 추적하세요." },
+  ...TRACE.map((_, idx) => ({
+    line: TRACE[idx].line,
+    rows: TRACE.slice(0, idx + 1),
+    msg: TRACE[idx].note,
+  })),
+];
 
 export function useFlowTracingSim() {
-  const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "[SYSTEM] Debugger Initialized.",
-    "[SYSTEM] Press Peek to step through the execution flow."
-  ]);
-  const maxSteps = 9;
+  const [stepIdx, setStepIdx] = useState(0);
+  const [logs, setLogs] = useState<string[]>(["> Debugger 준비 완료. Step을 눌러 추적을 시작하세요."]);
+  const maxSteps = STEPS.length;
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const rebuild = useCallback((t: number) => {
+    const arr = ["> Debugger 준비 완료. Step을 눌러 추적을 시작하세요."];
+    for (let i = 1; i <= t; i++) arr.unshift(`[Step ${i}] ${STEPS[i].msg}`);
+    setLogs(arr);
   }, []);
 
-  const peek = useCallback(() => {
-    setStep((prev) => {
-      const next = prev >= maxSteps ? 1 : prev + 1;
-      let logMsg = "";
-      if (next === 1) logMsg = "Step 1: [INIT] sum = 0";
-      if (next === 2) logMsg = "Step 2: [LOOP INIT] i = 1, Check i <= 3 (TRUE)";
-      if (next === 3) logMsg = "Step 3: [EXECUTE] sum += i (sum = 1)";
-      if (next === 4) logMsg = "Step 4: [LOOP INC] i = 2, Check i <= 3 (TRUE)";
-      if (next === 5) logMsg = "Step 5: [EXECUTE] sum += i (sum = 3)";
-      if (next === 6) logMsg = "Step 6: [LOOP INC] i = 3, Check i <= 3 (TRUE)";
-      if (next === 7) logMsg = "Step 7: [EXECUTE] sum += i (sum = 6)";
-      if (next === 8) logMsg = "Step 8: [LOOP INC] i = 4, Check i <= 3 (FALSE), Exit Loop";
-      if (next === 9) logMsg = "Step 9: [RETURN] End of execution";
-      appendLog(logMsg);
-      return next;
+  const handleSetStep = useCallback((s: number) => {
+    if (s < 0 || s >= maxSteps) return;
+    setStepIdx(s);
+    rebuild(s);
+  }, [maxSteps, rebuild]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx((p) => {
+      const n = p >= maxSteps - 1 ? p : p + 1;
+      if (n !== p) rebuild(n);
+      return n;
     });
-  }, [appendLog]);
+  }, [maxSteps, rebuild]);
 
-  const reset = useCallback(() => {
-    setStep(0);
-    setLogs(["[SYSTEM] Debugger memory reset."]);
-  }, []);
+  const reset = useCallback(() => handleSetStep(0), [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: STEPS[stepIdx],
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: nextStep, clear: reset },
+      currentStep: stepIdx,
+      maxSteps,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
     },
   };
 }
 
-export function FlowTracingVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function FlowTracingVisualizer({ data }: { data: Step | null }) {
+  const activeLine = data?.line ?? 0;
+  const rows = data?.rows ?? [];
 
-  const getActiveLine = () => {
-    if (step === 1) return 1;
-    if (step === 2 || step === 4 || step === 6 || step === 8) return 2;
-    if (step === 3 || step === 5 || step === 7) return 3;
-    if (step === 9) return 5;
-    return 0; // hide highlight
-  };
+  const codeX = 40;
+  const codeY = 90;
+  const lineH = 34;
 
-  const getVariableState = () => {
-    let sum = "?";
-    let i = "?";
-    if (step >= 1) sum = "0";
-    if (step >= 2) i = "1";
-    if (step >= 3) sum = "1";
-    if (step >= 4) i = "2";
-    if (step >= 5) sum = "3";
-    if (step >= 6) i = "3";
-    if (step >= 7) sum = "6";
-    if (step >= 8) i = "4";
-    return { sum, i };
-  };
-
-  const vars = getVariableState();
-  const activeLine = getActiveLine();
+  // timeline table layout
+  const tableX = 360;
+  const tableY = 70;
+  const colW = [60, 90, 90, 150]; // step#, i, sum, note
+  const rowH = 30;
+  const headerH = 30;
+  const maxVisible = 9;
 
   return (
-    <div className="w-full flex flex-col bg-background/40 relative font-mono px-8 gap-6 rounded-xl py-8">
-       {/* Background Grid */}
-       <svg className="absolute inset-0 w-full h-full opacity-[0.03] pointer-events-none">
-        <pattern id="ft-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-          <circle cx="15" cy="15" r="1.5" fill="currentColor" />
-        </pattern>
-        <rect width="100%" height="100%" fill="url(#ft-grid)" />
-      </svg>
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <filter id="ft-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
 
-      <div className="w-full max-w-5xl flex gap-8 relative items-stretch z-10">
+      <text x="40" y="40" fontSize="16" fontWeight="bold" fill={colorTokens.info}>흐름 추적 — 변수 타임라인</text>
 
-        {/* Code Editor Panel (Debugger Style) */}
-        <div className="flex-[3] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden">
-          {/* Editor Header */}
-          <div className="flex items-center gap-3 text-muted-foreground mb-6 text-xs font-bold border-b border-border/50 pb-4">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-destructive/80" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-            </div>
-            <span className="ml-2 px-2 py-1 bg-muted rounded-md tracking-widest uppercase">algo.js</span>
-            {activeLine > 0 && (
-              <span className="ml-auto flex items-center gap-2 text-primary font-mono tracking-widest animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                EXECUTING LINE {activeLine}
-              </span>
+      {/* ── Code panel ── */}
+      <rect x={codeX - 14} y={codeY - 28} width="300" height={lineH * CODE.length + 40} rx="10"
+        fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+      <text x={codeX} y={codeY - 8} fontSize="11" fontWeight="bold" fill={colorTokens.muted}>algo.js</text>
+      {CODE.map((src, idx) => {
+        const ln = idx + 1;
+        const on = ln === activeLine;
+        const y = codeY + 20 + idx * lineH;
+        return (
+          <g key={ln}>
+            {on && (
+              <motion.rect x={codeX - 14} y={y - lineH / 2} width="300" height={lineH} initial={false}
+                animate={{ opacity: 1 }} fill={colorTokens.infoDim} />
             )}
-          </div>
+            <text x={codeX - 4} y={y + 5} fontSize="11" fill={colorTokens.muted} textAnchor="end">{ln}</text>
+            <text x={codeX + 8} y={y + 5} fontSize="13" fontWeight={on ? "bold" : "normal"}
+              fill={on ? colorTokens.info : colorTokens.text}>{src}</text>
+            {on && <circle cx={codeX - 26} cy={y} r="4" fill={colorTokens.info} filter="url(#ft-glow)" />}
+          </g>
+        );
+      })}
 
-          <div className="relative text-base h-[200px]">
-            {/* Active Highlight Background */}
-            <motion.div
-              className="absolute left-[-24px] right-[-24px] h-[36px] bg-primary/10 border-l-[3px] border-primary pointer-events-none z-0"
-              initial={{ top: -40, opacity: 0 }}
-              animate={{
-                top: (activeLine - 1) * 36,
-                opacity: step === 0 || activeLine === 0 ? 0 : 1,
-                boxShadow: step > 0 && activeLine > 0 ? "0 0 20px hsla(var(--primary), 0.2) inset" : "none"
-              }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            />
+      {/* ── Cumulative timeline table (defect 3) ── */}
+      <text x={tableX} y={tableY - 10} fontSize="11" fontWeight="bold" fill={colorTokens.muted}>변수 추적 타임라인 (누적)</text>
+      {/* header */}
+      <rect x={tableX} y={tableY} width={colW.reduce((a, b) => a + b, 0)} height={headerH} rx="4" fill={colorTokens.infoDim} stroke={colorTokens.border} />
+      {["step", "i", "sum", "note"].map((h, ci) => {
+        const x = tableX + colW.slice(0, ci).reduce((a, b) => a + b, 0);
+        return (
+          <text key={h} x={x + colW[ci] / 2} y={tableY + 20} textAnchor="middle" fontSize="12" fontWeight="bold" fill={colorTokens.info}>{h}</text>
+        );
+      })}
+      {/* rows */}
+      {rows.slice(-maxVisible).map((r, idx) => {
+        const realIdx = Math.max(0, rows.length - maxVisible) + idx;
+        const y = tableY + headerH + idx * rowH;
+        const isLast = realIdx === rows.length - 1;
+        const cells = [`${realIdx + 1}`, r.i, r.sum, r.note];
+        const isFalse = r.note.includes("FALSE");
+        return (
+          <motion.g key={realIdx} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }}>
+            <rect x={tableX} y={y} width={colW.reduce((a, b) => a + b, 0)} height={rowH}
+              fill={isLast ? colorTokens.infoTrace : "transparent"} stroke={colorTokens.border} strokeWidth="0.5" />
+            {cells.map((c, ci) => {
+              const x = tableX + colW.slice(0, ci).reduce((a, b) => a + b, 0);
+              let fill: string = colorTokens.text;
+              if (ci === 3 && isFalse) fill = colorTokens.destructive;
+              else if (ci === 2 && isLast) fill = colorTokens.success;
+              return (
+                <text key={ci} x={ci === 3 ? x + 8 : x + colW[ci] / 2} y={y + 20}
+                  textAnchor={ci === 3 ? "start" : "middle"} fontSize="12"
+                  fontWeight={isLast ? "bold" : "normal"} fill={fill}>{c}</text>
+              );
+            })}
+          </motion.g>
+        );
+      })}
+      {rows.length === 0 && (
+        <text x={tableX + 12} y={tableY + headerH + 22} fontSize="12" fill={colorTokens.muted}>아직 추적된 단계가 없습니다.</text>
+      )}
 
-            {/* Code Lines */}
-            <div className="h-[36px] flex items-center text-slate-300 relative z-10 w-full px-2">
-              <span className="text-slate-600 mr-6 w-4 text-right select-none">1</span>
-              <span className="text-pink-400 mr-2">let</span> sum = <span className="text-sky-400 ml-1">0</span>;
-            </div>
+      {/* ── current variable chips ── */}
+      <g transform="translate(40, 380)">
+        <rect width="300" height="80" rx="10" fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+        <text x="14" y="24" fontSize="11" fontWeight="bold" fill={colorTokens.muted}>현재 메모리 상태</text>
+        <g transform="translate(20, 36)">
+          <rect width="120" height="32" rx="6" fill={colorTokens.successDim} stroke={colorTokens.successEdge} />
+          <text x="12" y="21" fontSize="13" fill={colorTokens.text}>sum =</text>
+          <text x="108" y="21" textAnchor="end" fontSize="16" fontWeight="bold" fill={colorTokens.success}>{rows.length ? rows[rows.length - 1].sum : "—"}</text>
+        </g>
+        <g transform="translate(160, 36)">
+          <rect width="120" height="32" rx="6" fill={colorTokens.warningDim} stroke={colorTokens.warningEdge} />
+          <text x="12" y="21" fontSize="13" fill={colorTokens.text}>i =</text>
+          <text x="108" y="21" textAnchor="end" fontSize="16" fontWeight="bold" fill={colorTokens.warning}>{rows.length ? rows[rows.length - 1].i : "—"}</text>
+        </g>
+      </g>
 
-            <div className="h-[36px] flex items-center text-slate-300 relative z-10 w-full px-2">
-              <span className="text-slate-600 mr-6 w-4 text-right select-none">2</span>
-              <span className="text-pink-400 mr-2">for</span> (let i = <span className="text-sky-400 mx-1">1</span>; i &lt;= <span className="text-sky-400 mx-1">3</span>; i++) {"{"}
-
-              {/* Variable overlay for Loop Check */}
-              <AnimatePresence>
-                {[2, 4, 6, 8].includes(step) && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="absolute right-4 bg-muted/80 backdrop-blur-sm text-foreground text-xs px-3 py-1.5 rounded-md border border-border shadow-lg flex items-center gap-3 z-20"
-                  >
-                    <span className="font-mono">i = {vars.i}</span>
-                    <span className={`font-black ${step === 8 ? "text-destructive" : "text-emerald-500"}`}>
-                      {step === 8 ? "FALSE (Break)" : "TRUE"}
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="h-[36px] flex items-center pl-10 text-slate-300 relative z-10 px-2">
-              <span className="text-slate-600 absolute left-2 w-4 text-right select-none">3</span>
-              sum += i;
-
-              {/* Variable overlay for Math */}
-              <AnimatePresence>
-                {[3, 5, 7].includes(step) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute right-4 bg-primary/10 backdrop-blur-sm text-primary font-bold text-xs px-3 py-1.5 rounded-md border border-primary/30 shadow-lg z-20 flex items-center gap-2"
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    <span>sum = sum + {vars.i}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="h-[36px] flex items-center text-slate-300 relative z-10 px-2">
-              <span className="text-slate-600 mr-6 w-4 text-right select-none">4</span>
-              {"}"}
-            </div>
-
-            <div className="h-[36px] flex items-center text-slate-300 relative z-10 px-2">
-              <span className="text-slate-600 mr-6 w-4 text-right select-none">5</span>
-              <span className="text-slate-300 mr-2">console</span>.<span className="text-blue-400">log</span>(sum);
-
-              <AnimatePresence>
-                {step === 9 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                    className="absolute right-4 bg-emerald-500/20 text-emerald-400 font-black text-xs px-3 py-1.5 rounded-md border border-emerald-500/30 shadow-lg flex items-center gap-2"
-                  >
-                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Console: 6
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-
-        {/* Memory Space Panel */}
-        <div className="flex-[2] flex flex-col gap-4">
-          <div className="bg-card/80 backdrop-blur-xl rounded-2xl border border-border/50 shadow-2xl overflow-hidden flex-1 flex flex-col h-full relative">
-             <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-
-            <div className="bg-muted/50 p-4 border-b border-border/50 flex items-center justify-between relative z-10">
-              <span className="font-black text-[10px] tracking-widest text-muted-foreground uppercase flex items-center gap-2">
-                <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-                Memory State
-              </span>
-            </div>
-
-            <div className="flex-1 p-6 flex flex-col gap-6 justify-center relative z-10">
-              {/* Variable: sum */}
-              <div className="relative group">
-                <motion.div
-                  animate={{
-                    borderColor: [3, 5, 7].includes(step) ? "hsl(var(--primary))" : "hsl(var(--border))",
-                    boxShadow: [3, 5, 7].includes(step) ? "0 0 20px hsla(var(--primary), 0.2)" : "none"
-                  }}
-                  className="bg-background/80 backdrop-blur-sm border-2 rounded-xl p-5 relative shadow-sm transition-colors duration-300"
-                >
-                  <div className="absolute -top-3 left-4 bg-background px-2 text-[10px] font-black tracking-widest uppercase text-primary border border-border rounded-full">var sum</div>
-                  <div className="text-5xl font-black text-center text-foreground flex items-center justify-center min-h-[50px] font-mono">
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={`sum-${vars.sum}`}
-                        initial={{ opacity: 0, y: -20, filter: "blur(4px)" }}
-                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                        exit={{ opacity: 0, y: 20, filter: "blur(4px)", position: "absolute" }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className="inline-block tracking-tighter"
-                      >
-                        {vars.sum}
-                      </motion.span>
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Variable: i */}
-              <div className="relative group">
-                <motion.div
-                  animate={{
-                    borderColor: [2, 4, 6, 8].includes(step) ? "hsl(var(--amber-500, 38 92% 50%))" : "hsl(var(--border))",
-                    boxShadow: [2, 4, 6, 8].includes(step) ? "0 0 20px hsla(38, 92%, 50%, 0.25)" : "none"
-                  }}
-                  className="bg-background/80 backdrop-blur-sm border-2 rounded-xl p-5 relative shadow-sm transition-colors duration-300"
-                >
-                  <div className="absolute -top-3 left-4 bg-background px-2 text-[10px] font-black tracking-widest uppercase text-amber-500 border border-border rounded-full">var i</div>
-                  <div className="text-5xl font-black text-center text-foreground flex items-center justify-center min-h-[50px] font-mono">
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={`i-${vars.i}`}
-                        initial={{ opacity: 0, y: -20, filter: "blur(4px)" }}
-                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                        exit={{ opacity: 0, y: 20, filter: "blur(4px)", position: "absolute" }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className="inline-block tracking-tighter"
-                      >
-                        {vars.i}
-                      </motion.span>
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Narrative Footer */}
-      <motion.div
-        key={`desc-${step}`}
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="max-w-4xl w-full mx-auto text-center px-8 py-4 bg-card/80 rounded-2xl border border-border/50 backdrop-blur-xl shadow-lg z-30"
-      >
-        <div className="text-[10px] font-black text-primary mb-2 uppercase tracking-widest">
-           {step === 0 && "Idle State"}
-           {step === 1 && "Initialization"}
-           {step > 1 && step < 9 && `Loop Iteration`}
-           {step === 9 && "Terminal Output"}
-         </div>
-        <p className="text-sm font-medium text-foreground/80">
-          {step === 0 && "흐름 추적(Flow Tracing)은 코드가 한 줄씩 실행될 때 메모리의 변화를 추적하는 기술입니다."}
-          {step === 1 && "Start: 프로그램 변수 'sum'을 메모리에 할당하고 0으로 초기화합니다."}
-          {step === 2 && "Loop: 반복 제어 변수 'i'를 1로 선언하고, 조건(1 <= 3)을 만족하므로 블록 내부로 진입합니다."}
-          {step === 3 && "Execute: 현재의 'i'(1) 값을 'sum'(0)에 더합니다. 새로운 sum은 1이 됩니다."}
-          {step === 4 && "Loop: 'i'가 2로 증가합니다. 조건(2 <= 3)을 만족하여 다시 진입합니다."}
-          {step === 5 && "Execute: 현재의 'i'(2) 값을 'sum'(1)에 더합니다. 새로운 sum은 3이 됩니다."}
-          {step === 6 && "Loop: 'i'가 3으로 증가합니다. 조건(3 <= 3)을 만족하여 마지막으로 진입합니다."}
-          {step === 7 && "Execute: 현재의 'i'(3) 값을 'sum'(3)에 더합니다. 새로운 sum은 6이 됩니다."}
-          {step === 8 && "Break: 'i'가 4로 증가합니다. 조건(4 <= 3)이 처음으로 FALSE가 되어 루프를 탈출합니다."}
-          {step === 9 && "End: 메모리에 저장된 최종 'sum'의 값(6)을 콘솔에 출력하고 종료합니다."}
-        </p>
-      </motion.div>
-
-    </div>
+      <text x="40" y="490" fontSize="12" fill={colorTokens.text}>{data?.msg ?? STEPS[0].msg}</text>
+    </svg>
   );
 }

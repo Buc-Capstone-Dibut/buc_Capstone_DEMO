@@ -25,6 +25,7 @@ const DEFAULT_HEAP_DATA = [15, 8, 20, 2, 11, 8, 5, 18, 9, 14];
 export function useHeapSortSim(initialData: number[] = DEFAULT_HEAP_DATA) {
   const [history, setHistory] = useState<SortState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
+  const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
     const steps: SortState[] = [];
@@ -102,6 +103,7 @@ export function useHeapSortSim(initialData: number[] = DEFAULT_HEAP_DATA) {
 
     setHistory(steps);
     setStepIndex(0);
+    setLogs(steps.length ? [`[Step 0] ${steps[0].phase}`] : []);
   }, [initialData]);
 
   const currentState = history[stepIndex] || {
@@ -114,16 +116,29 @@ export function useHeapSortSim(initialData: number[] = DEFAULT_HEAP_DATA) {
   const handleSetStep = useCallback((newStep: number) => {
     if (newStep >= 0 && newStep < history.length) {
       setStepIndex(newStep);
+      const newLogs: string[] = [];
+      for (let s = newStep; s >= 0; s--) newLogs.push(`[Step ${s}] ${history[s].phase}`);
+      setLogs(newLogs);
     }
-  }, [history.length]);
+  }, [history]);
 
-  const nextStep = useCallback(() => setStepIndex(p => Math.min(p + 1, history.length - 1)), [history.length]);
-  const reset = useCallback(() => { setStepIndex(0); }, []);
+  const nextStep = useCallback(() => {
+    setStepIndex((p) => {
+      const next = Math.min(p + 1, history.length - 1);
+      if (next !== p) setLogs((prev) => [`[Step ${next}] ${history[next].phase}`, ...prev]);
+      return next;
+    });
+  }, [history]);
+  const reset = useCallback(() => {
+    setStepIndex(0);
+    setLogs(history.length ? [`[Step 0] ${history[0].phase}`] : []);
+  }, [history]);
 
   return {
     runSimulation: () => {},
     interactive: {
       visualData: currentState,
+      logs,
       handlers: {
         push: nextStep,
         clear: reset,
@@ -172,30 +187,35 @@ export function HeapSortVisualizer({ data }: { data: any }) {
   };
 
   return (
-    <div className="flex flex-col items-center w-full max-w-4xl mx-auto space-y-4">
-      <div className="relative w-full aspect-[4/3] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shadow-2xl">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full font-sans">
-          <defs>
-             <filter id="glow-compare" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="glow-swap" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
-            </pattern>
-          </defs>
+    <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full font-sans">
+      <defs>
+         <filter id="hs-glow-compare" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <filter id="hs-glow-swap" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <pattern id="hs-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
+        </pattern>
+      </defs>
 
-          <rect width="100%" height="100%" fill="url(#grid)" />
+      <rect width="100%" height="100%" fill="url(#hs-grid)" />
 
-          {/* Status Text overlay */}
-          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Heap Sort</text>
-          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
+      {/* Status Text overlay */}
+      <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Heap Sort</text>
+      <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
 
-          {/* --- Tree Visualization --- */}
+      {/* Index-mapping legend: tree position ↔ array index. */}
+      <g transform={`translate(${svgWidth - 250}, 26)`}>
+        <text x="0" y="10" fill="hsl(var(--muted-foreground))" fontSize="11" fontWeight="bold">트리 ↔ 배열 인덱스</text>
+        <text x="0" y="26" fill={colorTokens.primaryBlue} fontSize="11">왼쪽 자식 = 2i+1</text>
+        <text x="0" y="40" fill={colorTokens.warning} fontSize="11">오른쪽 자식 = 2i+2</text>
+      </g>
+
+      {/* --- Tree Visualization --- */}
           {/* Edges */}
           {array.map((_: any, idx: number) => {
             if (idx === 0) return null;
@@ -253,7 +273,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
              } else if (isSwapping) {
                fillColor = colorTokens.destructive;
                opacity = 1;
-               filter = "url(#glow-swap)";
+               filter = "url(#hs-glow-swap)";
              } else if (isComparing) {
                fillColor = colorTokens.warning;
                opacity = 1;
@@ -280,12 +300,14 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                    animate={{ fill: fillColor, opacity }}
                  />
                  <text x="0" y="5" fill="hsl(var(--foreground))" fontSize="14" fontWeight="bold" textAnchor="middle" opacity={opacity > 0.5 ? 1 : 0.5}>{item.val}</text>
+                 {/* Array index badge: makes the 2i+1 / 2i+2 mapping explicit. */}
+                 <text x="0" y="-26" fill={isSorted ? colorTokens.primaryHighlight : colorTokens.coordinateLabel} fontSize="10" fontWeight="bold" textAnchor="middle">i={idx}</text>
                </motion.g>
              );
           })}
 
           {/* --- Array Visualization Below --- */}
-          {/* Draw Sub-array Range Indicator for Heap */}
+          {/* Heap region (green) — nodes still part of the active max-heap. */}
           {heapSize > 0 && (
             <motion.rect
               initial={false}
@@ -298,6 +320,26 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               strokeDasharray="4"
               rx={8}
             />
+          )}
+          {heapSize > 0 && (
+            <text x={getX(0) - 6} y={arrayHeightTop - 38} fill={colorTokens.success} fontSize="11" fontWeight="bold">힙 구역 (Heap)</text>
+          )}
+          {/* Sorted region (purple) — extracted maxima, fixed at the tail. */}
+          {heapSize < array.length && (
+            <motion.rect
+              initial={false}
+              animate={{ x: getX(heapSize) - 10, width: getX(array.length - 1) - getX(heapSize) + barWidth + 20 }}
+              y={arrayHeightTop - 30}
+              height={chartHeight + 50}
+              fill={colorTokens.primaryHighlightGhost}
+              stroke={colorTokens.primaryHighlightEdge}
+              strokeWidth="2"
+              strokeDasharray="4"
+              rx={8}
+            />
+          )}
+          {heapSize < array.length && (
+            <text x={getX(heapSize) - 6} y={arrayHeightTop - 38} fill={colorTokens.primaryHighlight} fontSize="11" fontWeight="bold">정렬 구역 (Sorted)</text>
           )}
 
           <AnimatePresence>
@@ -341,7 +383,7 @@ export function HeapSortVisualizer({ data }: { data: any }) {
                     fill={fillColor}
                     opacity={opacity}
                     rx={4}
-                    filter={isSwapping ? "url(#glow-swap)" : isComparing ? "url(#glow-compare)" : ""}
+                    filter={isSwapping ? "url(#hs-glow-swap)" : isComparing ? "url(#hs-glow-compare)" : ""}
                     animate={{ fill: fillColor, opacity }}
                     transition={{ duration: 0.3 }}
                   />
@@ -368,9 +410,6 @@ export function HeapSortVisualizer({ data }: { data: any }) {
               );
             })}
           </AnimatePresence>
-        </svg>
-
-      </div>
-    </div>
+    </svg>
   );
 }
