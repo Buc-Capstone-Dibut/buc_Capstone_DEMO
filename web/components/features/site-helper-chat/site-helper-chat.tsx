@@ -63,6 +63,7 @@ export const VISIBLE_MAIN_PATHS = [
   "/",              // 랜딩(홈) — 로그인 전후 모두 노출
   "/insights",      // 인사이트 (header 는 /insights/tech-blog 로 link 됨)
   "/insights/tech-blog",
+  "/insights/activities",  // 인사이트 — 대외활동
   "/community",        // 커뮤니티 (실제로는 /community/board 로 redirect)
   "/community/board",  // 커뮤니티 기본 탭 — 게시판
   "/community/squad",  // 커뮤니티 스쿼드 탭
