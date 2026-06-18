@@ -47,7 +47,10 @@ export function BackgroundJobsPanel({ onClose }: { onClose?: () => void }) {
   const isEmpty = activeList.length === 0 && visibleCompleted.length === 0;
 
   return (
-    <div className="flex h-full flex-col">
+    // 위젯 카드(고정 높이 flex 컬럼)의 flex 자식 — flex-1 로 남은 공간을 채우고
+    // min-h-0 로 줄어들 수 있게 해야 안쪽 overflow-y-auto 스크롤이 작동한다.
+    // (h-full 은 헤더+탭을 무시하고 카드 전체 높이를 차지해 스크롤이 안 잡혔음)
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {isEmpty ? (
           <EmptyState />
