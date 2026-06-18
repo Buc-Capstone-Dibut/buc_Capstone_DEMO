@@ -103,10 +103,9 @@ export function NeonEditorialTemplate({
   const hasExperienceSection = content.experience.length > 0 || content.education.length > 0;
 
   useEffect(() => {
-    if (!animate) return; // wizard preview 등 정적 렌더에서는 entrance/cursor/scroll-progress 모두 skip
+    if (!animate) return; // 정적 렌더(에디터/wizard preview)에선 entrance/scroll-progress skip (커서는 아래 별도 effect)
     let cancelled = false;
     const scopedTriggers: any[] = [];
-    let stopCursor: (() => void) | null = null;
     let stopProgress: (() => void) | null = null;
 
     ensureGsap().then(() => {
@@ -117,59 +116,8 @@ export function NeonEditorialTemplate({
       const root = rootRef.current;
       const isCoarse = window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 900;
 
-      // -------- Custom cursor (skip on touch) --------
-      const dot = root.querySelector<HTMLElement>(".cursor-dot");
-      const ring = root.querySelector<HTMLElement>(".cursor-ring");
-      if (!isCoarse && dot && ring) {
-        let mx = window.innerWidth / 2;
-        let my = window.innerHeight / 2;
-        let dx = mx;
-        let dy = my;
-        let rx = mx;
-        let ry = my;
-        let raf = 0;
-        const onMove = (e: MouseEvent) => {
-          mx = e.clientX;
-          my = e.clientY;
-        };
-        const tick = () => {
-          dx += (mx - dx) * 0.35;
-          dy += (my - dy) * 0.35;
-          rx += (mx - rx) * 0.08;
-          ry += (my - ry) * 0.08;
-          dot.style.transform = `translate3d(${dx - 3}px, ${dy - 3}px, 0)`;
-          ring.style.transform = `translate3d(${rx - 18}px, ${ry - 18}px, 0)`;
-          raf = requestAnimationFrame(tick);
-        };
-        window.addEventListener("mousemove", onMove);
-        tick();
-        // Make cursor visible now that elements are positioned (T4 fix d758c24)
-        dot.style.opacity = "1";
-        ring.style.opacity = "1";
-        const hoverables = root.querySelectorAll<HTMLElement>(
-          "a, button, .work-row, .strength-card",
-        );
-        const onEnter = () => {
-          dot.classList.add("is-hover");
-          ring.classList.add("is-hover");
-        };
-        const onLeave = () => {
-          dot.classList.remove("is-hover");
-          ring.classList.remove("is-hover");
-        };
-        hoverables.forEach((el) => {
-          el.addEventListener("mouseenter", onEnter);
-          el.addEventListener("mouseleave", onLeave);
-        });
-        stopCursor = () => {
-          window.removeEventListener("mousemove", onMove);
-          cancelAnimationFrame(raf);
-          hoverables.forEach((el) => {
-            el.removeEventListener("mouseenter", onEnter);
-            el.removeEventListener("mouseleave", onLeave);
-          });
-        };
-      }
+      // 커스텀 커서는 animate(entrance 애니메이션)와 무관하게 아래 별도 useEffect 에서
+      // 처리한다 — 에디터(animate=false)에서도 커서가 보이도록.
 
       // -------- Scroll progress --------
       const progress = root.querySelector<HTMLElement>(".scroll-progress");
@@ -362,7 +310,6 @@ export function NeonEditorialTemplate({
 
     return () => {
       cancelled = true;
-      stopCursor?.();
       stopProgress?.();
       for (const t of scopedTriggers)
         try {
@@ -372,6 +319,73 @@ export function NeonEditorialTemplate({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animate]);
 
+  // 커스텀 커서(.cursor-dot/.cursor-ring) — entrance 애니메이션(animate)과 분리해서
+  // 에디터(animate=false)에서도 동작시킨다. 단 .root(템플릿) 위에 있을 때만 노출해
+  // 에디터 사이드 패널 위에선 기본 커서가 유지되게 한다. (배포는 .root 가 전체 화면)
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const isCoarse =
+      window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 900;
+    if (isCoarse) return;
+    const dot = root.querySelector<HTMLElement>(".cursor-dot");
+    const ring = root.querySelector<HTMLElement>(".cursor-ring");
+    if (!dot || !ring) return;
+
+    let mx = window.innerWidth / 2;
+    let my = window.innerHeight / 2;
+    let dx = mx;
+    let dy = my;
+    let rx = mx;
+    let ry = my;
+    let raf = 0;
+    const onMove = (e: MouseEvent) => {
+      mx = e.clientX;
+      my = e.clientY;
+      // 포인터가 .root 위일 때만 커스텀 커서 노출 (그 외엔 기본 커서 사용)
+      const overRoot = e.target instanceof Node && root.contains(e.target);
+      dot.style.opacity = overRoot ? "1" : "0";
+      ring.style.opacity = overRoot ? "1" : "0";
+    };
+    const tick = () => {
+      dx += (mx - dx) * 0.35;
+      dy += (my - dy) * 0.35;
+      rx += (mx - rx) * 0.08;
+      ry += (my - ry) * 0.08;
+      dot.style.transform = `translate3d(${dx - 3}px, ${dy - 3}px, 0)`;
+      ring.style.transform = `translate3d(${rx - 18}px, ${ry - 18}px, 0)`;
+      raf = requestAnimationFrame(tick);
+    };
+    window.addEventListener("mousemove", onMove);
+    tick();
+
+    const hoverables = root.querySelectorAll<HTMLElement>(
+      "a, button, .work-row, .strength-card",
+    );
+    const onEnter = () => {
+      dot.classList.add("is-hover");
+      ring.classList.add("is-hover");
+    };
+    const onLeave = () => {
+      dot.classList.remove("is-hover");
+      ring.classList.remove("is-hover");
+    };
+    hoverables.forEach((el) => {
+      el.addEventListener("mouseenter", onEnter);
+      el.addEventListener("mouseleave", onLeave);
+    });
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      cancelAnimationFrame(raf);
+      hoverables.forEach((el) => {
+        el.removeEventListener("mouseenter", onEnter);
+        el.removeEventListener("mouseleave", onLeave);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div ref={rootRef} className={styles.root} style={styleVars} data-density={tokens.density}>
       <link
@@ -379,13 +393,12 @@ export function NeonEditorialTemplate({
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
       />
 
-      {animate && (
-        <>
-          <div className="cursor-ring" aria-hidden="true" />
-          <div className="cursor-dot" aria-hidden="true" />
-          <div className="scroll-progress" aria-hidden="true" />
-        </>
-      )}
+      {/* 커스텀 커서는 animate 와 무관하게 항상 렌더 — 에디터에서도 보이도록.
+          (모바일/터치는 styles.module.css 의 @media 에서 display:none 처리) */}
+      <div className="cursor-ring" aria-hidden="true" />
+      <div className="cursor-dot" aria-hidden="true" />
+      {/* scroll-progress 는 배포(animate)에서만 — 에디터는 자체 스크롤 컨테이너라 window 스크롤 기준이 안 맞음 */}
+      {animate && <div className="scroll-progress" aria-hidden="true" />}
 
       {/* HERO */}
       <section className="hero">
