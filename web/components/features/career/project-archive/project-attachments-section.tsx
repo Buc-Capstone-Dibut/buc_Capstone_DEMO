@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   CheckCircle2,
+  ExternalLink,
   FileText,
   ImagePlus,
   Loader2,
@@ -11,7 +12,18 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { ProjectAttachment } from "@/app/my/[handle]/profile-types";
+
+function isPdfAttachment(att: ProjectAttachment) {
+  return att.mimeType === "application/pdf" || /\.pdf$/i.test(att.fileName);
+}
 
 /**
  * 프로젝트 보관 파일 섹션.
@@ -33,6 +45,7 @@ export function ProjectAttachmentsSection({
 }: ProjectAttachmentsSectionProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ProjectAttachment | null>(null);
 
   const remaining = Math.max(0, MAX_ATTACHMENTS - attachments.length);
   const canAdd = remaining > 0;
@@ -141,6 +154,7 @@ export function ProjectAttachmentsSection({
                 attachment={attachment}
                 onRemove={() => handleRemove(attachment)}
                 onSetPrimary={() => handleSetPrimary(attachment)}
+                onPreview={() => setPreview(attachment)}
               />
             ))}
           </ul>
@@ -190,6 +204,11 @@ export function ProjectAttachmentsSection({
       <p className="ml-1 text-[11px] font-medium text-slate-500">
         이미지 항목의 별 아이콘을 누르면 카드의 대표 이미지로 지정됩니다. 대표 미지정 시 첫 번째 이미지가 자동 사용됩니다.
       </p>
+
+      <AttachmentPreviewModal
+        attachment={preview}
+        onClose={() => setPreview(null)}
+      />
     </div>
   );
 }
@@ -198,69 +217,65 @@ function AttachmentTile({
   attachment,
   onRemove,
   onSetPrimary,
+  onPreview,
 }: {
   attachment: ProjectAttachment;
   onRemove: () => void;
   onSetPrimary: () => void;
+  onPreview: () => void;
 }) {
   const isImage = attachment.kind === "image";
-  const isPdf =
-    attachment.mimeType === "application/pdf" ||
-    /\.pdf$/i.test(attachment.fileName);
+  const isPdf = isPdfAttachment(attachment);
   return (
     <li className="group relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
-      {isImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={attachment.url}
-          alt={attachment.alt || attachment.fileName}
-          className="aspect-square w-full object-cover"
-        />
-      ) : isPdf ? (
-        <a
-          href={attachment.url}
-          target="_blank"
-          rel="noreferrer"
-          title={attachment.fileName}
-          className="relative block aspect-square w-full overflow-hidden bg-slate-100 dark:bg-slate-900"
-        >
-          <object
-            data={`${attachment.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-            type="application/pdf"
-            aria-label={attachment.fileName}
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            {/* 브라우저가 PDF 미리보기를 못 그릴 때의 대체 표시 */}
-            <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-2 text-center">
-              <FileText className="h-7 w-7 text-slate-400" aria-hidden />
-              <span className="line-clamp-2 break-all text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
+      <button
+        type="button"
+        onClick={onPreview}
+        title={attachment.fileName}
+        className="block aspect-square w-full cursor-zoom-in"
+      >
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={attachment.url}
+            alt={attachment.alt || attachment.fileName}
+            className="aspect-square w-full object-cover"
+          />
+        ) : isPdf ? (
+          <span className="relative block aspect-square w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
+            <object
+              data={`${attachment.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+              type="application/pdf"
+              aria-label={attachment.fileName}
+              className="pointer-events-none absolute inset-0 h-full w-full"
+            >
+              {/* 브라우저가 PDF 미리보기를 못 그릴 때의 대체 표시 */}
+              <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-2 text-center">
+                <FileText className="h-7 w-7 text-slate-400" aria-hidden />
+                <span className="line-clamp-2 break-all text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
+                  {attachment.fileName}
+                </span>
+              </span>
+            </object>
+            {/* 파일명 + 형식 오버레이 */}
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/65 to-transparent px-1.5 pb-1 pt-3">
+              <span className="rounded bg-red-500 px-1 py-px text-[8px] font-bold leading-none text-white">
+                PDF
+              </span>
+              <span className="truncate text-[10px] font-medium text-white">
                 {attachment.fileName}
               </span>
             </span>
-          </object>
-          {/* 파일명 + 형식 오버레이 */}
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/65 to-transparent px-1.5 pb-1 pt-3">
-            <span className="rounded bg-red-500 px-1 py-px text-[8px] font-bold leading-none text-white">
-              PDF
-            </span>
-            <span className="truncate text-[10px] font-medium text-white">
+          </span>
+        ) : (
+          <span className="flex aspect-square w-full flex-col items-center justify-center gap-1.5 bg-slate-100 p-2 text-center dark:bg-slate-900">
+            <FileText className="h-7 w-7 text-slate-400" aria-hidden />
+            <span className="line-clamp-2 break-all text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
               {attachment.fileName}
             </span>
           </span>
-        </a>
-      ) : (
-        <a
-          href={attachment.url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex aspect-square w-full flex-col items-center justify-center gap-1.5 bg-slate-100 p-2 text-center dark:bg-slate-900"
-        >
-          <FileText className="h-7 w-7 text-slate-400" aria-hidden />
-          <span className="line-clamp-2 break-all text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
-            {attachment.fileName}
-          </span>
-        </a>
-      )}
+        )}
+      </button>
 
       {/* 대표 배지 */}
       {attachment.isPrimary && (
@@ -291,5 +306,81 @@ function AttachmentTile({
         </button>
       </div>
     </li>
+  );
+}
+
+/**
+ * 첨부 파일(이미지/PDF)을 화면 중앙 모달로 크게 미리보기.
+ * 드로어(z-[55]) 위에 떠야 하므로 DialogContent z를 [60]으로 올린다.
+ */
+function AttachmentPreviewModal({
+  attachment,
+  onClose,
+}: {
+  attachment: ProjectAttachment | null;
+  onClose: () => void;
+}) {
+  const isImage = attachment?.kind === "image";
+  const isPdf = attachment ? isPdfAttachment(attachment) : false;
+
+  return (
+    <Dialog open={!!attachment} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="z-[60] max-w-3xl gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b px-4 py-3">
+          <DialogTitle className="truncate pr-8 text-sm font-semibold">
+            {attachment?.fileName ?? "첨부 미리보기"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            첨부 파일 미리보기
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex max-h-[72vh] items-center justify-center overflow-auto bg-slate-50 p-3 dark:bg-slate-900">
+          {attachment && isImage && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={attachment.url}
+              alt={attachment.alt || attachment.fileName}
+              className="mx-auto max-h-[68vh] w-auto rounded-lg object-contain"
+            />
+          )}
+          {attachment && isPdf && (
+            <iframe
+              src={attachment.url}
+              title={attachment.fileName}
+              className="h-[68vh] w-full rounded-lg bg-white"
+            />
+          )}
+          {attachment && !isImage && !isPdf && (
+            <a
+              href={attachment.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex flex-col items-center gap-2 py-12 text-center text-slate-500"
+            >
+              <FileText className="h-10 w-10" aria-hidden />
+              <span className="text-sm font-medium">{attachment.fileName}</span>
+              <span className="text-[12px] text-primary underline">
+                새 탭에서 열기
+              </span>
+            </a>
+          )}
+        </div>
+
+        {attachment && (
+          <div className="flex items-center justify-end border-t bg-muted/30 px-4 py-2.5">
+            <a
+              href={attachment.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
+            >
+              새 탭에서 열기
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
