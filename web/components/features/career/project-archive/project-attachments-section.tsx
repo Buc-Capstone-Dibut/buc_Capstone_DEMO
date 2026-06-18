@@ -204,6 +204,9 @@ function AttachmentTile({
   onSetPrimary: () => void;
 }) {
   const isImage = attachment.kind === "image";
+  const isPdf =
+    attachment.mimeType === "application/pdf" ||
+    /\.pdf$/i.test(attachment.fileName);
   return (
     <li className="group relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
       {isImage ? (
@@ -213,6 +216,38 @@ function AttachmentTile({
           alt={attachment.alt || attachment.fileName}
           className="aspect-square w-full object-cover"
         />
+      ) : isPdf ? (
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+          title={attachment.fileName}
+          className="relative block aspect-square w-full overflow-hidden bg-slate-100 dark:bg-slate-900"
+        >
+          <object
+            data={`${attachment.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+            type="application/pdf"
+            aria-label={attachment.fileName}
+            className="pointer-events-none absolute inset-0 h-full w-full"
+          >
+            {/* 브라우저가 PDF 미리보기를 못 그릴 때의 대체 표시 */}
+            <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-2 text-center">
+              <FileText className="h-7 w-7 text-slate-400" aria-hidden />
+              <span className="line-clamp-2 break-all text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
+                {attachment.fileName}
+              </span>
+            </span>
+          </object>
+          {/* 파일명 + 형식 오버레이 */}
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/65 to-transparent px-1.5 pb-1 pt-3">
+            <span className="rounded bg-red-500 px-1 py-px text-[8px] font-bold leading-none text-white">
+              PDF
+            </span>
+            <span className="truncate text-[10px] font-medium text-white">
+              {attachment.fileName}
+            </span>
+          </span>
+        </a>
       ) : (
         <a
           href={attachment.url}
