@@ -166,6 +166,27 @@ def _to_string_list(value: Any) -> list[str]:
     return [text] if text else []
 
 
+_VALID_SCHEDULE_KINDS = {"deadline", "document_due", "interview", "other"}
+
+
+def _normalize_schedules(value: Any) -> list[dict[str, str]]:
+    """채용 일정 목록 정규화 — [{kind, title, startAt}]. 날짜 없는 항목은 버린다."""
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        start = _to_text(item.get("date") or item.get("startAt") or item.get("start_at"))
+        if not start:
+            continue
+        kind = (_to_text(item.get("kind")) or "deadline").lower()
+        if kind not in _VALID_SCHEDULE_KINDS:
+            kind = "other"
+        out.append({"kind": kind, "title": _to_text(item.get("title")), "startAt": start})
+    return out
+
+
 def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": _to_text(payload.get("title")),
@@ -176,6 +197,7 @@ def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "preferred": _to_string_list(payload.get("preferred")),
         "techStack": _to_string_list(payload.get("techStack")),
         "culture": _to_string_list(payload.get("culture")),
+        "schedules": _normalize_schedules(payload.get("schedules")),
     }
 
 
@@ -253,16 +275,41 @@ class GeminiService:
         return str(response)
 
     def fetch_url_text(self, url: str) -> str:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+            )
+        }
+        with httpx.Client(timeout=30.0, follow_redirects=True, headers=headers) as client:
             res = client.get(url)
             res.raise_for_status()
 
         soup = BeautifulSoup(res.text, "html.parser")
+
+        # 많은 채용 사이트(특히 SPA)는 본문(우대사항·마감일 등)을 가시 텍스트가 아니라
+        # JSON-LD(JobPosting) / __NEXT_DATA__ 같은 <script> 안에 임베드한다.
+        # script 를 전부 버리면 그 데이터를 잃으므로 구조화 블록을 먼저 살린다.
+        structured: list[str] = []
+        for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            raw = (tag.string or tag.get_text() or "").strip()
+            if raw and "JobPosting" in raw:
+                structured.append(raw)
+        next_data = soup.find("script", attrs={"id": "__NEXT_DATA__"})
+        if next_data is not None:
+            raw = (next_data.string or next_data.get_text() or "").strip()
+            if raw:
+                structured.append(raw[:25000])
+
         for tag in soup(["script", "style", "nav", "footer", "header", "iframe"]):
             tag.decompose()
+        visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
 
-        text = soup.get_text(" ", strip=True)
-        return re.sub(r"\s+", " ", text)[:15000]
+        parts: list[str] = []
+        if structured:
+            parts.append("[구조화 데이터(JSON)]\n" + "\n".join(structured))
+        parts.append("[본문 텍스트]\n" + visible)
+        return "\n\n".join(parts)[:45000]
 
     def parse_job_from_text(self, url: str, clean_context: str, retries: int = 2) -> dict[str, Any]:
         prompt = f"""
@@ -281,10 +328,16 @@ Output JSON Format:
   "requirements": ["Requirement 1", "Requirement 2"],
   "preferred": ["Bonus skill 1", "Bonus skill 2"],
   "techStack": ["React", "Node.js", "AWS"],
-  "culture": ["Culture item 1", "Culture item 2"]
+  "culture": ["Culture item 1", "Culture item 2"],
+  "schedules": [
+    {{"kind": "deadline", "title": "지원 마감", "date": "2026-06-21"}}
+  ]
 }}
 
-If specific info is missing, leave the array empty.
+Notes:
+- The text may include embedded JSON (JSON-LD / __NEXT_DATA__). Treat it as a primary source — "preferred"(우대사항)와 날짜는 본문 텍스트엔 없고 이 JSON 안에만 있는 경우가 많다.
+- "schedules": 채용 일정/날짜를 모두 뽑는다 — 지원·접수 마감, 서류 마감, 면접, 발표 등. "kind"는 deadline / document_due / interview / other 중 하나, "date"는 YYYY-MM-DD. 기간이면 마감(종료)일을 쓴다. JSON-LD의 "validThrough" 나 "due_time" 필드는 지원 마감일이다.
+- If specific info is missing, leave the array empty.
 """
         last_error: Exception | None = None
         for _ in range(max(0, retries) + 1):

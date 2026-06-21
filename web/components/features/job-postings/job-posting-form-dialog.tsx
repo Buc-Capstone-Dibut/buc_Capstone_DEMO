@@ -229,6 +229,35 @@ export function JobPostingFormDialog({
           filled.push("팀 문화");
         }
       }
+      if (schedules.length === 0 && Array.isArray(data.schedules)) {
+        const validKinds = ["deadline", "document_due", "interview", "other"];
+        const mapped = (data.schedules as unknown[])
+          .filter(
+            (s): s is { kind?: unknown; title?: unknown; startAt?: unknown } =>
+              typeof s === "object" && s !== null,
+          )
+          .map((s) => {
+            const raw = typeof s.startAt === "string" ? s.startAt.trim() : "";
+            // DateTimePicker 는 yyyy-MM-dd'T'HH:mm 형식을 기대 → 날짜만 오면 마감 의미로 23:59 부여
+            const startAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+              ? `${raw}T23:59`
+              : (raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/)?.[1] ?? raw);
+            return {
+              kind: (validKinds.includes(s.kind as string)
+                ? (s.kind as ScheduleKind)
+                : "other") as ScheduleKind,
+              title: typeof s.title === "string" ? s.title : "",
+              startAt,
+              endAt: "",
+              memo: "",
+            };
+          })
+          .filter((s) => s.startAt.trim() !== "");
+        if (mapped.length > 0) {
+          setSchedules(mapped);
+          filled.push(`일정 ${mapped.length}개`);
+        }
+      }
       setParseFilled(filled);
       // 성공 시 상세 입력 펼치기
       setDetailsOpen(true);
