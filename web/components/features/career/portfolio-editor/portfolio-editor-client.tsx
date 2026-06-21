@@ -947,7 +947,7 @@ export function PortfolioEditorClient({
               aria-label="포트폴리오 이름"
             />
             <span className="rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-              웹 슬라이드
+              슬라이드형
             </span>
             <span className="rounded-full border border-[#d8e4d0] bg-white/75 px-3 py-1 text-xs font-bold text-slate-600">
               {isPublic ? "공개 중" : "비공개"}

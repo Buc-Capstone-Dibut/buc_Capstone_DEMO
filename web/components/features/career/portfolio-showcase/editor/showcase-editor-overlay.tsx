@@ -89,15 +89,6 @@ export function ShowcaseEditorOverlay({
 
   return (
     <div className="fixed inset-0 z-[80] flex bg-slate-100">
-      <button
-        onClick={onExit}
-        className="fixed right-4 top-4 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-        aria-label="닫기"
-        title="닫기"
-      >
-        <X className="h-4 w-4" />
-      </button>
-
       {/* Left panel */}
       <aside className="flex h-full w-[360px] shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="flex h-14 items-center justify-between gap-2 border-b border-slate-200 px-4">
@@ -177,6 +168,16 @@ export function ShowcaseEditorOverlay({
           >
             <Share2 className="h-3.5 w-3.5" />
             공유
+          </button>
+
+          <button
+            type="button"
+            onClick={onExit}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            aria-label="닫기"
+            title="닫기"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
         <div className="origin-top">

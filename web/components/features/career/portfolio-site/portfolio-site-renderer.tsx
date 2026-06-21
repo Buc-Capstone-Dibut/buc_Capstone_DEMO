@@ -159,7 +159,7 @@ function sectionToSitePage(section: PortfolioSection): PortfolioSitePage {
   return {
     id: section.id,
     type,
-    title: section.title || "웹 슬라이드",
+    title: section.title || "슬라이드형",
     subtitle: section.subtitle,
     eyebrow: PAGE_LABEL[type],
     intent: section.type === "project" ? "대표 프로젝트 설득" : "핵심 메시지 전달",

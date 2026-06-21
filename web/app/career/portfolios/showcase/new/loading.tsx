@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 const PHASES = [
   "선택한 프로젝트 분석 중",
   "AI가 포트폴리오 초안을 작성 중",
-  "디자인 템플릿 준비 중",
+  "웹사이트형 준비 중",
   "에디터로 이동 중",
 ];
 

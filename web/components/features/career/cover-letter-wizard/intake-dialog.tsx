@@ -398,7 +398,7 @@ export function CoverLetterWizardIntakeDialog({
                           className="mt-2 h-10"
                           type="number"
                           min={1}
-                          value={question.maxChars}
+                          value={question.maxChars || ""}
                           onChange={(e) =>
                             onQuestionChange(question.id, {
                               maxChars: Number(e.target.value || 0),

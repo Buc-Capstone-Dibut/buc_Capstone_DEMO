@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAnchoredScroll } from "@/hooks/use-anchored-scroll";
@@ -187,6 +187,11 @@ export function CoverLetterWizardStudioChatPanel({
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-5 pb-56 pt-5">
             {activeMessages.map((rawMessage, idx) => {
               const message = normalizeWizardMessage(rawMessage);
+              // 이 후보의 텍스트가 현재 문항에 들어간 답변과 같으면 "적용됨" 상태.
+              // 클릭 플래그가 아니라 실제 답변 기준이라, 다른 후보 적용·직접 수정 시 자동 반영.
+              const isApplied =
+                !!message.suggestedAnswer?.trim() &&
+                message.suggestedAnswer.trim() === selectedQuestion?.answer?.trim();
 
               return message.role === "user" ? (
                 <div
@@ -289,9 +294,19 @@ export function CoverLetterWizardStudioChatPanel({
                     )}
                   </div>
                   {message.suggestedAnswer?.trim() ? (
-                    <div className="mt-3 border-l-2 border-slate-200 pl-4">
-                      <p className="mb-2 text-[11px] font-semibold text-slate-500">
-                        문항 적용 후보
+                    <div
+                      className={`mt-3 border-l-2 pl-4 ${
+                        isApplied
+                          ? "rounded-r-md border-emerald-400 bg-emerald-50/60 py-2"
+                          : "border-slate-200"
+                      }`}
+                    >
+                      <p
+                        className={`mb-2 text-[11px] font-semibold ${
+                          isApplied ? "text-emerald-600" : "text-slate-500"
+                        }`}
+                      >
+                        {isApplied ? "✓ 이 문항에 적용됨" : "문항 적용 후보"}
                       </p>
                       <div className="max-w-none whitespace-pre-wrap break-words text-sm leading-[1.38] text-slate-800">
                         <ReactMarkdown
@@ -360,12 +375,24 @@ export function CoverLetterWizardStudioChatPanel({
                       <div className="mt-3 flex justify-end">
                         <Button
                           type="button"
-                          className="h-8 px-3 text-xs"
+                          variant={isApplied ? "outline" : "default"}
+                          className={`h-8 px-3 text-xs ${
+                            isApplied
+                              ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                              : ""
+                          }`}
                           onClick={() =>
                             onApplySuggestedAnswer(message.suggestedAnswer?.trim() || "")
                           }
                         >
-                          적용하기
+                          {isApplied ? (
+                            <>
+                              <Check className="mr-1 h-3.5 w-3.5" />
+                              적용됨
+                            </>
+                          ) : (
+                            "적용하기"
+                          )}
                         </Button>
                       </div>
                     </div>
