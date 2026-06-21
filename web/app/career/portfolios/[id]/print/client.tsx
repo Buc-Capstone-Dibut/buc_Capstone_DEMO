@@ -36,7 +36,7 @@ export function PortfolioPrintClient({
           이 포트폴리오는 PDF 출력 지원 형식이 아닙니다
         </p>
         <p className="mt-2 text-[13px] font-medium leading-7 text-slate-500">
-          웹 슬라이드 형식의 포트폴리오만 PDF 로 출력할 수 있어요.
+          슬라이드형 포트폴리오만 PDF 로 출력할 수 있어요.
         </p>
         <PortfolioRenderer document={document} readonly />
       </div>

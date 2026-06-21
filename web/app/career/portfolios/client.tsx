@@ -51,8 +51,8 @@ function matchesTypeFilter(item: UnifiedPortfolioItem, filter: TypeFilter) {
 }
 
 function getUnifiedTypeLabel(item: UnifiedPortfolioItem) {
-  if (item.kind === "showcase") return "디자인 템플릿";
-  if (item.legacy?.format === "site") return "웹 슬라이드";
+  if (item.kind === "showcase") return "웹사이트형";
+  if (item.legacy?.format === "site") return "슬라이드형";
   if (item.legacy?.format === "document") return "A4 보고서";
   return "PPT 16:9";
 }
@@ -61,14 +61,14 @@ function PortfolioTypeBadge({ item }: { item: UnifiedPortfolioItem }) {
   if (item.kind === "showcase") {
     return (
       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-        디자인 템플릿
+        웹사이트형
       </span>
     );
   }
   if (item.legacy?.format === "site") {
     return (
       <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-        웹 슬라이드
+        슬라이드형
       </span>
     );
   }
@@ -112,7 +112,7 @@ function formatDateLabel(value?: string | null) {
 }
 
 function getFormatLabel(portfolio: PortfolioListItem) {
-  if (portfolio.format === "site") return "웹 슬라이드";
+  if (portfolio.format === "site") return "슬라이드형";
   return portfolio.format === "document" ? "A4 보고서" : "PPT 16:9";
 }
 
@@ -464,9 +464,9 @@ export default function PortfoliosClient({
               {(
                 [
                   ["all", "전체"],
-                  ["site", "웹 슬라이드"],
+                  ["site", "슬라이드형"],
                   ["slide", "PPT 16:9"],
-                  ["showcase", "디자인 템플릿"],
+                  ["showcase", "웹사이트형"],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -512,7 +512,7 @@ export default function PortfoliosClient({
                   activeJobIds.includes(portfolio.id);
                 const subtitleText =
                   portfolio.kind === "showcase"
-                    ? portfolio.showcase?.templateLabel || "디자인 템플릿"
+                    ? portfolio.showcase?.templateLabel || "웹사이트형"
                     : (() => {
                         const titles = portfolio.legacy ? getProjectTitles(portfolio.legacy) : [];
                         return titles.length > 0
@@ -685,7 +685,7 @@ function ShowcaseDetail({
             {item.isPublic ? "공개" : "비공개"}
           </span>
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-            디자인 템플릿
+            웹사이트형
           </span>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
             {item.showcase?.templateLabel || "템플릿"}
@@ -695,7 +695,7 @@ function ShowcaseDetail({
           {item.title || "(제목 없음)"}
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-          디자인 템플릿 기반 포트폴리오는 에디터에서 자유롭게 텍스트를 편집하고 공개할 수 있습니다.
+          웹사이트형 기반 포트폴리오는 에디터에서 자유롭게 텍스트를 편집하고 공개할 수 있습니다.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px] text-slate-500">
           <span className="flex items-center gap-1.5">
@@ -751,7 +751,7 @@ function ShowcaseDetail({
             </h4>
           </div>
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm leading-6 text-slate-600">
-            <p className="font-semibold text-slate-800">디자인 템플릿 포트폴리오</p>
+            <p className="font-semibold text-slate-800">웹사이트형 포트폴리오</p>
             <p className="mt-2 text-slate-500">
               상단의 “에디터 열기”를 눌러 텍스트와 공개 상태를 편집할 수 있습니다.
               템플릿 미리보기는 에디터 안에서 실시간으로 확인됩니다.
