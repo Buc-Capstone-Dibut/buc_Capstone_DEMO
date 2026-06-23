@@ -4,6 +4,7 @@ const PRIMARY_LINKS = [
   { href: "/insights/tech-blog", label: "인사이트" },
   { href: "/community", label: "커뮤니티" },
   { href: "/workspace", label: "워크스페이스" },
+  { href: "/career", label: "커리어 관리" },
   { href: "/interview", label: "AI 면접" },
 ] as const;
 
