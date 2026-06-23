@@ -192,7 +192,7 @@ export default function ResumePage() {
     // 사용자가 ResumeEditor에서 'AI로 다듬기'를 눌렀을 때 실행되는 핸들러.
     // 결과를 받은 뒤 한 번에 교체하지 않고, 주요 텍스트 필드(개인 한 줄 소개·자기소개·각 경력/프로젝트
     // 설명)를 한 글자씩 채워 넣어 "스트리밍 타이핑"처럼 보이게 만든다.
-    const handleAiCurate = async () => {
+    const handleAiCurate = async (payloadOverride?: ResumePayload) => {
         const target = pendingTarget?.meta;
         if (!target) {
             toast({
@@ -208,7 +208,7 @@ export default function ResumePage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    currentPayload: resumePayload,
+                    currentPayload: payloadOverride ?? resumePayload,
                     targetCompany: target.company,
                     targetRole: target.role,
                     jobDescription: [

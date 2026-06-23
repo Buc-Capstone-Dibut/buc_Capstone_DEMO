@@ -61,8 +61,9 @@ interface ResumeEditorProps {
     deadline: string;
     jobDescription: string;
   } | null;
-  /** AI 큐레이션 트리거 (현재 payload를 회사·직무에 맞게 다듬어 onChange로 갱신). */
-  onAiCurate?: () => void;
+  /** AI 큐레이션 트리거 (현재 payload를 회사·직무에 맞게 다듬어 onChange로 갱신).
+   *  payload 인자를 넘기면 그 payload를 기준으로 다듬는다(가져오기 직후 최신 payload 전달용). */
+  onAiCurate?: (payload?: ResumePayload) => void;
   /** AI 큐레이션 진행 중 여부 (버튼 disabled/스피너 표시용). */
   aiCurating?: boolean;
   /** 이번 세션에서 이미 AI 큐레이션을 한 번 실행했는지. true면 버튼이 숨겨지고 완료 안내로 대체됨. */
@@ -595,6 +596,12 @@ export function ResumeEditor({
       title: "기존 자료 가져오기 완료",
       description: `프로젝트 ${appliedProjects}개 · 경력 ${appliedExperiences}개 · 자기소개서 ${appliedCoverLetters}개를 이력서에 반영했습니다.`,
     });
+
+    // 지원 대상(회사·직무)이 있으면 가져오기 직후 바로 AI 다듬기를 실행한다.
+    // 방금 반영한 nextPayload 를 직접 넘겨, state 갱신 지연(stale)과 무관하게 최신 내용으로 다듬는다.
+    if (applicationTarget && onAiCurate && !aiCurating) {
+      onAiCurate(nextPayload);
+    }
   };
 
 
@@ -674,7 +681,7 @@ export function ResumeEditor({
                   type="button"
                   variant="default"
                   size="sm"
-                  onClick={onAiCurate}
+                  onClick={() => onAiCurate()}
                   disabled={aiCurating}
                   className={cn(
                     "shrink-0 gap-1.5 text-xs",
