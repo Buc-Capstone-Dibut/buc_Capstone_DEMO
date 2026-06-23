@@ -276,7 +276,7 @@ function PostingDetailPane({
 
       <footer className="flex flex-wrap items-center justify-end gap-2 px-6 py-4">
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/my/job-postings/${posting.id}`}>
+          <Link href={`/career/job-postings/${posting.id}`}>
             <FileText className="mr-1 h-3.5 w-3.5" aria-hidden />공고 상세 보기
           </Link>
         </Button>

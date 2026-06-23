@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function JobPostingDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) redirect(`/login?redirect=/my/job-postings/${params.id}`);
+  if (!session) redirect(`/login?redirect=/career/job-postings/${params.id}`);
 
   // target_job_posting_id 기반 역방향 자료 prefetch (서버에서 owner 검증 포함).
   // 본문/카드 fetch 는 기존 client-side /api/my/job-postings/[id] 흐름 그대로.

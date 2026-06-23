@@ -175,7 +175,7 @@ export function MyPostingPickerDialog({
               </p>
             </div>
             <Button asChild size="sm">
-              <a href="/my/job-postings" target="_blank" rel="noreferrer">
+              <a href="/career/job-postings" target="_blank" rel="noreferrer">
                 내 채용공고 관리 열기
                 <ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden />
               </a>

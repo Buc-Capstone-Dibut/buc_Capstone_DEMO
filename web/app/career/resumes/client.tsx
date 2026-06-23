@@ -298,7 +298,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
                         등록된 채용공고가 없습니다
                       </p>
                       <a
-                        href="/my/job-postings"
+                        href="/career/job-postings"
                         target="_blank"
                         rel="noreferrer"
                         className="text-[11px] font-semibold text-primary hover:underline"
@@ -518,7 +518,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/my/job-postings/${p.id}`);
+                            router.push(`/career/job-postings/${p.id}`);
                           }}
                           className="group/chip flex items-center gap-1 truncate rounded-md border border-slate-200 bg-white px-2 py-1 text-left text-[11px] transition-colors hover:border-primary/40 hover:bg-primary/5 dark:border-slate-800 dark:bg-slate-900"
                           title={`${p.companyName} · ${p.roleTitle}`}
@@ -679,7 +679,7 @@ function ResumeTargetSection({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            router.push(`/my/job-postings/${targetPosting.id}`);
+            router.push(`/career/job-postings/${targetPosting.id}`);
           }}
           className="flex w-full items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-primary/10"
           title={`${targetPosting.companyName} · ${targetPosting.roleTitle}`}

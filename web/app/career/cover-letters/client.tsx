@@ -845,7 +845,7 @@ function CoverLetterTargetSection({
         {targetPosting ? (
           <button
             type="button"
-            onClick={() => router.push(`/my/job-postings/${targetPosting.id}`)}
+            onClick={() => router.push(`/career/job-postings/${targetPosting.id}`)}
             className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
             title={`지원 대상: ${targetPosting.companyName} · ${targetPosting.roleTitle}`}
           >

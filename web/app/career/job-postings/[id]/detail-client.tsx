@@ -102,7 +102,7 @@ export function JobPostingDetailClient({
     )
       return;
     await fetch(`/api/my/job-postings/${postingId}`, { method: "DELETE" });
-    window.location.href = "/my/job-postings";
+    window.location.href = "/career/job-postings";
   };
 
   const attachedIds: AttachedIds = useMemo(() => {
@@ -151,7 +151,7 @@ export function JobPostingDetailClient({
       {/* 상단 네비게이션 */}
       <div className="mb-3 flex items-center justify-between">
         <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
-          <Link href="/my/job-postings">
+          <Link href="/career/job-postings">
             <ArrowLeft className="mr-1 h-4 w-4" aria-hidden />목록으로
           </Link>
         </Button>

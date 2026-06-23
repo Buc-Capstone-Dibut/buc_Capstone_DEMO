@@ -424,7 +424,7 @@ export function JobPostingCard({
             variant="ghost"
             className="h-7 rounded-sm px-2 text-[11px] text-foreground/80"
           >
-            <Link href={`/my/job-postings/${posting.id}`}>상세</Link>
+            <Link href={`/career/job-postings/${posting.id}`}>상세</Link>
           </Button>
           {posting.postingUrl && (
             <Button
