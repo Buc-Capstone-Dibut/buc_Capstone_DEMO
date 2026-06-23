@@ -10,6 +10,7 @@ import {
   BarChart3,
   CheckCircle2,
   ClipboardCheck,
+  ExternalLink,
   FileText,
   Lightbulb,
   MessageSquareQuote,
@@ -48,6 +49,18 @@ import {
   InterviewTypeVisual,
   resolveInterviewTypeVisual,
 } from "@/lib/interview/interview-type-visuals";
+import {
+  ANALYSIS_HUB_AXES,
+  buildAnalysisHubSessions,
+  computeRepresentativeAxes,
+  getAxisLabel as getHubAxisLabel,
+  type AnalysisHubSourceSession,
+} from "@/lib/interview/report/analysis-hub";
+import {
+  rankRecommendedBlogs,
+  type RecommendedBlog,
+} from "@/lib/interview/report/blog-recommendations";
+import { supabase } from "@/lib/supabase/client";
 
 interface SessionDetail {
   analysis?: SessionAnalysisPayload;
@@ -873,6 +886,113 @@ function ActionPlanDocument({
   );
 }
 
+function formatBlogPublishedDate(value?: string | null): string {
+  if (!value) return "";
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) return "";
+  return new Date(ts).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function ActionBlogRecommendations({
+  blogs,
+  loading,
+  moreHref,
+  onNavigate,
+}: {
+  blogs: RecommendedBlog[];
+  loading: boolean;
+  moreHref: string;
+  onNavigate: (href: string) => void;
+}) {
+  if (!loading && blogs.length === 0) return null;
+
+  return (
+    <div className="border-t border-[#dfe5ec] py-12 md:py-14">
+      <div className="grid gap-7 lg:grid-cols-[170px_minmax(0,1fr)]">
+        <aside>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <p className="text-lg font-bold">추천 기술 블로그</p>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            이번 면접의 보완점·다음 액션과 직무 기술 스택을 바탕으로 바로 읽어보면 좋은 글을 골랐습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate(moreHref)}
+            className="mt-4 inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#e7ecf2] bg-[#fbfcfe] px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-white"
+          >
+            더 보기
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </aside>
+
+        <div className="min-w-0">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {loading
+          ? [0, 1, 2].map((i) => (
+              <div key={i} className="h-44 animate-pulse rounded-xl bg-[#f1f4f8]" />
+            ))
+          : blogs.map((blog) => (
+              <a
+                key={blog.external_url}
+                href={blog.external_url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex flex-col overflow-hidden rounded-xl border border-[#e7edf3] bg-white transition-colors hover:border-primary/40"
+              >
+                <div className="relative flex h-24 items-center justify-center overflow-hidden bg-[#f6f9fc]">
+                  {blog.thumbnail_url ? (
+                    <Image
+                      src={blog.thumbnail_url}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 320px"
+                    />
+                  ) : (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      기술 블로그
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-col p-3">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {(blog.tags ?? []).slice(0, 2).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-[#f4f6fa] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-[13px] font-bold">{blog.title}</p>
+                  <p className="mt-1.5 line-clamp-2 text-[11px] text-muted-foreground">
+                    {blog.recommendationReason}
+                  </p>
+                  <div className="mt-auto flex items-center justify-between pt-2.5">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {formatBlogPublishedDate(blog.published_at)}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-primary">
+                      원문 <ExternalLink className="h-3 w-3" />
+                    </span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const REPORT_SECTIONS = [
   { id: "summary", label: "요약" },
   { id: "profile", label: "DIBEOT 프로필" },
@@ -961,6 +1081,9 @@ export default function InterviewResultPage() {
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
+  const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
+  const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
+  const [blogsLoading, setBlogsLoading] = useState(true);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
   const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
   const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
@@ -1159,6 +1282,122 @@ export default function InterviewResultPage() {
       },
     });
   }, [effectiveAnalysis, hasMinimalReportData, hasOfficialReportData, sessionDetail]);
+
+  // 단일 면접 세션을 분석 허브 세션 1개로 변환 → 면접 분석 화면과 동일한 추천 엔진을 재사용한다.
+  const singleHubSession = useMemo(() => {
+    if (!sessionDetail) return null;
+    const job = sessionDetail.job_payload ?? {};
+    const createdAt =
+      typeof sessionDetail.created_at === "number"
+        ? sessionDetail.created_at
+        : sessionDetail.created_at
+          ? Math.floor(Date.parse(String(sessionDetail.created_at)) / 1000) || 0
+          : 0;
+
+    const source: AnalysisHubSourceSession = {
+      id: resolvedSessionId || "current",
+      sessionType:
+        sessionDetail.session_type === "portfolio_defense"
+          ? "portfolio_defense"
+          : "live_interview",
+      mode: sessionDetail.mode,
+      targetDurationSec: sessionDetail.target_duration_sec,
+      company: job.company || sessionDetail.report_view?.company,
+      role: job.role || sessionDetail.report_view?.role,
+      repoUrl: job.repoUrl || sessionDetail.report_view?.repoUrl,
+      interviewType: job.interviewType || sessionDetail.report_view?.interviewType,
+      questionFocus: job.questionFocus || sessionDetail.report_view?.questionFocus,
+      reportLens: job.reportLens || sessionDetail.report_view?.reportLens,
+      job_payload: job,
+      createdAt,
+      analysis: (effectiveAnalysis ?? null) as AnalysisHubSourceSession["analysis"],
+      reportView: (sessionDetail.report_view ?? null) as AnalysisHubSourceSession["reportView"],
+      timeline: (sessionDetail.timeline ?? []) as AnalysisHubSourceSession["timeline"],
+      schemaVersion: sessionDetail.schema_version,
+      reportGenerationMeta:
+        (sessionDetail.report_generation_meta ?? undefined) as AnalysisHubSourceSession["reportGenerationMeta"],
+      reportStatus: sessionDetail.reportStatus,
+    };
+
+    return buildAnalysisHubSessions([source])[0] ?? null;
+  }, [sessionDetail, effectiveAnalysis, resolvedSessionId]);
+
+  const blogRecommendationLabels = useMemo(() => {
+    const sessions = singleHubSession ? [singleHubSession] : [];
+    const axes = computeRepresentativeAxes(sessions);
+    return ANALYSIS_HUB_AXES.map((axis) => getHubAxisLabel(axis, axes[axis.key]));
+  }, [singleHubSession]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!singleHubSession) {
+      setRecommendedBlogs([]);
+      setRecommendationTags([]);
+      setBlogsLoading(false);
+      return;
+    }
+
+    const loadRecommendations = async () => {
+      setBlogsLoading(true);
+      try {
+        // 단일 면접 추천은 "이번 면접 맥락"에 맞춘다 → 이번에 본 공고의 기술 스택을 우선 사용.
+        // (전체 분석 화면은 프로필 전체 기술 스택 기반이라 결과가 서로 달라진다.)
+        const techStack = new Set<string>();
+        const jobTech = sessionDetail?.job_payload?.techStack;
+        if (Array.isArray(jobTech)) jobTech.forEach((t) => t && techStack.add(t));
+
+        // 공고에 기술 스택 정보가 없을 때만 프로필 기술 스택으로 폴백.
+        if (techStack.size === 0) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profileRow } = await supabase
+              .from("profiles")
+              .select("tech_stack")
+              .eq("id", user.id)
+              .maybeSingle();
+            const profileTech = (profileRow as { tech_stack?: string[] | null } | null)?.tech_stack;
+            if (Array.isArray(profileTech)) profileTech.forEach((t) => t && techStack.add(t));
+          }
+        }
+
+        const { data: blogs, error: blogsError } = await supabase
+          .from("blogs")
+          .select("*")
+          .eq("blog_type", "company")
+          .order("published_at", { ascending: false })
+          .limit(120);
+        if (blogsError) throw blogsError;
+
+        if (!cancelled) {
+          const ranked = rankRecommendedBlogs({
+            blogs: blogs ?? [],
+            sessions: [singleHubSession],
+            representativeLabels: blogRecommendationLabels,
+            techStack: Array.from(techStack),
+          });
+          setRecommendedBlogs(ranked.recommendedBlogs);
+          setRecommendationTags(ranked.resolvedRecommendationTags ?? []);
+        }
+      } catch (error) {
+        console.error("추천 기술 블로그를 불러오지 못했습니다.", error);
+        if (!cancelled) {
+          setRecommendedBlogs([]);
+          setRecommendationTags([]);
+        }
+      } finally {
+        if (!cancelled) setBlogsLoading(false);
+      }
+    };
+
+    void loadRecommendations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [singleHubSession, blogRecommendationLabels, sessionDetail?.job_payload?.techStack]);
 
   const roleLabel =
     reportModel?.metaItems.find((item) => item.label === "직무")?.value ||
@@ -1456,6 +1695,17 @@ export default function InterviewResultPage() {
               onNavigate={(href) => router.push(href)}
             />
           </DocumentSection>
+
+          <ActionBlogRecommendations
+            blogs={recommendedBlogs}
+            loading={blogsLoading}
+            moreHref={
+              recommendationTags.length > 0
+                ? `/insights/tech-blog?tags=${encodeURIComponent(recommendationTags.join(","))}&from=analysis`
+                : "/insights/tech-blog"
+            }
+            onNavigate={(href) => router.push(href)}
+          />
         </article>
       </main>
     </div>
