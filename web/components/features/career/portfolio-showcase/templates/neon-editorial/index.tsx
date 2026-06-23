@@ -443,7 +443,7 @@ export function NeonEditorialTemplate({
         <section className="section about" id="about">
           <div className="section-head">
             <span className="label accent">01 / ABOUT</span>
-            <h2 className="section-display">AB&nbsp;OUT</h2>
+            <h2 className="section-display">ABOUT</h2>
           </div>
           <div className="about-grid">
             <div className="about-quote">
@@ -474,7 +474,7 @@ export function NeonEditorialTemplate({
         <section className="section works" id="works">
           <div className="section-head">
             <span className="label accent">02 / WORKS</span>
-            <h2 className="section-display">WO&nbsp;RKS</h2>
+            <h2 className="section-display">WORKS</h2>
           </div>
           <div className="works-list">
             {content.projects.map((p, i) => {
@@ -541,7 +541,7 @@ export function NeonEditorialTemplate({
         <section className="section experience" id="experience">
           <div className="section-head">
             <span className="label accent">03 / EXPERIENCE</span>
-            <h2 className="section-display">EXPE&nbsp;RI&nbsp;ENCE</h2>
+            <h2 className="section-display">EXPERIENCE</h2>
           </div>
           {content.experience.length > 0 && (
             <div className="timeline">
