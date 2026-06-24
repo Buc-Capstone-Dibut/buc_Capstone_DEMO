@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ANALYSIS_HUB_AXES,
@@ -28,10 +28,15 @@ export default function InterviewAnalysisPage() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [sourceSessions, setSourceSessions] = useState<AnalysisHubSourceSession[]>([]);
+  const [hasMoreSessions, setHasMoreSessions] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [displayName, setDisplayName] = useState("회원");
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
   const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
+
+  // 한 번에 가져오는 면접 기록 수. '더 보기'로 offset을 늘려 모든 기록까지 도달.
+  const SESSIONS_PAGE_SIZE = 24;
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +45,7 @@ export default function InterviewAnalysisPage() {
       setSessionsLoading(true);
       setSessionsError(null);
       try {
-        const res = await fetch("/api/interview/sessions?limit=24", { cache: "no-store" });
+        const res = await fetch(`/api/interview/sessions?limit=${SESSIONS_PAGE_SIZE}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (res.status === 401) {
           router.push("/auth/login");
@@ -50,7 +55,10 @@ export default function InterviewAnalysisPage() {
           throw new Error(json?.error || "세션 목록을 불러오지 못했습니다.");
         }
         if (!cancelled) {
-          setSourceSessions(json.data as AnalysisHubSourceSession[]);
+          const page = json.data as AnalysisHubSourceSession[];
+          setSourceSessions(page);
+          // 페이지가 가득 찼으면 더 있을 수 있다(서버가 잘라낸 것).
+          setHasMoreSessions(page.length >= SESSIONS_PAGE_SIZE);
         }
       } catch (error) {
         if (!cancelled) {
@@ -69,6 +77,34 @@ export default function InterviewAnalysisPage() {
       cancelled = true;
     };
   }, [router]);
+
+  const handleLoadMoreSessions = useCallback(async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const offset = sourceSessions.length;
+      const res = await fetch(
+        `/api/interview/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${offset}`,
+        { cache: "no-store" },
+      );
+      const json = await res.json().catch(() => null);
+      if (!json?.success || !Array.isArray(json?.data)) {
+        throw new Error(json?.error || "면접 기록을 더 불러오지 못했습니다.");
+      }
+      const page = json.data as AnalysisHubSourceSession[];
+      // id 중복 방지(동시 갱신/경계 케이스)하며 이어붙인다.
+      setSourceSessions((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        const fresh = page.filter((item) => !seen.has(item.id));
+        return [...prev, ...fresh];
+      });
+      setHasMoreSessions(page.length >= SESSIONS_PAGE_SIZE);
+    } catch (error) {
+      console.error("면접 기록을 더 불러오지 못했습니다.", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, sourceSessions.length]);
 
   const allSessions = useMemo(() => buildAnalysisHubSessions(sourceSessions), [sourceSessions]);
   const repeatCounts = useMemo(() => {
@@ -232,6 +268,9 @@ export default function InterviewAnalysisPage() {
       interviewTypeStats={interviewTypeStats}
       blogs={recommendedBlogs}
       recommendationTags={recommendationTags}
+      hasMoreSessions={hasMoreSessions}
+      isLoadingMoreSessions={isLoadingMore}
+      onLoadMoreSessions={handleLoadMoreSessions}
       onNavigate={(href) => router.push(href)}
     />
   );
