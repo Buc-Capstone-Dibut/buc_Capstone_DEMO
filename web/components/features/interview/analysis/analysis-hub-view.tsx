@@ -202,6 +202,12 @@ export interface AnalysisHubViewProps {
   blogs: RecommendedBlog[];
   /** 추천 엔진이 도출한 사용자 태그 조합(상위 N개) — '더 보기' 필터에 사용 */
   recommendationTags: string[];
+  /** 서버에 아직 더 가져올 면접 기록이 있는지 */
+  hasMoreSessions?: boolean;
+  /** 면접 기록 추가 로드 진행 중 */
+  isLoadingMoreSessions?: boolean;
+  /** 면접 기록 '더 보기' 클릭(다음 페이지 로드) */
+  onLoadMoreSessions?: () => void;
   onNavigate: (href: string) => void;
   /** 미경험 유형 기본 펼침 (프리뷰/스크린샷용) */
   defaultShowUncovered?: boolean;
@@ -227,6 +233,9 @@ export function AnalysisHubView({
   interviewTypeStats,
   blogs,
   recommendationTags,
+  hasMoreSessions = false,
+  isLoadingMoreSessions = false,
+  onLoadMoreSessions,
   onNavigate,
   defaultShowUncovered = false,
 }: AnalysisHubViewProps) {
@@ -423,7 +432,7 @@ export function AnalysisHubView({
           {filteredSessions.length > 0 ? (
             viewMode === "cards" ? (
               <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-                {filteredSessions.slice(0, 9).map((session) => {
+                {filteredSessions.map((session) => {
                   const repeatCount = repeatCounts[`${session.kind}:${session.subtitle || session.title}`] || 1;
                   return (
                     <button
@@ -460,7 +469,7 @@ export function AnalysisHubView({
               </div>
             ) : (
               <div className="divide-y divide-[#eef2f6] px-5">
-                {filteredSessions.slice(0, 9).map((session) => {
+                {filteredSessions.map((session) => {
                   const repeatCount = repeatCounts[`${session.kind}:${session.subtitle || session.title}`] || 1;
                   return (
                     <button
@@ -488,6 +497,19 @@ export function AnalysisHubView({
               아직 분석할 세션이 없습니다. 면접이나 디펜스를 완료하면 실제 기록 기반 추세를 확인할 수 있습니다.
             </div>
           )}
+
+          {hasMoreSessions && onLoadMoreSessions ? (
+            <div className="flex justify-center px-5 pb-5">
+              <Button
+                variant="outline"
+                onClick={onLoadMoreSessions}
+                disabled={isLoadingMoreSessions}
+                className="rounded-full px-6"
+              >
+                {isLoadingMoreSessions ? "불러오는 중…" : "더 보기"}
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         {/* ── 블록 C: 유형 커버리지(요약 바 + 칩 + 미경험 토글) ── */}
