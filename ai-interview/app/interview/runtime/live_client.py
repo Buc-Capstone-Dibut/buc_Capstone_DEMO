@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
-from app.interview.domain.interview_memory import extract_memory_keywords
+from app.interview.domain.interview_memory import (
+    extract_memory_keywords,
+    summarize_job_for_prompt,
+    summarize_resume_for_prompt,
+)
 from app.interview.domain.question_bank import infer_interview_track, interview_track_label
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
@@ -28,8 +32,10 @@ def build_live_session_instruction(
     compact_context_text: Callable[..., str],
 ) -> str:
     personality = (state.personality or "professional").strip()
-    job_brief = compact_context_text(state.job_data, max_chars=900)
-    resume_brief = compact_context_text(state.resume_data, max_chars=900)
+    # raw JSON 을 900자에서 통째로 자르면 공고 요구사항/이력서 상세가 잘려 모델이 못 본다.
+    # 핵심 항목을 추려 더 넉넉히 주입한다.
+    job_brief = summarize_job_for_prompt(state.job_data, max_chars=1500)
+    resume_brief = summarize_resume_for_prompt(state.resume_data, max_chars=1500)
     level = resolve_interview_level(
         state.job_data if isinstance(state.job_data, dict) else {},
         state.resume_data,
@@ -77,6 +83,8 @@ def build_live_session_instruction(
         f"권장 면접 길이: 약 {target_min}분\n"
         f"채용 맥락 요약: {job_brief}\n"
         f"지원자 요약: {resume_brief}\n"
+        "위 채용 맥락(요구사항·기술스택)과 지원자 요약(프로젝트·경력)을 적극 참고하고, "
+        "면접 전반에서 그 항목들을 직접 짚어 검증하는 질문도 자연스럽게 섞는다.\n"
         "출력은 자연스러운 한국어 음성 문장으로만 생성한다."
     )
 

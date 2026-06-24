@@ -341,6 +341,134 @@ def compact_context_text(value: Any, max_chars: int = 1200) -> str:
     return f"{normalized[:max_chars]}..."
 
 
+def _clean_one_line(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _summary_strings(value: Any) -> list[str]:
+    """문자열/리스트/객체에서 면접에 쓸 텍스트들을 평탄화해 뽑는다."""
+    if isinstance(value, str):
+        cleaned = _clean_one_line(value)
+        return [cleaned] if cleaned else []
+    if isinstance(value, (list, tuple)):
+        out: list[str] = []
+        for item in value:
+            out.extend(_summary_strings(item))
+        return out
+    if isinstance(value, dict):
+        out = []
+        for key in ("name", "title", "projectName", "company", "role", "position", "summary", "description"):
+            out.extend(_summary_strings(value.get(key)))
+        return out
+    return []
+
+
+def _item_titles(value: Any) -> list[str]:
+    """프로젝트/경력 리스트에서 '제목' 한 줄씩만 뽑는다(설명은 제외해 간결하게)."""
+    titles: list[str] = []
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            if isinstance(item, dict):
+                for key in ("name", "title", "projectName", "company", "role", "position"):
+                    title = _clean_one_line(item.get(key))
+                    if title:
+                        titles.append(title)
+                        break
+            else:
+                title = _clean_one_line(item)
+                if title:
+                    titles.append(title)
+    return titles
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    return [x for x in items if not (x in seen or seen.add(x))]
+
+
+def summarize_job_for_prompt(job_data: Any, max_chars: int = 1500) -> str:
+    """공고에서 면접에 중요한 항목(요건/기술스택/우대/업무)을 앞세워 사람이 읽을 요약을 만든다.
+
+    raw JSON 을 통째로 자르면 뒤쪽 핵심(요구사항·기술스택)이 잘려나가므로, 핵심 필드를 우선 추린다.
+    """
+    if not isinstance(job_data, dict):
+        return compact_context_text(job_data, max_chars)
+
+    parts: list[str] = []
+    head = " ".join(
+        x
+        for x in (
+            _clean_one_line(job_data.get("company")),
+            _clean_one_line(job_data.get("role") or job_data.get("position") or job_data.get("title")),
+        )
+        if x
+    ).strip()
+    if head:
+        parts.append(f"회사/직무: {head}")
+
+    def add(key: str, label: str, limit: int) -> None:
+        items = _dedupe([x for x in _summary_strings(job_data.get(key)) if x])
+        if items:
+            parts.append(f"{label}: " + " · ".join(items[:limit]))
+
+    add("requirements", "자격요건", 8)
+    add("preferred", "우대사항", 6)
+    add("techStack", "기술스택", 14)
+    add("responsibilities", "주요업무", 6)
+
+    text = " | ".join(parts)
+    desc = _clean_one_line(job_data.get("description"))
+    if desc and len(text) < max_chars - 120:
+        text = f"{text} | 공고요약: {desc}" if text else f"공고요약: {desc}"
+    if not text:
+        return compact_context_text(job_data, max_chars)
+    return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+
+def summarize_resume_for_prompt(resume_data: Any, max_chars: int = 1500) -> str:
+    """이력서에서 면접에 중요한 항목(요약/프로젝트·경력 제목/보유기술)을 앞세워 요약을 만든다."""
+    if not isinstance(resume_data, dict):
+        return compact_context_text(resume_data, max_chars)
+
+    parts: list[str] = []
+    intro = ""
+    for key in ("summary", "headline", "selfIntroduction"):
+        intro = _clean_one_line(resume_data.get(key))
+        if intro:
+            break
+    if not intro and isinstance(resume_data.get("personalInfo"), dict):
+        intro = _clean_one_line(resume_data["personalInfo"].get("intro"))
+    if intro:
+        parts.append(f"요약: {intro}")
+
+    project_titles = _dedupe(
+        _item_titles(resume_data.get("projects")) + _item_titles(resume_data.get("project"))
+    )
+    if project_titles:
+        parts.append("프로젝트: " + " · ".join(project_titles[:6]))
+
+    career_titles = _dedupe(
+        _item_titles(resume_data.get("experience"))
+        + _item_titles(resume_data.get("experiences"))
+        + _item_titles(resume_data.get("workExperiences"))
+        + _item_titles(resume_data.get("work_experience"))
+    )
+    if career_titles:
+        parts.append("경력: " + " · ".join(career_titles[:6]))
+
+    skills: list[str] = []
+    for key in ("skills", "techStack", "tech_stack", "technologies"):
+        skills.extend(_summary_strings(resume_data.get(key)))
+    skills = _dedupe([s for s in skills if s])
+    if skills:
+        parts.append("보유기술: " + " · ".join(skills[:16]))
+
+    text = " | ".join(parts)
+    if not text:
+        return compact_context_text(resume_data, max_chars)
+    return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+
 def compress_memory_text(text: str, max_chars: int = 120) -> str:
     normalized = re.sub(r"\s+", " ", (text or "")).strip()
     if not normalized:
