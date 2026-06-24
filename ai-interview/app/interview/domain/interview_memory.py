@@ -501,6 +501,107 @@ def _default_question_candidates(state: VoiceWsState) -> list[str]:
     return list(_candidate_rotation(state)) + list(QUESTION_TYPE_ROTATION)
 
 
+# ── 질문 폭/깊이 균형(P0 깊이상한 / P1 JD커버리지 / P2 얕은답변 조기전환) ──
+_DEPTH_FAMILIES = frozenset({"experience_detail", "decision_heavy", "challenge"})
+
+_NO_EXPERIENCE_PATTERN = re.compile(
+    r"(경험.{0,5}(없|못했|못 했|아니|부족)|해본 ?적.{0,3}없|해보지.{0,3}못|"
+    r"못 ?해\s?(봤|본)|모르겠|잘 모르|기억.{0,3}안|아직.{0,4}없)",
+    re.IGNORECASE,
+)
+_JD_COLLAB_PATTERN = re.compile(
+    r"(협업|팀워크|팀\s|커뮤니케이|소통|stakeholder|cross[- ]?functional|리더십|조율|동료|문화)",
+    re.IGNORECASE,
+)
+
+
+def _job_text_blob(job_data: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in (
+        "requirements",
+        "preferred",
+        "responsibilities",
+        "qualifications",
+        "techStack",
+        "description",
+        "culture",
+    ):
+        value = job_data.get(key)
+        if isinstance(value, (list, tuple)):
+            parts.append(" ".join(str(item) for item in value))
+        elif isinstance(value, str):
+            parts.append(value)
+    return " ".join(parts)
+
+
+def _jd_wants_collaboration(job_data: dict[str, Any]) -> bool:
+    return bool(_JD_COLLAB_PATTERN.search(_job_text_blob(job_data)))
+
+
+def _covered_families(state: VoiceWsState) -> set[str]:
+    return {
+        QUESTION_TYPE_FAMILIES.get(question_type, "")
+        for question_type in state.recent_question_types
+    }
+
+
+def _recent_deep_streak(state: VoiceWsState) -> int:
+    streak = 0
+    for question_type in reversed(state.recent_question_types):
+        if QUESTION_TYPE_FAMILIES.get(question_type, "") in _DEPTH_FAMILIES:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _apply_breadth_balance(
+    state: VoiceWsState,
+    scores: dict[str, int],
+    *,
+    answer_text: str,
+    stage: str,
+    job_data: dict[str, Any],
+) -> None:
+    """꼬리질문 깊이 상한 + 얕은/무경험 답변 조기전환 + JD 폭 커버리지.
+
+    한 주제(기술 심화 계열)를 2회 이상 연속으로 팠거나, 답변에 더 캘 게 없으면(무경험/매우 짧음)
+    기술 심화 계열을 감점하고 아직 안 다룬 폭 계열(협업/회고/동기)에 가산점을 줘 전환을 유도한다.
+    기존 답변 기반 점수에 '조정'만 얹으므로, 1~2회 꼬리질문 깊이는 그대로 유지된다.
+    """
+    if stage == "early":
+        return  # 오프닝(자기소개/지원동기)은 건드리지 않는다.
+
+    covered = _covered_families(state)
+    deep_streak = _recent_deep_streak(state)
+    no_experience = bool(_NO_EXPERIENCE_PATTERN.search(answer_text))
+    very_short = len(answer_text.strip()) < 18
+    wants_collab = _jd_wants_collaboration(job_data)
+
+    # 2회 연속 심화(P0) / 무경험·빈 우물(P2) / 이미 1회 팠는데 또 얕은 답변 → 폭으로 전환
+    force_breadth = deep_streak >= 2 or no_experience or (deep_streak >= 1 and very_short)
+
+    if force_breadth:
+        for question_type, family in QUESTION_TYPE_FAMILIES.items():
+            if question_type not in scores:
+                continue  # scores 는 QUESTION_TYPE_ROTATION 기준 — 없는 타입은 건너뛴다.
+            if family in _DEPTH_FAMILIES:
+                scores[question_type] -= 14
+            elif family == "collaboration":
+                scores[question_type] += 12 + (4 if wants_collab else 0)
+                if "collaboration" in covered:
+                    scores[question_type] -= 9
+            elif family == "reflection":
+                scores[question_type] += 8 if "reflection" not in covered else 2
+            elif family == "motivation" and "motivation" not in covered:
+                scores[question_type] += 4
+
+    # 항상-약한 보정: 중/후반에 협업을 한 번도 안 다뤘고 JD 가 협업을 원하면 점진 가산.
+    if stage in ("middle", "late") and "collaboration" not in covered and wants_collab:
+        scores["behavioral_fit"] += 4
+        scores["collaboration_conflict"] += 3
+
+
 def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list[str]:
     normalized = re.sub(r"\s+", " ", (answer_text or "")).strip().lower()
     stage = _question_stage(state)
@@ -610,6 +711,15 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
     elif level == "junior":
         scores["priority_judgment"] -= 3
         scores["tradeoff"] -= 2
+
+    # 깊이 상한 + 폭(JD 커버리지) 균형 조정 — 답변 기반 점수 위에 얹는다.
+    _apply_breadth_balance(
+        state,
+        scores,
+        answer_text=normalized,
+        stage=stage,
+        job_data=normalized_job_data,
+    )
 
     rotation_index = {name: index for index, name in enumerate(_default_question_candidates(state))}
     ranked = sorted(
