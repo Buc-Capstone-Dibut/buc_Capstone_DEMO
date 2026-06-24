@@ -1301,7 +1301,13 @@ export function ResumeEditor({
             title={title}
             options={a4Options}
             onOptionsChange={setA4Options}
-            overlay={aiCurating ? <AiCurateOverlay phase={aiCuratePhase} /> : undefined}
+            overlay={
+              // 'analyzing'(서버 분석 대기) 동안만 오버레이를 띄운다.
+              // 'writing'(작성) 단계로 넘어가면 오버레이를 닫아 타자기 효과가 실시간으로 보이게 한다.
+              aiCuratePhase === "analyzing" ? (
+                <AiCurateOverlay phase={aiCuratePhase} />
+              ) : undefined
+            }
           />
         </div>
       </div>
