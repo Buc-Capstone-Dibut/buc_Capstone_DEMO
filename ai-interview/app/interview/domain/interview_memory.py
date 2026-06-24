@@ -246,7 +246,7 @@ QUESTION_TYPE_ROTATION_BY_LEVEL: dict[InterviewLevel, dict[str, tuple[str, ...]]
         ),
     },
 }
-QUESTION_TYPE_COOLDOWN_TYPES = {"metric_validation", "tradeoff"}
+QUESTION_TYPE_COOLDOWN_TYPES = {"metric_validation", "tradeoff", "closing_pitch"}
 QUESTION_TYPE_REPEATABLE_TYPES = {
     "implementation_detail",
     "problem_solving_process",
@@ -700,6 +700,11 @@ def _apply_breadth_balance(
     if stage == "early":
         return  # 오프닝(자기소개/지원동기)은 건드리지 않는다.
 
+    # closing_pitch("마지막으로 …어필")은 실제 종료 턴(_closing_question_preference)에서만 써야 한다.
+    # 중간 턴 점수 경쟁에서 떠서 '마지막으로'가 조기 등장하지 않도록 강하게 감점한다.
+    if "closing_pitch" in scores:
+        scores["closing_pitch"] -= 30
+
     covered = _covered_families(state)
     deep_streak = _recent_deep_streak(state)
     no_experience = bool(_NO_EXPERIENCE_PATTERN.search(answer_text))
@@ -719,7 +724,7 @@ def _apply_breadth_balance(
                 scores[question_type] += 12 + (4 if wants_collab else 0)
                 if "collaboration" in covered:
                     scores[question_type] -= 9
-            elif family == "reflection":
+            elif family == "reflection" and question_type != "closing_pitch":
                 scores[question_type] += 8 if "reflection" not in covered else 2
             elif family == "motivation" and "motivation" not in covered:
                 scores[question_type] += 4
