@@ -6,10 +6,13 @@ import {
   ArrowRight,
   Briefcase,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   GitBranch,
   LayoutDashboard,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -202,12 +205,10 @@ export interface AnalysisHubViewProps {
   blogs: RecommendedBlog[];
   /** 추천 엔진이 도출한 사용자 태그 조합(상위 N개) — '더 보기' 필터에 사용 */
   recommendationTags: string[];
-  /** 서버에 아직 더 가져올 면접 기록이 있는지 */
-  hasMoreSessions?: boolean;
-  /** 면접 기록 추가 로드 진행 중 */
-  isLoadingMoreSessions?: boolean;
-  /** 면접 기록 '더 보기' 클릭(다음 페이지 로드) */
-  onLoadMoreSessions?: () => void;
+  /** 삭제 진행 중인 세션 id(버튼 비활성화·표시용) */
+  deletingSessionId?: string | null;
+  /** 면접 기록 삭제 요청 */
+  onDeleteSession?: (sessionId: string) => void;
   onNavigate: (href: string) => void;
   /** 미경험 유형 기본 펼침 (프리뷰/스크린샷용) */
   defaultShowUncovered?: boolean;
@@ -233,19 +234,42 @@ export function AnalysisHubView({
   interviewTypeStats,
   blogs,
   recommendationTags,
-  hasMoreSessions = false,
-  isLoadingMoreSessions = false,
-  onLoadMoreSessions,
+  deletingSessionId,
+  onDeleteSession,
   onNavigate,
   defaultShowUncovered = false,
 }: AnalysisHubViewProps) {
   const [selectedTab, setSelectedTab] = useState<AnalysisHubTabKind>("all");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [currentPage, setCurrentPage] = useState(1);
   const [showUncovered, setShowUncovered] = useState(defaultShowUncovered);
 
   const filteredSessions = sessions.filter(
     (s) => selectedTab === "all" || s.kind === selectedTab,
   );
+  // 한 화면 최대 9개 — 9개를 넘으면 페이지를 넘겨서 본다(무한 스크롤 X).
+  const SESSIONS_PER_PAGE = 9;
+  const pageCount = Math.max(1, Math.ceil(filteredSessions.length / SESSIONS_PER_PAGE));
+  // 탭 전환·삭제로 페이지 수가 줄면 현재 페이지를 마지막 페이지로 보정.
+  const safePage = Math.min(Math.max(currentPage, 1), pageCount);
+  const pagedSessions = filteredSessions.slice(
+    (safePage - 1) * SESSIONS_PER_PAGE,
+    safePage * SESSIONS_PER_PAGE,
+  );
+
+  // 카드/행 클릭(상세 이동)과 충돌하지 않게 stopPropagation + 확인 후 삭제.
+  const requestDeleteSession = (
+    event: React.MouseEvent,
+    session: AnalysisHubSession,
+  ) => {
+    event.stopPropagation();
+    if (!onDeleteSession) return;
+    const ok = window.confirm(
+      `'${session.title}' 면접 기록을 삭제할까요?\n리포트·분석·타임라인이 함께 사라지며 되돌릴 수 없습니다.`,
+    );
+    if (ok) onDeleteSession(session.id);
+  };
+
   const hasSessions = sessions.length > 0;
   const totalSessions = sessions.length;
   const totalMock = sessions.filter((s) => s.kind === "mock").length;
@@ -397,7 +421,10 @@ export function AnalysisHubView({
                   <button
                     key={tab.key}
                     type="button"
-                    onClick={() => setSelectedTab(tab.key as AnalysisHubTabKind)}
+                    onClick={() => {
+                      setSelectedTab(tab.key as AnalysisHubTabKind);
+                      setCurrentPage(1);
+                    }}
                     className={cn(
                       "rounded-md px-3 py-1.5 text-xs font-bold transition-all",
                       selectedTab === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
@@ -432,15 +459,33 @@ export function AnalysisHubView({
           {filteredSessions.length > 0 ? (
             viewMode === "cards" ? (
               <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-                {filteredSessions.map((session) => {
+                {pagedSessions.map((session) => {
                   const repeatCount = repeatCounts[`${session.kind}:${session.subtitle || session.title}`] || 1;
                   return (
-                    <button
+                    <div
                       key={session.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate(session.href)}
-                      className="group flex min-h-[196px] flex-col rounded-xl border border-[#e7ecf2] bg-[#fbfcfe] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:bg-white hover:shadow-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onNavigate(session.href);
+                        }
+                      }}
+                      className="group relative flex min-h-[196px] cursor-pointer flex-col rounded-xl border border-[#e7ecf2] bg-[#fbfcfe] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:bg-white hover:shadow-sm"
                     >
+                      {onDeleteSession ? (
+                        <button
+                          type="button"
+                          aria-label="면접 기록 삭제"
+                          onClick={(e) => requestDeleteSession(e, session)}
+                          disabled={deletingSessionId === session.id}
+                          className="absolute right-2 top-2 z-10 hidden rounded-full border border-[#e7ecf2] bg-white p-1.5 text-muted-foreground shadow-sm transition-colors hover:border-red-200 hover:text-red-500 disabled:opacity-50 group-hover:flex"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
                       <div className="flex items-center justify-between gap-3">
                         <span className="rounded-full bg-[#edf6e6] px-2.5 py-1 text-[11px] font-bold text-[#6f9f3b]">{session.interviewTypeLabel}</span>
                         <span className="text-[11px] font-semibold text-muted-foreground">{session.date}</span>
@@ -463,20 +508,27 @@ export function AnalysisHubView({
                           <ArrowRight className="ml-0.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                         </span>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             ) : (
               <div className="divide-y divide-[#eef2f6] px-5">
-                {filteredSessions.map((session) => {
+                {pagedSessions.map((session) => {
                   const repeatCount = repeatCounts[`${session.kind}:${session.subtitle || session.title}`] || 1;
                   return (
-                    <button
+                    <div
                       key={session.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onNavigate(session.href)}
-                      className="grid w-full gap-3 py-3.5 text-left transition-colors hover:bg-primary/[0.03] md:grid-cols-[88px_minmax(0,1fr)_96px_72px_96px_24px] md:items-center"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onNavigate(session.href);
+                        }
+                      }}
+                      className="group grid w-full cursor-pointer gap-3 py-3.5 text-left transition-colors hover:bg-primary/[0.03] md:grid-cols-[88px_minmax(0,1fr)_96px_72px_96px_40px] md:items-center"
                     >
                       <span className="text-xs font-bold text-primary">{session.kind === "mock" ? "면접" : "디펜스"}</span>
                       <div className="min-w-0">
@@ -486,8 +538,21 @@ export function AnalysisHubView({
                       <span className="text-xs text-muted-foreground md:text-right">{session.date}</span>
                       <span className="text-xs font-bold text-foreground md:text-right">{repeatCount}회</span>
                       <span className="text-xs font-bold text-muted-foreground md:text-right">{getSessionStatusLabel(session.reportStatus)}</span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground md:justify-self-end" />
-                    </button>
+                      <span className="relative flex h-5 items-center justify-end md:justify-self-end">
+                        <ArrowRight className="h-4 w-4 text-muted-foreground transition-opacity group-hover:opacity-0" />
+                        {onDeleteSession ? (
+                          <button
+                            type="button"
+                            aria-label="면접 기록 삭제"
+                            onClick={(e) => requestDeleteSession(e, session)}
+                            disabled={deletingSessionId === session.id}
+                            className="absolute right-0 hidden rounded-full border border-[#e7ecf2] bg-white p-1.5 text-muted-foreground shadow-sm transition-colors hover:border-red-200 hover:text-red-500 disabled:opacity-50 group-hover:flex"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </span>
+                    </div>
                   );
                 })}
               </div>
@@ -498,16 +563,42 @@ export function AnalysisHubView({
             </div>
           )}
 
-          {hasMoreSessions && onLoadMoreSessions ? (
-            <div className="flex justify-center px-5 pb-5">
-              <Button
-                variant="outline"
-                onClick={onLoadMoreSessions}
-                disabled={isLoadingMoreSessions}
-                className="rounded-full px-6"
+          {filteredSessions.length > 0 && pageCount > 1 ? (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 border-t border-[#eef2f6] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(safePage - 1)}
+                disabled={safePage <= 1}
+                aria-label="이전 페이지"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5eaf1] bg-white text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isLoadingMoreSessions ? "불러오는 중…" : "더 보기"}
-              </Button>
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  aria-current={page === safePage ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-bold transition-colors",
+                    page === safePage
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-[#e5eaf1] bg-white text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(safePage + 1)}
+                disabled={safePage >= pageCount}
+                aria-label="다음 페이지"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5eaf1] bg-white text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
           ) : null}
         </section>
