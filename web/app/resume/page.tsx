@@ -19,6 +19,7 @@ export default function ResumePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
+    const [aiCuratePhase, setAiCuratePhase] = useState<"analyzing" | "writing" | null>(null);
     const [aiCurated, setAiCurated] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
@@ -203,6 +204,7 @@ export default function ResumePage() {
             return;
         }
         setGeneratingTailoredResume(true);
+        setAiCuratePhase("analyzing");
         try {
             const response = await fetch("/api/career/resumes/generate", {
                 method: "POST",
@@ -222,6 +224,8 @@ export default function ResumePage() {
             if (!response.ok || !json?.success) {
                 throw new Error(json?.error || "AI 큐레이션에 실패했습니다.");
             }
+            // 서버 분석 완료 → 결과를 폼에 작성하는 단계로 전환.
+            setAiCuratePhase("writing");
             const finalPayload = normalizeResumePayload(json.data.resumePayload);
             const finalTitle =
                 typeof json.data.title === "string" && json.data.title.trim()
@@ -305,6 +309,7 @@ export default function ResumePage() {
             });
         } finally {
             setGeneratingTailoredResume(false);
+            setAiCuratePhase(null);
         }
     };
 
@@ -470,6 +475,7 @@ export default function ResumePage() {
                     onAiCurate={handleAiCurate}
                     aiCurating={generatingTailoredResume}
                     aiCurated={aiCurated}
+                    aiCuratePhase={aiCuratePhase}
                 />
             </main>
         </div>

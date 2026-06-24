@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
+  CheckCircle2,
   Download,
   Inbox,
   Loader2,
@@ -68,6 +69,73 @@ interface ResumeEditorProps {
   aiCurating?: boolean;
   /** 이번 세션에서 이미 AI 큐레이션을 한 번 실행했는지. true면 버튼이 숨겨지고 완료 안내로 대체됨. */
   aiCurated?: boolean;
+  /** AI 큐레이션 단계. 'analyzing'=서버 분석 대기, 'writing'=결과를 폼에 작성 중. */
+  aiCuratePhase?: "analyzing" | "writing" | null;
+}
+
+// AI 다듬기 진행 중 미리보기 위에 덮이는 오버레이.
+// 뒤 배경(작성 중인 이력서)은 blur 처리해 '작업 중'이 확실히 보이게 한다.
+function AiCurateOverlay({
+  phase,
+}: {
+  phase: "analyzing" | "writing" | null;
+}) {
+  const writing = phase === "writing";
+  const renderStep = (
+    label: string,
+    state: "done" | "active" | "pending",
+  ) => (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px]",
+        state === "done"
+          ? "text-emerald-600"
+          : state === "active"
+            ? "font-semibold text-primary"
+            : "text-muted-foreground/50",
+      )}
+    >
+      {state === "done" ? (
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      ) : state === "active" ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      )}
+      {label}
+    </span>
+  );
+
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/20 px-2 backdrop-blur-[2px]">
+      <div
+        className="w-full rounded-2xl border bg-background/95 px-6 py-8 text-center shadow-lg"
+        style={{ maxWidth: "min(100%, calc((100vh - 10rem) * 794 / 1123))" }}
+      >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 animate-pulse">
+          <Sparkles className="h-6 w-6 text-primary" />
+        </div>
+        <p className="text-sm font-bold text-foreground">
+          AI가 이력서를 다듬고 있어요
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          회사·직무에 맞춰 문장을 다시 쓰는 중…
+        </p>
+
+        <div className="mt-4 flex items-center justify-center gap-1.5">
+          {renderStep("분석", writing ? "done" : "active")}
+          <span className="h-px w-3.5 bg-border" />
+          {renderStep("직무 매칭", writing ? "done" : "pending")}
+          <span className="h-px w-3.5 bg-border" />
+          {renderStep("작성", writing ? "active" : "pending")}
+        </div>
+
+        <div className="mt-3.5 h-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full w-1/2 rounded-full bg-primary animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ResumeEditor({
@@ -81,6 +149,7 @@ export function ResumeEditor({
   onAiCurate,
   aiCurating = false,
   aiCurated = false,
+  aiCuratePhase = null,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -1232,6 +1301,7 @@ export function ResumeEditor({
             title={title}
             options={a4Options}
             onOptionsChange={setA4Options}
+            overlay={aiCurating ? <AiCurateOverlay phase={aiCuratePhase} /> : undefined}
           />
         </div>
       </div>

@@ -1124,6 +1124,7 @@ export function KoreanResumePreview({
   activeEditorSectionLabel,
   formOpen,
   onToggleForm,
+  overlay,
 }: {
   payload: ResumePayload;
   title?: string;
@@ -1132,6 +1133,8 @@ export function KoreanResumePreview({
   activeEditorSectionLabel?: string;
   formOpen?: boolean;
   onToggleForm?: () => void;
+  /** A4 미리보기 영역 위에만 덮을 오버레이(예: AI 다듬기 중 표시). 상단 컨트롤 카드는 제외. */
+  overlay?: ReactNode;
 }) {
   const completionItems = getResumeCompletionItems(payload);
 
@@ -1277,7 +1280,7 @@ export function KoreanResumePreview({
           A4 비율(794×1123) 을 유지하면서, max-width 를 가용 viewport height 기반으로
           클램프해 항상 한 페이지(A4 1장) 가 화면 안에 들어오게 한다. 텍스트가 더 잘
           보이도록 viewport 의 거의 모든 세로 공간을 사용하도록 클램프를 살짝 완화했다. */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-2">
+      <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-2">
         <div
           className="mx-auto w-full"
           style={{
@@ -1293,6 +1296,7 @@ export function KoreanResumePreview({
             documentId="korean-resume-print"
           />
         </div>
+        {overlay}
       </div>
     </aside>
   );
