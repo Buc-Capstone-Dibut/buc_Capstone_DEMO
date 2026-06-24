@@ -274,6 +274,22 @@ class GeminiService:
             return ""
         return str(response)
 
+    def _generate_without_thinking(self, prompt: Any) -> Any:
+        """thinking(사고) 모드를 끈 generate_content.
+
+        채용공고 파싱처럼 깊은 추론이 불필요한 추출 작업에서 thinking 지연(수십초)을 제거한다.
+        Vertex(신 SDK)는 thinking_config 를 지원하지만, 일부 SDK/모델 경로는 거부할 수 있어
+        그 경우 일반 호출로 폴백해 동작은 보장한다(다만 thinking 이 다시 켜질 수 있음).
+        """
+        try:
+            return self.model.generate_content(
+                prompt,
+                generation_config={"thinking_config": {"thinking_budget": 0}},
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[job-parse] thinking 비활성 config 미적용(폴백): %s", exc)
+            return self.model.generate_content(prompt)
+
     def fetch_url_text(self, url: str) -> str:
         headers = {
             "User-Agent": (
@@ -342,7 +358,7 @@ Notes:
         last_error: Exception | None = None
         for _ in range(max(0, retries) + 1):
             try:
-                response = self.model.generate_content(prompt)
+                response = self._generate_without_thinking(prompt)
                 parsed = _normalize_job_payload(_extract_json(self._response_text(response)))
                 parsed["url"] = url
                 return parsed
