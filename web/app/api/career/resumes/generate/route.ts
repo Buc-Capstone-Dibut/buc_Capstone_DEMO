@@ -44,13 +44,10 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-/** Gemini 1회 호출 → JSON 객체 추출. 실패 시 null (호출부에서 섹션별 폴백).
- *  label 별 소요시간/출력 길이를 로깅해 어느 섹션이 long pole 인지 측정한다. */
+/** Gemini 1회 호출 → JSON 객체 추출. 실패 시 null (호출부에서 섹션별 폴백). */
 async function generateJsonSection(
-  label: string,
   prompt: string,
 ): Promise<Record<string, unknown> | null> {
-  const t0 = Date.now();
   try {
     const text = await generateGeminiText({
       model: MODEL_ID,
@@ -59,12 +56,9 @@ async function generateJsonSection(
       // 이력서 문장 재작성은 깊은 추론이 불필요 → thinking 끄기(가장 큰 지연 요인 제거).
       disableThinking: true,
     });
-    console.log(
-      `[resume-generate][timing] ${label}: ${Date.now() - t0}ms (in≈${prompt.length}자, out≈${text.length}자)`,
-    );
     return extractJsonObject(text);
   } catch (error) {
-    console.error(`[resume-generate] ${label} 호출 실패 (${Date.now() - t0}ms)`, error);
+    console.error("[resume-generate] section 호출 실패", error);
     return null;
   }
 }
@@ -136,10 +130,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const tStart = Date.now();
-    const tDb0 = Date.now();
     const source = await getPortfolioSourceData(session.user.id);
-    console.log(`[resume-generate][timing] portfolio DB: ${Date.now() - tDb0}ms`);
 
     const targetBlock = `[지원 대상]
 - 회사: ${targetCompany || "미지정"}
@@ -226,19 +217,11 @@ ${projects
 {"items":[{"description":"","achievements":[]}]}`;
 
     // 세 영역을 동시에 생성 → 전체 대기시간 ≈ 가장 느린 한 호출.
-    const tLlm0 = Date.now();
     const [profileRes, experienceRes, projectRes] = await Promise.all([
-      generateJsonSection("profile", profilePrompt),
-      experiences.length > 0
-        ? generateJsonSection("experience", experiencePrompt)
-        : Promise.resolve(null),
-      projects.length > 0
-        ? generateJsonSection("projects", projectPrompt)
-        : Promise.resolve(null),
+      generateJsonSection(profilePrompt),
+      experiences.length > 0 ? generateJsonSection(experiencePrompt) : Promise.resolve(null),
+      projects.length > 0 ? generateJsonSection(projectPrompt) : Promise.resolve(null),
     ]);
-    console.log(
-      `[resume-generate][timing] LLM 병렬 전체: ${Date.now() - tLlm0}ms (exp=${experiences.length}, proj=${projects.length})`,
-    );
 
     // 세 호출이 모두 실패했을 때만 오류로 본다.
     if (!profileRes && !experienceRes && !projectRes) {
@@ -296,8 +279,6 @@ ${projects
         ? profile.title.trim()
         : `${targetCompany || targetRole} 맞춤 이력서`;
     const fitSummary = asStringArray(profile.fitSummary).slice(0, 5);
-
-    console.log(`[resume-generate][timing] 총 소요: ${Date.now() - tStart}ms`);
 
     return NextResponse.json({
       success: true,
