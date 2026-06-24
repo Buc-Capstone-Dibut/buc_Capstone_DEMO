@@ -969,6 +969,38 @@ async def execute_live_user_followup_turn(
                 ai_text = recovered_text
             if recovered_audio is not None:
                 prepared_audio = recovered_audio
+
+    # [측정] 직전 질문과 거의 동일한 질문이 나오는 중복 버그를 재현 시 잡기 위한 로그.
+    # (라이브 생성 실패 시 같은 fallback 합성으로 직전 질문이 반복되는지 추적)
+    try:
+        prev_question = ""
+        last_memory = getattr(state, "last_model_memory", "") or ""
+        if isinstance(last_memory, str) and "): " in last_memory:
+            prev_question = last_memory.split("): ", 1)[1]
+        cur_sig = re.sub(r"[^0-9A-Za-z가-힣]", "", (ai_text or "").lower())
+        prev_sig = re.sub(r"[^0-9A-Za-z가-힣]", "", prev_question.lower())
+        if (
+            cur_sig
+            and prev_sig
+            and (
+                cur_sig == prev_sig
+                or cur_sig.startswith(prev_sig[:40])
+                or prev_sig.startswith(cur_sig[:40])
+            )
+        ):
+            logger.warning(
+                "[dup-question] 직전 질문과 거의 동일 (session=%s, turn=%s, repair_applied=%s, "
+                "streamed_visible=%s) cur=%r prev=%r",
+                state.session_id,
+                turn_id,
+                repair_applied,
+                streamed_turn_visible,
+                (ai_text or "")[:90],
+                prev_question[:90],
+            )
+    except Exception:
+        logger.debug("[dup-question] 측정 로그 처리 중 예외", exc_info=True)
+
     if prepared_audio is None and not spec.completion_reason and not audio_already_streamed:
         if streamed_turn_visible:
             logger.warning(
