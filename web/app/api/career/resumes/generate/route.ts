@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
