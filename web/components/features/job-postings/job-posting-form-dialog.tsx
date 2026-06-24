@@ -182,53 +182,49 @@ export function JobPostingFormDialog({
             )
           : [];
 
-      const filled: string[] = [];
+      // 채울 필드를 화면 순서대로 액션으로 모은다(아직 적용하지 않음).
+      const actions: { key: string; label: string; apply: () => void }[] = [];
 
       if (!companyName.trim() && asString(data.company)) {
-        setCompanyName(asString(data.company));
-        filled.push("회사명");
+        const v = asString(data.company);
+        actions.push({ key: "company", label: "회사명", apply: () => setCompanyName(v) });
       }
       if (!roleTitle.trim() && asString(data.title)) {
-        setRoleTitle(asString(data.title));
-        filled.push("직무명");
+        const v = asString(data.title);
+        actions.push({ key: "role", label: "직무명", apply: () => setRoleTitle(v) });
       }
       if (techStack.length === 0) {
         const arr = asStringArray(data.techStack);
         if (arr.length > 0) {
-          setTechStack(arr);
-          filled.push(`기술 ${arr.length}개`);
+          actions.push({ key: "techStack", label: `기술 ${arr.length}개`, apply: () => setTechStack(arr) });
         }
       }
       if (!companyDescriptionText.trim() && asString(data.description)) {
-        setCompanyDescriptionText(asString(data.description));
-        filled.push("회사 소개");
+        const v = asString(data.description);
+        actions.push({ key: "description", label: "회사 소개", apply: () => setCompanyDescriptionText(v) });
       }
       if (!responsibilitiesText.trim()) {
         const arr = asStringArray(data.responsibilities);
         if (arr.length > 0) {
-          setResponsibilitiesText(arr.join("\n"));
-          filled.push("주요 업무");
+          actions.push({ key: "responsibilities", label: "주요 업무", apply: () => setResponsibilitiesText(arr.join("\n")) });
         }
       }
       if (!requirementsText.trim()) {
         const arr = asStringArray(data.requirements);
         if (arr.length > 0) {
-          setRequirementsText(arr.join("\n"));
-          filled.push("자격 요건");
+          actions.push({ key: "requirements", label: "자격 요건", apply: () => setRequirementsText(arr.join("\n")) });
         }
       }
       if (!preferredText.trim()) {
         const arr = asStringArray(data.preferred);
         if (arr.length > 0) {
-          setPreferredText(arr.join("\n"));
-          filled.push("우대 사항");
+          actions.push({ key: "preferred", label: "우대 사항", apply: () => setPreferredText(arr.join("\n")) });
         }
       }
       if (!teamCultureText.trim()) {
         const arr = asStringArray(data.culture);
         if (arr.length > 0) {
-          setTeamCultureText(arr.join("\n"));
-          filled.push("팀 문화");
+          actions.push({ key: "culture", label: "팀 문화", apply: () => setTeamCultureText(arr.join("\n")) });
         }
       }
       if (schedules.length === 0 && Array.isArray(data.schedules)) {
@@ -256,31 +252,30 @@ export function JobPostingFormDialog({
           })
           .filter((s) => s.startAt.trim() !== "");
         if (mapped.length > 0) {
-          setSchedules(mapped);
-          filled.push(`일정 ${mapped.length}개`);
+          actions.push({ key: "schedules", label: `일정 ${mapped.length}개`, apply: () => setSchedules(mapped) });
         }
       }
-      setParseFilled(filled);
-      // 방금 채워진 필드에 잠깐 하이라이트(fade) — 라벨을 필드 키로 매핑.
-      const labelToKey: Record<string, string> = {
-        회사명: "company",
-        직무명: "role",
-        "회사 소개": "description",
-        "주요 업무": "responsibilities",
-        "자격 요건": "requirements",
-        "우대 사항": "preferred",
-        "팀 문화": "culture",
-      };
-      const keys = new Set<string>();
-      for (const label of filled) {
-        if (label.startsWith("기술")) keys.add("techStack");
-        else if (label.startsWith("일정")) keys.add("schedules");
-        else if (labelToKey[label]) keys.add(labelToKey[label]);
-      }
-      setFlashKeys(keys);
-      window.setTimeout(() => setFlashKeys(new Set()), 1400);
-      // 성공 시 상세 입력 펼치기
+
+      // 상세 패널을 먼저 펼쳐, 필드가 하나씩 채워지는 게 보이게 한다.
       setDetailsOpen(true);
+      setParseFilled(actions.map((a) => a.label));
+
+      // 따다닥 — 필드를 짧은 간격으로 순차 적용하며 각자 잠깐 하이라이트.
+      const STEP_MS = 80;
+      const FLASH_MS = 900;
+      actions.forEach((action, idx) => {
+        window.setTimeout(() => {
+          action.apply();
+          setFlashKeys((prev) => new Set(prev).add(action.key));
+          window.setTimeout(() => {
+            setFlashKeys((prev) => {
+              const next = new Set(prev);
+              next.delete(action.key);
+              return next;
+            });
+          }, FLASH_MS);
+        }, idx * STEP_MS);
+      });
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "URL에서 정보를 가져오지 못했습니다.";
@@ -397,7 +392,7 @@ export function JobPostingFormDialog({
             }
           }
           .jobposting-ai-flash {
-            animation: jobpostingAiFlash 1.4s ease-out;
+            animation: jobpostingAiFlash 0.9s ease-out;
           }
         `}</style>
         <DialogHeader className="border-b px-6 py-4">
