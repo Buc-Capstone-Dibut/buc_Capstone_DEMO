@@ -56,6 +56,8 @@ async function generateJsonSection(
       model: MODEL_ID,
       prompt,
       temperature: 0.4,
+      // 이력서 문장 재작성은 깊은 추론이 불필요 → thinking 끄기(가장 큰 지연 요인 제거).
+      disableThinking: true,
     });
     console.log(
       `[resume-generate][timing] ${label}: ${Date.now() - t0}ms (in≈${prompt.length}자, out≈${text.length}자)`,
