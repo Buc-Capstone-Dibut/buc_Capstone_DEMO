@@ -114,6 +114,8 @@ export function JobPostingFormDialog({
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseFilled, setParseFilled] = useState<string[] | null>(null);
+  // 가져오기로 방금 채워진 필드 키 — 잠깐 하이라이트(fade) 후 비운다.
+  const [flashKeys, setFlashKeys] = useState<Set<string>>(new Set());
 
   // 상세 입력 토글 (URL만 보이는 게 기본, 자동 파싱 성공 시 자동 펼침)
   const [detailsOpen, setDetailsOpen] = useState(
@@ -259,6 +261,24 @@ export function JobPostingFormDialog({
         }
       }
       setParseFilled(filled);
+      // 방금 채워진 필드에 잠깐 하이라이트(fade) — 라벨을 필드 키로 매핑.
+      const labelToKey: Record<string, string> = {
+        회사명: "company",
+        직무명: "role",
+        "회사 소개": "description",
+        "주요 업무": "responsibilities",
+        "자격 요건": "requirements",
+        "우대 사항": "preferred",
+        "팀 문화": "culture",
+      };
+      const keys = new Set<string>();
+      for (const label of filled) {
+        if (label.startsWith("기술")) keys.add("techStack");
+        else if (label.startsWith("일정")) keys.add("schedules");
+        else if (labelToKey[label]) keys.add(labelToKey[label]);
+      }
+      setFlashKeys(keys);
+      window.setTimeout(() => setFlashKeys(new Set()), 1400);
       // 성공 시 상세 입력 펼치기
       setDetailsOpen(true);
     } catch (e) {
@@ -367,6 +387,19 @@ export function JobPostingFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto p-0">
+        <style jsx global>{`
+          @keyframes jobpostingAiFlash {
+            0% {
+              background-color: rgba(16, 185, 129, 0.18);
+            }
+            100% {
+              background-color: transparent;
+            }
+          }
+          .jobposting-ai-flash {
+            animation: jobpostingAiFlash 1.4s ease-out;
+          }
+        `}</style>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">채용공고 등록</DialogTitle>
           <p className="text-xs text-muted-foreground">
@@ -479,7 +512,7 @@ export function JobPostingFormDialog({
 
         {detailsOpen && (
           <div className="divide-y">
-            <FormRow label="회사명" required>
+            <FormRow label="회사명" required flash={flashKeys.has("company")}>
               <Input
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
@@ -487,7 +520,7 @@ export function JobPostingFormDialog({
                 className="h-9"
               />
             </FormRow>
-            <FormRow label="직무명" required>
+            <FormRow label="직무명" required flash={flashKeys.has("role")}>
               <Input
                 value={roleTitle}
                 onChange={(e) => setRoleTitle(e.target.value)}
@@ -495,14 +528,14 @@ export function JobPostingFormDialog({
                 className="h-9"
               />
             </FormRow>
-            <FormRow label="요구 기술">
+            <FormRow label="요구 기술" flash={flashKeys.has("techStack")}>
               <TechStackCombobox
                 value={techStack}
                 onChange={setTechStack}
                 placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
               />
             </FormRow>
-            <FormRow label="회사 소개">
+            <FormRow label="회사 소개" flash={flashKeys.has("description")}>
               <Textarea
                 rows={2}
                 value={companyDescriptionText}
@@ -510,7 +543,7 @@ export function JobPostingFormDialog({
                 placeholder="회사 소개 또는 공고 본문 요약"
               />
             </FormRow>
-            <FormRow label="주요 업무" hint="한 줄에 하나">
+            <FormRow label="주요 업무" hint="한 줄에 하나" flash={flashKeys.has("responsibilities")}>
               <Textarea
                 rows={3}
                 value={responsibilitiesText}
@@ -518,7 +551,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 백엔드 API 설계 및 개발"
               />
             </FormRow>
-            <FormRow label="자격 요건" hint="한 줄에 하나">
+            <FormRow label="자격 요건" hint="한 줄에 하나" flash={flashKeys.has("requirements")}>
               <Textarea
                 rows={3}
                 value={requirementsText}
@@ -526,7 +559,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 컴퓨터공학 학사 또는 동등 수준"
               />
             </FormRow>
-            <FormRow label="우대 사항" hint="한 줄에 하나">
+            <FormRow label="우대 사항" hint="한 줄에 하나" flash={flashKeys.has("preferred")}>
               <Textarea
                 rows={3}
                 value={preferredText}
@@ -534,7 +567,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 대규모 트래픽 처리 경험"
               />
             </FormRow>
-            <FormRow label="팀 문화" hint="한 줄에 하나">
+            <FormRow label="팀 문화" hint="한 줄에 하나" flash={flashKeys.has("culture")}>
               <Textarea
                 rows={2}
                 value={teamCultureText}
@@ -716,15 +749,22 @@ function FormRow({
   label,
   hint,
   required,
+  flash,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  flash?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr]">
+    <div
+      className={cn(
+        "grid grid-cols-1 sm:grid-cols-[7.5rem_1fr]",
+        flash && "jobposting-ai-flash",
+      )}
+    >
       <div className="flex flex-col gap-0.5 border-b bg-muted/20 px-6 py-3 sm:border-b-0 sm:border-r">
         <span className="text-xs font-semibold text-foreground">
           {label}
