@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
@@ -969,8 +969,10 @@ async def process_user_utterance(
             select_next_question_type=deps.select_next_question_type,
             prompt_user_text=("방금 말씀하신 경험" if transcription_missing else user_text),
         )
-        if architecture == "live-only":
-            user_request_spec = replace(user_request_spec, planned_question_text="")
+        # live-only 에서도 미리 합성한 planned_question_text 를 fallback 으로 유지한다.
+        # 라이브 생성 질문(live_ai_text)이 우선이고(executor 의 `live_ai_text or planned_question_text`),
+        # 그게 비는 경우(첫 턴 워밍업 전, native-audio 생성 실패 등)에만 답변 기반 합성 질문으로
+        # 자연스럽게 이어가 '후속 질문 복구 실패' 경고를 막는다.
 
         user_turn_payload = build_voice_user_turn_payload(
             turn_id=user_turn_id,
