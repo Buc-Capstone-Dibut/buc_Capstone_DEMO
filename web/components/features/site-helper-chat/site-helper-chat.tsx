@@ -68,8 +68,13 @@ export const VISIBLE_MAIN_PATHS = [
   "/community/board",  // 커뮤니티 기본 탭 — 게시판
   "/community/squad",  // 커뮤니티 스쿼드 탭
   "/workspace",     // 워크스페이스
-  "/career",           // 커리어 관리 (실제로는 /career/projects 로 redirect)
-  "/career/projects",  // 커리어 관리 기본 탭 — 프로젝트 보관함
+  "/career",                  // 커리어 관리 (실제로는 /career/projects 로 redirect)
+  "/career/projects",         // 커리어 관리 — 프로젝트 보관함
+  "/career/work-experience",  // 커리어 관리 — 경력 보관함
+  "/career/cover-letters",    // 커리어 관리 — 자소서 관리
+  "/career/portfolios",       // 커리어 관리 — 포트폴리오 관리
+  "/career/resumes",          // 커리어 관리 — 이력서 캐비닛
+  "/career/job-postings",     // 커리어 관리 — 채용공고 관리
   "/interview",     // AI 면접
 ];
 
