@@ -4,7 +4,6 @@ import io
 import json
 import logging
 import re
-import time
 from typing import Any, Iterator, Type
 from urllib.parse import urlparse
 
@@ -298,13 +297,10 @@ class GeminiService:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
             )
         }
-        _t_http = time.perf_counter()
         with httpx.Client(timeout=30.0, follow_redirects=True, headers=headers) as client:
             res = client.get(url)
             res.raise_for_status()
-        _http_ms = (time.perf_counter() - _t_http) * 1000
 
-        _t_parse = time.perf_counter()
         soup = BeautifulSoup(res.text, "html.parser")
 
         # 많은 채용 사이트(특히 SPA)는 본문(우대사항·마감일 등)을 가시 텍스트가 아니라
@@ -329,18 +325,7 @@ class GeminiService:
         if structured:
             parts.append("[구조화 데이터(JSON)]\n" + "\n".join(structured))
         parts.append("[본문 텍스트]\n" + visible)
-        result = "\n\n".join(parts)[:45000]
-        _parse_ms = (time.perf_counter() - _t_parse) * 1000
-        logger.info(
-            "[job-parse][timing] fetch_url_text: http=%.0fms parse=%.0fms "
-            "html=%d자 structured=%d개 out=%d자",
-            _http_ms,
-            _parse_ms,
-            len(res.text),
-            len(structured),
-            len(result),
-        )
-        return result
+        return "\n\n".join(parts)[:45000]
 
     def parse_job_from_text(self, url: str, clean_context: str, retries: int = 2) -> dict[str, Any]:
         prompt = f"""
@@ -371,33 +356,14 @@ Notes:
 - If specific info is missing, leave the array empty.
 """
         last_error: Exception | None = None
-        for attempt in range(max(0, retries) + 1):
-            _t = time.perf_counter()
+        for _ in range(max(0, retries) + 1):
             try:
                 response = self._generate_without_thinking(prompt)
-                text = self._response_text(response)
-                _ms = (time.perf_counter() - _t) * 1000
-                parsed = _normalize_job_payload(_extract_json(text))
+                parsed = _normalize_job_payload(_extract_json(self._response_text(response)))
                 parsed["url"] = url
-                logger.info(
-                    "[job-parse][timing] parse_job_from_text: attempt=%d/%d %.0fms "
-                    "(in≈%d자, out≈%d자) — 성공",
-                    attempt + 1,
-                    retries + 1,
-                    _ms,
-                    len(prompt),
-                    len(text),
-                )
                 return parsed
             except (ValueError, json.JSONDecodeError) as exc:
-                _ms = (time.perf_counter() - _t) * 1000
                 last_error = exc
-                logger.warning(
-                    "[job-parse][timing] parse_job_from_text: attempt=%d/%d %.0fms — JSON 실패, 재시도",
-                    attempt + 1,
-                    retries + 1,
-                    _ms,
-                )
                 continue
 
         raise ValueError(f"Failed to parse job posting JSON: {last_error}")
