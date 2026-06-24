@@ -215,6 +215,19 @@ function shouldWaitForOfficialInterviewReport(detail: SessionDetail | null | und
   return (reportStatus === "pending" || reportStatus === "running") && !hasOfficialInterviewReport(detail);
 }
 
+// 리포트 작업이 아직 enqueue 되기 전(상태가 빈 문자열이고 리포트 데이터도 없음).
+// 면접 종료 직후 결과 페이지가 job 생성보다 먼저 도착하는 짧은 타이밍 창에 해당한다.
+function reportJobNotEnqueuedYet(detail: SessionDetail | null | undefined): boolean {
+  const reportStatus = String(detail?.reportStatus || "").trim();
+  return reportStatus === "" && !hasOfficialInterviewReport(detail);
+}
+
+// "리포트 준비 중" = 생성 대기(pending/running) 또는 아직 job 미생성(빈 상태).
+// 빈 상태를 '없음/실패'로 오판하지 않고 폴링을 유지하기 위한 통합 조건.
+function isReportPreparing(detail: SessionDetail | null | undefined): boolean {
+  return shouldWaitForOfficialInterviewReport(detail) || reportJobNotEnqueuedYet(detail);
+}
+
 function clampSessionDurationMinute(raw: string | null): 5 | 10 | 15 {
   const value = Number(raw);
   if (value === 5 || value === 10 || value === 15) return value;
@@ -1211,13 +1224,18 @@ export default function InterviewResultPage() {
           return;
         }
 
-        if (shouldRecoverInterruptedInterviewReport(nextDetail)) {
+        // 중단 복구뿐 아니라, 리포트 job 이 아직 생성 전(빈 상태)일 때도 /complete 를
+        // 재호출해 job 을 enqueue 한다. (종료 직후 타이밍 창에서 '없음'으로 빠지던 문제)
+        if (
+          shouldRecoverInterruptedInterviewReport(nextDetail) ||
+          reportJobNotEnqueuedYet(nextDetail)
+        ) {
           nextDetail = await recoverInterruptedSession(nextDetail);
         }
 
         if (cancelled) return;
         setSessionDetail(nextDetail);
-        setIsAnalyzing(shouldWaitForOfficialInterviewReport(nextDetail));
+        setIsAnalyzing(isReportPreparing(nextDetail));
       } catch (error) {
         console.error("Session Fetch Error:", error);
         if (!cancelled) {
@@ -1235,7 +1253,7 @@ export default function InterviewResultPage() {
 
   useEffect(() => {
     if (!resolvedSessionId || !sessionDetail) return;
-    if (!shouldWaitForOfficialInterviewReport(sessionDetail)) return;
+    if (!isReportPreparing(sessionDetail)) return;
 
     const id = window.setInterval(async () => {
       try {
@@ -1248,7 +1266,7 @@ export default function InterviewResultPage() {
           return;
         }
         setSessionDetail(nextDetail);
-        setIsAnalyzing(shouldWaitForOfficialInterviewReport(nextDetail));
+        setIsAnalyzing(isReportPreparing(nextDetail));
       } catch {
         // retry on next interval
       }
@@ -1431,9 +1449,9 @@ export default function InterviewResultPage() {
       || 0,
   );
   const reportPendingTooLong = Boolean(
-    shouldWaitForOfficialInterviewReport(sessionDetail)
+    isReportPreparing(sessionDetail)
     && reportPendingAnchor > 0
-    && (Date.now() / 1000) - reportPendingAnchor >= 30,
+    && (Date.now() / 1000) - reportPendingAnchor >= 90,
   );
 
   const requestRetryReport = useCallback(async () => {
