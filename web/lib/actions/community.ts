@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs";
+import { createServerActionClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { Database } from "../database.types";
 import { revalidatePath } from "next/cache";

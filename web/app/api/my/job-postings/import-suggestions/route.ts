@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { resumeAdapter, coverLetterAdapter } from "@/lib/job-postings/import-sources";
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { ensureProfileForUser, extractAuthProfileSeed } from "@/lib/my-profile";
 import { getPortfolioSourceData } from "@/lib/server/career-portfolios";
 import {
