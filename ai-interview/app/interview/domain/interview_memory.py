@@ -807,6 +807,12 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
             scores["behavioral_fit"] += 6
         if stage == "late":
             scores["closing_pitch"] += 4
+        # 자기소개 직후(Q2)에는 자기소개에 으레 담긴 '지원 동기' 표현이 motivation 점수를
+        # 과도하게 끌어올려 매번 같은 '관심 갖게 된 이유' 질문이 나온다. 그 가산을 상쇄해
+        # 자기소개 '내용'(프로젝트·구현 등)으로 이어지는 질문도 경쟁하게 한다.
+        if state.recent_question_types and state.recent_question_types[-1] == "self_intro":
+            scores["company_motivation"] -= 9
+            scores["jd_resume_match"] -= 3
     elif explicit_role_track:
         if has_role:
             scores["ownership_scope"] += 7
