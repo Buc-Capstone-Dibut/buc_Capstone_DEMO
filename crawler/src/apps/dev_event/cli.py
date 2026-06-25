@@ -6,8 +6,8 @@ def main() -> None:
     parser.add_argument(
         "--limit",
         type=int,
-        default=5,
-        help="Maximum number of events to deep-crawl",
+        default=0,
+        help="Max events to deep-crawl. 0 = 무제한(상세 없는 이벤트 모두 크롤, 기본값)",
     )
     args = parser.parse_args()
 
