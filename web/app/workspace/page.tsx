@@ -19,7 +19,7 @@ export default async function WorkspacePage() {
 
   return (
     <SidebarLayout>
-      <div className="container mx-auto flex-1 py-8 px-4">
+      <div className="container mx-auto max-w-7xl flex-1 py-8 px-4">
         <ProjectList />
       </div>
       <Footer />
