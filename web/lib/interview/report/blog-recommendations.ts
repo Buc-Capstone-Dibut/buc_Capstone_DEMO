@@ -356,15 +356,46 @@ export function rankRecommendedBlogs(params: {
       });
     });
 
-  const resolvedRecommendationTags = Array.from(rankedTagCandidates.entries())
+  // 추천 태그가 너무 흔하면(case-study 78%, architecture 42% 등) OR(.overlaps) 필터가
+  // 거의 전체 글을 매칭해 '필터가 안 먹힌' 것처럼 보인다. 변별력 있는 태그만 남긴다:
+  //  - 메타/포맷성 태그(denylist)는 제외
+  //  - 가져온 블로그에서 문서빈도가 너무 높은(흔한) 태그도 제외
+  const GENERIC_RECOMMENDATION_TAGS = new Set([
+    "case-study",
+    "culture",
+    "business",
+    "product",
+    "career",
+    "design",
+    "web",
+  ]);
+  const DISCRIMINATIVE_DOC_FREQ_MAX = 0.3; // 30% 초과로 흔하면 비변별적 → 제외
+  const blogCountForFreq = blogs.length || 1;
+  const tagDocFreq = new Map<string, number>();
+  blogs.forEach((blog) => {
+    const uniqueTags = new Set(
+      (blog.tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean),
+    );
+    uniqueTags.forEach((tag) => tagDocFreq.set(tag, (tagDocFreq.get(tag) ?? 0) + 1));
+  });
+  const isDiscriminativeTag = (tag: string) =>
+    !GENERIC_RECOMMENDATION_TAGS.has(tag) &&
+    (tagDocFreq.get(tag) ?? 0) / blogCountForFreq <= DISCRIMINATIVE_DOC_FREQ_MAX;
+
+  const sortedCandidateTags = Array.from(rankedTagCandidates.entries())
     .sort((a, b) => {
       if (b[1].sourcePriority !== a[1].sourcePriority) {
         return b[1].sourcePriority - a[1].sourcePriority;
       }
       return b[1].score - a[1].score;
     })
-    .slice(0, 8)
     .map(([tag]) => tag);
+
+  // 변별력 있는 태그만(최대 5개). 하나도 없으면 배너가 비지 않게 원래 상위로 폴백.
+  const discriminativeTags = sortedCandidateTags.filter(isDiscriminativeTag);
+  const resolvedRecommendationTags = (
+    discriminativeTags.length > 0 ? discriminativeTags : sortedCandidateTags
+  ).slice(0, 5);
 
   return {
     recommendedBlogs,
