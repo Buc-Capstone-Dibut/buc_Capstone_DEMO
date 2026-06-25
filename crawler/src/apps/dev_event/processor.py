@@ -1,5 +1,6 @@
 import time
 import json
+import re
 from firecrawl import FirecrawlApp
 from loguru import logger
 from src.common.config.settings import FIRECRAWL_API_KEY
@@ -116,7 +117,14 @@ def process_content_with_gemini(title: str, raw_markdown: str):
             if text.startswith("```"):
                 text = text.replace("```json", "").replace("```", "").strip()
 
-            result = json.loads(text)
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError:
+                # description(마크다운)에 '\(' 같은 잘못된 escape가 섞이면 파싱이 깨진다.
+                # JSON에서 유효하지 않은 백슬래시만 이스케이프해 한 번 더 시도한다.
+                # (정상 JSON은 위에서 이미 통과하므로 여기선 깨진 경우만 보정)
+                repaired = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)
+                result = json.loads(repaired)
             
             # Handle list response
             if isinstance(result, list):
