@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
+  CheckCircle2,
   Download,
   Inbox,
   Loader2,
@@ -61,12 +62,80 @@ interface ResumeEditorProps {
     deadline: string;
     jobDescription: string;
   } | null;
-  /** AI 큐레이션 트리거 (현재 payload를 회사·직무에 맞게 다듬어 onChange로 갱신). */
-  onAiCurate?: () => void;
+  /** AI 큐레이션 트리거 (현재 payload를 회사·직무에 맞게 다듬어 onChange로 갱신).
+   *  payload 인자를 넘기면 그 payload를 기준으로 다듬는다(가져오기 직후 최신 payload 전달용). */
+  onAiCurate?: (payload?: ResumePayload) => void;
   /** AI 큐레이션 진행 중 여부 (버튼 disabled/스피너 표시용). */
   aiCurating?: boolean;
   /** 이번 세션에서 이미 AI 큐레이션을 한 번 실행했는지. true면 버튼이 숨겨지고 완료 안내로 대체됨. */
   aiCurated?: boolean;
+  /** AI 큐레이션 단계. 'analyzing'=서버 분석 대기, 'writing'=결과를 폼에 작성 중. */
+  aiCuratePhase?: "analyzing" | "writing" | null;
+}
+
+// AI 다듬기 진행 중 미리보기 위에 덮이는 오버레이.
+// 뒤 배경(작성 중인 이력서)은 blur 처리해 '작업 중'이 확실히 보이게 한다.
+function AiCurateOverlay({
+  phase,
+}: {
+  phase: "analyzing" | "writing" | null;
+}) {
+  const writing = phase === "writing";
+  const renderStep = (
+    label: string,
+    state: "done" | "active" | "pending",
+  ) => (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px]",
+        state === "done"
+          ? "text-emerald-600"
+          : state === "active"
+            ? "font-semibold text-primary"
+            : "text-muted-foreground/50",
+      )}
+    >
+      {state === "done" ? (
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      ) : state === "active" ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      )}
+      {label}
+    </span>
+  );
+
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/20 px-2 backdrop-blur-[2px]">
+      <div
+        className="w-full rounded-2xl border bg-background/95 px-6 py-8 text-center shadow-lg"
+        style={{ maxWidth: "min(100%, calc((100vh - 10rem) * 794 / 1123))" }}
+      >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 animate-pulse">
+          <Sparkles className="h-6 w-6 text-primary" />
+        </div>
+        <p className="text-sm font-bold text-foreground">
+          AI가 이력서를 다듬고 있어요
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          회사·직무에 맞춰 문장을 다시 쓰는 중…
+        </p>
+
+        <div className="mt-4 flex items-center justify-center gap-1.5">
+          {renderStep("분석", writing ? "done" : "active")}
+          <span className="h-px w-3.5 bg-border" />
+          {renderStep("직무 매칭", writing ? "done" : "pending")}
+          <span className="h-px w-3.5 bg-border" />
+          {renderStep("작성", writing ? "active" : "pending")}
+        </div>
+
+        <div className="mt-3.5 h-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full w-1/2 rounded-full bg-primary animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ResumeEditor({
@@ -80,6 +149,7 @@ export function ResumeEditor({
   onAiCurate,
   aiCurating = false,
   aiCurated = false,
+  aiCuratePhase = null,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -595,6 +665,12 @@ export function ResumeEditor({
       title: "기존 자료 가져오기 완료",
       description: `프로젝트 ${appliedProjects}개 · 경력 ${appliedExperiences}개 · 자기소개서 ${appliedCoverLetters}개를 이력서에 반영했습니다.`,
     });
+
+    // 지원 대상(회사·직무)이 있으면 가져오기 직후 바로 AI 다듬기를 실행한다.
+    // 방금 반영한 nextPayload 를 직접 넘겨, state 갱신 지연(stale)과 무관하게 최신 내용으로 다듬는다.
+    if (applicationTarget && onAiCurate && !aiCurating) {
+      onAiCurate(nextPayload);
+    }
   };
 
 
@@ -674,7 +750,7 @@ export function ResumeEditor({
                   type="button"
                   variant="default"
                   size="sm"
-                  onClick={onAiCurate}
+                  onClick={() => onAiCurate()}
                   disabled={aiCurating}
                   className={cn(
                     "shrink-0 gap-1.5 text-xs",
@@ -1225,6 +1301,13 @@ export function ResumeEditor({
             title={title}
             options={a4Options}
             onOptionsChange={setA4Options}
+            overlay={
+              // 'analyzing'(서버 분석 대기) 동안만 오버레이를 띄운다.
+              // 'writing'(작성) 단계로 넘어가면 오버레이를 닫아 타자기 효과가 실시간으로 보이게 한다.
+              aiCuratePhase === "analyzing" ? (
+                <AiCurateOverlay phase={aiCuratePhase} />
+              ) : undefined
+            }
           />
         </div>
       </div>

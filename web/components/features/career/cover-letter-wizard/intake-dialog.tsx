@@ -274,7 +274,7 @@ export function CoverLetterWizardIntakeDialog({
                       등록된 채용공고가 없습니다
                     </p>
                     <a
-                      href="/my/job-postings"
+                      href="/career/job-postings"
                       target="_blank"
                       rel="noreferrer"
                       className="text-[11px] font-semibold text-primary hover:underline"

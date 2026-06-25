@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, FileText, FileBadge, Building2, Palette } from "lucide-react";
+import { FolderKanban, FileText, FileBadge, Building2, Palette, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Footer } from "@/components/layout/footer";
 
@@ -15,6 +15,7 @@ export default function CareerLayout({ children }: { children: React.ReactNode }
     { name: "자소서 관리", href: "/career/cover-letters", icon: FileText },
     { name: "포트폴리오 관리", href: "/career/portfolios", icon: Palette },
     { name: "이력서 캐비닛", href: "/career/resumes", icon: FileBadge },
+    { name: "채용공고 관리", href: "/career/job-postings", icon: CalendarRange },
   ];
 
   return (

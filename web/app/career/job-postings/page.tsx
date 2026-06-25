@@ -8,7 +8,7 @@ export default async function JobPostingsPage() {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    redirect("/login?redirect=/my/job-postings");
+    redirect("/login?redirect=/career/job-postings");
   }
   return <JobPostingsClient />;
 }

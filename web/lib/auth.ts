@@ -73,9 +73,34 @@ export async function signUp(
 }
 
 // 로그아웃 함수
+// 세션이 이미 만료/누락된 경우 Supabase 가 던지는 "Auth session missing" 류 에러인지 판별.
+// 이 경우 서버 revoke 는 불가능하지만 사용자 입장에선 이미 로그아웃 상태이므로 성공으로 취급한다.
+function isSessionMissingError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { name?: string; message?: string };
+  return (
+    e.name === "AuthSessionMissingError" ||
+    (e.message?.toLowerCase().includes("auth session missing") ?? false)
+  );
+}
+
 export async function signOut(): Promise<{ error: AuthError | null }> {
-  const { error } = await supabase.auth.signOut();
-  return { error };
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (!error) return { error: null };
+    // 세션이 이미 없으면 로컬 스토리지만 정리하고 성공으로 처리.
+    if (isSessionMissingError(error)) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      return { error: null };
+    }
+    return { error };
+  } catch (err) {
+    if (isSessionMissingError(err)) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      return { error: null };
+    }
+    return { error: err as AuthError };
+  }
 }
 
 // 현재 사용자 가져오기

@@ -16,7 +16,7 @@ interface PostDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createServerComponentClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { PostActions } from "@/components/features/community/post-actions";
 

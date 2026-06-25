@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { isTeamType, normalizeTeamType } from "@/lib/team-types";
 import { normalizeWorkspaceCategory } from "@/lib/server/workspace-bootstrap";

@@ -242,7 +242,7 @@ export function ProjectArchiveScreen({
                   )}
                 </span>
                 <span className="mt-4 block text-base font-black text-slate-950">
-                  {isShowcasePending ? "준비 중…" : "웹사이트형 (베타)"}
+                  {isShowcasePending ? "준비 중…" : "웹사이트형"}
                 </span>
                 <span className="mt-2 block text-sm font-medium leading-6 text-slate-500">
                   {isShowcasePending

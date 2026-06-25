@@ -16,7 +16,7 @@ import { TierBadge } from "@/components/shared/tier-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, LogOut, Loader2, CalendarRange } from "lucide-react";
+import { User, LogOut, Loader2 } from "lucide-react";
 
 interface UserMenuProps {
   onLoginClick: () => void;
@@ -35,10 +35,9 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
       if (error) {
         throw error;
       }
-      toast({
-        title: "로그아웃",
-        description: "안전하게 로그아웃되었습니다.",
-      });
+      // 로그아웃 후엔 현재 페이지(워크스페이스 등 인증 영역)에 머무르지 않고
+      // 항상 랜딩으로 보낸다. 전체 네비게이션으로 서버 컴포넌트도 비로그인 상태로 다시 렌더.
+      window.location.href = "/";
     } catch (error) {
       console.error("로그아웃 실패:", error);
       toast({
@@ -46,7 +45,6 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
         description: "로그아웃에 실패했습니다.",
         variant: "destructive",
       });
-    } finally {
       setSigningOut(false);
     }
   };
@@ -117,12 +115,6 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
           <Link href={myPageHref}>
             <User className="mr-2 h-4 w-4" />
             <span>프로필</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/my/job-postings">
-            <CalendarRange className="mr-2 h-4 w-4" />
-            <span>내 채용공고 관리</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

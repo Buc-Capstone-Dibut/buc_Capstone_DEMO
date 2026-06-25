@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
-from app.interview.domain.interview_memory import extract_memory_keywords
+from app.interview.domain.interview_memory import (
+    extract_memory_keywords,
+    summarize_job_for_prompt,
+    summarize_resume_for_prompt,
+)
 from app.interview.domain.question_bank import infer_interview_track, interview_track_label
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
@@ -22,14 +26,42 @@ def _is_semantically_same_audio_text(raw_text: str, sanitized_text: str) -> bool
     return _normalize_audio_text_signature(raw_text) == _normalize_audio_text_signature(sanitized_text)
 
 
+# exact-speech(지시한 텍스트를 그대로 말하기) 출력이 의도와 크게 벗어났는지 판단.
+# 라이브 모델이 가끔 지시를 무시하고 지원자 역할극(자기소개+질문)을 생성하는데, 이를 잡아낸다.
+_SELF_ANSWER_MARKERS = (
+    "안녕하세요 저",
+    "지원자",
+    "지원한",
+    "말씀드리겠습니다",
+    "소개하겠습니다",
+)
+
+
+def exact_speech_output_diverged(intended: str, spoken: str) -> bool:
+    a = _normalize_audio_text_signature(intended)
+    b = _normalize_audio_text_signature(spoken)
+    if not a or not b:
+        return False
+    if _is_semantically_same_audio_text(intended, spoken):
+        return False
+    # 역할극 출력은 보통 의도 문장보다 훨씬 길다.
+    if len(b) > max(40, len(a)) * 1.5:
+        return True
+    # 1인칭 자기소개 표지가 있고 의도 문장과 다르면 발산으로 본다.
+    spoken_norm = re.sub(r"\s+", " ", (spoken or "")).strip()
+    return any(marker in spoken_norm for marker in _SELF_ANSWER_MARKERS)
+
+
 def build_live_session_instruction(
     state: VoiceWsState,
     *,
     compact_context_text: Callable[..., str],
 ) -> str:
     personality = (state.personality or "professional").strip()
-    job_brief = compact_context_text(state.job_data, max_chars=900)
-    resume_brief = compact_context_text(state.resume_data, max_chars=900)
+    # raw JSON 을 900자에서 통째로 자르면 공고 요구사항/이력서 상세가 잘려 모델이 못 본다.
+    # 핵심 항목을 추려 더 넉넉히 주입한다.
+    job_brief = summarize_job_for_prompt(state.job_data, max_chars=1500)
+    resume_brief = summarize_resume_for_prompt(state.resume_data, max_chars=1500)
     level = resolve_interview_level(
         state.job_data if isinstance(state.job_data, dict) else {},
         state.resume_data,
@@ -65,7 +97,9 @@ def build_live_session_instruction(
         "5) 질문은 구체적이고 검증 가능한 꼬리질문 위주로 한다.\n"
         "6) 각 턴은 2~4문장으로 구성하고, 전체 길이는 대략 80~220자 내에서 자연스럽게 말한다.\n"
         "7) 운영 지시는 내부 참고용이다. 절대 그대로 읽거나 설명하지 말고 질문 생성 제어에만 사용한다.\n"
-        "8) 직전 답변의 키워드/기술명/수치 중 최소 1개를 다음 질문 문장에 직접 언급한다.\n"
+        "8) 직전 답변과 자연스럽게 이어가되, 매 턴 답변 내용을 길게 되짚어 복창하지 않는다. "
+        "필요할 때만 핵심 키워드 1개 정도를 짧게 언급하고, 가끔은 '잘 들었습니다. 그럼 다음으로' 처럼 "
+        "간결히 전환해도 좋다. 같은 도입 어구를 반복하지 않는다.\n"
         "9) 직전 답변을 더 깊게 검증할 필요가 있으면 같은 질문 축을 한 번 더 파고들 수 있다. 질문 유형을 기계적으로 바꾸지 않는다.\n"
         "10) 지원자 방금 답변과 무관한 새 주제로 갑자기 전환하지 않는다.\n"
         "11) 같은 단어와 질문 구조를 반복하지 않는다. 특히 지표, 병목, 트레이드오프, 근거 같은 표현은 답변에 직접 단서가 있을 때만 사용한다.\n"
@@ -77,6 +111,8 @@ def build_live_session_instruction(
         f"권장 면접 길이: 약 {target_min}분\n"
         f"채용 맥락 요약: {job_brief}\n"
         f"지원자 요약: {resume_brief}\n"
+        "위 채용 맥락(요구사항·기술스택)과 지원자 요약(프로젝트·경력)을 적극 참고하고, "
+        "면접 전반에서 그 항목들을 직접 짚어 검증하는 질문도 자연스럽게 섞는다.\n"
         "출력은 자연스러운 한국어 음성 문장으로만 생성한다."
     )
 
@@ -216,6 +252,10 @@ async def request_live_spoken_text_turn(
         provider=result.provider,
     )
     spoken_text = deps.sanitize_ai_turn_text((result.ai_text or "").strip())
+    if spoken_text and exact_speech_output_diverged(payload_text, spoken_text):
+        # 모델이 '그대로 말하기' 지시를 무시하고 다른 내용(예: 지원자 역할극)을 생성한 경우.
+        # 의도한 텍스트로 되돌리고 잘못된 오디오는 버려 상위에서 복구/재시도하게 한다.
+        return deps.sanitize_ai_turn_text(payload_text), None, result.provider
     if spoken_text:
         return spoken_text, prepared, result.provider
     return deps.sanitize_ai_turn_text(payload_text), prepared, result.provider

@@ -411,7 +411,9 @@ class HybridSessionEngineTests(unittest.IsolatedAsyncioTestCase):
         request_live_audio_turn.assert_awaited_once()
         deps.transcribe_user_audio.assert_not_awaited()
         planned_request = followup_mock.await_args.kwargs["user_request"]
-        self.assertEqual(planned_request.planned_question_text, "")
+        # live-only 에서도 planned_question_text 를 fallback 으로 유지한다(라이브 생성이 비는
+        # 첫 턴 등에서 '복구 실패' 경고 없이 합성 질문으로 이어가기 위함).
+        self.assertTrue(planned_request.planned_question_text)
         self.assertEqual(
             followup_mock.await_args.kwargs["live_ai_text"],
             "방금 말씀하신 websocket 처리와 관련해 어떤 지표로 성과를 검증하셨나요?",

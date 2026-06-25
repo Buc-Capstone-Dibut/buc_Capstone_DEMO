@@ -62,10 +62,12 @@ def plan_next_question(
     closing_announced: bool = False,
 ) -> QuestionTurnPlan:
     question_index = model_turn_count + 1
+    # 종료는 '시간 기준'이 우선이다. 질문 개수(estimated_total_questions)로 일찍 끊지 않는다 —
+    # 답변이 짧으면 추정 개수에 빨리 도달해 면접이 절반 시간에 끝나던 문제 때문.
+    # 남은 시간이 임계 이하이거나 안전 상한(MAX)에 닿을 때만 종료를 알린다.
     should_announce_closing = (
         closing_announced
         or remaining_sec <= closing_threshold_sec
-        or question_index >= estimated_total_questions
         or question_index >= MAX_DYNAMIC_QUESTIONS
     )
     return QuestionTurnPlan(

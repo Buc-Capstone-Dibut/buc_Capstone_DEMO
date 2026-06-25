@@ -17,7 +17,7 @@ import type {
   FavoritesPolicy,
   Sort,
   ViewState,
-} from "@/app/my/job-postings/use-job-postings-view";
+} from "@/app/career/job-postings/use-job-postings-view";
 import { STATUS_LABEL, STATUS_TONE_ACTIVE } from "@/lib/job-postings/visual-tokens";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = (
