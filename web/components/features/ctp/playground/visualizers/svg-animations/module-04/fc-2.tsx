@@ -15,46 +15,61 @@ import {
 
 // FC-2: 스택/재귀/정렬 통합 (5 step)
 // 좌측: stack (callStack)
-// 중앙: queue (보조 — push/pop과 대조)
+// 중앙: inputArray (정렬 대상 — 큐 아님)
 // 우측: recursion-tree (분할 정복)
 const MAX_STEPS = 5;
 
 type Frame = { lo: number; hi: number };
 
+const INPUT_ARR = [8, 3, 6, 1, 7, 4];
+
 function buildState(step: number): {
   callStack: Frame[];
-  queue: number[];
+  inputArray: number[];
   sortedResult: number[];
   treeHighlight: number[]; // tree node indices
   stage: string;
 } {
-  if (step === 0) return { callStack: [], queue: [8, 3, 6, 1, 7, 4], sortedResult: [], treeHighlight: [0], stage: "INPUT" };
-  if (step === 1) return { callStack: [{ lo: 0, hi: 5 }], queue: [8, 3, 6, 1, 7, 4], sortedResult: [], treeHighlight: [0], stage: "PUSH root" };
-  if (step === 2) return { callStack: [{ lo: 0, hi: 2 }, { lo: 4, hi: 5 }], queue: [8, 3, 6, 1, 7, 4], sortedResult: [], treeHighlight: [0, 1, 2], stage: "SPLIT" };
-  if (step === 3) return { callStack: [{ lo: 0, hi: 2 }], queue: [8, 3, 6, 1, 7, 4], sortedResult: [4, 7], treeHighlight: [0, 1, 2, 3, 4], stage: "POP partial" };
-  return { callStack: [], queue: [8, 3, 6, 1, 7, 4], sortedResult: [1, 3, 4, 6, 7, 8], treeHighlight: [0, 1, 2, 3, 4, 5, 6], stage: "DONE" };
+  if (step === 0) return { callStack: [], inputArray: INPUT_ARR, sortedResult: [], treeHighlight: [0], stage: "INPUT" };
+  if (step === 1) return { callStack: [{ lo: 0, hi: 5 }], inputArray: INPUT_ARR, sortedResult: [], treeHighlight: [0], stage: "PUSH root" };
+  if (step === 2) return { callStack: [{ lo: 0, hi: 2 }, { lo: 4, hi: 5 }], inputArray: INPUT_ARR, sortedResult: [], treeHighlight: [0, 1, 2], stage: "SPLIT" };
+  if (step === 3) return { callStack: [{ lo: 0, hi: 2 }], inputArray: INPUT_ARR, sortedResult: [4, 7], treeHighlight: [0, 1, 2, 3, 4], stage: "POP partial" };
+  return { callStack: [], inputArray: INPUT_ARR, sortedResult: [1, 3, 4, 6, 7, 8], treeHighlight: [0, 1, 2, 3, 4, 5, 6], stage: "DONE" };
 }
+
+const STEP_MSG: Record<number, string> = {
+  1: "[PUSH] quickSort(0,5) 첫 프레임이 호출 스택에 push. 깊이 1.",
+  2: "[SPLIT] 피벗 분할 결과 좌·우 하위 호출이 트리로 펼쳐짐. 최대 깊이 2.",
+  3: "[POP] 기저 조건 도달한 프레임이 pop되며 부분 정렬이 누적.",
+  4: "[DONE] 스택이 비면 전체 정렬 완료. 재귀=명시적 스택 등가.",
+};
 
 export function useFc2Sim() {
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
-    "> FC-2 스택/재귀/정렬 종합 시작. 입력=[8,3,6,1,7,4]",
+    "> FC-2 스택/재귀/정렬 종합 시작. 입력=[8,3,6,1,7,4]. ▶ 또는 Push로 진행.",
   ]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const base = "> FC-2 스택/재귀/정렬 종합 시작. 입력=[8,3,6,1,7,4]. ▶ 또는 Push로 진행.";
+    const next = [base];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> [Step ${i}] ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
-      const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[PUSH] quickSort(0,5) 첫 프레임이 호출 스택에 push.");
-      if (next === 2) appendLog("[SPLIT] 피벗 분할 결과 좌·우 하위 호출이 트리로 펼쳐짐.");
-      if (next === 3) appendLog("[POP] 기저 조건 도달한 프레임이 pop되며 부분 정렬이 누적.");
-      if (next === 4) appendLog("[DONE] 스택이 비면 전체 정렬 완료. 재귀=명시적 스택 등가.");
-      return next;
+      const nextIdx = Math.min(prev + 1, MAX_STEPS - 1);
+      if (nextIdx !== prev && STEP_MSG[nextIdx]) {
+        setLogs((l) => [`> [Step ${nextIdx}] ${STEP_MSG[nextIdx]}`, ...l]);
+      }
+      return nextIdx;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -66,17 +81,29 @@ export function useFc2Sim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function Fc2Visualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+// 각 step 까지의 최대 스택 깊이 (관찰된 peak)
+function maxStackDepth(step: number): number {
+  let peak = 0;
+  for (let s = 0; s <= step; s++) {
+    peak = Math.max(peak, buildState(s).callStack.length);
+  }
+  return peak;
+}
+
+export function Fc2Visualizer({ data }: { data?: { step: number } }) {
+  const step = data?.step ?? 0;
   const state = buildState(step);
+  const peakDepth = maxStackDepth(step);
 
   const svgWidth = 800;
   const svgHeight = 420;
@@ -135,6 +162,15 @@ export function Fc2Visualizer({ data }: { data: { step: number } }) {
       <text x={stackX + stackSlotW / 2} y={paneTop - 10} textAnchor="middle" fontSize={12} fontWeight={600} fill="hsl(var(--foreground))">
         Call Stack (LIFO)
       </text>
+      {/* 최대 스택 깊이 수치 */}
+      <g>
+        <text x={stackX} y={stackBaseY + 24} fontSize={11} fill="hsl(var(--muted-foreground))" fontFamily="ui-monospace, monospace">
+          현재 깊이 {state.callStack.length}
+        </text>
+        <text x={stackX} y={stackBaseY + 40} fontSize={11} fontWeight={700} fill={colorTokens.active} fontFamily="ui-monospace, monospace">
+          최대 깊이 {peakDepth}
+        </text>
+      </g>
       {/* slot guidelines */}
       {Array.from({ length: stackMax }).map((_, i) => {
         const y = stackBaseY - (i + 1) * (stackSlotH + 4);
@@ -185,11 +221,11 @@ export function Fc2Visualizer({ data }: { data: { step: number } }) {
         </text>
       )}
 
-      {/* ===== Queue / Input Pane ===== */}
-      <text x={queueX + (state.queue.length * (queueSlotW + queueGap)) / 2} y={paneTop - 10} textAnchor="middle" fontSize={12} fontWeight={600} fill="hsl(var(--foreground))">
-        Input Array
+      {/* ===== Input Array Pane (정렬 대상 — 큐 아님) ===== */}
+      <text x={queueX + (state.inputArray.length * (queueSlotW + queueGap)) / 2} y={paneTop - 10} textAnchor="middle" fontSize={12} fontWeight={600} fill="hsl(var(--foreground))">
+        Input Array · 정렬 대상
       </text>
-      {state.queue.map((v, i) => {
+      {state.inputArray.map((v, i) => {
         const x = queueX + i * (queueSlotW + queueGap);
         const y = paneTop + 10;
         const status: ColorToken = state.sortedResult.includes(v) ? "found" : "default";

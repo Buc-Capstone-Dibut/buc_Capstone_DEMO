@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { motion } from "framer-motion";
 import { colorTokens } from "../../../shared/svg-primitives";
 
 // SVG 필터 (공통)
@@ -130,7 +131,35 @@ const BubblingUpSVG = () => {
         <rect x="300" y="140" width="30" height="30" rx="4" fill={colorTokens.successDim} stroke={colorTokens.success} strokeWidth="2" />
         <text x="315" y="160" fill={colorTokens.success} fontSize="14" fontWeight="bold" textAnchor="middle">9</text>
 
-        <text x="360" y="160" fill={colorTokens.success} fontSize="14" fontWeight="bold" filter="url(#neon-glow-emerald)">1개 자리 확정!</text>
+        <motion.text
+          x="360" y="160" fill={colorTokens.success} fontSize="14" fontWeight="bold" filter="url(#neon-glow-emerald)"
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        >1개 자리 확정!</motion.text>
+
+        {/* 거품(가장 큰 값)이 단계마다 오른쪽으로 밀려가는 흐름을 한 칸씩 짚어주는 step 마커 */}
+        <motion.circle
+          r="9"
+          fill={colorTokens.warning}
+          opacity={0.85}
+          filter="url(#neon-glow-orange)"
+          animate={{
+            cx: [15, 235, 95, 315],
+            cy: [15, 55, 115, 155],
+          }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", times: [0, 0.33, 0.66, 1] }}
+        />
+        <motion.text
+          fontSize="11"
+          fontWeight="bold"
+          fill="hsl(var(--background))"
+          textAnchor="middle"
+          animate={{
+            x: [15, 235, 95, 315],
+            y: [19, 59, 119, 159],
+          }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", times: [0, 0.33, 0.66, 1] }}
+        >9</motion.text>
       </g>
     </svg>
   );

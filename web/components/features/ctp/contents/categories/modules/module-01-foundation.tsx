@@ -47,7 +47,6 @@ const FOUNDATION_ALGO_BASICS_MODULES = createInteractiveTemplateModules([
     id: "algo-overview",
     title: "01-1 알고리즘 개요",
     description: "알고리즘의 정의, 입력/출력 모델, 시간복잡도의 의미를 학습합니다.",
-    sampleData: [1, 4, 2, 8, 5],
     useSim: useAlgoOverviewSim,
     Visualizer: AlgoOverviewVisualizer,
     story: {
@@ -82,7 +81,6 @@ const FOUNDATION_ALGO_BASICS_MODULES = createInteractiveTemplateModules([
     id: "condition-loop",
     title: "01-2 조건문과 반복문",
     description: "분기와 반복을 조합해 절차를 구성하는 기본 패턴을 익힙니다.",
-    sampleData: [3, 9, 2, 6, 1],
     useSim: useConditionLoopSim,
     Visualizer: ConditionLoopVisualizer,
     story: {
@@ -117,7 +115,6 @@ const FOUNDATION_ALGO_BASICS_MODULES = createInteractiveTemplateModules([
     id: "flow-tracing",
     title: "01-3 순서도와 흐름 추적",
     description: "순서도 기반으로 상태 변화를 추적하고 디버깅 사고를 훈련합니다.",
-    sampleData: [7, 2, 11, 4, 5],
     useSim: useFlowTracingSim,
     Visualizer: FlowTracingVisualizer,
     story: {
@@ -160,7 +157,7 @@ const FOUNDATION_BASIC_DS_ARRAY_MODULES = createInteractiveTemplateModules([
     story: {
       problem: "알고리즘 문제를 풀 때 '어떤 자료구조에 데이터를 담을까'를 정하는 것이 첫 단계입니다.\n\n배열, 리스트, 튜플 중 특성에 맞지 않는 것을 고르면 데이터 추가나 탐색 비용이 누적되어 시스템 병목으로 이어집니다.",
       definition: "**자료구조(Data Structure)** 는 데이터를 효율적으로 저장·수정·탐색하기 위한 구조적 방법론입니다.\n* **배열 (Array)**: 크기가 고정된 대신 인덱스로 임의 접근 비용이 `O(1)`입니다.\n* **연결 리스트 (Linked List)**: 크기가 동적이고 중간 삽입/삭제가 유연하지만, 특정 위치를 찾으려면 처음부터 순차 탐색(`O(N)`)해야 합니다.\n* **튜플 (Tuple)**: 생성 후 수정되지 않는 불변성(Immutability)을 가져, 동시성 처리에서 무결성을 보장하기 쉽습니다.",
-      analogy: "택배 보관함을 고르는 것과 비슷합니다. 칸마다 번호가 매겨져 있어 번호만 알면 즉시 열 수 있는 무인 보관함이 배열이라면, 사람들이 서로 손을 잡고 이어진 줄에서 다음 사람의 위치만 알고 있어 맨 앞부터 따라가야 하는 구조가 연결 리스트입니다.\n\n같은 데이터라도 자료구조에 따라 접근 비용이 달라집니다."
+      analogy: "택배 보관함을 고르는 것과 비슷합니다. 칸마다 번호가 매겨져 있어 번호만 알면 즉시 열 수 있는 무인 보관함이 배열이라면, 사람들이 서로 손을 잡고 이어진 줄에서 다음 사람의 위치만 알고 있어 맨 앞부터 따라가야 하는 구조가 연결 리스트입니다. 자물쇠로 봉인되어 한번 담으면 내용을 바꿀 수 없는 보관함이 튜플로, 누가 열어봐도 값이 변하지 않아 여러 곳에서 안심하고 공유할 수 있습니다.\n\n같은 데이터라도 자료구조에 따라 접근·수정 비용과 안전성이 달라집니다."
     },
     features: [
       {
@@ -222,13 +219,13 @@ const FOUNDATION_BASIC_DS_ARRAY_MODULES = createInteractiveTemplateModules([
   {
     id: "2d-array",
     title: "02-3 배열 기본 문제 (최댓값/역순 정렬)",
-    description: "반복문 기반 배열 순회와 기초 문제 해결 흐름을 학습합니다.",
+    description: "이중 루프로 행렬의 최댓값을 찾고, two-pointer로 배열을 역순 정렬하는 기초 문제를 다룹니다.",
     useSim: use2DArraySim,
     Visualizer: TwoDArrayVisualizer,
     story: {
-      problem: "바둑판이나 체스판, 영상 픽셀, 내비게이션의 격자 맵 등 현실의 많은 데이터는 1차원 선이 아닌 2차원 면(행렬) 구조입니다.\n\n다차원 데이터를 코드로 빠짐없이 탐색하려면 사고를 평면으로 확장해야 합니다.",
-      definition: "**2차원 배열(2D Array)** 은 1차원 배열을 또 다른 배열의 원소로 가진 '배열의 배열' 구조입니다.\n* **이중 순회 (Nested Loop)**: 외부 반복문은 행(Row)을, 내부 반복문은 열(Col)을 훑어 격자 전체를 완전 탐색합니다.\n* **메모리의 선형 변환**: 물리 메모리는 1차원이므로, 2차원 좌표 `(row, col)`이 1차원 주소로 변환되는 규칙(Row-major 등)을 이해해야 합니다.\n* **그리드 탐색 패턴**: 가로·세로 외에도 대각선(Diagonal)이나 상하좌우 네 방향 탐색이 BFS·그래프 알고리즘의 기초가 됩니다.",
-      analogy: "아파트 단지의 우편 배달 동선과 비슷합니다. 배달부는 '101동(행)'의 1층부터 꼭대기 층(열)까지 모든 세대를 돈 뒤 '102동(다음 행)'으로 이동합니다. 이중 루프의 동작 순서가 그대로입니다."
+      problem: "배열을 익혔다면 다음은 '배열을 도구로 쓰는 기초 문제'입니다. 바둑판·영상 픽셀처럼 2차원 격자에서 최댓값을 빠짐없이 찾거나, 1차원 배열을 제자리에서 뒤집는 작업은 실전 알고리즘의 출발점입니다.\n\n반복문과 인덱스 포인터를 어떻게 조합하느냐에 따라 같은 문제도 코드의 명료함과 비용이 달라집니다.",
+      definition: "이 레슨은 배열을 다루는 두 가지 기초 패턴을 시각으로 연결합니다.\n* **2D 최댓값 탐색 (Nested Loop)**: 외부 반복문이 행(Row)을, 내부 반복문이 열(Col)을 훑으며 격자를 완전 탐색해 전역 최댓값(Global Max)을 갱신합니다. 2차원 좌표 `(row, col)`이 1차원 메모리 주소로 변환되는 Row-major 규칙이 그 바탕입니다.\n* **1D 역순 정렬 (Two-Pointer)**: 양 끝에서 출발한 두 포인터 `lo`, `hi`가 원소를 맞교환(swap)하며 안쪽으로 모이고, `lo >= hi`가 되면 추가 메모리 없이 제자리에서 배열이 뒤집힙니다.",
+      analogy: "**최댓값 탐색**은 아파트 단지에서 가장 높은 층을 찾는 일과 같습니다. '101동(행)'을 1층부터 꼭대기까지 본 뒤 '102동(다음 행)'으로 넘어가며 지금까지 본 최고 높이를 계속 갱신합니다.\n\n**역순 정렬**은 한 줄로 선 사람들을 맨 앞과 맨 뒤가 자리를 바꾸고, 그다음 두 번째끼리 바꾸는 식으로 가운데에서 만날 때까지 반복해 줄 순서를 통째로 뒤집는 것과 같습니다."
     },
     features: [
       {
@@ -267,7 +264,7 @@ const FOUNDATION_BASIC_DS_ARRAY_MODULES = createInteractiveTemplateModules([
     features: [
       {
         title: "에라토스테네스의 체 시각화",
-        description: "소수 판별 시 각 배양수들을 지워나가는(Sieve) 과정을 배열 시각화를 통해 직관적으로 관찰하며 O(N log log N) 최적화의 원리를 느낍니다.",
+        description: "소수 판별 시 각 소수의 배수를 지워나가는(Sieve) 과정을 배열 시각화를 통해 직관적으로 관찰하며 O(N log log N) 최적화의 원리를 느낍니다.",
         SupplementaryVisualizer: ArrayPrimeSupplementaryOptions[0]
       },
       {
@@ -613,8 +610,8 @@ export function FoundationSearchAlgorithmsContent() {
               },
               {
                 id: "linear-search",
-                title: "03-2 선형 검색",
-                description: "단순 탐색의 구현과 최적화 포인트를 익힙니다.",
+                title: "03-2 선형 검색 (보초법)",
+                description: "순차 탐색의 구현과 보초법(Sentinel) 최적화 포인트를 익힙니다.",
                 previewVisualizers: LinearSearchSupplementaryOptions.slice(0, 4),
                 previewLabels: ["순차 탐색", "보초법", "적용 시점", "성능 비교"],
               },

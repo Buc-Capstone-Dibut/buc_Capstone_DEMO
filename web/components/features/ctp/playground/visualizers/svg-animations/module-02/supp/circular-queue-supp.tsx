@@ -41,57 +41,114 @@ function SharedDefs() {
   );
 }
 
+// 스텝화: 정적 3→4 / 4→0 전이 맵을 실제 포인터가 0→1→…→5→0 으로 한 칸씩
+// 회전하며 (current+1)%CAP 의 수치 계산을 매 스텝 갱신해 보여주는 루프로 교체.
+const MOD_CAP = 6;
+
 function ModuloMagic() {
+  // CAP+1 프레임: 각 인덱스에서 1초씩 머문 뒤 마지막에 wrap(5→0) 강조.
+  const cells = Array.from({ length: MOD_CAP }, (_, i) => i);
+  const cellW = 70;
+  const cellGap = 14;
+  const rowW = MOD_CAP * cellW + (MOD_CAP - 1) * cellGap;
+  const rowX = 400 - rowW / 2;
+  const rowY = 150;
+
+  const frameTimes = cells.map((_, i) => i / MOD_CAP); // 0, 1/6, …
+  const keyframes = cells.map((c) => rowX + c * (cellW + cellGap) + cellW / 2);
+
   return (
     <svg viewBox="0 0 800 450" className="w-full h-full font-sans select-none" style={{ backgroundColor: "hsl(var(--background))" }}>
       <SharedDefs />
       <rect width="800" height="450" fill="url(#grid)" />
 
       <text x="400" y="50" textAnchor="middle" fontSize="24" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="-0.02em">
-        모듈로(%) 연산의 핵심 원리
+        모듈로(%) 연산: 인덱스 한 칸씩 회전
       </text>
 
-      <g transform="translate(150, 100)">
+      {/* Code Formula Box (live numeric per step) */}
+      <g transform="translate(150, 80)" filter="url(#soft-shadow)">
+        <rect width="500" height="50" rx="12" fill="url(#surface-grad)" stroke="hsl(239 84% 67%)" strokeWidth="2" />
+        <text x="250" y="32" textAnchor="middle" fontSize="20" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="1">
+          next = (<tspan fill="hsl(160 84% 39%)">current</tspan> + 1) <tspan fill="hsl(239 84% 67%)">% {MOD_CAP}</tspan>
+        </text>
+      </g>
 
-        {/* Code Formula Box */}
-        <g transform="translate(0, 0)" filter="url(#soft-shadow)">
-           <rect width="500" height="60" rx="12" fill="url(#surface-grad)" stroke="hsl(239 84% 67%)" strokeWidth="2" />
-           <text x="250" y="38" textAnchor="middle" fontSize="22" fontWeight="800" fill="hsl(var(--foreground))" letterSpacing="1">
-              next_index = (<tspan fill="hsl(160 84% 39%)">current</tspan> + 1) <tspan fill="hsl(239 84% 67%)">% MAX_SIZE</tspan>
-           </text>
-        </g>
+      {/* Index cells 0..5 */}
+      {cells.map((c) => {
+        const x = rowX + c * (cellW + cellGap);
+        const isWrapCell = c === 0;
+        return (
+          <g key={`mod-cell-${c}`} transform={`translate(${x}, ${rowY})`}>
+            <rect
+              width={cellW}
+              height={cellW}
+              rx="10"
+              fill={isWrapCell ? "url(#emerald-grad)" : "url(#surface-grad)"}
+              opacity={isWrapCell ? 0.25 : 1}
+              stroke={isWrapCell ? "hsl(160 84% 39%)" : "hsl(var(--border))"}
+              strokeWidth="2"
+            />
+            <text x={cellW / 2} y={cellW / 2 + 9} textAnchor="middle" fontSize="26" fontWeight="bold" fill="hsl(var(--foreground))">{c}</text>
+            {c === MOD_CAP - 1 && (
+              <text x={cellW / 2} y={cellW + 22} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(239 84% 67%)">끝</text>
+            )}
+            {isWrapCell && (
+              <text x={cellW / 2} y={cellW + 22} textAnchor="middle" fontSize="12" fontWeight="bold" fill="hsl(160 84% 39%)">처음 (wrap)</text>
+            )}
+          </g>
+        );
+      })}
 
-        {/* Transition Map */}
-        <g transform="translate(0, 100)">
-           {/* Normal Increment */}
-           <g transform="translate(0, 0)">
-              <rect width="80" height="80" rx="8" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
-              <text x="40" y="48" textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(var(--muted-foreground))">3</text>
-              <path d="M 90 40 L 130 40" stroke="hsl(160 84% 39%)" strokeWidth="4" markerEnd="url(#arrow-head-emerald)" />
-              <text x="110" y="30" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(160 84% 39%)">+1</text>
+      {/* Wrap-around arc from last cell back to index 0 */}
+      <motion.path
+        d={`M ${rowX + (MOD_CAP - 1) * (cellW + cellGap) + cellW / 2} ${rowY - 8} Q 400 ${rowY - 90} ${rowX + cellW / 2} ${rowY - 8}`}
+        fill="none"
+        stroke="hsl(239 84% 67%)"
+        strokeWidth="3"
+        strokeDasharray="7 7"
+        markerEnd="url(#arrow-head)"
+        animate={{ opacity: [0.15, 0.15, 0.15, 0.15, 0.15, 1, 1] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear", times: [...frameTimes, 1] }}
+      />
 
-              <rect x="140" y="0" width="80" height="80" rx="8" fill="url(#surface-grad)" stroke="hsl(var(--border))" strokeWidth="2" />
-              <text x="180" y="48" textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(var(--foreground))">4</text>
-           </g>
+      {/* Stepping pointer that hops 0→1→…→5→0 */}
+      <motion.g
+        animate={{ x: [...keyframes, keyframes[0]] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", times: [...frameTimes, 1] }}
+      >
+        <path d={`M 0 ${rowY - 16} L -8 ${rowY - 34} L 8 ${rowY - 34} Z`} fill="hsl(347 89% 60%)" />
+        <rect x="-26" y={rowY - 66} width="52" height="28" rx="6" fill="hsl(347 89% 60%)" />
+        <text x="0" y={rowY - 47} textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(0 0% 100%)">idx</text>
+      </motion.g>
 
-           {/* Modulo Wrap-around Highlight */}
-           <g transform="translate(280, 0)">
-              <rect width="80" height="80" rx="8" fill="url(#primary-grad)" filter="url(#glow)" />
-              <text x="40" y="48" textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(0 0% 100%)">4 (끝)</text>
-
-              <motion.path d="M 100 -20 Q 110 -60 140 40" fill="none" stroke="hsl(239 84% 67%)" strokeWidth="4" strokeDasharray="6 6" markerEnd="url(#arrow-head)"
-                 animate={{ opacity: [0, 1, 0] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} />
-              <text x="110" y="-30" textAnchor="middle" fontSize="14" fontWeight="bold" fill="hsl(239 84% 67%)">% 5</text>
-
-              <rect x="140" y="0" width="80" height="80" rx="8" fill="url(#emerald-grad)" filter="url(#glow)" />
-              <text x="180" y="48" textAnchor="middle" fontSize="24" fontWeight="bold" fill="hsl(0 0% 100%)">0 (처음)</text>
-           </g>
-        </g>
+      {/* Live numeric computation, swapped per step */}
+      <g transform="translate(220, 290)">
+        <rect width="360" height="50" rx="10" fill="url(#surface-grad)" stroke="hsl(271 91% 65%)" strokeWidth="2" filter="url(#soft-shadow)" />
+        {cells.map((c) => {
+          const next = (c + 1) % MOD_CAP;
+          return (
+            <motion.text
+              key={`calc-${c}`}
+              x="180"
+              y="32"
+              textAnchor="middle"
+              fontSize="18"
+              fontWeight="800"
+              fontFamily="monospace"
+              fill="hsl(271 91% 65%)"
+              animate={{ opacity: cells.map((s) => (s === c ? 1 : 0)) }}
+              transition={{ duration: 6, repeat: Infinity, ease: "linear", times: frameTimes }}
+            >
+              ({c} + 1) % {MOD_CAP} = {next}{next === 0 ? "  ↩ wrap" : ""}
+            </motion.text>
+          );
+        })}
       </g>
 
       <rect x="150" y="380" width="500" height="50" rx="25" fill="hsl(var(--muted))" opacity="0.6" stroke="hsl(var(--border))" strokeWidth="1" />
       <text x="400" y="410" textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--foreground))">
-        나머지 연산을 통해 배열 인덱스가 끝에 도달하더라도 <tspan fill="hsl(239 84% 67%)" fontWeight="800">0번 인덱스로 부드럽게 순환</tspan>합니다.
+        포인터가 끝(5)에 닿으면 <tspan fill="hsl(160 84% 39%)" fontWeight="800">(5+1)%6 = 0</tspan> 으로 다시 0번 인덱스로 순환합니다.
       </text>
     </svg>
   );

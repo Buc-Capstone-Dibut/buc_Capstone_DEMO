@@ -31,28 +31,41 @@ const BINARY_PHASES = [
   { L: 8, R: 9, M: 8 },  // step 4: M=8 (값=9) === target → 발견
 ];
 
+const STEP_MSG: Record<number, string> = {
+  1: "[LINEAR] 인덱스 0부터 순회. target=9는 인덱스 3에서 발견 (비교 4회).",
+  2: "[BINARY 1/3] L=0, R=9, M=4. arr[4]=5 < 9 → L = M+1 = 5. (비교 1회)",
+  3: "[BINARY 2/3] L=5, R=9, M=7. arr[7]=8 < 9 → L = M+1 = 8. (비교 2회)",
+  4: "[BINARY 3/3] L=8, R=9, M=8. arr[8]=9 === target → 발견. (비교 3회)",
+  5: "[HASH] 입력을 해시 테이블에 적재. lookup(9)는 평균 O(1) (비교 1회).",
+  6: "[SUMMARY] 선형 4회 · 이진 3회 · 해시 1회. O(N) vs O(log N) vs O(1).",
+};
+
 export function useFc1Sim() {
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
-    "> FC-1 종합 검색 챌린지 시작. target=9.",
+    "> FC-1 종합 검색 챌린지 시작. target=9. ▶ 또는 Push로 진행.",
   ]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const base = "> FC-1 종합 검색 챌린지 시작. target=9. ▶ 또는 Push로 진행.";
+    const next = [base];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> [Step ${i}] ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
-      const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[LINEAR] 인덱스 0부터 순회. target=9는 인덱스 3에서 발견 (비교 4회).");
-      if (next === 2) appendLog("[BINARY 1/3] L=0, R=9, M=4. arr[4]=5 < 9 → L = M+1 = 5.");
-      if (next === 3) appendLog("[BINARY 2/3] L=5, R=9, M=7. arr[7]=8 < 9 → L = M+1 = 8.");
-      if (next === 4) appendLog("[BINARY 3/3] L=8, R=9, M=8. arr[8]=9 === target → 발견.");
-      if (next === 5) appendLog("[HASH] 입력을 해시 테이블에 적재. lookup(9)는 평균 O(1).");
-      if (next === 6) appendLog("[SUMMARY] 선형 O(N) · 이진 O(log N) · 해시 O(1) 평균.");
-      return next;
+      const nextIdx = Math.min(prev + 1, MAX_STEPS - 1);
+      if (nextIdx !== prev && STEP_MSG[nextIdx]) {
+        setLogs((l) => [`> [Step ${nextIdx}] ${STEP_MSG[nextIdx]}`, ...l]);
+      }
+      return nextIdx;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -64,20 +77,34 @@ export function useFc1Sim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function Fc1Visualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+// 라이브 비교 횟수 카운터 (현재 step까지 누적)
+function comparisonCounts(step: number): { linear: number; binary: number; hash: number } {
+  // Linear: step 1 에서 4회 (target idx 3 → 4번 비교)
+  const linear = step >= 1 ? 4 : 0;
+  // Binary: step 2~4 sub-step 당 1회 누적
+  const binary = step >= 4 ? 3 : step === 3 ? 2 : step === 2 ? 1 : 0;
+  // Hash: step 5 에서 1회
+  const hash = step >= 5 ? 1 : 0;
+  return { linear, binary, hash };
+}
+
+export function Fc1Visualizer({ data }: { data?: { step: number } }) {
+  const step = data?.step ?? 0;
 
   // SVG layout
   const svgWidth = 760;
   const svgHeight = 380;
+  const counts = comparisonCounts(step);
   const boxSize = 52;
   const boxGap = 8;
   const totalWidth = INPUT_ARR.length * boxSize + (INPUT_ARR.length - 1) * boxGap;
@@ -131,6 +158,39 @@ export function Fc1Visualizer({ data }: { data: { step: number } }) {
         {step === 5 && "해시 검색: 버킷에 적재 후 즉시 조회. 충돌 시 체인이 길어집니다."}
         {step === 6 && "복잡도 요약: O(N) vs O(log N) vs O(1) 평균."}
       </text>
+
+      {/* 라이브 비교 횟수 카운터 (좌상단) */}
+      {(() => {
+        const rows: Array<{ label: string; n: number; color: string; active: boolean }> = [
+          { label: "Linear", n: counts.linear, color: colorTokens.comparing, active: step === 1 },
+          { label: "Binary", n: counts.binary, color: colorTokens.active, active: step >= 2 && step <= 4 },
+          { label: "Hash", n: counts.hash, color: colorTokens.found, active: step === 5 },
+        ];
+        const panelX = 14;
+        const panelY = 92;
+        return (
+          <g>
+            <rect x={panelX} y={panelY} width={150} height={84} rx={8} fill="hsl(var(--background))" stroke="hsl(var(--border))" />
+            <text x={panelX + 10} y={panelY + 18} fontSize={11} fontWeight={700} fill="hsl(var(--foreground))">
+              비교 횟수 (live)
+            </text>
+            {rows.map((r, i) => {
+              const ry = panelY + 34 + i * 16;
+              return (
+                <g key={r.label}>
+                  <circle cx={panelX + 16} cy={ry - 4} r={4} fill={r.color} opacity={r.active ? 1 : 0.4} />
+                  <text x={panelX + 28} y={ry} fontSize={11} fill="hsl(var(--foreground))" fontWeight={r.active ? 700 : 400} fontFamily="ui-monospace, monospace">
+                    {r.label}
+                  </text>
+                  <text x={panelX + 138} y={ry} textAnchor="end" fontSize={11} fontWeight={700} fill={r.color} fontFamily="ui-monospace, monospace">
+                    {r.n}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
 
       {/* Step 0~4: 배열 표시 (INPUT_ARR or SORTED_ARR) */}
       {step <= 4 && arr.map((val, i) => {

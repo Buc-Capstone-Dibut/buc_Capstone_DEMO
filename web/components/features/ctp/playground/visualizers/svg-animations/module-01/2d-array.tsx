@@ -1,250 +1,223 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
+
+const GRID = [
+  [1, 4, 2],
+  [5, 9, 3],
+  [8, 6, 7],
+];
+
+// Two sections under one concept (matches title: 2D 탐색 + 1D 역순 two-pointer):
+//   Section A: nested-loop max scan over the matrix (rows 0..2)
+//   Section B: reverse a 1D array in place with two-pointer swaps
+type Step = {
+  section: "matrix" | "reverse";
+  activeRow: number; // for matrix, -1 = done
+  runningMax: number | null;
+  arr: number[]; // for reverse section
+  lo: number; // two-pointer left
+  hi: number; // two-pointer right
+  swapping: boolean;
+  msg: string;
+};
+
+function buildSteps(): Step[] {
+  const steps: Step[] = [];
+  // idle
+  steps.push({ section: "matrix", activeRow: -1, runningMax: null, arr: [], lo: -1, hi: -1, swapping: false,
+    msg: "2D 행렬 최댓값 탐색(중첩 루프) 후, 1D 배열을 two-pointer로 역순 정렬합니다." });
+
+  // Section A: scan each row, track global max
+  let gmax = -Infinity;
+  GRID.forEach((row, i) => {
+    const rowMax = Math.max(...row);
+    const before = gmax;
+    gmax = Math.max(gmax, rowMax);
+    const changed = gmax !== before;
+    steps.push({
+      section: "matrix", activeRow: i, runningMax: gmax, arr: [], lo: -1, hi: -1, swapping: false,
+      msg: `행 ${i} 스캔 → 행 최댓값 ${rowMax}. 전역 MAX ${changed ? `갱신: ${gmax}` : `유지: ${gmax}`}.`,
+    });
+  });
+
+  // Section B: reverse [2,7,1,9] with two pointers
+  const arr = [2, 7, 1, 9];
+  let lo = 0, hi = arr.length - 1;
+  steps.push({ section: "reverse", activeRow: -1, runningMax: gmax, arr: [...arr], lo, hi, swapping: false,
+    msg: `1D 역순 정렬 시작. 양 끝 포인터 lo=${lo}, hi=${hi}.` });
+  while (lo < hi) {
+    // highlight pair
+    steps.push({ section: "reverse", activeRow: -1, runningMax: gmax, arr: [...arr], lo, hi, swapping: true,
+      msg: `arr[${lo}]=${arr[lo]} ↔ arr[${hi}]=${arr[hi]} 교환.` });
+    [arr[lo], arr[hi]] = [arr[hi], arr[lo]];
+    steps.push({ section: "reverse", activeRow: -1, runningMax: gmax, arr: [...arr], lo, hi, swapping: false,
+      msg: `교환 완료. 포인터를 안쪽으로 이동.` });
+    lo++; hi--;
+  }
+  steps.push({ section: "reverse", activeRow: -1, runningMax: gmax, arr: [...arr], lo, hi, swapping: false,
+    msg: `lo >= hi 이므로 역순 정렬 완료: [${arr.join(", ")}].` });
+  return steps;
+}
+
+const STEPS = buildSteps();
 
 export function use2DArraySim() {
-  const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "> SYSTEM INITIALIZED: 2D Matrix memory allocated. Dimensions: 3x3",
-    "> [AWAITING COMMAND] >> initiating parallel row scan for MAX_VALUE extraction."
-  ]);
-  const maxSteps = 4;
+  const [stepIdx, setStepIdx] = useState(0);
+  const [logs, setLogs] = useState<string[]>(["> Matrix 엔진 준비 완료. Step을 눌러 시작하세요."]);
+  const maxSteps = STEPS.length;
 
-  const appendLog = useCallback((msg: string) => setLogs(p => [`> ${msg}`, ...p]), []);
-
-  const peek = useCallback(() => {
-    setStep(p => {
-      const next = p >= maxSteps ? 1 : p + 1;
-      if (next === 1) appendLog("[SCAN] Row 0 processing... Local MAX: 4. Global MAX updated: 4.");
-      if (next === 2) appendLog("[SCAN] Row 1 processing... Local MAX: 9. Global MAX updated: 9.");
-      if (next === 3) appendLog("[SCAN] Row 2 processing... Local MAX: 8. Global MAX unchanged: 9.");
-      if (next === 4) appendLog("[TERMINATE] Matrix sweep complete. Final MAX_VALUE constraint confirmed at 9.");
-      return next;
-    });
-  }, [appendLog]);
-
-  const reset = useCallback(() => {
-    setStep(0);
-    setLogs(["> SYSTEM RESET: Matrix scanner deactivated. Global MAX purged."]);
+  const rebuild = useCallback((t: number) => {
+    const arr = ["> Matrix 엔진 준비 완료. Step을 눌러 시작하세요."];
+    for (let i = 1; i <= t; i++) arr.unshift(`[Step ${i}] ${STEPS[i].msg}`);
+    setLogs(arr);
   }, []);
+
+  const handleSetStep = useCallback((s: number) => {
+    if (s < 0 || s >= maxSteps) return;
+    setStepIdx(s);
+    rebuild(s);
+  }, [maxSteps, rebuild]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx((p) => {
+      const n = p >= maxSteps - 1 ? p : p + 1;
+      if (n !== p) rebuild(n);
+      return n;
+    });
+  }, [maxSteps, rebuild]);
+
+  const reset = useCallback(() => handleSetStep(0), [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: STEPS[stepIdx],
       logs,
-      handlers: { peek, reset, clear: reset }
-    }
+      handlers: { push: nextStep, clear: reset },
+      currentStep: stepIdx,
+      maxSteps,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
+    },
   };
 }
 
-export function TwoDArrayVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
-  const gridData = [
-    [1, 4, 2],
-    [5, 9, 3],
-    [8, 6, 7]
-  ];
+export function TwoDArrayVisualizer({ data }: { data: Step | null }) {
+  const s = data ?? STEPS[0];
+  const section = s.section;
+  const cell = 60;
+  const gap = 12;
 
-  let currentMax = -Infinity;
-  if (step >= 1) currentMax = 4;
-  if (step >= 2) currentMax = 9;
+  // matrix layout
+  const mStartX = 90, mStartY = 150;
+  // reverse layout
+  const rStartX = 470, rStartY = 230;
 
-  const CyberGrid = () => (
-    <div className="absolute inset-0 pointer-events-none opacity-20">
-      <div className="absolute inset-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, transparent 1px),
-            linear-gradient(to bottom, hsl(var(--primary) / 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px'
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-    </div>
-  );
+  const matrixActive = section === "matrix";
+  const rowMaxCell = (i: number) => {
+    const row = GRID[i];
+    const m = Math.max(...row);
+    return row.indexOf(m);
+  };
 
   return (
-    <div className="w-full flex flex-col items-center bg-background/40 relative font-mono px-4 md:px-8 gap-8 rounded-xl py-8">
-      <CyberGrid />
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <filter id="td-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
 
-      {/* Narrative Info Header */}
-      <motion.div
-        className="w-full max-w-5xl z-10 flex gap-4 items-center px-4 py-3 bg-card/60 backdrop-blur-md border border-border rounded-xl shadow-[0_0_30px_hsla(var(--primary),0.05)]"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-        <p className="text-sm font-medium tracking-wide">
-          {step === 0 && "2D Arrays require nested loops (O(N*M)) to visit every cell."}
-          {step === 1 && "Outer loop: row 0. Inner loop scans cols 0-2. Max found: 4."}
-          {step === 2 && "Outer loop: row 1. Inner loop finds 9, which replaces 4 as the new max."}
-          {step === 3 && "Outer loop: row 2. Inner loop finds 8, but 9 remains the highest."}
-          {step === 4 && "Traversal finished. The nested routines exit and return the max value."}
-        </p>
-      </motion.div>
+      <text x="40" y="36" fontSize="16" fontWeight="bold" fill={colorTokens.info}>2D 탐색(중첩 루프) + 1D 역순(two-pointer)</text>
 
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 relative items-stretch z-10 w-full overflow-x-auto min-w-0">
+      {/* section tabs */}
+      <g transform="translate(40, 52)">
+        <rect width="180" height="26" rx="13" fill={matrixActive ? colorTokens.infoDim : colorTokens.faintFill} stroke={matrixActive ? colorTokens.info : colorTokens.border} />
+        <text x="90" y="18" textAnchor="middle" fontSize="11" fontWeight="bold" fill={matrixActive ? colorTokens.info : colorTokens.muted}>A. 2D MAX SCAN</text>
+        <rect x="190" width="200" height="26" rx="13" fill={!matrixActive ? colorTokens.primaryHighlightDim : colorTokens.faintFill} stroke={!matrixActive ? colorTokens.primaryHighlight : colorTokens.border} />
+        <text x="290" y="18" textAnchor="middle" fontSize="11" fontWeight="bold" fill={!matrixActive ? colorTokens.primaryHighlight : colorTokens.muted}>B. 1D REVERSE (two-pointer)</text>
+      </g>
 
-        {/* Code Execution Panel */}
-        <div className="flex-[3] min-w-[300px] bg-card/90 backdrop-blur-md rounded-2xl p-6 font-mono text-xs md:text-sm leading-relaxed border border-border shadow-2xl relative overflow-hidden flex flex-col">
-          <div className="flex items-center gap-2 mb-4 px-2">
-            <div className="w-3 h-3 rounded-full bg-destructive/80" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-            <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-            <span className="ml-2 text-muted-foreground text-xs uppercase tracking-widest font-semibold flex-1 text-center">Execution Context</span>
-          </div>
+      {/* ── Matrix ── */}
+      <g opacity={matrixActive ? 1 : 0.35}>
+        <text x={mStartX} y={mStartY - 18} fontSize="11" fontWeight="bold" fill={colorTokens.muted}>nested loop: max of grid[i][j]</text>
+        {GRID.map((row, i) => {
+          const y = mStartY + i * (cell + gap);
+          const isActiveRow = matrixActive && s.activeRow === i;
+          const isPast = matrixActive && s.activeRow > i;
+          const maxJ = rowMaxCell(i);
+          return (
+            <g key={i}>
+              <text x={mStartX - 20} y={y + cell / 2 + 5} textAnchor="end" fontSize="11" fontWeight="bold"
+                fill={isActiveRow ? colorTokens.info : colorTokens.muted}>i={i}</text>
+              {isActiveRow && (
+                <motion.rect x={mStartX - 6} y={y - 6} width={3 * (cell + gap) - gap + 12} height={cell + 12} rx="8"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} fill={colorTokens.infoDim} stroke={colorTokens.infoEdge} />
+              )}
+              {row.map((v, j) => {
+                const x = mStartX + j * (cell + gap);
+                const isRunMax = (isActiveRow || isPast) && j === maxJ && Math.max(...row) === s.runningMax;
+                let fill: string = colorTokens.faintFill, stroke: string = colorTokens.border, txt: string = colorTokens.text;
+                if (isActiveRow) { fill = colorTokens.infoTrace; stroke = colorTokens.info; txt = colorTokens.info; }
+                else if (isPast) { txt = colorTokens.muted; }
+                if (isRunMax) { stroke = colorTokens.success; txt = colorTokens.success; }
+                return (
+                  <g key={j}>
+                    <rect x={x} y={y} width={cell} height={cell} rx="8" fill={fill} stroke={stroke} strokeWidth={isRunMax ? 3 : isActiveRow ? 2.5 : 1.5}
+                      filter={isRunMax ? "url(#td-glow)" : undefined} />
+                    <text x={x + cell / 2} y={y + cell / 2 + 7} textAnchor="middle" fontSize="22" fontWeight="bold" fill={txt}>{v}</text>
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+        <g transform={`translate(${mStartX}, ${mStartY + 3 * (cell + gap) + 6})`}>
+          <rect width="220" height="30" rx="8" fill={colorTokens.card} stroke={colorTokens.border} />
+          <text x="12" y="20" fontSize="12" fill={colorTokens.muted}>GLOBAL MAX =</text>
+          <text x="208" y="20" textAnchor="end" fontSize="16" fontWeight="bold" fill={colorTokens.success}>{s.runningMax === null ? "-∞" : s.runningMax}</text>
+        </g>
+      </g>
 
-          <div className="relative text-base h-full flex flex-col justify-center">
-             {/* Active Highlight Background */}
-             <motion.div
-              className="absolute left-[-24px] right-[-24px] bg-primary/10 border-l-[3px] border-primary pointer-events-none z-0"
-              initial={{ top: 0, opacity: 0, height: 36 }}
-              animate={{
-                top: step === 0 ? 0 : step === 4 ? 208 : 36 * 1.5,
-                height: step === 0 ? 0 : step === 4 ? 36 : 36 * 4,
-                opacity: step === 0 ? 0 : 1,
-                boxShadow: step > 0 ? "0 0 20px hsla(var(--primary), 0.2) inset" : "none"
-              }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            />
+      {/* ── Reverse (two-pointer) ── */}
+      <g opacity={!matrixActive ? 1 : 0.35}>
+        <text x={rStartX} y={rStartY - 30} fontSize="11" fontWeight="bold" fill={colorTokens.muted}>two-pointer: swap(lo, hi)</text>
+        {(s.section === "reverse" ? s.arr : [2, 7, 1, 9]).map((v, i) => {
+          const x = rStartX + i * (cell + gap);
+          const isLo = s.section === "reverse" && i === s.lo && s.lo < s.hi;
+          const isHi = s.section === "reverse" && i === s.hi && s.lo < s.hi;
+          const isPair = isLo || isHi;
+          const swapping = s.section === "reverse" && s.swapping && isPair;
+          let fill: string = colorTokens.faintFill, stroke: string = colorTokens.border, txt: string = colorTokens.text;
+          if (swapping) { fill = colorTokens.destructiveTrace; stroke = colorTokens.destructive; txt = colorTokens.destructive; }
+          else if (isPair) { fill = colorTokens.primaryHighlightDim; stroke = colorTokens.primaryHighlight; txt = colorTokens.primaryHighlight; }
+          return (
+            <g key={i}>
+              {isLo && <text x={x + cell / 2} y={rStartY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.primaryHighlight}>lo</text>}
+              {isHi && <text x={x + cell / 2} y={rStartY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.primaryHighlight}>hi</text>}
+              <motion.rect x={x} y={rStartY} width={cell} height={cell} rx="8" initial={false}
+                animate={{ stroke, scale: swapping ? 1.06 : 1 }} style={{ transformOrigin: `${x + cell / 2}px ${rStartY + cell / 2}px` }}
+                fill={fill} strokeWidth={isPair ? 3 : 1.5} filter={swapping ? "url(#td-glow)" : undefined} />
+              <text x={x + cell / 2} y={rStartY + cell / 2 + 7} textAnchor="middle" fontSize="22" fontWeight="bold" fill={txt}>{v}</text>
+              <text x={x + cell / 2} y={rStartY + cell + 18} textAnchor="middle" fontSize="11" fill={colorTokens.muted}>[{i}]</text>
+            </g>
+          );
+        })}
+        {/* swap arc */}
+        {s.section === "reverse" && s.swapping && s.lo < s.hi && (
+          <motion.path
+            d={`M ${rStartX + s.lo * (cell + gap) + cell / 2} ${rStartY - 4} Q ${rStartX + ((s.lo + s.hi) / 2) * (cell + gap) + cell / 2} ${rStartY - 60} ${rStartX + s.hi * (cell + gap) + cell / 2} ${rStartY - 4}`}
+            fill="none" stroke={colorTokens.destructive} strokeWidth="2" strokeDasharray="4 3"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.4 }} />
+        )}
+      </g>
 
-            <div className="relative z-10 flex flex-col gap-3">
-              <div className="text-muted-foreground/60">
-                <span className="text-blue-400">let</span> max = <span className="text-yellow-300">-Infinity</span>;
-              </div>
-              <div className={step >= 1 && step <= 3 ? "text-primary font-bold" : "text-muted-foreground/60 transition-opacity"}>
-                <span className="text-purple-400">for</span> (<span className="text-blue-400">let</span> i = 0; i &lt; grid.length; i++) {"{"}
-              </div>
-              <div className={`pl-4 ${step >= 1 && step <= 3 ? "text-emerald-400 font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                <span className="text-purple-400">for</span> (<span className="text-blue-400">let</span> j = 0; j &lt; grid[i].length; j++) {"{"}
-              </div>
-              <div className={`pl-8 ${step >= 1 && step <= 3 ? "text-foreground font-bold" : "text-muted-foreground/60 transition-opacity"}`}>
-                 <span className="text-purple-400">if</span> (grid[i][j] &gt; max) max = grid[i][j];
-              </div>
-              <div className={`pl-4 ${step >= 1 && step <= 3 ? "text-emerald-400 font-bold" : "text-muted-foreground/60 transition-opacity"}`}>{"}"}</div>
-              <div className={step >= 1 && step <= 3 ? "text-primary font-bold" : "text-muted-foreground/60 transition-opacity"}>{"}"}</div>
-              <div className={step === 4 ? "text-emerald-400 font-bold" : "text-muted-foreground/60 transition-opacity"}>
-                <span className="text-purple-400">return</span> max; <span className="text-muted-foreground text-xs ml-2">// Returns {step === 4 ? currentMax : '-Infinity'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Matrix Visualization Panel */}
-        <div className="flex-[4] bg-card/40 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-border shadow-2xl relative flex gap-6 md:gap-12 items-center justify-center overflow-hidden min-h-[350px]">
-          {/* Decorative Matrix Lines */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none">
-             {[...Array(10)].map((_, i) => (
-                <div key={i} className="absolute h-[1px] bg-primary w-full" style={{ top: `${i * 10}%` }} />
-             ))}
-             {[...Array(10)].map((_, i) => (
-                <div key={`v${i}`} className="absolute w-[1px] bg-primary h-full" style={{ left: `${i * 10}%` }} />
-             ))}
-          </div>
-
-          <div className="text-[10px] md:text-xs font-black uppercase tracking-widest text-muted-foreground bg-muted px-4 py-1 rounded-full absolute top-6 right-6 z-10 border border-border shadow-inner">
-            ADDR: 0x9F00
-          </div>
-
-          <div className="text-[10px] md:text-xs font-black uppercase tracking-widest text-muted-foreground bg-muted px-4 py-1 rounded-full absolute bottom-6 left-6 z-10 border border-border shadow-inner">
-             GLOBAL MAX: <span className={step > 0 ? "text-primary" : "text-muted-foreground"}>{step === 0 ? '-∞' : currentMax}</span>
-          </div>
-
-          <div className="relative z-10 flex flex-col gap-2">
-            {/* Column Headers */}
-            <div className="flex pl-8 md:pl-10 mb-2 gap-2">
-               {[0, 1, 2].map(j => (
-                  <div key={`col-${j}`} className="w-12 h-6 md:w-16 flex justify-center text-[10px] font-black text-muted-foreground/60">
-                    col {j}
-                  </div>
-               ))}
-            </div>
-
-            {gridData.map((row, i) => {
-              const isActiveRow = step === i + 1;
-              const isPastRow = step > i + 1;
-
-              return (
-                <div key={`row-${i}`} className="flex items-center gap-2 md:gap-4 relative">
-                  {/* Row Header */}
-                  <div className="w-6 md:w-10 flex justify-center">
-                     <span className={`text-[10px] font-black uppercase ${isActiveRow ? "text-primary" : "text-muted-foreground/60"}`}>i={i}</span>
-                  </div>
-
-                  {/* Row Highlight Box */}
-                  <AnimatePresence>
-                     {isActiveRow && (
-                        <motion.div
-                           initial={{ opacity: 0, scaleY: 0.8 }}
-                           animate={{ opacity: 1, scaleY: 1 }}
-                           exit={{ opacity: 0, scaleY: 0.8 }}
-                           className="absolute left-8 lg:left-10 md:left-14 right-[-10px] top-[-5px] bottom-[-5px] bg-primary/10 border border-primary/30 rounded-lg pointer-events-none z-0"
-                        />
-                     )}
-                  </AnimatePresence>
-
-                  <div className="flex gap-2 relative z-10">
-                    {row.map((val, j) => {
-                      let bgColor = "hsl(var(--card)/0.8)";
-                      let borderColor = "hsl(var(--border))";
-                      let textColor = "hsl(var(--card-foreground))";
-                      let shadow = "none";
-                      let isMaxHighlight = false;
-
-                      if (isActiveRow) {
-                         bgColor = "hsl(var(--primary)/0.2)";
-                         borderColor = "hsl(var(--primary))";
-                         textColor = "hsl(var(--primary))";
-                      } else if (isPastRow) {
-                         bgColor = "hsl(var(--muted)/0.5)";
-                         textColor = "hsl(var(--muted-foreground)/0.5)";
-                      }
-
-                      // Highlight current max cell in the historical view too
-                      if ((step === 1 && i===0 && j===1) ||
-                          (step >= 2 && i===1 && j===1)) {
-                          isMaxHighlight = true;
-                          borderColor = "hsl(var(--emerald-500))";
-                          textColor = "hsl(var(--emerald-500))";
-                          shadow = "0 0 20px hsla(var(--emerald-500), 0.4)";
-                      }
-
-                      return (
-                        <motion.div
-                          key={`cell-${i}-${j}`}
-                          animate={{
-                            backgroundColor: bgColor,
-                            borderColor: borderColor,
-                            color: textColor,
-                            boxShadow: shadow,
-                            scale: isMaxHighlight && (step === i + 1) ? 1.1 : 1
-                          }}
-                          transition={{ duration: 0.4 }}
-                          className={`w-12 h-12 md:w-16 md:h-16 flex items-center justify-center text-xl md:text-2xl font-black rounded-lg border-2 relative overflow-hidden`}
-                        >
-                          {/* Scan line effect inside active row cells */}
-                          {isActiveRow && (
-                             <motion.div
-                               className="absolute inset-y-0 w-1 bg-primary/40 blur-sm"
-                               animate={{ left: ['-20%', '120%'] }}
-                               transition={{ duration: 1.5, repeat: Infinity, delay: j * 0.2 }}
-                             />
-                          )}
-                          {val}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
+      <text x="40" y="490" fontSize="12" fill={colorTokens.text}>{s.msg}</text>
+    </svg>
   );
 }

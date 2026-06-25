@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   CyberGrid,
   NeonGlowFilters,
@@ -65,26 +66,39 @@ function buildSlots(step: number): { slots: Slot[]; head: number; free: number; 
   return { slots, head, free, highlights };
 }
 
+const BASE_LOG = "> 커서 기반 연결 리스트 초기화: A → B → C, free 진입점 [3]";
+
+// step 별 로그 메시지 (advance·슬라이더가 공유 → 파생 상태 동기화 기준).
+const STEP_MSG: Record<number, string> = {
+  1: "[FREE 차용] 슬롯 [3]을 free 체인에서 떼어 새 노드 자리로 확보. free 진입점 [4]로 이동.",
+  2: "[VALUE 기입] node[3].value=X, node[3].next=2 (B의 기존 next 복사).",
+  3: "[LINK 갱신] B(1).next=3 으로 갱신 → 순회 결과: A → B → X → C.",
+  4: "[재사용 풀] 삭제된 슬롯은 free 체인 앞에 끼워 두면 O(1)에 재할당 가능.",
+};
+
 export function useCursorLinkedListSim() {
   const [step, setStep] = useState(0);
-  const [logs, setLogs] = useState<string[]>([
-    "> 커서 기반 연결 리스트 초기화: A → B → C, free 진입점 [3]",
-  ]);
+  const [logs, setLogs] = useState<string[]>([BASE_LOG]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  // 슬라이더 드래그/임의 step 점프 시 logs 를 해당 step 까지 재계산해 동기화.
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const next = [BASE_LOG];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
       const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[FREE 차용] 슬롯 [3]을 free 체인에서 떼어 새 노드 자리로 확보. free 진입점 [4]로 이동.");
-      if (next === 2) appendLog("[VALUE 기입] node[3].value=X, node[3].next=2 (B의 기존 next 복사).");
-      if (next === 3) appendLog("[LINK 갱신] B(1).next=3 으로 갱신 → 순회 결과: A → B → X → C.");
-      if (next === 4) appendLog("[재사용 풀] 삭제된 슬롯은 free 체인 앞에 끼워 두면 O(1)에 재할당 가능.");
+      if (next === prev) return prev;
+      if (STEP_MSG[next]) setLogs((l) => [`> ${STEP_MSG[next]}`, ...l]);
       return next;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -96,21 +110,25 @@ export function useCursorLinkedListSim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      // push: 자동재생(▶︎)·슬라이더 구동용 advance. peek: 기존 Operation Panel 버튼 호환 alias.
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function CursorLinkedListVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function CursorLinkedListVisualizer({ data }: { data?: { step: number } | null }) {
+  const step = data?.step ?? 0;
   const { slots, head, free, highlights } = buildSlots(step);
 
   // SVG layout: 5 slots in a row
+  // height 360: 박스 아래 free 체인 호/라벨(+48~+92) 이 viewBox 하단에서 잘리지 않도록 여유 확보.
   const svgWidth = 720;
-  const svgHeight = 320;
+  const svgHeight = 360;
   const boxSize = 84;
   const boxGap = 28;
   const totalWidth = slots.length * boxSize + (slots.length - 1) * boxGap;
@@ -205,15 +223,14 @@ export function CursorLinkedListVisualizer({ data }: { data: { step: number } })
 
           if (adjacent) {
             return (
-              <EdgeLine
-                key={`next-${slot.index}`}
-                x1={fromX}
-                y1={y}
-                x2={toX}
-                y2={y}
-                status={status}
-                arrow
-              />
+              <motion.g
+                key={`next-${slot.index}-${slot.next}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <EdgeLine x1={fromX} y1={y} x2={toX} y2={y} status={status} arrow />
+              </motion.g>
             );
           }
           // 호 (curved) 그리기: 같은 색의 path
@@ -224,7 +241,12 @@ export function CursorLinkedListVisualizer({ data }: { data: { step: number } })
           const cpX = fromX + dx / 2;
           const cpY = y + dy;
           return (
-            <g key={`next-${slot.index}`}>
+            <motion.g
+              key={`next-${slot.index}-${slot.next}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
               <path
                 d={`M ${fromX} ${y} Q ${cpX} ${cpY} ${toX} ${y}`}
                 stroke={stroke}
@@ -236,9 +258,57 @@ export function CursorLinkedListVisualizer({ data }: { data: { step: number } })
                 points={`${toX},${y} ${toX - arrowSize - 2},${y - arrowSize} ${toX - arrowSize - 2},${y + arrowSize}`}
                 fill={stroke}
               />
+            </motion.g>
+          );
+        })}
+
+      {/* free 체인 next 링크 (빈 슬롯 체인) — 박스 아래쪽에 muted 점선 호로 표기.
+          사용중 next 화살표(박스 중앙)와 분리해 "빈 슬롯도 next 로 엮인 재사용 풀"임을 드러낸다. */}
+      {slots
+        .filter((s) => !s.inUse && s.next >= 0 && !slots[s.next]?.inUse)
+        .map((slot) => {
+          const fromX = boxStartX + slot.index * (boxSize + boxGap) + boxSize / 2;
+          const toX = boxStartX + slot.next * (boxSize + boxGap) + boxSize / 2;
+          const baseY = boxY + boxSize + 48;
+          const cpY = baseY + 22;
+          const cpX = (fromX + toX) / 2;
+          const arrowSize = 5;
+          return (
+            <g key={`free-next-${slot.index}`}>
+              <path
+                d={`M ${fromX} ${baseY} Q ${cpX} ${cpY} ${toX} ${baseY}`}
+                stroke={colorTokens.muted}
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                fill="none"
+              />
+              <polygon
+                points={`${toX},${baseY} ${toX - arrowSize - 2},${baseY + arrowSize} ${toX + arrowSize + 2},${baseY + arrowSize}`}
+                fill={colorTokens.muted}
+              />
             </g>
           );
         })}
+
+      {/* free 체인 라벨 */}
+      {(() => {
+        const freeSlots = slots.filter((s) => !s.inUse);
+        if (freeSlots.length < 2) return null;
+        const firstFree = freeSlots[0];
+        return (
+          <text
+            x={boxStartX + firstFree.index * (boxSize + boxGap) + boxSize / 2}
+            y={boxY + boxSize + 92}
+            textAnchor="middle"
+            fontSize={10}
+            fill={colorTokens.muted}
+            fontStyle="italic"
+            fontFamily="ui-monospace, monospace"
+          >
+            free chain (빈 슬롯 next)
+          </text>
+        );
+      })()}
 
       {/* head pointer */}
       <PointerArrow

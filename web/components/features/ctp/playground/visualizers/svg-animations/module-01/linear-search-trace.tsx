@@ -77,7 +77,10 @@ export function LinearSearchTraceVisualizer({
   return (
     <GenericArrayVisualizer
       data={traceData}
-      emptyMessage={emptyMessage ?? "코드를 실행하면 시각화가 나타납니다."}
+      emptyMessage={
+        emptyMessage ??
+        "▶ 코드를 실행하면 i 포인터가 배열을 왼쪽부터 훑으며 target 과 비교하는 과정이 자동으로 그려집니다."
+      }
     />
   );
 }

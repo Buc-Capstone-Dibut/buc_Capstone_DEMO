@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   CyberGrid,
   NeonGlowFilters,
@@ -12,7 +12,7 @@ import {
 // FC-4: 미니 코딩테스트 UI (timer + 4 problem cards + result panel)
 // stages: read → plan → design → implement → submit
 const MAX_STEPS = 5;
-const TOTAL_TIME = 600; // 10 min
+const TOTAL_TIME = 600; // 10 min (데모용 목업 제한시간)
 
 type CardStatus = "locked" | "active" | "solved";
 
@@ -41,56 +41,94 @@ function buildLogs(step: number): string[] {
   return out;
 }
 
+const STEP_MSG: Record<number, string> = {
+  1: "[PLAN] 두 후보 풀이를 시간복잡도로 비교.",
+  2: "[DESIGN] 해시 풀이 선택. 보조 자료구조 = 해시 테이블.",
+  3: "[IMPL] 단일 패스로 배열 순회하며 결과 누적.",
+  4: "[SUBMIT] 결과 정렬 후 제출. 엣지 케이스 최종 점검.",
+};
+
 export function useFc4Sim() {
   const [step, setStep] = useState(0);
+  const [remaining, setRemaining] = useState(TOTAL_TIME); // 실제 카운트다운 (초)
+  const [running, setRunning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [logs, setLogs] = useState<string[]>([
-    "> FC-4 미니 코딩테스트 시작. 제한 시간 10:00.",
+    "> FC-4 미니 코딩테스트 시작. 제한 시간 10:00 (데모/목업). ▶ 또는 Push로 진행하면 타이머가 흐릅니다.",
   ]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  // 실제 setInterval 카운트다운: running 동안 1초마다 1씩 감소, 0에서 멈춤.
+  useEffect(() => {
+    if (!running) return;
+    intervalRef.current = setInterval(() => {
+      setRemaining((prev) => {
+        if (prev <= 1) {
+          setRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [running]);
+
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const base = "> FC-4 미니 코딩테스트 시작. 제한 시간 10:00 (데모/목업). ▶ 또는 Push로 진행하면 타이머가 흐릅니다.";
+    const next = [base];
+    for (let i = 1; i <= clamped; i++) {
+      if (STEP_MSG[i]) next.unshift(`> [Step ${i}] ${STEP_MSG[i]}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
+    setRunning(true); // 첫 진행에서 실제 타이머 시작
     setStep((prev) => {
-      const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[PLAN] 두 후보 풀이를 시간복잡도로 비교.");
-      if (next === 2) appendLog("[DESIGN] 해시 풀이 선택. 보조 자료구조 = 해시 테이블.");
-      if (next === 3) appendLog("[IMPL] 단일 패스로 배열 순회하며 결과 누적.");
-      if (next === 4) appendLog("[SUBMIT] 결과 정렬 후 제출. 엣지 케이스 최종 점검.");
-      return next;
+      const nextIdx = Math.min(prev + 1, MAX_STEPS - 1);
+      if (nextIdx !== prev && STEP_MSG[nextIdx]) {
+        setLogs((l) => [`> [Step ${nextIdx}] ${STEP_MSG[nextIdx]}`, ...l]);
+      }
+      if (nextIdx === MAX_STEPS - 1) setRunning(false); // 제출 시 타이머 정지
+      return nextIdx;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
+    setRunning(false);
     setStep(0);
-    setLogs(["> 시스템 리셋: FC-4 초기 상태."]);
+    setRemaining(TOTAL_TIME);
+    setLogs(["> 시스템 리셋: FC-4 초기 상태. 타이머 10:00 으로 복원."]);
   }, []);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: { step, remaining },
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function Fc4Visualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function Fc4Visualizer({ data }: { data?: { step: number; remaining?: number } }) {
+  const step = data?.step ?? 0;
   const cards = buildCards(step);
   const innerLogs = buildLogs(step);
 
   const svgWidth = 800;
   const svgHeight = 420;
 
-  // Timer (countdown by stage, 비례 감소)
-  const elapsed = ((step / (MAX_STEPS - 1)) * 0.7) * TOTAL_TIME; // 70% 소모로 가정
-  const remaining = TOTAL_TIME - elapsed;
+  // Timer: 실제 setInterval 카운트다운 값 (sim hook 제공). 없으면 전체 시간.
+  const remaining = data?.remaining ?? TOTAL_TIME;
   const mm = Math.floor(remaining / 60).toString().padStart(2, "0");
   const ss = Math.floor(remaining % 60).toString().padStart(2, "0");
   const timerColor: ColorToken = remaining < 120 ? "found" : remaining < 300 ? "comparing" : "default";
@@ -203,7 +241,7 @@ export function Fc4Visualizer({ data }: { data: { step: number } }) {
         <rect x={panelX} y={panelY} width={panelW} height={panelH} fill="hsl(var(--background))" stroke="hsl(var(--border))" rx={8} />
         <rect x={panelX} y={panelY} width={panelW} height={28} fill="hsl(var(--muted))" rx={8} />
         <text x={panelX + panelW / 2} y={panelY + 18} textAnchor="middle" fontSize={12} fontWeight={700} fill="hsl(var(--foreground))">
-          Judge Result
+          Judge Result (데모/목업)
         </text>
 
         {innerLogs.map((line, i) => (
@@ -219,7 +257,7 @@ export function Fc4Visualizer({ data }: { data: { step: number } }) {
           </text>
         ))}
 
-        {/* Final verdict (step 4) */}
+        {/* Final verdict (step 4) — 하드코딩 데모 결과 (실제 채점 아님) */}
         {step === 4 && (
           <g>
             <rect x={panelX + 12} y={panelY + panelH - 44} width={panelW - 24} height={32} fill={colorTokens.found} rx={6} />
@@ -227,11 +265,11 @@ export function Fc4Visualizer({ data }: { data: { step: number } }) {
               x={panelX + panelW / 2}
               y={panelY + panelH - 24}
               textAnchor="middle"
-              fontSize={14}
+              fontSize={13}
               fontWeight={700}
               fill="hsl(var(--background))"
             >
-              AC · Accepted
+              AC · Accepted (목업)
             </text>
           </g>
         )}
