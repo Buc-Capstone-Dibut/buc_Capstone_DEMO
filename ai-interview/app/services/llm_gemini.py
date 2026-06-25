@@ -166,6 +166,64 @@ def _to_string_list(value: Any) -> list[str]:
     return [text] if text else []
 
 
+def _split_top_level(text: str, separators: str) -> list[str]:
+    """괄호 밖의 구분자에서만 자른다. 'AWS (S3, EC2)'의 괄호 안 콤마는 보존."""
+    parts: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+            buf.append(ch)
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif depth == 0 and ch in separators:
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    parts.append("".join(buf))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _to_tech_list(value: Any) -> list[str]:
+    """요구 기술(techStack) 전용 정규화.
+
+    thinking(사고) 모드를 끈 뒤 모델이 'Frontend: Next.js, React, TS'처럼
+    카테고리로 묶어 한 덩어리로 돌려주는 경우가 있다. 카테고리 접두어를 떼고
+    개별 기술 단위로 쪼갠다. 단 'AWS (S3, EC2)'의 괄호 안 콤마와 'CI/CD'의
+    슬래시는 보존한다(슬래시는 구분자로 쓰지 않음).
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        raw_items = [str(v) for v in value]
+    elif isinstance(value, str):
+        raw_items = [value]
+    else:
+        raw_items = [str(value)]
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_items:
+        for line in raw.split("\n"):
+            for token in _split_top_level(line, ",;|·•"):
+                # 'Frontend: React' 같은 카테고리 접두어 제거(콜론 앞이 콤마 없는 짧은 라벨일 때만).
+                prefix, sep, rest = token.partition(":")
+                if sep and "," not in prefix and len(prefix) <= 20 and rest.strip():
+                    token = rest
+                token = token.strip(" .·")
+                if not token:
+                    continue
+                key = token.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(token)
+    return out
+
+
 _VALID_SCHEDULE_KINDS = {"deadline", "document_due", "interview", "other"}
 
 
@@ -195,7 +253,7 @@ def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "responsibilities": _to_string_list(payload.get("responsibilities")),
         "requirements": _to_string_list(payload.get("requirements")),
         "preferred": _to_string_list(payload.get("preferred")),
-        "techStack": _to_string_list(payload.get("techStack")),
+        "techStack": _to_tech_list(payload.get("techStack")),
         "culture": _to_string_list(payload.get("culture")),
         "schedules": _normalize_schedules(payload.get("schedules")),
     }
@@ -351,6 +409,7 @@ Output JSON Format:
 }}
 
 Notes:
+- "techStack": 요구 기술을 개별 기술 단위로 하나씩 나눠 담는다. 카테고리(Frontend/Backend 등)로 묶거나 한 항목에 여러 기술을 콤마로 이어 넣지 말 것. 예) ["Next.js", "React", "TypeScript", "TailwindCSS", "FastAPI", "PostgreSQL"] (O) / ["Frontend: Next.js, React, TypeScript"] (X)
 - The text may include embedded JSON (JSON-LD / __NEXT_DATA__). Treat it as a primary source — "preferred"(우대사항)와 날짜는 본문 텍스트엔 없고 이 JSON 안에만 있는 경우가 많다.
 - "schedules": 채용 일정/날짜를 모두 뽑는다 — 지원·접수 마감, 서류 마감, 면접, 발표 등. "kind"는 deadline / document_due / interview / other 중 하나, "date"는 YYYY-MM-DD. 기간이면 마감(종료)일을 쓴다. JSON-LD의 "validThrough" 나 "due_time" 필드는 지원 마감일이다.
 - If specific info is missing, leave the array empty.
