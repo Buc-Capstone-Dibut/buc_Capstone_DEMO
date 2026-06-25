@@ -86,7 +86,8 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
               teamCulture: Array.isArray(d.jobData.teamCulture) ? d.jobData.teamCulture : [],
             });
           }
-          if (d.resumeData) {
+          const hasResume = Boolean(d.resumeData);
+          if (hasResume) {
             setResumeData({
               fileName: d.resumeData.fileName ?? "채용공고 연동 이력서",
               parsedContent: d.resumeData.parsedContent,
@@ -99,7 +100,9 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
           if (Array.isArray(d.attachedProjects) && d.attachedProjects.length) {
             setAttachedProjects(d.attachedProjects);
           }
-          setStep("jd-check");
+          // 공고에 이력서까지 매핑돼 있으면 중간 확인 단계를 건너뛰고 최종 점검으로.
+          // (면접엔 JD + 이력서만 쓰이고 final-check 가 둘 다 검토 가능한 통합 화면)
+          setStep(d.jobData && hasResume ? "final-check" : "jd-check");
           toast({
             title: "채용공고 자동 채움 완료",
             description: "등록된 채용공고 정보를 setup에 불러왔습니다.",
