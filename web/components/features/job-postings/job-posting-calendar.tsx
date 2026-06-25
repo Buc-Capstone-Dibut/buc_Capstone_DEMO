@@ -19,6 +19,23 @@ export type CalendarEvent = {
   role: string;
 };
 
+// 캘린더 라벨: '회사명 4글자… + 상태' 로 어느 공고의 무슨 일정인지 한눈에 보이게 한다.
+const KIND_LABEL: Record<CalendarEvent["kind"], string> = {
+  deadline: "지원마감",
+  document_due: "서류마감",
+  interview: "면접",
+  other: "일정",
+};
+
+function buildEventLabel(ev: CalendarEvent): string {
+  const status = KIND_LABEL[ev.kind] ?? "일정";
+  const title = (ev.company || ev.role || "").trim();
+  if (!title) return status;
+  const head = title.slice(0, 4);
+  const truncated = title.length > 4 ? `${head}…` : head;
+  return `${truncated} ${status}`;
+}
+
 // 마감일은 한국 시간(KST) 기준의 '날짜'다. UTC 타임스탬프를 KST 날짜로 환산해
 // all-day 이벤트로 렌더하면, 23:59(KST) 저장값이 자정을 넘겨 이틀로 보이는 문제를 막는다.
 const KST_DATE_FMT = new Intl.DateTimeFormat("en-CA", {
@@ -107,7 +124,7 @@ export function JobPostingCalendar({
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ background: KIND_COLOR[ev.kind] }}
               />
-              <span className="truncate">{arg.event.title}</span>
+              <span className="truncate">{buildEventLabel(ev)}</span>
             </div>
           );
         }}
