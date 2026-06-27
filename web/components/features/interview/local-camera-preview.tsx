@@ -22,6 +22,10 @@ function LocalCameraPreviewImpl({
 }: LocalCameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const onStreamRef = useRef(onStream);
+  useEffect(() => {
+    onStreamRef.current = onStream;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +40,7 @@ function LocalCameraPreviewImpl({
           track.stop();
         }
         streamRef.current = null;
-        onStream?.(null);
+        onStreamRef.current?.(null);
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -68,7 +72,7 @@ function LocalCameraPreviewImpl({
         }
 
         streamRef.current = stream;
-        onStream?.(stream);
+        onStreamRef.current?.(stream);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
@@ -89,7 +93,7 @@ function LocalCameraPreviewImpl({
       cancelled = true;
       stopStream();
     };
-  }, [enabled, onStream]);
+  }, [enabled]);
 
   if (!enabled) return null;
 
