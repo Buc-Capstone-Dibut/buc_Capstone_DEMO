@@ -21,6 +21,7 @@ import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from 
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
+import { useInterviewRecording } from "@/hooks/interview/use-interview-recording";
 import {
   buildInterviewTypePayload,
   resolveInterviewTypeVisual,
@@ -220,6 +221,13 @@ export default function InterviewVideoRoomPage() {
     requestedSessionId ? "unknown" : "fresh",
   );
   const [isFinishingSession, setIsFinishingSession] = useState(false);
+
+  const recording = useInterviewRecording();
+  const recordingVideoStreamRef = useRef<MediaStream | null>(null);
+  const [isSavingRecording, setIsSavingRecording] = useState(false);
+  const handleRecordingStream = useCallback((stream: MediaStream | null) => {
+    recordingVideoStreamRef.current = stream;
+  }, []);
 
   const startedRef = useRef(false);
   const sessionStartingRef = useRef(false);
@@ -854,6 +862,7 @@ export default function InterviewVideoRoomPage() {
       }
 
       await sendInterviewInit(nextSessionId);
+      void recording.start(recordingVideoStreamRef.current);
     })();
 
     return () => {
@@ -864,6 +873,7 @@ export default function InterviewVideoRoomPage() {
     hasConfirmedInterviewStart,
     isAudioPrimed,
     isConnected,
+    recording,
     requestedSessionId,
     sendInterviewInit,
   ]);
@@ -1173,6 +1183,20 @@ export default function InterviewVideoRoomPage() {
     setStatusMessage(status);
     completionRedirectedRef.current = true;
     disconnect();
+    // 영상 저장은 페이지 이동(언마운트) 전에 끝내야 한다 — 언마운트되면 스트림이 죽는다.
+    // 업로드가 지연되더라도 면접 종료가 막히지 않도록 하드 타임아웃을 건다.
+    const sid = activeSessionIdRef.current;
+    if (sid) {
+      setIsSavingRecording(true);
+      const SAVE_TIMEOUT_MS = 30_000;
+      await Promise.race([
+        recording.stopAndUpload(sid),
+        new Promise<{ ok: boolean }>((resolve) =>
+          setTimeout(() => resolve({ ok: false }), SAVE_TIMEOUT_MS),
+        ),
+      ]).catch(() => undefined);
+      setIsSavingRecording(false);
+    }
     // 종료 API(상태 갱신 + 리포트 enqueue)는 멱등이고, 결과 페이지가
     // 미완료 세션을 스스로 복구(/complete 재호출 + polling)하므로 응답을 기다리지 않는다.
     // keepalive 로 네비게이션 후에도 요청이 전송되도록 보장. (이전엔 Supabase 왕복
@@ -1183,7 +1207,7 @@ export default function InterviewVideoRoomPage() {
     }).catch(() => {});
     router.push(buildResultPath(activeSessionId));
     return true;
-  }, [activeSessionId, buildResultPath, disconnect, isFinishingSession, routeToSetup, router]);
+  }, [activeSessionId, buildResultPath, disconnect, isFinishingSession, recording, routeToSetup, router]);
 
   const handleFinish = async () => {
     await completeSession({
@@ -1226,7 +1250,16 @@ export default function InterviewVideoRoomPage() {
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col bg-background p-4 md:p-6 font-sans antialiased text-foreground">
-      
+
+      {isSavingRecording && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 text-white">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            <p className="text-sm">면접 영상 저장 중...</p>
+          </div>
+        </div>
+      )}
+
       {/* Top Header Bar */}
       <div className="flex shrink-0 items-center justify-between pb-4">
         <div className="flex items-center gap-2">
@@ -1296,7 +1329,7 @@ export default function InterviewVideoRoomPage() {
             지원자
           </div>
           <div className="h-full w-full overflow-hidden bg-muted/40 [&>video]:object-cover [&>video]:scale-105">
-            {hasConfirmedInterviewStart && <LocalCameraPreview enabled={isCameraEnabled} fill />}
+            {hasConfirmedInterviewStart && <LocalCameraPreview enabled={isCameraEnabled} fill onStream={handleRecordingStream} />}
             {hasConfirmedInterviewStart && !isCameraEnabled && (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
                 <CameraOff className="h-7 w-7" />
@@ -1456,6 +1489,9 @@ export default function InterviewVideoRoomPage() {
                   {isAudioPrimed
                     ? "준비 완료 — 시작을 누르면 첫 질문이 바로 재생됩니다."
                     : "시작을 누르면 첫 질문 음성이 바로 재생됩니다. (브라우저 자동재생 활성화)"}
+                </p>
+                <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                  이 면접은 영상·음성이 녹화되어 리포트에 저장됩니다.
                 </p>
               </>
             )}
