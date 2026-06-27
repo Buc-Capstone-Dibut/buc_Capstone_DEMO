@@ -224,6 +224,10 @@ export default function InterviewVideoRoomPage() {
   const startedRef = useRef(false);
   const sessionStartingRef = useRef(false);
   const completionRedirectedRef = useRef(false);
+  // 종료 신호를 처음 받은 시각 — 마무리 TTS 재생을 기다리되 최대 대기시간을 두기 위함.
+  const completeSinceRef = useRef<number | null>(null);
+  // 마무리 TTS 가 안 끝나는 경우를 대비해 최대 대기 후 effect 를 강제 재평가하는 트리거.
+  const [completionRecheck, setCompletionRecheck] = useState(0);
   const activeSessionIdRef = useRef("");
   const initRetryTimerRef = useRef<number | null>(null);
   const initRetryAttemptedRef = useRef(false);
@@ -917,23 +921,39 @@ export default function InterviewVideoRoomPage() {
 
   useEffect(() => {
     if (!runtimeMeta.interviewComplete || completionRedirectedRef.current || !activeSessionId) return;
+
+    if (completeSinceRef.current === null) completeSinceRef.current = Date.now();
+    const COMPLETE_MAX_WAIT_MS = 20000; // 마무리 TTS 가 안 끝나는 경우 대비 최대 대기
+    const waitedMs = Date.now() - completeSinceRef.current;
+
+    // 마무리 멘트(TTS)가 아직 재생 중이면 끝날 때까지 기다린다(잘림 방지). 단 최대 대기시간까지만.
+    if (isAISpeaking && waitedMs < COMPLETE_MAX_WAIT_MS) {
+      setStatusMessage("면접 마무리 멘트를 듣고 있어요...");
+      // isAISpeaking 이 false 로 바뀌면 dep 으로 재실행되지만, 혹시 안 바뀌어도
+      // 남은 최대 대기시간 후 강제로 재평가해 이동시킨다.
+      const safety = window.setTimeout(
+        () => setCompletionRecheck((n) => n + 1),
+        COMPLETE_MAX_WAIT_MS - waitedMs,
+      );
+      return () => window.clearTimeout(safety);
+    }
+
     completionRedirectedRef.current = true;
+    setStatusMessage("면접이 완료되었습니다. 결과 페이지로 이동합니다...");
+    // 발화가 끝난 뒤 짧은 여유를 두고 이동.
+    const go = window.setTimeout(() => {
+      router.push(buildResultPath(activeSessionId));
+    }, 800);
 
-    let remaining = 3;
-    setStatusMessage(`면접이 완료되었습니다. ${remaining}초 후 결과 페이지로 이동합니다...`);
-
-    const tick = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(tick);
-        router.push(buildResultPath(activeSessionId));
-      } else {
-        setStatusMessage(`면접이 완료되었습니다. ${remaining}초 후 결과 페이지로 이동합니다...`);
-      }
-    }, 1000);
-
-    return () => clearInterval(tick);
-  }, [activeSessionId, buildResultPath, router, runtimeMeta.interviewComplete]);
+    return () => window.clearTimeout(go);
+  }, [
+    activeSessionId,
+    buildResultPath,
+    router,
+    runtimeMeta.interviewComplete,
+    isAISpeaking,
+    completionRecheck,
+  ]);
 
 
 

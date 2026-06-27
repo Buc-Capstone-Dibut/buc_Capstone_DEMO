@@ -93,13 +93,19 @@ async def send_transcript(
 ) -> bool:
     normalized = (text or "").strip()
     if normalized:
-        logger.info(
-            "caption.final session=%s turn=%s role=%s text=%s",
-            session_id,
-            turn_id or "-",
-            role,
-            normalized,
-        )
+        # 터미널에서 면접 흐름(AI 질문 ↔ 지원자 답변)을 한눈에 보기 좋게 찍는다.
+        if role == "ai":
+            logger.info("🤖 AI 질문   ▶ %s", normalized)
+        elif role == "user":
+            logger.info("🙋 지원자 답변 ▶ %s", normalized)
+        else:
+            logger.info(
+                "caption.final session=%s turn=%s role=%s text=%s",
+                session_id,
+                turn_id or "-",
+                role,
+                normalized,
+            )
     payload = {
         "type": "transcript.final",
         "role": role,

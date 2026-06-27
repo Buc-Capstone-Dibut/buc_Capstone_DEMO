@@ -134,7 +134,15 @@ class ReportRepository:
                     """
                     SELECT id
                     FROM public.interview_report_jobs
-                    WHERE status = 'pending' AND attempts < max_attempts
+                    WHERE attempts < max_attempts
+                      AND (
+                            status = 'pending'
+                            -- 워커가 처리 도중 죽으면(배포/리로드/크래시) 잡이 'running' 에
+                            -- 고아로 박혀 영영 안 끝난다('계속 생성 중'). 5분 넘게 멈춘
+                            -- running 잡은 회수해 재시도한다(attempts 로 횟수 제한).
+                            OR (status = 'running'
+                                AND started_at < now() - interval '5 minutes')
+                          )
                     ORDER BY created_at ASC
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED

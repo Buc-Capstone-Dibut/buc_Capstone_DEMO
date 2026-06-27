@@ -246,7 +246,7 @@ QUESTION_TYPE_ROTATION_BY_LEVEL: dict[InterviewLevel, dict[str, tuple[str, ...]]
         ),
     },
 }
-QUESTION_TYPE_COOLDOWN_TYPES = {"metric_validation", "tradeoff"}
+QUESTION_TYPE_COOLDOWN_TYPES = {"metric_validation", "tradeoff", "closing_pitch"}
 QUESTION_TYPE_REPEATABLE_TYPES = {
     "implementation_detail",
     "problem_solving_process",
@@ -339,6 +339,134 @@ def compact_context_text(value: Any, max_chars: int = 1200) -> str:
     if len(normalized) <= max_chars:
         return normalized
     return f"{normalized[:max_chars]}..."
+
+
+def _clean_one_line(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _summary_strings(value: Any) -> list[str]:
+    """문자열/리스트/객체에서 면접에 쓸 텍스트들을 평탄화해 뽑는다."""
+    if isinstance(value, str):
+        cleaned = _clean_one_line(value)
+        return [cleaned] if cleaned else []
+    if isinstance(value, (list, tuple)):
+        out: list[str] = []
+        for item in value:
+            out.extend(_summary_strings(item))
+        return out
+    if isinstance(value, dict):
+        out = []
+        for key in ("name", "title", "projectName", "company", "role", "position", "summary", "description"):
+            out.extend(_summary_strings(value.get(key)))
+        return out
+    return []
+
+
+def _item_titles(value: Any) -> list[str]:
+    """프로젝트/경력 리스트에서 '제목' 한 줄씩만 뽑는다(설명은 제외해 간결하게)."""
+    titles: list[str] = []
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            if isinstance(item, dict):
+                for key in ("name", "title", "projectName", "company", "role", "position"):
+                    title = _clean_one_line(item.get(key))
+                    if title:
+                        titles.append(title)
+                        break
+            else:
+                title = _clean_one_line(item)
+                if title:
+                    titles.append(title)
+    return titles
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    return [x for x in items if not (x in seen or seen.add(x))]
+
+
+def summarize_job_for_prompt(job_data: Any, max_chars: int = 1500) -> str:
+    """공고에서 면접에 중요한 항목(요건/기술스택/우대/업무)을 앞세워 사람이 읽을 요약을 만든다.
+
+    raw JSON 을 통째로 자르면 뒤쪽 핵심(요구사항·기술스택)이 잘려나가므로, 핵심 필드를 우선 추린다.
+    """
+    if not isinstance(job_data, dict):
+        return compact_context_text(job_data, max_chars)
+
+    parts: list[str] = []
+    head = " ".join(
+        x
+        for x in (
+            _clean_one_line(job_data.get("company")),
+            _clean_one_line(job_data.get("role") or job_data.get("position") or job_data.get("title")),
+        )
+        if x
+    ).strip()
+    if head:
+        parts.append(f"회사/직무: {head}")
+
+    def add(key: str, label: str, limit: int) -> None:
+        items = _dedupe([x for x in _summary_strings(job_data.get(key)) if x])
+        if items:
+            parts.append(f"{label}: " + " · ".join(items[:limit]))
+
+    add("requirements", "자격요건", 8)
+    add("preferred", "우대사항", 6)
+    add("techStack", "기술스택", 14)
+    add("responsibilities", "주요업무", 6)
+
+    text = " | ".join(parts)
+    desc = _clean_one_line(job_data.get("description"))
+    if desc and len(text) < max_chars - 120:
+        text = f"{text} | 공고요약: {desc}" if text else f"공고요약: {desc}"
+    if not text:
+        return compact_context_text(job_data, max_chars)
+    return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+
+def summarize_resume_for_prompt(resume_data: Any, max_chars: int = 1500) -> str:
+    """이력서에서 면접에 중요한 항목(요약/프로젝트·경력 제목/보유기술)을 앞세워 요약을 만든다."""
+    if not isinstance(resume_data, dict):
+        return compact_context_text(resume_data, max_chars)
+
+    parts: list[str] = []
+    intro = ""
+    for key in ("summary", "headline", "selfIntroduction"):
+        intro = _clean_one_line(resume_data.get(key))
+        if intro:
+            break
+    if not intro and isinstance(resume_data.get("personalInfo"), dict):
+        intro = _clean_one_line(resume_data["personalInfo"].get("intro"))
+    if intro:
+        parts.append(f"요약: {intro}")
+
+    project_titles = _dedupe(
+        _item_titles(resume_data.get("projects")) + _item_titles(resume_data.get("project"))
+    )
+    if project_titles:
+        parts.append("프로젝트: " + " · ".join(project_titles[:6]))
+
+    career_titles = _dedupe(
+        _item_titles(resume_data.get("experience"))
+        + _item_titles(resume_data.get("experiences"))
+        + _item_titles(resume_data.get("workExperiences"))
+        + _item_titles(resume_data.get("work_experience"))
+    )
+    if career_titles:
+        parts.append("경력: " + " · ".join(career_titles[:6]))
+
+    skills: list[str] = []
+    for key in ("skills", "techStack", "tech_stack", "technologies"):
+        skills.extend(_summary_strings(resume_data.get(key)))
+    skills = _dedupe([s for s in skills if s])
+    if skills:
+        parts.append("보유기술: " + " · ".join(skills[:16]))
+
+    text = " | ".join(parts)
+    if not text:
+        return compact_context_text(resume_data, max_chars)
+    return text if len(text) <= max_chars else f"{text[:max_chars]}..."
 
 
 def compress_memory_text(text: str, max_chars: int = 120) -> str:
@@ -501,6 +629,112 @@ def _default_question_candidates(state: VoiceWsState) -> list[str]:
     return list(_candidate_rotation(state)) + list(QUESTION_TYPE_ROTATION)
 
 
+# ── 질문 폭/깊이 균형(P0 깊이상한 / P1 JD커버리지 / P2 얕은답변 조기전환) ──
+_DEPTH_FAMILIES = frozenset({"experience_detail", "decision_heavy", "challenge"})
+
+_NO_EXPERIENCE_PATTERN = re.compile(
+    r"(경험.{0,5}(없|못했|못 했|아니|부족)|해본 ?적.{0,3}없|해보지.{0,3}못|"
+    r"못 ?해\s?(봤|본)|모르겠|잘 모르|기억.{0,3}안|아직.{0,4}없)",
+    re.IGNORECASE,
+)
+_JD_COLLAB_PATTERN = re.compile(
+    r"(협업|팀워크|팀\s|커뮤니케이|소통|stakeholder|cross[- ]?functional|리더십|조율|동료|문화)",
+    re.IGNORECASE,
+)
+
+
+def _job_text_blob(job_data: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in (
+        "requirements",
+        "preferred",
+        "responsibilities",
+        "qualifications",
+        "techStack",
+        "description",
+        "culture",
+    ):
+        value = job_data.get(key)
+        if isinstance(value, (list, tuple)):
+            parts.append(" ".join(str(item) for item in value))
+        elif isinstance(value, str):
+            parts.append(value)
+    return " ".join(parts)
+
+
+def _jd_wants_collaboration(job_data: dict[str, Any]) -> bool:
+    return bool(_JD_COLLAB_PATTERN.search(_job_text_blob(job_data)))
+
+
+def _covered_families(state: VoiceWsState) -> set[str]:
+    return {
+        QUESTION_TYPE_FAMILIES.get(question_type, "")
+        for question_type in state.recent_question_types
+    }
+
+
+def _recent_deep_streak(state: VoiceWsState) -> int:
+    streak = 0
+    for question_type in reversed(state.recent_question_types):
+        if QUESTION_TYPE_FAMILIES.get(question_type, "") in _DEPTH_FAMILIES:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _apply_breadth_balance(
+    state: VoiceWsState,
+    scores: dict[str, int],
+    *,
+    answer_text: str,
+    stage: str,
+    job_data: dict[str, Any],
+) -> None:
+    """꼬리질문 깊이 상한 + 얕은/무경험 답변 조기전환 + JD 폭 커버리지.
+
+    한 주제(기술 심화 계열)를 2회 이상 연속으로 팠거나, 답변에 더 캘 게 없으면(무경험/매우 짧음)
+    기술 심화 계열을 감점하고 아직 안 다룬 폭 계열(협업/회고/동기)에 가산점을 줘 전환을 유도한다.
+    기존 답변 기반 점수에 '조정'만 얹으므로, 1~2회 꼬리질문 깊이는 그대로 유지된다.
+    """
+    if stage == "early":
+        return  # 오프닝(자기소개/지원동기)은 건드리지 않는다.
+
+    # closing_pitch("마지막으로 …어필")은 실제 종료 턴(_closing_question_preference)에서만 써야 한다.
+    # 중간 턴 점수 경쟁에서 떠서 '마지막으로'가 조기 등장하지 않도록 강하게 감점한다.
+    if "closing_pitch" in scores:
+        scores["closing_pitch"] -= 30
+
+    covered = _covered_families(state)
+    deep_streak = _recent_deep_streak(state)
+    no_experience = bool(_NO_EXPERIENCE_PATTERN.search(answer_text))
+    very_short = len(answer_text.strip()) < 18
+    wants_collab = _jd_wants_collaboration(job_data)
+
+    # 2회 연속 심화(P0) / 무경험·빈 우물(P2) / 이미 1회 팠는데 또 얕은 답변 → 폭으로 전환
+    force_breadth = deep_streak >= 2 or no_experience or (deep_streak >= 1 and very_short)
+
+    if force_breadth:
+        for question_type, family in QUESTION_TYPE_FAMILIES.items():
+            if question_type not in scores:
+                continue  # scores 는 QUESTION_TYPE_ROTATION 기준 — 없는 타입은 건너뛴다.
+            if family in _DEPTH_FAMILIES:
+                scores[question_type] -= 14
+            elif family == "collaboration":
+                scores[question_type] += 12 + (4 if wants_collab else 0)
+                if "collaboration" in covered:
+                    scores[question_type] -= 9
+            elif family == "reflection" and question_type != "closing_pitch":
+                scores[question_type] += 8 if "reflection" not in covered else 2
+            elif family == "motivation" and "motivation" not in covered:
+                scores[question_type] += 4
+
+    # 항상-약한 보정: 중/후반에 협업을 한 번도 안 다뤘고 JD 가 협업을 원하면 점진 가산.
+    if stage in ("middle", "late") and "collaboration" not in covered and wants_collab:
+        scores["behavioral_fit"] += 4
+        scores["collaboration_conflict"] += 3
+
+
 def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list[str]:
     normalized = re.sub(r"\s+", " ", (answer_text or "")).strip().lower()
     stage = _question_stage(state)
@@ -573,6 +807,12 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
             scores["behavioral_fit"] += 6
         if stage == "late":
             scores["closing_pitch"] += 4
+        # 자기소개 직후(Q2)에는 자기소개에 으레 담긴 '지원 동기' 표현이 motivation 점수를
+        # 과도하게 끌어올려 매번 같은 '관심 갖게 된 이유' 질문이 나온다. 그 가산을 상쇄해
+        # 자기소개 '내용'(프로젝트·구현 등)으로 이어지는 질문도 경쟁하게 한다.
+        if state.recent_question_types and state.recent_question_types[-1] == "self_intro":
+            scores["company_motivation"] -= 9
+            scores["jd_resume_match"] -= 3
     elif explicit_role_track:
         if has_role:
             scores["ownership_scope"] += 7
@@ -610,6 +850,15 @@ def _ranked_preference_candidates(state: VoiceWsState, answer_text: str) -> list
     elif level == "junior":
         scores["priority_judgment"] -= 3
         scores["tradeoff"] -= 2
+
+    # 깊이 상한 + 폭(JD 커버리지) 균형 조정 — 답변 기반 점수 위에 얹는다.
+    _apply_breadth_balance(
+        state,
+        scores,
+        answer_text=normalized,
+        stage=stage,
+        job_data=normalized_job_data,
+    )
 
     rotation_index = {name: index for index, name in enumerate(_default_question_candidates(state))}
     ranked = sorted(

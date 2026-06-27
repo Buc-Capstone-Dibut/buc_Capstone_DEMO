@@ -120,3 +120,41 @@ export async function GET(
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+
+/**
+ * 면접 세션 삭제.
+ * 소유권(user_id) 일치 행만 삭제 → IDOR 방지. 리포트/잡/턴/평가신호/포트폴리오소스는
+ * FK가 ON DELETE CASCADE라 세션 행 삭제만으로 함께 정리된다.
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const userId = await getInterviewRouteUserId();
+    if (!userId) {
+      return unauthorizedInterviewResponse();
+    }
+    const { id } = params;
+
+    const admin = createAdminSupabaseClient();
+
+    // 본인 소유 행만 지운다. 삭제된 행을 돌려받아 없으면 404(타인/없는 세션).
+    const { data: deleted, error: deleteError } = await admin
+      .from("interview_sessions")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select("id");
+
+    if (deleteError) throw deleteError;
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json({ success: false, error: "Session not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: { id } }, { status: 200 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to delete session";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}

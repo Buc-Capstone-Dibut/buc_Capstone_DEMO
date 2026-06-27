@@ -119,13 +119,13 @@ mapGroup("sorting", ["bubble-sort", "selection-sort", "insertion-sort", "merge-s
 mapGroup("search", ["basic-binary-search"]);
 
 const groupObservation: Record<string, string> = {
-  array: `**이번 단계에서 무엇을 볼까?**\\n- 인덱스가 어떻게 이동하는지\\n- 비교/갱신 횟수가 어디서 커지는지`,
-  linked: `**이번 단계에서 무엇을 볼까?**\\n- 포인터 갱신 순서\\n- head/tail 변경 시 연결 유지 여부`,
-  stack: `**이번 단계에서 무엇을 볼까?**\\n- push/pop 후 top 변화\\n- 단조 스택에서 연속 pop 발생 시점`,
-  queue: `**이번 단계에서 무엇을 볼까?**\\n- front/rear 이동 규칙\\n- empty/full 판정 조건`,
-  tree: `**이번 단계에서 무엇을 볼까?**\\n- 차수/거리/레벨/너비/크기 변화\\n- 방문 순서(전/중/후위)와 의미 차이`,
-  sorting: `**이번 단계에서 무엇을 볼까?**\\n- swap/partition 시점\\n- 안정성 유지 여부\\n\\n**색상 규칙(정렬 시뮬레이터)**\\n- 파랑: 기준/선택 원소 (active)\\n- 노랑: 비교 중 (comparing)\\n- 초록: 정렬 확정/완료 (success)\\n- 회색: 일반 상태`,
-  search: `**이번 단계에서 무엇을 볼까?**\\n- low/high 경계 이동\\n- mid 갱신 방식`,
+  array: `**이번 단계에서 무엇을 볼까?**\n- 인덱스가 어떻게 이동하는지\n- 비교/갱신 횟수가 어디서 커지는지`,
+  linked: `**이번 단계에서 무엇을 볼까?**\n- 포인터 갱신 순서\n- head/tail 변경 시 연결 유지 여부`,
+  stack: `**이번 단계에서 무엇을 볼까?**\n- push/pop 후 top 변화\n- 단조 스택에서 연속 pop 발생 시점`,
+  queue: `**이번 단계에서 무엇을 볼까?**\n- front/rear 이동 규칙\n- empty/full 판정 조건`,
+  tree: `**이번 단계에서 무엇을 볼까?**\n- 차수/거리/레벨/너비/크기 변화\n- 방문 순서(전/중/후위)와 의미 차이`,
+  sorting: `**이번 단계에서 무엇을 볼까?**\n- swap/partition 시점\n- 안정성 유지 여부\n\n**색상 규칙(정렬 시뮬레이터)**\n- 파랑: 기준/선택 원소 (active)\n- 노랑: 비교 중 (comparing)\n- 초록: 정렬 확정/완료 (success)\n- 회색: 일반 상태`,
+  search: `**이번 단계에서 무엇을 볼까?**\n- low/high 경계 이동\n- mid 갱신 방식`,
 };
 
 const sortingLegendGuide: GuideSection[] = [

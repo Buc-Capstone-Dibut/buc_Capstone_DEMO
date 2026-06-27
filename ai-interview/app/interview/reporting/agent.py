@@ -55,7 +55,17 @@ class ReportAgent:
         idle_interval = self._poll_interval_sec
         max_idle_interval = 10.0
         while not self._stop_event.is_set():
-            job = self._service.reserve_next_report_job()
+            try:
+                job = self._service.reserve_next_report_job()
+            except Exception:
+                # 잡 예약(claim) 단계에서 Postgres 일시 오류(풀 커넥션 끊김 등)가 나도
+                # 워커 스레드를 죽이지 않는다. 예전엔 이 호출이 try 밖이라, 단 한 번의
+                # 일시 오류로 스레드가 죽어 이후 모든 리포트 잡이 영영 pending 으로
+                # 남았다(면접 후 '계속 생성 중'인데 끝나지 않던 원인). 로그 남기고 재시도.
+                logger.exception("report job reserve failed; backing off and retrying")
+                self._stop_event.wait(idle_interval)
+                idle_interval = min(idle_interval * 2, max_idle_interval)
+                continue
             if not job:
                 # stop_event.wait() returns early on shutdown (more responsive
                 # than time.sleep) and otherwise sleeps the backoff window.
@@ -102,7 +112,11 @@ class ReportAgent:
                         "duration_ms": int((time.monotonic() - started_at) * 1000),
                     },
                 )
-                self._service.fail_report_job(job_id, str(exc))
+                try:
+                    self._service.fail_report_job(job_id, str(exc))
+                except Exception:
+                    # 실패 마킹 중 DB 오류가 나도 워커 스레드는 계속 살린다.
+                    logger.exception("report job fail-marking errored; continuing")
 
     def _process_job(self, job: dict[str, Any]) -> None:
         session_id = job["session_id"]

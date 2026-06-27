@@ -14,9 +14,14 @@ def load_existing_events(repository: DevEventRepository):
     return repository.load_existing_by_link()
 
 
-def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None = None):
+def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None = None):
+    # limit <= 0 이면 무제한 — 상세가 없는 이벤트를 한 번에 모두 크롤한다.
+    # (이미 채워진 이벤트는 needs_crawl=False 라 재실행 비용은 거의 0)
+    unlimited = limit <= 0
     repository = repository or DevEventRepository()
-    logger.info(f"🚀 Starting Dev-Event Crawler (Deep Crawl Limit: {limit})...")
+    logger.info(
+        f"🚀 Starting Dev-Event Crawler (Deep Crawl Limit: {'무제한' if unlimited else limit})..."
+    )
 
     existing_map = load_existing_events(repository)
     logger.info(f"Loaded {len(existing_map)} existing events.")
@@ -39,6 +44,8 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
                 event.thumbnail = existing.get("thumbnail")
             if existing.get("content"):
                 event.content = existing.get("content")
+            if existing.get("description"):
+                event.description = existing.get("description")
 
             if existing.get("summary"):
                 event.summary = existing.get("summary")
@@ -57,7 +64,11 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
                 logger.warning(f"Failed to fetch thumbnail for {event.title}: {e}")
 
         needs_crawl = not event.content or not event.summary
-        if needs_crawl and processed_count < limit:
+        if needs_crawl and (unlimited or processed_count < limit):
+            # limit 은 "시도 횟수" 기준 — deep_crawl 1회 = Firecrawl 1크레딧 + 대기.
+            # 성공(if result)에서만 세면 실패(404/스크랩 실패)가 limit 을 안 깎아
+            # 모든 이벤트를 다 처리해 버리는 버그가 있었다.
+            processed_count += 1
             try:
                 logger.info(f"🧠 Generating content for: {event.title}")
                 result = deep_crawl_event(event)
@@ -79,8 +90,6 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
                     event.fee = result.get("fee")
                     event.schedule = ensure_list(result.get("schedule"))
                     event.benefits = ensure_list(result.get("benefits"))
-
-                    processed_count += 1
             except Exception as e:
                 logger.error(f"Deep crawl failed for {event.title}: {e}")
 
@@ -89,7 +98,7 @@ def run_dev_event_crawler(limit: int = 5, repository: DevEventRepository | None 
 
 def save_events_to_json(events, repository: DevEventRepository):
     try:
-        data = [event.model_dump() for event in events]
+        data = [event.model_dump(mode="json") for event in events]
 
         seen_ids = set()
         for item in data:

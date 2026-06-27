@@ -72,7 +72,7 @@ export function UpcomingSchedulePanel({
             return (
               <li key={ev.id}>
                 <Link
-                  href={`/my/job-postings/${ev.jobPostingId}`}
+                  href={`/career/job-postings/${ev.jobPostingId}`}
                   className="flex items-baseline gap-2 rounded-sm px-1.5 py-1 text-xs transition-colors hover:bg-foreground/[0.04]"
                 >
                   <span

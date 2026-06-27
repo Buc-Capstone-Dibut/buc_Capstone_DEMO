@@ -47,3 +47,15 @@ class SupabaseTableRepository:
         response = self.client.table(self.table_name).insert(rows).execute()
         return len(response.data) if response.data else len(rows)
 
+    def upsert_many(self, rows: list[dict[str, Any]], on_conflict: str) -> int:
+        """on_conflict 컬럼(예: 'link') 기준 upsert — 있으면 갱신, 없으면 삽입."""
+        if not rows:
+            return 0
+
+        response = (
+            self.client.table(self.table_name)
+            .upsert(rows, on_conflict=on_conflict)
+            .execute()
+        )
+        return len(response.data) if response.data else len(rows)
+

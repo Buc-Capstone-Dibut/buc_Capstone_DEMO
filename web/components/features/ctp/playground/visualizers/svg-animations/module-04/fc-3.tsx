@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   CyberGrid,
   NeonGlowFilters,
   ArrayBox,
   NodeCircle,
   EdgeLine,
-  PointerArrow,
   colorTokens,
   edgeAt,
   type ColorToken,
@@ -15,36 +15,84 @@ import {
 
 // FC-3: 문자열 / 리스트 / 트리 종합
 // text="abracadabra", pattern="abra" → 일치 인덱스 [0, 7]
-// step 0: input
-// step 1: KMP 검색 → matches=[0, 7]
-// step 2: 이중 연결 리스트 적재 [0 <-> 7]
-// step 3: BST 삽입 (root=0, right=7)
-// step 4: summary (리스트=발견순서, BST=정렬순서)
-const MAX_STEPS = 5;
+// 검색 단계를 패턴이 0→7 로 실제 슬라이드하는 sub-step 으로 펼침.
 const TEXT = "abracadabra";
 const PATTERN = "abra";
 const MATCHES = [0, 7];
 
+// 패턴이 멈추는 후보 위치 (창이 슬라이드하는 경로). 끝 위치 = TEXT.length - PATTERN.length.
+// 일치(0, 7)는 거치되 그 사이 대표 위치 몇 곳을 보여 0→7 슬라이드를 가시화.
+const SLIDE_POSITIONS = [0, 1, 4, 7];
+const LAST_SLIDE = SLIDE_POSITIONS.length - 1;
+
+// step 0: input
+// step 1..LAST_SLIDE+1: 검색 (패턴 슬라이드)
+// 이후: 리스트 / BST / summary
+const STEP_SEARCH_START = 1;
+const STEP_SEARCH_END = LAST_SLIDE + 1; // 슬라이드 마지막 = 검색 완료
+const STEP_LIST = STEP_SEARCH_END + 1;
+const STEP_BST = STEP_LIST + 1;
+const STEP_SUMMARY = STEP_BST + 1;
+const MAX_STEPS = STEP_SUMMARY + 1;
+
+function slideIndexFor(step: number): number {
+  // 검색 단계 내에서 현재 슬라이드 위치 인덱스
+  if (step < STEP_SEARCH_START) return -1;
+  if (step >= STEP_SEARCH_END) return LAST_SLIDE;
+  return step - STEP_SEARCH_START;
+}
+
+function isMatchAt(pos: number): boolean {
+  return MATCHES.includes(pos);
+}
+
+function searchMsg(step: number): string | null {
+  if (step < STEP_SEARCH_START || step > STEP_SEARCH_END) return null;
+  const si = slideIndexFor(step);
+  const pos = SLIDE_POSITIONS[si];
+  const window = TEXT.slice(pos, pos + PATTERN.length);
+  const hit = isMatchAt(pos);
+  return `[SLIDE pos=${pos}] 창="${window}" vs pattern="${PATTERN}" → ${hit ? "일치!" : "불일치, 한 칸 이동"}`;
+}
+
+const STEP_MSG: Record<number, string> = {
+  [STEP_LIST]: "[LIST] 이중 연결 리스트에 발견 순서대로 적재. prev/next 양방향 순회 가능.",
+  [STEP_BST]: "[BST] 동일 데이터 BST 삽입. 중위 순회는 정렬 순서를 보존.",
+  [STEP_SUMMARY]: "[SUMMARY] 리스트=발견순서, BST=정렬순서. 질의에 따라 선택.",
+};
+
+function msgFor(step: number): string | null {
+  return searchMsg(step) ?? STEP_MSG[step] ?? null;
+}
+
 export function useFc3Sim() {
   const [step, setStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([
-    "> FC-3 시작. text=\"abracadabra\", pattern=\"abra\".",
+    "> FC-3 시작. text=\"abracadabra\", pattern=\"abra\". ▶ 또는 Push로 진행.",
   ]);
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const handleSetStep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, MAX_STEPS - 1));
+    setStep(clamped);
+    const base = "> FC-3 시작. text=\"abracadabra\", pattern=\"abra\". ▶ 또는 Push로 진행.";
+    const next = [base];
+    for (let i = 1; i <= clamped; i++) {
+      const m = msgFor(i);
+      if (m) next.unshift(`> [Step ${i}] ${m}`);
+    }
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
+  const advance = useCallback(() => {
     setStep((prev) => {
-      const next = Math.min(prev + 1, MAX_STEPS - 1);
-      if (next === 1) appendLog("[SEARCH] KMP 실행 → 일치 위치 [0, 7] 발견.");
-      if (next === 2) appendLog("[LIST] 이중 연결 리스트에 발견 순서대로 적재. prev/next 양방향 순회 가능.");
-      if (next === 3) appendLog("[BST] 동일 데이터 BST 삽입. 중위 순회는 정렬 순서를 보존.");
-      if (next === 4) appendLog("[SUMMARY] 리스트=발견순서, BST=정렬순서. 질의에 따라 선택.");
-      return next;
+      const nextIdx = Math.min(prev + 1, MAX_STEPS - 1);
+      if (nextIdx !== prev) {
+        const m = msgFor(nextIdx);
+        if (m) setLogs((l) => [`> [Step ${nextIdx}] ${m}`, ...l]);
+      }
+      return nextIdx;
     });
-  }, [appendLog]);
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -56,16 +104,18 @@ export function useFc3Sim() {
     interactive: {
       visualData: { step },
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: { push: advance, peek: advance, clear: reset },
       currentStep: step,
       maxSteps: MAX_STEPS,
-      setStep,
+      setStep: handleSetStep,
+      nextStep: advance,
+      reset,
     },
   };
 }
 
-export function Fc3Visualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+export function Fc3Visualizer({ data }: { data?: { step: number } }) {
+  const step = data?.step ?? 0;
 
   const svgWidth = 800;
   const svgHeight = 420;
@@ -90,8 +140,13 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
   // Tree nodes (root=0 left=null right=7)
   const treeNodeR = 22;
 
-  // Pattern slide position (animated highlight)
-  const slidePos = step >= 1 ? (step === 1 ? 7 : 7) : 0;
+  // 검색 단계: 현재 슬라이드 창 위치 (실제 0→7 이동)
+  const inSearch = step >= STEP_SEARCH_START && step <= STEP_SEARCH_END;
+  const slideIdx = slideIndexFor(step);
+  const slidePos = slideIdx >= 0 ? SLIDE_POSITIONS[slideIdx] : 0;
+  const searchDone = step >= STEP_SEARCH_END;
+  const slideHit = inSearch && isMatchAt(slidePos);
+  const charX = (i: number) => charStartX + i * (charBoxSize + charGap);
 
   return (
     <svg
@@ -110,24 +165,25 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
       <text x={svgWidth / 2} y={50} textAnchor="middle" fontSize={12} fill="hsl(var(--muted-foreground))">
         Stage {step + 1}/{MAX_STEPS} · {
           step === 0 ? "INPUT" :
-          step === 1 ? "KMP SEARCH" :
-          step === 2 ? "DOUBLY LINKED LIST" :
-          step === 3 ? "BST INSERT" :
+          inSearch ? `PATTERN SLIDE (pos=${slidePos})` :
+          step === STEP_LIST ? "DOUBLY LINKED LIST" :
+          step === STEP_BST ? "BST INSERT" :
           "SUMMARY"
         }
       </text>
 
       {/* ===== 문자열 검색 영역 ===== */}
       <text x={charStartX} y={textY - 16} fontSize={11} fontWeight={600} fill="hsl(var(--foreground))">
-        text = "{TEXT}" · pattern = "{PATTERN}"
+        {`text = "${TEXT}" · pattern = "${PATTERN}"`}
       </text>
       {Array.from(TEXT).map((ch, i) => {
-        const x = charStartX + i * (charBoxSize + charGap);
-        // 일치 위치 강조
+        const x = charX(i);
+        // 검색 완료 후엔 확정 일치 강조, 검색 중엔 현재 창 강조
         let status: ColorToken = "default";
-        if (step >= 1) {
-          const isInMatch = MATCHES.some((m) => i >= m && i < m + PATTERN.length);
-          if (isInMatch) status = "found";
+        if (searchDone || step > STEP_SEARCH_END) {
+          if (MATCHES.some((m) => i >= m && i < m + PATTERN.length)) status = "found";
+        } else if (inSearch) {
+          if (i >= slidePos && i < slidePos + PATTERN.length) status = slideHit ? "found" : "comparing";
         }
         return (
           <g key={`ch-${i}`}>
@@ -147,21 +203,42 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
         );
       })}
 
-      {/* Pattern slider (step 1) */}
-      {step === 1 && (
-        <g>
-          <PointerArrow
-            x={charStartX + slidePos * (charBoxSize + charGap) + charBoxSize / 2}
-            y={textY - 8}
-            label="match"
-            color={colorTokens.found}
-            direction="down"
+      {/* Pattern slider — 실제 0→7 슬라이드 (framer-motion 으로 부드럽게 이동) */}
+      {inSearch && (
+        <motion.g
+          initial={false}
+          animate={{ x: charX(slidePos) }}
+          transition={{ type: "spring", stiffness: 220, damping: 24 }}
+        >
+          {/* 패턴 창 프레임 */}
+          <rect
+            x={0}
+            y={textY - 6}
+            width={PATTERN.length * (charBoxSize + charGap) - charGap}
+            height={charBoxSize + 12}
+            rx={6}
+            fill="none"
+            stroke={slideHit ? colorTokens.found : colorTokens.comparing}
+            strokeWidth={2.5}
+            strokeDasharray={slideHit ? "0" : "5 3"}
           />
-        </g>
+          {/* 패턴 글자 (창 위에 떠 있는 라벨) */}
+          <text
+            x={(PATTERN.length * (charBoxSize + charGap) - charGap) / 2}
+            y={textY - 14}
+            textAnchor="middle"
+            fontSize={11}
+            fontWeight={700}
+            fill={slideHit ? colorTokens.found : colorTokens.comparing}
+            fontFamily="ui-monospace, monospace"
+          >
+            {`"${PATTERN}"`} {slideHit ? "✓ 일치" : "비교 중"}
+          </text>
+        </motion.g>
       )}
 
       {/* ===== 이중 연결 리스트 ===== */}
-      {step >= 2 && (
+      {step >= STEP_LIST && (
         <g>
           <text x={listStartX} y={listY - 16} fontSize={11} fontWeight={600} fill="hsl(var(--foreground))">
             Doubly Linked List (발견 순서)
@@ -208,7 +285,7 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
       )}
 
       {/* ===== BST ===== */}
-      {step >= 3 && (
+      {step >= STEP_BST && (
         <g>
           <text x={treeOriginX} y={treeOriginY - 80} fontSize={11} fontWeight={600} fill="hsl(var(--foreground))">
             BST (정렬 순서)
@@ -249,7 +326,7 @@ export function Fc3Visualizer({ data }: { data: { step: number } }) {
       )}
 
       {/* ===== Summary ===== */}
-      {step === 4 && (
+      {step === STEP_SUMMARY && (
         <g>
           <rect x={60} y={340} width={680} height={56} fill="hsl(var(--muted))" rx={8} />
           <text x={80} y={364} fontSize={12} fontWeight={600} fill="hsl(var(--foreground))">

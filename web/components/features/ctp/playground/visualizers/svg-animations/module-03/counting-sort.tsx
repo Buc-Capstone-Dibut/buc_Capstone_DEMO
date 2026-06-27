@@ -24,6 +24,7 @@ const DEFAULT_COUNTING_DATA = [5, 2, 8, 3, 9, 1, 5, 4, 2, 7];
 export function useCountingSortSim(initialData: number[] = DEFAULT_COUNTING_DATA) {
   const [history, setHistory] = useState<SortState[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
+  const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
     const steps: SortState[] = [];
@@ -62,25 +63,27 @@ export function useCountingSortSim(initialData: number[] = DEFAULT_COUNTING_DATA
         record({ phase: `2단계: 누적 도수 계산 완료 - Counts[${i}] = ${counts[i]}`, cIdx: i });
     }
 
-    // 3. Place into output array (stable sorting: iterate backwards)
-    record({ phase: "3단계: 원소 배치 시작 (뒤에서부터 순회)" });
+    // 3. Place into output array. Iterating the INPUT from the back guarantees
+    //    that equal keys keep their original relative order → stable sort.
+    record({ phase: "3단계: 원소 배치 — 입력을 뒤에서부터 순회해야 안정성이 보장됩니다." });
     for (let i = arr.length - 1; i >= 0; i--) {
         const item = arr[i];
         const val = item.val;
-        record({ phase: `3단계: 값 [${val}] 확인`, i, cIdx: val });
+        record({ phase: `3단계: 뒤에서 ${arr.length - i}번째 — 입력[${i}]의 값 [${val}] 확인`, i, cIdx: val });
 
         counts[val]--;
         const destIdx = counts[val];
-        record({ phase: `3단계: [${val}]의 들어갈 위치 갱신 (누적도수-1) = ${destIdx}`, i, cIdx: val, outIdx: destIdx });
+        record({ phase: `3단계: [${val}]의 배치 위치 = 누적도수-1 = ${destIdx}`, i, cIdx: val, outIdx: destIdx });
 
         output[destIdx] = item;
-        record({ phase: `3단계: 결과 배열의 [${destIdx}] 인덱스에 [${val}] 배치 완료!`, i, cIdx: null, outIdx: destIdx });
+        record({ phase: `3단계: 결과[${destIdx}] ← [${val}] 배치 (같은 값은 뒤→앞 순서로 채워져 입력 순서 유지)`, i, cIdx: null, outIdx: destIdx });
     }
 
-    record({ phase: "정렬 완료!" });
+    record({ phase: "정렬 완료! 비교 없이 O(N+K)에 안정 정렬을 마쳤습니다." });
 
     setHistory(steps);
     setStepIndex(0);
+    setLogs(steps.length ? [`[Step 0] ${steps[0].phase}`] : []);
   }, [initialData]);
 
   const currentState = history[stepIndex] || {
@@ -94,16 +97,29 @@ export function useCountingSortSim(initialData: number[] = DEFAULT_COUNTING_DATA
   const handleSetStep = useCallback((newStep: number) => {
     if (newStep >= 0 && newStep < history.length) {
       setStepIndex(newStep);
+      const newLogs: string[] = [];
+      for (let s = newStep; s >= 0; s--) newLogs.push(`[Step ${s}] ${history[s].phase}`);
+      setLogs(newLogs);
     }
-  }, [history.length]);
+  }, [history]);
 
-  const nextStep = useCallback(() => setStepIndex(p => Math.min(p + 1, history.length - 1)), [history.length]);
-  const reset = useCallback(() => { setStepIndex(0); }, []);
+  const nextStep = useCallback(() => {
+    setStepIndex((p) => {
+      const next = Math.min(p + 1, history.length - 1);
+      if (next !== p) setLogs((prev) => [`[Step ${next}] ${history[next].phase}`, ...prev]);
+      return next;
+    });
+  }, [history]);
+  const reset = useCallback(() => {
+    setStepIndex(0);
+    setLogs(history.length ? [`[Step 0] ${history[0].phase}`] : []);
+  }, [history]);
 
   return {
     runSimulation: () => {},
     interactive: {
       visualData: currentState,
+      logs,
       handlers: {
         push: nextStep,
         clear: reset,
@@ -146,25 +162,46 @@ export function CountingSortVisualizer({ data }: { data: any }) {
   const countsBarWidth = Math.min(40, totalCountsBarWidth * 0.8);
   const getCountsX = (index: number) => 50 + index * totalCountsBarWidth + (totalCountsBarWidth - countsBarWidth) / 2;
 
+  // Stability: subscript original input order on duplicate values so learners
+  // can verify same-value elements keep their relative order in the output.
+  const valueCounts: Record<number, number> = {};
+  array.forEach((el: any) => { valueCounts[el.val] = (valueCounts[el.val] || 0) + 1; });
+  const origIndexOf = (el: any): number => {
+    const m = /-(\d+)$/.exec(el.id);
+    return m ? Number(m[1]) : -1;
+  };
+  const isPlacementPhase = typeof phase === "string" && phase.includes("3단계");
+
   return (
-    <div className="flex flex-col items-center w-full max-w-4xl mx-auto space-y-4">
-      <div className="relative w-full aspect-[16/10] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shadow-2xl">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full font-sans">
+    <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-full font-sans">
+      <defs>
+         <filter id="cs-glow-active" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <pattern id="cs-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
+        </pattern>
+      </defs>
+
+      <rect width="100%" height="100%" fill="url(#cs-grid)" />
+
+      {/* Status Text overlay */}
+      <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Counting Sort</text>
+      <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
+
+      {/* Stable-scan direction marker: in phase 3 we read the input back→front. */}
+      {isPlacementPhase && (
+        <g transform={`translate(${svgWidth - 250}, 30)`}>
+          <text x="0" y="10" fill={colorTokens.destructive} fontSize="11" fontWeight="bold">안정 정렬: 입력을 ←뒤에서부터</text>
+          <line x1="150" y1="6" x2="0" y2="6" stroke={colorTokens.destructive} strokeWidth="2" markerEnd="url(#cs-arrow)" />
           <defs>
-             <filter id="glow-active" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.faintEdge} strokeWidth="1" />
-            </pattern>
+            <marker id="cs-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={colorTokens.destructive} />
+            </marker>
           </defs>
-
-          <rect width="100%" height="100%" fill="url(#grid)" />
-
-          {/* Status Text overlay */}
-          <text x="30" y="40" fill="hsl(var(--muted-foreground))" fontSize="18" fontWeight="bold">Counting Sort</text>
-          <text x="30" y="65" fill="hsl(var(--muted-foreground))" fontSize="14">{phase}</text>
+        </g>
+      )}
 
           {/* --- Input Array (Row 1) --- */}
           <text x="50" y={row1BaseY - chartHeight - 20} fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="bold">Input Array (입력 데이터)</text>
@@ -187,9 +224,14 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                      x={xPos} y={yPos}
                      width={inputBarWidth} height={height}
                      fill={fillColor} opacity={opacity} rx={4}
-                     filter={isActive ? "url(#glow-active)" : ""}
+                     filter={isActive ? "url(#cs-glow-active)" : ""}
                    />
-                   <text x={xPos + inputBarWidth / 2} y={yPos - 10} fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle">{item.val}</text>
+                   <text x={xPos + inputBarWidth / 2} y={yPos - 10} fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle">
+                     {item.val}
+                     {valueCounts[item.val] > 1 && (
+                       <tspan fontSize="9" dy="3" fill={colorTokens.primaryHighlight}>#{origIndexOf(item)}</tspan>
+                     )}
+                   </text>
                    <text x={xPos + inputBarWidth / 2} y={row1BaseY + 20} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">[{idx}]</text>
                 </motion.g>
               );
@@ -223,7 +265,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                      x={xPos} y={yPos}
                      width={countsBarWidth} height={height}
                      fill={fillColor} opacity={opacity} rx={4}
-                     filter={isActive ? "url(#glow-active)" : ""}
+                     filter={isActive ? "url(#cs-glow-active)" : ""}
                    />
                    <text x={xPos + countsBarWidth / 2} y={yPos - 10} fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle">{val}</text>
                    <text x={xPos + countsBarWidth / 2} y={row2BaseY + 20} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">Val {idx}</text>
@@ -276,7 +318,7 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                      stroke={stroke}
                      strokeWidth="2"
                      rx={4}
-                     filter={isActive ? "url(#glow-active)" : ""}
+                     filter={isActive ? "url(#cs-glow-active)" : ""}
                    />
                    {item !== null && (
                       <motion.text
@@ -284,6 +326,9 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                          fill="hsl(var(--foreground))" fontSize="16" fontWeight="bold" textAnchor="middle"
                       >
                          {item.val}
+                         {valueCounts[item.val] > 1 && (
+                           <tspan fontSize="9" dy="3" fill={colorTokens.warning}>#{origIndexOf(item)}</tspan>
+                         )}
                       </motion.text>
                    )}
                    <text x={xPos + inputBarWidth / 2} y={row3BaseY + 20} fill="hsl(var(--muted-foreground))" fontSize="12" textAnchor="middle">[{idx}]</text>
@@ -312,9 +357,6 @@ export function CountingSortVisualizer({ data }: { data: any }) {
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
              />
           )}
-        </svg>
-
-      </div>
-    </div>
+    </svg>
   );
 }

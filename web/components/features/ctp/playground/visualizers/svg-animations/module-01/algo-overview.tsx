@@ -1,301 +1,235 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { colorTokens } from "../../shared/svg-primitives";
 
-// Custom simulation hook
+// --- Step model ---
+type Step = {
+  phase: 0 | 1 | 2 | 3 | 4; // 0 idle, 1 input, 2 transfer, 3 process, 4 output
+  msg: string;
+};
+
+const STEPS: Step[] = [
+  { phase: 0, msg: "알고리즘 코어 대기 중. Step을 눌러 입력→처리→출력 흐름을 추적하세요." },
+  { phase: 1, msg: "[INPUT] 정렬되지 않은 원시 데이터가 입력 버퍼에 적재되었습니다." },
+  { phase: 2, msg: "[TRANSFER] 데이터 패킷이 알고리즘 코어로 전송됩니다." },
+  { phase: 3, msg: "[PROCESS] 정해진 절차(정렬 로직)가 데이터를 가공합니다." },
+  { phase: 4, msg: "[OUTPUT] 유한 시간 안에 정렬된 결과가 메모리에 반환되었습니다." },
+];
+
 export function useAlgoOverviewSim() {
-  const [step, setStep] = useState(0);
+  const [stepIdx, setStepIdx] = useState(0);
   const [logs, setLogs] = useState<string[]>([
-    "[SYSTEM] Algo_Core 엔진 준비 완료.",
-    "[SYSTEM] Peek 버튼을 눌러 시뮬레이션을 시작하세요.",
+    "> Algo_Core 엔진 준비 완료. Step을 눌러 시작하세요.",
   ]);
 
-  const maxSteps = 4;
+  const maxSteps = STEPS.length;
 
-  const appendLog = useCallback((msg: string) => {
-    setLogs((prev) => [`> ${msg}`, ...prev]);
+  const rebuildLogs = useCallback((target: number) => {
+    const next = ["> Algo_Core 엔진 준비 완료. Step을 눌러 시작하세요."];
+    for (let i = 1; i <= target; i++) next.unshift(`[Step ${i}] ${STEPS[i].msg}`);
+    setLogs(next);
   }, []);
 
-  const peek = useCallback(() => {
-    setStep((prev) => {
-      const next = prev >= maxSteps ? 1 : prev + 1;
-      let logMsg = "";
-      if (next === 1) logMsg = "Step 1: [INPUT] 원시 데이터 배열(Unsorted)이 버퍼에 적재되었습니다.";
-      if (next === 2) logMsg = "Step 2: [TRANSFER] 데이터 패킷이 알고리즘 코어로 전송 중입니다...";
-      if (next === 3) logMsg = "Step 3: [PROCESS] 알고리즘 연산 가동 (Sorting Logic Active).";
-      if (next === 4) logMsg = "Step 4: [OUTPUT] 통제된 결과(Sorted)가 메모리에 반환되었습니다.";
-      appendLog(logMsg);
+  const handleSetStep = useCallback((newStep: number) => {
+    if (newStep < 0 || newStep >= maxSteps) return;
+    setStepIdx(newStep);
+    rebuildLogs(newStep);
+  }, [maxSteps, rebuildLogs]);
+
+  const nextStep = useCallback(() => {
+    setStepIdx((prev) => {
+      const next = prev >= maxSteps - 1 ? prev : prev + 1;
+      if (next !== prev) rebuildLogs(next);
       return next;
     });
-  }, [appendLog]);
+  }, [maxSteps, rebuildLogs]);
 
-  const reset = useCallback(() => {
-    setStep(0);
-    setLogs(["[SYSTEM] 메모리 초기화 완료. 시스템 리셋."]);
-  }, []);
+  const reset = useCallback(() => handleSetStep(0), [handleSetStep]);
 
   return {
     runSimulation: () => {},
     interactive: {
-      visualData: { step },
+      visualData: STEPS[stepIdx],
       logs,
-      handlers: { peek, reset, clear: reset },
+      handlers: {
+        push: nextStep, // "Step / Next"
+        clear: reset,
+      },
+      currentStep: stepIdx,
+      maxSteps,
+      setStep: handleSetStep,
+      nextStep,
+      reset,
     },
   };
 }
 
-// Custom SVG Visualizer
-export function AlgoOverviewVisualizer({ data }: { data: { step: number } }) {
-  const { step } = data;
+// --- Visualizer (bare SVG, driven by props.data) ---
+const RAW = [5, 2, 9, 1, 6];
+const SORTED = [1, 2, 5, 6, 9];
 
-  const rawData = [5, 2, 9, 1, 5, 6];
-  const processedData = [1, 2, 5, 5, 6, 9];
+export function AlgoOverviewVisualizer({ data }: { data: Step | null }) {
+  const phase = data?.phase ?? 0;
+
+  const cellH = 22;
+  const inputX = 70;
+  const coreX = 330;
+  const outputX = 610;
+  const stackTop = 120;
+
+  const PhaseChip = ({ x, label, active }: { x: number; label: string; active: boolean }) => (
+    <g transform={`translate(${x}, 96)`}>
+      <rect width="120" height="22" rx="11" x="-60"
+        fill={active ? colorTokens.infoDim : colorTokens.faintFill}
+        stroke={active ? colorTokens.info : colorTokens.border} strokeWidth="1" />
+      <text x="0" y="15" textAnchor="middle" fontSize="11" fontWeight="bold"
+        fill={active ? colorTokens.info : colorTokens.muted}>{label}</text>
+    </g>
+  );
 
   return (
-    <div className="w-full flex flex-col overflow-hidden font-mono bg-background/50 rounded-xl">
-      {/* Background Cyber Grid & Glows */}
-      <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-        <defs>
-          <pattern id="grid-pattern" width="32" height="32" patternUnits="userSpaceOnUse">
-            <path d="M 32 0 L 0 0 0 32" fill="none" stroke="hsl(var(--primary))" strokeWidth="0.5" strokeOpacity="0.3" />
-            <circle cx="0" cy="0" r="1" fill="hsl(var(--primary))" opacity="0.5" />
-          </pattern>
-          <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-        <rect width="100%" height="100%" fill="url(#center-glow)" />
-      </svg>
+    <svg viewBox="0 0 800 500" className="w-full h-full font-mono">
+      <defs>
+        <filter id="ao-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <pattern id="ao-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorTokens.muted} strokeWidth="0.5" opacity="0.15" />
+        </pattern>
+      </defs>
 
-      {/* Main Architecture Diagram */}
-      <div className="relative w-full max-w-4xl aspect-[21/9] flex items-center justify-between px-8 md:px-16 mt-4">
+      <rect width="800" height="500" fill="url(#ao-grid)" />
 
-        {/* 1. Input Module */}
-        <div className="flex flex-col items-center gap-4 z-10 w-36">
-          <motion.div
-            animate={{
-              boxShadow: step === 1 ? "0 0 30px hsla(var(--primary), 0.5)" : "0 0 0px hsla(var(--primary), 0)",
-              borderColor: step === 1 ? "hsl(var(--primary))" : "hsl(var(--border))",
-              backgroundColor: step === 1 ? "hsl(var(--primary)/0.05)" : "hsl(var(--card))"
-            }}
-            className="w-full h-48 border border-border/50 rounded-2xl flex flex-col p-3 gap-2 items-center justify-center relative overflow-hidden backdrop-blur-md"
-          >
-            <div className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest absolute top-3">Raw Buffer</div>
-            <div className="flex flex-col gap-1.5 mt-7 w-full px-4">
-              {rawData.map((num, i) => (
-                <motion.div
-                  key={`raw-${i}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{
-                    opacity: step >= 1 ? (step >= 2 ? 0.2 : 1) : 0,
-                    x: step >= 1 ? (step >= 2 ? 40 : 0) : -20,
-                    scale: step === 1 ? [1, 1.05, 1] : 1
-                  }}
-                  transition={{ delay: step === 1 ? i * 0.05 : 0, scale: { repeat: Infinity, duration: 2, delay: i * 0.2 } }}
-                  className="w-full h-5 bg-card border border-primary/30 rounded flex items-center justify-center shadow-sm"
-                >
-                  <span className="text-xs font-bold text-primary">{num}</span>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-          <div className="flex flex-col items-center">
-            <div className="text-lg font-black text-foreground tracking-widest uppercase">Input</div>
-            <div className="text-[10px] text-muted-foreground">Unsorted Data</div>
-          </div>
-        </div>
+      <text x="40" y="46" fill={colorTokens.info} fontSize="22" fontWeight="bold" letterSpacing="1" filter="url(#ao-glow)">
+        ALGORITHM = INPUT → 절차 → OUTPUT
+      </text>
+      <text x="40" y="68" fill={colorTokens.muted} fontSize="12">
+        동일 입력은 항상 동일 출력. 입력 N이 커질 때의 연산 증가가 곧 시간복잡도입니다.
+      </text>
 
-        {/* 2. Process Module (Core Box) */}
-        <div className="flex flex-col items-center gap-4 z-20 flex-1 px-4 relative">
+      <PhaseChip x={inputX + 60} label="INPUT" active={phase === 1} />
+      <PhaseChip x={coreX + 60} label="PROCESS" active={phase === 3} />
+      <PhaseChip x={outputX + 60} label="OUTPUT" active={phase === 4} />
 
-          {/* Data Transfer Lines (Input -> Process) */}
-          <svg className="absolute top-1/2 -translate-y-1/2 left-0 w-full h-24 pointer-events-none -z-10">
-            {/* Base line */}
-            <path d="M 0 48 L 100 48" fill="none" stroke="hsl(var(--border))" strokeWidth="2" strokeDasharray="4 4" />
-            {/* Active flow line */}
-            <motion.path
-              d="M 0 48 L 100 48" fill="none" stroke="hsl(var(--primary))" strokeWidth="3"
-              animate={{
-                strokeDasharray: step >= 2 && step < 4 ? ["0 100", "50 50", "100 0"] : "0 100",
-                opacity: step >= 2 && step < 4 ? 1 : 0
-              }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            />
-            {/* Moving Packet */}
-            <AnimatePresence>
-              {step === 2 && (
-                <motion.rect
-                  width="12" height="12" rx="2" fill="hsl(var(--primary))" y="42"
-                  initial={{ x: 0, opacity: 0 }}
-                  animate={{ x: 100, opacity: [0, 1, 1, 0] }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                  style={{ filter: "drop-shadow(0 0 8px hsl(var(--primary)))" }}
-                />
-              )}
-            </AnimatePresence>
-          </svg>
+      {/* Input buffer */}
+      <g transform={`translate(${inputX}, ${stackTop})`}>
+        <rect width="120" height={cellH * RAW.length + 40} rx="12"
+          fill={colorTokens.card} stroke={phase === 1 ? colorTokens.info : colorTokens.border}
+          strokeWidth={phase === 1 ? 3 : 1.5} strokeDasharray="5 4" />
+        <text x="60" y="22" textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.muted}>RAW BUFFER</text>
+        {RAW.map((v, i) => (
+          <motion.g key={`in-${i}`}
+            initial={false}
+            animate={{ opacity: phase >= 1 ? (phase >= 2 ? 0.25 : 1) : 0.3, x: phase >= 2 ? 18 : 0 }}
+            transition={{ delay: phase === 1 ? i * 0.05 : 0, type: "spring", stiffness: 220, damping: 22 }}>
+            <rect x="20" y={32 + i * cellH} width="80" height={cellH - 5} rx="4"
+              fill={colorTokens.infoDim} stroke={colorTokens.infoEdge} strokeWidth="1" />
+            <text x="60" y={32 + i * cellH + 13} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.info}>{v}</text>
+          </motion.g>
+        ))}
+      </g>
 
-          {/* Central Algorithm Box */}
-          <motion.div
-            animate={{
-              scale: step === 3 ? [1, 1.02, 1] : 1,
-              borderColor: step === 3 ? "hsl(var(--primary))" : step >= 2 ? "hsl(var(--primary)/0.5)" : "hsl(var(--border))",
-              boxShadow: step === 3 ? "0 0 50px hsla(var(--primary), 0.3)" : "none",
-              backgroundColor: step === 3 ? "hsl(var(--primary)/0.05)" : "hsl(var(--card))"
-            }}
-            transition={{ duration: 1, repeat: step === 3 ? Infinity : 0 }}
-            className="w-56 h-56 bg-card border-2 border-border/50 rounded-3xl flex flex-col items-center justify-center relative overflow-hidden backdrop-blur-xl shadow-2xl"
-          >
-            {/* Decorative corners */}
-            <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-primary/30" />
-            <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-primary/30" />
-            <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-primary/30" />
-            <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-primary/30" />
+      {/* transfer line in -> core */}
+      <line x1={inputX + 120} y1="200" x2={coreX} y2="200" stroke={colorTokens.border} strokeWidth="2" strokeDasharray="4 4" />
+      <motion.line x1={inputX + 120} y1="200" x2={coreX} y2="200" stroke={colorTokens.info} strokeWidth="3"
+        initial={false}
+        animate={{ pathLength: phase >= 2 ? 1 : 0, opacity: phase >= 2 && phase < 4 ? 1 : 0.3 }}
+        transition={{ duration: 0.6 }} />
+      <AnimatePresence>
+        {phase === 2 && (
+          <motion.circle r="6" cy="200" fill={colorTokens.info} filter="url(#ao-glow)"
+            initial={{ cx: inputX + 120, opacity: 0 }}
+            animate={{ cx: coreX, opacity: [0, 1, 1, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.1, repeat: Infinity }} />
+        )}
+      </AnimatePresence>
 
-            {/* Core Icon/Animation */}
-            <motion.div
-              animate={{ rotate: step === 3 ? 360 : 0 }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-              className="relative w-20 h-20 flex items-center justify-center mb-4"
-            >
-              <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-                <circle cx="50" cy="50" r="40" fill="none" stroke={step === 3 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"} strokeWidth="4" strokeDasharray="10 15" />
-                <circle cx="50" cy="50" r="25" fill="none" stroke={step === 3 ? "hsl(var(--primary)/0.5)" : "hsl(var(--muted-foreground)/0.5)"} strokeWidth="2" strokeDasharray="4 8" />
-                <motion.circle cx="50" cy="50" r="10"
-                  fill={step === 3 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
-                  animate={{ scale: step === 3 ? [1, 1.5, 1] : 1 }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  style={{ filter: step === 3 ? "drop-shadow(0 0 10px hsl(var(--primary)))" : "none" }}
-                />
-              </svg>
-            </motion.div>
+      {/* Algo core */}
+      <g transform={`translate(${coreX}, 130)`}>
+        <motion.rect width="160" height="140" rx="20"
+          initial={false}
+          animate={{
+            stroke: phase === 3 ? colorTokens.info : colorTokens.border,
+            strokeWidth: phase === 3 ? 3 : 1.5,
+          }}
+          fill={colorTokens.card} />
+        <motion.g initial={false} animate={{ rotate: phase === 3 ? 360 : 0 }}
+          transition={{ duration: 3, repeat: phase === 3 ? Infinity : 0, ease: "linear" }}
+          style={{ transformOrigin: "80px 58px" }}>
+          <circle cx="80" cy="58" r="30" fill="none" stroke={phase === 3 ? colorTokens.info : colorTokens.muted} strokeWidth="4" strokeDasharray="8 12" />
+          <circle cx="80" cy="58" r="16" fill="none" stroke={phase === 3 ? colorTokens.infoEdge : colorTokens.muted} strokeWidth="2" strokeDasharray="3 6" />
+        </motion.g>
+        <text x="80" y="115" textAnchor="middle" fontSize="14" fontWeight="bold" letterSpacing="2"
+          fill={phase === 3 ? colorTokens.info : colorTokens.text}>ALGO_CORE</text>
+      </g>
 
-            <div className="text-xl font-black tracking-[0.2em] text-foreground uppercase">ALGO_CORE</div>
+      {/* transfer line core -> out */}
+      <line x1={coreX + 160} y1="200" x2={outputX} y2="200" stroke={colorTokens.border} strokeWidth="2" strokeDasharray="4 4" />
+      <AnimatePresence>
+        {phase === 4 && (
+          <motion.circle r="6" cy="200" fill={colorTokens.success} filter="url(#ao-glow)"
+            initial={{ cx: coreX + 160, opacity: 0 }}
+            animate={{ cx: outputX, opacity: [0, 1, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }} />
+        )}
+      </AnimatePresence>
 
-            {/* Processing equalizer bars */}
-            <div className="absolute bottom-6 flex gap-1.5 h-8 items-end">
-              {[1,2,3,4,5,6].map((i) => (
-                <motion.div
-                  key={`eq-${i}`}
-                  animate={{
-                    height: step === 3 ? [4, Math.random() * 24 + 4, 4] : 4,
-                    backgroundColor: step === 3 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground)/0.5)"
-                  }}
-                  transition={{ duration: 0.5, repeat: step === 3 ? Infinity : 0, delay: i * 0.1 }}
-                  className="w-1.5 rounded-t-sm"
-                />
-              ))}
-            </div>
-          </motion.div>
+      {/* Output buffer */}
+      <g transform={`translate(${outputX}, ${stackTop})`}>
+        <rect width="120" height={cellH * SORTED.length + 40} rx="12"
+          fill={colorTokens.card} stroke={phase === 4 ? colorTokens.success : colorTokens.border}
+          strokeWidth={phase === 4 ? 3 : 1.5} />
+        <text x="60" y="22" textAnchor="middle" fontSize="11" fontWeight="bold" fill={colorTokens.muted}>RESULT MEM</text>
+        {SORTED.map((v, i) => (
+          <motion.g key={`out-${i}`}
+            initial={false}
+            animate={{ opacity: phase >= 4 ? 1 : 0.12, scale: phase >= 4 ? 1 : 0.9 }}
+            transition={{ delay: phase === 4 ? 0.4 + i * 0.08 : 0, type: "spring", stiffness: 200, damping: 18 }}
+            style={{ transformOrigin: `60px ${32 + i * cellH + 8}px` }}>
+            <rect x="20" y={32 + i * cellH} width="80" height={cellH - 5} rx="4"
+              fill={colorTokens.successDim} stroke={colorTokens.successEdge} strokeWidth="1" />
+            <text x="60" y={32 + i * cellH + 13} textAnchor="middle" fontSize="13" fontWeight="bold" fill={colorTokens.success}>{v}</text>
+          </motion.g>
+        ))}
+      </g>
 
-          <div className="flex flex-col items-center">
-             <div className="text-lg font-black text-foreground tracking-widest uppercase">Algorithm</div>
-             <div className="text-[10px] text-muted-foreground">Defined Procedure</div>
-          </div>
-        </div>
+      {/* ── Big-O panel integrated into main SVG (defect 1) ── */}
+      <g transform="translate(40, 320)">
+        <rect width="720" height="120" rx="12" fill={colorTokens.card} stroke={colorTokens.border} strokeWidth="1.5" />
+        <text x="16" y="26" fontSize="13" fontWeight="bold" fill={colorTokens.text}>시간복잡도 비교 — 입력 N이 커질 때 연산량 증가</text>
 
-        {/* 3. Output Module */}
-        <div className="flex flex-col items-center gap-4 z-10 w-36 relative">
+        {/* axes */}
+        <g transform="translate(40, 40)">
+          <line x1="0" y1="64" x2="300" y2="64" stroke={colorTokens.muted} strokeWidth="1.5" />
+          <line x1="0" y1="64" x2="0" y2="4" stroke={colorTokens.muted} strokeWidth="1.5" />
+          <text x="304" y="68" fontSize="10" fill={colorTokens.muted}>N</text>
+          <text x="-4" y="2" fontSize="10" fill={colorTokens.muted} textAnchor="end">연산</text>
+          {/* O(1) */}
+          <path d="M 0 60 L 300 58" fill="none" stroke={colorTokens.success} strokeWidth="3" />
+          <text x="240" y="50" fontSize="11" fontWeight="bold" fill={colorTokens.success}>O(1)</text>
+          {/* O(N) */}
+          <path d="M 0 64 L 300 14" fill="none" stroke={colorTokens.primaryBlue} strokeWidth="3" />
+          <text x="240" y="22" fontSize="11" fontWeight="bold" fill={colorTokens.primaryBlue}>O(N)</text>
+          {/* O(N^2) */}
+          <path d="M 0 64 Q 220 64 270 4" fill="none" stroke={colorTokens.destructive} strokeWidth="3" filter="url(#ao-glow)" />
+          <text x="150" y="16" fontSize="11" fontWeight="bold" fill={colorTokens.destructive}>O(N²)</text>
+        </g>
 
-           {/* Data Transfer Lines (Process -> Output) */}
-           <svg className="absolute top-1/2 -translate-y-1/2 right-[100%] w-32 h-24 pointer-events-none -z-10">
-            {/* Base line */}
-            <path d="M 0 48 L 128 48" fill="none" stroke="hsl(var(--border))" strokeWidth="2" strokeDasharray="4 4" />
-            {/* Active flow line */}
-            <motion.path
-              d="M 0 48 L 128 48" fill="none" stroke="hsl(var(--emerald-500))" strokeWidth="3"
-              animate={{
-                strokeDasharray: step === 4 ? ["0 128", "64 64", "128 0"] : "0 128",
-                opacity: step === 4 ? 1 : 0
-              }}
-              transition={{ duration: 1, ease: "linear" }}
-            />
-            {/* Moving Packet */}
-            <AnimatePresence>
-              {step === 4 && (
-                <motion.rect
-                  width="12" height="12" rx="2" fill="hsl(var(--emerald-500))" y="42"
-                  initial={{ x: 0, opacity: 0 }}
-                  animate={{ x: 128, opacity: [0, 1, 0] }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1 }}
-                  style={{ filter: "drop-shadow(0 0 8px hsl(var(--emerald-500)))" }}
-                />
-              )}
-            </AnimatePresence>
-          </svg>
+        <g transform="translate(380, 44)">
+          <text x="0" y="6" fontSize="11" fill={colorTokens.muted}>N = 100,000 일 때</text>
+          <text x="0" y="30" fontSize="12" fill={colorTokens.success}>● O(1) — 즉시 (1회)</text>
+          <text x="0" y="50" fontSize="12" fill={colorTokens.primaryBlue}>● O(N) — 10만 회</text>
+          <text x="0" y="70" fontSize="12" fill={colorTokens.destructive}>● O(N²) — 100억 회 (서버 정지)</text>
+        </g>
+      </g>
 
-          <motion.div
-            animate={{
-              boxShadow: step === 4 ? "0 0 30px hsla(var(--emerald-500), 0.5)" : "0 0 0px hsla(var(--emerald-500), 0)",
-              borderColor: step === 4 ? "hsl(var(--emerald-500))" : "hsl(var(--border))",
-              backgroundColor: step === 4 ? "hsl(var(--emerald-500)/0.05)" : "hsl(var(--card))"
-            }}
-            className="w-full h-48 border border-border/50 rounded-2xl flex flex-col p-3 gap-2 items-center justify-center relative overflow-hidden backdrop-blur-md"
-          >
-            <div className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest absolute top-3">Result Mem</div>
-            <div className="flex flex-col gap-1.5 mt-4 w-full px-4">
-              {processedData.map((num, i) => (
-                <motion.div
-                  key={`out-${i}`}
-                  initial={{ opacity: 0, scale: 0.8, x: -20 }}
-                  animate={{
-                    opacity: step >= 4 ? 1 : 0,
-                    scale: step >= 4 ? 1 : 0.8,
-                    x: step >= 4 ? 0 : -20,
-                    borderColor: step >= 4 ? "hsl(var(--emerald-500)/0.5)" : "hsl(var(--border))",
-                    backgroundColor: step >= 4 ? "hsl(var(--emerald-500)/0.1)" : "hsl(var(--card))"
-                  }}
-                  transition={{ delay: step === 4 ? 0.5 + i * 0.1 : 0, type: "spring", stiffness: 200 }}
-                  className="w-full h-5 rounded flex items-center justify-center border shadow-sm relative overflow-hidden"
-                >
-                  {/* Success highlight sweep */}
-                  {step === 4 && (
-                    <motion.div
-                      className="absolute inset-0 bg-emerald-400/20"
-                      initial={{ x: "-100%" }}
-                      animate={{ x: "100%" }}
-                      transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                    />
-                  )}
-                  <span className={`text-xs font-bold ${step >= 4 ? "text-emerald-500" : "text-muted-foreground"}`}>{num}</span>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-          <div className="flex flex-col items-center">
-            <div className="text-lg font-black text-foreground tracking-widest uppercase">Output</div>
-            <div className="text-[10px] text-muted-foreground">Sorted Data</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Description Footer — in normal document flow, always visible */}
-      <motion.div
-        key={`desc-${step}`}
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="w-full px-6 pb-5 pt-3 border-t border-border/40 bg-card/60 backdrop-blur-md"
-      >
-        <div className="text-[11px] font-bold text-primary mb-1 uppercase tracking-widest">
-          {step === 0 && "System Idle"}
-          {step === 1 && "Phase 1: Input Standby"}
-          {step === 2 && "Phase 2: Data Transfer"}
-          {step === 3 && "Phase 3: Processing"}
-          {step === 4 && "Phase 4: Output Complete"}
-        </div>
-        <p className="text-sm text-foreground/80 font-medium leading-relaxed">
-          {step === 0 && "알고리즘은 특정 문제를 해결하기 위한 명확하고 단계적인 절차입니다. 우측 패널의 기능들을 실행해보세요."}
-          {step === 1 && "입력(Input) 단계: 정제되지 않은 원시 데이터(Unsorted)가 메모리에 적재되어 대기 중입니다."}
-          {step === 2 && "전송 단계: 목표된 출력을 얻기 위해 데이터가 알고리즘 엔진으로 하나씩 유입됩니다."}
-          {step === 3 && "처리(Process) 단계: 내부 로직(정렬, 탐색 등)에 따라 데이터가 오차 없이 분석 및 가공됩니다."}
-          {step === 4 && "출력(Output) 단계: 유한한 시간 안에 목적에 맞는 최적화된 결과물(Sorted)이 완성되었습니다."}
-        </p>
-      </motion.div>
-    </div>
+      {/* status caption */}
+      <text x="40" y="470" fontSize="13" fill={colorTokens.text}>{data?.msg ?? STEPS[0].msg}</text>
+    </svg>
   );
 }

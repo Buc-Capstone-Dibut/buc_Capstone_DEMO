@@ -1,9 +1,10 @@
 import time
 import json
+import re
 from firecrawl import FirecrawlApp
-import google.generativeai as genai
 from loguru import logger
-from src.common.config.settings import FIRECRAWL_API_KEY, GEMINI_API_KEY
+from src.common.config.settings import FIRECRAWL_API_KEY
+from src.common.genai_client import get_genai_client
 
 
 def get_firecrawl_client():
@@ -40,13 +41,11 @@ AI_AVAILABLE = True
 
 def process_content_with_gemini(title: str, raw_markdown: str):
     global AI_AVAILABLE
-    
-    if not GEMINI_API_KEY:
-        logger.warning("⚠️ GEMINI_API_KEY is missing in config.")
-        return None
 
-    logger.info(f"🔑 Configuring Gemini with Key: {GEMINI_API_KEY[:5]}... ({len(GEMINI_API_KEY)} chars)")
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = get_genai_client()
+    if client is None:
+        logger.warning("⚠️ Gemini 백엔드 없음 (Vertex/AI Studio 모두 미설정) — 콘텐츠 생성 건너뜀.")
+        return None
 
     if not AI_AVAILABLE:
         # Fail fast if we already know quota is exceeded
@@ -59,9 +58,6 @@ def process_content_with_gemini(title: str, raw_markdown: str):
 {raw_markdown}
             """.strip()
         }
-
-    # Using gemini-1.5-flash as configured
-    model = genai.GenerativeModel("gemini-2.5-flash")
 
     # Limit chars to avoid token limits
     truncated_md = raw_markdown[:15000]
@@ -110,14 +106,25 @@ def process_content_with_gemini(title: str, raw_markdown: str):
 
     for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-            text = response.text.strip()
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config={"response_mime_type": "application/json"},
+            )
+            text = (response.text or "").strip()
             
             # Basic cleanup
             if text.startswith("```"):
                 text = text.replace("```json", "").replace("```", "").strip()
 
-            result = json.loads(text)
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError:
+                # description(마크다운)에 '\(' 같은 잘못된 escape가 섞이면 파싱이 깨진다.
+                # JSON에서 유효하지 않은 백슬래시만 이스케이프해 한 번 더 시도한다.
+                # (정상 JSON은 위에서 이미 통과하므로 여기선 깨진 경우만 보정)
+                repaired = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)
+                result = json.loads(repaired)
             
             # Handle list response
             if isinstance(result, list):
@@ -130,7 +137,7 @@ def process_content_with_gemini(title: str, raw_markdown: str):
             return result
         except Exception as e:
             error_str = str(e)
-            if "429" in error_str or "quota" in error_str.lower():
+            if "429" in error_str or "quota" in error_str.lower() or "resource_exhausted" in error_str.lower():
                 logger.error(f"❌ Gemini Quota Exceeded: {e}")
                 logger.warning("🚫 Disabling AI for subsequent events to speed up crawling.")
                 AI_AVAILABLE = False # Trip the circuit breaker

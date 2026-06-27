@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";

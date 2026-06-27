@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import {
   PORTFOLIO_CANVAS_STYLE_VERSION,

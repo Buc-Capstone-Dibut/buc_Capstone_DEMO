@@ -1,29 +1,54 @@
 import path from "path";
 import fs from "fs";
 import { DevEvent } from "@/lib/types/dev-event";
+import { createClient } from "@/lib/supabase/server";
 
 let cachedEvents: DevEvent[] | null = null;
 let cachedEventsAt = 0;
 const DEV_EVENTS_CACHE_TTL_MS = 60_000;
 
+const DEV_EVENT_COLUMNS =
+  "id, title, link, host, date, start_date, end_date, tags, category, status, source, created_at, description, thumbnail, content, summary, target_audience, fee, schedule, benefits";
+
 function loadDevEventsFromFile(): DevEvent[] {
+  const filePath = path.join(process.cwd(), "public", "data", "dev-events.json");
+  if (!fs.existsSync(filePath)) {
+    console.warn("dev-events.json not found");
+    return [];
+  }
+  const fileContents = fs.readFileSync(filePath, "utf8");
+  return JSON.parse(fileContents) as DevEvent[];
+}
+
+// 개발자 행사 데이터 로드 — Supabase(dev_events) 우선, 실패/빈 결과 시 JSON 파일 폴백.
+// DB 컬럼이 DevEvent 와 snake_case 로 1:1 이라 별도 매핑이 필요 없다.
+async function loadDevEvents(): Promise<DevEvent[]> {
   const now = Date.now();
   if (cachedEvents && now - cachedEventsAt < DEV_EVENTS_CACHE_TTL_MS) {
     return cachedEvents;
   }
 
-  const filePath = path.join(process.cwd(), "public", "data", "dev-events.json");
-  if (!fs.existsSync(filePath)) {
-    console.warn("dev-events.json not found");
-    cachedEvents = [];
-    cachedEventsAt = now;
-    return [];
+  let events: DevEvent[] = [];
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("dev_events")
+      .select(DEV_EVENT_COLUMNS)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    events = (data as DevEvent[]) ?? [];
+  } catch (e) {
+    console.warn("dev_events DB 읽기 실패 — JSON 폴백:", e);
   }
 
-  const fileContents = fs.readFileSync(filePath, "utf8");
-  cachedEvents = JSON.parse(fileContents) as DevEvent[];
+  // DB 가 비어 있으면 JSON 스냅샷으로 폴백 (전환 과도기 안전망)
+  if (events.length === 0) {
+    events = loadDevEventsFromFile();
+  }
+
+  cachedEvents = events;
   cachedEventsAt = now;
-  return cachedEvents;
+  return events;
 }
 
 // 개발자 행사 목록 조회 (JSON 파일 기반)
@@ -42,7 +67,7 @@ export async function fetchDevEvents({
   limit?: number;
 } = {}) {
   try {
-    const allEvents = loadDevEventsFromFile();
+    const allEvents = await loadDevEvents();
 
     let filteredEvents = allEvents;
 
@@ -110,12 +135,14 @@ export async function getAllEventTags(category?: string) {
 
 // 개발자 행사 상세 조회
 export async function fetchDevEventById(id: string) {
-  const { events } = await fetchDevEvents();
-  return events.find((e) => e.id === id) || null;
+  // 단건 조회는 페이지네이션(12개)에 의존하면 안 됨 — 전체 목록에서 찾는다.
+  const all = await loadDevEvents();
+  return all.find((e) => e.id === id) || null;
 }
 // 마감 임박 행사 조회 (7일 이내)
 export async function fetchClosingSoonEvents(days = 7) {
-  const { events } = await fetchDevEvents();
+  // 마감 임박 판정은 전체 이벤트 대상 — 페이지네이션(12개)에 의존하지 않는다.
+  const events = await loadDevEvents();
   const now = new Date();
   const targetDate = new Date();
   targetDate.setDate(now.getDate() + days);

@@ -166,6 +166,85 @@ def _to_string_list(value: Any) -> list[str]:
     return [text] if text else []
 
 
+def _split_top_level(text: str, separators: str) -> list[str]:
+    """괄호 밖의 구분자에서만 자른다. 'AWS (S3, EC2)'의 괄호 안 콤마는 보존."""
+    parts: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+            buf.append(ch)
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif depth == 0 and ch in separators:
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    parts.append("".join(buf))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _to_tech_list(value: Any) -> list[str]:
+    """요구 기술(techStack) 전용 정규화.
+
+    thinking(사고) 모드를 끈 뒤 모델이 'Frontend: Next.js, React, TS'처럼
+    카테고리로 묶어 한 덩어리로 돌려주는 경우가 있다. 카테고리 접두어를 떼고
+    개별 기술 단위로 쪼갠다. 단 'AWS (S3, EC2)'의 괄호 안 콤마와 'CI/CD'의
+    슬래시는 보존한다(슬래시는 구분자로 쓰지 않음).
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        raw_items = [str(v) for v in value]
+    elif isinstance(value, str):
+        raw_items = [value]
+    else:
+        raw_items = [str(value)]
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_items:
+        for line in raw.split("\n"):
+            for token in _split_top_level(line, ",;|·•"):
+                # 'Frontend: React' 같은 카테고리 접두어 제거(콜론 앞이 콤마 없는 짧은 라벨일 때만).
+                prefix, sep, rest = token.partition(":")
+                if sep and "," not in prefix and len(prefix) <= 20 and rest.strip():
+                    token = rest
+                token = token.strip(" .·")
+                if not token:
+                    continue
+                key = token.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(token)
+    return out
+
+
+_VALID_SCHEDULE_KINDS = {"deadline", "document_due", "interview", "other"}
+
+
+def _normalize_schedules(value: Any) -> list[dict[str, str]]:
+    """채용 일정 목록 정규화 — [{kind, title, startAt}]. 날짜 없는 항목은 버린다."""
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        start = _to_text(item.get("date") or item.get("startAt") or item.get("start_at"))
+        if not start:
+            continue
+        kind = (_to_text(item.get("kind")) or "deadline").lower()
+        if kind not in _VALID_SCHEDULE_KINDS:
+            kind = "other"
+        out.append({"kind": kind, "title": _to_text(item.get("title")), "startAt": start})
+    return out
+
+
 def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": _to_text(payload.get("title")),
@@ -174,8 +253,9 @@ def _normalize_job_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "responsibilities": _to_string_list(payload.get("responsibilities")),
         "requirements": _to_string_list(payload.get("requirements")),
         "preferred": _to_string_list(payload.get("preferred")),
-        "techStack": _to_string_list(payload.get("techStack")),
+        "techStack": _to_tech_list(payload.get("techStack")),
         "culture": _to_string_list(payload.get("culture")),
+        "schedules": _normalize_schedules(payload.get("schedules")),
     }
 
 
@@ -252,17 +332,93 @@ class GeminiService:
             return ""
         return str(response)
 
+    def _generate_without_thinking(self, prompt: Any) -> Any:
+        """thinking(사고) 모드를 끈 generate_content.
+
+        채용공고 파싱처럼 깊은 추론이 불필요한 추출 작업에서 thinking 지연(수십초)을 제거한다.
+        Vertex(신 SDK)는 thinking_config 를 지원하지만, 일부 SDK/모델 경로는 거부할 수 있어
+        그 경우 일반 호출로 폴백해 동작은 보장한다(다만 thinking 이 다시 켜질 수 있음).
+        """
+        try:
+            return self.model.generate_content(
+                prompt,
+                generation_config={"thinking_config": {"thinking_budget": 0}},
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[job-parse] thinking 비활성 config 미적용(폴백): %s", exc)
+            return self.model.generate_content(prompt)
+
+    def _generate_report(self, prompt: Any) -> Any:
+        """면접 분석 등 '추론이 필요한' 리포트 생성용 호출.
+
+        thinking 을 끄지 않고 상한만 둬서 분석 품질은 유지하되,
+        - response_mime_type=json 으로 JSON 출력을 강제하고
+        - max_output_tokens 로 상세 리포트가 중간에 잘리지 않게 충분히 확보하며
+        - request_options 타임아웃으로 멈춘 호출이 영영 매달리지 않게 한다.
+        일부 SDK/모델 경로가 thinking_config 를 거부하면 그 키만 빼고, 그래도 안 되면
+        bare 호출로 단계적 폴백해 동작을 보장한다.
+        """
+        timeout_sec = 90  # 멈춘 호출이 워커를 영영 붙잡지 않게(워커는 이후 재시도)
+        thinking_budget = 2048  # 추론은 살리되 상한 — 0(완전 끔) 아님
+        base_config: dict[str, Any] = {
+            "response_mime_type": "application/json",
+            "max_output_tokens": 8192,
+        }
+        request_options = {"timeout": timeout_sec}
+        try:
+            return self.model.generate_content(
+                prompt,
+                generation_config={**base_config, "thinking_config": {"thinking_budget": thinking_budget}},
+                request_options=request_options,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[report] thinking_config 적용 실패 — 축소 config 폴백: %s", exc)
+        try:
+            return self.model.generate_content(
+                prompt,
+                generation_config=base_config,
+                request_options=request_options,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[report] generation_config/timeout 미적용 — bare 폴백: %s", exc)
+            return self.model.generate_content(prompt)
+
     def fetch_url_text(self, url: str) -> str:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+            )
+        }
+        with httpx.Client(timeout=30.0, follow_redirects=True, headers=headers) as client:
             res = client.get(url)
             res.raise_for_status()
 
         soup = BeautifulSoup(res.text, "html.parser")
+
+        # 많은 채용 사이트(특히 SPA)는 본문(우대사항·마감일 등)을 가시 텍스트가 아니라
+        # JSON-LD(JobPosting) / __NEXT_DATA__ 같은 <script> 안에 임베드한다.
+        # script 를 전부 버리면 그 데이터를 잃으므로 구조화 블록을 먼저 살린다.
+        structured: list[str] = []
+        for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            raw = (tag.string or tag.get_text() or "").strip()
+            if raw and "JobPosting" in raw:
+                structured.append(raw)
+        next_data = soup.find("script", attrs={"id": "__NEXT_DATA__"})
+        if next_data is not None:
+            raw = (next_data.string or next_data.get_text() or "").strip()
+            if raw:
+                structured.append(raw[:25000])
+
         for tag in soup(["script", "style", "nav", "footer", "header", "iframe"]):
             tag.decompose()
+        visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
 
-        text = soup.get_text(" ", strip=True)
-        return re.sub(r"\s+", " ", text)[:15000]
+        parts: list[str] = []
+        if structured:
+            parts.append("[구조화 데이터(JSON)]\n" + "\n".join(structured))
+        parts.append("[본문 텍스트]\n" + visible)
+        return "\n\n".join(parts)[:45000]
 
     def parse_job_from_text(self, url: str, clean_context: str, retries: int = 2) -> dict[str, Any]:
         prompt = f"""
@@ -281,15 +437,22 @@ Output JSON Format:
   "requirements": ["Requirement 1", "Requirement 2"],
   "preferred": ["Bonus skill 1", "Bonus skill 2"],
   "techStack": ["React", "Node.js", "AWS"],
-  "culture": ["Culture item 1", "Culture item 2"]
+  "culture": ["Culture item 1", "Culture item 2"],
+  "schedules": [
+    {{"kind": "deadline", "title": "지원 마감", "date": "2026-06-21"}}
+  ]
 }}
 
-If specific info is missing, leave the array empty.
+Notes:
+- "techStack": 요구 기술을 개별 기술 단위로 하나씩 나눠 담는다. 카테고리(Frontend/Backend 등)로 묶거나 한 항목에 여러 기술을 콤마로 이어 넣지 말 것. 예) ["Next.js", "React", "TypeScript", "TailwindCSS", "FastAPI", "PostgreSQL"] (O) / ["Frontend: Next.js, React, TypeScript"] (X)
+- The text may include embedded JSON (JSON-LD / __NEXT_DATA__). Treat it as a primary source — "preferred"(우대사항)와 날짜는 본문 텍스트엔 없고 이 JSON 안에만 있는 경우가 많다.
+- "schedules": 채용 일정/날짜를 모두 뽑는다 — 지원·접수 마감, 서류 마감, 면접, 발표 등. "kind"는 deadline / document_due / interview / other 중 하나, "date"는 YYYY-MM-DD. 기간이면 마감(종료)일을 쓴다. JSON-LD의 "validThrough" 나 "due_time" 필드는 지원 마감일이다.
+- If specific info is missing, leave the array empty.
 """
         last_error: Exception | None = None
         for _ in range(max(0, retries) + 1):
             try:
-                response = self.model.generate_content(prompt)
+                response = self._generate_without_thinking(prompt)
                 parsed = _normalize_job_payload(_extract_json(self._response_text(response)))
                 parsed["url"] = url
                 return parsed
@@ -1561,7 +1724,7 @@ README 요약: {readme_summary}
             "nextActions": [],
         }
         try:
-            response = self.model.generate_content(prompt)
+            response = self._generate_report(prompt)
             result = _extract_json(self._response_text(response))
             return self._fix_rubric_consistency(result)
         except (ValueError, json.JSONDecodeError, ValidationError):
@@ -1658,7 +1821,7 @@ README 요약: {readme_summary}
 
         while attempt <= retries:
             try:
-                response = self.model.generate_content(prompt)
+                response = self._generate_report(prompt)
                 payload = _extract_json(self._response_text(response))
 
                 if validator is not None:

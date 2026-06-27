@@ -19,6 +19,7 @@ export default function ResumePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [generatingTailoredResume, setGeneratingTailoredResume] = useState(false);
+    const [aiCuratePhase, setAiCuratePhase] = useState<"analyzing" | "writing" | null>(null);
     const [aiCurated, setAiCurated] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
@@ -192,7 +193,7 @@ export default function ResumePage() {
     // 사용자가 ResumeEditor에서 'AI로 다듬기'를 눌렀을 때 실행되는 핸들러.
     // 결과를 받은 뒤 한 번에 교체하지 않고, 주요 텍스트 필드(개인 한 줄 소개·자기소개·각 경력/프로젝트
     // 설명)를 한 글자씩 채워 넣어 "스트리밍 타이핑"처럼 보이게 만든다.
-    const handleAiCurate = async () => {
+    const handleAiCurate = async (payloadOverride?: ResumePayload) => {
         const target = pendingTarget?.meta;
         if (!target) {
             toast({
@@ -203,12 +204,13 @@ export default function ResumePage() {
             return;
         }
         setGeneratingTailoredResume(true);
+        setAiCuratePhase("analyzing");
         try {
             const response = await fetch("/api/career/resumes/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    currentPayload: resumePayload,
+                    currentPayload: payloadOverride ?? resumePayload,
                     targetCompany: target.company,
                     targetRole: target.role,
                     jobDescription: [
@@ -222,6 +224,8 @@ export default function ResumePage() {
             if (!response.ok || !json?.success) {
                 throw new Error(json?.error || "AI 큐레이션에 실패했습니다.");
             }
+            // 서버 분석 완료 → 결과를 폼에 작성하는 단계로 전환.
+            setAiCuratePhase("writing");
             const finalPayload = normalizeResumePayload(json.data.resumePayload);
             const finalTitle =
                 typeof json.data.title === "string" && json.data.title.trim()
@@ -305,6 +309,7 @@ export default function ResumePage() {
             });
         } finally {
             setGeneratingTailoredResume(false);
+            setAiCuratePhase(null);
         }
     };
 
@@ -470,6 +475,7 @@ export default function ResumePage() {
                     onAiCurate={handleAiCurate}
                     aiCurating={generatingTailoredResume}
                     aiCurated={aiCurated}
+                    aiCuratePhase={aiCuratePhase}
                 />
             </main>
         </div>

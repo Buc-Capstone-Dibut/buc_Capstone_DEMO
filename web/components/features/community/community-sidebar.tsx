@@ -24,9 +24,16 @@ interface RecruitingSquadItem {
   created_at: string;
 }
 
+interface AnnouncementItem {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
 interface CommunitySidebarPayload {
   popularTopics: PopularTopicItem[];
   recruitingSquads: RecruitingSquadItem[];
+  announcements?: AnnouncementItem[];
   meta: {
     popularTopicsWindowDays: number;
     popularTopicsMaxPosts: number;
@@ -61,6 +68,7 @@ export function CommunitySidebar() {
 
   const popularTopics = data?.popularTopics || [];
   const recruitingSquads = data?.recruitingSquads || [];
+  const announcements = data?.announcements || [];
 
   return (
     <div className="space-y-6">
@@ -164,10 +172,34 @@ export function CommunitySidebar() {
             공지사항
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm">
-          <div className="text-xs text-muted-foreground">
-            등록된 공지사항이 없습니다.
-          </div>
+        <CardContent className="text-sm space-y-3">
+          {announcements.length > 0 ? (
+            announcements.map((notice, idx) => (
+              <div key={notice.id}>
+                {idx > 0 && <div className="h-px bg-border mb-3" />}
+                <Link
+                  href={`/community/board/${notice.id}`}
+                  className="block group"
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium group-hover:text-primary line-clamp-2">
+                      {notice.title}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(notice.created_at), {
+                        addSuffix: true,
+                        locale: ko,
+                      })}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            ))
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              등록된 공지사항이 없습니다.
+            </div>
+          )}
         </CardContent>
       </Card>
 

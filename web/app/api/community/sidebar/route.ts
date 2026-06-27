@@ -18,6 +18,12 @@ interface RecruitingSquadItem {
   created_at: Date;
 }
 
+interface AnnouncementItem {
+  id: string;
+  title: string;
+  created_at: Date;
+}
+
 interface TopicAgg {
   tag: string;
   count: number;
@@ -100,7 +106,7 @@ const getSidebarData = unstable_cache(
   async () => {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const [recentRows, recruitingSquads] = await Promise.all([
+    const [recentRows, recruitingSquads, announcements] = await Promise.all([
       prisma.posts.findMany({
         where: {
           created_at: { gte: weekAgo },
@@ -126,6 +132,12 @@ const getSidebarData = unstable_cache(
         orderBy: { created_at: "desc" },
         take: 3,
       }),
+      prisma.posts.findMany({
+        where: { category: "notice" },
+        select: { id: true, title: true, created_at: true },
+        orderBy: { created_at: "desc" },
+        take: 3,
+      }),
     ]);
 
     let popularTopics = buildPopularTopics(recentRows, 6);
@@ -147,6 +159,7 @@ const getSidebarData = unstable_cache(
     return {
       popularTopics,
       recruitingSquads: recruitingSquads as RecruitingSquadItem[],
+      announcements: announcements as AnnouncementItem[],
       meta: {
         popularTopicsWindowDays: 7,
         popularTopicsMaxPosts: 300,
@@ -154,7 +167,7 @@ const getSidebarData = unstable_cache(
     };
   },
   ["community-sidebar"],
-  { revalidate: 300, tags: ["community-sidebar"] },
+  { revalidate: 60, tags: ["community-sidebar"] },
 );
 
 export async function GET() {

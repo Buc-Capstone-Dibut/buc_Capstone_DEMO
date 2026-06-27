@@ -100,7 +100,7 @@ export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
         role="alert"
         className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl border border-amber-200 bg-white px-4 py-2 text-[12px] font-semibold text-amber-700 shadow-lg"
       >
-        이 포트폴리오는 PDF 출력 지원 형식이 아닙니다 (웹 슬라이드만 지원)
+        이 포트폴리오는 PDF 출력 지원 형식이 아닙니다 (슬라이드형만 지원)
       </div>
     );
   }

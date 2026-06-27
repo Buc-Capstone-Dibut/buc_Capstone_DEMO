@@ -114,6 +114,8 @@ export function JobPostingFormDialog({
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseFilled, setParseFilled] = useState<string[] | null>(null);
+  // 가져오기로 방금 채워진 필드 키 — 잠깐 하이라이트(fade) 후 비운다.
+  const [flashKeys, setFlashKeys] = useState<Set<string>>(new Set());
 
   // 상세 입력 토글 (URL만 보이는 게 기본, 자동 파싱 성공 시 자동 펼침)
   const [detailsOpen, setDetailsOpen] = useState(
@@ -180,58 +182,100 @@ export function JobPostingFormDialog({
             )
           : [];
 
-      const filled: string[] = [];
+      // 채울 필드를 화면 순서대로 액션으로 모은다(아직 적용하지 않음).
+      const actions: { key: string; label: string; apply: () => void }[] = [];
 
       if (!companyName.trim() && asString(data.company)) {
-        setCompanyName(asString(data.company));
-        filled.push("회사명");
+        const v = asString(data.company);
+        actions.push({ key: "company", label: "회사명", apply: () => setCompanyName(v) });
       }
       if (!roleTitle.trim() && asString(data.title)) {
-        setRoleTitle(asString(data.title));
-        filled.push("직무명");
+        const v = asString(data.title);
+        actions.push({ key: "role", label: "직무명", apply: () => setRoleTitle(v) });
       }
       if (techStack.length === 0) {
         const arr = asStringArray(data.techStack);
         if (arr.length > 0) {
-          setTechStack(arr);
-          filled.push(`기술 ${arr.length}개`);
+          actions.push({ key: "techStack", label: `기술 ${arr.length}개`, apply: () => setTechStack(arr) });
         }
       }
       if (!companyDescriptionText.trim() && asString(data.description)) {
-        setCompanyDescriptionText(asString(data.description));
-        filled.push("회사 소개");
+        const v = asString(data.description);
+        actions.push({ key: "description", label: "회사 소개", apply: () => setCompanyDescriptionText(v) });
       }
       if (!responsibilitiesText.trim()) {
         const arr = asStringArray(data.responsibilities);
         if (arr.length > 0) {
-          setResponsibilitiesText(arr.join("\n"));
-          filled.push("주요 업무");
+          actions.push({ key: "responsibilities", label: "주요 업무", apply: () => setResponsibilitiesText(arr.join("\n")) });
         }
       }
       if (!requirementsText.trim()) {
         const arr = asStringArray(data.requirements);
         if (arr.length > 0) {
-          setRequirementsText(arr.join("\n"));
-          filled.push("자격 요건");
+          actions.push({ key: "requirements", label: "자격 요건", apply: () => setRequirementsText(arr.join("\n")) });
         }
       }
       if (!preferredText.trim()) {
         const arr = asStringArray(data.preferred);
         if (arr.length > 0) {
-          setPreferredText(arr.join("\n"));
-          filled.push("우대 사항");
+          actions.push({ key: "preferred", label: "우대 사항", apply: () => setPreferredText(arr.join("\n")) });
         }
       }
       if (!teamCultureText.trim()) {
         const arr = asStringArray(data.culture);
         if (arr.length > 0) {
-          setTeamCultureText(arr.join("\n"));
-          filled.push("팀 문화");
+          actions.push({ key: "culture", label: "팀 문화", apply: () => setTeamCultureText(arr.join("\n")) });
         }
       }
-      setParseFilled(filled);
-      // 성공 시 상세 입력 펼치기
+      if (schedules.length === 0 && Array.isArray(data.schedules)) {
+        const validKinds = ["deadline", "document_due", "interview", "other"];
+        const mapped = (data.schedules as unknown[])
+          .filter(
+            (s): s is { kind?: unknown; title?: unknown; startAt?: unknown } =>
+              typeof s === "object" && s !== null,
+          )
+          .map((s) => {
+            const raw = typeof s.startAt === "string" ? s.startAt.trim() : "";
+            // DateTimePicker 는 yyyy-MM-dd'T'HH:mm 형식을 기대 → 날짜만 오면 마감 의미로 23:59 부여
+            const startAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+              ? `${raw}T23:59`
+              : (raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/)?.[1] ?? raw);
+            return {
+              kind: (validKinds.includes(s.kind as string)
+                ? (s.kind as ScheduleKind)
+                : "other") as ScheduleKind,
+              title: typeof s.title === "string" ? s.title : "",
+              startAt,
+              endAt: "",
+              memo: "",
+            };
+          })
+          .filter((s) => s.startAt.trim() !== "");
+        if (mapped.length > 0) {
+          actions.push({ key: "schedules", label: `일정 ${mapped.length}개`, apply: () => setSchedules(mapped) });
+        }
+      }
+
+      // 상세 패널을 먼저 펼쳐, 필드가 하나씩 채워지는 게 보이게 한다.
       setDetailsOpen(true);
+      setParseFilled(actions.map((a) => a.label));
+
+      // 따다닥 — 필드를 짧은 간격으로 순차 적용하며 각자 잠깐 하이라이트.
+      const STEP_MS = 80;
+      const FLASH_MS = 900;
+      actions.forEach((action, idx) => {
+        window.setTimeout(() => {
+          action.apply();
+          setFlashKeys((prev) => new Set(prev).add(action.key));
+          window.setTimeout(() => {
+            setFlashKeys((prev) => {
+              const next = new Set(prev);
+              next.delete(action.key);
+              return next;
+            });
+          }, FLASH_MS);
+        }, idx * STEP_MS);
+      });
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "URL에서 정보를 가져오지 못했습니다.";
@@ -338,6 +382,19 @@ export function JobPostingFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto p-0">
+        <style jsx global>{`
+          @keyframes jobpostingAiFlash {
+            0% {
+              background-color: rgba(16, 185, 129, 0.18);
+            }
+            100% {
+              background-color: transparent;
+            }
+          }
+          .jobposting-ai-flash {
+            animation: jobpostingAiFlash 0.9s ease-out;
+          }
+        `}</style>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">채용공고 등록</DialogTitle>
           <p className="text-xs text-muted-foreground">
@@ -450,7 +507,7 @@ export function JobPostingFormDialog({
 
         {detailsOpen && (
           <div className="divide-y">
-            <FormRow label="회사명" required>
+            <FormRow label="회사명" required flash={flashKeys.has("company")}>
               <Input
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
@@ -458,7 +515,7 @@ export function JobPostingFormDialog({
                 className="h-9"
               />
             </FormRow>
-            <FormRow label="직무명" required>
+            <FormRow label="직무명" required flash={flashKeys.has("role")}>
               <Input
                 value={roleTitle}
                 onChange={(e) => setRoleTitle(e.target.value)}
@@ -466,14 +523,14 @@ export function JobPostingFormDialog({
                 className="h-9"
               />
             </FormRow>
-            <FormRow label="요구 기술">
+            <FormRow label="요구 기술" flash={flashKeys.has("techStack")}>
               <TechStackCombobox
                 value={techStack}
                 onChange={setTechStack}
                 placeholder="React, Next.js 등 검색하거나 직접 입력 후 Enter"
               />
             </FormRow>
-            <FormRow label="회사 소개">
+            <FormRow label="회사 소개" flash={flashKeys.has("description")}>
               <Textarea
                 rows={2}
                 value={companyDescriptionText}
@@ -481,7 +538,7 @@ export function JobPostingFormDialog({
                 placeholder="회사 소개 또는 공고 본문 요약"
               />
             </FormRow>
-            <FormRow label="주요 업무" hint="한 줄에 하나">
+            <FormRow label="주요 업무" hint="한 줄에 하나" flash={flashKeys.has("responsibilities")}>
               <Textarea
                 rows={3}
                 value={responsibilitiesText}
@@ -489,7 +546,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 백엔드 API 설계 및 개발"
               />
             </FormRow>
-            <FormRow label="자격 요건" hint="한 줄에 하나">
+            <FormRow label="자격 요건" hint="한 줄에 하나" flash={flashKeys.has("requirements")}>
               <Textarea
                 rows={3}
                 value={requirementsText}
@@ -497,7 +554,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 컴퓨터공학 학사 또는 동등 수준"
               />
             </FormRow>
-            <FormRow label="우대 사항" hint="한 줄에 하나">
+            <FormRow label="우대 사항" hint="한 줄에 하나" flash={flashKeys.has("preferred")}>
               <Textarea
                 rows={3}
                 value={preferredText}
@@ -505,7 +562,7 @@ export function JobPostingFormDialog({
                 placeholder="예: 대규모 트래픽 처리 경험"
               />
             </FormRow>
-            <FormRow label="팀 문화" hint="한 줄에 하나">
+            <FormRow label="팀 문화" hint="한 줄에 하나" flash={flashKeys.has("culture")}>
               <Textarea
                 rows={2}
                 value={teamCultureText}
@@ -687,15 +744,22 @@ function FormRow({
   label,
   hint,
   required,
+  flash,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  flash?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr]">
+    <div
+      className={cn(
+        "grid grid-cols-1 sm:grid-cols-[7.5rem_1fr]",
+        flash && "jobposting-ai-flash",
+      )}
+    >
       <div className="flex flex-col gap-0.5 border-b bg-muted/20 px-6 py-3 sm:border-b-0 sm:border-r">
         <span className="text-xs font-semibold text-foreground">
           {label}

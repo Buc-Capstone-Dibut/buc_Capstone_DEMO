@@ -16,7 +16,10 @@ type Step = {
   msg: string;
 };
 
-const DEFAULT_BUBBLE_DATA = [15, 8, 20, 2, 11, 8, 5, 18, 9, 14];
+// 콘텐츠 디스크립터(module-03-sorting-string.tsx)의 sampleData 와 정합을 맞춘 기본 데이터.
+// CTPModuleLoader 는 useSim() 을 인자 없이 호출하므로, 화면에 실제로 그려지는 배열은
+// 항상 이 기본값이다. 디스크립터가 광고하는 5원소 샘플과 동일하게 유지한다.
+const DEFAULT_BUBBLE_DATA = [6, 2, 8, 1, 5];
 
 function generateBubbleSortSteps(initialArray: number[]): Step[] {
   const steps: Step[] = [];

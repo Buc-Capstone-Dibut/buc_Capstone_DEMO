@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import { serializeFolder } from "@/lib/job-postings/serialize";
 import type { ColorPreset } from "@/lib/job-postings/types";

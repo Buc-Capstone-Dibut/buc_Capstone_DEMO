@@ -41,6 +41,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const sessionType = searchParams.get("session_type") ?? "";
     const limit = Math.min(Number(searchParams.get("limit") ?? "20") || 20, 50);
+    // offset: '더 보기' 증분 로드용. 음수 방지.
+    const offset = Math.max(Number(searchParams.get("offset") ?? "0") || 0, 0);
 
     const admin = createAdminSupabaseClient();
 
@@ -51,7 +53,7 @@ export async function GET(req: Request) {
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (sessionType === "live_interview" || sessionType === "portfolio_defense") {
       query = query.eq("session_type", sessionType);

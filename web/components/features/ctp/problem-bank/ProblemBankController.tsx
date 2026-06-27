@@ -28,7 +28,27 @@ export function ProblemBankController({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProblemId, setSelectedProblemId] = useState<string | undefined>(problems[0]?.id);
   const [isSolving, setIsSolving] = useState(false);
+  const [solvedIds, setSolvedIds] = useState<Set<string>>(() => new Set());
   const view = searchParams.get("view");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/ctp/solved");
+        if (!res.ok) return;
+        const data = (await res.json()) as { solved?: string[] };
+        if (!cancelled && Array.isArray(data.solved)) {
+          setSolvedIds(new Set(data.solved));
+        }
+      } catch {
+        // 미로그인/실패 시 조용히 무시.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredProblems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -113,6 +133,7 @@ export function ProblemBankController({
       <ProblemBankGrid
         problems={filteredProblems}
         selectedProblemId={selectedProblemId}
+        solvedIds={solvedIds}
         onSelectProblem={handleSelectProblem}
       />
     </div>
