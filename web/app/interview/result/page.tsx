@@ -1017,8 +1017,8 @@ const REPORT_SECTIONS = [
 
 // 긴 리포트(질문이 많을수록 길어짐)의 스크롤 부담을 줄이는 sticky 목차.
 // 스크롤 스파이로 현재 섹션을 강조하고, 클릭/해시로 섹션 딥링크를 지원한다.
-function ReportTableOfContents() {
-  const [active, setActive] = useState<string>(REPORT_SECTIONS[0].id);
+function ReportTableOfContents({ sections }: { sections: ReadonlyArray<{ id: string; label: string }> }) {
+  const [active, setActive] = useState<string>(sections[0].id);
   const visibleRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -1027,26 +1027,26 @@ function ReportTableOfContents() {
         entries.forEach((entry) => {
           visibleRef.current[entry.target.id] = entry.isIntersecting;
         });
-        const current = REPORT_SECTIONS.find((section) => visibleRef.current[section.id]);
+        const current = sections.find((section) => visibleRef.current[section.id]);
         if (current) setActive(current.id);
       },
       { rootMargin: "-160px 0px -60% 0px", threshold: 0 },
     );
-    REPORT_SECTIONS.forEach((section) => {
+    sections.forEach((section) => {
       const el = document.getElementById(section.id);
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
-  }, []);
+  }, [sections]);
 
   // 진입 URL에 해시(#timeline 등)가 있으면 해당 섹션으로 이동(딥링크)
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && REPORT_SECTIONS.some((section) => section.id === hash)) {
+    if (hash && sections.some((section) => section.id === hash)) {
       const el = document.getElementById(hash);
       if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
     }
-  }, []);
+  }, [sections]);
 
   const jump = (id: string) => {
     const el = document.getElementById(id);
@@ -1062,7 +1062,7 @@ function ReportTableOfContents() {
       className="sticky top-24 z-30 border-b border-[#dfe5ec] bg-[#f7f8fa]/95 backdrop-blur md:top-14"
     >
       <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6 py-3 md:px-10">
-        {REPORT_SECTIONS.map((section, index) => (
+        {sections.map((section, index) => (
           <button
             key={section.id}
             type="button"
@@ -1120,6 +1120,17 @@ export default function InterviewResultPage() {
       cancelled = true;
     };
   }, [resolvedSessionId]);
+
+  // 녹화가 있을 때만 영상 섹션을 목차/스크롤스파이 멤버로 등록(타임라인 섹션 바로 앞).
+  const reportSections = useMemo(
+    () =>
+      recordingUrl
+        ? REPORT_SECTIONS.flatMap((s) =>
+            s.id === "timeline" ? [{ id: "recording", label: "면접 영상" }, s] : [s],
+          )
+        : REPORT_SECTIONS,
+    [recordingUrl],
+  );
   const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
   const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
 
@@ -1621,7 +1632,7 @@ export default function InterviewResultPage() {
           interviewVisual={interviewVisual}
         />
 
-        <ReportTableOfContents />
+        <ReportTableOfContents sections={reportSections} />
 
         <article className="mx-auto max-w-7xl px-6 md:px-10">
           <DocumentSection
