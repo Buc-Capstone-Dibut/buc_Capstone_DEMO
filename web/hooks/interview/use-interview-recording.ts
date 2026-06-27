@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   RECORDING_BUCKET,
@@ -136,5 +136,5 @@ export function useInterviewRecording() {
     };
   }, []);
 
-  return { start, stopAndUpload };
+  return useMemo(() => ({ start, stopAndUpload }), [start, stopAndUpload]);
 }
