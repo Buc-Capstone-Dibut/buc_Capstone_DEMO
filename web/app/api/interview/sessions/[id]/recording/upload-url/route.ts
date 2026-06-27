@@ -1,29 +1,40 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { getInterviewRouteUserId } from "@/lib/interview/route-auth";
+import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { RECORDING_BUCKET, MAX_RECORDING_BYTES } from "@/lib/interview/recording/recording-metadata";
 
 export const runtime = "nodejs";
 
+// 경로는 반드시 `${sessionId}/<단일 안전 파일명>` 형태여야 한다.
+// `..` 세그먼트나 추가 슬래시로 세션 네임스페이스를 벗어나는 것을 차단.
+function isValidRecordingPath(sessionId: string, storagePath: string | undefined): boolean {
+  if (!storagePath || !storagePath.startsWith(`${sessionId}/`)) return false;
+  const remainder = storagePath.slice(sessionId.length + 1);
+  return /^[\w.-]+$/.test(remainder);
+}
+
 async function ensureBucket(admin: ReturnType<typeof createAdminSupabaseClient>) {
-  const { data: buckets } = await admin.storage.listBuckets();
+  const { data: buckets, error: listError } = await admin.storage.listBuckets();
+  if (listError) throw listError;
   if (buckets?.some((b) => b.name === RECORDING_BUCKET)) return;
-  await admin.storage.createBucket(RECORDING_BUCKET, {
+  const { error: createError } = await admin.storage.createBucket(RECORDING_BUCKET, {
     public: false,
     fileSizeLimit: MAX_RECORDING_BYTES,
     allowedMimeTypes: ["video/webm", "video/mp4"],
   });
+  // 동시 생성 레이스로 이미 존재하는 경우는 무시, 그 외 에러는 표면화.
+  if (createError && !/already exists/i.test(createError.message)) throw createError;
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { id: sessionId } = params;
   const userId = await getInterviewRouteUserId();
-  if (!userId) return NextResponse.json({ success: false, message: "unauthorized" }, { status: 401 });
+  if (!userId) return unauthorizedInterviewResponse();
 
   const body = (await req.json()) as { storagePath?: string };
-  if (!body.storagePath || !body.storagePath.startsWith(`${sessionId}/`)) {
-    return NextResponse.json({ success: false, message: "invalid storagePath" }, { status: 400 });
+  if (!isValidRecordingPath(sessionId, body.storagePath)) {
+    return NextResponse.json({ success: false, error: "invalid storagePath" }, { status: 400 });
   }
 
   const admin = createAdminSupabaseClient();
@@ -34,17 +45,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq("id", sessionId)
     .maybeSingle();
   if (!session || session.user_id !== userId) {
-    return NextResponse.json({ success: false, message: "forbidden" }, { status: 403 });
+    return NextResponse.json({ success: false, error: "forbidden" }, { status: 403 });
   }
 
-  await ensureBucket(admin);
+  try {
+    await ensureBucket(admin);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "bucket ensure failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
 
   const { data, error } = await admin.storage
     .from(RECORDING_BUCKET)
-    .createSignedUploadUrl(body.storagePath);
+    .createSignedUploadUrl(body.storagePath!);
 
   if (error || !data) {
-    return NextResponse.json({ success: false, message: error?.message ?? "sign failed" }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message ?? "sign failed" }, { status: 500 });
   }
 
   return NextResponse.json({
