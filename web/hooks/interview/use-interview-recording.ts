@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   RECORDING_BUCKET,
@@ -49,6 +49,8 @@ export function useInterviewRecording() {
       startedAtRef.current = Date.now();
       recorder.start(5000); // 5초마다 청크 flush
     } catch (err) {
+      ownedAudioRef.current?.getTracks().forEach((t) => t.stop());
+      ownedAudioRef.current = null;
       console.error("[recording] 시작 실패(영상 없이 면접은 계속):", err);
     }
   }, []);
@@ -59,6 +61,10 @@ export function useInterviewRecording() {
     if (!recorder || !startedAt) return { ok: false, error: "no-recorder" };
 
     const blob: Blob = await new Promise((resolve) => {
+      if (recorder.state === "inactive") {
+        resolve(new Blob(chunksRef.current, { type: recorder.mimeType }));
+        return;
+      }
       recorder.onstop = () => resolve(new Blob(chunksRef.current, { type: recorder.mimeType }));
       recorder.stop();
     });
@@ -111,6 +117,23 @@ export function useInterviewRecording() {
     } finally {
       clearTimeout(timer);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      // 비정상 언마운트 시 누수 방지: 녹화 중이면 정지하고 마이크 트랙 정리.
+      // (정상 종료는 stopAndUpload가 이미 처리하므로 여기선 트랙만 정리)
+      try {
+        if (recorderRef.current && recorderRef.current.state !== "inactive") {
+          recorderRef.current.stop();
+        }
+      } catch {
+        /* ignore */
+      }
+      ownedAudioRef.current?.getTracks().forEach((t) => t.stop());
+      ownedAudioRef.current = null;
+      recorderRef.current = null;
+    };
   }, []);
 
   return { start, stopAndUpload };
