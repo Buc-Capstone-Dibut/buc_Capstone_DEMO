@@ -57,6 +57,22 @@ def get_connection():
             conn.close()
 
 
+INTERVIEW_RECORDINGS_DDL = """
+CREATE TABLE IF NOT EXISTS public.interview_recordings (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
+    bucket TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    duration_ms INT,
+    mime_type TEXT,
+    size_bytes BIGINT,
+    recording_started_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(session_id)
+)
+"""
+
+
 def init_db() -> None:
     ddl = [
         """
@@ -129,6 +145,7 @@ def init_db() -> None:
             UNIQUE(session_id, turn_index)
         )
         """,
+        INTERVIEW_RECORDINGS_DDL,
         """
         ALTER TABLE public.interview_turns
             ADD COLUMN IF NOT EXISTS exchange_index INT NOT NULL DEFAULT 0,
@@ -225,6 +242,7 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_interview_turns_session_created
         ON public.interview_turns(session_id, created_at)
         """,
+        "CREATE INDEX IF NOT EXISTS idx_interview_recordings_session ON public.interview_recordings(session_id)",
         """
         DROP INDEX IF EXISTS public.idx_interview_sessions_runtime_status
         """,
@@ -282,6 +300,7 @@ def init_db() -> None:
                 EXECUTE 'ALTER TABLE public.interview_report_jobs ENABLE ROW LEVEL SECURITY';
                 EXECUTE 'ALTER TABLE public.interview_eval_signals ENABLE ROW LEVEL SECURITY';
                 EXECUTE 'ALTER TABLE public.portfolio_sources ENABLE ROW LEVEL SECURITY';
+                EXECUTE 'ALTER TABLE public.interview_recordings ENABLE ROW LEVEL SECURITY';
 
                 EXECUTE 'DROP POLICY IF EXISTS interview_sessions_owner_select ON public.interview_sessions';
                 EXECUTE '' ||
@@ -332,6 +351,15 @@ def init_db() -> None:
                     'USING (EXISTS (' ||
                     'SELECT 1 FROM public.interview_sessions s ' ||
                     'WHERE s.id = portfolio_sources.session_id AND s.user_id = auth.uid()::text' ||
+                    '))';
+
+                EXECUTE 'DROP POLICY IF EXISTS interview_recordings_owner_select ON public.interview_recordings';
+                EXECUTE '' ||
+                    'CREATE POLICY interview_recordings_owner_select ' ||
+                    'ON public.interview_recordings FOR SELECT TO authenticated ' ||
+                    'USING (EXISTS (' ||
+                    'SELECT 1 FROM public.interview_sessions s ' ||
+                    'WHERE s.id = interview_recordings.session_id AND s.user_id = auth.uid()::text' ||
                     '))';
             END IF;
         END
