@@ -7,6 +7,7 @@ interface LocalCameraPreviewProps {
   enabled: boolean;
   fill?: boolean;
   maxHeight?: number;
+  onStream?: (stream: MediaStream | null) => void;
 }
 
 // memo: props are constant on the video page (enabled/fill), so the camera
@@ -17,6 +18,7 @@ function LocalCameraPreviewImpl({
   enabled,
   fill = false,
   maxHeight = 220,
+  onStream,
 }: LocalCameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -34,6 +36,7 @@ function LocalCameraPreviewImpl({
           track.stop();
         }
         streamRef.current = null;
+        onStream?.(null);
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -65,6 +68,7 @@ function LocalCameraPreviewImpl({
         }
 
         streamRef.current = stream;
+        onStream?.(stream);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
@@ -85,7 +89,7 @@ function LocalCameraPreviewImpl({
       cancelled = true;
       stopStream();
     };
-  }, [enabled]);
+  }, [enabled, onStream]);
 
   if (!enabled) return null;
 
