@@ -1097,7 +1097,29 @@ export default function InterviewResultPage() {
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
   const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [blogsLoading, setBlogsLoading] = useState(true);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!resolvedSessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}/recording`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!cancelled && json?.success && json.data?.url) {
+          setRecordingUrl(json.data.url as string);
+        }
+      } catch {
+        /* 녹화 없으면 무시 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSessionId]);
   const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
   const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
 
@@ -1660,6 +1682,20 @@ export default function InterviewResultPage() {
               axisEvidence={reportModel.axisEvidence}
             />
           </DocumentSection>
+
+          {recordingUrl && (
+            <DocumentSection index="00" id="recording" title="면접 영상">
+              <video
+                src={recordingUrl}
+                controls
+                playsInline
+                className="w-full rounded-xl border bg-black"
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                녹화된 면접 영상입니다. 답변 구간 타임라인 연동은 다음 단계에서 추가됩니다.
+              </p>
+            </DocumentSection>
+          )}
 
           <DocumentSection
             id="timeline"
