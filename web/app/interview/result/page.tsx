@@ -1361,8 +1361,15 @@ export default function InterviewResultPage() {
     const findings = (sessionDetail?.report_view?.questionFindings ?? []).filter(
       (f) => String(f?.question || f?.userAnswer || "").trim().length > 0,
     );
-    const map: Record<number, { improvements?: string[] }> = {};
-    findings.forEach((f, i) => { map[i + 1] = { improvements: f.improvements }; });
+    const map: Record<number, { strengths?: string[]; improvements?: string[]; refinedAnswer?: string | null; followUpQuestion?: string | null }> = {};
+    findings.forEach((f, i) => {
+      map[i + 1] = {
+        strengths: f.strengths,
+        improvements: f.improvements,
+        refinedAnswer: f.refinedAnswer,
+        followUpQuestion: f.followUpQuestion,
+      };
+    });
     return map;
   }, [sessionDetail?.report_view?.questionFindings]);
 
@@ -1732,7 +1739,7 @@ export default function InterviewResultPage() {
                 <InterviewRecordingSection
                   recordingUrl={recordingUrl}
                   segments={segments}
-                  feedbackByOrder={recordingFeedbackByOrder}
+                  findingsByOrder={recordingFeedbackByOrder}
                 />
               ) : (
                 <video src={recordingUrl} controls playsInline className="w-full rounded-xl border bg-black" />

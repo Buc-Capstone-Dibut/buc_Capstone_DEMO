@@ -1,15 +1,11 @@
 "use client";
 
-import type { AnswerSegment } from "@/lib/interview/report/answer-segments";
-
-export interface SegmentFeedback {
-  improvements?: string[];
-}
+import type { AnswerSegment, AnswerFinding } from "@/lib/interview/report/answer-segments";
 
 interface Props {
   segments: AnswerSegment[];
   activeId: string | null;
-  feedbackByOrder?: Record<number, SegmentFeedback>;
+  feedbackByOrder?: Record<number, AnswerFinding>;
   onSeek: (ms: number) => void;
 }
 
