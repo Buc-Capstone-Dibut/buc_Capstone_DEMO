@@ -61,6 +61,7 @@ import {
   type RecommendedBlog,
 } from "@/lib/interview/report/blog-recommendations";
 import { supabase } from "@/lib/supabase/client";
+import { InterviewRecordingSection } from "@/components/features/interview/report/interview-recording-section";
 
 interface SessionDetail {
   analysis?: SessionAnalysisPayload;
@@ -1098,6 +1099,7 @@ export default function InterviewResultPage() {
   const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [blogsLoading, setBlogsLoading] = useState(true);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [segments, setSegments] = useState<import("@/lib/interview/report/answer-segments").AnswerSegment[]>([]);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1120,6 +1122,30 @@ export default function InterviewResultPage() {
       cancelled = true;
     };
   }, [resolvedSessionId]);
+
+  useEffect(() => {
+    if (!resolvedSessionId || !recordingUrl) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [segRes, recRes] = await Promise.all([
+          fetch(`/api/interview/sessions/${resolvedSessionId}/segments`, { cache: "no-store" }),
+          fetch(`/api/interview/sessions/${resolvedSessionId}/recording`, { cache: "no-store" }),
+        ]);
+        const segJson = await segRes.json();
+        const recJson = await recRes.json();
+        if (cancelled || !segJson?.success || !recJson?.success || !recJson.data) return;
+        const { buildAnswerSegments } = await import("@/lib/interview/report/answer-segments");
+        const durationMs = Number(recJson.data.durationMs) || 0;
+        const anchorIso = segJson.data.anchorIso ?? recJson.data.recordingStartedAt ?? null;
+        if (!anchorIso) return;
+        setSegments(buildAnswerSegments(segJson.data.turns, anchorIso, durationMs));
+      } catch {
+        /* 구간 없으면 통영상만 표시 */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [resolvedSessionId, recordingUrl]);
 
   // 녹화가 있을 때만 영상 섹션을 목차/스크롤스파이 멤버로 등록(타임라인 섹션 바로 앞).
   const reportSections = useMemo(
@@ -1333,6 +1359,14 @@ export default function InterviewResultPage() {
       },
     });
   }, [effectiveAnalysis, hasMinimalReportData, hasOfficialReportData, sessionDetail]);
+
+  // 답변 구간(Q1..) 순서 → 질문별 분석의 개선점 매핑. 영상 우측 스크립트 패널에서 사용.
+  const recordingFeedbackByOrder = useMemo(() => {
+    const findings = (sessionDetail?.report_view?.questionFindings ?? []) as Array<{ improvements?: string[] }>;
+    const map: Record<number, { improvements?: string[] }> = {};
+    findings.forEach((f, i) => { map[i + 1] = { improvements: f.improvements }; });
+    return map;
+  }, [sessionDetail?.report_view?.questionFindings]);
 
   // 단일 면접 세션을 분석 허브 세션 1개로 변환 → 면접 분석 화면과 동일한 추천 엔진을 재사용한다.
   const singleHubSession = useMemo(() => {
@@ -1696,15 +1730,15 @@ export default function InterviewResultPage() {
 
           {recordingUrl && (
             <DocumentSection index="00" id="recording" title="면접 영상">
-              <video
-                src={recordingUrl}
-                controls
-                playsInline
-                className="w-full rounded-xl border bg-black"
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                녹화된 면접 영상입니다. 답변 구간 타임라인 연동은 다음 단계에서 추가됩니다.
-              </p>
+              {segments.length > 0 ? (
+                <InterviewRecordingSection
+                  recordingUrl={recordingUrl}
+                  segments={segments}
+                  feedbackByOrder={recordingFeedbackByOrder}
+                />
+              ) : (
+                <video src={recordingUrl} controls playsInline className="w-full rounded-xl border bg-black" />
+              )}
             </DocumentSection>
           )}
 
