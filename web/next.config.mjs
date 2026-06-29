@@ -59,6 +59,18 @@ const nextConfig = {
         ],
       },
       {
+        // MediaPipe tasks-vision WASM + face_landmarker.task model (~15MB
+        // combined, versioned by filename). Self-hosted under public/mediapipe;
+        // promote to immutable so the CDN holds them for a year.
+        source: "/mediapipe/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
         // Avatar GLBs (talkinghead-avaturn.glb is ~13MB and effectively never
         // changes). Default public/ headers are short-lived, so repeat
         // interview-room visits re-download/revalidate. Promote to immutable.
