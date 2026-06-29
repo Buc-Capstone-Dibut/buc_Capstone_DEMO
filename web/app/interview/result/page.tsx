@@ -1108,6 +1108,8 @@ export default function InterviewResultPage() {
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [recordingDurationMs, setRecordingDurationMs] = useState(0);
   const [segments, setSegments] = useState<import("@/lib/interview/report/answer-segments").AnswerSegment[]>([]);
+  const [faceSamples, setFaceSamples] = useState<import("@/lib/interview/face/face-metrics").FaceSample[]>([]);
+  const [awaySegments, setAwaySegments] = useState<Array<[number, number]>>([]);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1125,6 +1127,28 @@ export default function InterviewResultPage() {
         }
       } catch {
         /* 녹화 없으면 무시 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSessionId]);
+
+  useEffect(() => {
+    if (!resolvedSessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}/signals`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!cancelled && json?.success && json.data) {
+          setFaceSamples(json.data.samples ?? []);
+          setAwaySegments(json.data.aggregates?.awaySegments ?? []);
+        }
+      } catch {
+        /* 시계열 신호 없으면 무시(카메라 미사용 등) */
       }
     })();
     return () => {
@@ -1748,6 +1772,8 @@ export default function InterviewResultPage() {
                   segments={segments}
                   findingsByOrder={recordingFeedbackByOrder}
                   nonverbalSummary={sessionDetail?.report_view?.nonverbalSummary}
+                  faceSamples={faceSamples}
+                  awaySegments={awaySegments}
                 />
               ) : (
                 <video src={recordingUrl} controls playsInline className="w-full rounded-xl border bg-black" />

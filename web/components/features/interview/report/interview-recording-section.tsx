@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Eye } from "lucide-react";
 import { SegmentVideoPlayer, type SegmentVideoPlayerHandle } from "./segment-video-player";
 import { SegmentTimelineBar } from "./segment-timeline-bar";
@@ -8,6 +8,7 @@ import { AnswerScriptPanel } from "./answer-script-panel";
 import { AnswerDetailList } from "./answer-detail-list";
 import { useSegmentSync } from "@/hooks/interview/use-segment-sync";
 import { buildAnswerDetails, type AnswerSegment, type AnswerFinding } from "@/lib/interview/report/answer-segments";
+import type { FaceSample } from "@/lib/interview/face/face-metrics";
 import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
 
 interface NonverbalSummary {
@@ -23,6 +24,8 @@ interface Props {
   segments: AnswerSegment[];
   findingsByOrder?: Record<number, AnswerFinding>;
   nonverbalSummary?: NonverbalSummary | null;
+  faceSamples?: FaceSample[];
+  awaySegments?: Array<[number, number]>;
 }
 
 // 시선이탈 비율을 정성 문구로 표현(점수·등급 아님).
@@ -81,22 +84,31 @@ function NonverbalPanel({ summary }: { summary: NonverbalSummary }) {
   );
 }
 
-export function InterviewRecordingSection({ recordingUrl, segments, findingsByOrder, nonverbalSummary }: Props) {
+export function InterviewRecordingSection({
+  recordingUrl,
+  segments,
+  findingsByOrder,
+  nonverbalSummary,
+  faceSamples,
+  awaySegments,
+}: Props) {
   const videoRef = useRef<SegmentVideoPlayerHandle | null>(null);
   const { activeId, currentTimeMs, durationMs, seekTo } = useSegmentSync(videoRef, segments);
   const details = buildAnswerDetails(segments, findingsByOrder);
+  const samples = useMemo(() => faceSamples ?? [], [faceSamples]);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
-          <SegmentVideoPlayer ref={videoRef} src={recordingUrl} />
+          <SegmentVideoPlayer ref={videoRef} src={recordingUrl} samples={samples.length ? samples : undefined} />
           <SegmentTimelineBar
             segments={segments}
             durationMs={durationMs}
             currentTimeMs={currentTimeMs}
             activeId={activeId}
             onSeek={seekTo}
+            awaySegments={awaySegments ?? nonverbalSummary?.awaySegments}
           />
           <p className="mt-2 text-xs text-muted-foreground">
             답변/타임라인을 클릭하면 영상이 해당 구간으로 이동합니다.
