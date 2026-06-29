@@ -18,6 +18,7 @@
     "test:interview-report": "tsx --test lib/interview/report/*.test.ts",
     "test:interview-flow": "tsx --test lib/interview/interview-session-flow.test.ts",
     "test:interview-recording": "tsx --test lib/interview/recording/*.test.ts",
+    "test:interview-face": "tsx --test lib/interview/face/*.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
