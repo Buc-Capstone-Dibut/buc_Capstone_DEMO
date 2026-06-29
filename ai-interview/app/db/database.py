@@ -73,6 +73,20 @@ CREATE TABLE IF NOT EXISTS public.interview_recordings (
 """
 
 
+INTERVIEW_RECORDING_SIGNALS_DDL = """
+CREATE TABLE IF NOT EXISTS public.interview_recording_signals (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES public.interview_sessions(id) ON DELETE CASCADE,
+    sample_rate_hz INT NOT NULL DEFAULT 5,
+    samples JSONB NOT NULL DEFAULT '[]'::jsonb,
+    baseline JSONB NOT NULL DEFAULT '{}'::jsonb,
+    aggregates JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(session_id)
+)
+"""
+
+
 def init_db() -> None:
     ddl = [
         """
@@ -146,6 +160,7 @@ def init_db() -> None:
         )
         """,
         INTERVIEW_RECORDINGS_DDL,
+        INTERVIEW_RECORDING_SIGNALS_DDL,
         """
         ALTER TABLE public.interview_turns
             ADD COLUMN IF NOT EXISTS exchange_index INT NOT NULL DEFAULT 0,
@@ -243,6 +258,7 @@ def init_db() -> None:
         ON public.interview_turns(session_id, created_at)
         """,
         "CREATE INDEX IF NOT EXISTS idx_interview_recordings_session ON public.interview_recordings(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_recording_signals_session ON public.interview_recording_signals(session_id)",
         """
         DROP INDEX IF EXISTS public.idx_interview_sessions_runtime_status
         """,
@@ -301,6 +317,7 @@ def init_db() -> None:
                 EXECUTE 'ALTER TABLE public.interview_eval_signals ENABLE ROW LEVEL SECURITY';
                 EXECUTE 'ALTER TABLE public.portfolio_sources ENABLE ROW LEVEL SECURITY';
                 EXECUTE 'ALTER TABLE public.interview_recordings ENABLE ROW LEVEL SECURITY';
+                EXECUTE 'ALTER TABLE public.interview_recording_signals ENABLE ROW LEVEL SECURITY';
 
                 EXECUTE 'DROP POLICY IF EXISTS interview_sessions_owner_select ON public.interview_sessions';
                 EXECUTE '' ||
@@ -360,6 +377,15 @@ def init_db() -> None:
                     'USING (EXISTS (' ||
                     'SELECT 1 FROM public.interview_sessions s ' ||
                     'WHERE s.id = interview_recordings.session_id AND s.user_id = auth.uid()::text' ||
+                    '))';
+
+                EXECUTE 'DROP POLICY IF EXISTS interview_recording_signals_owner_select ON public.interview_recording_signals';
+                EXECUTE '' ||
+                    'CREATE POLICY interview_recording_signals_owner_select ' ||
+                    'ON public.interview_recording_signals FOR SELECT TO authenticated ' ||
+                    'USING (EXISTS (' ||
+                    'SELECT 1 FROM public.interview_sessions s ' ||
+                    'WHERE s.id = interview_recording_signals.session_id AND s.user_id = auth.uid()::text' ||
                     '))';
             END IF;
         END
