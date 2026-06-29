@@ -105,6 +105,8 @@ export function useFaceCapture() {
 
   const getBaseline = useCallback(() => baselineRef.current, []);
 
+  const setBaseline = useCallback((b: Baseline | null) => { baselineRef.current = b; }, []);
+
   // 단일 프레임 포즈 읽기(좌/우 yaw 감지용). readFrame 위 얇은 공개 래퍼 — readFrame 자체는 건드리지 않음.
   const readPose = useCallback((video: HTMLVideoElement) => {
     const f = readFrame(video);
@@ -112,7 +114,7 @@ export function useFaceCapture() {
   }, [readFrame]);
 
   return useMemo(
-    () => ({ ensureLandmarker, calibrate, readPose, start, stop, getBaseline }),
-    [ensureLandmarker, calibrate, readPose, start, stop, getBaseline],
+    () => ({ ensureLandmarker, calibrate, readPose, start, stop, getBaseline, setBaseline }),
+    [ensureLandmarker, calibrate, readPose, start, stop, getBaseline, setBaseline],
   );
 }

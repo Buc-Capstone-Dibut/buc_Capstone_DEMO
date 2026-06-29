@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { useOpenLLM } from "@/hooks/use-open-llm";
 import { useInterviewRecording } from "@/hooks/interview/use-interview-recording";
+import { useFaceCapture } from "@/hooks/interview/use-face-capture";
 import {
   buildInterviewTypePayload,
   resolveInterviewTypeVisual,
@@ -232,6 +233,12 @@ export default function InterviewVideoRoomPage() {
   const handleRecordingStream = useCallback((stream: MediaStream | null) => {
     recordingVideoStreamRef.current = stream;
   }, []);
+
+  // 얼굴 지표 캡처 — 녹화와 동일한 공유 카메라 스트림을 재사용한다(새 getUserMedia 없음).
+  // 분석 UI 는 면접 중 절대 노출되지 않는다(아래 숨김 video 만 사용).
+  const face = useFaceCapture();
+  const faceBaseline = useInterviewSetupStore((s) => s.faceBaseline);
+  const faceVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const startedRef = useRef(false);
   const sessionStartingRef = useRef(false);
@@ -867,6 +874,16 @@ export default function InterviewVideoRoomPage() {
 
       await sendInterviewInit(nextSessionId);
       void recording.start(recordingVideoStreamRef.current);
+
+      // 캘리브레이션 베이스라인이 있을 때만 얼굴 캡처 시작(건너뛰기/불가 → 캡처 없음, 면접 영향 없음).
+      // 공유 스트림(recordingVideoStreamRef)을 숨김 video 에 물려 MediaPipe 입력으로만 쓴다.
+      if (faceBaseline && recordingVideoStreamRef.current && faceVideoRef.current) {
+        faceVideoRef.current.srcObject = recordingVideoStreamRef.current;
+        await faceVideoRef.current.play().catch(() => undefined);
+        await face.ensureLandmarker();
+        face.setBaseline(faceBaseline);
+        void face.start(faceVideoRef.current);
+      }
     })();
 
     return () => {
@@ -874,6 +891,8 @@ export default function InterviewVideoRoomPage() {
     };
   }, [
     ensureSessionId,
+    face,
+    faceBaseline,
     hasConfirmedInterviewStart,
     isAudioPrimed,
     isConnected,
@@ -1201,6 +1220,20 @@ export default function InterviewVideoRoomPage() {
       ]).catch(() => undefined);
       setIsSavingRecording(false);
     }
+    // 얼굴 지표 시계열 업로드 — 캡처가 돌고 있었을 때만. 영상 저장과 동일하게 하드 타임아웃을
+    // 걸어 면접 종료를 절대 막지 않는다(에러도 삼킨다). face.stop() 은 rAF 루프만 취소한다.
+    const sig = face.stop();
+    if (sid && sig.samples.length > 0) {
+      await Promise.race([
+        fetch(`/api/interview/sessions/${sid}/signals`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sampleRateHz: sig.sampleRateHz, samples: sig.samples, baseline: sig.baseline }),
+        }).catch(() => undefined),
+        new Promise((r) => setTimeout(r, 15_000)),
+      ]).catch(() => undefined);
+    }
+    if (faceVideoRef.current) faceVideoRef.current.srcObject = null;
     // 종료 API(상태 갱신 + 리포트 enqueue)는 멱등이고, 결과 페이지가
     // 미완료 세션을 스스로 복구(/complete 재호출 + polling)하므로 응답을 기다리지 않는다.
     // keepalive 로 네비게이션 후에도 요청이 전송되도록 보장. (이전엔 Supabase 왕복
@@ -1211,7 +1244,7 @@ export default function InterviewVideoRoomPage() {
     }).catch(() => {});
     router.push(buildResultPath(activeSessionId));
     return true;
-  }, [activeSessionId, buildResultPath, disconnect, isFinishingSession, recording, routeToSetup, router]);
+  }, [activeSessionId, buildResultPath, disconnect, face, isFinishingSession, recording, routeToSetup, router]);
 
   const handleFinish = async () => {
     await completeSession({
@@ -1254,6 +1287,10 @@ export default function InterviewVideoRoomPage() {
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col bg-background p-4 md:p-6 font-sans antialiased text-foreground">
+
+      {/* 숨김 비디오 — 공유 카메라 스트림을 MediaPipe 얼굴 분석 입력으로만 제공한다.
+          면접 중 화면에 절대 노출되지 않으며 분석 오버레이/지표도 표시하지 않는다. */}
+      <video ref={faceVideoRef} className="hidden" muted playsInline aria-hidden />
 
       {isSavingRecording && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 text-white">
