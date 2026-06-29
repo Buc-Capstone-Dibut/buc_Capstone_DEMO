@@ -21,6 +21,28 @@ async function assertSessionOwner(
   return !!data && data.user_id === userId;
 }
 
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { id: sessionId } = params;
+  const userId = await getInterviewRouteUserId();
+  if (!userId) return NextResponse.json({ success: false, error: "로그인이 필요합니다." }, { status: 401 });
+
+  const admin = createAdminSupabaseClient();
+  if (!(await assertSessionOwner(admin, sessionId, userId))) {
+    return NextResponse.json({ success: false, error: "forbidden" }, { status: 403 });
+  }
+
+  const { data } = await admin
+    .from("interview_recording_signals")
+    .select("samples, aggregates, baseline")
+    .eq("session_id", sessionId)
+    .maybeSingle();
+  if (!data) return NextResponse.json({ success: true, data: null });
+  return NextResponse.json({
+    success: true,
+    data: { samples: data.samples ?? [], aggregates: data.aggregates ?? {}, baseline: data.baseline ?? {} },
+  });
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { id: sessionId } = params;
   const userId = await getInterviewRouteUserId();
