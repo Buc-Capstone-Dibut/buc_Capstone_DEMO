@@ -155,6 +155,13 @@ interface SessionReportView {
     typeLabels?: string[];
     axisEvidence?: Array<Partial<ReportAxisEvidence>> | null;
   } | null;
+  nonverbalSummary?: {
+    overall?: string;
+    perAnswer?: Array<{ index?: number; comment?: string }>;
+    awayRatio?: number;
+    awaySegments?: Array<[number, number]>;
+    expressionHistogram?: Record<string, number>;
+  } | null;
 }
 
 interface SessionReportGenerationMeta {
@@ -1740,6 +1747,7 @@ export default function InterviewResultPage() {
                   recordingUrl={recordingUrl}
                   segments={segments}
                   findingsByOrder={recordingFeedbackByOrder}
+                  nonverbalSummary={sessionDetail?.report_view?.nonverbalSummary}
                 />
               ) : (
                 <video src={recordingUrl} controls playsInline className="w-full rounded-xl border bg-black" />

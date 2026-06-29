@@ -187,6 +187,45 @@ def _sanitize_jd_coverage(items: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _sanitize_nonverbal_summary(payload: Any) -> dict[str, Any] | None:
+    """비언어(시선·표정) 정성 요약 정규화. 신호가 없으면 None (리포트에서 생략)."""
+    if not isinstance(payload, dict):
+        return None
+
+    overall = str(payload.get("overall") or "").strip()
+    per_answer: list[dict[str, Any]] = []
+    for item in payload.get("perAnswer") or []:
+        if not isinstance(item, dict):
+            continue
+        comment = str(item.get("comment") or "").strip()
+        if not comment:
+            continue
+        per_answer.append({"index": int(item.get("index") or 0), "comment": comment})
+
+    away_segments: list[list[int]] = []
+    for seg in payload.get("awaySegments") or []:
+        if isinstance(seg, (list, tuple)) and len(seg) == 2:
+            away_segments.append([int(seg[0] or 0), int(seg[1] or 0)])
+
+    expression_histogram: dict[str, int] = {}
+    raw_hist = payload.get("expressionHistogram")
+    if isinstance(raw_hist, dict):
+        for label, count in raw_hist.items():
+            expression_histogram[str(label)] = int(count or 0)
+
+    # 코멘트도 집계도 전혀 없으면 비언어 데이터가 없는 것으로 간주.
+    if not overall and not per_answer and not away_segments and not expression_histogram:
+        return None
+
+    return {
+        "overall": overall,
+        "perAnswer": per_answer,
+        "awayRatio": float(payload.get("awayRatio") or 0.0),
+        "awaySegments": away_segments,
+        "expressionHistogram": expression_histogram,
+    }
+
+
 def _build_profile(
     compat_analysis: dict[str, Any],
     *,
@@ -598,6 +637,7 @@ def _build_default_report_view(
         "analysisQuality": analysis_quality,
         "rubric": compat_analysis.get("rubricScores") or {},
         "comparisonPayload": comparison_payload or {},
+        "nonverbalSummary": _sanitize_nonverbal_summary(compat_analysis.get("nonverbalSummary")),
     }
 
 

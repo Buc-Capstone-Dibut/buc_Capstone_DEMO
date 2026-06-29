@@ -1066,6 +1066,35 @@ class InterviewService:
                     )
             conn.commit()
 
+    def get_recording_signals(self, session_id: str) -> dict[str, Any] | None:
+        """세션의 비언어 5Hz 샘플 행을 조회한다 (없으면 None)."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT samples, aggregates, sample_rate_hz, baseline
+                    FROM public.interview_recording_signals
+                    WHERE session_id = %s
+                    """,
+                    (session_id,),
+                )
+                row = cur.fetchone()
+        return dict(row) if row else None
+
+    def save_recording_aggregates(self, session_id: str, aggregates: dict[str, Any]) -> None:
+        """계산된 집계를 interview_recording_signals.aggregates 에 반영한다."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE public.interview_recording_signals
+                    SET aggregates = %s
+                    WHERE session_id = %s
+                    """,
+                    (Jsonb(aggregates), session_id),
+                )
+            conn.commit()
+
     def save_comparison_report(
         self,
         session_id: str,

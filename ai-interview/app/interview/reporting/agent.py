@@ -19,6 +19,36 @@ def _normalize_turn_role(role: Any) -> str:
     return "user"
 
 
+def aggregate_samples(samples: list[dict]) -> dict:
+    """5Hz 비언어 샘플 집계 — web/lib/interview/face/face-metrics.ts 의 aggregateSamples 와 동일 시맨틱.
+
+    away 플래그/expr 라벨은 이미 클라이언트가 캘리브레이션 기준으로 계산해 둔 값이므로
+    재계산하지 않고 그대로 집계만 한다(시선이탈 비율·구간·표정 분포).
+    """
+    total = len(samples) or 1
+    away_count = sum(1 for s in samples if s.get("away"))
+    away_segments: list[list[int]] = []
+    start = None
+    for i, s in enumerate(samples):
+        if s.get("away") and start is None:
+            start = s.get("tMs")
+        if not s.get("away") and start is not None:
+            away_segments.append([start, samples[i - 1].get("tMs")])  # 마지막 away 프레임에서 닫는다
+            start = None
+    if start is not None and samples:
+        away_segments.append([start, samples[-1].get("tMs")])
+    expr_hist: dict[str, int] = {}
+    for s in samples:
+        e = s.get("expr", "중립")
+        expr_hist[e] = expr_hist.get(e, 0) + 1
+    return {
+        "awayRatio": away_count / total,
+        "awaySegments": away_segments,
+        "expressionHistogram": expr_hist,
+        "sampleCount": len(samples),
+    }
+
+
 class ReportAgent:
     def __init__(
         self,
@@ -165,4 +195,74 @@ class ReportAgent:
             retries=1,
         )
 
+        # 비언어(시선·표정) 분석은 부가 기능 — 신호가 없으면 건너뛰고, 어떤 실패도 메인 리포트 잡을 깨뜨리지 않는다.
+        self._attach_nonverbal(session_id=session_id, turns=turns, gemini=gemini, report=report)
+
         self._service.save_report(session_id, report)
+
+    def _attach_nonverbal(
+        self,
+        *,
+        session_id: str,
+        turns: list[dict[str, Any]],
+        gemini: GeminiService,
+        report: dict[str, Any],
+    ) -> None:
+        """recording_signals 샘플을 집계해 NO-SCORE 비언어 코멘트를 report 에 주입한다.
+
+        - 신호가 없거나 비어 있으면 조용히 건너뛴다(카메라 미사용 세션 등).
+        - 전 과정을 try/except 로 감싸 비언어 실패가 메인 리포트 잡을 깨뜨리지 않게 한다.
+        - report["nonverbalSummary"] = {overall, perAnswer, awayRatio, awaySegments, expressionHistogram}
+        """
+        try:
+            signals = self._service.get_recording_signals(session_id)
+            samples = (signals or {}).get("samples") or []
+            if not isinstance(samples, list) or not samples:
+                return
+
+            aggregates = aggregate_samples(samples)
+
+            away_ratio = float(aggregates.get("awayRatio") or 0.0)
+            away_segments = aggregates.get("awaySegments") or []
+            expression_histogram = aggregates.get("expressionHistogram") or {}
+            expr_text = ", ".join(f"{label} {count}회" for label, count in expression_histogram.items()) or "정보 없음"
+            self._service.save_eval_signals(
+                session_id,
+                [
+                    {
+                        "dimension": "eye_contact",
+                        "score": 0,
+                        "weight": 0,
+                        "weighted_score": 0,
+                        "evidence": f"시선이탈 비율 {round(away_ratio * 100)}% / 이탈 구간 {len(away_segments)}개 (점수 미반영)",
+                        "confidence": 0,
+                    },
+                    {
+                        "dimension": "expression",
+                        "score": 0,
+                        "weight": 0,
+                        "weighted_score": 0,
+                        "evidence": f"표정 분포: {expr_text} (점수 미반영)",
+                        "confidence": 0,
+                    },
+                ],
+            )
+
+            answers_text = [
+                (turn.get("content") or "").strip()
+                for turn in turns
+                if _normalize_turn_role(turn.get("role")) == "user" and (turn.get("content") or "").strip()
+            ]
+            summary = gemini.analyze_nonverbal(answers_text, aggregates) if gemini else {"overall": "", "perAnswer": []}
+
+            self._service.save_recording_aggregates(session_id, aggregates)
+
+            report["nonverbalSummary"] = {
+                "overall": summary.get("overall", ""),
+                "perAnswer": summary.get("perAnswer", []),
+                "awayRatio": away_ratio,
+                "awaySegments": away_segments,
+                "expressionHistogram": expression_histogram,
+            }
+        except Exception:  # pragma: no cover - 비언어는 부가 기능, 메인 잡을 깨뜨리지 않는다
+            logger.exception("nonverbal analysis failed; continuing without it", extra={"session_id": session_id})
