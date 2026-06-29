@@ -68,3 +68,23 @@ export function buildAnswerSegments(
   }
   return segs;
 }
+
+export interface AnswerFinding {
+  strengths?: string[];
+  improvements?: string[];
+  refinedAnswer?: string | null;
+  followUpQuestion?: string | null;
+}
+
+export interface AnswerDetail {
+  segment: AnswerSegment;
+  finding?: AnswerFinding;
+}
+
+// 답변 구간(시간순)과 1-base findings 맵을 인덱스로 결합.
+export function buildAnswerDetails(
+  segments: AnswerSegment[],
+  findingsByOrder?: Record<number, AnswerFinding>,
+): AnswerDetail[] {
+  return segments.map((segment, i) => ({ segment, finding: findingsByOrder?.[i + 1] }));
+}
