@@ -878,11 +878,15 @@ export default function InterviewVideoRoomPage() {
       // 캘리브레이션 베이스라인이 있을 때만 얼굴 캡처 시작(건너뛰기/불가 → 캡처 없음, 면접 영향 없음).
       // 공유 스트림(recordingVideoStreamRef)을 숨김 video 에 물려 MediaPipe 입력으로만 쓴다.
       if (faceBaseline && recordingVideoStreamRef.current && faceVideoRef.current) {
-        faceVideoRef.current.srcObject = recordingVideoStreamRef.current;
-        await faceVideoRef.current.play().catch(() => undefined);
-        await face.ensureLandmarker();
-        face.setBaseline(faceBaseline);
-        void face.start(faceVideoRef.current);
+        try {
+          faceVideoRef.current.srcObject = recordingVideoStreamRef.current;
+          await faceVideoRef.current.play().catch(() => undefined);
+          await face.ensureLandmarker();
+          face.setBaseline(faceBaseline);
+          void face.start(faceVideoRef.current);
+        } catch {
+          /* 캡처 실패는 면접에 영향 없음 — 무시 */
+        }
       }
     })();
 
