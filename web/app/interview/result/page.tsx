@@ -1099,6 +1099,7 @@ export default function InterviewResultPage() {
   const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [blogsLoading, setBlogsLoading] = useState(true);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingDurationMs, setRecordingDurationMs] = useState(0);
   const [segments, setSegments] = useState<import("@/lib/interview/report/answer-segments").AnswerSegment[]>([]);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
 
@@ -1113,6 +1114,7 @@ export default function InterviewResultPage() {
         const json = await res.json();
         if (!cancelled && json?.success && json.data?.url) {
           setRecordingUrl(json.data.url as string);
+          setRecordingDurationMs(Number(json.data.durationMs) || 0);
         }
       } catch {
         /* 녹화 없으면 무시 */
@@ -1128,24 +1130,17 @@ export default function InterviewResultPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [segRes, recRes] = await Promise.all([
-          fetch(`/api/interview/sessions/${resolvedSessionId}/segments`, { cache: "no-store" }),
-          fetch(`/api/interview/sessions/${resolvedSessionId}/recording`, { cache: "no-store" }),
-        ]);
+        const segRes = await fetch(`/api/interview/sessions/${resolvedSessionId}/segments`, { cache: "no-store" });
         const segJson = await segRes.json();
-        const recJson = await recRes.json();
-        if (cancelled || !segJson?.success || !recJson?.success || !recJson.data) return;
+        if (cancelled || !segJson?.success || !segJson.data?.anchorIso) return;
         const { buildAnswerSegments } = await import("@/lib/interview/report/answer-segments");
-        const durationMs = Number(recJson.data.durationMs) || 0;
-        const anchorIso = segJson.data.anchorIso ?? recJson.data.recordingStartedAt ?? null;
-        if (!anchorIso) return;
-        setSegments(buildAnswerSegments(segJson.data.turns, anchorIso, durationMs));
+        setSegments(buildAnswerSegments(segJson.data.turns, segJson.data.anchorIso, recordingDurationMs));
       } catch {
         /* 구간 없으면 통영상만 표시 */
       }
     })();
     return () => { cancelled = true; };
-  }, [resolvedSessionId, recordingUrl]);
+  }, [resolvedSessionId, recordingUrl, recordingDurationMs]);
 
   // 녹화가 있을 때만 영상 섹션을 목차/스크롤스파이 멤버로 등록(타임라인 섹션 바로 앞).
   const reportSections = useMemo(
@@ -1361,8 +1356,11 @@ export default function InterviewResultPage() {
   }, [effectiveAnalysis, hasMinimalReportData, hasOfficialReportData, sessionDetail]);
 
   // 답변 구간(Q1..) 순서 → 질문별 분석의 개선점 매핑. 영상 우측 스크립트 패널에서 사용.
+  // 빈 placeholder findings 를 앱 다른 곳(리포트 어댑터)과 동일하게 필터해 순서 정합을 맞춘다.
   const recordingFeedbackByOrder = useMemo(() => {
-    const findings = (sessionDetail?.report_view?.questionFindings ?? []) as Array<{ improvements?: string[] }>;
+    const findings = (sessionDetail?.report_view?.questionFindings ?? []).filter(
+      (f) => String(f?.question || f?.userAnswer || "").trim().length > 0,
+    );
     const map: Record<number, { improvements?: string[] }> = {};
     findings.forEach((f, i) => { map[i + 1] = { improvements: f.improvements }; });
     return map;
