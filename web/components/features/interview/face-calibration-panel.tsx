@@ -19,12 +19,18 @@ interface FaceCalibrationPanelProps {
 type Pose = "front" | "left" | "right";
 const POSES: Pose[] = ["front", "left", "right"];
 const POSE_LABEL: Record<Pose, string> = { front: "정면", left: "좌측", right: "우측" };
-const HOLD_MS = 500; // 좌/우 포즈 유지 확인 시간
+const HOLD_MS = 500; // 좌/우 목표 yaw 유지 확인 시간
+const YAW_TH = 12; // 정면 기준 좌/우로 인정할 yaw 편차(도)
+const STEP_TIMEOUT_MS = 4000; // 한 측면에서 유효한 회전이 안 잡히면 그레이스풀하게 통과
+// 물리적 좌회전 시 yaw 부호는 MediaPipe 좌표 규약에 따라 다르다. 카메라를 여기서 돌려볼 수 없어
+// 단일 상수로 정의하고, 브라우저에서 검증 후 반대면 부호를 뒤집는다.
+const POSE_SIGN: Record<Pose, number> = { front: 0, left: -1, right: 1 }; // verify in browser; flip if reversed
 
 /**
  * 셋업 단계 얼굴 캘리브레이션(정면 → 좌 → 우).
  * - 정면: useFaceCapture().calibrate(video) 로 시선/머리자세 기준값(baseline) 캡처 → 스토어에 저장.
- * - 좌/우: 트래킹 확인용 가이드 단계 — 포즈 유지 ~0.5s 후 자동 확정.
+ * - 좌/우: 실제 head-yaw 감지 — 기준 yaw0 대비 목표 방향으로 ~12° 이상 ~0.5s 유지 시 자동 확정.
+ *   4초 내 유효 회전 미감지/얼굴 미인식 시 그레이스풀하게 unavailable 로 통과(게이트 막힘 방지).
  * - 카메라 미지원/거부 OR baseline 미확보 → 자동 unavailable. 항상 건너뛰기 가능.
  * 실제 카메라 동작은 본 면접 진입 전 별도 검증(Task 8). 여기선 그레이스풀 디그레이드만 보장.
  */
@@ -41,12 +47,17 @@ export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }:
   const setBaselineRef = useRef(setFaceBaseline);
   setBaselineRef.current = setFaceBaseline;
   const holdTimerRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
   const runningRef = useRef(false);
 
   const clearHoldTimer = useCallback(() => {
     if (holdTimerRef.current != null) {
       window.clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
+    }
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
   }, []);
 
@@ -63,23 +74,49 @@ export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }:
     finalize("unavailable");
   }, [finalize]);
 
-  // 좌/우 트래킹 확인 단계 — 포즈 유지 ~0.5s 후 자동 확정.
+  // 좌/우 실제 head-yaw 감지 단계 — 기준 yaw0 대비 목표 방향으로 YAW_TH 이상 HOLD_MS 유지 시 자동 확정.
+  // 4초 내 유효 회전 미감지/얼굴 미인식 → markUnavailable 로 그레이스풀 통과(게이트 막힘 방지).
   const runConfirmStep = useCallback((index: number) => {
     const pose = POSES[index];
-    setMessage(`${POSE_LABEL[pose]}을(를) 바라봐 주세요 — 잠시 유지하면 자동으로 넘어갑니다.`);
+    setMessage(`고개를 ${POSE_LABEL[pose]}으로 돌려 주세요 — 잠시 유지하면 자동으로 넘어갑니다.`);
     clearHoldTimer();
-    holdTimerRef.current = window.setTimeout(() => {
-      if (!runningRef.current) return;
-      const nextIndex = index + 1;
-      if (nextIndex >= POSES.length) {
-        setMessage("캘리브레이션 완료 — 시선·머리자세 기준이 저장되었습니다.");
-        finalize("done");
+
+    const yaw0 = face.getBaseline()?.yaw0 ?? 0;
+    const sign = POSE_SIGN[pose];
+    const stepStart = performance.now();
+    let holdStart: number | null = null;
+
+    const poll = () => {
+      if (!runningRef.current || !videoEl) return;
+
+      const now = performance.now();
+      if (now - stepStart > STEP_TIMEOUT_MS) {
+        markUnavailable("고개 돌림이 감지되지 않았습니다 — 음성으로 진행됩니다. 필요하면 다시 시도하세요.");
         return;
       }
-      setPoseIndex(nextIndex);
-      runConfirmStep(nextIndex);
-    }, HOLD_MS);
-  }, [clearHoldTimer, finalize]);
+
+      const p = face.readPose(videoEl);
+      const dev = p ? (p.yaw - yaw0) * sign : -Infinity; // 목표 방향 편차(도). 양수일수록 충분히 돌아감.
+      if (dev > YAW_TH) {
+        if (holdStart == null) holdStart = now;
+        if (now - holdStart >= HOLD_MS) {
+          const nextIndex = index + 1;
+          if (nextIndex >= POSES.length) {
+            setMessage("캘리브레이션 완료 — 시선·머리자세 기준이 저장되었습니다.");
+            finalize("done");
+            return;
+          }
+          setPoseIndex(nextIndex);
+          runConfirmStep(nextIndex);
+          return;
+        }
+      } else {
+        holdStart = null; // 목표 미달이면 유지 타이머 리셋
+      }
+      rafRef.current = requestAnimationFrame(poll);
+    };
+    rafRef.current = requestAnimationFrame(poll);
+  }, [clearHoldTimer, face, finalize, markUnavailable, videoEl]);
 
   const startCalibration = useCallback(async () => {
     if (runningRef.current) return;
@@ -128,6 +165,14 @@ export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }:
       clearHoldTimer();
     };
   }, [clearHoldTimer]);
+
+  // 카메라가 꺼진 채 아직 시작 전이면(음성 전용 사용자) 굳이 '건너뛰기'를 누르지 않아도
+  // 자동으로 unavailable 을 emit 해 시작 게이트가 pending 에 묶이지 않게 한다.
+  useEffect(() => {
+    if (status === "idle" && !cameraOn) {
+      markUnavailable("카메라가 꺼져 있어 얼굴 분석을 사용할 수 없습니다 — 음성으로 진행됩니다.");
+    }
+  }, [cameraOn, status, markUnavailable]);
 
   const isRunning = status === "running";
   const isDone = status === "done";
