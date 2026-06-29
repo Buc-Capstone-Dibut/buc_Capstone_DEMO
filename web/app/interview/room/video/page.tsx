@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, CameraOff, Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
+import { AlertCircle, Camera, CameraOff, Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { InterviewDeviceCheck } from "@/components/features/interview/interview-device-check";
 import dynamic from "next/dynamic";
@@ -216,6 +216,10 @@ export default function InterviewVideoRoomPage() {
   const [deviceMicReady, setDeviceMicReady] = useState(false);
   // 준비 화면의 카메라 토글 선택이 본 면접 화면의 카메라 초기 상태로 이어진다. 기본 꺼짐.
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
+  // 녹화 동의 — 기본 미체크(opt-in). 동의해야 신규 면접 시작 가능.
+  const [recordingConsent, setRecordingConsent] = useState(false);
+  // 얼굴 캘리브레이션 확정 상태 — done|skipped|unavailable 모두 시작 게이트 통과(건너뛰기/불가 허용).
+  const [calibrationStatus, setCalibrationStatus] = useState<"pending" | "done" | "skipped" | "unavailable">("pending");
   // 재접속/이어하기 감지: 이미 진행 중(in_progress)인 세션이면 기기 점검을 건너뛴다.
   const [resumeState, setResumeState] = useState<"unknown" | "fresh" | "resume">(
     requestedSessionId ? "unknown" : "fresh",
@@ -1467,7 +1471,24 @@ export default function InterviewVideoRoomPage() {
                 <InterviewDeviceCheck
                   onMicReady={setDeviceMicReady}
                   onCameraPreferenceChange={setIsCameraEnabled}
+                  onCalibrationChange={setCalibrationStatus}
                 />
+
+                {/* 녹화 동의 — 단일 동의 지점(중앙화). 기본 미체크. 거절 경로(음성만)도 동등하게 안내. */}
+                <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-2xl border border-border bg-card p-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={recordingConsent}
+                    onChange={(e) => setRecordingConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  />
+                  <span className="text-xs leading-relaxed text-foreground">
+                    이 면접은 영상·음성이 녹화되어 리포트 생성에만 사용됩니다.
+                    <span className="mt-1 block text-[11px] text-muted-foreground">
+                      동의하지 않아도 면접은 진행할 수 있습니다 — 카메라를 끄고 음성으로만 진행하세요.
+                    </span>
+                  </span>
+                </label>
 
                 <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <span
@@ -1480,19 +1501,27 @@ export default function InterviewVideoRoomPage() {
                   size="lg"
                   className="mt-5 w-full text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                   onClick={handlePrimeAudio}
-                  disabled={isPrimingAudio || !deviceMicReady}
+                  disabled={isPrimingAudio || !deviceMicReady || !recordingConsent || calibrationStatus === "pending"}
                 >
                   {isPrimingAudio ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                  {isPrimingAudio ? "준비 중..." : !deviceMicReady ? "마이크 확인 중..." : "면접 시작하기"}
+                  {isPrimingAudio ? "준비 중..." : "면접 시작하기"}
                 </Button>
-                <p className="mt-3 text-center text-[11px] text-muted-foreground">
-                  {isAudioPrimed
-                    ? "준비 완료 — 시작을 누르면 첫 질문이 바로 재생됩니다."
-                    : "시작을 누르면 첫 질문 음성이 바로 재생됩니다. (브라우저 자동재생 활성화)"}
-                </p>
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                  이 면접은 영상·음성이 녹화되어 리포트에 저장됩니다.
-                </p>
+                {(!deviceMicReady || !recordingConsent || calibrationStatus === "pending") ? (
+                  <p role="status" className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {!deviceMicReady
+                      ? "마이크 권한을 허용해 주세요."
+                      : !recordingConsent
+                        ? "녹화 동의에 체크하면 시작할 수 있습니다. (동의 없이는 카메라를 끄고 음성으로 진행)"
+                        : "얼굴 캘리브레이션을 완료하거나 건너뛰면 시작할 수 있습니다."}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                    {isAudioPrimed
+                      ? "준비 완료 — 시작을 누르면 첫 질문이 바로 재생됩니다."
+                      : "시작을 누르면 첫 질문 음성이 바로 재생됩니다. (브라우저 자동재생 활성화)"}
+                  </p>
+                )}
               </>
             )}
           </div>

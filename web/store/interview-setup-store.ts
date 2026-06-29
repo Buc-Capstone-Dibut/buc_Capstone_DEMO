@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Baseline } from '@/lib/interview/face/face-metrics';
 
 export type InterviewSetupStep =
   | 'target'     // Step 1: Target Position
@@ -163,6 +164,10 @@ interface InterviewSetupState {
   attachedPortfolios: PortfolioPrefill[];
   attachedProjects: ProjectPrefill[];
 
+  // Face calibration baseline captured at setup (정면 캘리브레이션) — 본 면접 화면(Task 6)에서
+  // useFaceCapture 에 주입할 시선/머리자세 기준값. 건너뛰기/불가 시 null.
+  faceBaseline: Baseline | null;
+
   // Actions
   setStep: (step: InterviewSetupStep) => void;
   setTarget: (url: string, category: string) => void;
@@ -175,6 +180,7 @@ interface InterviewSetupState {
   setAttachedPortfolios: (data: PortfolioPrefill[]) => void;
   setAttachedProjects: (data: ProjectPrefill[]) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
+  setFaceBaseline: (baseline: Baseline | null) => void;
   setResumePrefillSource: (
     source:
       | "active_resume"
@@ -199,6 +205,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       rolePrepData: null,
       attachedPortfolios: [],
       attachedProjects: [],
+      faceBaseline: null,
       setStep: (step) => set({ currentStep: step }),
       setTarget: (url, category) => set({ targetUrl: url, targetJobCategory: category }),
       setJobData: (data) => set({ jobData: data }),
@@ -219,6 +226,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
       setAttachedPortfolios: (data) => set({ attachedPortfolios: data }),
       setAttachedProjects: (data) => set({ attachedProjects: data }),
       setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
+      setFaceBaseline: (baseline) => set({ faceBaseline: baseline }),
       setResumePrefillSource: (source) => set({ resumePrefillSource: source }),
       completeSetup: () => set({ currentStep: 'complete' }),
       reset: () => set({
@@ -232,6 +240,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         rolePrepData: null,
         attachedPortfolios: [],
         attachedProjects: [],
+        faceBaseline: null,
       }),
     }),
     {
@@ -253,6 +262,7 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         rolePrepData: state.rolePrepData,
         attachedPortfolios: state.attachedPortfolios,
         attachedProjects: state.attachedProjects,
+        faceBaseline: state.faceBaseline,
       }),
     }
   )

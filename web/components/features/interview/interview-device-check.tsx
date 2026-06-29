@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, CameraOff, CheckCircle2, Loader2 } from "lucide-react";
+import { FaceCalibrationPanel } from "@/components/features/interview/face-calibration-panel";
 
 type MicStatus = "checking" | "ready" | "denied";
 type CameraStatus = "off" | "starting" | "on" | "error";
@@ -11,6 +12,8 @@ interface InterviewDeviceCheckProps {
   onMicReady?: (ready: boolean) => void;
   /** 카메라 토글 상태가 바뀔 때 호출 — 본 면접 화면의 카메라 초기 상태로 이어진다 */
   onCameraPreferenceChange?: (on: boolean) => void;
+  /** 얼굴 캘리브레이션 결과가 확정될 때 호출 — 부모의 '시작' 게이트에 사용 (done|skipped|unavailable) */
+  onCalibrationChange?: (status: "done" | "skipped" | "unavailable") => void;
 }
 
 /**
@@ -19,8 +22,15 @@ interface InterviewDeviceCheckProps {
  * - 카메라는 기본 꺼짐(선택) — 사용자가 켜기 버튼으로 미리보기 테스트 가능
  * - 언마운트 시 모든 트랙을 정리해 실제 면접 파이프라인이 깨끗하게 장치를 잡도록 함
  */
-export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange }: InterviewDeviceCheckProps) {
+export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onCalibrationChange }: InterviewDeviceCheckProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // 캘리브레이션 패널은 공유 카메라의 <video> 엘리먼트가 필요하다. 콜백 ref 로 마운트 시점에
+  // state 로 끌어올려 패널이 calibrate(video) 에 그대로 사용하게 한다(새 getUserMedia 안 엶).
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const setVideoNode = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    setVideoEl(node);
+  }, []);
   const micStreamRef = useRef<MediaStream | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -172,11 +182,12 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange }: I
   const cameraOn = cameraStatus === "on";
 
   return (
+    <>
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       {/* 카메라 미리보기 (기본 꺼짐) */}
       <div className="relative flex aspect-video w-full items-center justify-center bg-muted/50">
         {cameraOn ? (
-          <video ref={videoRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
+          <video ref={setVideoNode} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             {cameraStatus === "starting" ? (
@@ -275,5 +286,9 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange }: I
         )}
       </div>
     </div>
+
+      {/* 얼굴 캘리브레이션(선택) — 공유 카메라의 <video> 를 그대로 사용. 새 getUserMedia 안 엶. */}
+      <FaceCalibrationPanel videoEl={videoEl} cameraOn={cameraOn} onCalibrationChange={onCalibrationChange} />
+    </>
   );
 }
