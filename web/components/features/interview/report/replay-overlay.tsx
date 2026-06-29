@@ -158,7 +158,8 @@ export function ReplayOverlay({ videoRef, samples }: Props) {
       rafHandle = window.requestAnimationFrame(() => {
         if (disposed) return;
         draw();
-        scheduleRAF();
+        // 일시정지 중에는 루프 중단(rVFC 시맨틱 모방). 재생 시 play 이벤트로 재개.
+        if (!video.paused) scheduleRAF();
       });
     };
 
@@ -166,6 +167,12 @@ export function ReplayOverlay({ videoRef, samples }: Props) {
     const onStatic = () => draw();
     video.addEventListener("seeked", onStatic);
     video.addEventListener("pause", onStatic);
+
+    // rAF 폴백에서만: 재생 시작 시 루프 재개. + 첫 프레임(일시정지) 주석.
+    const onPlay = () => scheduleRAF();
+    const onLoadedData = () => draw();
+    if (!supportsRVFC) video.addEventListener("play", onPlay);
+    video.addEventListener("loadeddata", onLoadedData);
 
     const ro = new ResizeObserver(() => draw());
     ro.observe(canvas);
@@ -182,6 +189,8 @@ export function ReplayOverlay({ videoRef, samples }: Props) {
       if (rafHandle !== null) window.cancelAnimationFrame(rafHandle);
       video.removeEventListener("seeked", onStatic);
       video.removeEventListener("pause", onStatic);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("loadeddata", onLoadedData);
       ro.disconnect();
     };
   }, [videoRef, samples]);
