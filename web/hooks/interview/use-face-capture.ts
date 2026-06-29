@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   gazeFromBlendshapes, headPoseFromMatrix, calibrateBaseline, isLookingAway, expressionLabel,
   type Baseline, type FaceSample, type Blendshapes,
@@ -15,17 +15,35 @@ export function useFaceCapture() {
   const t0Ref = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
+  const cancelRaf = useCallback(() => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cancelRaf();
+      try { (lmRef.current as { close?: () => void } | null)?.close?.(); } catch { /* ignore */ }
+      lmRef.current = null;
+    };
+  }, [cancelRaf]);
+
   const ensureLandmarker = useCallback(async () => {
     if (lmRef.current) return lmRef.current;
     const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
     const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-    lmRef.current = await FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task", delegate: "GPU" },
-      runningMode: "VIDEO",
+    const opts = {
+      baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task", delegate: "GPU" as const },
+      runningMode: "VIDEO" as const,
       numFaces: 1,
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
-    });
+    };
+    try {
+      lmRef.current = await FaceLandmarker.createFromOptions(fileset, opts);
+    } catch {
+      lmRef.current = await FaceLandmarker.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate: "CPU" as const } });
+    }
     return lmRef.current;
   }, []);
 
@@ -44,6 +62,7 @@ export function useFaceCapture() {
 
   const calibrate = useCallback(async (video: HTMLVideoElement): Promise<boolean> => {
     await ensureLandmarker();
+    cancelRaf();
     const frames: Array<{ gazeX: number; gazeY: number; yaw: number; pitch: number }> = [];
     const end = performance.now() + 1500;
     return new Promise((resolve) => {
@@ -55,10 +74,11 @@ export function useFaceCapture() {
       };
       rafRef.current = requestAnimationFrame(tick);
     });
-  }, [ensureLandmarker, readFrame]);
+  }, [ensureLandmarker, readFrame, cancelRaf]);
 
   const start = useCallback(async (video: HTMLVideoElement | null) => {
     if (!video || !lmRef.current || !baselineRef.current) return;
+    cancelRaf();
     samplesRef.current = [];
     t0Ref.current = performance.now();
     let last = 0;
@@ -75,7 +95,7 @@ export function useFaceCapture() {
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
-  }, [readFrame]);
+  }, [readFrame, cancelRaf]);
 
   const stop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -83,5 +103,10 @@ export function useFaceCapture() {
     return { sampleRateHz: 5, samples: samplesRef.current, baseline: baselineRef.current };
   }, []);
 
-  return { ensureLandmarker, calibrate, start, stop, getBaseline: () => baselineRef.current };
+  const getBaseline = useCallback(() => baselineRef.current, []);
+
+  return useMemo(
+    () => ({ ensureLandmarker, calibrate, start, stop, getBaseline }),
+    [ensureLandmarker, calibrate, start, stop, getBaseline],
+  );
 }
