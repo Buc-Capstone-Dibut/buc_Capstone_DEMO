@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, CheckCircle2, Loader2, ScanFace } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, ScanFace } from "lucide-react";
 import { useFaceCapture } from "@/hooks/interview/use-face-capture";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
+import { calibrateBaseline } from "@/lib/interview/face/face-metrics";
 
 export type FaceCalibrationStatus = "idle" | "running" | "done" | "skipped" | "unavailable";
 
 interface FaceCalibrationPanelProps {
-  /** 셋업에서 이미 켜둔 공유 카메라의 video 엘리먼트. MediaPipe calibrate(video) 에 사용 — 새 getUserMedia 를 열지 않는다. */
+  /** 셋업에서 이미 켜둔 공유 카메라의 video 엘리먼트 — 이 스트림을 패널 미리보기에 공유(새 getUserMedia 없음). */
   videoEl: HTMLVideoElement | null;
   /** 공유 카메라가 켜져 미리보기가 살아있는지 여부 */
   cameraOn: boolean;
@@ -16,231 +17,314 @@ interface FaceCalibrationPanelProps {
   onCalibrationChange?: (status: "done" | "skipped" | "unavailable") => void;
 }
 
-type Pose = "front" | "left" | "right";
-const POSES: Pose[] = ["front", "left", "right"];
-const POSE_LABEL: Record<Pose, string> = { front: "정면", left: "좌측", right: "우측" };
-const HOLD_MS = 500; // 좌/우 목표 yaw 유지 확인 시간
-const YAW_TH = 12; // 정면 기준 좌/우로 인정할 yaw 편차(도)
-const STEP_TIMEOUT_MS = 4000; // 한 측면에서 유효한 회전이 안 잡히면 그레이스풀하게 통과
-// 물리적 좌회전 시 yaw 부호는 MediaPipe 좌표 규약에 따라 다르다. 카메라를 여기서 돌려볼 수 없어
-// 단일 상수로 정의하고, 브라우저에서 검증 후 반대면 부호를 뒤집는다.
-const POSE_SIGN: Record<Pose, number> = { front: 0, left: -1, right: 1 }; // verify in browser; flip if reversed
+type Step = "front" | "left" | "right";
+const STEP_LABEL: Record<Step, string> = { front: "정면", left: "좌측", right: "우측" };
+
+// 느슨한 감지 파라미터 — 통과가 쉬워야 UX가 산다. (정밀도는 분석 단계가 아님)
+const FRONT_HOLD_MS = 1200; // 정면 유지 시간(진행 바가 차오르는 시간)
+const SIDE_HOLD_MS = 400; // 좌/우 회전 유지 시간
+const SIDE_YAW_TH = 8; // 좌/우로 인정할 yaw 편차(도) — 8°면 살짝만 돌려도 잡힌다
+const SIDE_TIMEOUT_MS = 12000; // 이 시간 동안 못 잡으면 "이 단계 생략" 안내(실패 아님)
+const POLL_MS = 120; // 라이브 감지 주기
 
 /**
- * 셋업 단계 얼굴 캘리브레이션(정면 → 좌 → 우).
- * - 정면: useFaceCapture().calibrate(video) 로 시선/머리자세 기준값(baseline) 캡처 → 스토어에 저장.
- * - 좌/우: 실제 head-yaw 감지 — 기준 yaw0 대비 목표 방향으로 ~12° 이상 ~0.5s 유지 시 자동 확정.
- *   4초 내 유효 회전 미감지/얼굴 미인식 시 그레이스풀하게 unavailable 로 통과(게이트 막힘 방지).
- * - 카메라 미지원/거부 OR baseline 미확보 → 자동 unavailable. 항상 건너뛰기 가능.
- * 실제 카메라 동작은 본 면접 진입 전 별도 검증(Task 8). 여기선 그레이스풀 디그레이드만 보장.
+ * 셋업 얼굴 캘리브레이션 — 인터랙티브:
+ * - 카메라가 켜지면 즉시 MediaPipe를 프리로드하고 라이브 감지 시작 → 오벌이 라임으로 변하며 "얼굴 인식됨" 연출.
+ * - 정면: 얼굴을 유지하면 진행 바가 차오르고, 다 차면 baseline 저장.
+ * - 좌/우: 어느 방향이든 |yaw 편차| > 8° 회전을 감지 — 첫 회전의 부호를 기록하고 반대쪽은 반대 부호를 요구
+ *   (미러 미리보기/MediaPipe 부호 규약 차이를 자동 흡수). 12초 내 미감지 시 "이 단계 생략하고 완료" 제공.
+ * - 정면 baseline만 있으면 분석이 가능하므로 좌/우는 트래킹 확인용 — 생략해도 done.
  */
 export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }: FaceCalibrationPanelProps) {
   const face = useFaceCapture();
   const setFaceBaseline = useInterviewSetupStore((s) => s.setFaceBaseline);
 
   const [status, setStatus] = useState<FaceCalibrationStatus>("idle");
-  const [poseIndex, setPoseIndex] = useState(0);
-  const [message, setMessage] = useState("정면을 바라본 뒤 캘리브레이션을 시작하세요.");
+  const [step, setStep] = useState<Step>("front");
+  const [message, setMessage] = useState("카메라를 켜고 가이드 안에 얼굴을 맞춰 주세요.");
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
+  const [progress, setProgress] = useState(0); // 0~1, 현재 단계 유지 진행도
+  const [liveYawDev, setLiveYawDev] = useState(0); // 좌/우 단계 실시간 편차(연출용)
+  const [sideStuck, setSideStuck] = useState(false); // 좌/우 장시간 미감지 → 생략 버튼 강조
 
+  const previewRef = useRef<HTMLVideoElement | null>(null);
   const onChangeRef = useRef(onCalibrationChange);
   onChangeRef.current = onCalibrationChange;
   const setBaselineRef = useRef(setFaceBaseline);
   setBaselineRef.current = setFaceBaseline;
-  const holdTimerRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const runningRef = useRef(false);
 
-  const clearHoldTimer = useCallback(() => {
-    if (holdTimerRef.current != null) {
-      window.clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+  const pollRef = useRef<number | null>(null);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  // 진행 상태(리렌더 없이 폴링 루프에서 사용)
+  const holdStartRef = useRef<number | null>(null);
+  const frontFramesRef = useRef<Array<{ gazeX: number; gazeY: number; yaw: number; pitch: number }>>([]);
+  const yaw0Ref = useRef(0);
+  const sideSignRef = useRef<number | null>(null); // 첫 측면 회전에서 기록한 부호
+  const sideStartRef = useRef<number>(0);
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current != null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
     }
   }, []);
 
-  const finalize = useCallback((next: "done" | "skipped" | "unavailable") => {
-    runningRef.current = false;
-    clearHoldTimer();
-    setStatus(next);
-    onChangeRef.current?.(next);
-  }, [clearHoldTimer]);
+  const finalize = useCallback(
+    (next: "done" | "skipped" | "unavailable", msg: string) => {
+      stopPoll();
+      setProgress(0);
+      setSideStuck(false);
+      setMessage(msg);
+      setStatus(next);
+      onChangeRef.current?.(next);
+    },
+    [stopPoll],
+  );
 
-  const markUnavailable = useCallback((reason: string) => {
-    setBaselineRef.current(null);
-    setMessage(reason);
-    finalize("unavailable");
+  // 좌/우 확인을 생략하고 완료 — baseline은 이미 있으므로 분석 가능.
+  const completeWithBaseline = useCallback(() => {
+    finalize("done", "캘리브레이션 완료 — 기준값이 저장되었습니다.");
   }, [finalize]);
-
-  // 좌/우 실제 head-yaw 감지 단계 — 기준 yaw0 대비 목표 방향으로 YAW_TH 이상 HOLD_MS 유지 시 자동 확정.
-  // 4초 내 유효 회전 미감지/얼굴 미인식 → markUnavailable 로 그레이스풀 통과(게이트 막힘 방지).
-  const runConfirmStep = useCallback((index: number) => {
-    const pose = POSES[index];
-    setMessage(`고개를 ${POSE_LABEL[pose]}으로 돌려 주세요 — 잠시 유지하면 자동으로 넘어갑니다.`);
-    clearHoldTimer();
-
-    const yaw0 = face.getBaseline()?.yaw0 ?? 0;
-    const sign = POSE_SIGN[pose];
-    const stepStart = performance.now();
-    let holdStart: number | null = null;
-
-    const poll = () => {
-      if (!runningRef.current || !videoEl) return;
-
-      const now = performance.now();
-      if (now - stepStart > STEP_TIMEOUT_MS) {
-        markUnavailable("고개 돌림이 감지되지 않았습니다 — 음성으로 진행됩니다. 필요하면 다시 시도하세요.");
-        return;
-      }
-
-      const p = face.readPose(videoEl);
-      const dev = p ? (p.yaw - yaw0) * sign : -Infinity; // 목표 방향 편차(도). 양수일수록 충분히 돌아감.
-      if (dev > YAW_TH) {
-        if (holdStart == null) holdStart = now;
-        if (now - holdStart >= HOLD_MS) {
-          const nextIndex = index + 1;
-          if (nextIndex >= POSES.length) {
-            setMessage("캘리브레이션 완료 — 시선·머리자세 기준이 저장되었습니다.");
-            finalize("done");
-            return;
-          }
-          setPoseIndex(nextIndex);
-          runConfirmStep(nextIndex);
-          return;
-        }
-      } else {
-        holdStart = null; // 목표 미달이면 유지 타이머 리셋
-      }
-      rafRef.current = requestAnimationFrame(poll);
-    };
-    rafRef.current = requestAnimationFrame(poll);
-  }, [clearHoldTimer, face, finalize, markUnavailable, videoEl]);
-
-  const startCalibration = useCallback(async () => {
-    if (runningRef.current) return;
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      markUnavailable("이 브라우저는 얼굴 분석을 지원하지 않습니다 — 음성으로 진행됩니다.");
-      return;
-    }
-    if (!cameraOn || !videoEl) {
-      markUnavailable("카메라가 꺼져 있어 얼굴 분석을 사용할 수 없습니다 — 음성으로 진행됩니다.");
-      return;
-    }
-
-    runningRef.current = true;
-    setStatus("running");
-    setPoseIndex(0);
-    setMessage("정면을 바라본 채로 잠시 기다려 주세요 — 기준값을 측정 중입니다.");
-
-    let ok = false;
-    try {
-      ok = await face.calibrate(videoEl);
-    } catch {
-      ok = false;
-    }
-    if (!runningRef.current) return; // 도중 건너뛰기/언마운트
-    if (!ok) {
-      markUnavailable("얼굴을 인식하지 못했습니다 — 음성으로 진행됩니다. 필요하면 다시 시도하세요.");
-      return;
-    }
-
-    setBaselineRef.current(face.getBaseline());
-    // 정면(index 0) 확인 → 좌(1)부터 트래킹 확인 단계 진행.
-    setPoseIndex(1);
-    runConfirmStep(1);
-  }, [cameraOn, face, markUnavailable, runConfirmStep, videoEl]);
 
   const skip = useCallback(() => {
     setBaselineRef.current(null);
-    setMessage("얼굴 분석을 건너뛰었습니다 — 음성으로 진행됩니다.");
-    finalize("skipped");
+    finalize("skipped", "얼굴 분석을 건너뛰었습니다 — 음성 중심으로 진행됩니다.");
   }, [finalize]);
 
-  // 언마운트 시 진행 중 루프/타이머 정리
+  // ── 라이브 감지 + 단계 진행 (단일 폴링 루프) ─────────────────────────────
   useEffect(() => {
-    return () => {
-      runningRef.current = false;
-      clearHoldTimer();
-    };
-  }, [clearHoldTimer]);
+    if (!cameraOn || !videoEl) return;
+    let cancelled = false;
 
-  // 카메라가 꺼진 채 아직 시작 전이면(음성 전용 사용자) 굳이 '건너뛰기'를 누르지 않아도
-  // 자동으로 unavailable 을 emit 해 시작 게이트가 pending 에 묶이지 않게 한다.
+    // MediaPipe 프리로드: 시작 버튼을 누르기 전에 미리 초기화해 "첫 시도 실패"를 없앤다.
+    void face
+      .ensureLandmarker()
+      .then(() => {
+        if (!cancelled) setEngineReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBaselineRef.current(null);
+          finalize("unavailable", "얼굴 분석 엔진을 불러오지 못했습니다 — 음성으로 진행됩니다.");
+        }
+      });
+
+    const tick = () => {
+      const st = statusRef.current;
+      if (st === "done" || st === "skipped" || st === "unavailable") return;
+      const src = previewRef.current && previewRef.current.videoWidth > 0 ? previewRef.current : videoEl;
+      if (!src || src.videoWidth === 0) return;
+
+      const pose = face.readPose(src);
+      setFaceDetected(!!pose);
+      if (!pose) {
+        holdStartRef.current = null;
+        setProgress(0);
+        return;
+      }
+
+      const now = performance.now();
+      if (st === "running") {
+        const cur = stepRef.current;
+        if (cur === "front") {
+          frontFramesRef.current.push(pose);
+          if (holdStartRef.current == null) holdStartRef.current = now;
+          const held = now - holdStartRef.current;
+          setProgress(Math.min(held / FRONT_HOLD_MS, 1));
+          if (held >= FRONT_HOLD_MS && frontFramesRef.current.length >= 4) {
+            const base = calibrateBaseline(frontFramesRef.current);
+            face.setBaseline(base);
+            setBaselineRef.current(base);
+            yaw0Ref.current = base.yaw0;
+            holdStartRef.current = null;
+            setProgress(0);
+            sideSignRef.current = null;
+            sideStartRef.current = now;
+            setSideStuck(false);
+            setStep("left");
+            setMessage("이제 고개를 왼쪽으로 살짝 돌려 주세요.");
+          }
+        } else {
+          // 좌/우: 부호 자동 감지 — left 는 아무 방향이나 8° 이상, right 는 그 반대 부호.
+          const dev = pose.yaw - yaw0Ref.current;
+          setLiveYawDev(dev);
+          const need = cur === "left" ? null : sideSignRef.current == null ? null : -sideSignRef.current;
+          const passes = Math.abs(dev) > SIDE_YAW_TH && (need == null || Math.sign(dev) === need);
+          if (passes) {
+            if (holdStartRef.current == null) holdStartRef.current = now;
+            const held = now - holdStartRef.current;
+            setProgress(Math.min(held / SIDE_HOLD_MS, 1));
+            if (held >= SIDE_HOLD_MS) {
+              holdStartRef.current = null;
+              setProgress(0);
+              if (cur === "left") {
+                sideSignRef.current = Math.sign(dev);
+                sideStartRef.current = now;
+                setSideStuck(false);
+                setStep("right");
+                setMessage("좋아요. 이번엔 반대쪽으로 돌려 주세요.");
+              } else {
+                completeWithBaseline();
+              }
+            }
+          } else {
+            holdStartRef.current = null;
+            setProgress(0);
+          }
+          if (now - sideStartRef.current > SIDE_TIMEOUT_MS) setSideStuck(true);
+        }
+      }
+    };
+
+    pollRef.current = window.setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      stopPoll();
+    };
+  }, [cameraOn, videoEl, face, finalize, completeWithBaseline, stopPoll]);
+
+  // 패널 자체 미러 미리보기 — 공유 스트림을 연결(가이드에 얼굴을 "맞출 수 있게").
+  useEffect(() => {
+    const pv = previewRef.current;
+    if (!pv) return;
+    if (cameraOn && videoEl?.srcObject) {
+      if (pv.srcObject !== videoEl.srcObject) pv.srcObject = videoEl.srcObject;
+      void pv.play().catch(() => undefined);
+    } else {
+      pv.srcObject = null;
+    }
+  }, [cameraOn, videoEl, videoEl?.srcObject]);
+
+  const startCalibration = useCallback(() => {
+    if (statusRef.current === "running") return;
+    if (!cameraOn || !videoEl) {
+      setBaselineRef.current(null);
+      finalize("unavailable", "카메라가 꺼져 있어 얼굴 분석을 사용할 수 없습니다 — 음성으로 진행됩니다.");
+      return;
+    }
+    frontFramesRef.current = [];
+    holdStartRef.current = null;
+    setProgress(0);
+    setSideStuck(false);
+    setStep("front");
+    setStatus("running");
+    setMessage("정면을 바라본 채 잠시 유지해 주세요 — 바가 차오르면 완료됩니다.");
+  }, [cameraOn, videoEl, finalize]);
+
+  // 카메라 꺼진 채 시작 전이면(음성 전용) 자동 unavailable — 게이트가 pending에 묶이지 않게.
   useEffect(() => {
     if (status === "idle" && !cameraOn) {
-      markUnavailable("카메라가 꺼져 있어 얼굴 분석을 사용할 수 없습니다 — 음성으로 진행됩니다.");
+      setBaselineRef.current(null);
+      finalize("unavailable", "카메라가 꺼져 있어 얼굴 분석을 사용할 수 없습니다 — 음성으로 진행됩니다.");
     }
-  }, [cameraOn, status, markUnavailable]);
+  }, [cameraOn, status, finalize]);
 
   const isRunning = status === "running";
   const isDone = status === "done";
   const isUnavailable = status === "unavailable";
   const isSkipped = status === "skipped";
   const settled = isDone || isUnavailable || isSkipped;
+  const isSide = isRunning && step !== "front";
 
-  // aria-live 상태 줄 아이콘 — 색상만으로 구분하지 않도록 항상 아이콘+텍스트 동반.
-  const StatusIcon = isDone
-    ? CheckCircle2
-    : isUnavailable
-      ? AlertCircle
-      : isRunning
-        ? Loader2
-        : isSkipped
-          ? Check
-          : ScanFace;
-  const statusTone = isDone
-    ? "text-primary"
-    : isUnavailable
-      ? "text-destructive"
-      : "text-muted-foreground";
+  const StatusIcon = isDone ? CheckCircle2 : isUnavailable ? AlertCircle : isRunning ? Loader2 : isSkipped ? Check : ScanFace;
+  const statusTone = isDone ? "text-primary" : isUnavailable ? "text-destructive" : "text-muted-foreground";
+  const steps: Step[] = ["front", "left", "right"];
+  const stepIdx = steps.indexOf(step);
 
   return (
     <div className="mt-4 rounded-2xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center gap-2">
         <ScanFace className="h-4 w-4 text-primary" />
         <h4 className="text-sm font-bold text-foreground">얼굴 캘리브레이션 (선택)</h4>
+        {cameraOn && !engineReady && !settled && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" /> 엔진 준비 중
+          </span>
+        )}
       </div>
 
-      {/* 카메라 미리보기 위 SVG 얼굴 가이드 오버레이 */}
-      <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-xl border border-border bg-muted/40">
-        {cameraOn && videoEl ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-medium text-muted-foreground">
-            가이드 안에 얼굴을 맞춰 주세요
-          </div>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-[11px] text-muted-foreground">
+      {/* 미러 미리보기 + 얼굴 가이드 + 라이브 인식 연출 */}
+      <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-xl border border-border bg-black/90">
+        <video
+          ref={previewRef}
+          muted
+          playsInline
+          autoPlay
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full scale-x-[-1] object-cover"
+        />
+        {!cameraOn && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/60 px-4 text-center text-[11px] text-muted-foreground">
             카메라를 켜면 얼굴 분석을 사용할 수 있어요 (선택)
           </div>
         )}
-        <svg
-          viewBox="0 0 160 90"
-          className="absolute inset-0 h-full w-full"
-          aria-hidden="true"
-          preserveAspectRatio="xMidYMid meet"
-        >
+
+        {/* 가이드 오벌 — 인식되면 라임 실선으로 살아난다 */}
+        <svg viewBox="0 0 160 90" className="absolute inset-0 h-full w-full" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
           <ellipse
             cx="80"
-            cy="45"
-            rx="26"
-            ry="34"
+            cy="46"
+            rx="27"
+            ry="35"
             fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeDasharray="4 3"
-            className={`transition-colors motion-reduce:transition-none ${isDone ? "text-primary" : isUnavailable ? "text-destructive/70" : "text-primary/60"}`}
+            strokeWidth={faceDetected ? 2.4 : 1.5}
+            strokeDasharray={faceDetected ? "none" : "4 3"}
+            className={`transition-all duration-200 motion-reduce:transition-none ${
+              faceDetected ? "stroke-[#82B84C] drop-shadow-[0_0_6px_rgba(130,184,76,0.8)]" : "stroke-white/60"
+            }`}
           />
         </svg>
+
+        {/* 인식 상태 칩 (좌상단) */}
+        {cameraOn && (
+          <span
+            className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors motion-reduce:transition-none ${
+              faceDetected ? "bg-primary text-primary-foreground" : "bg-black/55 text-white/85"
+            }`}
+          >
+            {faceDetected ? <Check className="h-3 w-3" /> : <ScanFace className="h-3 w-3" />}
+            {faceDetected ? "얼굴 인식됨" : engineReady ? "가이드에 얼굴을 맞춰 주세요" : "인식 준비 중..."}
+          </span>
+        )}
+
+        {/* 진행 바 (하단) — 유지 시간이 차오르는 연출 */}
+        {isRunning && (
+          <div className="absolute inset-x-3 bottom-2 h-1.5 overflow-hidden rounded-full bg-white/25">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear motion-reduce:transition-none"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
+          </div>
+        )}
+
+        {/* 좌/우 단계: 방향 화살표 + 실시간 반응 연출 */}
+        {isSide && (
+          <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-3" aria-hidden="true">
+            <ArrowLeft
+              className={`h-7 w-7 transition-all motion-reduce:transition-none ${
+                step === "left" ? "text-primary drop-shadow-[0_0_4px_rgba(130,184,76,0.9)]" : "text-white/25"
+              } ${step === "left" && Math.abs(liveYawDev) > SIDE_YAW_TH / 2 ? "scale-125" : ""}`}
+            />
+            <ArrowRight
+              className={`h-7 w-7 transition-all motion-reduce:transition-none ${
+                step === "right" ? "text-primary drop-shadow-[0_0_4px_rgba(130,184,76,0.9)]" : "text-white/25"
+              } ${step === "right" && Math.abs(liveYawDev) > SIDE_YAW_TH / 2 ? "scale-125" : ""}`}
+            />
+          </div>
+        )}
       </div>
 
-      {/* 3단계 인디케이터 (정면/좌/우) — 텍스트 라벨 + 아이콘으로 상태 표시 */}
+      {/* 3단계 인디케이터 */}
       <ol className="mb-3 flex items-center justify-center gap-2" aria-label="캘리브레이션 단계">
-        {POSES.map((pose, i) => {
-          const current = isRunning && i === poseIndex;
-          const complete = isDone || (isRunning && i < poseIndex);
+        {steps.map((s, i) => {
+          const current = isRunning && i === stepIdx;
+          const complete = isDone || (isRunning && i < stepIdx);
           return (
-            <li key={pose} className="flex items-center gap-2">
+            <li key={s} className="flex items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors motion-reduce:transition-none ${
                   complete
@@ -251,39 +335,49 @@ export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }:
                 }`}
               >
                 {complete ? <Check className="h-3 w-3" /> : current ? <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : null}
-                {POSE_LABEL[pose]}
+                {STEP_LABEL[s]}
               </span>
-              {i < POSES.length - 1 && <span className="h-px w-3 bg-border" aria-hidden="true" />}
+              {i < steps.length - 1 && <span className="h-px w-3 bg-border" aria-hidden="true" />}
             </li>
           );
         })}
       </ol>
 
-      {/* 상태 줄 — 아이콘 + 텍스트 (색상 단독 의존 금지, WCAG 1.4.1) */}
+      {/* 상태 줄 — 아이콘 + 텍스트 (WCAG 1.4.1) */}
       <p aria-live="polite" className={`mb-3 flex items-center justify-center gap-2 text-center text-xs ${statusTone}`}>
         <StatusIcon className={`h-4 w-4 shrink-0 ${isRunning ? "animate-spin motion-reduce:animate-none" : ""}`} />
         <span>{message}</span>
       </p>
 
-      <div className="flex items-center justify-center gap-2">
-        {!settled && (
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {!settled && !isRunning && (
           <button
             type="button"
-            onClick={() => void startCalibration()}
-            disabled={isRunning}
+            onClick={startCalibration}
+            disabled={cameraOn && !engineReady}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 motion-reduce:transition-none"
           >
-            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" /> : <ScanFace className="h-3.5 w-3.5" />}
-            {isRunning ? "측정 중..." : "캘리브레이션 시작"}
+            <ScanFace className="h-3.5 w-3.5" />
+            캘리브레이션 시작
           </button>
         )}
-        {(isUnavailable || isSkipped) && (
+        {/* 좌/우가 오래 안 잡히면: 실패가 아니라 "생략하고 완료" (baseline 은 이미 확보) */}
+        {isSide && sideStuck && (
+          <button
+            type="button"
+            onClick={completeWithBaseline}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20 motion-reduce:transition-none"
+          >
+            <Check className="h-3.5 w-3.5" />
+            이 단계 생략하고 완료
+          </button>
+        )}
+        {(isUnavailable || isSkipped) && cameraOn && (
           <button
             type="button"
             onClick={() => {
               setStatus("idle");
-              setMessage("정면을 바라본 뒤 캘리브레이션을 시작하세요.");
-              void startCalibration();
+              setMessage("카메라를 켜고 가이드 안에 얼굴을 맞춰 주세요.");
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-muted motion-reduce:transition-none"
           >
@@ -291,7 +385,6 @@ export function FaceCalibrationPanel({ videoEl, cameraOn, onCalibrationChange }:
             다시 시도
           </button>
         )}
-        {/* 건너뛰기는 항상 노출 (확정 전) */}
         {!settled && (
           <button
             type="button"
