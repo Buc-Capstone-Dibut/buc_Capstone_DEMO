@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, CameraOff, CheckCircle2, Loader2 } from "lucide-react";
-import { FaceCalibrationPanel } from "@/components/features/interview/face-calibration-panel";
+import {
+  FaceCalibrationRow,
+  FaceGuideOverlay,
+  useFaceCalibration,
+} from "@/components/features/interview/face-calibration-panel";
 
 type MicStatus = "checking" | "ready" | "denied";
 type CameraStatus = "off" | "starting" | "on" | "error";
@@ -181,8 +185,10 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onC
   const micOk = micStatus === "ready";
   const cameraOn = cameraStatus === "on";
 
+  // 얼굴 캘리브레이션 — 같은 박스에 통합: 오버레이는 미리보기 위, 상태는 체크리스트 행.
+  const calib = useFaceCalibration(videoEl, cameraOn, onCalibrationChange);
+
   return (
-    <>
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       {/* 카메라 미리보기 (기본 꺼짐) */}
       <div className="relative flex aspect-video w-full items-center justify-center bg-muted/50">
@@ -215,6 +221,8 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onC
             )}
           </div>
         )}
+        {/* 얼굴 가이드 오버레이 — 미리보기 위에서 라이브 인식/진행 연출 */}
+        {cameraOn && <FaceGuideOverlay calib={calib} />}
         {cameraOn && (
           <button
             type="button"
@@ -275,6 +283,9 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onC
           </div>
         </div>
 
+        {/* 얼굴 캘리브레이션 — 카메라/마이크와 같은 체크리스트 행 */}
+        <FaceCalibrationRow calib={calib} cameraOn={cameraOn} />
+
         {micStatus === "denied" && (
           <button
             type="button"
@@ -286,9 +297,5 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onC
         )}
       </div>
     </div>
-
-      {/* 얼굴 캘리브레이션(선택) — 공유 카메라의 <video> 를 그대로 사용. 새 getUserMedia 안 엶. */}
-      <FaceCalibrationPanel videoEl={videoEl} cameraOn={cameraOn} onCalibrationChange={onCalibrationChange} />
-    </>
   );
 }
