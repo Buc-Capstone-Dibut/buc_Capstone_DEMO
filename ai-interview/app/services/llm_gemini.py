@@ -353,34 +353,27 @@ class GeminiService:
 
         thinking 을 끄지 않고 상한만 둬서 분석 품질은 유지하되,
         - response_mime_type=json 으로 JSON 출력을 강제하고
-        - max_output_tokens 로 상세 리포트가 중간에 잘리지 않게 충분히 확보하며
-        - request_options 타임아웃으로 멈춘 호출이 영영 매달리지 않게 한다.
-        일부 SDK/모델 경로가 thinking_config 를 거부하면 그 키만 빼고, 그래도 안 되면
-        bare 호출로 단계적 폴백해 동작을 보장한다.
+        - max_output_tokens 로 상세 리포트가 중간에 잘리지 않게 충분히 확보한다.
+        thinking_config 를 거부하는 SDK/모델 경로는 그 키만 빼고, 그래도 안 되면 bare 로 폴백.
+        (타임아웃은 Vertex 클라이언트의 http_options 로 걸어 둔다 — generate_content 는
+         request_options 인자를 받지 않는다.)
         """
-        timeout_sec = 90  # 멈춘 호출이 워커를 영영 붙잡지 않게(워커는 이후 재시도)
         thinking_budget = 2048  # 추론은 살리되 상한 — 0(완전 끔) 아님
         base_config: dict[str, Any] = {
             "response_mime_type": "application/json",
             "max_output_tokens": 8192,
         }
-        request_options = {"timeout": timeout_sec}
         try:
             return self.model.generate_content(
                 prompt,
                 generation_config={**base_config, "thinking_config": {"thinking_budget": thinking_budget}},
-                request_options=request_options,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("[report] thinking_config 적용 실패 — 축소 config 폴백: %s", exc)
         try:
-            return self.model.generate_content(
-                prompt,
-                generation_config=base_config,
-                request_options=request_options,
-            )
+            return self.model.generate_content(prompt, generation_config=base_config)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[report] generation_config/timeout 미적용 — bare 폴백: %s", exc)
+            logger.warning("[report] generation_config 미적용 — bare 폴백: %s", exc)
             return self.model.generate_content(prompt)
 
     def fetch_url_text(self, url: str) -> str:

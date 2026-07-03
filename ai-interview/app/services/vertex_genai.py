@@ -55,11 +55,16 @@ def build_vertex_genai_client() -> tuple[Any, str]:
         raise RuntimeError("Vertex AI project ID is missing")
 
     location = (settings.google_cloud_location or "").strip() or "us-central1"
+    # 요청 타임아웃(ms) — 리포트 등 텍스트 생성이 멈춰도 워커를 영영 붙잡지 않게 한다.
+    # (generate_content 는 request_options 인자를 받지 않아 클라이언트 레벨에서 건다.)
+    from google.genai import types as genai_types
+
     client = genai.Client(
         vertexai=True,
         project=project_id,
         location=location,
         credentials=credentials,
+        http_options=genai_types.HttpOptions(timeout=90_000),
     )
     logger.info(
         "vertex genai client configured (project=%s, location=%s)",
