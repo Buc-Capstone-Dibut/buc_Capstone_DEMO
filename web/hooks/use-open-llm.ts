@@ -547,8 +547,17 @@ export function useOpenLLM({
     lastCompletedPlaybackTurnIdRef.current = "";
     lastStartMicTurnIdRef.current = "";
     audioUnlockedRef.current = false;
-    socketRef.current?.close();
+    const staleSocket = socketRef.current;
+    if (staleSocket) {
+      // 핸들러를 먼저 떼야 늦게 도착하는 close 이벤트가 유령 재연결을 만들지 않는다.
+      staleSocket.onopen = null;
+      staleSocket.onmessage = null;
+      staleSocket.onerror = null;
+      staleSocket.onclose = null;
+      staleSocket.close();
+    }
     socketRef.current = null;
+    setIsConnected(false); // onclose 를 떼었으므로 여기서 직접 내린다
     stopMic(false);
     setIsAIProcessing(false);
     setIsAISpeaking(false);
@@ -781,9 +790,17 @@ export function useOpenLLM({
     lastStartMicTurnIdRef.current = "";
 
     ws.onopen = () => {
+      const wasReconnect = reconnectAttemptsRef.current > 0;
       clearReconnectTimer();
       reconnectAttemptsRef.current = 0;
       setIsConnected(true);
+      if (!lastInitPayloadRef.current?.sessionId && wasReconnect) {
+        // init 전 재연결 성공 — resumed 를 쏴서 페이지의 isReconnecting 게이트를 풀어준다.
+        onEventRef.current?.({
+          type: "connection.resumed",
+          message: "연결이 복구되었습니다.",
+        });
+      }
       if (lastInitPayloadRef.current?.sessionId) {
         socketRef.current?.send(JSON.stringify({
           type: "init-interview-session",
@@ -807,6 +824,8 @@ export function useOpenLLM({
     };
 
     ws.onclose = () => {
+      // 이미 교체된(재연결로 대체된) 소켓의 뒤늦은 close 는 무시 — 유령 재연결 방지.
+      if (socketRef.current !== ws) return;
       setIsConnected(false);
       clearPendingMicRestart();
       clearPendingPlaybackDrainCheck();
@@ -818,7 +837,9 @@ export function useOpenLLM({
       audioUnlockedRef.current = false;
       setIsAIProcessing(false);
       setIsAISpeaking(false);
-      if (!manualDisconnectRef.current && lastInitPayloadRef.current?.sessionId) {
+      // init 전이라도 자동 재연결한다 — 최초 연결이 거부되면(서버 재시작·핸드셰이크 실패 등)
+      // 여기서 복구하지 않으면 페이지는 isConnected 만 기다리며 영원히 멈춘다.
+      if (!manualDisconnectRef.current) {
         reconnectAttemptsRef.current += 1;
         const delay = Math.min(
           RECONNECT_MAX_DELAY_MS,

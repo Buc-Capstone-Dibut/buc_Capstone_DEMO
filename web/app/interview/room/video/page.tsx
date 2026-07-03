@@ -1187,7 +1187,13 @@ export default function InterviewVideoRoomPage() {
         setIsAudioPrimed(true);
       }
       setHasConfirmedInterviewStart(true);
-      setStatusMessage("준비가 완료되었습니다. 첫 질문을 불러오는 중...");
+      // 연결이 아직 없으면 "첫 질문 로딩"이라는 거짓 상태 대신 실제 상태를 알린다.
+      // (연결이 복구되면 시작 effect 가 isConnected 변화로 자동 발화한다)
+      setStatusMessage(
+        isConnected
+          ? "준비가 완료되었습니다. 첫 질문을 불러오는 중..."
+          : "면접 서버에 연결하는 중입니다. 연결되면 자동으로 시작됩니다.",
+      );
     } finally {
       setIsPrimingAudio(false);
     }
