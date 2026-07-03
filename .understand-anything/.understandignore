@@ -1,0 +1,52 @@
+# .understandignore — patterns for files/dirs to exclude from analysis
+# Syntax: same as .gitignore (globs, # comments, ! negation, trailing / for dirs)
+#
+# Curated for buc_Capstone_DEMO (Dibut): keep the architectural core
+# (web app/api/lib/features, ai-interview FastAPI, crawler, workspace-server),
+# exclude build artifacts, UI primitives, static assets, spec-doc bundles, tests.
+
+# --- Build artifacts / generated ---
+.vercel/
+.next/
+web/src/generated/
+**/__pycache__/
+*.py[cod]
+.runlogs/
+logs/
+
+# --- Static assets / data fixtures ---
+web/public/
+web/data/
+assets/
+outputs/
+crawler/data/
+crawler/logs/
+
+# --- UI primitives (shadcn) — 51 files of boilerplate, no architectural signal ---
+web/components/ui/
+
+# --- Docs bundle (45 spec/audit md files) — keep root README + handover doc ---
+docs/
+tasks/
+GOODPARTNER.md
+READMEs/
+
+# --- Claude Code internals ---
+.claude/
+.mcp.json
+
+# --- Secrets / env ---
+.env
+.env*.local
+ai-interview/debut-492601-2c2a8bf7446c.json
+
+# --- Tests ---
+*.test.*
+*.spec.*
+*.snap
+tests/
+
+# --- self ---
+.understand-anything/
+.cursorrules
+.gemini

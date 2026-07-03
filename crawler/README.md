@@ -35,6 +35,8 @@ uv run python -m src.apps.tech_blog.cli
 uv run python -m src.apps.dev_event.cli --limit 10
 ```
 
+GitHub Dev-Event README를 파싱한 뒤, 상세 페이지는 **Firecrawl + Gemini**로 심층 크롤링합니다(`FIRECRAWL_API_KEY` 설정 시).
+
 ## 주요 환경변수
 
 | 키 | 필수 | 설명 |
@@ -42,6 +44,7 @@ uv run python -m src.apps.dev_event.cli --limit 10
 | `NEXT_PUBLIC_SUPABASE_URL` | 선택 | Supabase 저장 시 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 선택 | Supabase 저장 시 |
 | `GEMINI_API_KEY` | 선택 | AI 태깅 사용 시 |
+| `FIRECRAWL_API_KEY` | 선택 | dev_event 상세 페이지 심층 크롤링 시 |
 | `WEB_DATA_DIR` | 선택 | JSON 출력 경로 변경 |
 | `DEV_EVENT_JSON_PATH` | 선택 | 이벤트 파일 경로 변경 |
 | `SUPABASE_BLOGS_TABLE` | 선택 | 테이블명 커스텀 |

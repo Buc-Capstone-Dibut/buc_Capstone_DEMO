@@ -19,6 +19,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "workspace-server", "run", "dev"],
       "port": 4000
+    },
+    {
+      "name": "understand-dashboard",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd \"$HOME/.understand-anything-plugin/packages/dashboard\" && GRAPH_DIR=/Users/junghwan/buc_Capstone_DEMO UNDERSTAND_ACCESS_TOKEN=dibut-graph exec npx vite --host 127.0.0.1 --port 5175 --strictPort"],
+      "port": 5175
     }
   ]
 }
