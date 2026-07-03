@@ -5,6 +5,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import type { FaceSample } from "@/lib/interview/face/face-metrics";
 
 import { ReplayOverlay } from "./replay-overlay";
+import { FaceMaskOverlay } from "./face-mask-overlay";
 
 export interface SegmentVideoPlayerHandle {
   seekTo: (ms: number) => void;
@@ -20,11 +21,13 @@ interface Props {
   clipStartMs?: number;
   /** 지정 시 구간 끝에 도달하면 자동 일시정지(스크럽으로 벗어나는 건 허용). */
   clipEndMs?: number;
+  /** 재생 프레임에 MediaPipe 를 돌려 얼굴 위에 마스킹(와이어프레임·동공 락온)을 그린다. */
+  faceMask?: boolean;
 }
 
 // WebM(MediaRecorder) duration=Infinity 보정: 메타 로드 시 강제 seek으로 실제 길이 확정.
 export const SegmentVideoPlayer = forwardRef<SegmentVideoPlayerHandle, Props>(
-  function SegmentVideoPlayer({ src, className, samples, clipStartMs, clipEndMs }, ref) {
+  function SegmentVideoPlayer({ src, className, samples, clipStartMs, clipEndMs, faceMask }, ref) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [fixedDuration, setFixedDuration] = useState(false);
 
@@ -82,11 +85,12 @@ export const SegmentVideoPlayer = forwardRef<SegmentVideoPlayerHandle, Props>(
       />
     );
 
-    if (samples?.length) {
+    if (samples?.length || faceMask) {
       return (
         <div className="relative">
           {video}
-          <ReplayOverlay videoRef={videoRef} samples={samples} />
+          {faceMask ? <FaceMaskOverlay videoRef={videoRef} /> : null}
+          {samples?.length ? <ReplayOverlay videoRef={videoRef} samples={samples} /> : null}
         </div>
       );
     }
