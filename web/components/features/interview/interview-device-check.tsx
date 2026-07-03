@@ -221,8 +221,8 @@ export function InterviewDeviceCheck({ onMicReady, onCameraPreferenceChange, onC
             )}
           </div>
         )}
-        {/* 얼굴 가이드 오버레이 — 미리보기 위에서 라이브 인식/진행 연출 */}
-        {cameraOn && <FaceGuideOverlay calib={calib} />}
+        {/* 얼굴 가이드 오버레이 — 미리보기 위에서 메시·눈동자 마스킹 + 진행 연출 */}
+        {cameraOn && <FaceGuideOverlay calib={calib} videoEl={videoEl} />}
         {cameraOn && (
           <button
             type="button"

@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, ScanFace } from "lucide-react";
 import { useFaceCapture } from "@/hooks/interview/use-face-capture";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { calibrateBaseline } from "@/lib/interview/face/face-metrics";
+
+type Landmark = { x: number; y: number };
 
 export type FaceCalibrationStatus = "idle" | "running" | "done" | "skipped" | "unavailable";
 
@@ -16,7 +18,7 @@ const FRONT_HOLD_MS = 1200; // 정면 유지 시간(진행 바가 차오르는 �
 const SIDE_HOLD_MS = 400; // 좌/우 회전 유지 시간
 const SIDE_YAW_TH = 8; // 좌/우로 인정할 yaw 편차(도)
 const SIDE_TIMEOUT_MS = 12000; // 미감지 시 "생략하고 완료" 안내(실패 아님)
-const POLL_MS = 120;
+const POLL_MS = 66; // ~15fps — 마스킹이 부드럽게 따라오도록 (GPU delegate 기준 여유)
 
 export interface FaceCalibration {
   status: FaceCalibrationStatus;
@@ -27,6 +29,8 @@ export interface FaceCalibration {
   progress: number; // 0~1 현재 단계 유지 진행도
   liveYawDev: number; // 좌/우 단계 실시간 편차(연출용)
   sideStuck: boolean; // 좌/우 장시간 미감지
+  /** 최신 478 랜드마크(정규화, 미인식 시 null) — 오버레이 마스킹이 rAF로 읽는다(setState 스팸 회피). */
+  landmarksRef: MutableRefObject<Landmark[] | null>;
   start: () => void;
   skip: () => void;
   completeWithBaseline: () => void; // 좌/우 생략하고 완료(baseline 확보 시)
@@ -70,6 +74,7 @@ export function useFaceCalibration(
   const yaw0Ref = useRef(0);
   const sideSignRef = useRef<number | null>(null);
   const sideStartRef = useRef<number>(0);
+  const landmarksRef = useRef<Landmark[] | null>(null);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) {
@@ -121,7 +126,8 @@ export function useFaceCalibration(
       if (st === "done" || st === "skipped" || st === "unavailable") return;
       if (!videoEl || videoEl.videoWidth === 0) return;
 
-      const pose = face.readPose(videoEl);
+      const pose = face.readFace(videoEl);
+      landmarksRef.current = pose?.landmarks?.length ? pose.landmarks : null;
       setFaceDetected(!!pose);
       if (!pose) {
         holdStartRef.current = null;
@@ -215,34 +221,123 @@ export function useFaceCalibration(
     }
   }, [cameraOn, status, finalize]);
 
-  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, start, skip, completeWithBaseline };
+  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, landmarksRef, start, skip, completeWithBaseline };
 }
 
-/** 카메라 미리보기 위에 얹는 오버레이 — 가이드 오벌 + 인식 칩 + 진행 바 + 좌/우 화살표. */
-export function FaceGuideOverlay({ calib }: { calib: FaceCalibration }) {
-  const { status, step, faceDetected, engineReady, progress, liveYawDev } = calib;
-  if (status === "skipped" || status === "unavailable") return null;
+// 미러(-scale-x-100) + object-cover 매핑으로 정규화 랜드마크 → 표시 좌표.
+function drawFaceMask(
+  ctx: CanvasRenderingContext2D,
+  landmarks: Landmark[],
+  vw: number,
+  vh: number,
+  cssW: number,
+  cssH: number,
+) {
+  const s = Math.max(cssW / vw, cssH / vh); // object-cover
+  const dx = (cssW - vw * s) / 2;
+  const dy = (cssH - vh * s) / 2;
+  const X = (lm: Landmark) => cssW - (dx + lm.x * vw * s); // 미러 반전
+  const Y = (lm: Landmark) => dy + lm.y * vh * s;
+
+  // 1) 얼굴 메시 점묘 마스킹 (468 mesh — 스캔되는 느낌)
+  ctx.fillStyle = "rgba(130,184,76,0.5)";
+  const meshCount = Math.min(landmarks.length, 468);
+  for (let i = 0; i < meshCount; i++) {
+    const lm = landmarks[i];
+    ctx.fillRect(X(lm) - 0.6, Y(lm) - 0.6, 1.2, 1.2);
+  }
+
+  // 2) 눈동자(iris 468~477) — 초점 잡는 연출: 중심 도트 + 조준 링
+  if (landmarks.length >= 478) {
+    for (const c of [468, 473]) {
+      const cx = X(landmarks[c]);
+      const cy = Y(landmarks[c]);
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(130,184,76,1)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (let i = 469; i < 478; i++) {
+      if (i === 473) continue;
+      const lm = landmarks[i];
+      ctx.fillRect(X(lm) - 1, Y(lm) - 1, 2, 2);
+    }
+  }
+}
+
+/** 카메라 미리보기 위에 얹는 오버레이 — 얼굴 메시·눈동자 마스킹 + 가이드 오벌 + 인식 칩 + 진행 바 + 좌/우 화살표. */
+export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; videoEl: HTMLVideoElement | null }) {
+  const { status, step, faceDetected, engineReady, progress, liveYawDev, landmarksRef } = calib;
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const settled = status === "skipped" || status === "unavailable";
+
+  // 랜드마크 마스킹 rAF 드로잉 — landmarksRef를 직접 읽어 리렌더 없이 부드럽게.
+  useEffect(() => {
+    if (settled) return;
+    let raf: number | null = null;
+    let disposed = false;
+    const draw = () => {
+      if (disposed) return;
+      const cnv = canvasRef.current;
+      const v = videoEl;
+      if (cnv) {
+        const cssW = cnv.clientWidth;
+        const cssH = cnv.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        if (cnv.width !== Math.round(cssW * dpr) || cnv.height !== Math.round(cssH * dpr)) {
+          cnv.width = Math.round(cssW * dpr);
+          cnv.height = Math.round(cssH * dpr);
+        }
+        const ctx = cnv.getContext("2d");
+        if (ctx) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, cssW, cssH);
+          const lms = landmarksRef.current;
+          if (lms && v && v.videoWidth > 0 && cssW > 0) {
+            drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH);
+          }
+        }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => {
+      disposed = true;
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, [settled, videoEl, landmarksRef]);
+
+  if (settled) return null;
   const isRunning = status === "running";
   const isSide = isRunning && step !== "front";
   const isDone = status === "done";
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-      {/* 가이드 오벌 — 인식되면 라임 실선으로 점등 */}
-      <svg viewBox="0 0 160 90" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-        <ellipse
-          cx="80"
-          cy="46"
-          rx="27"
-          ry="35"
-          fill="none"
-          strokeWidth={faceDetected || isDone ? 2.4 : 1.5}
-          strokeDasharray={faceDetected || isDone ? "none" : "4 3"}
-          className={`transition-all duration-200 motion-reduce:transition-none ${
-            isDone || faceDetected ? "stroke-[#82B84C] drop-shadow-[0_0_6px_rgba(130,184,76,0.8)]" : "stroke-white/60"
-          }`}
-        />
-      </svg>
+      {/* 얼굴 메시·눈동자 마스킹 캔버스 */}
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      {/* 가이드 오벌 — 얼굴을 찾기 전 안내용(인식되면 마스킹이 메인) */}
+      {!faceDetected && !isDone && (
+        <svg viewBox="0 0 160 90" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+          <ellipse
+            cx="80"
+            cy="46"
+            rx="27"
+            ry="35"
+            fill="none"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            className="stroke-white/60"
+          />
+        </svg>
+      )}
 
       {/* 인식 상태 칩 (좌상단) */}
       <span

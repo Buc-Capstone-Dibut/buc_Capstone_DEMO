@@ -57,7 +57,8 @@ export function useFaceCapture() {
     for (const c of cats) b[c.categoryName] = c.score;
     const gaze = gazeFromBlendshapes(b);
     const head = headPoseFromMatrix(res.facialTransformationMatrixes?.[0]?.data) ?? { yaw: 0, pitch: 0, roll: 0 };
-    return { gaze, head, smile: isSmiling(b) };
+    const landmarks = (res.faceLandmarks?.[0] ?? []) as Array<{ x: number; y: number }>;
+    return { gaze, head, smile: isSmiling(b), landmarks };
   }, []);
 
   const calibrate = useCallback(async (video: HTMLVideoElement): Promise<boolean> => {
@@ -113,8 +114,16 @@ export function useFaceCapture() {
     return f ? { yaw: f.head.yaw, pitch: f.head.pitch, gazeX: f.gaze.gazeX, gazeY: f.gaze.gazeY } : null;
   }, [readFrame]);
 
+  // 단일 프레임: 포즈 + 478 랜드마크(얼굴 메시 468 + 눈동자 10, 정규화 좌표) — 캘리브레이션 마스킹 연출용.
+  const readFace = useCallback((video: HTMLVideoElement) => {
+    const f = readFrame(video);
+    return f
+      ? { yaw: f.head.yaw, pitch: f.head.pitch, gazeX: f.gaze.gazeX, gazeY: f.gaze.gazeY, landmarks: f.landmarks }
+      : null;
+  }, [readFrame]);
+
   return useMemo(
-    () => ({ ensureLandmarker, calibrate, readPose, start, stop, getBaseline, setBaseline }),
-    [ensureLandmarker, calibrate, readPose, start, stop, getBaseline, setBaseline],
+    () => ({ ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline }),
+    [ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline],
   );
 }
