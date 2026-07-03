@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, ScanFace } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, CheckCircle2, Eye, Loader2, ScanFace } from "lucide-react";
 import { useFaceCapture, type FaceConnections } from "@/hooks/interview/use-face-capture";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { calibrateBaseline } from "@/lib/interview/face/face-metrics";
@@ -10,13 +10,24 @@ type Landmark = { x: number; y: number };
 
 export type FaceCalibrationStatus = "idle" | "running" | "done" | "skipped" | "unavailable";
 
-type Step = "front" | "left" | "right";
-const STEP_LABEL: Record<Step, string> = { front: "정면", left: "좌측", right: "우측" };
+type Step = "front" | "left" | "right" | "up" | "down" | "eyes";
+const STEP_ORDER: Step[] = ["front", "left", "right", "up", "down", "eyes"];
+const STEP_LABEL: Record<Step, string> = { front: "정면", left: "좌측", right: "우측", up: "위", down: "아래", eyes: "눈동자" };
+const STEP_GUIDE: Record<Step, string> = {
+  front: "정면을 바라본 채 잠시 유지해 주세요",
+  left: "고개를 왼쪽으로 살짝 돌려 주세요",
+  right: "이번엔 오른쪽으로 돌려 주세요",
+  up: "고개를 살짝 위로 들어 주세요",
+  down: "이번엔 살짝 아래로 숙여 주세요",
+  eyes: "고개는 고정하고, 눈동자만 좌우로 움직여 주세요",
+};
 
 // 느슨한 감지 파라미터 — 통과가 쉬워야 UX가 산다.
 const FRONT_HOLD_MS = 1200; // 정면 유지 시간(진행 바가 차오르는 시간)
-const SIDE_HOLD_MS = 400; // 좌/우 회전 유지 시간
+const SIDE_HOLD_MS = 400; // 각 확인 스텝 유지 시간
 const SIDE_YAW_TH = 8; // 좌/우로 인정할 yaw 편차(도)
+const PITCH_TH = 7; // 위/아래로 인정할 pitch 편차(도)
+const EYE_TH = 0.22; // 눈동자(시선 x) 편차 임계 — 고개 고정, 눈만 움직여도 넘는 값
 const SIDE_TIMEOUT_MS = 12000; // 미감지 시 "생략하고 완료" 안내(실패 아님)
 const POLL_MS = 66; // ~15fps — 마스킹이 부드럽게 따라오도록 (GPU delegate 기준 여유)
 
@@ -33,8 +44,10 @@ export interface FaceCalibration {
   landmarksRef: MutableRefObject<Landmark[] | null>;
   /** 최신 머리각/시선(rAF 리드아웃용, 미인식 시 null) */
   poseRef: MutableRefObject<{ yaw: number; pitch: number; gazeX: number; gazeY: number } | null>;
-  /** 정면 캘리브레이션으로 확정된 기준 yaw(도) — 좌/우 게이지 계산용 */
+  /** 정면 캘리브레이션 기준값들 — 좌우(yaw)/상하(pitch)/눈동자(gazeX) 게이지 계산용 */
   baselineYaw: number;
+  baselinePitch: number;
+  baselineGazeX: number;
   /** MediaPipe 정적 연결선(테셀레이션/윤곽) — 엔진 로드 후 채워짐 */
   connections: FaceConnections | null;
   start: () => void;
@@ -65,6 +78,8 @@ export function useFaceCalibration(
   const [liveYawDev, setLiveYawDev] = useState(0);
   const [sideStuck, setSideStuck] = useState(false);
   const [baselineYaw, setBaselineYaw] = useState(0);
+  const [baselinePitch, setBaselinePitch] = useState(0);
+  const [baselineGazeX, setBaselineGazeX] = useState(0);
   const [connections, setConnections] = useState<FaceConnections | null>(null);
 
   const onChangeRef = useRef(onCalibrationChange);
@@ -80,7 +95,10 @@ export function useFaceCalibration(
   const holdStartRef = useRef<number | null>(null);
   const frontFramesRef = useRef<Array<{ gazeX: number; gazeY: number; yaw: number; pitch: number }>>([]);
   const yaw0Ref = useRef(0);
+  const pitch0Ref = useRef(0);
+  const gazeX0Ref = useRef(0);
   const sideSignRef = useRef<number | null>(null);
+  const vertSignRef = useRef<number | null>(null);
   const sideStartRef = useRef<number>(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
   const poseRef = useRef<{ yaw: number; pitch: number; gazeX: number; gazeY: number } | null>(null);
@@ -97,6 +115,10 @@ export function useFaceCalibration(
       stopPoll();
       setProgress(0);
       setSideStuck(false);
+      // 확정 후 잔여 마스킹이 화면에 남지 않도록 최신 프레임 데이터를 비운다.
+      landmarksRef.current = null;
+      poseRef.current = null;
+      setFaceDetected(false);
       setMessage(msg);
       setStatus(next);
       onChangeRef.current?.(next);
@@ -152,6 +174,22 @@ export function useFaceCalibration(
       if (st !== "running") return;
 
       const cur = stepRef.current;
+      // 다음 스텝으로 전환(공통): 타이머/스턱 리셋 + 가이드 메시지.
+      const advance = () => {
+        holdStartRef.current = null;
+        setProgress(0);
+        const idx = STEP_ORDER.indexOf(cur);
+        const next = STEP_ORDER[idx + 1];
+        if (!next) {
+          completeWithBaseline();
+          return;
+        }
+        sideStartRef.current = now;
+        setSideStuck(false);
+        setStep(next);
+        setMessage(STEP_GUIDE[next]);
+      };
+
       if (cur === "front") {
         frontFramesRef.current.push(pose);
         if (holdStartRef.current == null) holdStartRef.current = now;
@@ -162,36 +200,46 @@ export function useFaceCalibration(
           face.setBaseline(base);
           setBaselineRef.current(base);
           yaw0Ref.current = base.yaw0;
+          pitch0Ref.current = base.pitch0;
+          gazeX0Ref.current = base.gazeX0;
           setBaselineYaw(base.yaw0);
-          holdStartRef.current = null;
-          setProgress(0);
+          setBaselinePitch(base.pitch0);
+          setBaselineGazeX(base.gazeX0);
           sideSignRef.current = null;
-          sideStartRef.current = now;
-          setSideStuck(false);
-          setStep("left");
-          setMessage("고개를 왼쪽으로 살짝 돌려 주세요");
+          vertSignRef.current = null;
+          advance();
         }
       } else {
-        const dev = pose.yaw - yaw0Ref.current;
+        // 확인 스텝별 편차/임계/부호 페어링:
+        // 좌·우=yaw, 위·아래=pitch(각각 첫 방향 부호 기록→반대쪽은 반대 부호), 눈동자=gazeX(방향 무관).
+        let dev = 0;
+        let th = SIDE_YAW_TH;
+        let passes = false;
+        if (cur === "left" || cur === "right") {
+          dev = pose.yaw - yaw0Ref.current;
+          th = SIDE_YAW_TH;
+          const need = cur === "left" ? null : sideSignRef.current == null ? null : -sideSignRef.current;
+          passes = Math.abs(dev) > th && (need == null || Math.sign(dev) === need);
+        } else if (cur === "up" || cur === "down") {
+          dev = pose.pitch - pitch0Ref.current;
+          th = PITCH_TH;
+          const need = cur === "up" ? null : vertSignRef.current == null ? null : -vertSignRef.current;
+          passes = Math.abs(dev) > th && (need == null || Math.sign(dev) === need);
+        } else {
+          dev = pose.gazeX - gazeX0Ref.current;
+          th = EYE_TH;
+          passes = Math.abs(dev) > th;
+        }
         setLiveYawDev(dev);
-        const need = cur === "left" ? null : sideSignRef.current == null ? null : -sideSignRef.current;
-        const passes = Math.abs(dev) > SIDE_YAW_TH && (need == null || Math.sign(dev) === need);
+
         if (passes) {
           if (holdStartRef.current == null) holdStartRef.current = now;
           const held = now - holdStartRef.current;
           setProgress(Math.min(held / SIDE_HOLD_MS, 1));
           if (held >= SIDE_HOLD_MS) {
-            holdStartRef.current = null;
-            setProgress(0);
-            if (cur === "left") {
-              sideSignRef.current = Math.sign(dev);
-              sideStartRef.current = now;
-              setSideStuck(false);
-              setStep("right");
-              setMessage("좋아요 — 이번엔 반대쪽으로");
-            } else {
-              completeWithBaseline();
-            }
+            if (cur === "left") sideSignRef.current = Math.sign(dev);
+            if (cur === "up") vertSignRef.current = Math.sign(dev);
+            advance();
           }
         } else {
           holdStartRef.current = null;
@@ -221,7 +269,7 @@ export function useFaceCalibration(
     setSideStuck(false);
     setStep("front");
     setStatus("running");
-    setMessage("정면을 바라본 채 잠시 유지해 주세요");
+    setMessage(STEP_GUIDE.front);
   }, [cameraOn, videoEl, finalize]);
 
   // 카메라 꺼진 채 시작 전이면 자동 unavailable(게이트 통과). 다시 켜지면 idle 복귀해 [시작] 노출.
@@ -235,7 +283,7 @@ export function useFaceCalibration(
     }
   }, [cameraOn, status, finalize]);
 
-  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, landmarksRef, poseRef, baselineYaw, connections, start, skip, completeWithBaseline };
+  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, landmarksRef, poseRef, baselineYaw, baselinePitch, baselineGazeX, connections, start, skip, completeWithBaseline };
 }
 
 // ── 영화식 스캔 렌더러 ─────────────────────────────────────────────────────
@@ -249,6 +297,8 @@ interface CineOpts {
   step: Step;
   isRunning: boolean;
   baselineYaw: number;
+  baselinePitch: number;
+  baselineGazeX: number;
   reducedMotion: boolean;
 }
 
@@ -300,30 +350,30 @@ function drawFaceMask(
 
   // 1) 테셀레이션 와이어프레임 — "찐한" 스캔 메시
   if (o.connections?.tesselation?.length) {
-    strokeConnections(o.connections.tesselation, `rgba(${LIME},0.16)`, 0.5);
+    strokeConnections(o.connections.tesselation, `rgba(${LIME},0.22)`, 0.55);
   }
 
-  // 2) 주요 윤곽(얼굴 오벌·눈·눈썹·입술) — 글로우 강조
+  // 2) 주요 윤곽(얼굴 오벌·눈·눈썹·입술) — 중요 라인은 확실히 찐하게 + 글로우
   if (o.connections) {
     ctx.save();
-    ctx.shadowColor = `rgba(${LIME},0.9)`;
-    ctx.shadowBlur = 6;
-    strokeConnections(o.connections.faceOval, `rgba(${LIME},0.95)`, 1.6);
-    ctx.shadowBlur = 3;
-    const soft = `rgba(200,255,160,0.85)`;
-    strokeConnections(o.connections.leftEye, soft, 1.1);
-    strokeConnections(o.connections.rightEye, soft, 1.1);
-    strokeConnections(o.connections.leftEyebrow, `rgba(${LIME},0.7)`, 1);
-    strokeConnections(o.connections.rightEyebrow, `rgba(${LIME},0.7)`, 1);
-    strokeConnections(o.connections.lips, `rgba(${LIME},0.7)`, 1);
+    ctx.shadowColor = `rgba(${LIME},1)`;
+    ctx.shadowBlur = 10;
+    strokeConnections(o.connections.faceOval, `rgba(${LIME},1)`, 2.4);
+    ctx.shadowBlur = 5;
+    const soft = `rgba(210,255,170,0.95)`;
+    strokeConnections(o.connections.leftEye, soft, 1.6);
+    strokeConnections(o.connections.rightEye, soft, 1.6);
+    strokeConnections(o.connections.leftEyebrow, `rgba(${LIME},0.85)`, 1.3);
+    strokeConnections(o.connections.rightEyebrow, `rgba(${LIME},0.85)`, 1.3);
+    strokeConnections(o.connections.lips, `rgba(${LIME},0.85)`, 1.3);
     ctx.restore();
   }
 
-  // 3) 정점 점묘
-  ctx.fillStyle = `rgba(${LIME},0.45)`;
-  for (let i = 0; i < meshCount; i += 2) {
+  // 3) 정점 점묘 — 전 정점, 더 또렷하게
+  ctx.fillStyle = `rgba(${LIME},0.6)`;
+  for (let i = 0; i < meshCount; i++) {
     const lm = landmarks[i];
-    ctx.fillRect(X(lm) - 0.7, Y(lm) - 0.7, 1.4, 1.4);
+    ctx.fillRect(X(lm) - 0.8, Y(lm) - 0.8, 1.6, 1.6);
   }
 
   // 4) 타겟 브래킷(모서리 락온) — 미세 호흡
@@ -447,15 +497,29 @@ function drawFaceMask(
     ctx.fillText(`${yawTxt}  ${pitTxt}`, bx1 - 2, by0 - 6);
   }
 
-  // 8) 좌/우 단계: yaw 게이지(중앙 기준 편차 니들 + 목표존)
+  // 8) 확인 스텝 게이지 — 좌우(yaw)/상하(pitch)/눈동자(gazeX) 편차 니들 + 목표존
   if (o.isRunning && o.step !== "front" && o.pose) {
+    const isVert = o.step === "up" || o.step === "down";
+    const isEyes = o.step === "eyes";
+    const dev = isEyes
+      ? o.pose.gazeX - o.baselineGazeX
+      : isVert
+        ? o.pose.pitch - o.baselinePitch
+        : o.pose.yaw - o.baselineYaw;
+    const range = isEyes ? 0.5 : 25; // 니들 스케일
+    const th = isEyes ? EYE_TH : isVert ? PITCH_TH : SIDE_YAW_TH;
+    const dirEn: Record<string, string> = { left: "LEFT", right: "RIGHT", up: "UP", down: "DOWN" };
+    const label = isEyes
+      ? `EYES ${dev >= 0 ? "+" : ""}${dev.toFixed(2)}`
+      : `${isVert ? "TILT" : "TURN"} ${dirEn[o.step]} ${dev >= 0 ? "+" : ""}${dev.toFixed(1)}°`;
+
     const gw = Math.min(150, bw);
     const gx0 = minX + (bw - gw) / 2;
     const gy = maxY + 16;
     const half = gw / 2;
-    const dev = o.pose.yaw - o.baselineYaw;
-    const clamp = Math.max(-25, Math.min(25, dev));
-    const needleX = gx0 + half + (clamp / 25) * half;
+    const clamp = Math.max(-range, Math.min(range, dev));
+    const needleX = gx0 + half + (clamp / range) * half;
+    const thPx = (th / range) * half;
 
     ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.lineWidth = 3;
@@ -464,12 +528,12 @@ function drawFaceMask(
     ctx.moveTo(gx0, gy);
     ctx.lineTo(gx0 + gw, gy);
     ctx.stroke();
-    // 목표존(|dev|>8°) 양측 표시
-    ctx.strokeStyle = `rgba(${LIME},0.8)`;
+    // 목표존(|dev|>th) 양측 표시
+    ctx.strokeStyle = `rgba(${LIME},0.9)`;
     ctx.beginPath();
     ctx.moveTo(gx0, gy);
-    ctx.lineTo(gx0 + half - (8 / 25) * half, gy);
-    ctx.moveTo(gx0 + half + (8 / 25) * half, gy);
+    ctx.lineTo(gx0 + half - thPx, gy);
+    ctx.moveTo(gx0 + half + thPx, gy);
     ctx.lineTo(gx0 + gw, gy);
     ctx.stroke();
     // 중앙 기준 틱 + 니들
@@ -479,29 +543,35 @@ function drawFaceMask(
     ctx.moveTo(gx0 + half, gy - 5);
     ctx.lineTo(gx0 + half, gy + 5);
     ctx.stroke();
-    ctx.fillStyle = Math.abs(dev) > 8 ? `rgba(${LIME},1)` : "rgba(255,255,255,0.95)";
+    ctx.fillStyle = Math.abs(dev) > th ? `rgba(${LIME},1)` : "rgba(255,255,255,0.95)";
     ctx.beginPath();
     ctx.arc(needleX, gy, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(`TURN ${o.step === "left" ? "LEFT" : "RIGHT"} ${dev >= 0 ? "+" : ""}${dev.toFixed(1)}°`, gx0 + half, gy + 16);
+    ctx.fillText(label, gx0 + half, gy + 16);
   }
 }
 
 /** 카메라 미리보기 위에 얹는 오버레이 — 얼굴 메시·눈동자 마스킹 + 가이드 오벌 + 인식 칩 + 진행 바 + 좌/우 화살표. */
 export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; videoEl: HTMLVideoElement | null }) {
-  const { status, step, faceDetected, engineReady, progress, liveYawDev, landmarksRef, poseRef, baselineYaw, connections } = calib;
+  const { status, step, faceDetected, engineReady, progress, liveYawDev, landmarksRef, poseRef, baselineYaw, baselinePitch, baselineGazeX, connections } = calib;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const settled = status === "skipped" || status === "unavailable";
   // 최신 값을 rAF 루프에서 리렌더 없이 읽기 위한 미러 refs
   const stepRef = useRef(step);
   stepRef.current = step;
+  const statusMirrorRef = useRef(status);
+  statusMirrorRef.current = status;
   const runningRef = useRef(status === "running");
   runningRef.current = status === "running";
   const baselineYawRef = useRef(baselineYaw);
   baselineYawRef.current = baselineYaw;
+  const baselinePitchRef = useRef(baselinePitch);
+  baselinePitchRef.current = baselinePitch;
+  const baselineGazeXRef = useRef(baselineGazeX);
+  baselineGazeXRef.current = baselineGazeX;
   const connectionsRef = useRef(connections);
   connectionsRef.current = connections;
 
@@ -529,7 +599,8 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, cssW, cssH);
           const lms = landmarksRef.current;
-          if (lms && v && v.videoWidth > 0 && cssW > 0) {
+          // 완료(done) 후에는 잔여 마스킹을 그리지 않는다 — 캔버스는 비운 상태 유지.
+          if (statusMirrorRef.current !== "done" && lms && v && v.videoWidth > 0 && cssW > 0) {
             drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH, {
               connections: connectionsRef.current,
               pose: poseRef.current,
@@ -537,6 +608,8 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
               step: stepRef.current,
               isRunning: runningRef.current,
               baselineYaw: baselineYawRef.current,
+              baselinePitch: baselinePitchRef.current,
+              baselineGazeX: baselineGazeXRef.current,
               reducedMotion,
             });
           }
@@ -597,27 +670,69 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
         </div>
       )}
 
-      {/* 단계 안내 배지 (하단 중앙) */}
+      {/* 단계 인디케이터 (상단 중앙) — 6단계 미니 트랙 */}
       {isRunning && (
-        <span className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-bold text-white/90">
-          {step === "front" ? "정면 유지" : step === "left" ? "왼쪽으로" : "오른쪽으로"} · {STEP_LABEL[step]} 단계
+        <ol className="absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1" aria-hidden="true">
+          {STEP_ORDER.map((s) => {
+            const idx = STEP_ORDER.indexOf(s);
+            const curIdx = STEP_ORDER.indexOf(step);
+            const done = idx < curIdx;
+            const cur = idx === curIdx;
+            return (
+              <li
+                key={s}
+                className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none transition-colors motion-reduce:transition-none ${
+                  done ? "bg-primary/80 text-primary-foreground" : cur ? "bg-white/90 text-black" : "bg-black/45 text-white/60"
+                }`}
+              >
+                {STEP_LABEL[s]}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {/* 단계 안내 배지 (하단 중앙) — 자세 가이드 문구 */}
+      {isRunning && (
+        <span className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-2.5 py-0.5 text-[10px] font-bold text-white/95">
+          {STEP_GUIDE[step]}
         </span>
       )}
 
-      {/* 좌/우 화살표 — 목표 방향 점등 + 회전 시작 시 확대 반응 */}
-      {isSide && (
+      {/* 방향 가이드 — 좌/우(가로 화살표), 상/하(세로 화살표), 눈동자(Eye 아이콘) */}
+      {isSide && (step === "left" || step === "right") && (
         <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-3">
           <ArrowLeft
-            className={`h-7 w-7 transition-all motion-reduce:transition-none ${
-              step === "left" ? "text-primary drop-shadow-[0_0_4px_rgba(130,184,76,0.9)]" : "text-white/25"
+            className={`h-8 w-8 transition-all motion-reduce:transition-none ${
+              step === "left" ? "text-primary drop-shadow-[0_0_6px_rgba(130,184,76,1)]" : "text-white/20"
             } ${step === "left" && Math.abs(liveYawDev) > SIDE_YAW_TH / 2 ? "scale-125" : ""}`}
           />
           <ArrowRight
-            className={`h-7 w-7 transition-all motion-reduce:transition-none ${
-              step === "right" ? "text-primary drop-shadow-[0_0_4px_rgba(130,184,76,0.9)]" : "text-white/25"
+            className={`h-8 w-8 transition-all motion-reduce:transition-none ${
+              step === "right" ? "text-primary drop-shadow-[0_0_6px_rgba(130,184,76,1)]" : "text-white/20"
             } ${step === "right" && Math.abs(liveYawDev) > SIDE_YAW_TH / 2 ? "scale-125" : ""}`}
           />
         </div>
+      )}
+      {isSide && (step === "up" || step === "down") && (
+        <div className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 flex-col items-center justify-between py-8">
+          <ArrowUp
+            className={`h-8 w-8 transition-all motion-reduce:transition-none ${
+              step === "up" ? "text-primary drop-shadow-[0_0_6px_rgba(130,184,76,1)]" : "text-white/20"
+            } ${step === "up" && Math.abs(liveYawDev) > PITCH_TH / 2 ? "scale-125" : ""}`}
+          />
+          <ArrowDown
+            className={`h-8 w-8 transition-all motion-reduce:transition-none ${
+              step === "down" ? "text-primary drop-shadow-[0_0_6px_rgba(130,184,76,1)]" : "text-white/20"
+            } ${step === "down" && Math.abs(liveYawDev) > PITCH_TH / 2 ? "scale-125" : ""}`}
+          />
+        </div>
+      )}
+      {isSide && step === "eyes" && (
+        <span className="absolute left-1/2 top-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+          <Eye className="h-3.5 w-3.5" />
+          고개 고정 · 눈동자만 좌우로
+        </span>
       )}
     </div>
   );

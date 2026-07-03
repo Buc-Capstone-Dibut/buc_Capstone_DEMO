@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { Eye } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { SegmentVideoPlayer, type SegmentVideoPlayerHandle } from "./segment-video-player";
 import { SegmentTimelineBar } from "./segment-timeline-bar";
 import { AnswerScriptPanel } from "./answer-script-panel";
@@ -101,12 +101,32 @@ export function InterviewRecordingSection({
   const { activeId, currentTimeMs, durationMs, seekTo } = useSegmentSync(videoRef, segments);
   const details = buildAnswerDetails(segments, findingsByOrder);
   const samples = useMemo(() => faceSamples ?? [], [faceSamples]);
+  // 영상 위 분석 오버레이(시선 이탈 테두리·미소·시선 화살표) 표시 토글 — 기본 켜짐.
+  const [showOverlay, setShowOverlay] = useState(true);
+  const hasOverlayData = samples.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
-          <SegmentVideoPlayer ref={videoRef} src={recordingUrl} samples={samples.length ? samples : undefined} />
+          {hasOverlayData && (
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowOverlay((v) => !v)}
+                aria-pressed={showOverlay}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold transition-colors ${
+                  showOverlay
+                    ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {showOverlay ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                분석 오버레이 {showOverlay ? "켜짐" : "꺼짐"}
+              </button>
+            </div>
+          )}
+          <SegmentVideoPlayer ref={videoRef} src={recordingUrl} samples={showOverlay && hasOverlayData ? samples : undefined} />
           <SegmentTimelineBar
             segments={segments}
             durationMs={durationMs}
