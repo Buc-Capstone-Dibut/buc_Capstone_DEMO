@@ -4,8 +4,20 @@ import logging
 import time
 import uuid
 
+import websockets.http11
+import websockets.legacy.http
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+# 브라우저는 localhost 쿠키를 포트 구분 없이 WS 핸드셰이크에 실어 보낸다.
+# 누적된 dev 쿠키(supabase JWT 등)로 Cookie 한 줄이 기본 한도 8192B를 넘으면
+# websockets 파서가 라우팅 전에 400 을 던져 면접 WS 가 전부 거부된다(재현·실측).
+# 한도는 호출 시점에 읽는 모듈 전역이라 여기서 상향한다. uvicorn --ws auto 는
+# legacy 구현을 쓰므로 legacy.http 가 실제 경로, http11 은 sansio/향후 대비.
+# 32768 초과는 asyncio StreamReader(read_limit//2) 가 별도로 막으므로 그 이상은 무의미.
+websockets.legacy.http.MAX_LINE_LENGTH = max(websockets.legacy.http.MAX_LINE_LENGTH, 32768)
+websockets.http11.MAX_LINE_LENGTH = max(websockets.http11.MAX_LINE_LENGTH, 32768)
 
 from app.api.admin import router as admin_router
 from app.api.interview import report_agent as interview_report_agent
