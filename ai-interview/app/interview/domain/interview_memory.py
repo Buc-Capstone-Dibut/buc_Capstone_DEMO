@@ -425,6 +425,59 @@ def summarize_job_for_prompt(job_data: Any, max_chars: int = 1500) -> str:
     return text if len(text) <= max_chars else f"{text[:max_chars]}..."
 
 
+def summarize_portfolio_for_prompt(job_data: Any, max_chars: int = 1500) -> str:
+    """포트폴리오 레포 분석을 면접 프롬프트용 구조화 텍스트로 만든다.
+
+    우선순위: job_data["portfolioSource"](DB에서 retrieve 한 스냅샷) > job_payload 폴백
+    (readmeSummary/treeSummary/infraHypotheses/detectedTopics). 항목별로 절단해
+    중간이 잘려 의미가 깨지는 것을 막는다.
+    """
+    if not isinstance(job_data, dict):
+        return compact_context_text(job_data, max_chars)
+
+    source = job_data.get("portfolioSource")
+    source = source if isinstance(source, dict) else {}
+
+    repo_url = _clean_one_line(source.get("repoUrl") or job_data.get("repoUrl"))
+    readme = _clean_one_line(source.get("readme") or job_data.get("readmeSummary"))
+    tree = _clean_one_line(source.get("tree") or job_data.get("treeSummary"))
+
+    infra_raw = source.get("infra")
+    if isinstance(infra_raw, str):
+        infra_items = [x for x in (line.strip() for line in infra_raw.splitlines()) if x]
+    else:
+        infra_items = _dedupe([x for x in _summary_strings(job_data.get("infraHypotheses")) if x])
+
+    topics = _dedupe([x for x in _summary_strings(job_data.get("detectedTopics")) if x])
+
+    # 항목별 상한(중간 절단 방지). 전체 max_chars 안에서 앞 항목을 우선한다.
+    parts: list[str] = []
+    remaining = max_chars
+
+    def add(label: str, text: str, cap: int) -> None:
+        nonlocal remaining
+        if not text or remaining <= 0:
+            return
+        clipped = text[:cap]
+        line = f"{label}: {clipped}"
+        parts.append(line)
+        remaining -= len(line)
+
+    add("레포", repo_url, 200)
+    add("README 요약", readme, 700)
+    add("아키텍처", tree, 400)
+    if infra_items and remaining > 0:
+        parts.append("인프라 가설:\n" + "\n".join(f"- {item[:120]}" for item in infra_items[:8]))
+        remaining -= sum(len(item) for item in infra_items[:8])
+    if topics and remaining > 0:
+        parts.append("감지 토픽: " + " · ".join(topics[:12]))
+
+    text = "\n".join(parts)
+    if not text:
+        return compact_context_text(job_data, max_chars)
+    return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+
 def summarize_resume_for_prompt(resume_data: Any, max_chars: int = 1500) -> str:
     """이력서에서 면접에 중요한 항목(요약/프로젝트·경력 제목/보유기술)을 앞세워 요약을 만든다."""
     if not isinstance(resume_data, dict):

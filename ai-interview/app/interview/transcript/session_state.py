@@ -44,6 +44,21 @@ def hydrate_state_from_turns(state: VoiceWsState, turns: list[dict[str, Any]]) -
     )
 
 
+def _portfolio_source_fetcher() -> Any:
+    """포트폴리오 스냅샷 조회 콜백을 지연 해석한다.
+
+    InterviewService 를 module import 시점에 붙이면 순환 import 위험이 있어
+    호출 시점에 lazy 로 가져오고, 메서드가 없으면(테스트 stub 등) None 을 반환해
+    hydrate 병합을 안전하게 건너뛴다.
+    """
+    try:
+        from app.services.interview_service import InterviewService
+
+        return getattr(InterviewService(), "get_portfolio_source", None)
+    except Exception:
+        return None
+
+
 def hydrate_state_from_session_row(
     state: VoiceWsState,
     session: dict[str, Any] | None,
@@ -58,6 +73,7 @@ def hydrate_state_from_session_row(
         clamp_closing_threshold=clamp_closing_threshold,
         estimated_total_questions=estimated_total_questions,
         hydrate_turns=hydrate_state_from_turns,
+        fetch_portfolio_source=_portfolio_source_fetcher(),
     )
 
 

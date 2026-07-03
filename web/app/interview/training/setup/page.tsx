@@ -180,15 +180,16 @@ export default function PortfolioDefenseSetupPage() {
 
       const sessionId = data.data.sessionId;
       setSessionId(sessionId);
+      // 분석 전문(readmeSummary/treeSummary/infraHypotheses)은 이미 session/start 로
+      // 서버에 전달돼 DB job_payload 로 저장된다. URL 에는 sessionId 로 재수화되므로
+      // 히스토리/로그에 길게 남는 전문 대신 표시용 최소 필드만 싣는다.
+      // (video/page.tsx 는 부재 파라미터를 빈 문자열로 안전 처리)
       const params = new URLSearchParams({
         repoUrl: normalizedRepoUrl,
         sessionId,
         mode: "video",
         duration: String(PORTFOLIO_DEFENSE_DURATION_MINUTES),
-        readmeSummary: analysis.readmeSummary,
-        treeSummary: analysis.treeSummary,
         detectedTopics: analysis.detectedTopics.join(","),
-        infraHypotheses: analysis.infraHypotheses.join(","),
       });
 
       router.push(`/interview/training/portfolio/room?${params.toString()}`);

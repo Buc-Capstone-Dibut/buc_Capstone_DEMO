@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
 
 from app.interview.runtime.state import VoiceWsState
+
+logger = logging.getLogger("dibut.hydrate")
 
 
 def reset_realtime_user_transcript(state: VoiceWsState) -> None:
@@ -143,6 +146,7 @@ def hydrate_state_from_session_row(
     clamp_closing_threshold: Callable[[int | None], int],
     estimated_total_questions: Callable[[int], int],
     hydrate_turns: Callable[[VoiceWsState, list[dict[str, Any]]], None],
+    fetch_portfolio_source: Callable[[str], dict[str, Any] | None] | None = None,
 ) -> None:
     if not session:
         return
@@ -156,6 +160,27 @@ def hydrate_state_from_session_row(
     job_payload = session.get("job_payload")
     if job_payload is not None:
         state.job_data = job_payload
+
+    # 포트폴리오 디펜스 세션은 DB에 저장된 레포 분석 스냅샷(RAG-lite retrieve)을
+    # job_data 에 병합해, 시스템 프롬프트가 클라이언트 프롬프팅에 의존하지 않게 한다.
+    # 조회 실패는 로그 후 무시한다 — 면접 진행을 막지 않는다.
+    if state.session_type == "portfolio_defense" and fetch_portfolio_source is not None:
+        try:
+            portfolio = fetch_portfolio_source(state.session_id)
+        except Exception:
+            logger.warning("portfolio source retrieve failed (session=%s)", state.session_id, exc_info=True)
+            portfolio = None
+        if portfolio:
+            job = state.job_data if isinstance(state.job_data, dict) else {}
+            job = dict(job)
+            job["portfolioSource"] = {
+                "repoUrl": portfolio.get("repo_url") or "",
+                "readme": portfolio.get("readme_snapshot") or "",
+                "tree": portfolio.get("tree_snapshot") or "",
+                "infra": portfolio.get("infra_files_snapshot") or "",
+            }
+            state.job_data = job
+
     resume_payload = session.get("resume_payload")
     if resume_payload is not None:
         state.resume_data = resume_payload

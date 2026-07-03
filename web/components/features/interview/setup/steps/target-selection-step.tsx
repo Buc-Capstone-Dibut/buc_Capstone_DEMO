@@ -22,6 +22,7 @@ import {
   getRoleTrackFocusAreas,
 } from "@/lib/interview/role-track";
 import { getRoleCategoryVisual, getRoleDetailIcon } from "@/lib/interview/role-visuals";
+import { interpretParseJobResponse } from "@/lib/interview/validation";
 
 type SetupTrack = "posting" | "role";
 
@@ -50,6 +51,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
   } = useInterviewSetupStore();
   const [urlInput, setUrlInput] = useState(targetUrl);
   const [isLoading, setIsLoading] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSubmitting, setPickerSubmitting] = useState(false);
 
@@ -178,6 +180,8 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
 
     if (!urlInput.trim()) return;
 
+    setParseError(null);
+
     const { targetUrl: storedUrl, jobData: storedJobData } = useInterviewSetupStore.getState();
     if (storedUrl === urlInput && storedJobData && storedJobData.role) {
       setTarget(urlInput, "Custom");
@@ -194,13 +198,33 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
         body: JSON.stringify({ url: urlInput }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to parse");
+        // 라우트가 504(타임아웃) 등에서 내려주는 안내 문구를 그대로 배너에 노출.
+        setParseError(
+          (data && typeof data.error === "string" && data.error) ||
+            "공고 분석에 실패했어요 — 아래에서 직접 입력하거나 다시 시도해 주세요.",
+        );
+        return;
       }
 
-      const result = data.data;
+      const interp = interpretParseJobResponse(data);
+      const result = interp.data;
+
+      // 파싱이 실패했어도(success:false 또는 fallback 마커) result 가 있으면
+      // 폼에 채워 사용자가 수정할 수 있게 하되, 실패 사실은 배너로 명시한다.
+      if (interp.failed) {
+        setParseError(interp.message);
+      }
+
+      if (!result) {
+        // 채울 데이터가 전혀 없으면 진행하지 않고 배너만 남긴다.
+        if (!interp.failed) {
+          setParseError("공고 분석에 실패했어요 — 아래에서 직접 입력하거나 다시 시도해 주세요.");
+        }
+        return;
+      }
 
       setTarget(urlInput, "Custom");
       setRolePrepData(null);
@@ -220,7 +244,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
       setStep("jd-check");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "분석 실패";
-      alert(`분석 실패: ${message}`);
+      setParseError(`분석 실패: ${message}`);
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -295,6 +319,15 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
                 )}
               </Button>
             </div>
+
+            {parseError ? (
+              <div
+                role="alert"
+                className="flex items-start gap-2 border-l-4 border-red-300 bg-red-50/80 px-4 py-3 text-sm text-red-700"
+              >
+                {parseError}
+              </div>
+            ) : null}
 
             <div className="flex items-center gap-3 pt-2">
               <span className="h-px flex-1 bg-[#e6edf4]" aria-hidden />

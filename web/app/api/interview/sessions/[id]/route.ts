@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { coerceSessionAnalysisPayload } from "@/lib/interview/report/session-analysis-guard";
+import { isValidSessionId } from "@/lib/interview/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,9 @@ export async function GET(
       return unauthorizedInterviewResponse();
     }
     const { id } = params;
+    if (!isValidSessionId(id)) {
+      return NextResponse.json({ success: false, error: "Session not found" }, { status: 404 });
+    }
 
     const admin = createAdminSupabaseClient();
 
@@ -116,8 +120,9 @@ export async function GET(
 
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to fetch session";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    // DB 에러 원문(스키마/제약 등)을 노출하지 않고 일반화한 메시지만 반환.
+    console.error("[interview/sessions GET] failed", error);
+    return NextResponse.json({ success: false, error: "Failed to fetch session" }, { status: 500 });
   }
 }
 
@@ -136,6 +141,9 @@ export async function DELETE(
       return unauthorizedInterviewResponse();
     }
     const { id } = params;
+    if (!isValidSessionId(id)) {
+      return NextResponse.json({ success: false, error: "Session not found" }, { status: 404 });
+    }
 
     const admin = createAdminSupabaseClient();
 
@@ -154,7 +162,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, data: { id } }, { status: 200 });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to delete session";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[interview/sessions DELETE] failed", error);
+    return NextResponse.json({ success: false, error: "Failed to delete session" }, { status: 500 });
   }
 }

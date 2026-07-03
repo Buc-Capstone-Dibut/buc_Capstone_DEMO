@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from functools import lru_cache
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, File, Form, Header, HTTPException, Request, UploadFile
 
 from app.config import settings
@@ -26,6 +28,8 @@ from app.interview.runtime.prepared_opening_store import (
     PREPARED_OPENING_TTL_SEC,
     put_prepared_opening,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
 service = InterviewService()
@@ -66,35 +70,45 @@ async def parse_job(payload: ParseJobRequest):
     if not payload.url:
         raise HTTPException(status_code=400, detail="URL is required")
 
+    def _fallback_data(description: str) -> dict[str, Any]:
+        return {
+            "title": "채용 공고 (AI 분석 불가)",
+            "company": "채용 공고",
+            "description": description[:3000],
+            "responsibilities": ["AI 분석 실패 - 본문을 참고해주세요"],
+            "requirements": [],
+            "preferred": [],
+            "techStack": [],
+            "culture": [],
+            "url": payload.url,
+        }
+
     clean_context = ""
     try:
         gemini = get_gemini_service()
         # Offload blocking httpx fetch + Gemini calls to a worker thread so the
         # asyncio event loop stays free for other concurrent requests.
         clean_context = await asyncio.to_thread(gemini.fetch_url_text, payload.url)
+    except httpx.HTTPError as exc:
+        logger.warning("parse-job fetch failed (url=%s): %s", payload.url, exc)
+        return {"success": False, "error": "FETCH_FAILED", "data": _fallback_data("")}
+    except Exception as exc:
+        logger.warning("parse-job fetch unexpected error (url=%s): %s", payload.url, exc)
+        return {"success": False, "error": "FETCH_FAILED", "data": _fallback_data("")}
+
+    try:
         data = await asyncio.to_thread(
             gemini.parse_job_from_text, payload.url, clean_context
         )
-
-        return {
-            "success": True,
-            "data": data,
-        }
-    except Exception:
-        return {
-            "success": True,
-            "data": {
-                "title": "채용 공고 (AI 분석 불가)",
-                "company": "채용 공고",
-                "description": clean_context[:3000],
-                "responsibilities": ["AI 분석 실패 - 본문을 참고해주세요"],
-                "requirements": [],
-                "preferred": [],
-                "techStack": [],
-                "culture": [],
-                "url": payload.url,
-            },
-        }
+        return {"success": True, "data": data}
+    except Exception as exc:
+        message = str(exc)
+        if "429" in message or "quota" in message.lower():
+            error_code = "LLM_QUOTA"
+        else:
+            error_code = "PARSE_FAILED"
+        logger.warning("parse-job parse failed (url=%s, code=%s): %s", payload.url, error_code, message)
+        return {"success": False, "error": error_code, "data": _fallback_data(clean_context)}
 
 
 @router.post("/parse-resume")
@@ -302,8 +316,12 @@ async def session_report_status(
     elif job_status == "failed":
         status = "failed"
     else:
-        # job 이 아직 enqueue 되지 않은 직후 구간 — 분석이 이미 붙어 있으면 완료로 본다.
-        status = "completed" if session.get("analysis") else "running"
+        # job 이 없는 종결 구간. get_session raw row 에는 'analysis' 키가 없으므로
+        # 예전 'analysis' 폴백은 항상 running 을 반환해 무한 폴링을 만들었다.
+        # 세션이 completed 인데 job 이 없으면 enqueue 되지 못한 것으로 보고 'failed' 를
+        # 반환해 폴링을 끊는다(프론트의 retry-report 버튼으로 복구 가능). 그 외는 running.
+        session_status = str(session.get("status") or "")
+        status = "failed" if session_status == "completed" else "running"
 
     return {
         "status": status,
@@ -347,19 +365,27 @@ async def complete_session(
         await asyncio.to_thread(service.update_session_status, session_id, "completed", "closing")
         session = await asyncio.to_thread(service.get_session, session_id, user_id=user_id, require_owner=True) or session
 
+    report_enqueued = True
     report_job = await asyncio.to_thread(service.get_report_job, session_id)
     if not report_job or str(report_job.get("status") or "") == "failed":
-        report_job = await asyncio.to_thread(
-            service.enqueue_report_job,
-            session_id=session_id,
-            session_type=str(session.get("session_type") or "live_interview"),
-        )
+        try:
+            report_job = await asyncio.to_thread(
+                service.enqueue_report_job,
+                session_id=session_id,
+                session_type=str(session.get("session_type") or "live_interview"),
+            )
+        except Exception:
+            # 세션 completed 는 유지하고 enqueue 실패만 흡수한다 —
+            # retry-report 엔드포인트로 리포트를 복구할 수 있다.
+            logger.error("report job enqueue failed (session=%s)", session_id, exc_info=True)
+            report_enqueued = False
 
     return {
         "success": True,
         "data": {
             "status": str(session.get("status") or "completed"),
             "reportStatus": str((report_job or {}).get("status") or "pending"),
+            "reportEnqueued": report_enqueued,
         },
     }
 
@@ -388,7 +414,11 @@ async def livekit_token(
 # ── Portfolio Defense ─────────────────────────────────────
 
 @router.post("/portfolio/analyze-public-repo")
-async def portfolio_analyze_public_repo(payload: PortfolioAnalyzeRequest):
+async def portfolio_analyze_public_repo(
+    payload: PortfolioAnalyzeRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    _require_authenticated_user(x_user_id)
     try:
         gemini = get_gemini_service()
         result = await asyncio.to_thread(gemini.analyze_public_repo, payload.repoUrl)
@@ -448,8 +478,10 @@ async def portfolio_session_start(
                 analysis_status="completed",
             )
         except Exception:
-            # 면접 세션 생성은 유지하고 소스 저장 실패만 무시
-            pass
+            # 면접 세션 생성은 유지하고 소스 저장 실패만 무시(관측 가능하게 로깅)
+            logger.warning(
+                "portfolio source save failed (session=%s)", session["id"], exc_info=True
+            )
 
     return {
         "success": True,

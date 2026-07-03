@@ -33,7 +33,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const userId = await getInterviewRouteUserId();
   if (!userId) return unauthorizedInterviewResponse();
 
-  const body = (await req.json()) as { storagePath?: string };
+  let body: { storagePath?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "invalid JSON body" }, { status: 400 });
+  }
   if (!isValidRecordingPath(sessionId, body.storagePath)) {
     return NextResponse.json({ success: false, error: "invalid storagePath" }, { status: 400 });
   }

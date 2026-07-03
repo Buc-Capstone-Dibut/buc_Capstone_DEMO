@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
+import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 
 export async function POST(req: Request) {
   try {
+    const userId = await getInterviewRouteUserId();
+    if (!userId) {
+      return unauthorizedInterviewResponse();
+    }
+
     const body = await req.json();
     const { room, identity, name } = body as {
       room: string;

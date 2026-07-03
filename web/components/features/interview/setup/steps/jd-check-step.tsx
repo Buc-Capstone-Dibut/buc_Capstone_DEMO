@@ -24,6 +24,10 @@ export function JdCheckStep() {
 
 
 
+  // 회사·직무가 둘 다 비어 있으면 면접 질문을 구성할 근거가 없으므로 진행을 막는다.
+  const hasMinimumTarget =
+    Boolean(jobData.role?.trim()) || Boolean(jobData.company?.trim());
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-6 pb-20">
       <div className="flex items-center justify-between mb-8">
@@ -41,12 +45,22 @@ export function JdCheckStep() {
 
       <JdCheckForm jobData={jobData} updateJobData={updateJobData} />
 
+      {!hasMinimumTarget ? (
+        <p className="mt-8 text-sm text-red-600">
+          최소한 회사명 또는 직무 중 하나는 입력해야 다음으로 진행할 수 있어요.
+        </p>
+      ) : null}
+
       <div className="flex justify-between mt-10">
           <Button variant="outline" onClick={() => setStep('target')} className="px-6 h-12">
              <ArrowLeft className="mr-2 w-4 h-4" /> 다시 선택
           </Button>
 
-          <Button onClick={() => setStep('resume')} className="px-8 h-12 text-base shadow-lg shadow-primary/20">
+          <Button
+             onClick={() => setStep('resume')}
+             disabled={!hasMinimumTarget}
+             className="px-8 h-12 text-base shadow-lg shadow-primary/20"
+          >
              정보가 정확합니다 (다음) <Check className="ml-2 w-4 h-4" />
           </Button>
       </div>

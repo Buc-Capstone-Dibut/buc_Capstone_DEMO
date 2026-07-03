@@ -20,6 +20,7 @@
     "test:interview-recording": "tsx --test lib/interview/recording/*.test.ts",
     "test:interview-face": "tsx --test lib/interview/face/*.test.ts",
     "test:interview-overlay": "tsx --test lib/interview/report/overlay-geometry.test.ts",
+    "test:interview-contracts": "tsx --test lib/interview/validation.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

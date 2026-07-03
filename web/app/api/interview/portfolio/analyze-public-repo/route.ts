@@ -13,7 +13,10 @@ export async function POST(req: Request) {
 
     const response = await fetch(`${AI_BASE_URL}/v1/interview/portfolio/analyze-public-repo`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": userId,
+      },
       body: JSON.stringify(body),
       cache: "no-store",
     });

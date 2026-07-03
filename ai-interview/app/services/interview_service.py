@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+import psycopg
 from psycopg.types.json import Jsonb
 
 from app.db.database import get_connection
@@ -211,19 +212,23 @@ class InterviewService:
         if require_owner and not user_id:
             return None
 
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                if require_owner:
-                    cur.execute(
-                        "SELECT * FROM public.interview_sessions WHERE id = %s AND user_id = %s",
-                        (session_id, user_id),
-                    )
-                else:
-                    cur.execute(
-                        "SELECT * FROM public.interview_sessions WHERE id = %s",
-                        (session_id,),
-                    )
-                return cur.fetchone()
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    if require_owner:
+                        cur.execute(
+                            "SELECT * FROM public.interview_sessions WHERE id = %s AND user_id = %s",
+                            (session_id, user_id),
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT * FROM public.interview_sessions WHERE id = %s",
+                            (session_id,),
+                        )
+                    return cur.fetchone()
+        except psycopg.errors.DataError:
+            # 비-UUID/잘못된 형식의 session_id 는 미존재로 취급한다(500 대신 404 유도).
+            return None
 
     def append_turn(
         self,
@@ -1035,6 +1040,21 @@ class InterviewService:
                     ),
                 )
             conn.commit()
+
+    def get_portfolio_source(self, session_id: str) -> dict[str, Any] | None:
+        """포트폴리오 레포 분석 스냅샷을 조회한다 (RAG-lite retrieve). 없으면 None."""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT repo_url, readme_snapshot, tree_snapshot, infra_files_snapshot
+                    FROM public.portfolio_sources
+                    WHERE session_id = %s
+                    """,
+                    (session_id,),
+                )
+                row = cur.fetchone()
+        return dict(row) if row else None
 
     def save_eval_signals(
         self,

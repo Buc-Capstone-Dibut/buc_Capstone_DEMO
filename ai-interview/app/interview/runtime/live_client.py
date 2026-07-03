@@ -8,6 +8,7 @@ from app.interview.domain.interview_level import interview_level_label, resolve_
 from app.interview.domain.interview_memory import (
     extract_memory_keywords,
     summarize_job_for_prompt,
+    summarize_portfolio_for_prompt,
     summarize_resume_for_prompt,
 )
 from app.interview.domain.question_bank import infer_interview_track, interview_track_label
@@ -52,11 +53,49 @@ def exact_speech_output_diverged(intended: str, spoken: str) -> bool:
     return any(marker in spoken_norm for marker in _SELF_ANSWER_MARKERS)
 
 
+def build_portfolio_session_instruction(state: VoiceWsState) -> str:
+    """포트폴리오 디펜스 전용 시스템 지침.
+
+    서버가 DB에서 retrieve 한 레포 분석 스냅샷(RAG-lite)을 구조화해 주입하고,
+    고정 평가 루브릭(설계 의도 60% / 코드 품질 10% / AI 활용 30%)에 맞춰
+    설계 의도·트레이드오프·인프라 선택 근거를 검증하는 질문을 유도한다.
+    """
+    personality = (state.personality or "professional").strip()
+    portfolio_brief = summarize_portfolio_for_prompt(state.job_data, max_chars=1500)
+    target_min = max(1, int(state.target_duration_sec // 60))
+    return (
+        "당신은 한국어 AI 포트폴리오 디펜스 면접관 Debut입니다.\n"
+        "절대 규칙:\n"
+        "1) 매 턴 기본적으로 질문 1개만 한다(질문은 마지막 문장에 위치). 단, 운영 메모에 질문 없이 종료하라고 명시된 종료 턴은 예외다.\n"
+        "2) 메타발화(예: 지시/프롬프트 설명/영어 문장/마크다운/별표) 금지.\n"
+        "3) 지원자에게 다시 말해 달라거나 더 길게 답하라고 스스로 요청하지 않는다. "
+        "재청취가 필요하면 서버가 별도 안내 턴을 보낸다.\n"
+        "4) 지원자 답변을 직접 대신 말하지 않는다.\n"
+        "5) 질문은 구체적이고 검증 가능한 꼬리질문 위주로 한다.\n"
+        "6) 각 턴은 2~4문장으로 구성하고, 전체 길이는 대략 80~220자 내에서 자연스럽게 말한다.\n"
+        "7) 운영 지시는 내부 참고용이다. 절대 그대로 읽거나 설명하지 말고 질문 생성 제어에만 사용한다.\n"
+        "8) 직전 답변과 자연스럽게 이어가되, 매 턴 답변 내용을 길게 되짚어 복창하지 않는다.\n"
+        f"면접 스타일: {personality}\n"
+        f"권장 면접 길이: 약 {target_min}분\n"
+        "면접 트랙: 포트폴리오 디펜스 (공개 레포 기반)\n"
+        "평가 루브릭(고정 가중치): 설계 의도 설명 60% · 코드 품질 10% · AI 활용 30%.\n"
+        "루브릭 가이드: 지원자가 왜 이렇게 설계했는지(설계 의도)와 대안 대비 트레이드오프, "
+        "인프라·기술 선택의 근거, AI 도구를 어떻게 활용했는지를 우선 검증한다. "
+        "단순 기능 나열이 아니라 '왜 그 결정을 했는가'를 파고드는 질문을 한다.\n"
+        f"레포 분석(서버 조회): {portfolio_brief}\n"
+        "위 레포 분석의 구조·인프라·토픽을 직접 짚어, 지원자가 실제로 설계·구현했는지와 "
+        "의사결정 근거를 확인하는 질문을 자연스럽게 이어간다.\n"
+        "출력은 자연스러운 한국어 음성 문장으로만 생성한다."
+    )
+
+
 def build_live_session_instruction(
     state: VoiceWsState,
     *,
     compact_context_text: Callable[..., str],
 ) -> str:
+    if (state.session_type or "").strip() == "portfolio_defense":
+        return build_portfolio_session_instruction(state)
     personality = (state.personality or "professional").strip()
     # raw JSON 을 900자에서 통째로 자르면 공고 요구사항/이력서 상세가 잘려 모델이 못 본다.
     # 핵심 항목을 추려 더 넉넉히 주입한다.

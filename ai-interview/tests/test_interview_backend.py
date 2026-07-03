@@ -8,7 +8,17 @@ from unittest.mock import patch
 
 _psycopg_stub = types.ModuleType("psycopg")
 _psycopg_stub.connect = lambda *args, **kwargs: None
+
+
+class _PsycopgDataError(Exception):
+    pass
+
+
+_psycopg_errors_stub = types.ModuleType("psycopg.errors")
+_psycopg_errors_stub.DataError = _PsycopgDataError
+_psycopg_stub.errors = _psycopg_errors_stub
 sys.modules.setdefault("psycopg", _psycopg_stub)
+sys.modules.setdefault("psycopg.errors", _psycopg_errors_stub)
 
 _psycopg_rows_stub = types.ModuleType("psycopg.rows")
 _psycopg_rows_stub.dict_row = object()

@@ -48,12 +48,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const userId = await getInterviewRouteUserId();
   if (!userId) return NextResponse.json({ success: false, error: "로그인이 필요합니다." }, { status: 401 });
 
-  const body = (await req.json()) as {
+  let body: {
     sampleRateHz?: number;
     samples?: unknown[];
     baseline?: unknown;
     aggregates?: unknown;
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "invalid JSON body" }, { status: 400 });
+  }
   if (!Array.isArray(body.samples)) {
     return NextResponse.json({ success: false, error: "invalid samples" }, { status: 400 });
   }

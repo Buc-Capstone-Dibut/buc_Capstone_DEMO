@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 
 from app.interview.domain.interview_memory import compact_context_text, select_opening_question_type
@@ -20,6 +21,8 @@ from app.interview.runtime.turn_ids import next_ai_turn_id
 from app.interview.transcript.session_state import hydrate_state_from_session_row, runtime_timing
 from app.interview.runtime.ws_runtime_wiring import build_live_client_deps
 from app.interview.runtime.voice_support import pcm16le_bytes_to_base64_chunks
+
+logger = logging.getLogger("dibut.prepared_opening")
 
 
 def _build_preflight_session_instruction(state: VoiceWsState) -> str:
@@ -85,6 +88,11 @@ async def prepare_opening_artifact_from_session(
             delivery_plan=delivery_plan,
             spoken_provider=spoken_provider,
         )
+    except Exception:
+        # 프리플라이트(오프닝 선생성)는 부가 최적화다. Live 실패가 500 으로 전파되지 않게
+        # 삼키고 None 을 반환하면 상위 핸들러가 prepared:false 로 우아하게 응답한다.
+        logger.warning("prepared opening generation failed (session=%s)", state.session_id, exc_info=True)
+        return None
     finally:
         if state.live_interview is not None:
             await state.live_interview.close()

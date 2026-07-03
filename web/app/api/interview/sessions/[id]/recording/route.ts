@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { RECORDING_BUCKET } from "@/lib/interview/recording/recording-metadata";
+import { isAllowedRecordingBucket } from "@/lib/interview/validation";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const userId = await getInterviewRouteUserId();
   if (!userId) return unauthorizedInterviewResponse();
 
-  const body = (await req.json()) as {
+  let body: {
     bucket: string;
     storagePath: string;
     mimeType: string;
@@ -40,9 +41,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     durationMs: number;
     recordingStartedAt: string;
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "invalid JSON body" }, { status: 400 });
+  }
 
   if (!isValidRecordingPath(sessionId, body.storagePath)) {
     return NextResponse.json({ success: false, error: "invalid storagePath" }, { status: 400 });
+  }
+
+  // 서명 URL 발급 대상이 되므로 정규 버킷/로컬 표식만 허용(임의 버킷 차단).
+  if (!isAllowedRecordingBucket(body.bucket)) {
+    return NextResponse.json({ success: false, error: "invalid bucket" }, { status: 400 });
   }
 
   const admin = createAdminSupabaseClient();
