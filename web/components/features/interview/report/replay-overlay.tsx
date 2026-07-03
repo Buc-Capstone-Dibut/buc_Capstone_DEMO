@@ -27,31 +27,8 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 }
 
-// 좌상단/우상단 작은 pill (배경 + 흰 텍스트). 그려진 너비를 반환.
-function drawPill(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  bg: string,
-  align: "left" | "right",
-) {
-  const padX = 8;
-  const padY = 5;
-  const fontH = 12;
-  ctx.font = "600 12px Pretendard, sans-serif";
-  ctx.textBaseline = "top";
-  const textW = ctx.measureText(text).width;
-  const pillW = textW + padX * 2;
-  const pillH = fontH + padY * 2;
-  const left = align === "right" ? x - pillW : x;
-  ctx.fillStyle = bg;
-  roundRectPath(ctx, left, y, pillW, pillH, pillH / 2);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, left + padX, y + padY);
-  return pillW;
-}
+const LIME = "rgba(130,184,76,0.95)";
+const AMBER = "rgba(245,158,11,0.95)";
 
 export function ReplayOverlay({ videoRef, samples }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,52 +73,54 @@ export function ReplayOverlay({ videoRef, samples }: Props) {
 
       const rect = letterboxRect(v.videoWidth, v.videoHeight, cssW, cssH);
 
-      // 시선 이탈: amber 외곽선 + 좌상단 pill
-      if (s.away) {
-        const inset = 1.5;
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = "rgba(245,158,11,0.9)";
-        roundRectPath(
-          ctx,
-          rect.offsetX + inset,
-          rect.offsetY + inset,
-          rect.width - inset * 2,
-          rect.height - inset * 2,
-          12,
-        );
-        ctx.stroke();
-        drawPill(ctx, "시선 이탈", rect.offsetX + 10, rect.offsetY + 10, "rgba(245,158,11,0.9)", "left");
-      }
-
-      // 관찰 가능 행동만 표시: 미소 중일 때만 우상단 pill (감정 라벨 없음)
-      if (s.smile) {
-        drawPill(
-          ctx,
-          "미소",
-          rect.offsetX + rect.width - 10,
-          rect.offsetY + 10,
-          "rgba(99,153,34,0.9)",
-          "right",
-        );
-      }
-
-      // 시선 인디케이터: rect 중심에서 (gazeX, gazeY) 방향 (gazeY는 캔버스 좌표로 반전)
+      // 간략한 점 표기만 — 테두리/화살표/텍스트 pill 없음.
+      // 1) 시선 점: 중앙 기준점(옅은 점) + 시선 위치 점(정면=라임, 이탈=amber).
       const cx = rect.offsetX + rect.width / 2;
       const cy = rect.offsetY + rect.height / 2;
-      const reach = 0.25 * Math.min(rect.width, rect.height);
-      const tipX = cx + s.gazeX * reach;
-      const tipY = cy + -s.gazeY * reach;
-      ctx.lineWidth = 3;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(130,184,76,0.95)";
+      const reach = 0.22 * Math.min(rect.width, rect.height);
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(130,184,76,0.95)";
-      ctx.beginPath();
-      ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 2, 0, Math.PI * 2);
       ctx.fill();
+      const gx = cx + s.gazeX * reach;
+      const gy = cy + -s.gazeY * reach; // gazeY는 캔버스 좌표로 반전
+      ctx.fillStyle = s.away ? AMBER : LIME;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.35)"; // 밝은 배경 대비용 얇은 윤곽
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // 2) 우상단 미니 상태 점: 시선(정면/이탈) · 표정(미소/기본)
+      const items = [
+        { label: "시선", color: s.away ? AMBER : LIME },
+        { label: "표정", color: s.smile ? LIME : "rgba(255,255,255,0.4)" },
+      ];
+      ctx.font = "600 10px Pretendard, sans-serif";
+      ctx.textBaseline = "middle";
+      const dotR = 3.5;
+      const gap = 10;
+      const itemWs = items.map((it) => dotR * 2 + 4 + ctx.measureText(it.label).width);
+      const totalW = itemWs.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+      const padX = 8;
+      const capH = 20;
+      const capX = rect.offsetX + rect.width - 8 - (totalW + padX * 2);
+      const capY = rect.offsetY + 8;
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRectPath(ctx, capX, capY, totalW + padX * 2, capH, capH / 2);
+      ctx.fill();
+      let ix = capX + padX;
+      const midY = capY + capH / 2;
+      items.forEach((it, i) => {
+        ctx.fillStyle = it.color;
+        ctx.beginPath();
+        ctx.arc(ix + dotR, midY, dotR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillText(it.label, ix + dotR * 2 + 4, midY);
+        ix += itemWs[i] + gap;
+      });
     };
 
     const scheduleRVFC = () => {

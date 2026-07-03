@@ -101,7 +101,7 @@ export function InterviewRecordingSection({
   const { activeId, currentTimeMs, durationMs, seekTo } = useSegmentSync(videoRef, segments);
   const details = buildAnswerDetails(segments, findingsByOrder);
   const samples = useMemo(() => faceSamples ?? [], [faceSamples]);
-  // 영상 위 분석 오버레이(시선 이탈 테두리·미소·시선 화살표) 표시 토글 — 기본 켜짐.
+  // 영상 위 분석 오버레이(시선 점 + 우상단 시선·표정 상태 점) 표시 토글 — 기본 켜짐.
   const [showOverlay, setShowOverlay] = useState(true);
   const hasOverlayData = samples.length > 0;
 

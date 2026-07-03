@@ -304,6 +304,50 @@ interface CineOpts {
 
 const LIME = "130,184,76";
 
+// 고정 중앙 타겟존 — 사람이 얼굴을 "여기에" 맞춘다(존은 움직이지 않음).
+function getTargetZone(cssW: number, cssH: number) {
+  const zh = cssH * 0.78;
+  const zw = Math.min(cssW * 0.52, zh * 0.74);
+  return { x: (cssW - zw) / 2, y: (cssH - zh) / 2, w: zw, h: zh };
+}
+
+function drawZoneGuide(
+  ctx: CanvasRenderingContext2D,
+  z: { x: number; y: number; w: number; h: number },
+  aligned: boolean,
+  t: number,
+  reducedMotion: boolean,
+) {
+  const breathe = reducedMotion ? 0 : Math.sin(t / 600) * 2;
+  const x0 = z.x - breathe, y0 = z.y - breathe, x1 = z.x + z.w + breathe, y1 = z.y + z.h + breathe;
+  const L = 18;
+  ctx.save();
+  if (aligned) {
+    ctx.shadowColor = `rgba(${LIME},1)`;
+    ctx.shadowBlur = 8;
+  }
+  ctx.strokeStyle = aligned ? `rgba(${LIME},1)` : "rgba(255,255,255,0.55)";
+  ctx.lineWidth = aligned ? 2.4 : 1.6;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0 + L); ctx.lineTo(x0, y0); ctx.lineTo(x0 + L, y0);
+  ctx.moveTo(x1 - L, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y0 + L);
+  ctx.moveTo(x1, y1 - L); ctx.lineTo(x1, y1); ctx.lineTo(x1 - L, y1);
+  ctx.moveTo(x0 + L, y1); ctx.lineTo(x0, y1); ctx.lineTo(x0, y1 - L);
+  ctx.stroke();
+  // 중앙 오벌(점선 → 정렬 시 실선)
+  ctx.lineWidth = aligned ? 2 : 1.3;
+  if (!aligned) ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.ellipse(z.x + z.w / 2, z.y + z.h / 2, z.w * 0.42, z.h * 0.44, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  // 존 라벨
+  ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = aligned ? `rgba(${LIME},0.95)` : "rgba(255,255,255,0.7)";
+  ctx.fillText(aligned ? "FACE ALIGNED" : "FACE TRACK ZONE", z.x + z.w / 2, z.y - 6);
+}
+
 function drawFaceMask(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
@@ -312,7 +356,7 @@ function drawFaceMask(
   cssW: number,
   cssH: number,
   o: CineOpts,
-) {
+): boolean {
   const s = Math.max(cssW / vw, cssH / vh); // object-cover
   const dx = (cssW - vw * s) / 2;
   const dy = (cssH - vh * s) / 2;
@@ -334,6 +378,19 @@ function drawFaceMask(
   const pad = 10;
   minX -= pad; minY -= pad; maxX += pad; maxY += pad;
   const bw = maxX - minX, bh = maxY - minY;
+
+  // 고정 존 대비 정렬 판정 — 얼굴이 존 중앙에 적정 크기로 들어왔는가.
+  const z = getTargetZone(cssW, cssH);
+  const faceCx = minX + bw / 2, faceCy = minY + bh / 2;
+  const zoneCx = z.x + z.w / 2, zoneCy = z.y + z.h / 2;
+  const aligned =
+    Math.abs(faceCx - zoneCx) < z.w * 0.2 &&
+    Math.abs(faceCy - zoneCy) < z.h * 0.16 &&
+    bh > z.h * 0.45 &&
+    bh < z.h * 1.1;
+
+  // 정렬 전(그리고 진행 중 아님)에는 마스킹을 시작하지 않는다 — 존에 맞추는 순간 애니메이션이 "켜진다".
+  if (!o.isRunning && !aligned) return aligned;
 
   const strokeConnections = (list: Array<{ start: number; end: number }>, style: string, width: number) => {
     ctx.strokeStyle = style;
@@ -376,23 +433,10 @@ function drawFaceMask(
     ctx.fillRect(X(lm) - 0.8, Y(lm) - 0.8, 1.6, 1.6);
   }
 
-  // 4) 타겟 브래킷(모서리 락온) — 미세 호흡
-  const breathe = o.reducedMotion ? 0 : Math.sin(t / 500) * 2;
-  const L = 16;
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 1.6;
-  const bx0 = minX - breathe, by0 = minY - breathe, bx1 = maxX + breathe, by1 = maxY + breathe;
-  ctx.beginPath();
-  ctx.moveTo(bx0, by0 + L); ctx.lineTo(bx0, by0); ctx.lineTo(bx0 + L, by0);
-  ctx.moveTo(bx1 - L, by0); ctx.lineTo(bx1, by0); ctx.lineTo(bx1, by0 + L);
-  ctx.moveTo(bx1, by1 - L); ctx.lineTo(bx1, by1); ctx.lineTo(bx1 - L, by1);
-  ctx.moveTo(bx0 + L, by1); ctx.lineTo(bx0, by1); ctx.lineTo(bx0, by1 - L);
-  ctx.stroke();
-
-  // 5) 스캔라인 스윕(위→아래 반복) — 그라데이션 밴드
-  if (!o.reducedMotion && bh > 0) {
+  // 4) 스캔라인 스윕(위→아래 반복) — 고정 존 안을 스캔
+  if (!o.reducedMotion) {
     const phase = (t % 1700) / 1700;
-    const sy = minY + phase * bh;
+    const sy = z.y + phase * z.h;
     const bandH = 20;
     const grad = ctx.createLinearGradient(0, sy - bandH, 0, sy + 2);
     grad.addColorStop(0, `rgba(${LIME},0)`);
@@ -400,15 +444,15 @@ function drawFaceMask(
     grad.addColorStop(1, `rgba(${LIME},0.55)`);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(minX, minY, bw, bh);
+    ctx.rect(z.x, z.y, z.w, z.h);
     ctx.clip();
     ctx.fillStyle = grad;
-    ctx.fillRect(minX, sy - bandH, bw, bandH + 2);
+    ctx.fillRect(z.x, sy - bandH, z.w, bandH + 2);
     ctx.strokeStyle = `rgba(${LIME},0.85)`;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(minX, sy);
-    ctx.lineTo(maxX, sy);
+    ctx.moveTo(z.x, sy);
+    ctx.lineTo(z.x + z.w, sy);
     ctx.stroke();
     ctx.restore();
   }
@@ -484,17 +528,18 @@ function drawFaceMask(
     }
   }
 
-  // 7) 수치 리드아웃 — 실측 yaw/pitch/시선 (전문 장비 느낌, 모노스페이스)
+  // 7) 수치 리드아웃 — 우상단 고정 HUD (모노스페이스, 실측값)
   ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.textAlign = "left";
+  ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.fillText("FACE TRACK · 478 pts", bx0 + 2, by0 - 6);
+  ctx.fillText("FACE TRACK · 478 pts", cssW - 8, 14);
   if (o.pose) {
     const yawTxt = `YAW ${o.pose.yaw >= 0 ? "+" : ""}${o.pose.yaw.toFixed(1)}°`;
     const pitTxt = `PIT ${o.pose.pitch >= 0 ? "+" : ""}${o.pose.pitch.toFixed(1)}°`;
-    ctx.textAlign = "right";
+    const gzTxt = `GAZE ${o.pose.gazeX >= 0 ? "+" : ""}${o.pose.gazeX.toFixed(2)}`;
     ctx.fillStyle = `rgba(${LIME},0.95)`;
-    ctx.fillText(`${yawTxt}  ${pitTxt}`, bx1 - 2, by0 - 6);
+    ctx.fillText(`${yawTxt}  ${pitTxt}`, cssW - 8, 26);
+    ctx.fillText(gzTxt, cssW - 8, 38);
   }
 
   // 8) 확인 스텝 게이지 — 좌우(yaw)/상하(pitch)/눈동자(gazeX) 편차 니들 + 목표존
@@ -513,9 +558,9 @@ function drawFaceMask(
       ? `EYES ${dev >= 0 ? "+" : ""}${dev.toFixed(2)}`
       : `${isVert ? "TILT" : "TURN"} ${dirEn[o.step]} ${dev >= 0 ? "+" : ""}${dev.toFixed(1)}°`;
 
-    const gw = Math.min(150, bw);
-    const gx0 = minX + (bw - gw) / 2;
-    const gy = maxY + 16;
+    const gw = Math.min(150, z.w);
+    const gx0 = z.x + (z.w - gw) / 2;
+    const gy = z.y + z.h + 14;
     const half = gw / 2;
     const clamp = Math.max(-range, Math.min(range, dev));
     const needleX = gx0 + half + (clamp / range) * half;
@@ -552,6 +597,8 @@ function drawFaceMask(
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.fillText(label, gx0 + half, gy + 16);
   }
+
+  return aligned;
 }
 
 /** 카메라 미리보기 위에 얹는 오버레이 — 얼굴 메시·눈동자 마스킹 + 가이드 오벌 + 인식 칩 + 진행 바 + 좌/우 화살표. */
@@ -574,6 +621,13 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
   baselineGazeXRef.current = baselineGazeX;
   const connectionsRef = useRef(connections);
   connectionsRef.current = connections;
+  const startFnRef = useRef(calib.start);
+  startFnRef.current = calib.start;
+
+  // 정렬 상태(칩 문구용) — 드로우 루프에서 플립될 때만 setState.
+  const [aligned, setAligned] = useState(false);
+  const alignedRef = useRef(false);
+  const alignedSinceRef = useRef<number | null>(null);
 
   // 랜드마크 마스킹 rAF 드로잉 — refs를 직접 읽어 리렌더 없이 부드럽게(60fps 연출, 15fps 데이터).
   useEffect(() => {
@@ -595,23 +649,45 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
           cnv.height = Math.round(cssH * dpr);
         }
         const ctx = cnv.getContext("2d");
-        if (ctx) {
+        if (ctx && cssW > 0) {
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, cssW, cssH);
-          const lms = landmarksRef.current;
-          // 완료(done) 후에는 잔여 마스킹을 그리지 않는다 — 캔버스는 비운 상태 유지.
-          if (statusMirrorRef.current !== "done" && lms && v && v.videoWidth > 0 && cssW > 0) {
-            drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH, {
-              connections: connectionsRef.current,
-              pose: poseRef.current,
-              timeMs: performance.now(),
-              step: stepRef.current,
-              isRunning: runningRef.current,
-              baselineYaw: baselineYawRef.current,
-              baselinePitch: baselinePitchRef.current,
-              baselineGazeX: baselineGazeXRef.current,
-              reducedMotion,
-            });
+          const st = statusMirrorRef.current;
+          // 완료(done) 후에는 아무것도 그리지 않는다(잔여 마스킹 방지).
+          if (st !== "done") {
+            const now = performance.now();
+            const lms = landmarksRef.current;
+            let isAligned = false;
+            if (lms && v && v.videoWidth > 0) {
+              isAligned = drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH, {
+                connections: connectionsRef.current,
+                pose: poseRef.current,
+                timeMs: now,
+                step: stepRef.current,
+                isRunning: runningRef.current,
+                baselineYaw: baselineYawRef.current,
+                baselinePitch: baselinePitchRef.current,
+                baselineGazeX: baselineGazeXRef.current,
+                reducedMotion,
+              });
+            }
+            // 고정 중앙 타겟존 — 항상 위에 그려 사람이 "여기에 맞추게" 한다.
+            drawZoneGuide(ctx, getTargetZone(cssW, cssH), isAligned || runningRef.current, now, reducedMotion);
+
+            if (isAligned !== alignedRef.current) {
+              alignedRef.current = isAligned;
+              setAligned(isAligned);
+            }
+            // 정렬을 0.5초 유지하면 자동으로 캘리브레이션 시작 (idle 한정).
+            if (st === "idle" && isAligned) {
+              if (alignedSinceRef.current == null) alignedSinceRef.current = now;
+              else if (now - alignedSinceRef.current > 500) {
+                alignedSinceRef.current = null;
+                startFnRef.current();
+              }
+            } else {
+              alignedSinceRef.current = null;
+            }
           }
         }
       }
@@ -634,30 +710,24 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
       {/* 얼굴 메시·눈동자 마스킹 캔버스 */}
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      {/* 가이드 오벌 — 얼굴을 찾기 전 안내용(인식되면 마스킹이 메인) */}
-      {!faceDetected && !isDone && (
-        <svg viewBox="0 0 160 90" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-          <ellipse
-            cx="80"
-            cy="46"
-            rx="27"
-            ry="35"
-            fill="none"
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
-            className="stroke-white/60"
-          />
-        </svg>
-      )}
-
-      {/* 인식 상태 칩 (좌상단) */}
+      {/* 인식 상태 칩 (좌상단) — 고정 존 정렬 상태를 반영 */}
       <span
         className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors motion-reduce:transition-none ${
-          isDone || faceDetected ? "bg-primary text-primary-foreground" : "bg-black/55 text-white/85"
+          isDone || isRunning || aligned ? "bg-primary text-primary-foreground" : "bg-black/55 text-white/85"
         }`}
       >
-        {isDone ? <CheckCircle2 className="h-3 w-3" /> : faceDetected ? <Check className="h-3 w-3" /> : <ScanFace className="h-3 w-3" />}
-        {isDone ? "캘리브레이션 완료" : faceDetected ? "얼굴 인식됨" : engineReady ? "가이드에 얼굴을 맞춰 주세요" : "인식 준비 중..."}
+        {isDone ? <CheckCircle2 className="h-3 w-3" /> : isRunning || aligned ? <Check className="h-3 w-3" /> : <ScanFace className="h-3 w-3" />}
+        {isDone
+          ? "캘리브레이션 완료"
+          : isRunning
+            ? "얼굴 인식됨"
+            : aligned
+              ? "정렬 완료 · 곧 시작합니다"
+              : faceDetected
+                ? "중앙 존에 얼굴을 맞춰 주세요"
+                : engineReady
+                  ? "중앙 존에 얼굴을 맞춰 주세요"
+                  : "인식 준비 중..."}
       </span>
 
       {/* 진행 바 (하단) — 유지 시간이 차오르는 연출 */}
