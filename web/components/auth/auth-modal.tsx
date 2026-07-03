@@ -87,9 +87,18 @@ export function AuthModal({
       }
     } catch (error: any) {
       console.error("인증 오류:", error);
+      // 대부분의 계정이 구글/깃허브(소셜)로 가입돼 있어, 비밀번호가 없는 계정이
+      // 이메일 로그인을 시도하면 'Invalid login credentials' 가 뜬다. 이 경우
+      // 원인 모를 실패 대신 소셜 로그인으로 안내한다.
+      const isInvalidCreds =
+        error?.code === "invalid_credentials" ||
+        /invalid login credentials/i.test(error?.message || "");
       toast({
-        title: "오류",
-        description: error.message || "인증에 실패했습니다.",
+        title: "로그인 실패",
+        description:
+          !isSignUp && isInvalidCreds
+            ? "이메일 또는 비밀번호가 올바르지 않습니다. 구글·깃허브로 가입하셨다면 아래 소셜 로그인을 이용해주세요."
+            : error.message || "인증에 실패했습니다.",
         variant: "destructive",
       });
     } finally {
