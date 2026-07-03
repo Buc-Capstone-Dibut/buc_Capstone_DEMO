@@ -98,3 +98,22 @@
 - **Plan ②**: DDL(interview_recording_signals) + 셋업 캘리브레이션/동의 컴포넌트 + 캡처 훅 + 워커(집계+Gemini).
 - **Plan ③**: replay-overlay-player + 타임라인 이탈마커 + 분석 코멘트 표시(②데이터 의존).
 각 plan은 독립적으로 동작·검증 가능한 단위로 작성한다(①은 분석 없이도 완결).
+
+---
+
+## 부록: 관찰 지표 확정 (2026-06-29 개정 — 감정 라벨 폐기)
+
+초기 구현의 표정 라벨(여유/긴장/당황/중립)은 눈썹 blendshape로 감정을 "추측"하는 것이라 근거가 약해 **폐기**했다.
+확정 원칙: **카메라로 실제 관찰 가능한 행동만 기록하고, 감정 해석은 하지 않는다.**
+
+| 지표 | 정의 | 근거 데이터 |
+|---|---|---|
+| 정면 응시 / 시선 이탈 | 캘리브레이션 baseline 대비 시선·머리각 편차(blink 게이트) | eyeLook* 8종 + head yaw/pitch |
+| 미소 비율 | mouthSmile L/R 평균 > 0.35 | mouthSmileLeft/Right (신뢰도 높음) |
+| 고개 움직임(자세 안정성) | yaw/pitch 표준편차 → 낮음(<4°)/보통(<9°)/높음 | 샘플의 yaw/pitch (집계 시 계산) |
+
+- 샘플 스키마: `{tMs, gazeX, gazeY, yaw, pitch, away: bool, smile: bool}` (expr 라벨 제거)
+- aggregates: `{awayRatio, awaySegments, smileRatio, headMovement{yawStd,pitchStd,level}, sampleCount}`
+- eval_signals dimension: `eye_contact` / `smile` / `head_stability` (모두 무점수)
+- Gemini 프롬프트: 감정 단정 금지("긴장했다" 금지), 행동→개선 제안 코칭 문장만.
+- 오버레이: 시선 이탈 테두리+배지, 미소 시에만 "미소" pill (감정 라벨 미표시).

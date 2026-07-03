@@ -160,7 +160,8 @@ interface SessionReportView {
     perAnswer?: Array<{ index?: number; comment?: string }>;
     awayRatio?: number;
     awaySegments?: Array<[number, number]>;
-    expressionHistogram?: Record<string, number>;
+    smileRatio?: number;
+    headMovement?: { yawStd?: number; pitchStd?: number; level?: string };
   } | null;
 }
 

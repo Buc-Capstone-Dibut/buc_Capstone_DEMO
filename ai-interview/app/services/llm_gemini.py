@@ -1741,47 +1741,50 @@ README 요약: {readme_summary}
             return empty_rubric
 
     def analyze_nonverbal(self, answers_text: list[str], aggregates: dict[str, Any]) -> dict[str, Any]:
-        """비언어(시선·표정) 정성 코멘트 생성.
+        """비언어(관찰 행동) 정성 코칭 코멘트 생성.
 
-        영상은 보내지 않고, 클라이언트가 이미 계산한 집계 수치(awayRatio/awaySegments/
-        expressionHistogram)와 답변 텍스트만으로 코멘트한다. 점수는 매기지 않는다.
+        영상은 보내지 않고, 클라이언트가 이미 계산한 관찰 지표(정면 응시/미소/고개 움직임)와
+        답변 텍스트만으로 코멘트한다. 감정을 추측하지 않고, 점수도 매기지 않는다.
         비언어 분석은 부가 기능이므로 어떤 실패에서도 raise 하지 않고 안전한 기본값을 반환한다.
         """
         empty_default: dict[str, Any] = {"overall": "", "perAnswer": []}
         try:
             away_ratio = float(aggregates.get("awayRatio") or 0.0)
             away_segments = aggregates.get("awaySegments") or []
-            expression_histogram = aggregates.get("expressionHistogram") or {}
+            smile_ratio = float(aggregates.get("smileRatio") or 0.0)
+            head_movement = aggregates.get("headMovement") or {}
             answers_block = "\n".join(
                 f"{idx}. {str(text or '').strip()}" for idx, text in enumerate(answers_text, start=1)
             ) or "(답변 텍스트 없음)"
 
             prompt = f"""
-당신은 모의면접의 비언어(시선·표정) 분석가입니다.
-점수를 매기지 말고, 시선·표정 경향을 정성적으로만 코멘트하세요.
-아래 집계 수치(영상이 아니라 이미 계산된 지표)와 답변 텍스트만 근거로 사용하세요.
+당신은 모의면접의 비언어 행동 코치입니다.
+카메라로 실제 관찰된 행동 지표만 다룹니다. 감정(긴장·불안 등)을 추측해 단정하지 마세요.
+점수·등급을 매기지 말고, "언제 어떤 행동을 어떻게 고치면 되는지" 실행 가능한 코칭 문장만 작성하세요.
 반드시 JSON만 출력하세요.
 
-[집계 수치]
-- 시선이탈 비율(awayRatio, 0~1): {away_ratio}
-- 시선이탈 구간(awaySegments, [시작ms, 종료ms]): {json.dumps(away_segments, ensure_ascii=False)}
-- 표정 분포(expressionHistogram, 라벨별 빈도): {json.dumps(expression_histogram, ensure_ascii=False)}
+[관찰 지표(영상이 아니라 이미 계산된 값)]
+- 정면 응시 비율(1-awayRatio): {round((1 - away_ratio) * 100)}%  (시선 이탈 비율 {round(away_ratio * 100)}%)
+- 시선 이탈 구간(awaySegments, [시작ms, 종료ms]): {json.dumps(away_segments, ensure_ascii=False)}
+- 미소 비율(smileRatio, 0~1): {smile_ratio}
+- 고개 움직임(headMovement, yaw/pitch 표준편차 기반): {json.dumps(head_movement, ensure_ascii=False)}
 
 [답변 텍스트(번호=답변 순서)]
 {answers_block}
 
 [작성 규칙]
-1. 점수·등급·수치 평가를 만들지 마세요. 경향을 서술하는 정성 코멘트만 작성합니다.
-2. `overall`은 시선이탈 비율/구간과 표정 분포를 근거로 전반적인 비언어 경향을 2~3문장으로 요약합니다.
-3. `perAnswer`는 답변 순서(index, 1부터)에 맞춰 시선·표정 경향을 한 문장씩 코멘트합니다.
-4. 근거가 부족하면 단정하지 말고 완곡하게 서술하세요.
-5. 모든 문장은 한국어로 작성하세요.
+1. 관찰된 행동(응시·미소·고개 움직임)만 언급하고, 감정 상태를 단정하는 표현("긴장했다", "불안해 보인다")은 금지합니다.
+2. 점수·등급·종합 평가를 만들지 마세요. 행동 → 개선 제안 형태의 정성 코칭만 작성합니다.
+3. `overall`은 세 지표를 근거로 전반 경향과 가장 우선 개선할 행동 1가지를 2~3문장으로 제시합니다.
+4. `perAnswer`는 답변 순서(index, 1부터)에 맞춰, 그 답변에서 관찰된 행동과 개선 팁을 한 문장씩 씁니다.
+5. 지표가 좋으면 유지 포인트로 짚어 주세요. 근거가 부족하면 완곡하게 서술하세요.
+6. 모든 문장은 한국어로 작성하세요.
 
 [JSON 형식]
 {{
-  "overall": "전반 비언어 경향 요약",
+  "overall": "전반 행동 경향 + 우선 개선 행동",
   "perAnswer": [
-    {{ "index": 1, "comment": "해당 답변의 시선·표정 경향 코멘트" }}
+    {{ "index": 1, "comment": "해당 답변에서 관찰된 행동과 개선 팁" }}
   ]
 }}
 """

@@ -19,11 +19,20 @@ def _normalize_turn_role(role: Any) -> str:
     return "user"
 
 
+def _stddev(values: list[float]) -> float:
+    n = len(values)
+    if n == 0:
+        return 0.0
+    mean = sum(values) / n
+    return (sum((v - mean) ** 2 for v in values) / n) ** 0.5
+
+
 def aggregate_samples(samples: list[dict]) -> dict:
     """5Hz 비언어 샘플 집계 — web/lib/interview/face/face-metrics.ts 의 aggregateSamples 와 동일 시맨틱.
 
-    away 플래그/expr 라벨은 이미 클라이언트가 캘리브레이션 기준으로 계산해 둔 값이므로
-    재계산하지 않고 그대로 집계만 한다(시선이탈 비율·구간·표정 분포).
+    관찰 가능한 행동만 다룬다(감정 추측 없음):
+    - away(시선 이탈)/smile(미소)은 클라이언트가 캘리브레이션 기준으로 계산해 둔 값 → 집계만.
+    - 고개 움직임(자세 안정성)은 yaw/pitch 표준편차로 여기서 계산.
     """
     total = len(samples) or 1
     away_count = sum(1 for s in samples if s.get("away"))
@@ -37,14 +46,16 @@ def aggregate_samples(samples: list[dict]) -> dict:
             start = None
     if start is not None and samples:
         away_segments.append([start, samples[-1].get("tMs")])
-    expr_hist: dict[str, int] = {}
-    for s in samples:
-        e = s.get("expr", "중립")
-        expr_hist[e] = expr_hist.get(e, 0) + 1
+    smile_count = sum(1 for s in samples if s.get("smile"))
+    yaw_std = _stddev([float(s.get("yaw") or 0.0) for s in samples])
+    pitch_std = _stddev([float(s.get("pitch") or 0.0) for s in samples])
+    movement = max(yaw_std, pitch_std)
+    level = "낮음" if movement < 4 else ("보통" if movement < 9 else "높음")
     return {
         "awayRatio": away_count / total,
         "awaySegments": away_segments,
-        "expressionHistogram": expr_hist,
+        "smileRatio": smile_count / total,
+        "headMovement": {"yawStd": yaw_std, "pitchStd": pitch_std, "level": level},
         "sampleCount": len(samples),
     }
 
@@ -212,7 +223,7 @@ class ReportAgent:
 
         - 신호가 없거나 비어 있으면 조용히 건너뛴다(카메라 미사용 세션 등).
         - 전 과정을 try/except 로 감싸 비언어 실패가 메인 리포트 잡을 깨뜨리지 않게 한다.
-        - report["nonverbalSummary"] = {overall, perAnswer, awayRatio, awaySegments, expressionHistogram}
+        - report["nonverbalSummary"] = {overall, perAnswer, awayRatio, awaySegments, smileRatio, headMovement}
         """
         try:
             signals = self._service.get_recording_signals(session_id)
@@ -224,8 +235,8 @@ class ReportAgent:
 
             away_ratio = float(aggregates.get("awayRatio") or 0.0)
             away_segments = aggregates.get("awaySegments") or []
-            expression_histogram = aggregates.get("expressionHistogram") or {}
-            expr_text = ", ".join(f"{label} {count}회" for label, count in expression_histogram.items()) or "정보 없음"
+            smile_ratio = float(aggregates.get("smileRatio") or 0.0)
+            head_movement = aggregates.get("headMovement") or {}
             self._service.save_eval_signals(
                 session_id,
                 [
@@ -234,15 +245,23 @@ class ReportAgent:
                         "score": 0,
                         "weight": 0,
                         "weighted_score": 0,
-                        "evidence": f"시선이탈 비율 {round(away_ratio * 100)}% / 이탈 구간 {len(away_segments)}개 (점수 미반영)",
+                        "evidence": f"정면 응시 {round((1 - away_ratio) * 100)}% / 시선 이탈 구간 {len(away_segments)}개 (점수 미반영)",
                         "confidence": 0,
                     },
                     {
-                        "dimension": "expression",
+                        "dimension": "smile",
                         "score": 0,
                         "weight": 0,
                         "weighted_score": 0,
-                        "evidence": f"표정 분포: {expr_text} (점수 미반영)",
+                        "evidence": f"미소 비율 {round(smile_ratio * 100)}% (점수 미반영)",
+                        "confidence": 0,
+                    },
+                    {
+                        "dimension": "head_stability",
+                        "score": 0,
+                        "weight": 0,
+                        "weighted_score": 0,
+                        "evidence": f"고개 움직임 {head_movement.get('level', '정보 없음')} (yaw σ {round(float(head_movement.get('yawStd') or 0.0), 1)}°) (점수 미반영)",
                         "confidence": 0,
                     },
                 ],
@@ -262,7 +281,8 @@ class ReportAgent:
                 "perAnswer": summary.get("perAnswer", []),
                 "awayRatio": away_ratio,
                 "awaySegments": away_segments,
-                "expressionHistogram": expression_histogram,
+                "smileRatio": smile_ratio,
+                "headMovement": head_movement,
             }
         except Exception:  # pragma: no cover - 비언어는 부가 기능, 메인 잡을 깨뜨리지 않는다
             logger.exception("nonverbal analysis failed; continuing without it", extra={"session_id": session_id})

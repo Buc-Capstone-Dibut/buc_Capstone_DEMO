@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { sampleAtTime, letterboxRect, awayAtTime } from "./overlay-geometry";
 
 const S = [
-  { tMs: 0, gazeX: 0, gazeY: 0, yaw: 0, pitch: 0, away: false, expr: "중립" },
-  { tMs: 200, gazeX: 0.4, gazeY: 0, yaw: 20, pitch: 0, away: true, expr: "긴장" },
-  { tMs: 400, gazeX: 0, gazeY: 0, yaw: 0, pitch: 0, away: false, expr: "중립" },
+  { tMs: 0, gazeX: 0, gazeY: 0, yaw: 0, pitch: 0, away: false, smile: false },
+  { tMs: 200, gazeX: 0.4, gazeY: 0, yaw: 20, pitch: 0, away: true, smile: true },
+  { tMs: 400, gazeX: 0, gazeY: 0, yaw: 0, pitch: 0, away: false, smile: false },
 ];
 
 test("sampleAtTime returns nearest sample by tMs", () => {
-  assert.equal(sampleAtTime(S, 0)?.expr, "중립");
-  assert.equal(sampleAtTime(S, 180)?.expr, "긴장");
+  assert.equal(sampleAtTime(S, 0)?.smile, false);
+  assert.equal(sampleAtTime(S, 180)?.smile, true);
   assert.equal(sampleAtTime(S, 9999)?.tMs, 400);
   assert.equal(sampleAtTime([], 100), null);
 });

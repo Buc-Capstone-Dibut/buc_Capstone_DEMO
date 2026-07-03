@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  gazeFromBlendshapes, headPoseFromMatrix, calibrateBaseline, isLookingAway, expressionLabel,
+  gazeFromBlendshapes, headPoseFromMatrix, calibrateBaseline, isLookingAway, isSmiling,
   type Baseline, type FaceSample, type Blendshapes,
 } from "@/lib/interview/face/face-metrics";
 
@@ -57,7 +57,7 @@ export function useFaceCapture() {
     for (const c of cats) b[c.categoryName] = c.score;
     const gaze = gazeFromBlendshapes(b);
     const head = headPoseFromMatrix(res.facialTransformationMatrixes?.[0]?.data) ?? { yaw: 0, pitch: 0, roll: 0 };
-    return { gaze, head, expr: expressionLabel(b) };
+    return { gaze, head, smile: isSmiling(b) };
   }, []);
 
   const calibrate = useCallback(async (video: HTMLVideoElement): Promise<boolean> => {
@@ -89,7 +89,7 @@ export function useFaceCapture() {
         const f = readFrame(video);
         if (f && baselineRef.current) {
           const away = isLookingAway({ gazeX: f.gaze.gazeX, gazeY: f.gaze.gazeY, yaw: f.head.yaw, pitch: f.head.pitch, blink: f.gaze.blink }, baselineRef.current);
-          samplesRef.current.push({ tMs: Math.round(now - (t0Ref.current ?? now)), gazeX: f.gaze.gazeX, gazeY: f.gaze.gazeY, yaw: f.head.yaw, pitch: f.head.pitch, away, expr: f.expr });
+          samplesRef.current.push({ tMs: Math.round(now - (t0Ref.current ?? now)), gazeX: f.gaze.gazeX, gazeY: f.gaze.gazeY, yaw: f.head.yaw, pitch: f.head.pitch, away, smile: f.smile });
         }
       }
       rafRef.current = requestAnimationFrame(loop);

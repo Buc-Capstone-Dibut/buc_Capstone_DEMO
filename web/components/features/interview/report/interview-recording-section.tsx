@@ -16,7 +16,8 @@ interface NonverbalSummary {
   perAnswer?: Array<{ index?: number; comment?: string }>;
   awayRatio?: number;
   awaySegments?: Array<[number, number]>;
-  expressionHistogram?: Record<string, number>;
+  smileRatio?: number;
+  headMovement?: { yawStd?: number; pitchStd?: number; level?: string };
 }
 
 interface Props {
@@ -39,36 +40,40 @@ function describeAwayRatio(ratio: number): string {
 function NonverbalPanel({ summary }: { summary: NonverbalSummary }) {
   const overall = String(summary.overall || "").trim();
   const perAnswer = (summary.perAnswer || []).filter((item) => String(item?.comment || "").trim());
-  const histogram = Object.entries(summary.expressionHistogram || {}).filter(([, count]) => Number(count) > 0);
-  const hasContent = overall || perAnswer.length > 0 || histogram.length > 0;
+  const moveLevel = String(summary.headMovement?.level || "").trim();
+  const hasContent = overall || perAnswer.length > 0 || moveLevel || (summary.awaySegments?.length ?? 0) > 0;
   if (!hasContent) return null;
+
+  const gazePercent = Math.round((1 - Number(summary.awayRatio || 0)) * 100);
+  const smilePercent = Math.round(Number(summary.smileRatio || 0) * 100);
 
   return (
     <div className="rounded-2xl border border-primary/15 bg-card p-5">
       <div className="flex items-center gap-2">
         <Eye className="h-4 w-4 text-primary" aria-hidden />
-        <h4 className="text-sm font-semibold text-foreground">시선·표정 경향</h4>
+        <h4 className="text-sm font-semibold text-foreground">비언어 행동 관찰</h4>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        점수가 아닌 정성적 관찰입니다. 시선·표정은 답변 내용 평가와 무관하게 참고용으로만 제공됩니다.
+        카메라로 관찰된 행동(응시·미소·고개 움직임)만 기록합니다. 감정 추측·점수 없이 참고용으로만 제공됩니다.
       </p>
 
       {overall && <p className="mt-3 text-sm leading-relaxed text-foreground">{overall}</p>}
 
       <p className="mt-3 text-sm text-muted-foreground">{describeAwayRatio(Number(summary.awayRatio || 0))}</p>
 
-      {histogram.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {histogram.map(([label, count]) => (
-            <span
-              key={label}
-              className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80"
-            >
-              {label} {count}회
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
+          정면 응시 약 {gazePercent}%
+        </span>
+        <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
+          미소 약 {smilePercent}%
+        </span>
+        {moveLevel && (
+          <span className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80">
+            고개 움직임 {moveLevel}
+          </span>
+        )}
+      </div>
 
       {perAnswer.length > 0 && (
         <ul className="mt-4 space-y-2">

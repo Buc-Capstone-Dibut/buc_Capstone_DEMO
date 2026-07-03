@@ -113,15 +113,17 @@ export function ReplayOverlay({ videoRef, samples }: Props) {
         drawPill(ctx, "시선 이탈", rect.offsetX + 10, rect.offsetY + 10, "rgba(245,158,11,0.9)", "left");
       }
 
-      // 표정 라벨: 우상단
-      drawPill(
-        ctx,
-        `표정: ${s.expr}`,
-        rect.offsetX + rect.width - 10,
-        rect.offsetY + 10,
-        "rgba(15,23,42,0.6)",
-        "right",
-      );
+      // 관찰 가능 행동만 표시: 미소 중일 때만 우상단 pill (감정 라벨 없음)
+      if (s.smile) {
+        drawPill(
+          ctx,
+          "미소",
+          rect.offsetX + rect.width - 10,
+          rect.offsetY + 10,
+          "rgba(99,153,34,0.9)",
+          "right",
+        );
+      }
 
       // 시선 인디케이터: rect 중심에서 (gazeX, gazeY) 방향 (gazeY는 캔버스 좌표로 반전)
       const cx = rect.offsetX + rect.width / 2;

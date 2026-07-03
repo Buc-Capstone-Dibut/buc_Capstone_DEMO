@@ -188,7 +188,7 @@ def _sanitize_jd_coverage(items: Any) -> list[dict[str, Any]]:
 
 
 def _sanitize_nonverbal_summary(payload: Any) -> dict[str, Any] | None:
-    """비언어(시선·표정) 정성 요약 정규화. 신호가 없으면 None (리포트에서 생략)."""
+    """비언어(관찰 행동: 응시/미소/고개 움직임) 정성 요약 정규화. 신호가 없으면 None (리포트에서 생략)."""
     if not isinstance(payload, dict):
         return None
 
@@ -207,14 +207,21 @@ def _sanitize_nonverbal_summary(payload: Any) -> dict[str, Any] | None:
         if isinstance(seg, (list, tuple)) and len(seg) == 2:
             away_segments.append([int(seg[0] or 0), int(seg[1] or 0)])
 
-    expression_histogram: dict[str, int] = {}
-    raw_hist = payload.get("expressionHistogram")
-    if isinstance(raw_hist, dict):
-        for label, count in raw_hist.items():
-            expression_histogram[str(label)] = int(count or 0)
+    head_movement: dict[str, Any] = {}
+    raw_move = payload.get("headMovement")
+    if isinstance(raw_move, dict):
+        level = str(raw_move.get("level") or "").strip()
+        if level:
+            head_movement = {
+                "yawStd": float(raw_move.get("yawStd") or 0.0),
+                "pitchStd": float(raw_move.get("pitchStd") or 0.0),
+                "level": level,
+            }
+
+    smile_ratio = float(payload.get("smileRatio") or 0.0)
 
     # 코멘트도 집계도 전혀 없으면 비언어 데이터가 없는 것으로 간주.
-    if not overall and not per_answer and not away_segments and not expression_histogram:
+    if not overall and not per_answer and not away_segments and not head_movement:
         return None
 
     return {
@@ -222,7 +229,8 @@ def _sanitize_nonverbal_summary(payload: Any) -> dict[str, Any] | None:
         "perAnswer": per_answer,
         "awayRatio": float(payload.get("awayRatio") or 0.0),
         "awaySegments": away_segments,
-        "expressionHistogram": expression_histogram,
+        "smileRatio": smile_ratio,
+        "headMovement": head_movement,
     }
 
 
