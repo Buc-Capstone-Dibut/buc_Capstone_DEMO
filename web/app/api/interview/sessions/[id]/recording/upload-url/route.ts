@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/interview/route-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { RECORDING_BUCKET, MAX_RECORDING_BYTES } from "@/lib/interview/recording/recording-metadata";
+import { getRecordingStorageMode } from "@/lib/interview/recording/storage-mode";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: "forbidden" }, { status: 403 });
   }
 
+  // 로컬 개발: Storage 대신 서버 파일 저장 라우트로 업로드하도록 안내(dev 노드 서버라 body 제한 없음).
+  if (getRecordingStorageMode() === "local") {
+    return NextResponse.json({ success: true, data: { mode: "local" } });
+  }
+
   try {
     await ensureBucket(admin);
   } catch (e) {
@@ -65,6 +71,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({
     success: true,
-    data: { bucket: RECORDING_BUCKET, path: data.path, token: data.token },
+    data: { mode: "supabase", bucket: RECORDING_BUCKET, path: data.path, token: data.token },
   });
 }

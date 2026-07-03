@@ -90,6 +90,23 @@ export function useInterviewRecording() {
       const signJson = await signRes.json();
       if (!signJson?.success) throw new Error(signJson?.error ?? "sign failed");
 
+      // 로컬 개발: 서버 파일 저장 라우트로 한 번에 업로드+메타 기록(dev 노드 서버 — body 제한 없음).
+      if (signJson.data?.mode === "local") {
+        const q = new URLSearchParams({
+          path: storagePath,
+          durationMs: String(durationMs),
+          startedAt: new Date(startedAt).toISOString(),
+        });
+        const upRes = await fetch(`/api/interview/sessions/${sessionId}/recording/upload?${q.toString()}`, {
+          method: "POST",
+          headers: { "Content-Type": recorder.mimeType || "video/webm" },
+          body: fixed,
+        });
+        const upJson = await upRes.json().catch(() => null);
+        if (!upJson?.success) throw new Error(upJson?.error ?? "local upload failed");
+        return { ok: true };
+      }
+
       const { error: upErr } = await supabase.storage
         .from(RECORDING_BUCKET)
         .uploadToSignedUrl(signJson.data.path, signJson.data.token, fixed);

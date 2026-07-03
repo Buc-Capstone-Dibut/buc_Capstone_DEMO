@@ -86,6 +86,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   if (!rec) return NextResponse.json({ success: true, data: null });
 
+  // 로컬 개발 저장분(bucket='local') — next dev 정적 서빙 URL 그대로 반환.
+  if (rec.bucket === "local") {
+    return NextResponse.json({
+      success: true,
+      data: {
+        url: `/${rec.storage_path}`,
+        durationMs: rec.duration_ms,
+        recordingStartedAt: rec.recording_started_at,
+      },
+    });
+  }
+
   const { data: signed, error } = await admin.storage
     .from(rec.bucket || RECORDING_BUCKET)
     .createSignedUrl(rec.storage_path, 60 * 60);

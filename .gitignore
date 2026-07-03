@@ -58,3 +58,6 @@ assets/
 
 # Python 패키징 메타데이터 (빌드 시 재생성)
 *.egg-info/
+
+# 로컬 개발 녹화 파일 (web dev 전용)
+web/public/local-recordings/
