@@ -19,7 +19,7 @@ function fmt(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// 영상 챕터형 타임라인: 답변 구간(Q 라벨) + 하단 시선 이탈 레인 + 시간 축 + 재생 칩.
+// 실선형 타임라인: 가는 베이스 라인 위에 답변 구간(라임 선)·시선 이탈(하단 빨간 선)·재생 틱.
 export function SegmentTimelineBar({
   segments,
   durationMs,
@@ -52,19 +52,38 @@ export function SegmentTimelineBar({
         <span>{fmt(durationMs)}</span>
       </div>
 
-      {/* 트랙 */}
+      {/* 트랙 (실선) */}
       <div
         ref={trackRef}
         onClick={handleTrackSeek}
-        className="relative mt-1 h-11 w-full cursor-pointer rounded-lg border border-border/60 bg-muted/60"
+        className="relative mt-0.5 h-9 w-full cursor-pointer"
       >
-        {/* 답변 챕터 */}
+        {/* 베이스 라인 */}
+        <div className="absolute left-0 right-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-border" />
+
+        {/* Q 라벨 (구간 시작 위) */}
+        {sorted.map((s, idx) => {
+          const width = pct(s.endMs) - pct(s.startMs);
+          if (width < 5) return null;
+          const isActive = s.id === activeId;
+          return (
+            <span
+              key={`label-${s.id}`}
+              className={`pointer-events-none absolute top-0 text-[10px] font-semibold leading-none tabular-nums ${
+                isActive ? "text-primary" : "text-muted-foreground"
+              }`}
+              style={{ left: `${pct(s.startMs)}%` }}
+            >
+              Q{idx + 1} <span className="font-normal opacity-70">{fmt(s.startMs)}</span>
+            </span>
+          );
+        })}
+
+        {/* 답변 구간 선 */}
         {sorted.map((s, idx) => {
           const left = pct(s.startMs);
           const width = Math.max(pct(s.endMs) - pct(s.startMs), 0.5);
           const isActive = s.id === activeId;
-          const showLabel = width >= 6;
-          const showTime = width >= 14;
           return (
             <button
               key={s.id}
@@ -74,28 +93,21 @@ export function SegmentTimelineBar({
                 onSeek(s.startMs);
               }}
               title={`Q${idx + 1} 답변 구간 ${fmt(s.startMs)}~${fmt(s.endMs)}`}
-              className={`absolute top-1 bottom-3 flex items-center gap-1 overflow-hidden rounded-md px-1.5 transition ${
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-primary/20 text-foreground/70 hover:bg-primary/35"
-              }`}
+              className="group absolute top-1/2 flex h-6 -translate-y-1/2 items-center"
               style={{ left: `${left}%`, width: `${width}%` }}
             >
-              {showLabel && (
-                <span className={`text-[11px] font-semibold leading-none ${isActive ? "" : "text-primary"}`}>
-                  Q{idx + 1}
-                </span>
-              )}
-              {showTime && (
-                <span className="truncate text-[10px] leading-none opacity-80 tabular-nums">
-                  {fmt(s.startMs)}
-                </span>
-              )}
+              <span
+                className={`w-full rounded-full transition-all ${
+                  isActive
+                    ? "h-[7px] bg-primary"
+                    : "h-[5px] bg-primary/45 group-hover:bg-primary/75"
+                }`}
+              />
             </button>
           );
         })}
 
-        {/* 시선 이탈 레인(하단) */}
+        {/* 시선 이탈 선 (베이스 라인 아래) */}
         {away.map(([s, e], i) => (
           <button
             key={`away-${i}`}
@@ -105,33 +117,29 @@ export function SegmentTimelineBar({
               onSeek(s);
             }}
             title={`시선 이탈 ${fmt(s)}~${fmt(e)}`}
-            className="absolute bottom-[3px] h-[5px] rounded-full bg-red-500/80 transition hover:bg-red-500"
+            className="group absolute top-[62%] flex h-3 items-center"
             style={{ left: `${pct(s)}%`, width: `${Math.max(pct(e) - pct(s), 0.6)}%` }}
-          />
+          >
+            <span className="w-full rounded-full transition h-[3px] bg-red-500/75 group-hover:bg-red-500" />
+          </button>
         ))}
 
-        {/* 재생 헤드 + 시간 칩 */}
+        {/* 재생 틱 */}
         <div
-          className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/80"
+          className="pointer-events-none absolute top-1/2 h-5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
           style={{ left: `${indicator}%` }}
         />
-        <div
-          className="pointer-events-none absolute -top-0.5 -translate-x-1/2 rounded bg-foreground px-1 py-px text-[9px] font-medium tabular-nums text-background shadow-sm"
-          style={{ left: `${Math.min(Math.max(indicator, 3), 97)}%` }}
-        >
-          {fmt(currentTimeMs)}
-        </div>
       </div>
 
       {/* 범례 */}
-      <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-3 rounded-sm bg-primary/70" />
+          <span className="inline-block h-[5px] w-4 rounded-full bg-primary/60" />
           답변 구간
         </span>
         {away.length > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-[5px] w-3 rounded-full bg-red-500/80" />
+            <span className="inline-block h-[3px] w-4 rounded-full bg-red-500/75" />
             시선 이탈
           </span>
         )}
