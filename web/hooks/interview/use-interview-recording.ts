@@ -8,6 +8,7 @@ import {
   buildRecordingMetadata,
 } from "@/lib/interview/recording/recording-metadata";
 import { fixRecordingDuration } from "@/lib/interview/recording/fix-duration";
+import { getInterviewPlaybackAudioContext } from "@/lib/interview/playback-audio";
 
 const CODECS = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
 const UPLOAD_FETCH_TIMEOUT_MS = 20_000;
@@ -17,20 +18,53 @@ export interface RecordingResult {
   error?: string;
 }
 
+export interface RecordingStartOptions {
+  /** AI(면접관) 재생 음성 탭 스트림 — 있으면 마이크와 믹스해 한 트랙으로 녹음. */
+  aiAudioStream?: MediaStream | null;
+}
+
 export function useInterviewRecording() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const ownedAudioRef = useRef<MediaStream | null>(null); // 훅이 직접 취득한 마이크 (정리 책임)
+  const mixNodesRef = useRef<AudioNode[]>([]); // 믹서 노드(정리 책임 — disconnect만, ctx는 공유라 close 금지)
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef<number | null>(null);
 
+  const teardownMixNodes = useCallback(() => {
+    for (const node of mixNodesRef.current) {
+      try { node.disconnect(); } catch { /* ignore */ }
+    }
+    mixNodesRef.current = [];
+  }, []);
+
+  // 마이크 + AI 음성(탭)을 공유 AudioContext 에서 한 트랙으로 믹스.
+  // Chrome MediaRecorder 는 다중 오디오 트랙 중 첫 트랙만 기록하므로 믹싱이 필수다.
+  // 컨텍스트가 없거나 잠겨 있으면 마이크 원본 트랙으로 폴백(기존 동작 보존).
+  const buildAudioTracks = useCallback((micStream: MediaStream, aiStream: MediaStream | null | undefined) => {
+    const ctx = getInterviewPlaybackAudioContext();
+    if (!aiStream || !ctx || ctx.state !== "running") return micStream.getAudioTracks();
+    try {
+      const mixDest = ctx.createMediaStreamDestination();
+      const micSource = ctx.createMediaStreamSource(micStream);
+      micSource.connect(mixDest);
+      const aiSource = ctx.createMediaStreamSource(aiStream);
+      aiSource.connect(mixDest);
+      mixNodesRef.current = [micSource, aiSource, mixDest];
+      return mixDest.stream.getAudioTracks();
+    } catch {
+      teardownMixNodes();
+      return micStream.getAudioTracks();
+    }
+  }, [teardownMixNodes]);
+
   // videoStream: 미리보기와 공유하는 카메라 스트림(소유권은 호출자). null이면 오디오 전용 녹화.
-  const start = useCallback(async (videoStream: MediaStream | null) => {
+  const start = useCallback(async (videoStream: MediaStream | null, options: RecordingStartOptions = {}) => {
     if (recorderRef.current) return;
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       ownedAudioRef.current = audioStream;
 
-      const tracks: MediaStreamTrack[] = [...audioStream.getAudioTracks()];
+      const tracks: MediaStreamTrack[] = buildAudioTracks(audioStream, options.aiAudioStream);
       const videoTrack = videoStream?.getVideoTracks?.()[0];
       if (videoTrack) tracks.unshift(videoTrack);
       const combined = new MediaStream(tracks);
@@ -49,11 +83,12 @@ export function useInterviewRecording() {
       startedAtRef.current = Date.now();
       recorder.start(5000); // 5초마다 청크 flush
     } catch (err) {
+      teardownMixNodes();
       ownedAudioRef.current?.getTracks().forEach((t) => t.stop());
       ownedAudioRef.current = null;
       console.error("[recording] 시작 실패(영상 없이 면접은 계속):", err);
     }
-  }, []);
+  }, [buildAudioTracks, teardownMixNodes]);
 
   const stopAndUpload = useCallback(async (sessionId: string): Promise<RecordingResult> => {
     const recorder = recorderRef.current;
@@ -69,7 +104,8 @@ export function useInterviewRecording() {
       recorder.stop();
     });
 
-    // 훅이 소유한 마이크만 정리. 공유 비디오 트랙은 멈추지 않는다(미리보기가 소유).
+    // 훅이 소유한 마이크·믹서 노드만 정리. 공유 비디오 트랙은 멈추지 않는다(미리보기가 소유).
+    teardownMixNodes();
     ownedAudioRef.current?.getTracks().forEach((t) => t.stop());
     ownedAudioRef.current = null;
     recorderRef.current = null;
@@ -78,14 +114,18 @@ export function useInterviewRecording() {
     const fixed = await fixRecordingDuration(blob, durationMs);
     const storagePath = buildRecordingStoragePath(sessionId, recorder.mimeType);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPLOAD_FETCH_TIMEOUT_MS);
+    // 요청별 독립 타임아웃 — 하나의 signal 을 공유하면 스토리지 업로드가 오래 걸릴 때
+    // 이후 메타 POST 가 이미 만료된 signal 로 즉사해 '파일만 있고 DB 행 없는' 유실이 난다.
+    const timedFetch = (url: string, init: RequestInit) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), UPLOAD_FETCH_TIMEOUT_MS);
+      return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+    };
     try {
-      const signRes = await fetch(`/api/interview/sessions/${sessionId}/recording/upload-url`, {
+      const signRes = await timedFetch(`/api/interview/sessions/${sessionId}/recording/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storagePath }),
-        signal: controller.signal,
       });
       const signJson = await signRes.json();
       if (!signJson?.success) throw new Error(signJson?.error ?? "sign failed");
@@ -120,21 +160,20 @@ export function useInterviewRecording() {
         durationMs,
         recordingStartedAtIso: new Date(startedAt).toISOString(),
       });
-      await fetch(`/api/interview/sessions/${sessionId}/recording`, {
+      const metaRes = await timedFetch(`/api/interview/sessions/${sessionId}/recording`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(meta),
-        signal: controller.signal,
       });
+      const metaJson = await metaRes.json().catch(() => null);
+      if (!metaJson?.success) throw new Error(metaJson?.error ?? "recording metadata save failed");
       return { ok: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[recording] 업로드 실패:", msg);
       return { ok: false, error: msg };
-    } finally {
-      clearTimeout(timer);
     }
-  }, []);
+  }, [teardownMixNodes]);
 
   useEffect(() => {
     return () => {
@@ -147,11 +186,12 @@ export function useInterviewRecording() {
       } catch {
         /* ignore */
       }
+      teardownMixNodes();
       ownedAudioRef.current?.getTracks().forEach((t) => t.stop());
       ownedAudioRef.current = null;
       recorderRef.current = null;
     };
-  }, []);
+  }, [teardownMixNodes]);
 
   return useMemo(() => ({ start, stopAndUpload }), [start, stopAndUpload]);
 }

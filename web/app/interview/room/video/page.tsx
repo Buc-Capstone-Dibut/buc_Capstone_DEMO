@@ -16,7 +16,7 @@ import {
   isLocalInterviewBaseUrl,
   resolveInterviewBaseUrlFromWsUrl,
 } from "@/lib/interview/dev-auth";
-import { isInterviewPlaybackAudioReady } from "@/lib/interview/playback-audio";
+import { getInterviewPlaybackRecordingTap, isInterviewPlaybackAudioReady } from "@/lib/interview/playback-audio";
 import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
 import { supabase } from "@/lib/supabase/client";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
@@ -230,8 +230,34 @@ export default function InterviewVideoRoomPage() {
   const recording = useInterviewRecording();
   const recordingVideoStreamRef = useRef<MediaStream | null>(null);
   const [isSavingRecording, setIsSavingRecording] = useState(false);
+  // 카메라 상태를 시작 effect 안에서 deps 없이 읽기 위한 미러(deps 추가 시 토글마다 재실행됨).
+  const isCameraEnabledRef = useRef(isCameraEnabled);
+  isCameraEnabledRef.current = isCameraEnabled;
+  // 스트림 도착 대기자 — LocalCameraPreview 의 getUserMedia(비동기)가 시작 effect 보다
+  // 늦게 끝나는 것이 정상 순서라, 여기서 resolve 해 주지 않으면 녹화가 항상 오디오 전용이 된다.
+  const streamWaiterRef = useRef<((s: MediaStream | null) => void) | null>(null);
   const handleRecordingStream = useCallback((stream: MediaStream | null) => {
     recordingVideoStreamRef.current = stream;
+    if (stream && streamWaiterRef.current) {
+      streamWaiterRef.current(stream);
+      streamWaiterRef.current = null;
+    }
+  }, []);
+  // 카메라 스트림이 이미 있으면 즉시, 아니면 도착(onStream) 또는 타임아웃까지 대기.
+  // 타임아웃(권한 거부·하드웨어 실패)이면 null — 오디오 전용 녹화로 폴백한다.
+  const waitForRecordingStream = useCallback((timeoutMs: number): Promise<MediaStream | null> => {
+    if (recordingVideoStreamRef.current) return Promise.resolve(recordingVideoStreamRef.current);
+    return new Promise((resolve) => {
+      const timer = window.setTimeout(() => {
+        if (streamWaiterRef.current === waiter) streamWaiterRef.current = null;
+        resolve(recordingVideoStreamRef.current);
+      }, timeoutMs);
+      const waiter = (s: MediaStream | null) => {
+        window.clearTimeout(timer);
+        resolve(s);
+      };
+      streamWaiterRef.current = waiter;
+    });
   }, []);
 
   // 얼굴 지표 캡처 — 녹화와 동일한 공유 카메라 스트림을 재사용한다(새 getUserMedia 없음).
@@ -873,13 +899,21 @@ export default function InterviewVideoRoomPage() {
       }
 
       await sendInterviewInit(nextSessionId);
-      void recording.start(recordingVideoStreamRef.current);
+
+      // 카메라가 켜져 있으면 공유 스트림 도착을 기다렸다가 녹화를 시작한다.
+      // LocalCameraPreview 마운트와 이 effect 는 같은 커밋에서 발화하므로, 대기 없이는
+      // getUserMedia(비동기)가 항상 져서 녹화가 오디오 전용(검은 화면)이 된다.
+      const videoStream = isCameraEnabledRef.current ? await waitForRecordingStream(8000) : null;
+      if (cancelled || completionRedirectedRef.current) return;
+      void recording.start(videoStream, {
+        aiAudioStream: getInterviewPlaybackRecordingTap()?.stream ?? null,
+      });
 
       // 캘리브레이션 베이스라인이 있을 때만 얼굴 캡처 시작(건너뛰기/불가 → 캡처 없음, 면접 영향 없음).
-      // 공유 스트림(recordingVideoStreamRef)을 숨김 video 에 물려 MediaPipe 입력으로만 쓴다.
-      if (faceBaseline && recordingVideoStreamRef.current && faceVideoRef.current) {
+      // 위에서 기다린 공유 스트림을 숨김 video 에 물려 MediaPipe 입력으로만 쓴다.
+      if (faceBaseline && videoStream && faceVideoRef.current) {
         try {
-          faceVideoRef.current.srcObject = recordingVideoStreamRef.current;
+          faceVideoRef.current.srcObject = videoStream;
           await faceVideoRef.current.play().catch(() => undefined);
           await face.ensureLandmarker();
           face.setBaseline(faceBaseline);
@@ -903,6 +937,7 @@ export default function InterviewVideoRoomPage() {
     recording,
     requestedSessionId,
     sendInterviewInit,
+    waitForRecordingStream,
   ]);
 
   useEffect(() => {

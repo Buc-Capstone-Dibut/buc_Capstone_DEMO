@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { SegmentVideoPlayer, type SegmentVideoPlayerHandle } from "./segment-video-player";
 import { SegmentTimelineBar } from "./segment-timeline-bar";
+import { AnswerHighlights } from "./answer-highlights";
 import { AnswerScriptPanel } from "./answer-script-panel";
 import { AnswerDetailList } from "./answer-detail-list";
 import { useSegmentSync } from "@/hooks/interview/use-segment-sync";
@@ -138,6 +139,11 @@ export function InterviewRecordingSection({
           <p className="mt-2 text-xs text-muted-foreground">
             답변/타임라인을 클릭하면 영상이 해당 구간으로 이동합니다.
           </p>
+          <AnswerHighlights
+            src={recordingUrl}
+            segments={segments}
+            samples={showOverlay && hasOverlayData ? samples : undefined}
+          />
         </div>
         <AnswerScriptPanel
           segments={segments}

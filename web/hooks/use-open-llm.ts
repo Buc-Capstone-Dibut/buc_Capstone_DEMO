@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
 import {
   getInterviewPlaybackAudioContext,
+  getInterviewPlaybackRecordingTap,
   isInterviewPlaybackAudioReady,
   prepareInterviewPlaybackAudio,
   releaseInterviewPlaybackAudio,
@@ -310,6 +311,9 @@ export function useOpenLLM({
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(ctx.destination);
+    // 녹화 탭에도 이중 연결 — 면접관 음성이 녹화 믹서로 흘러간다(스피커 재생과 무간섭).
+    const recordingTap = getInterviewPlaybackRecordingTap();
+    if (recordingTap && recordingTap.context === ctx) source.connect(recordingTap);
 
     const currentTime = ctx.currentTime;
     const minLeadSec = nextStartTimeRef.current <= 0 ? 0.18 : 0.06;
