@@ -14,6 +14,8 @@
 
 사용자 트래픽은 **Vercel**에 배포된 `web`(Next.js)으로 들어오고, REST/WSS로 **Render**의 두 백엔드와 통신합니다 — 면접 엔진 `ai-interview`(FastAPI)와 실시간 협업 `workspace-server`(Node). 데이터와 인증은 **Supabase**(Postgres + Auth)가 맡습니다. 면접·생성 파이프라인은 Gemini·OpenAI·LiveKit·GitHub API·Socket.IO 등 외부 서비스를 사용하며, `crawler`(Python)는 수집 결과를 Postgres에 JSON 캐시로 적재합니다.
 
+> 실측 참고(2026-07 지식그래프 분석): `web/app/api`의 BFF 라우트 100개 중 **84개는 Prisma/Supabase/Gemini를 직접 호출하는 실구현**이고, FastAPI로 프록시하는 것은 면접 도메인 14개뿐입니다. 즉 `web`은 프론트엔드이자 **제품의 최대 백엔드**이며, `ai-interview`는 AI 면접 전문 엔진입니다. 상세: [지식그래프 분석 보고서](docs/architecture/2026-07-03-knowledge-graph-analysis.md)
+
 ## 모노레포 구성
 
 | 디렉토리 | 역할 | 기본 포트 | 배포 |
@@ -71,11 +73,25 @@ cd crawler && uv sync
 - `NEXT_PUBLIC_WS_URL=wss://dibut-workspace-server.onrender.com`
 - `NEXT_PUBLIC_SOCKET_URL=wss://dibut-workspace-server.onrender.com`
 
+## 코드베이스 지식그래프 (팀 온보딩)
+
+전체 코드베이스(896파일)를 노드 2,501개의 인터랙티브 지식그래프로 분석해 두었습니다. 그래프 데이터는 `.understand-anything/`에 커밋되어 있으므로, 팀원은 뷰어만 설치하면 됩니다:
+
+```
+/plugin marketplace add Egonex-AI/Understand-Anything   # Claude Code에서
+/plugin install understand-anything
+/understand-dashboard                                    # 대시보드 실행
+```
+
+10개 레이어 지도, 파일별 한국어 요약, 14단계 아키텍처 가이드 투어를 제공합니다. 설치 상세·수동 실행법·분석 결과는 [지식그래프 분석 보고서](docs/architecture/2026-07-03-knowledge-graph-analysis.md) 참고. 코드 변경 후에는 `/understand`로 증분 갱신하세요.
+
 ## 문서 바로가기
 
 - 웹: [web/README.md](web/README.md)
 - AI 면접 서버: [ai-interview/README.md](ai-interview/README.md)
 - 워크스페이스 서버: [workspace-server/README.md](workspace-server/README.md)
 - 크롤러: [crawler/README.md](crawler/README.md)
+- **코드베이스 지식그래프 분석(2026-07-03)**: [docs/architecture/2026-07-03-knowledge-graph-analysis.md](docs/architecture/2026-07-03-knowledge-graph-analysis.md)
+- 기술 인수인계 문서: [PROJECT_HANDOVER_KR.md](PROJECT_HANDOVER_KR.md)
 - 성능 최적화·QA 검증 보고서: [docs/reports/2026-06-03-performance-optimization-report.md](docs/reports/2026-06-03-performance-optimization-report.md)
 - 회귀 테스트 계획서: [docs/qa/2026-06-03-regression-test-plan.md](docs/qa/2026-06-03-regression-test-plan.md)

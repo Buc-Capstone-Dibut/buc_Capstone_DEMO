@@ -58,3 +58,9 @@ assets/
 
 # Python 패키징 메타데이터 (빌드 시 재생성)
 *.egg-info/
+
+# Understand-Anything 지식그래프 — 그래프 본체(knowledge-graph.json 등)는 커밋, 로컬 스크래치만 제외
+.understand-anything/intermediate/
+.understand-anything/tmp/
+.understand-anything/.trash-*/
+.understand-anything/diff-overlay.json
