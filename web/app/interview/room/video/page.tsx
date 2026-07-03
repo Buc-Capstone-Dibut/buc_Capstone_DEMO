@@ -238,7 +238,8 @@ export default function InterviewVideoRoomPage() {
   const streamWaiterRef = useRef<((s: MediaStream | null) => void) | null>(null);
   const handleRecordingStream = useCallback((stream: MediaStream | null) => {
     recordingVideoStreamRef.current = stream;
-    if (stream && streamWaiterRef.current) {
+    // null(카메라 실패/정리)도 통지 — 대기자가 8초 타임아웃 없이 즉시 오디오 전용으로 폴백한다.
+    if (streamWaiterRef.current) {
       streamWaiterRef.current(stream);
       streamWaiterRef.current = null;
     }
@@ -894,7 +895,7 @@ export default function InterviewVideoRoomPage() {
     void (async () => {
       const nextSessionId = requestedSessionId || (await ensureSessionId());
       if (!nextSessionId || cancelled) {
-        if (!nextSessionId) startedRef.current = false;
+        startedRef.current = false; // cancelled 도 복구 — 재실행(WS 블립 재연결)에서 이어가야 한다
         return;
       }
 
@@ -904,7 +905,12 @@ export default function InterviewVideoRoomPage() {
       // LocalCameraPreview 마운트와 이 effect 는 같은 커밋에서 발화하므로, 대기 없이는
       // getUserMedia(비동기)가 항상 져서 녹화가 오디오 전용(검은 화면)이 된다.
       const videoStream = isCameraEnabledRef.current ? await waitForRecordingStream(8000) : null;
-      if (cancelled || completionRedirectedRef.current) return;
+      if (cancelled || completionRedirectedRef.current) {
+        // 진짜 종료가 아니면(예: WS 블립로 인한 effect 재구독) 재실행이 녹화를 이어가도록 복구.
+        // 이 지점은 recording.start 이전이므로 이중 시작 위험이 없다(훅 자체도 recorderRef 가드).
+        if (!completionRedirectedRef.current) startedRef.current = false;
+        return;
+      }
       void recording.start(videoStream, {
         aiAudioStream: getInterviewPlaybackRecordingTap()?.stream ?? null,
       });
@@ -990,42 +996,6 @@ export default function InterviewVideoRoomPage() {
     disconnect();
     routeToSetup();
   }, [disconnect, isReconnecting, reconnectRemainingSec, routeToSetup]);
-
-  useEffect(() => {
-    if (!runtimeMeta.interviewComplete || completionRedirectedRef.current || !activeSessionId) return;
-
-    if (completeSinceRef.current === null) completeSinceRef.current = Date.now();
-    const COMPLETE_MAX_WAIT_MS = 20000; // 마무리 TTS 가 안 끝나는 경우 대비 최대 대기
-    const waitedMs = Date.now() - completeSinceRef.current;
-
-    // 마무리 멘트(TTS)가 아직 재생 중이면 끝날 때까지 기다린다(잘림 방지). 단 최대 대기시간까지만.
-    if (isAISpeaking && waitedMs < COMPLETE_MAX_WAIT_MS) {
-      setStatusMessage("면접 마무리 멘트를 듣고 있어요...");
-      // isAISpeaking 이 false 로 바뀌면 dep 으로 재실행되지만, 혹시 안 바뀌어도
-      // 남은 최대 대기시간 후 강제로 재평가해 이동시킨다.
-      const safety = window.setTimeout(
-        () => setCompletionRecheck((n) => n + 1),
-        COMPLETE_MAX_WAIT_MS - waitedMs,
-      );
-      return () => window.clearTimeout(safety);
-    }
-
-    completionRedirectedRef.current = true;
-    setStatusMessage("면접이 완료되었습니다. 결과 페이지로 이동합니다...");
-    // 발화가 끝난 뒤 짧은 여유를 두고 이동.
-    const go = window.setTimeout(() => {
-      router.push(buildResultPath(activeSessionId));
-    }, 800);
-
-    return () => window.clearTimeout(go);
-  }, [
-    activeSessionId,
-    buildResultPath,
-    router,
-    runtimeMeta.interviewComplete,
-    isAISpeaking,
-    completionRecheck,
-  ]);
 
 
 
@@ -1269,11 +1239,18 @@ export default function InterviewVideoRoomPage() {
     // 걸어 면접 종료를 절대 막지 않는다(에러도 삼킨다). face.stop() 은 rAF 루프만 취소한다.
     const sig = face.stop();
     if (sid && sig.samples.length > 0) {
+      // 시간축 리베이스: 얼굴 캡처는 landmarker 로드 뒤에 시작되어 tMs=0 이 녹화 시작보다
+      // 늦다. 영상·세그먼트 축(recording_started_at)에 맞춰 오프셋을 더해 저장한다.
+      const recStartedAt = recording.getStartedAt();
+      const offsetMs =
+        sig.startedAtMs && recStartedAt ? Math.max(0, sig.startedAtMs - recStartedAt) : 0;
+      const samples =
+        offsetMs > 0 ? sig.samples.map((s) => ({ ...s, tMs: s.tMs + offsetMs })) : sig.samples;
       await Promise.race([
         fetch(`/api/interview/sessions/${sid}/signals`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sampleRateHz: sig.sampleRateHz, samples: sig.samples, baseline: sig.baseline }),
+          body: JSON.stringify({ sampleRateHz: sig.sampleRateHz, samples, baseline: sig.baseline }),
         }).catch(() => undefined),
         new Promise((r) => setTimeout(r, 15_000)),
       ]).catch(() => undefined);
@@ -1296,6 +1273,43 @@ export default function InterviewVideoRoomPage() {
       status: "면접 종료와 리포트 생성을 요청하는 중...",
     });
   };
+
+  // 자연 완료(AI가 면접을 스스로 종료) — 마무리 TTS를 기다린 뒤 정식 종료 루틴으로 넘긴다.
+  // 예전처럼 router.push 만 하면 녹화 업로드·얼굴 시그널·/complete 요청이 전부 유실된다.
+  useEffect(() => {
+    if (!runtimeMeta.interviewComplete || completionRedirectedRef.current || !activeSessionId) return;
+    if (isFinishingSession) return;
+
+    if (completeSinceRef.current === null) completeSinceRef.current = Date.now();
+    const COMPLETE_MAX_WAIT_MS = 20000; // 마무리 TTS 가 안 끝나는 경우 대비 최대 대기
+    const waitedMs = Date.now() - completeSinceRef.current;
+
+    // 마무리 멘트(TTS)가 아직 재생 중이면 끝날 때까지 기다린다(잘림 방지). 단 최대 대기시간까지만.
+    if (isAISpeaking && waitedMs < COMPLETE_MAX_WAIT_MS) {
+      setStatusMessage("면접 마무리 멘트를 듣고 있어요...");
+      // isAISpeaking 이 false 로 바뀌면 dep 으로 재실행되지만, 혹시 안 바뀌어도
+      // 남은 최대 대기시간 후 강제로 재평가해 이동시킨다.
+      const safety = window.setTimeout(
+        () => setCompletionRecheck((n) => n + 1),
+        COMPLETE_MAX_WAIT_MS - waitedMs,
+      );
+      return () => window.clearTimeout(safety);
+    }
+
+    // 발화가 끝난 뒤 짧은 여유를 두고 정식 종료(녹화 저장·시그널 업로드·리포트 요청 포함).
+    const go = window.setTimeout(() => {
+      void completeSession({ status: "면접이 완료되었습니다. 결과를 저장하는 중..." });
+    }, 800);
+
+    return () => window.clearTimeout(go);
+  }, [
+    activeSessionId,
+    completeSession,
+    completionRecheck,
+    isAISpeaking,
+    isFinishingSession,
+    runtimeMeta.interviewComplete,
+  ]);
 
   useEffect(() => {
     if (

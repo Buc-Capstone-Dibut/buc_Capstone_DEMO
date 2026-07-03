@@ -24,6 +24,7 @@ export function useFaceCapture() {
   const samplesRef = useRef<FaceSample[]>([]);
   const baselineRef = useRef<Baseline | null>(null);
   const t0Ref = useRef<number | null>(null);
+  const startedAtWallRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const cancelRaf = useCallback(() => {
@@ -105,6 +106,7 @@ export function useFaceCapture() {
     cancelRaf();
     samplesRef.current = [];
     t0Ref.current = performance.now();
+    startedAtWallRef.current = Date.now(); // 녹화 시작 시각과의 오프셋 보정용 wall-clock
     let last = 0;
     const loop = () => {
       const now = performance.now();
@@ -124,7 +126,12 @@ export function useFaceCapture() {
   const stop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    return { sampleRateHz: 5, samples: samplesRef.current, baseline: baselineRef.current };
+    return {
+      sampleRateHz: 5,
+      samples: samplesRef.current,
+      baseline: baselineRef.current,
+      startedAtMs: startedAtWallRef.current, // tMs=0 이 가리키는 wall-clock(리베이스용)
+    };
   }, []);
 
   const getBaseline = useCallback(() => baselineRef.current, []);

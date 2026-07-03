@@ -29,6 +29,7 @@ export function useInterviewRecording() {
   const mixNodesRef = useRef<AudioNode[]>([]); // 믹서 노드(정리 책임 — disconnect만, ctx는 공유라 close 금지)
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef<number | null>(null);
+  const aliveRef = useRef(true); // 언마운트 후 start() 연속부가 마이크를 잡는 것 방지
 
   const teardownMixNodes = useCallback(() => {
     for (const node of mixNodesRef.current) {
@@ -41,8 +42,9 @@ export function useInterviewRecording() {
   // Chrome MediaRecorder 는 다중 오디오 트랙 중 첫 트랙만 기록하므로 믹싱이 필수다.
   // 컨텍스트가 없거나 잠겨 있으면 마이크 원본 트랙으로 폴백(기존 동작 보존).
   const buildAudioTracks = useCallback((micStream: MediaStream, aiStream: MediaStream | null | undefined) => {
-    const ctx = getInterviewPlaybackAudioContext();
-    if (!aiStream || !ctx || ctx.state !== "running") return micStream.getAudioTracks();
+    if (!aiStream) return micStream.getAudioTracks();
+    const ctx = getInterviewPlaybackAudioContext(); // aiStream 없으면 호출 안 함 — release 후 유령 컨텍스트 생성 방지
+    if (!ctx || ctx.state !== "running") return micStream.getAudioTracks();
     try {
       const mixDest = ctx.createMediaStreamDestination();
       const micSource = ctx.createMediaStreamSource(micStream);
@@ -62,6 +64,11 @@ export function useInterviewRecording() {
     if (recorderRef.current) return;
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // getUserMedia 대기 중 언마운트됐으면 즉시 폐기 — 마이크 잔존(표시등)·유령 recorder 방지.
+      if (!aliveRef.current) {
+        audioStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       ownedAudioRef.current = audioStream;
 
       const tracks: MediaStreamTrack[] = buildAudioTracks(audioStream, options.aiAudioStream);
@@ -176,7 +183,9 @@ export function useInterviewRecording() {
   }, [teardownMixNodes]);
 
   useEffect(() => {
+    aliveRef.current = true;
     return () => {
+      aliveRef.current = false;
       // 비정상 언마운트 시 누수 방지: 녹화 중이면 정지하고 마이크 트랙 정리.
       // (정상 종료는 stopAndUpload가 이미 처리하므로 여기선 트랙만 정리)
       try {
@@ -193,5 +202,8 @@ export function useInterviewRecording() {
     };
   }, [teardownMixNodes]);
 
-  return useMemo(() => ({ start, stopAndUpload }), [start, stopAndUpload]);
+  // 녹화 실제 시작 시각(wall-clock) — 얼굴 시계열 tMs 리베이스용.
+  const getStartedAt = useCallback(() => startedAtRef.current, []);
+
+  return useMemo(() => ({ start, stopAndUpload, getStartedAt }), [start, stopAndUpload, getStartedAt]);
 }

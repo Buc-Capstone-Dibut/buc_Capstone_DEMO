@@ -54,6 +54,7 @@ function LocalCameraPreviewImpl({
       if (!navigator?.mediaDevices?.getUserMedia) {
         setError("이 브라우저는 카메라 미리보기를 지원하지 않습니다.");
         setIsLoading(false);
+        onStreamRef.current?.(null); // 스트림 대기자에게 실패를 즉시 알린다(헛대기 방지)
         return;
       }
 
@@ -81,6 +82,7 @@ function LocalCameraPreviewImpl({
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "카메라 접근 권한이 필요합니다.";
         setError(message);
+        onStreamRef.current?.(null); // 실패도 통지 — 녹화가 8초 타임아웃 없이 오디오 전용으로 즉시 폴백
       } finally {
         if (!cancelled) {
           setIsLoading(false);
