@@ -18,7 +18,11 @@ from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.session_support import create_live_interview_session
 from app.interview.runtime.state import VoiceWsState
 from app.interview.runtime.turn_ids import next_ai_turn_id
-from app.interview.transcript.session_state import hydrate_state_from_session_row, runtime_timing
+from app.interview.transcript.session_state import (
+    fetch_portfolio_source_async,
+    hydrate_state_from_session_row,
+    runtime_timing,
+)
 from app.interview.runtime.ws_runtime_wiring import build_live_client_deps
 from app.interview.runtime.voice_support import pcm16le_bytes_to_base64_chunks
 
@@ -59,7 +63,8 @@ async def prepare_opening_artifact_from_session(
     session: dict[str, object],
 ) -> PreparedOpeningArtifact | None:
     state = VoiceWsState()
-    hydrate_state_from_session_row(state, session, turns=[])
+    portfolio_source = await fetch_portfolio_source_async(session)  # type: ignore[arg-type]
+    hydrate_state_from_session_row(state, session, turns=[], portfolio_source=portfolio_source)
 
     spec = prepare_opening_turn(
         state,

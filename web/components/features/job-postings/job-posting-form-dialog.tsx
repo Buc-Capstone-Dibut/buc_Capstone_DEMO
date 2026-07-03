@@ -40,6 +40,7 @@ import {
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { cn } from "@/lib/utils";
+import { interpretParseJobResponse } from "@/lib/interview/validation";
 
 const STATUS_OPTIONS: Array<{ value: JobPostingStatus; label: string }> = [
   { value: "active", label: "관심" },
@@ -168,8 +169,21 @@ export function JobPostingFormDialog({
         body: JSON.stringify({ url: trimmed }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json || json.success === false) {
-        throw new Error(json?.error ?? "URL에서 정보를 가져오지 못했습니다.");
+      if (!res.ok || !json) {
+        throw new Error(
+          typeof json?.error === "string" && !/^[A-Z_]+$/.test(json.error)
+            ? json.error
+            : "URL에서 정보를 가져오지 못했습니다.",
+        );
+      }
+      // 분석 실패(success:false)여도 폴백 data 가 오면 필드는 채우되, 기계 코드 대신
+      // 한국어 안내를 배너에 노출한다(interpretParseJobResponse 공용 해석 재사용).
+      const interp = interpretParseJobResponse(json);
+      if (interp.failed) {
+        setParseError(interp.message);
+      }
+      if (interp.failed && !interp.data) {
+        return;
       }
       const data = json.data ?? {};
 

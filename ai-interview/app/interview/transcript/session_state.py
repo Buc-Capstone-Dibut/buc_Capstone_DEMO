@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from app.interview.domain.interview_memory import (
@@ -44,12 +46,14 @@ def hydrate_state_from_turns(state: VoiceWsState, turns: list[dict[str, Any]]) -
     )
 
 
+_logger = logging.getLogger("dibut.transcript")
+
+
 def _portfolio_source_fetcher() -> Any:
-    """포트폴리오 스냅샷 조회 콜백을 지연 해석한다.
+    """포트폴리오 스냅샷 조회 함수를 지연 해석한다.
 
     InterviewService 를 module import 시점에 붙이면 순환 import 위험이 있어
-    호출 시점에 lazy 로 가져오고, 메서드가 없으면(테스트 stub 등) None 을 반환해
-    hydrate 병합을 안전하게 건너뛴다.
+    호출 시점에 lazy 로 가져오고, 메서드가 없으면(테스트 stub 등) None 을 반환한다.
     """
     try:
         from app.services.interview_service import InterviewService
@@ -59,11 +63,34 @@ def _portfolio_source_fetcher() -> Any:
         return None
 
 
+async def fetch_portfolio_source_async(session: dict[str, Any] | None) -> dict[str, Any] | None:
+    """포트폴리오 스냅샷을 워커 스레드에서 조회한다(RAG-lite retrieve).
+
+    동기 psycopg 쿼리를 이벤트 루프에서 직접 돌리면 같은 프로세스의 모든 실시간
+    WS 세션이 함께 멈추므로 반드시 to_thread 로 우회한다. 실패는 경고 후 None —
+    면접 진행을 막지 않는다(hydrate 는 job_payload 폴백으로 동작).
+    """
+    if not session or str(session.get("session_type") or "") != "portfolio_defense":
+        return None
+    fetcher = _portfolio_source_fetcher()
+    if fetcher is None:
+        return None
+    session_id = str(session.get("id") or "")
+    if not session_id:
+        return None
+    try:
+        return await asyncio.to_thread(fetcher, session_id)
+    except Exception:
+        _logger.warning("portfolio source retrieve failed (session=%s)", session_id, exc_info=True)
+        return None
+
+
 def hydrate_state_from_session_row(
     state: VoiceWsState,
     session: dict[str, Any] | None,
     *,
     turns: list[dict[str, Any]] | None = None,
+    portfolio_source: dict[str, Any] | None = None,
 ) -> None:
     cache_hydrate_state_from_session_row(
         state,
@@ -73,7 +100,7 @@ def hydrate_state_from_session_row(
         clamp_closing_threshold=clamp_closing_threshold,
         estimated_total_questions=estimated_total_questions,
         hydrate_turns=hydrate_state_from_turns,
-        fetch_portfolio_source=_portfolio_source_fetcher(),
+        portfolio_source=portfolio_source,
     )
 
 

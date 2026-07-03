@@ -1179,7 +1179,7 @@ class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):
             {"role": "user", "channel": "voice", "content": "답변입니다.", "payload": {}, "turn_index": 1},
             {"role": "model", "channel": "voice", "content": "다음 질문입니다.", "payload": {}, "turn_index": 2},
         ]
-        hydrate_mock = lambda current_state, payload, *, turns=None: current_state.turn_history.extend(turns or [])
+        hydrate_mock = lambda current_state, payload, *, turns=None, **_kwargs: current_state.turn_history.extend(turns or [])
         replay_mock = AsyncMock(return_value=True)
         resume_turn_mock = AsyncMock(return_value=True)
         deps = _resume_deps(
@@ -1209,7 +1209,7 @@ class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):
             {"role": "user", "channel": "voice", "content": "답변입니다.", "payload": {}, "turn_index": 2},
         ]
 
-        def hydrate_mock(current_state, payload, *, turns=None) -> None:
+        def hydrate_mock(current_state, payload, *, turns=None, **_kwargs) -> None:
             current_state.session_id = payload["id"]
             current_state.session_status = payload["status"]
             current_state.turn_history = list(turns or [])
@@ -1243,7 +1243,7 @@ class ResumeFlowTests(unittest.IsolatedAsyncioTestCase):
             {"role": "user", "channel": "voice", "content": "답변입니다.", "payload": {}, "turn_index": 2},
         ]
 
-        def hydrate_mock(current_state, payload, *, turns=None) -> None:
+        def hydrate_mock(current_state, payload, *, turns=None, **_kwargs) -> None:
             current_state.session_id = payload["id"]
             current_state.session_status = payload["status"]
             current_state.turn_history = list(turns or [])

@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import WebSocket
 
 from app.interview.runtime.state import VoiceWsState
+from app.interview.transcript.session_state import fetch_portfolio_source_async
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,8 @@ async def resume_existing_session(
     if connected_session:
         session = connected_session
 
-    deps.hydrate_state_from_session_row(state, session, turns=turns)
+    portfolio_source = await fetch_portfolio_source_async(session)
+    deps.hydrate_state_from_session_row(state, session, turns=turns, portfolio_source=portfolio_source)
 
     await deps.send_json(
         ws,

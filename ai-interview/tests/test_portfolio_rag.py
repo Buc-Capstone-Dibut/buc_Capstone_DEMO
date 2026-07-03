@@ -140,7 +140,9 @@ class GetPortfolioSourceTests(unittest.TestCase):
 
 
 class HydratePortfolioMergeTests(unittest.TestCase):
-    def _hydrate(self, session, fetcher):
+    """hydrate 는 이제 순수 병합만 한다 — DB 조회는 async 호출자가 to_thread 로 선행."""
+
+    def _hydrate(self, session, portfolio_source):
         state = VoiceWsState()
         cache_hydrate(
             state,
@@ -150,7 +152,7 @@ class HydratePortfolioMergeTests(unittest.TestCase):
             clamp_closing_threshold=_noop_int,
             estimated_total_questions=_estimated,
             hydrate_turns=lambda *a, **k: None,
-            fetch_portfolio_source=fetcher,
+            portfolio_source=portfolio_source,
         )
         return state
 
@@ -161,63 +163,75 @@ class HydratePortfolioMergeTests(unittest.TestCase):
             "status": "created",
             "job_payload": {"repoUrl": "https://github.com/a/b"},
         }
-
-        def fetcher(session_id):
-            self.assertEqual(session_id, "sess-1")
-            return {
-                "repo_url": "https://github.com/a/b",
-                "readme_snapshot": "README",
-                "tree_snapshot": "tree",
-                "infra_files_snapshot": "docker\ncompose",
-            }
-
-        state = self._hydrate(session, fetcher)
+        source = {
+            "repo_url": "https://github.com/a/b",
+            "readme_snapshot": "README",
+            "tree_snapshot": "tree",
+            "infra_files_snapshot": "docker\ncompose",
+        }
+        state = self._hydrate(session, source)
         self.assertIn("portfolioSource", state.job_data)
         self.assertEqual(state.job_data["portfolioSource"]["readme"], "README")
         self.assertEqual(state.job_data["portfolioSource"]["infra"], "docker\ncompose")
 
-    def test_live_interview_session_does_not_query(self) -> None:
+    def test_live_interview_session_ignores_source(self) -> None:
         session = {
             "id": "sess-2",
             "session_type": "live_interview",
             "status": "created",
             "job_payload": {"role": "backend"},
         }
-        called = {"n": 0}
-
-        def fetcher(_session_id):
-            called["n"] += 1
-            return {}
-
-        state = self._hydrate(session, fetcher)
-        self.assertEqual(called["n"], 0)
+        state = self._hydrate(session, {"repo_url": "r"})
         self.assertNotIn("portfolioSource", state.job_data)
 
-    def test_retrieve_failure_is_ignored(self) -> None:
-        session = {
-            "id": "sess-3",
-            "session_type": "portfolio_defense",
-            "status": "created",
-            "job_payload": {"repoUrl": "https://github.com/a/b"},
-        }
-
-        def fetcher(_session_id):
-            raise RuntimeError("db down")
-
-        # 예외가 새어나오지 않고 hydrate 가 완료되어야 한다(면접 진행 차단 금지).
-        state = self._hydrate(session, fetcher)
-        self.assertEqual(state.session_id, "sess-3")
-        self.assertNotIn("portfolioSource", state.job_data)
-
-    def test_empty_source_row_leaves_job_data_untouched(self) -> None:
+    def test_none_source_leaves_job_data_untouched(self) -> None:
         session = {
             "id": "sess-4",
             "session_type": "portfolio_defense",
             "status": "created",
             "job_payload": {"repoUrl": "https://github.com/a/b"},
         }
-        state = self._hydrate(session, lambda _s: None)
+        state = self._hydrate(session, None)
         self.assertNotIn("portfolioSource", state.job_data)
+
+
+class FetchPortfolioSourceAsyncTests(unittest.TestCase):
+    """DB 조회 헬퍼 — 이벤트 루프 블로킹 금지(to_thread)·실패 무시 계약."""
+
+    def _run(self, session, fetcher):
+        import asyncio
+        from unittest.mock import patch
+
+        from app.interview.transcript import session_state
+
+        with patch.object(session_state, "_portfolio_source_fetcher", return_value=fetcher):
+            return asyncio.run(session_state.fetch_portfolio_source_async(session))
+
+    def test_non_portfolio_session_returns_none_without_query(self) -> None:
+        called = {"n": 0}
+
+        def fetcher(_sid):
+            called["n"] += 1
+            return {}
+
+        result = self._run({"id": "s", "session_type": "live_interview"}, fetcher)
+        self.assertIsNone(result)
+        self.assertEqual(called["n"], 0)
+
+    def test_portfolio_session_returns_row(self) -> None:
+        def fetcher(sid):
+            assert sid == "sess-1"
+            return {"repo_url": "r"}
+
+        result = self._run({"id": "sess-1", "session_type": "portfolio_defense"}, fetcher)
+        self.assertEqual(result, {"repo_url": "r"})
+
+    def test_retrieve_failure_returns_none(self) -> None:
+        def fetcher(_sid):
+            raise RuntimeError("db down")
+
+        result = self._run({"id": "sess-3", "session_type": "portfolio_defense"}, fetcher)
+        self.assertIsNone(result)
 
 
 class SummarizePortfolioTests(unittest.TestCase):
@@ -349,28 +363,6 @@ class SummarizePortfolioLabelTests(unittest.TestCase):
         text = summarize_portfolio_for_prompt(job, max_chars=1500)
         self.assertIn("rag", text)
         self.assertIn("fastapi", text)
-
-
-class HydrateNoFetcherTests(unittest.TestCase):
-    def test_portfolio_session_without_fetcher_skips_merge(self) -> None:
-        state = VoiceWsState()
-        session = {
-            "id": "sess-1",
-            "session_type": "portfolio_defense",
-            "status": "created",
-            "job_payload": {"repoUrl": "r"},
-        }
-        cache_hydrate(
-            state,
-            session,
-            turns=[],
-            clamp_target_duration=_noop_int,
-            clamp_closing_threshold=_noop_int,
-            estimated_total_questions=_estimated,
-            hydrate_turns=lambda *a, **k: None,
-            fetch_portfolio_source=None,
-        )
-        self.assertNotIn("portfolioSource", state.job_data)
 
 
 if __name__ == "__main__":

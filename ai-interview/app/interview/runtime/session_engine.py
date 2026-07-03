@@ -19,6 +19,7 @@ from app.interview.runtime.orchestration import (
 )
 from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.state import PendingUserSegment, PreparedTtsAudio, VoiceWsState
+from app.interview.transcript.session_state import fetch_portfolio_source_async
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
 logger = logging.getLogger("dibut.ws")
@@ -646,7 +647,10 @@ async def handle_session_init(
     )
     if connected_session:
         existing_session = connected_session
-    deps.hydrate_state_from_session_row(state, existing_session, turns=existing_turns)
+    portfolio_source = await fetch_portfolio_source_async(existing_session)
+    deps.hydrate_state_from_session_row(
+        state, existing_session, turns=existing_turns, portfolio_source=portfolio_source
+    )
 
     await deps.send_json(
         ws,

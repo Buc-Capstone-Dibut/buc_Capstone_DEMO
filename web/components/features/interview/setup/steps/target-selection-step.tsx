@@ -22,7 +22,7 @@ import {
   getRoleTrackFocusAreas,
 } from "@/lib/interview/role-track";
 import { getRoleCategoryVisual, getRoleDetailIcon } from "@/lib/interview/role-visuals";
-import { interpretParseJobResponse } from "@/lib/interview/validation";
+import { interpretParseJobResponse, isFallbackStoredJobData } from "@/lib/interview/validation";
 
 type SetupTrack = "posting" | "role";
 
@@ -183,7 +183,8 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     setParseError(null);
 
     const { targetUrl: storedUrl, jobData: storedJobData } = useInterviewSetupStore.getState();
-    if (storedUrl === urlInput && storedJobData && storedJobData.role) {
+    // 폴백(분석 실패) 데이터는 캐시로 재사용하지 않는다 — 같은 URL 재시도가 재파싱되게.
+    if (storedUrl === urlInput && storedJobData && storedJobData.role && !isFallbackStoredJobData(storedJobData)) {
       setTarget(urlInput, "Custom");
       setStep("jd-check");
       return;
@@ -241,6 +242,9 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
         requirements: result.requirements || [],
         preferred: result.preferred || [],
       });
+      // 실패 시에는 이 스텝에 머문다 — 배너가 실제로 보여야 하고(스텝 이동 시 언마운트),
+      // 사용자는 배너의 '직접 입력으로 진행'이나 URL 수정 후 재시도를 선택한다.
+      if (interp.failed) return;
       setStep("jd-check");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "분석 실패";
@@ -323,9 +327,18 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
             {parseError ? (
               <div
                 role="alert"
-                className="flex items-start gap-2 border-l-4 border-red-300 bg-red-50/80 px-4 py-3 text-sm text-red-700"
+                className="flex flex-col gap-2 border-l-4 border-red-300 bg-red-50/80 px-4 py-3 text-sm text-red-700"
               >
-                {parseError}
+                <span>{parseError}</span>
+                {useInterviewSetupStore.getState().jobData ? (
+                  <button
+                    type="button"
+                    onClick={() => setStep("jd-check")}
+                    className="self-start rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+                  >
+                    직접 입력으로 진행
+                  </button>
+                ) : null}
               </div>
             ) : null}
 

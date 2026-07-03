@@ -79,6 +79,15 @@ export function interpretParseJobResponse(response: ParseJobResponse | null | un
   return { data, failed: false, message: null };
 }
 
+/**
+ * 스토어에 저장된 jobData 가 parse 실패 폴백으로 채워진 것인지 판단한다.
+ * (role 에는 fallback title 이 매핑되어 저장됨) — 같은 URL 재시도 시
+ * 폴백을 '유효 캐시'로 오인해 재파싱을 건너뛰는 것을 막는 용도.
+ */
+export function isFallbackStoredJobData(jobData: { role?: unknown } | null | undefined): boolean {
+  return typeof jobData?.role === "string" && jobData.role.includes(FALLBACK_TITLE_MARKER);
+}
+
 function isFallbackJobData(data: ParseJobResult): boolean {
   if (typeof data.title === "string" && data.title.includes(FALLBACK_TITLE_MARKER)) {
     return true;
