@@ -8,8 +8,19 @@ import {
 
 const SAMPLE_MS = 200; // 5Hz
 
+export interface FaceConnections {
+  tesselation: Array<{ start: number; end: number }>;
+  faceOval: Array<{ start: number; end: number }>;
+  leftEye: Array<{ start: number; end: number }>;
+  rightEye: Array<{ start: number; end: number }>;
+  leftEyebrow: Array<{ start: number; end: number }>;
+  rightEyebrow: Array<{ start: number; end: number }>;
+  lips: Array<{ start: number; end: number }>;
+}
+
 export function useFaceCapture() {
   const lmRef = useRef<unknown>(null);
+  const connectionsRef = useRef<FaceConnections | null>(null);
   const samplesRef = useRef<FaceSample[]>([]);
   const baselineRef = useRef<Baseline | null>(null);
   const t0Ref = useRef<number | null>(null);
@@ -31,6 +42,16 @@ export function useFaceCapture() {
   const ensureLandmarker = useCallback(async () => {
     if (lmRef.current) return lmRef.current;
     const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+    // 마스킹 연출용 정적 연결선(테셀레이션/윤곽) — 모델과 함께 1회 캡처.
+    connectionsRef.current = {
+      tesselation: FaceLandmarker.FACE_LANDMARKS_TESSELATION ?? [],
+      faceOval: FaceLandmarker.FACE_LANDMARKS_FACE_OVAL ?? [],
+      leftEye: FaceLandmarker.FACE_LANDMARKS_LEFT_EYE ?? [],
+      rightEye: FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE ?? [],
+      leftEyebrow: FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW ?? [],
+      rightEyebrow: FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW ?? [],
+      lips: FaceLandmarker.FACE_LANDMARKS_LIPS ?? [],
+    };
     const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const opts = {
       baseOptions: { modelAssetPath: "/mediapipe/face_landmarker.task", delegate: "GPU" as const },
@@ -46,6 +67,8 @@ export function useFaceCapture() {
     }
     return lmRef.current;
   }, []);
+
+  const getConnections = useCallback(() => connectionsRef.current, []);
 
   const readFrame = useCallback((video: HTMLVideoElement) => {
     const lm = lmRef.current as { detectForVideo: (v: HTMLVideoElement, t: number) => any } | null;
@@ -123,7 +146,7 @@ export function useFaceCapture() {
   }, [readFrame]);
 
   return useMemo(
-    () => ({ ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline }),
-    [ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline],
+    () => ({ ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline, getConnections }),
+    [ensureLandmarker, calibrate, readPose, readFace, start, stop, getBaseline, setBaseline, getConnections],
   );
 }

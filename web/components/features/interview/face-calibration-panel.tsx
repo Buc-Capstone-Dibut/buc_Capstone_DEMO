@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, ScanFace } from "lucide-react";
-import { useFaceCapture } from "@/hooks/interview/use-face-capture";
+import { useFaceCapture, type FaceConnections } from "@/hooks/interview/use-face-capture";
 import { useInterviewSetupStore } from "@/store/interview-setup-store";
 import { calibrateBaseline } from "@/lib/interview/face/face-metrics";
 
@@ -31,6 +31,12 @@ export interface FaceCalibration {
   sideStuck: boolean; // 좌/우 장시간 미감지
   /** 최신 478 랜드마크(정규화, 미인식 시 null) — 오버레이 마스킹이 rAF로 읽는다(setState 스팸 회피). */
   landmarksRef: MutableRefObject<Landmark[] | null>;
+  /** 최신 머리각/시선(rAF 리드아웃용, 미인식 시 null) */
+  poseRef: MutableRefObject<{ yaw: number; pitch: number; gazeX: number; gazeY: number } | null>;
+  /** 정면 캘리브레이션으로 확정된 기준 yaw(도) — 좌/우 게이지 계산용 */
+  baselineYaw: number;
+  /** MediaPipe 정적 연결선(테셀레이션/윤곽) — 엔진 로드 후 채워짐 */
+  connections: FaceConnections | null;
   start: () => void;
   skip: () => void;
   completeWithBaseline: () => void; // 좌/우 생략하고 완료(baseline 확보 시)
@@ -58,6 +64,8 @@ export function useFaceCalibration(
   const [progress, setProgress] = useState(0);
   const [liveYawDev, setLiveYawDev] = useState(0);
   const [sideStuck, setSideStuck] = useState(false);
+  const [baselineYaw, setBaselineYaw] = useState(0);
+  const [connections, setConnections] = useState<FaceConnections | null>(null);
 
   const onChangeRef = useRef(onCalibrationChange);
   onChangeRef.current = onCalibrationChange;
@@ -75,6 +83,7 @@ export function useFaceCalibration(
   const sideSignRef = useRef<number | null>(null);
   const sideStartRef = useRef<number>(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
+  const poseRef = useRef<{ yaw: number; pitch: number; gazeX: number; gazeY: number } | null>(null);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) {
@@ -112,7 +121,10 @@ export function useFaceCalibration(
     void face
       .ensureLandmarker()
       .then(() => {
-        if (!cancelled) setEngineReady(true);
+        if (!cancelled) {
+          setEngineReady(true);
+          setConnections(face.getConnections());
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -128,6 +140,7 @@ export function useFaceCalibration(
 
       const pose = face.readFace(videoEl);
       landmarksRef.current = pose?.landmarks?.length ? pose.landmarks : null;
+      poseRef.current = pose ? { yaw: pose.yaw, pitch: pose.pitch, gazeX: pose.gazeX, gazeY: pose.gazeY } : null;
       setFaceDetected(!!pose);
       if (!pose) {
         holdStartRef.current = null;
@@ -149,6 +162,7 @@ export function useFaceCalibration(
           face.setBaseline(base);
           setBaselineRef.current(base);
           yaw0Ref.current = base.yaw0;
+          setBaselineYaw(base.yaw0);
           holdStartRef.current = null;
           setProgress(0);
           sideSignRef.current = null;
@@ -221,10 +235,25 @@ export function useFaceCalibration(
     }
   }, [cameraOn, status, finalize]);
 
-  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, landmarksRef, start, skip, completeWithBaseline };
+  return { status, step, message, faceDetected, engineReady, progress, liveYawDev, sideStuck, landmarksRef, poseRef, baselineYaw, connections, start, skip, completeWithBaseline };
 }
 
+// ── 영화식 스캔 렌더러 ─────────────────────────────────────────────────────
 // 미러(-scale-x-100) + object-cover 매핑으로 정규화 랜드마크 → 표시 좌표.
+// 레이어: 테셀레이션 와이어프레임 → 윤곽 글로우 → 정점 → 타겟 브래킷 → 스캔라인
+//        → 동공 락온(회전 조준링·십자선·시선 벡터) → 수치 리드아웃 → 좌/우 yaw 게이지.
+interface CineOpts {
+  connections: FaceConnections | null;
+  pose: { yaw: number; pitch: number; gazeX: number; gazeY: number } | null;
+  timeMs: number;
+  step: Step;
+  isRunning: boolean;
+  baselineYaw: number;
+  reducedMotion: boolean;
+}
+
+const LIME = "130,184,76";
+
 function drawFaceMask(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
@@ -232,54 +261,255 @@ function drawFaceMask(
   vh: number,
   cssW: number,
   cssH: number,
+  o: CineOpts,
 ) {
   const s = Math.max(cssW / vw, cssH / vh); // object-cover
   const dx = (cssW - vw * s) / 2;
   const dy = (cssH - vh * s) / 2;
   const X = (lm: Landmark) => cssW - (dx + lm.x * vw * s); // 미러 반전
   const Y = (lm: Landmark) => dy + lm.y * vh * s;
+  const t = o.reducedMotion ? 0 : o.timeMs;
 
-  // 1) 얼굴 메시 점묘 마스킹 (468 mesh — 스캔되는 느낌)
-  ctx.fillStyle = "rgba(130,184,76,0.5)";
+  // 얼굴 바운딩 박스(메시 468점 기준)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const meshCount = Math.min(landmarks.length, 468);
   for (let i = 0; i < meshCount; i++) {
-    const lm = landmarks[i];
-    ctx.fillRect(X(lm) - 0.6, Y(lm) - 0.6, 1.2, 1.2);
+    const x = X(landmarks[i]);
+    const y = Y(landmarks[i]);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const pad = 10;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const bw = maxX - minX, bh = maxY - minY;
+
+  const strokeConnections = (list: Array<{ start: number; end: number }>, style: string, width: number) => {
+    ctx.strokeStyle = style;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    for (const c of list) {
+      const a = landmarks[c.start], b = landmarks[c.end];
+      if (!a || !b) continue;
+      ctx.moveTo(X(a), Y(a));
+      ctx.lineTo(X(b), Y(b));
+    }
+    ctx.stroke();
+  };
+
+  // 1) 테셀레이션 와이어프레임 — "찐한" 스캔 메시
+  if (o.connections?.tesselation?.length) {
+    strokeConnections(o.connections.tesselation, `rgba(${LIME},0.16)`, 0.5);
   }
 
-  // 2) 눈동자(iris 468~477) — 초점 잡는 연출: 중심 도트 + 조준 링
+  // 2) 주요 윤곽(얼굴 오벌·눈·눈썹·입술) — 글로우 강조
+  if (o.connections) {
+    ctx.save();
+    ctx.shadowColor = `rgba(${LIME},0.9)`;
+    ctx.shadowBlur = 6;
+    strokeConnections(o.connections.faceOval, `rgba(${LIME},0.95)`, 1.6);
+    ctx.shadowBlur = 3;
+    const soft = `rgba(200,255,160,0.85)`;
+    strokeConnections(o.connections.leftEye, soft, 1.1);
+    strokeConnections(o.connections.rightEye, soft, 1.1);
+    strokeConnections(o.connections.leftEyebrow, `rgba(${LIME},0.7)`, 1);
+    strokeConnections(o.connections.rightEyebrow, `rgba(${LIME},0.7)`, 1);
+    strokeConnections(o.connections.lips, `rgba(${LIME},0.7)`, 1);
+    ctx.restore();
+  }
+
+  // 3) 정점 점묘
+  ctx.fillStyle = `rgba(${LIME},0.45)`;
+  for (let i = 0; i < meshCount; i += 2) {
+    const lm = landmarks[i];
+    ctx.fillRect(X(lm) - 0.7, Y(lm) - 0.7, 1.4, 1.4);
+  }
+
+  // 4) 타겟 브래킷(모서리 락온) — 미세 호흡
+  const breathe = o.reducedMotion ? 0 : Math.sin(t / 500) * 2;
+  const L = 16;
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1.6;
+  const bx0 = minX - breathe, by0 = minY - breathe, bx1 = maxX + breathe, by1 = maxY + breathe;
+  ctx.beginPath();
+  ctx.moveTo(bx0, by0 + L); ctx.lineTo(bx0, by0); ctx.lineTo(bx0 + L, by0);
+  ctx.moveTo(bx1 - L, by0); ctx.lineTo(bx1, by0); ctx.lineTo(bx1, by0 + L);
+  ctx.moveTo(bx1, by1 - L); ctx.lineTo(bx1, by1); ctx.lineTo(bx1 - L, by1);
+  ctx.moveTo(bx0 + L, by1); ctx.lineTo(bx0, by1); ctx.lineTo(bx0, by1 - L);
+  ctx.stroke();
+
+  // 5) 스캔라인 스윕(위→아래 반복) — 그라데이션 밴드
+  if (!o.reducedMotion && bh > 0) {
+    const phase = (t % 1700) / 1700;
+    const sy = minY + phase * bh;
+    const bandH = 20;
+    const grad = ctx.createLinearGradient(0, sy - bandH, 0, sy + 2);
+    grad.addColorStop(0, `rgba(${LIME},0)`);
+    grad.addColorStop(0.85, `rgba(${LIME},0.28)`);
+    grad.addColorStop(1, `rgba(${LIME},0.55)`);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(minX, minY, bw, bh);
+    ctx.clip();
+    ctx.fillStyle = grad;
+    ctx.fillRect(minX, sy - bandH, bw, bandH + 2);
+    ctx.strokeStyle = `rgba(${LIME},0.85)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(minX, sy);
+    ctx.lineTo(maxX, sy);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 6) 동공 락온 — 실측 홍채(468~477): 중심 도트 + 십자선 + 이중 링(외곽 대시 회전) + 시선 벡터
   if (landmarks.length >= 478) {
+    const centers: Array<[number, number]> = [];
     for (const c of [468, 473]) {
       const cx = X(landmarks[c]);
       const cy = Y(landmarks[c]);
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
-      ctx.lineWidth = 1.5;
+      centers.push([cx, cy]);
+
+      // 십자선
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+      for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+        ctx.moveTo(cx + ddx * 4, cy + ddy * 4);
+        ctx.lineTo(cx + ddx * 9, cy + ddy * 9);
+      }
       ctx.stroke();
-      ctx.fillStyle = "rgba(130,184,76,1)";
+
+      // 내부 링 + 중심 도트
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(${LIME},1)`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
       ctx.fill();
+
+      // 외곽 대시 링(회전) — 락온 연출
+      ctx.save();
+      ctx.strokeStyle = `rgba(${LIME},0.95)`;
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([5, 5]);
+      ctx.lineDashOffset = o.reducedMotion ? 0 : -t / 24;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // 시선 마이크로 벡터(blendshape gaze — 미러라 x 반전)
+      if (o.pose) {
+        const gx = -o.pose.gazeX, gy = -o.pose.gazeY;
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + gx * 16, cy + gy * 16);
+        ctx.stroke();
+      }
     }
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    for (let i = 469; i < 478; i++) {
-      if (i === 473) continue;
-      const lm = landmarks[i];
-      ctx.fillRect(X(lm) - 1, Y(lm) - 1, 2, 2);
+    // 동공 연결선 + IRIS LOCK 라벨
+    if (centers.length === 2) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(centers[0][0], centers[0][1]);
+      ctx.lineTo(centers[1][0], centers[1][1]);
+      ctx.stroke();
+      ctx.restore();
+      const midX = (centers[0][0] + centers[1][0]) / 2;
+      const topEyeY = Math.min(centers[0][1], centers[1][1]);
+      ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = `rgba(${LIME},0.95)`;
+      ctx.fillText("IRIS LOCK", midX, topEyeY - 16);
     }
+  }
+
+  // 7) 수치 리드아웃 — 실측 yaw/pitch/시선 (전문 장비 느낌, 모노스페이스)
+  ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.fillText("FACE TRACK · 478 pts", bx0 + 2, by0 - 6);
+  if (o.pose) {
+    const yawTxt = `YAW ${o.pose.yaw >= 0 ? "+" : ""}${o.pose.yaw.toFixed(1)}°`;
+    const pitTxt = `PIT ${o.pose.pitch >= 0 ? "+" : ""}${o.pose.pitch.toFixed(1)}°`;
+    ctx.textAlign = "right";
+    ctx.fillStyle = `rgba(${LIME},0.95)`;
+    ctx.fillText(`${yawTxt}  ${pitTxt}`, bx1 - 2, by0 - 6);
+  }
+
+  // 8) 좌/우 단계: yaw 게이지(중앙 기준 편차 니들 + 목표존)
+  if (o.isRunning && o.step !== "front" && o.pose) {
+    const gw = Math.min(150, bw);
+    const gx0 = minX + (bw - gw) / 2;
+    const gy = maxY + 16;
+    const half = gw / 2;
+    const dev = o.pose.yaw - o.baselineYaw;
+    const clamp = Math.max(-25, Math.min(25, dev));
+    const needleX = gx0 + half + (clamp / 25) * half;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(gx0, gy);
+    ctx.lineTo(gx0 + gw, gy);
+    ctx.stroke();
+    // 목표존(|dev|>8°) 양측 표시
+    ctx.strokeStyle = `rgba(${LIME},0.8)`;
+    ctx.beginPath();
+    ctx.moveTo(gx0, gy);
+    ctx.lineTo(gx0 + half - (8 / 25) * half, gy);
+    ctx.moveTo(gx0 + half + (8 / 25) * half, gy);
+    ctx.lineTo(gx0 + gw, gy);
+    ctx.stroke();
+    // 중앙 기준 틱 + 니들
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(gx0 + half, gy - 5);
+    ctx.lineTo(gx0 + half, gy + 5);
+    ctx.stroke();
+    ctx.fillStyle = Math.abs(dev) > 8 ? `rgba(${LIME},1)` : "rgba(255,255,255,0.95)";
+    ctx.beginPath();
+    ctx.arc(needleX, gy, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "600 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(`TURN ${o.step === "left" ? "LEFT" : "RIGHT"} ${dev >= 0 ? "+" : ""}${dev.toFixed(1)}°`, gx0 + half, gy + 16);
   }
 }
 
 /** 카메라 미리보기 위에 얹는 오버레이 — 얼굴 메시·눈동자 마스킹 + 가이드 오벌 + 인식 칩 + 진행 바 + 좌/우 화살표. */
 export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; videoEl: HTMLVideoElement | null }) {
-  const { status, step, faceDetected, engineReady, progress, liveYawDev, landmarksRef } = calib;
+  const { status, step, faceDetected, engineReady, progress, liveYawDev, landmarksRef, poseRef, baselineYaw, connections } = calib;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const settled = status === "skipped" || status === "unavailable";
+  // 최신 값을 rAF 루프에서 리렌더 없이 읽기 위한 미러 refs
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const runningRef = useRef(status === "running");
+  runningRef.current = status === "running";
+  const baselineYawRef = useRef(baselineYaw);
+  baselineYawRef.current = baselineYaw;
+  const connectionsRef = useRef(connections);
+  connectionsRef.current = connections;
 
-  // 랜드마크 마스킹 rAF 드로잉 — landmarksRef를 직접 읽어 리렌더 없이 부드럽게.
+  // 랜드마크 마스킹 rAF 드로잉 — refs를 직접 읽어 리렌더 없이 부드럽게(60fps 연출, 15fps 데이터).
   useEffect(() => {
     if (settled) return;
+    const reducedMotion =
+      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     let raf: number | null = null;
     let disposed = false;
     const draw = () => {
@@ -300,7 +530,15 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
           ctx.clearRect(0, 0, cssW, cssH);
           const lms = landmarksRef.current;
           if (lms && v && v.videoWidth > 0 && cssW > 0) {
-            drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH);
+            drawFaceMask(ctx, lms, v.videoWidth, v.videoHeight, cssW, cssH, {
+              connections: connectionsRef.current,
+              pose: poseRef.current,
+              timeMs: performance.now(),
+              step: stepRef.current,
+              isRunning: runningRef.current,
+              baselineYaw: baselineYawRef.current,
+              reducedMotion,
+            });
           }
         }
       }
@@ -311,7 +549,7 @@ export function FaceGuideOverlay({ calib, videoEl }: { calib: FaceCalibration; v
       disposed = true;
       if (raf != null) cancelAnimationFrame(raf);
     };
-  }, [settled, videoEl, landmarksRef]);
+  }, [settled, videoEl, landmarksRef, poseRef]);
 
   if (settled) return null;
   const isRunning = status === "running";
