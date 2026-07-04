@@ -18,6 +18,9 @@ flowchart LR
 - Yjs 기반 실시간 동기화 (`ws`)
 - Socket.IO 기반 룸/프레즌스/채팅 이벤트
 - Prisma를 통한 채팅 영속화
+- HMAC 협업 토큰 인가 (`auth.service.ts`)
+
+> ⚠️ 참고(2026-07 실측): 이 서버는 `web`과 코드 수준 의존이 전혀 없고(정적 import 0) 런타임 WSS로만 연결됩니다. 또한 **자체 `prisma/schema.prisma`(37개 모델)** 를 별도로 갖고 있어 `web/prisma`(61개 모델)와 같은 DB를 이원 관리합니다 — 스키마 변경 시 양쪽 확인 필수. 상세: [지식그래프 분석](../docs/architecture/2026-07-03-knowledge-graph-analysis.md)
 
 ## 환경변수
 

@@ -167,6 +167,17 @@ QUESTION_TEXT_TEMPLATES: dict[str, dict[str, str]] = {
     },
 }
 FOCUS_KEYWORD_STOPWORDS = {
+    # 인사말·자기지칭 — 자기소개 첫머리('안녕하세요 저는 …')에서 초점 키워드로 잘못 뽑혀
+    # "방금 말씀하신 안녕하세요와 저를 구현하실 때…" 같은 엉뚱한 꼬리질문이 나오던 원인.
+    "안녕하세요",
+    "안녕하십니까",
+    "안녕",
+    "반갑습니다",
+    "저는",
+    "제가",
+    "저도",
+    "저의",
+    "먼저",
     "그냥",
     "정도",
     "부분",
@@ -605,10 +616,18 @@ def _normalize_focus_keyword(token: str) -> str:
     return normalized or (token or "").strip()
 
 
+# 조사 제거 후 남는 대명사/인사말 — 초점 키워드로 부적절(예: '저는'→'저', '제가'→'제').
+_NON_FOCUS_NORMALIZED = {"저", "제", "너", "우리", "안녕하세요", "안녕", "반갑습니다", "먼저"}
+
+
 def _build_focus_phrase(user_text: str, *, session_type: str) -> str:
     raw_keywords = [
-        _normalize_focus_keyword(keyword)
-        for keyword in _extract_focus_keywords(user_text, max_items=8)
+        normalized
+        for normalized in (
+            _normalize_focus_keyword(keyword)
+            for keyword in _extract_focus_keywords(user_text, max_items=8)
+        )
+        if normalized not in _NON_FOCUS_NORMALIZED
     ]
     keywords: list[str] = []
     metric_keywords = [keyword for keyword in raw_keywords if re.search(r"[0-9]", keyword)]

@@ -1434,22 +1434,14 @@ export function useCoverLetterWizard({
 
     updateQuestion(selectedQuestionId, { answer: trimmedAnswer });
 
-    const currentRequirement =
-      questionRequirementMap[selectedQuestionId] || createDefaultRequirementStatus();
-    const requirementsSatisfied =
-      currentRequirement.competency &&
-      currentRequirement.tone &&
-      currentRequirement.impact &&
-      currentRequirement.ready;
-
     setQuestionWorkflowMap((prev) => {
       const current = prev[selectedQuestionId] || createDefaultWorkflowState();
       const nowIso = new Date().toISOString();
-      const nextStage: WorkflowStage = requirementsSatisfied
-        ? "confirm"
-        : current.stage === "direction"
-          ? "draft"
-          : current.stage;
+      // '적용하기'는 사용자가 그 답변으로 문항을 확정하겠다는 명시적 행동이다.
+      // 예전엔 AI 품질 플래그(competency/tone/impact/ready)가 모두 true 여야만 확정으로
+      // 올렸는데, AI 가 ready 를 안 주면 답변을 적용해도 문항이 확정되지 않아 '완료'가
+      // 영영 비활성으로 남았다. 적용 = 확정으로 처리한다(confirmedAt 은 sticky).
+      const nextStage: WorkflowStage = "confirm";
 
       return {
         ...prev,
@@ -1457,11 +1449,8 @@ export function useCoverLetterWizard({
           ...current,
           stage: nextStage,
           directionAgreedAt: current.directionAgreedAt || nowIso,
-          draftRequestedAt:
-            nextStage === "draft" || nextStage === "refine" || nextStage === "confirm"
-              ? current.draftRequestedAt || nowIso
-              : current.draftRequestedAt,
-          confirmedAt: nextStage === "confirm" ? current.confirmedAt || nowIso : current.confirmedAt,
+          draftRequestedAt: current.draftRequestedAt || nowIso,
+          confirmedAt: current.confirmedAt || nowIso,
         },
       };
     });

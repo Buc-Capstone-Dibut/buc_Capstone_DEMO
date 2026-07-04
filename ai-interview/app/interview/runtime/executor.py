@@ -20,6 +20,16 @@ from app.interview.runtime.state import AiDeliveryPlan, VoiceWsState
 
 logger = logging.getLogger("dibut.ws")
 FOLLOWUP_GROUNDING_STOPWORDS = {
+    # 인사말·자기지칭 — 자기소개 첫머리에서 초점 키워드로 잘못 뽑히면 엉뚱한 꼬리질문이 된다.
+    "안녕하세요",
+    "안녕하십니까",
+    "안녕",
+    "반갑습니다",
+    "저는",
+    "제가",
+    "저도",
+    "저의",
+    "먼저",
     "그냥",
     "정도",
     "부분",

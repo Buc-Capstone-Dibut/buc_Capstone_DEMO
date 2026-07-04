@@ -36,8 +36,11 @@ export async function signIn(
   session: Session | null;
   error: AuthError | null;
 }> {
+  // 이메일은 앞뒤 공백/대소문자 때문에 'Invalid login credentials' 로 잘못 실패하는
+  // 경우가 잦다(모바일 자동완성 공백 등). 정규화해서 보낸다. 비밀번호는 공백이
+  // 유의미할 수 있어 건드리지 않는다.
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: email.trim().toLowerCase(),
     password,
   });
 
@@ -58,7 +61,7 @@ export async function signUp(
   error: AuthError | null;
 }> {
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: email.trim().toLowerCase(),
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback`,
