@@ -80,7 +80,9 @@ export function useInterviewRecording() {
       const recorder = new MediaRecorder(combined, {
         mimeType,
         audioBitsPerSecond: 128_000,
-        videoBitsPerSecond: 1_500_000,
+        // 800kbps — 얼굴 분석·리포트 재생 화질엔 충분하면서 저장 용량을 절반으로 줄인다
+        // (Supabase 무료플랜 Storage 1GB 여유 확보: 7분 면접 ≈ 85MB→44MB).
+        videoBitsPerSecond: 800_000,
       });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {

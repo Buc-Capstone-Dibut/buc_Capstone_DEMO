@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dibut AI 모의면접 — 영상 녹화·분석 및 3-플로우 안정화 최종 보고서 v1.0</title>
+<style>
+:root{
+  --primary:#3A54A8; --primary-d:#2c4290; --tint:#EDF0FB; --accent:#82B84C; --accent-d:#5f8f33;
+  --ink:#1A1F36; --body:#414051; --muted:#75788B; --border:#E2E2E2; --bg:#F7F8FC;
+  --green:#1E9E63; --green-b:#E7F6EF; --amber:#C77D11; --amber-b:#FFF4E5; --red:#D64545; --red-b:#FDECEC;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;color:var(--body);background:#5a5e6b;line-height:1.6;-webkit-font-smoothing:antialiased}
+.page{position:relative;width:210mm;min-height:297mm;background:#fff;margin:12mm auto;padding:18mm 16mm 22mm;box-shadow:0 6px 30px rgba(0,0,0,.25);page-break-after:always;overflow:hidden}
+.page:last-child{page-break-after:auto}
+@page{size:A4;margin:0}
+@media print{body{background:#fff}.page{margin:0;box-shadow:none}.noprint{display:none!important}}
+.pfoot{position:absolute;left:16mm;right:16mm;bottom:11mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px}
+.pfoot .b{font-weight:700;color:var(--primary);letter-spacing:.04em}
+h1,h2,h3,h4{color:var(--ink)}
+small{color:var(--muted)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:var(--tint);color:var(--primary-d);padding:1px 5px;border-radius:4px}
+
+/* print button */
+.printbar{position:fixed;top:14px;right:18px;z-index:99}
+.printbar button{background:var(--primary);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(58,84,168,.4)}
+
+/* cover */
+.cover{padding:0;display:flex;flex-direction:column}
+.cover .bar{height:9px;background:linear-gradient(90deg,var(--primary) 0%,var(--primary) 55%,var(--accent) 100%)}
+.cover .inner{padding:30mm 18mm 0}
+.cover .kicker{color:var(--primary);font-weight:800;letter-spacing:.16em;font-size:12px}
+.cover h1{font-size:34px;line-height:1.28;margin-top:14px;letter-spacing:-.01em;color:var(--ink)}
+.cover h1 .sub{display:block;font-size:17px;color:var(--muted);font-weight:600;margin-top:12px;letter-spacing:0}
+.cover .meta{margin-top:34mm;border-top:1px solid var(--border);padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px 24px}
+.cover .meta .row{display:flex;gap:10px;font-size:12.5px}
+.cover .meta .row .k{color:var(--muted);min-width:74px;font-weight:600}
+.cover .meta .row .v{color:var(--body);font-weight:600}
+.cover .badge{display:inline-block;margin-top:18px;background:var(--green-b);color:var(--green);font-weight:800;font-size:12px;padding:5px 12px;border-radius:20px}
+
+/* section */
+.sec-h{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+.sec-h .n{width:26px;height:26px;border-radius:7px;background:var(--primary);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.sec-h h2{font-size:19px;letter-spacing:-.01em}
+.sec-h.small{margin-top:20px}
+.lead{font-size:13px;color:var(--body);margin-bottom:14px}
+h3{font-size:14.5px;margin:16px 0 8px;color:var(--primary-d)}
+p{font-size:12.5px;margin-bottom:8px}
+ul{margin:6px 0 10px 18px}
+li{font-size:12.5px;margin-bottom:5px}
+
+/* cards */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.card{border:1px solid var(--border);border-radius:10px;padding:13px 15px;background:#fff}
+.card .t{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:7px}
+.card .d{font-size:12px;color:var(--body)}
+.card.tinted{background:var(--tint);border-color:#d5dbf2}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.dot.g{background:var(--green)} .dot.a{background:var(--amber)} .dot.r{background:var(--red)} .dot.p{background:var(--primary)}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.stat{border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;background:#fff}
+.stat .v{font-size:22px;font-weight:800;color:var(--primary)}
+.stat .l{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:600}
+
+/* before/after */
+.ba{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:10px 0}
+.ba .row{display:grid;grid-template-columns:20px 1fr;gap:10px;padding:10px 13px;font-size:12px;border-bottom:1px solid var(--border)}
+.ba .row:last-child{border-bottom:0}
+.ba .row.b{background:var(--red-b)}
+.ba .row.a{background:var(--green-b)}
+.ba .row .ic{font-weight:800;text-align:center}
+.ba .row.b .ic{color:var(--red)} .ba .row.a .ic{color:var(--green)}
+.ba .row .tx b{color:var(--ink)}
+
+/* table */
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11.5px}
+th,td{border:1px solid var(--border);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--tint);color:var(--primary-d);font-weight:700;font-size:11px}
+td .ok{color:var(--green);font-weight:800}
+td .no{color:var(--red);font-weight:800}
+tr:nth-child(even) td{background:#fafbfe}
+
+/* callout */
+.callout{border-left:4px solid var(--primary);background:var(--tint);border-radius:0 8px 8px 0;padding:11px 14px;margin:12px 0;font-size:12.5px}
+.callout.g{border-color:var(--green);background:var(--green-b)}
+.callout.a{border-color:var(--amber);background:var(--amber-b)}
+.callout .h{font-weight:800;color:var(--ink);margin-bottom:3px}
+
+.toc{border:1px solid var(--border);border-radius:10px;padding:6px 0;margin-top:8px}
+.toc a{display:flex;justify-content:space-between;text-decoration:none;color:var(--body);font-size:12.5px;padding:8px 16px;border-bottom:1px solid #f0f0f4}
+.toc a:last-child{border-bottom:0}
+.toc a .num{color:var(--primary);font-weight:800}
+.toc a:hover{background:var(--tint)}
+</style>
+</head>
+<body>
+
+<div class="printbar noprint"><button onclick="window.print()">PDF로 저장 / 인쇄 (A4)</button></div>
+
+<!-- ============ COVER ============ -->
+<section class="page cover">
+  <div class="bar"></div>
+  <div class="inner">
+    <div class="kicker">DIBUT · 부천대학교 졸업작품 · 개발 완료 보고서</div>
+    <h1>AI 모의면접 영상 녹화·분석 및<br>3-플로우 안정화
+      <span class="sub">면접 진행 안정화 · 면접관 음성 포함 녹화 · 질문별 하이라이트 · 포트폴리오 RAG-lite · 예외처리 100건 검증</span>
+    </h1>
+    <span class="badge">시연 준비 완료 · 자동 테스트 300+건 전부 통과</span>
+    <div class="meta">
+      <div class="row"><span class="k">작성일</span><span class="v">2026-07-04</span></div>
+      <div class="row"><span class="k">대상 브랜치</span><span class="v">origin/develop</span></div>
+      <div class="row"><span class="k">플랫폼</span><span class="v">Next.js 14 · FastAPI · Supabase</span></div>
+      <div class="row"><span class="k">변경 규모</span><span class="v">84 파일 · 커밋 다수</span></div>
+      <div class="row"><span class="k">핵심 기능</span><span class="v">영상 녹화·분석 리포트</span></div>
+      <div class="row"><span class="k">검증 방식</span><span class="v">멀티에이전트 적대적 리뷰 2회</span></div>
+    </div>
+  </div>
+  <div style="margin-top:auto;padding:0 18mm 26mm">
+    <div class="toc">
+      <a href="#s1"><span>한눈에 보기 (Executive Summary)</span><span class="num">01</span></a>
+      <a href="#s2"><span>배경과 목표 — 무엇이 문제였나</span><span class="num">02</span></a>
+      <a href="#s3"><span>주요 작업 ① 면접 진행 안정화</span><span class="num">03</span></a>
+      <a href="#s4"><span>주요 작업 ② 영상 녹화 정상화</span><span class="num">04</span></a>
+      <a href="#s5"><span>주요 작업 ③ 리포트 영상 분석</span><span class="num">05</span></a>
+      <a href="#s6"><span>주요 작업 ④ 포트폴리오 RAG-lite</span><span class="num">06</span></a>
+      <a href="#s7"><span>예외처리와 테스트 100건</span><span class="num">07</span></a>
+      <a href="#s8"><span>검증 방법 — 멀티에이전트 리뷰</span><span class="num">08</span></a>
+      <a href="#s9"><span>저장 용량 분석 (Supabase 무료플랜)</span><span class="num">09</span></a>
+      <a href="#s10"><span>남은 작업과 권고</span><span class="num">10</span></a>
+    </div>
+  </div>
+  <div class="pfoot"><span class="b">DIBUT</span><span>AI 모의면접 최종 보고서 v1.0</span><span>표지</span></div>
+</section>
+
+<!-- ============ 01 SUMMARY ============ -->
+<section class="page" id="s1">
+  <div class="sec-h"><div class="n">01</div><h2>한눈에 보기</h2></div>
+  <p class="lead">이번 작업은 "AI 모의면접의 영상 녹화·분석 리포트"를 실제로 동작하는 수준까지 끌어올리고, 세 가지 면접 플로우(채용공고·직무·포트폴리오)를 시연 가능한 상태로 안정화한 것입니다. 새 기능을 늘리기보다, <b>이미 있는 기능이 끝까지 제대로 동작하도록</b> 근본 원인을 찾아 고치는 데 집중했습니다.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">300+</div><div class="l">자동 테스트 통과</div></div>
+    <div class="stat"><div class="v">9</div><div class="l">근본 결함 수정</div></div>
+    <div class="stat"><div class="v">100</div><div class="l">테스트케이스 명세</div></div>
+    <div class="stat"><div class="v">2회</div><div class="l">적대적 검증 루프</div></div>
+  </div>
+
+  <h3>이번에 해결한 핵심 5가지</h3>
+  <div class="grid">
+    <div class="card"><div class="t"><span class="dot g"></span>면접이 첫 질문에서 멈추던 문제</div><div class="d">웹소켓 연결이 특정 상황에서 거부·단절되면 "첫 질문 불러오는 중"에서 영영 멈췄습니다. 두 가지 근본 원인을 찾아 자동 복구되게 고쳤습니다.</div></div>
+    <div class="card"><div class="t"><span class="dot g"></span>영상이 검은 화면으로 저장되던 문제</div><div class="d">카메라 준비 타이밍 문제로 소리만 녹음되고 화면이 검게 저장됐습니다. 스트림 도착을 기다린 뒤 녹화하도록 근본 수정했습니다.</div></div>
+    <div class="card"><div class="t"><span class="dot g"></span>면접관 목소리도 함께 녹음</div><div class="d">본인 답변만이 아니라 면접관(AI) 질문 음성도 한 트랙에 섞어 녹음 — 리포트에서 질문·답변을 함께 들을 수 있습니다.</div></div>
+    <div class="card"><div class="t"><span class="dot g"></span>질문별 영상 하이라이트</div><div class="d">타임라인에서 각 질문 구간만 펼쳐 보고, 그 구간의 시선·표정 요약을 함께 확인하는 UI를 새로 설계했습니다.</div></div>
+    <div class="card tinted"><div class="t"><span class="dot p"></span>포트폴리오 RAG-lite</div><div class="d">깃 레포를 분석해 DB에 저장하고, 면접 시작 시 서버가 그 분석을 다시 꺼내(retrieve) 면접관 프롬프트에 주입합니다. 프롬프트에만 의존하지 않는 구조.</div></div>
+    <div class="card tinted"><div class="t"><span class="dot p"></span>저장 이중화 + 용량 절감</div><div class="d">로컬 개발은 폴더에, 배포는 Supabase에 자동 저장. 녹화 비트레이트를 절반으로 낮춰 무료플랜 저장 여유를 2배로 확보했습니다.</div></div>
+  </div>
+
+  <div class="callout g"><div class="h">결론</div>세 플로우 모두 시연 가능한 상태이며, 로컬·배포 양쪽에서 녹화 저장→리포트 재생까지 실측으로 확인했습니다. 남은 것은 실제 카메라로 한 번 최종 리허설하는 일입니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>한눈에 보기</span><span>1</span></div>
+</section>
+
+<!-- ============ 02 BACKGROUND ============ -->
+<section class="page" id="s2">
+  <div class="sec-h"><div class="n">02</div><h2>배경과 목표 — 무엇이 문제였나</h2></div>
+  <p class="lead">"영상 저장·분석 리포트"는 기능 자체는 만들어져 있었지만, 실제로 면접을 진행해 보면 곳곳에서 조용히 실패하고 있었습니다. 사용자가 발견한 증상들을 하나씩 근본 원인까지 추적했습니다.</p>
+
+  <table>
+    <tr><th style="width:32%">사용자가 겪은 증상</th><th>실제 근본 원인 (추적 결과)</th></tr>
+    <tr><td>"첫 질문을 불러오는 중…"에서 멈춤</td><td>브라우저 쿠키가 커지면(8KB 초과) 웹소켓 첫 악수(handshake)가 서버에서 <b>400으로 거부</b>. 또한 최초 연결이 실패하면 <b>재시도 로직이 없어</b> 그대로 사망.</td></tr>
+    <tr><td>영상이 소리만 나오고 화면이 검음</td><td>카메라 준비(비동기)보다 녹화 시작이 <b>항상 먼저</b> 실행돼 영상 트랙 없이 오디오 전용으로 고정. 같은 이유로 시선 분석도 전 세션에서 죽어 있었음.</td></tr>
+    <tr><td>면접이 자연스럽게 끝나면 영상이 사라짐</td><td>AI가 면접을 스스로 종료하는 경로에서 <b>업로드·저장 절차를 건너뛰고</b> 결과 페이지로 이동.</td></tr>
+    <tr><td>포트폴리오 면접이 레포 내용을 잘 못 씀</td><td>레포 분석 결과가 저장은 되지만 <b>읽는 코드가 없어</b>, 면접관은 원본 JSON을 1,500자에서 잘라 넣는 방식으로만 사용.</td></tr>
+    <tr><td>공고 분석 실패가 조용히 통과</td><td>실패해도 "성공"으로 응답해, 사용자는 <b>깨진 데이터로 면접까지 진행</b>.</td></tr>
+  </table>
+
+  <div class="callout"><div class="h">작업 원칙 (Karpathy 4원칙)</div>① 기능을 늘리지 않는다 — 시연 범위 내 안정화에 집중. ② 근본 원인 없이는 고치지 않는다. ③ 수술적 변경 — 건드릴 곳만 최소로. ④ 검증 가능한 목표 — 고쳤다면 실측으로 증명.</div>
+
+  <h3>기술 스택 (변경 없음)</h3>
+  <ul>
+    <li><b>프론트엔드 · BFF</b> — Next.js 14 (웹 화면 + API 라우트가 FastAPI로 중계)</li>
+    <li><b>AI 백엔드</b> — FastAPI (실시간 음성 면접·리포트 생성), Google Gemini Live</li>
+    <li><b>데이터베이스 · 저장소</b> — Supabase (PostgreSQL + Storage)</li>
+    <li><b>얼굴 분석</b> — MediaPipe FaceLandmarker (브라우저 내, 서버로 영상 미전송)</li>
+  </ul>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>배경과 목표</span><span>2</span></div>
+</section>
+
+<!-- ============ 03 STABILIZATION ============ -->
+<section class="page" id="s3">
+  <div class="sec-h"><div class="n">03</div><h2>주요 작업 ① 면접 진행 안정화</h2></div>
+  <p class="lead">면접이 시작조차 안 되던 문제를 두 겹으로 고쳤습니다. 하나는 서버 쪽 연결 거부, 하나는 클라이언트 쪽 복구 부재였습니다.</p>
+
+  <h3>문제 A — 쿠키가 크면 웹소켓이 400으로 거부</h3>
+  <p>브라우저는 로그인 쿠키를 웹소켓 연결에도 함께 보냅니다. 누적된 인증 쿠키로 헤더 한 줄이 8,192바이트를 넘으면, 웹소켓 라이브러리가 면접 서버에 <b>닿기도 전에</b> 400 오류로 끊었습니다.</p>
+  <div class="ba">
+    <div class="row b"><span class="ic">전</span><span class="tx">9KB 쿠키를 단 브라우저 → 모든 면접 연결이 <b>400 거부</b> → "재연결 시도중…"만 반복</span></div>
+    <div class="row a"><span class="ic">후</span><span class="tx">핸드셰이크 파서의 헤더 한도를 <b>32KB로 상향</b> → 2K·9K·20K·31K 쿠키 전부 정상 연결(실측)</span></div>
+  </div>
+
+  <h3>문제 B — 최초 연결 실패 시 복구가 없음</h3>
+  <p>일시적 단절이 나면 자동 재연결이 있었지만, <b>면접이 시작되기 전</b> 단계에서는 재연결이 걸려 있지 않아 한 번 튕기면 그대로 멈췄습니다.</p>
+  <div class="ba">
+    <div class="row b"><span class="ic">전</span><span class="tx">첫 연결이 거부되면 재시도 0회 → 화면은 <b>영원히 로딩</b>, 오류 표시도 없음</span></div>
+    <div class="row a"><span class="ic">후</span><span class="tx">시작 전에도 자동 재연결(백오프) → 서버가 살아나는 순간 <b>자동으로 면접 시작</b>. "재연결 시도중" 안내도 정직하게 노출</span></div>
+  </div>
+
+  <div class="callout g"><div class="h">검증</div>세 서버(웹·FastAPI·워크스페이스)를 재시작한 상태에서 프로토콜 E2E(세션 생성 → 초기화 → 첫 질문 수신)를 반복 실행해 전부 통과. FastAPI를 강제로 내렸다가 복구시켜, 화면이 자동으로 다시 연결되는 것까지 브라우저로 확인했습니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>면접 진행 안정화</span><span>3</span></div>
+</section>
+
+<!-- ============ 04 RECORDING ============ -->
+<section class="page" id="s4">
+  <div class="sec-h"><div class="n">04</div><h2>주요 작업 ② 영상 녹화 정상화</h2></div>
+  <p class="lead">"소리만 저장되고 화면이 검다"는 증상의 원인은 타이밍 경쟁(race)이었습니다. 실패한 녹화 파일을 직접 부검(ffprobe)해 <b>영상 트랙 자체가 없다는 것</b>을 확인하고 근본 수정했습니다.</p>
+
+  <h3>검은 화면 — 카메라보다 녹화가 먼저 시작</h3>
+  <div class="ba">
+    <div class="row b"><span class="ic">전</span><span class="tx">카메라 준비(비동기)가 끝나기 전에 녹화가 시작 → 영상 없이 <b>오디오 전용으로 고정</b>. 시선 분석도 같은 이유로 전 세션 미작동</span></div>
+    <div class="row a"><span class="ic">후</span><span class="tx">카메라 스트림 도착을 <b>기다렸다가</b> 녹화 시작(실패 시 즉시 음성 전용 폴백). 산출물 확인: <code>vp9 영상 + opus 음성</code>, 프레임 밝기 정상(검정 아님)</span></div>
+  </div>
+
+  <h3>면접관(AI) 음성도 함께 녹음</h3>
+  <p>브라우저의 오디오 엔진에서 AI 재생 음성을 살짝 분기(tap)해, 본인 마이크와 <b>하나의 트랙으로 믹싱</b>했습니다. (크롬은 오디오 트랙이 여러 개면 첫 번째만 저장하므로 믹싱이 필수였습니다.)</p>
+  <div class="callout"><div class="h">증명 방법</div>440Hz 합성 마이크로 녹음한 뒤, 그 주파수를 필터로 제거해도 <b>음성 에너지가 남아 있음</b>을 스펙트럼으로 확인 → 면접관 음성이 실제로 섞여 있음을 정량 증명.</div>
+
+  <h3>로컬 · 배포 저장 이중화</h3>
+  <table>
+    <tr><th>환경</th><th>저장 위치</th><th>재생 방식</th><th>실측</th></tr>
+    <tr><td>로컬 개발</td><td><code>web/public/local-recordings/</code> 폴더</td><td>정적 URL 직접 재생</td><td class="ok">200 · 구간점프 206 ✓</td></tr>
+    <tr><td>배포(Vercel)</td><td>Supabase Storage</td><td>서명 URL(1시간)</td><td class="ok">200 · 구간점프 206 ✓</td></tr>
+  </table>
+  <p><code>NODE_ENV</code>에 따라 자동 분기되며, 개발 중에도 실수로 실제 저장소를 쓰지 않도록 안전하게 나눴습니다. 배포 환경에서만 생길 수 있던 "파일은 있는데 DB에 기록이 없는" 유실 버그도 함께 잡았습니다.</p>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>영상 녹화 정상화</span><span>4</span></div>
+</section>
+
+<!-- ============ 05 REPORT UI ============ -->
+<section class="page" id="s5">
+  <div class="sec-h"><div class="n">05</div><h2>주요 작업 ③ 리포트 영상 분석</h2></div>
+  <p class="lead">면접이 끝나면 리포트에서 영상을 <b>질문 단위로</b> 되돌아보고, 그 구간의 비언어 행동(시선·표정)을 참고할 수 있습니다. 점수를 매기지 않고 "관찰된 행동"만 담백하게 보여주는 것이 원칙입니다.</p>
+
+  <div class="grid">
+    <div class="card"><div class="t"><span class="dot p"></span>질문별 하이라이트</div><div class="d">타임라인 아래 Q1·Q2·Q3 칩을 펼치면 그 질문 구간만 재생하는 미니 플레이어가 열리고, 구간 끝에서 자동으로 멈춥니다. 한 번에 하나만 펼쳐 영상 중복 로드를 막았습니다.</div></div>
+    <div class="card"><div class="t"><span class="dot p"></span>구간 시선·표정 요약</div><div class="d">해당 구간의 정면 응시·미소 비율을 칩으로 요약. 표본이 부족하면 표시하지 않고, 점수가 아니라 참고용임을 문구로 명시합니다.</div></div>
+    <div class="card"><div class="t"><span class="dot p"></span>재생 영상 위 오버레이</div><div class="d">재생 중인 얼굴 위에 시선 점·상태 점을 얹어, 어디를 보고 있었는지 직관적으로 표시. 끄고 켤 수 있습니다.</div></div>
+    <div class="card"><div class="t"><span class="dot p"></span>비언어 관찰 패널</div><div class="d">정면 응시 %·미소 %·고개 움직임(낮음/보통/높음)을 요약. 감정을 단정하지 않고 관찰 가능한 행동만 기록합니다.</div></div>
+  </div>
+
+  <h3>시간축 정밀 정렬</h3>
+  <p>얼굴 분석은 인식 엔진을 불러온 뒤 시작되므로, 녹화 시작 시각과 미세하게 어긋날 수 있습니다. 이 <b>오프셋을 보정</b>해, 영상 위 오버레이와 구간 통계가 실제 영상 위치와 맞도록 맞췄습니다. (2차 검증에서 발견해 수정)</p>
+
+  <div class="callout g"><div class="h">검증</div>시드(seed) 리포트에서 Q1~Q3 칩이 렌더되고, 펼치면 해당 구간(예: 0:12)으로 정확히 이동하며, 시선 오버레이 캔버스와 구간 통계 칩(이탈 20%·미소 60%)이 함께 뜨는 것을 브라우저로 확인했습니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>리포트 영상 분석</span><span>5</span></div>
+</section>
+
+<!-- ============ 06 RAG ============ -->
+<section class="page" id="s6">
+  <div class="sec-h"><div class="n">06</div><h2>주요 작업 ④ 포트폴리오 RAG-lite</h2></div>
+  <p class="lead">"프롬프트에만 의존하지 말고, DB에서 꺼내 쓴다" — 이번 작업의 핵심 설계 포인트입니다. 거창한 벡터 검색이 아니라, <b>레포 분석을 DB에 저장했다가 면접 시작 시 서버가 다시 꺼내(retrieve) 면접관에게 주입</b>하는 가벼운 방식(RAG-lite)입니다.</p>
+
+  <h3>데이터 흐름</h3>
+  <table>
+    <tr><th style="width:16%">단계</th><th>동작</th></tr>
+    <tr><td><b>① 분석</b></td><td>공개 깃 레포 URL → GitHub API로 README·파일트리 수집 → Gemini가 요약·아키텍처·인프라 가설·감지 토픽 추출</td></tr>
+    <tr><td><b>② 저장</b></td><td>면접 세션 생성 시 분석 스냅샷을 <code>portfolio_sources</code> 테이블에 저장 (기존엔 저장만 되고 아무도 안 읽던 "죽은 데이터")</td></tr>
+    <tr><td><b>③ 조회</b></td><td>면접 시작(웹소켓) 시 서버가 세션 종류를 보고 <b>DB에서 스냅샷을 다시 읽어</b> 면접 상태에 병합 (retrieve)</td></tr>
+    <tr><td><b>④ 주입</b></td><td>구조화된 텍스트(레포/README/아키텍처/가설/토픽) + 60/10/30 평가 루브릭을 면접관 시스템 프롬프트에 주입</td></tr>
+  </table>
+
+  <div class="callout"><div class="h">시연 멘트 (한 줄)</div>"포트폴리오 면접이 시작되면 서버가 클라이언트 프롬프트가 아니라 <b>DB에 저장된 레포 분석을 직접 조회</b>해 면접관에게 주입하고, 설계 의도 60% · 코드 품질 10% · AI 활용 30% 루브릭에 맞춰 질문을 생성합니다."</div>
+
+  <div class="callout g"><div class="h">결정적 증명</div>웹소켓 초기화에 클라이언트 데이터(jobData)를 <b>일부러 빈 값으로</b> 보냈는데도, 실제 레포(rehearse) 기반 포트폴리오 첫 질문이 정상 생성됐습니다 → 프롬프트가 아니라 <b>DB 조회로 컨텍스트가 들어온다</b>는 증거. <code>portfolio_sources</code> 행 저장도 함께 확인.</div>
+
+  <div class="callout a"><div class="h">2차 검증에서 잡은 함정</div>이 DB 조회를 실시간 음성 처리 도중 그대로 실행하면 서버 전체가 잠깐 멈추는(이벤트 루프 블로킹) 문제가 있었습니다 → 조회를 <b>워커 스레드로 분리</b>해 다른 면접 세션에 영향이 없도록 고쳤습니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>포트폴리오 RAG-lite</span><span>6</span></div>
+</section>
+
+<!-- ============ 07 TESTS ============ -->
+<section class="page" id="s7">
+  <div class="sec-h"><div class="n">07</div><h2>예외처리와 테스트 100건</h2></div>
+  <p class="lead">세 플로우(채용공고·직무·포트폴리오)의 예외 상황을 실측으로 훑어 <b>시연 범위 내 결함 12건</b>을 고치고, 100건의 테스트케이스를 명세·자동화했습니다.</p>
+
+  <h3>고친 예외처리 (일부)</h3>
+  <ul>
+    <li><b>보안</b> — 인증 없이 발급되던 화상 토큰 차단, 저장 버킷 화이트리스트, DB 오류 원문 비노출</li>
+    <li><b>조용한 실패 제거</b> — 공고 분석이 실패해도 "성공"으로 위장하던 것 → 실패를 사용자에게 표면화(직접 입력 유도)</li>
+    <li><b>무한 로딩 차단</b> — 리포트 상태가 영영 "생성 중"에 머물던 경로를 종료 상태로 정리</li>
+    <li><b>잘못된 입력</b> — 형식이 틀린 세션 ID·깨진 JSON 요청을 500이 아니라 404/400으로 정확히 응답</li>
+  </ul>
+
+  <h3>테스트 현황</h3>
+  <div class="stats">
+    <div class="stat"><div class="v">199</div><div class="l">FastAPI 자동 테스트</div></div>
+    <div class="stat"><div class="v">103</div><div class="l">웹 자동 테스트</div></div>
+    <div class="stat"><div class="v">100</div><div class="l">테스트케이스 명세</div></div>
+    <div class="stat"><div class="v">0</div><div class="l">회귀 · 신규 오류</div></div>
+  </div>
+  <p>100건의 테스트케이스는 플로우별로 분류해 <code>docs/qa/2026-07-04-three-flow-testcases.md</code>에 정리했습니다. 이 중 자동화 가능한 것은 실제 테스트 코드로, 실제 카메라가 필요한 항목은 <b>시연 리허설 체크리스트</b>로 표시했습니다. (프로젝트 관례에 맞춰 새 테스트 도구를 추가하지 않고 기존 러너를 그대로 사용)</p>
+
+  <div class="callout g"><div class="h">통합 스모크</div>합성 카메라·마이크로 기기점검 → 면접 → AI 발화 → 종료 → 업로드까지 전 과정을 실제 경로로 돌려, 산출 영상의 코덱·밝기·면접관 음성 혼입을 정량 확인했습니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>예외처리와 테스트</span><span>7</span></div>
+</section>
+
+<!-- ============ 08 MULTI-AGENT ============ -->
+<section class="page" id="s8">
+  <div class="sec-h"><div class="n">08</div><h2>검증 방법 — 멀티에이전트 적대적 리뷰</h2></div>
+  <p class="lead">고친 코드가 <b>다른 걸 고장 내지 않았는지</b>를 사람 한 명의 눈이 아니라, 여러 AI 에이전트가 서로 다른 관점으로 동시에 검사하고 서로 반박하게 하는 방식으로 검증했습니다.</p>
+
+  <h3>검증 파이프라인</h3>
+  <table>
+    <tr><th style="width:22%">단계</th><th>방식</th></tr>
+    <tr><td><b>지도 작성</b></td><td>4~5개 에이전트가 코드베이스의 각 영역(녹화·리포트·저장·RAG·예외)을 병렬로 정독해 결합 구조를 지도화</td></tr>
+    <tr><td><b>발견 (Find)</b></td><td>3개 관점(회귀·크로스계약·정확성)으로 결함 후보를 병렬 발굴</td></tr>
+    <tr><td><b>반박 검증 (Verify)</b></td><td>각 발견을 <b>다른 에이전트가 반박 시도</b> — 실제 코드 경로를 추적해 재현 가능한 것만 확정</td></tr>
+    <tr><td><b>수정 → 재검증</b></td><td>확정된 결함만 수술적으로 수정하고, 기존 테스트로 회귀가 없는지 재확인</td></tr>
+  </table>
+
+  <div class="grid">
+    <div class="card"><div class="t"><span class="dot g"></span>1차 리뷰 — 확정 6건</div><div class="d">자연 종료 시 녹화 유실, 연결 끊김 중 녹화 영구 중단, 시선 시간축 어긋남 등. 전부 수정·재검증.</div></div>
+    <div class="card"><div class="t"><span class="dot g"></span>2차 리뷰 — 확정 3건</div><div class="d">병렬 작업의 봉합선에서 발생한 이벤트 루프 블로킹, 실패 배너 미표시, 기계 코드 노출. 전부 수정.</div></div>
+  </div>
+
+  <div class="callout"><div class="h">왜 이렇게까지</div>녹화·리포트·면접 진행은 서로 얽혀 있어 "한 곳을 고치면 다른 곳이 끊기는" 구조입니다. 그래서 각 수정마다 <b>발견 → 반박 → 재검증</b> 사이클을 돌려, 눈으로 놓치기 쉬운 연쇄 결함까지 잡았습니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>멀티에이전트 검증</span><span>8</span></div>
+</section>
+
+<!-- ============ 09 STORAGE ============ -->
+<section class="page" id="s9">
+  <div class="sec-h"><div class="n">09</div><h2>저장 용량 분석 — Supabase 무료플랜</h2></div>
+  <p class="lead">영상은 용량이 크므로, 무료플랜으로 시연이 가능한지 실제 비트레이트로 계산했습니다. 결론부터: <b>시연에는 충분</b>하며, 이번에 비트레이트를 낮춰 여유를 2배로 늘렸습니다.</p>
+
+  <h3>비트레이트 조정</h3>
+  <div class="ba">
+    <div class="row b"><span class="ic">전</span><span class="tx">영상 1.5Mbps → 실측 ≈ <b>12.2 MB/분</b> → 7분 면접 ≈ 85MB</span></div>
+    <div class="row a"><span class="ic">후</span><span class="tx">영상 <b>0.8Mbps</b>로 하향(얼굴 분석·재생 화질엔 영향 거의 없음) → ≈ <b>7 MB/분</b> → 7분 면접 ≈ 44MB</span></div>
+  </div>
+
+  <h3>무료플랜 한도 대비 수용량 (조정 후 기준)</h3>
+  <table>
+    <tr><th>무료플랜 한도</th><th>1회 소요</th><th>수용량</th><th>판정</th></tr>
+    <tr><td><b>Storage 1 GB</b></td><td>7분 면접 ≈ 44 MB</td><td>약 <b>22회</b> 면접 저장</td><td class="ok">시연 충분</td></tr>
+    <tr><td><b>Egress 5 GB / 월</b></td><td>리포트 1회 시청 ≈ 44 MB</td><td>약 <b>116회</b> 시청 / 월</td><td class="ok">시연 충분</td></tr>
+    <tr><td><b>Database 500 MB</b></td><td>세션당 시선 데이터 ≈ 25 KB</td><td>수만 세션</td><td class="ok">문제 없음</td></tr>
+  </table>
+  <p><small>* 조정 전에는 Storage 기준 약 12회였습니다. 병목은 영상 저장(Storage)이며, DB·대역폭은 넉넉합니다.</small></p>
+
+  <div class="callout a"><div class="h">운영 시 참고</div>여러 명이 계속 테스트하면 Storage 1GB는 실면접 20여 회에서 참니다. 장기 운영 시에는 ① 오래된 녹화 자동 정리 ② Supabase Pro($25/월, Storage 100GB) 중 하나를 고려하면 됩니다. <b>시연 단계에서는 현재 무료플랜으로 충분합니다.</b></div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>저장 용량 분석</span><span>9</span></div>
+</section>
+
+<!-- ============ 10 REMAINING ============ -->
+<section class="page" id="s10">
+  <div class="sec-h"><div class="n">10</div><h2>남은 작업과 권고</h2></div>
+  <p class="lead">시연에 필요한 기능은 사실상 완료됐습니다. 남은 것은 최종 리허설과, 시연 범위를 벗어나는 장기 개선 항목들입니다.</p>
+
+  <h3>지금 해야 할 것</h3>
+  <div class="grid">
+    <div class="card"><div class="t"><span class="dot a"></span>실카메라 최종 리허설</div><div class="d">실제 카메라·마이크로 면접을 한 번 진행해, 영상+본인 음성+면접관 음성이 모두 담기고 리포트에 하이라이트·시선 분석이 뜨는지 눈으로 확인.</div></div>
+    <div class="card"><div class="t"><span class="dot p"></span>세 플로우 시연 순서 점검</div><div class="d">채용공고 → 직무 → 포트폴리오 순으로 각 진입 경로를 미리 한 번씩 밟아 매끄러운 동선 확인.</div></div>
+  </div>
+
+  <h3>알려진 한계 (시연 무관, 문서화됨)</h3>
+  <ul>
+    <li>면접 <b>도중</b> 카메라를 껐다 켜면 새 화면이 기존 녹화에 붙지 않음(시작 시점 상태로 고정).</li>
+    <li>질문별 하이라이트 구간은 발화 시각의 근사치(수백 ms 오차 가능).</li>
+    <li>서버 간 인증이 헤더 신뢰 방식 — 장기 로드맵의 인증 재설계 항목.</li>
+  </ul>
+
+  <h3>장기 개선 (시연 이후)</h3>
+  <ul>
+    <li>오래된 녹화 자동 정리(보관 기간 정책) — 저장소 장기 운영 대비.</li>
+    <li>AWS 영상 파이프라인(S3 → 분석 → 리포트) 확장안 — 별도 기획 존재.</li>
+  </ul>
+
+  <div class="callout g"><div class="h">최종 상태</div>FastAPI 199건 · 웹 103건 자동 테스트 전부 통과 · 타입 검사 신규 오류 0 · 로컬/배포 저장 실측 · 세 플로우 첫 질문 도달 확인 · 시드 세션 회귀 없음. <b>origin/develop에 반영 완료.</b></div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>남은 작업과 권고</span><span>10</span></div>
+</section>
+
+</body>
+</html>
