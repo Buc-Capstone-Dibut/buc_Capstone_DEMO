@@ -129,6 +129,33 @@ tr:nth-child(even) td{background:#fafbfe}
 .toc-row2 .dots{flex:1;border-bottom:1px dotted #c3c6d4;transform:translateY(-3px)}
 .toc-row2 .pg{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .toc-row2:hover .t{color:var(--primary)}
+
+/* ===== 다이어그램(아키텍처·파이프라인·IA)·논의안건 ===== */
+.arch{display:flex;flex-direction:column;gap:7px;margin:12px 0}
+.layer{border:1px solid var(--border);border-radius:10px;padding:10px 13px;display:flex;gap:12px;align-items:flex-start}
+.layer .tag{flex:0 0 92px;font-weight:800;font-size:11px;color:#fff;background:var(--primary);border-radius:6px;padding:7px 6px;text-align:center;line-height:1.3}
+.layer .tag.a2{background:var(--accent-d)} .layer .tag.a3{background:var(--ink)} .layer .tag.a4{background:var(--amber)}
+.layer .bd{font-size:11.5px;color:var(--body);padding-top:1px}
+.layer .bd b{color:var(--ink)}
+.updown{text-align:center;color:#aab;font-size:13px;margin:0;line-height:1}
+.flow{margin:12px 0;padding-left:14px}
+.flow .step{border:1px solid var(--border);border-radius:10px;padding:9px 13px;background:#fff;position:relative}
+.flow .step.hi{border-color:#c9d3f2;background:var(--tint)}
+.flow .step .sn{position:absolute;left:-13px;top:10px;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.flow .step .t{font-weight:800;font-size:12px;color:var(--ink);margin-bottom:1px}
+.flow .step .d{font-size:11.3px;color:var(--body)}
+.flow .ar{text-align:center;color:#aab;font-size:13px;margin:4px 0}
+.ia .lvl1{font-weight:800;color:var(--ink);border-top:1px solid var(--border);padding-top:8px;margin-top:7px;font-size:12.5px}
+.ia .lvl2{padding-left:16px;color:var(--body);font-size:12px;margin-top:3px;display:flex;align-items:baseline;gap:6px}
+.ia .b2{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:10px;white-space:nowrap}
+.b2.here{background:var(--green-b);color:var(--green)} .b2.dup{background:var(--amber-b);color:var(--amber)} .b2.link{background:var(--tint);color:var(--primary)}
+.agenda{border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:0 10px 10px 0;padding:12px 15px;margin:11px 0}
+.agenda .q{font-weight:800;font-size:13.5px;color:var(--ink);margin-bottom:6px;display:flex;gap:8px;align-items:baseline}
+.agenda .q .qn{color:var(--primary);font-weight:900}
+.agenda .lab{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.06em;margin:9px 0 2px}
+.agenda p{margin-bottom:4px}
+.agenda .rec{background:var(--green-b);border-radius:8px;padding:8px 11px;font-size:12px;margin-top:8px}
+.agenda .rec b{color:var(--green)}
 </style>
 </head>
 <body>
@@ -187,9 +214,19 @@ tr:nth-child(even) td{background:#fafbfe}
     <a class="toc-row2" href="#s8"><span class="t">6. 검증 방법 — 멀티에이전트 적대적 리뷰</span><span class="dots"></span><span class="pg">p.10</span></a>
   </div>
   <div class="toc-grp">
-    <div class="g"><span class="n">Ⅳ</span> 운영 · 결론</div>
-    <a class="toc-row2" href="#s9"><span class="t">7. 저장 용량 분석 — Supabase 무료플랜</span><span class="dots"></span><span class="pg">p.11</span></a>
-    <a class="toc-row2" href="#s10"><span class="t">8. 남은 작업과 권고</span><span class="dots"></span><span class="pg">p.12</span></a>
+    <div class="g"><span class="n">Ⅳ</span> 설계 흐름</div>
+    <a class="toc-row2" href="#s-arch"><span class="t">7. 아키텍처 흐름 — 4계층 구조</span><span class="dots"></span><span class="pg">p.11</span></a>
+    <a class="toc-row2" href="#s-pipe"><span class="t">8. 영상 저장·분석 파이프라인 — 처음부터 끝까지</span><span class="dots"></span><span class="pg">p.12</span></a>
+    <a class="toc-row2" href="#s-ia"><span class="t">9. IA 흐름 — 리포트 데이터가 어디에 있나</span><span class="dots"></span><span class="pg">p.13</span></a>
+  </div>
+  <div class="toc-grp">
+    <div class="g"><span class="n">Ⅴ</span> 운영 · 결론</div>
+    <a class="toc-row2" href="#s9"><span class="t">10. 저장 용량 분석 — Supabase 무료플랜</span><span class="dots"></span><span class="pg">p.14</span></a>
+    <a class="toc-row2" href="#s10"><span class="t">11. 남은 작업과 권고</span><span class="dots"></span><span class="pg">p.15</span></a>
+  </div>
+  <div class="toc-grp">
+    <div class="g"><span class="n">Ⅵ</span> 논의안건</div>
+    <a class="toc-row2" href="#s-disc"><span class="t">12. 팀 결정이 필요한 것 — 리포트 통합 · 플로우별 리포트 · UI/UX 정리</span><span class="dots"></span><span class="pg">p.16</span></a>
   </div>
 
   <div class="pfoot"><span class="b">DIBUT</span><span>목차</span><span>2</span></div>
@@ -393,9 +430,78 @@ tr:nth-child(even) td{background:#fafbfe}
   <div class="pfoot"><span class="b">DIBUT</span><span>멀티에이전트 검증</span><span>10</span></div>
 </section>
 
+<!-- ============ 09 ARCHITECTURE ============ -->
+<section class="page" id="s-arch">
+  <div class="sec-h"><div class="n">09</div><h2>아키텍처 흐름 — 시스템은 어떻게 짜여 있나</h2></div>
+  <p class="lead">화면(브라우저)에서 저장소(Supabase)까지, 요청이 어느 계층을 거치는지 정리했습니다. 핵심은 <b>느슨하게 나뉜 4개 계층</b>이며, 얼굴 영상은 브라우저를 벗어나지 않습니다.</p>
+
+  <div class="arch">
+    <div class="layer"><div class="tag">① 브라우저<br>Next.js UI</div><div class="bd"><b>화면 렌더 · 카메라/마이크 · 녹화 · 얼굴 분석.</b> MediaPipe로 얼굴 랜드마크를 브라우저 안에서만 계산(서버로 영상·랜드마크 미전송), MediaRecorder로 마이크+면접관 음성을 믹싱해 녹화.</div></div>
+    <div class="updown">▲ HTTPS · WebSocket ▼</div>
+    <div class="layer"><div class="tag a2">② BFF<br>Next.js API</div><div class="bd"><b>인증 게이트 + 중계(프록시).</b> 로그인 확인 후 FastAPI로 요청을 넘기고, 저장·조회 일부는 서비스 계정으로 DB에 직접 접근(관리자 클라이언트).</div></div>
+    <div class="updown">▲ HTTP · x-user-id ▼</div>
+    <div class="layer"><div class="tag a3">③ AI 백엔드<br>FastAPI</div><div class="bd"><b>실시간 음성 면접(WebSocket) · 리포트 생성 워커 · RAG 조회.</b> 세션 상태를 DB에서 복원(hydrate)하고, 면접관 프롬프트를 구성해 Gemini Live와 연결.</div></div>
+    <div class="updown">▲ SQL · Storage · gRPC ▼</div>
+    <div class="layer"><div class="tag a4">④ 외부 서비스</div><div class="bd"><b>Supabase</b> — PostgreSQL(세션·녹화메타·시선·리포트) + Storage(영상 파일). <b>Gemini Live</b> — 실시간 음성 대화. <b>Gemini</b> — 리포트 텍스트·비언어 코칭 생성.</div></div>
+  </div>
+
+  <div class="callout"><div class="h">설계 의도 (한 줄)</div>"화면은 Next.js가, 실시간 AI는 FastAPI가, 데이터는 Supabase가" — 각자 잘하는 일을 맡는 <b>모듈러 구조</b>. BFF가 인증·중계를 담당해 프론트와 AI 백엔드의 결합을 느슨하게 유지합니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>아키텍처 흐름</span><span>11</span></div>
+</section>
+
+<!-- ============ 10 PIPELINE ============ -->
+<section class="page" id="s-pipe">
+  <div class="sec-h"><div class="n">10</div><h2>영상 저장·분석 파이프라인 — 처음부터 끝까지</h2></div>
+  <p class="lead">면접 준비부터 리포트 재생까지 영상·시선 데이터가 흐르는 전 과정입니다. <b>영상 원본은 서버로 보내지 않고</b>, AI에는 관찰 수치·텍스트만 전달하는 것이 개인정보 원칙입니다.</p>
+
+  <div class="flow">
+    <div class="step"><span class="sn">1</span><div class="t">셋업 — 기기 점검 · 얼굴 캘리브레이션</div><div class="d">카메라·마이크 확인 + MediaPipe로 정면 기준값(baseline)을 잡음. 6단계(정면·좌·우·상·하·눈동자).</div></div>
+    <div class="ar">▼</div>
+    <div class="step hi"><span class="sn">2</span><div class="t">면접 중 — 녹화 + 얼굴 5Hz 수집</div><div class="d">카메라 스트림을 받아 <b>마이크+면접관 음성을 한 트랙으로 믹싱</b>해 녹화하고, 동시에 초당 5회 시선·표정 샘플을 모음(분석 UI는 면접 중 노출 안 함).</div></div>
+    <div class="ar">▼</div>
+    <div class="step"><span class="sn">3</span><div class="t">종료 — 저장 분기 + 업로드</div><div class="d"><b>로컬 개발</b>은 폴더에, <b>배포</b>는 Supabase Storage에 서명 업로드. 녹화 메타·시선 시계열을 DB에 저장하고 리포트 작업을 예약(enqueue).</div></div>
+    <div class="ar">▼</div>
+    <div class="step hi"><span class="sn">4</span><div class="t">워커(FastAPI) — 집계 + AI 분석</div><div class="d">시선 샘플을 집계(정면응시%·미소%·고개움직임)하고, <b>Gemini에는 영상 없이 집계 숫자와 텍스트만</b> 보내 행동 기반 코칭을 생성. 결과를 리포트에 저장.</div></div>
+    <div class="ar">▼</div>
+    <div class="step"><span class="sn">5</span><div class="t">리포트 — 재생 + 분석 표시</div><div class="d">영상(로컬 정적 URL / 배포 서명 URL)을 불러와 재생하고, 위에 시선 오버레이·질문별 하이라이트·비언어 관찰 패널을 얹음.</div></div>
+  </div>
+
+  <div class="callout g"><div class="h">개인정보 원칙</div>얼굴 <b>영상과 랜드마크는 브라우저를 벗어나지 않습니다.</b> 서버·AI로 가는 것은 "정면 응시 80%" 같은 <b>관찰 수치와 텍스트뿐</b>이며, 점수는 매기지 않고 관찰된 행동만 참고용으로 제공합니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>저장·분석 파이프라인</span><span>12</span></div>
+</section>
+
+<!-- ============ 11 IA ============ -->
+<section class="page" id="s-ia">
+  <div class="sec-h"><div class="n">11</div><h2>IA 흐름 — 리포트 데이터가 지금 어디에 있나</h2></div>
+  <p class="lead">면접 리포트 성격의 데이터가 <b>여러 화면에 흩어져</b> 있습니다. 아래는 현재 정보 구조(IA)와, 각 화면이 리포트 데이터를 어떻게 쓰는지입니다. (논의안건 ①과 직접 연결됩니다.)</p>
+
+  <div class="ia">
+    <div class="lvl1">AI 모의면접 <code>/interview</code></div>
+    <div class="lvl2"><span class="b2 here">정본</span> <code>/result</code> — 세션별 상세 리포트: 영상·타임라인·스크립트·질문별 하이라이트·비언어 패널</div>
+    <div class="lvl2"><span class="b2 dup">중복 성격</span> <code>/analysis</code> — 나의 면접 성향: 대표 면접 유형 · 4축 · 성향맵 · 유형 커버리지 (교차 세션 집계)</div>
+    <div class="lvl2"><span class="b2 dup">진입 중복</span> <code>/training</code> — 훈련 허브: 지난 면접 재체험 진입 · 요약 카드</div>
+    <div class="lvl2"><span class="b2 link">리다이렉트</span> <code>/training/portfolio/report</code> — 포트폴리오 전용 리포트 경로</div>
+    <div class="lvl1">커리어 <code>/career</code></div>
+    <div class="lvl2"><span class="b2 dup">교차 소비</span> <code>/portfolios</code> — 포트폴리오에서도 면접 분석을 일부 끌어다 씀</div>
+  </div>
+
+  <table>
+    <tr><th>화면</th><th>보여주는 것</th><th>성격</th></tr>
+    <tr><td><code>/result</code></td><td>영상·타임라인·스크립트·하이라이트·비언어</td><td class="ok">세션 정본</td></tr>
+    <tr><td><code>/analysis</code></td><td>대표 유형·4축·성향맵·커버리지</td><td>교차 세션 집계</td></tr>
+    <tr><td><code>/training</code>·프로필</td><td>요약 카드·재체험 진입·대표 응답</td><td>진입/요약 중복</td></tr>
+  </table>
+
+  <div class="callout a"><div class="h">관찰</div>"한 번의 면접 결과"를 보려는 사용자가 <b>result·analysis·training·프로필</b>을 오가야 합니다. 데이터는 유용하지만 <b>어디서 무엇을 보는지</b>가 흩어져 있어, 다음 장의 논의안건 ①에서 정리 방향을 제안합니다.</div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>IA 흐름</span><span>13</span></div>
+</section>
+
 <!-- ============ 09 STORAGE ============ -->
 <section class="page" id="s9">
-  <div class="sec-h"><div class="n">09</div><h2>저장 용량 분석 — Supabase 무료플랜</h2></div>
+  <div class="sec-h"><div class="n">12</div><h2>저장 용량 분석 — Supabase 무료플랜</h2></div>
   <p class="lead">영상은 용량이 크므로, 무료플랜으로 시연이 가능한지 실제 비트레이트로 계산했습니다. 결론부터: <b>시연에는 충분</b>하며, 이번에 비트레이트를 낮춰 여유를 2배로 늘렸습니다.</p>
 
   <h3>비트레이트 조정</h3>
@@ -415,12 +521,12 @@ tr:nth-child(even) td{background:#fafbfe}
 
   <div class="callout a"><div class="h">운영 시 참고</div>여러 명이 계속 테스트하면 Storage 1GB는 실면접 20여 회에서 참니다. 장기 운영 시에는 ① 오래된 녹화 자동 정리 ② Supabase Pro($25/월, Storage 100GB) 중 하나를 고려하면 됩니다. <b>시연 단계에서는 현재 무료플랜으로 충분합니다.</b></div>
 
-  <div class="pfoot"><span class="b">DIBUT</span><span>저장 용량 분석</span><span>11</span></div>
+  <div class="pfoot"><span class="b">DIBUT</span><span>저장 용량 분석</span><span>14</span></div>
 </section>
 
 <!-- ============ 10 REMAINING ============ -->
 <section class="page" id="s10">
-  <div class="sec-h"><div class="n">10</div><h2>남은 작업과 권고</h2></div>
+  <div class="sec-h"><div class="n">13</div><h2>남은 작업과 권고</h2></div>
   <p class="lead">시연에 필요한 기능은 사실상 완료됐습니다. 남은 것은 최종 리허설과, 시연 범위를 벗어나는 장기 개선 항목들입니다.</p>
 
   <h3>지금 해야 할 것</h3>
@@ -444,7 +550,45 @@ tr:nth-child(even) td{background:#fafbfe}
 
   <div class="callout g"><div class="h">최종 상태</div>FastAPI 199건 · 웹 103건 자동 테스트 전부 통과 · 타입 검사 신규 오류 0 · 로컬/배포 저장 실측 · 세 플로우 첫 질문 도달 확인 · 시드 세션 회귀 없음. <b>origin/develop에 반영 완료.</b></div>
 
-  <div class="pfoot"><span class="b">DIBUT</span><span>남은 작업과 권고</span><span>12</span></div>
+  <div class="pfoot"><span class="b">DIBUT</span><span>남은 작업과 권고</span><span>15</span></div>
+</section>
+
+<!-- ============ 14 DISCUSSION ============ -->
+<section class="page" id="s-disc">
+  <div class="sec-h"><div class="n">14</div><h2>논의안건 — 팀 결정이 필요한 것</h2></div>
+  <p class="lead">기능은 동작하지만, 시연·운영 전에 팀이 방향을 정하면 좋을 세 가지입니다. 각 안건에 <b>현황 · 쟁점 · 권고</b>를 정리했습니다(권고는 제안이며 최종 결정은 논의로).</p>
+
+  <div class="agenda">
+    <div class="q"><span class="qn">①</span> 면접 리포트 간소화 · 통합</div>
+    <div class="lab">현황</div>
+    <p>리포트 성격의 데이터가 <code>/result</code>(타임라인·스크립트), <code>/analysis</code>(대표 유형·성향맵), 훈련 허브·프로필의 요약 카드·대표 응답 등 <b>여러 화면에 분산·중복</b>되어 있습니다(앞 장 IA 참고).</p>
+    <div class="lab">쟁점</div>
+    <p>사용자가 "한 면접 결과"를 보려고 화면을 여러 개 오갑니다. 유지보수도 여러 곳에서 동시에 해야 합니다.</p>
+    <div class="rec"><b>권고</b> — <b>역할 분리 + 정본화.</b> ⑴ 세션 단위 결과는 <code>/result</code>를 <b>유일한 정본</b>으로. ⑵ <code>/analysis</code>는 "여러 면접을 가로지른 인사이트(성향·추세)"로 역할을 명확히 구분. ⑶ 훈련 허브·프로필의 리포트성 카드는 <b>정본으로 링크만</b> 걸고 중복 표시를 걷어냄. → 화면 수를 줄이는 게 아니라 <b>"어디서 무엇을 보는지"를 한 겹으로</b> 정리.</div>
+  </div>
+
+  <div class="agenda">
+    <div class="q"><span class="qn">②</span> 면접 플로우별로 리포트를 따로 둘 것인가</div>
+    <div class="lab">현황</div>
+    <p>채용공고·직무·포트폴리오 <b>3개 플로우가 이미 하나의 리포트 형식</b>으로 나옵니다(동일한 60/10/30 루브릭, 동일한 리포트 컴포넌트 재사용).</p>
+    <div class="lab">쟁점</div>
+    <p>"플로우마다 리포트를 별도로 만들어야 하나?" → 굳이 필요한가.</p>
+    <div class="rec"><b>권고</b> — <b>통합 유지(별도 구현 불필요).</b> 세 플로우는 <b>데이터·라벨만 다르고 구조는 동일</b>합니다. 별도로 나누면 <b>3중 유지보수</b> 부담만 커집니다. 차이는 "섹션 라벨·컨텍스트 배지"로만 표현하고, 포트폴리오처럼 특성이 있는 경우에만 <b>블록 하나를 조건부로 추가</b>(예: 레포 맥락)하는 방식이 가장 경제적입니다.</div>
+  </div>
+
+  <div class="agenda">
+    <div class="q"><span class="qn">③</span> 채용공고 · 커뮤니티 등 짜잘한 UI/UX 검토</div>
+    <div class="lab">현황 · 대상 화면</div>
+    <p><b>채용공고</b> — 목록·캘린더·카드·등록 폼·면접 런치 오버레이(<code>career/job-postings</code>, <code>components/features/job-postings</code>). <b>커뮤니티</b> — 게시판·스쿼드 글쓰기(<code>community/board/write</code>, <code>community/squad/write</code>).</p>
+    <div class="lab">검토 체크리스트</div>
+    <ul>
+      <li><b>채용공고</b> — 캘린더 라벨 가독성 · 카드 정렬·빈 상태 · 등록 폼의 파싱 실패 안내(이번에 개선됨) · 첨부 미리보기 동선</li>
+      <li><b>커뮤니티</b> — 글쓰기 에디터 일관성 · 목록↔작성 이동 동선 · 빈 상태 일러스트 · 작성 후 피드백</li>
+    </ul>
+    <div class="rec"><b>권고</b> — 기능 결함이 아닌 <b>다듬기 항목</b>이므로, 개별로 흩지 말고 <b>"UI/UX 정리" 한 스프린트로 묶어</b> 일괄 처리. 우선순위는 사용 빈도가 높은 채용공고 목록·캘린더 → 커뮤니티 글쓰기 순.</div>
+  </div>
+
+  <div class="pfoot"><span class="b">DIBUT</span><span>논의안건</span><span>16</span></div>
 </section>
 
 </body>
