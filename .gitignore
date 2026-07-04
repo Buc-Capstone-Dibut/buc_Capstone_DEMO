@@ -25,6 +25,11 @@ venv/
 .env
 .env*.local
 .env.local
+# .env 백업/변형 전면 차단 (시크릿 유출 방지 — .env.bak-*, .env.save 등)
+.env.bak*
+.env.*.bak
+*.env.bak*
+
 ai-interview/debut-492601-2c2a8bf7446c.json
 
 # Logs
