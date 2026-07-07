@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Camera, CameraOff, Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { InterviewDeviceCheck } from "@/components/features/interview/interview-device-check";
-import dynamic from "next/dynamic";
+import { SemiRealisticInterviewerAvatar } from "@/components/features/interview/avatar/semi-realistic-interviewer-avatar";
 import {
   buildInterviewResultPath,
   shouldRouteToSetupOnReconnectTimeout,
@@ -152,17 +152,6 @@ const mergeCommittedUserCaption = (
     provider: provider || previousProvider || prev?.provider,
   };
 };
-
-// The TalkingHead avatar (Three.js/WebGL @met4citizen/talkinghead) only matters
-// once the interview UI is shown. Load the wrapper client-side so it's not in
-// the video route's initial JS / hydration path. ssr:false — WebGL is client-only.
-const TalkingHeadInterviewer = dynamic(
-  () =>
-    import("@/components/features/interview/avatar/talking-head-interviewer").then(
-      (m) => m.TalkingHeadInterviewer,
-    ),
-  { ssr: false },
-);
 
 export default function InterviewVideoRoomPage() {
   const router = useRouter();
@@ -578,6 +567,8 @@ export default function InterviewVideoRoomPage() {
     isAIProcessing,
     isAISpeaking,
     volume,
+    aiAudioLevel,
+    aiViseme,
   } = useOpenLLM({
     serverUrl: wsUrl,
     onTranscript: (text, role, meta) => {
@@ -1405,14 +1396,12 @@ export default function InterviewVideoRoomPage() {
             Debut 면접관
           </div>
           <div
-            className="relative flex h-full w-full items-center justify-center overflow-hidden bg-cover bg-center"
-            style={{ backgroundImage: "url('/interview/backgrounds/interview-office-room.png')" }}
+            className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#edf3f7]"
           >
-            <div className="pointer-events-none absolute inset-0 bg-white/20 backdrop-blur-[1.5px]" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-white/85 via-white/30 to-transparent" />
-            <div className="pointer-events-none absolute inset-x-[18%] bottom-12 h-20 rounded-full bg-slate-900/12 blur-3xl" />
-            <TalkingHeadInterviewer
+            <SemiRealisticInterviewerAvatar
               state={avatarState}
+              audioLevel={aiAudioLevel}
+              viseme={aiViseme}
               className="relative z-10 h-full min-h-[420px] w-full"
             />
           </div>
