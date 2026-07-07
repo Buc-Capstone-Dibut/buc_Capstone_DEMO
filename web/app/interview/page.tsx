@@ -63,7 +63,7 @@ export default function InterviewPage() {
               INTERVIEW TRAINING
             </Badge>
             <div className="max-w-3xl space-y-3">
-              <h1 className="text-3xl font-black tracking-tight text-[#172033] md:text-5xl">
+              <h1 className="text-4xl font-black tracking-tighter text-[#172033]">
                 모의면접 훈련 허브
               </h1>
               <p className="text-base leading-7 text-[#5f6b7a] md:text-lg">

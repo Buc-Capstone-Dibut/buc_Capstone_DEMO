@@ -72,9 +72,7 @@ const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
     const errorBody = await res.json().catch(() => null);
-    const error: FetchError = new Error(
-      errorBody?.error || "Failed to fetch",
-    );
+    const error: FetchError = new Error(errorBody?.error || "Failed to fetch");
     error.status = res.status;
     throw error;
   }
@@ -160,8 +158,8 @@ export function ProjectList() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
         <h3 className="text-lg font-semibold">로그인이 필요합니다</h3>
         <p className="mt-2 text-sm">
-          팀 공간 조회/생성은 로그인 후 사용할 수 있습니다. 우측 상단의
-          로그인 버튼으로 먼저 로그인해 주세요.
+          팀 공간 조회/생성은 로그인 후 사용할 수 있습니다. 우측 상단의 로그인
+          버튼으로 먼저 로그인해 주세요.
         </p>
       </div>
     );
@@ -171,10 +169,8 @@ export function ProjectList() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">팀 공간</h2>
-          <p className="text-muted-foreground">
-            참여 중인 팀 공간 목록입니다.
-          </p>
+          <h2 className="text-4xl font-black tracking-tighter">워크스페이스</h2>
+          <p className="text-muted-foreground">참여 중인 팀 목록입니다.</p>
         </div>
         <Button
           asChild
@@ -251,15 +247,23 @@ export function ProjectList() {
                   <CardFooter className="pt-0 p-6 mt-auto border-t bg-muted/5">
                     <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-foreground/80">직무</span>
-                        <span>{workspace.my_team_role?.trim() || "미설정"}</span>
+                        <span className="font-medium text-foreground/80">
+                          직무
+                        </span>
+                        <span>
+                          {workspace.my_team_role?.trim() || "미설정"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-foreground/80">최근 활동</span>
+                        <span className="font-medium text-foreground/80">
+                          최근 활동
+                        </span>
                         <span>{formatWorkspaceDate(workspace.updated_at)}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-foreground/80">생성일</span>
+                        <span className="font-medium text-foreground/80">
+                          생성일
+                        </span>
                         <span>{formatWorkspaceDate(workspace.created_at)}</span>
                       </div>
                     </div>
@@ -328,9 +332,7 @@ export function ProjectList() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              팀 공간을 삭제하시겠습니까?
-            </AlertDialogTitle>
+            <AlertDialogTitle>팀 공간을 삭제하시겠습니까?</AlertDialogTitle>
             <AlertDialogDescription>
               &apos;{workspaceToDelete?.name}&apos; 팀 공간과 관련된 모든
               데이터(문서, 칸반 보드, 알림 등)가 영구적으로 삭제됩니다. 이
@@ -351,6 +353,6 @@ export function ProjectList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div >
+    </div>
   );
 }
