@@ -45,6 +45,9 @@ logs/
 *.swp
 *.swo
 
+# Local Claude worktree copies
+.claude/worktrees/
+
 # Crawler
 crawler/data/
 crawler/logs/
