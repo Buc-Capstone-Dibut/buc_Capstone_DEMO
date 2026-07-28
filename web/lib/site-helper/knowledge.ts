@@ -48,7 +48,7 @@ export const SITE_HELPER_KNOWLEDGE: SiteHelperKnowledgeItem[] = [
     title: "인사이트",
     route: "/insights",
     summary:
-      "기술 블로그, 대외활동, CTP 학습으로 이어지는 개발자 정보 탐색 허브입니다.",
+      "기술 블로그와 대외활동으로 이어지는 개발자 정보 탐색 허브입니다.",
     keywords: ["인사이트", "정보", "탐색", "기술 정보", "개발 정보", "트렌드", "학습 자료"],
     commonQuestions: [
       "인사이트에는 뭐가 있어?",
@@ -58,7 +58,6 @@ export const SITE_HELPER_KNOWLEDGE: SiteHelperKnowledgeItem[] = [
     details: [
       "기술 블로그에서는 개발 조직의 글을 모아볼 수 있습니다.",
       "대외활동에서는 해커톤, 컨퍼런스, 공모전 같은 외부 기회를 확인할 수 있습니다.",
-      "CTP에서는 개발 기초와 문제 해결 훈련을 할 수 있습니다.",
     ],
   },
   {
@@ -96,24 +95,6 @@ export const SITE_HELPER_KNOWLEDGE: SiteHelperKnowledgeItem[] = [
     details: [
       "행사와 활동의 제목, 일정, 마감 정보를 확인하는 데 사용합니다.",
       "관심 있는 활동을 찾은 뒤 커뮤니티의 팀원 모집으로 이어갈 수 있습니다.",
-    ],
-  },
-  {
-    id: "ctp",
-    category: "insights",
-    title: "CTP",
-    route: "/insights/ctp",
-    summary:
-      "개발 기초와 문제 해결력을 훈련하는 Coding Test Prep 공간입니다. 개념을 보고 브라우저 기반 실습 문제를 풀 수 있습니다.",
-    keywords: ["ctp", "코딩", "코딩 테스트", "문제", "알고리즘", "자료구조", "학습", "기초", "실습", "프로그래밍"],
-    commonQuestions: [
-      "코딩 문제는 어디서 풀어?",
-      "CTP가 뭐야?",
-      "개발 기초를 연습하고 싶어.",
-    ],
-    details: [
-      "개념 페이지와 실습 플레이그라운드가 연결되어 있습니다.",
-      "스택, 큐, 그래프, 정렬 같은 알고리즘/자료구조 흐름을 시각적으로 확인하는 데 적합합니다.",
     ],
   },
   {

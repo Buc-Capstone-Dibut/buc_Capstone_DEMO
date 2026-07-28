@@ -5,10 +5,10 @@
 - AI 면접 UI
 - 워크스페이스 UI
 - 커뮤니티/채용/기술블로그
-- 커리어 문서 스튜디오 (이력서·자소서·포트폴리오) / CTP 코딩테스트 훈련
+- 커리어 문서 스튜디오 (이력서·자소서·포트폴리오)
 - BFF API (`app/api/*`)
 
-> BFF 실측(2026-07 [지식그래프 분석](../docs/architecture/2026-07-03-knowledge-graph-analysis.md)): 라우트 100개 중 **84개는 Prisma/Supabase/Gemini 직접 구현**, 14개만 FastAPI 프록시(면접 도메인), 2개는 410 폐기 스텁. "중계"보다는 이 앱 자체가 제품의 주 백엔드입니다.
+> 제품의 현재 구조와 운영 기준은 [프로젝트 기준 문서](../docs/PROJECT_REFERENCE.md)를 참조합니다. 이 앱은 단순 중계가 아니라 사용자 UI와 BFF API를 함께 담당합니다.
 
 ## 화면-서버 연결 그림
 
@@ -69,8 +69,8 @@ flowchart TB
 ```bash
 cd web
 cp .env.example .env.local
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 ## 배포
@@ -85,8 +85,8 @@ pnpm dev
 ## 주요 스크립트
 
 ```bash
-pnpm dev
-pnpm build
-pnpm start
-pnpm lint
+npm run dev
+npm run build
+npm run start
+npm run lint
 ```

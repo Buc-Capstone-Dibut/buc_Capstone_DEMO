@@ -344,62 +344,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Feature Focus: CTP (Insight) */}
-      <section className="py-32 px-5 bg-white">
-        <div className="mx-auto max-w-6xl grid lg:grid-cols-2 gap-20 items-center">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.9 }}
-            variants={fadeInLeft}
-          >
-            <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1 text-[13px] font-bold text-primary mb-6">
-              Study with Visualization
-            </div>
-            <h2 className="text-[clamp(2rem,5vw,3rem)] font-black leading-tight text-neutral-900 mb-8">
-              코드를 눈으로 보고 <br className="hidden md:block" />
-              <span className="text-primary">인사이트</span>를 얻으세요
-            </h2>
-            <p className="text-[18px] leading-relaxed text-neutral-500 mb-10">
-              단순히 텍스트를 읽는 것을 넘어, CTP(Code Trace Player)를 통해
-              프로그램의 흐름을 시각적으로 파악할 수 있습니다.
-              복잡한 알고리즘과 로직이 한눈에 들어오는 경험을 해보세요.
-            </p>
-            <Link
-              href="/insights/tech-blog"
-              className="inline-flex items-center rounded-xl bg-primary px-8 py-4 text-[15px] font-bold text-white hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
-            >
-              CTP 경험해보기
-            </Link>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.9 }}
-            variants={zoomIn}
-            className="relative"
-          >
-            <div className="aspect-video rounded-3xl bg-neutral-900 shadow-2xl overflow-hidden border border-neutral-800">
-              <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                <div className="flex gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-red-500/50" />
-                  <div className="h-3 w-3 rounded-full bg-yellow-500/50" />
-                  <div className="h-3 w-3 rounded-full bg-green-500/50" />
-                </div>
-              </div>
-              <div className="p-8 font-mono text-[13px] text-white/60 space-y-2">
-                <div className="flex gap-4"><span className="text-white/20">01</span><span className="text-primary/70">function</span> <span className="text-yellow-400">DibutSuccess</span>() {'{'}</div>
-                <div className="flex gap-4 animate-pulse bg-primary/10"><span className="text-white/20">02</span>  <span className="text-primary/70">const</span> status = <span className="text-green-400">&apos;GROWING&apos;</span>;</div>
-                <div className="flex gap-4"><span className="text-white/20">03</span>  <span className="text-primary/70">return</span> <span className="text-yellow-400">learnAndBuild</span>(status);</div>
-                <div className="flex gap-4"><span className="text-white/20">04</span> {'}'}</div>
-              </div>
-            </div>
-            <div className="absolute -z-10 -top-10 -right-10 h-60 w-60 bg-primary/20 blur-[100px] rounded-full" />
-          </motion.div>
-        </div>
-      </section>
-
       {/* Feature Focus: Workspace */}
       <section className="py-32 px-5 bg-neutral-50 overflow-hidden">
         <div className="mx-auto max-w-6xl">

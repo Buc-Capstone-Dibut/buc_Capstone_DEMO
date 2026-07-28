@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "@/components/features/notification/notification-center";
 import {
   Newspaper,
-  Terminal,
   MessageSquare,
   UserPlus,
   Wrench,
@@ -38,7 +37,6 @@ const MENUS: Record<
     submenus: [
       { href: "/insights/tech-blog", label: "기술 블로그", icon: Newspaper },
       { href: "/insights/activities", label: "대외활동", icon: Calendar },
-      { href: "/insights/ctp", label: "CTP", icon: Terminal },
     ],
   },
   community: {

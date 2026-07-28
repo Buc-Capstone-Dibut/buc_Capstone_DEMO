@@ -20,7 +20,7 @@ flowchart LR
 - Prisma를 통한 채팅 영속화
 - HMAC 협업 토큰 인가 (`auth.service.ts`)
 
-> ⚠️ 참고(2026-07 실측): 이 서버는 `web`과 코드 수준 의존이 전혀 없고(정적 import 0) 런타임 WSS로만 연결됩니다. 또한 **자체 `prisma/schema.prisma`(37개 모델)** 를 별도로 갖고 있어 `web/prisma`(61개 모델)와 같은 DB를 이원 관리합니다 — 스키마 변경 시 양쪽 확인 필수. 상세: [지식그래프 분석](../docs/architecture/2026-07-03-knowledge-graph-analysis.md)
+> 이 서버는 `web`과 런타임 WSS로 연결되며 자체 Prisma 스키마를 보유합니다. 스키마 변경 시 `web`과 이 서버를 함께 확인하세요. 전체 구조는 [프로젝트 기준 문서](../docs/PROJECT_REFERENCE.md)를 참조합니다.
 
 ## 환경변수
 

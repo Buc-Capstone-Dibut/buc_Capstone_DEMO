@@ -36,29 +36,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Skulpt runtime + stdlib are >1MB combined static assets fetched by
-        // the playground at first interaction. Default Next.js public/ headers
-        // are short-lived; promote to immutable so Vercel's CDN can hold them
-        // for a year and skip revalidation.
-        source: "/libs/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
-        // Skulpt worker script — same rationale as /libs above.
-        source: "/workers/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
         // MediaPipe tasks-vision WASM + face_landmarker.task model (~15MB
         // combined, versioned by filename). Self-hosted under public/mediapipe;
         // promote to immutable so the CDN holds them for a year.

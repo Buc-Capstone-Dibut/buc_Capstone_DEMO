@@ -42,10 +42,10 @@ test("tier questions resolve to the tier system page", () => {
 });
 
 test("current page fallback is returned when query has no match", () => {
-  const result = retrieveSiteHelperKnowledge("와리가리", "/insights/ctp/module");
+  const result = retrieveSiteHelperKnowledge("와리가리", "/insights/tech-blog/article");
 
-  assert.equal(result.currentPage?.route, "/insights/ctp");
-  assert.equal(result.matches[0]?.route, "/insights/ctp");
+  assert.equal(result.currentPage?.route, "/insights/tech-blog");
+  assert.equal(result.matches[0]?.route, "/insights/tech-blog");
 });
 
 test("current page matcher prefers the longest route", () => {

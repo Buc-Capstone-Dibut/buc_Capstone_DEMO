@@ -3,7 +3,7 @@
 > **상태**: 졸업 작품 (Capstone Project)
 > **역할**: 메인 개발자 (서준혁)
 > **목표**: 개발자 커리어 성장 및 협업을 위한 올인원 플랫폼
-> **최신화**: 2026-07-03 — 코드베이스 지식그래프 분석(2,501노드) 결과를 반영해 갱신. 실측 근거는 [지식그래프 분석 보고서](docs/architecture/2026-07-03-knowledge-graph-analysis.md) 참고.
+> **참고:** 제품의 현재 구조와 운영 기준은 [프로젝트 기준 문서](docs/PROJECT_REFERENCE.md)를 우선합니다. 이 문서는 과거 인수인계 맥락을 보존합니다.
 
 ---
 
@@ -137,11 +137,10 @@ Module A(정보)와 Module B(행동)를 연결합니다.
 
 면접 세션 목록/상세 조회는 FastAPI를 거치지 않고 **BFF가 Supabase admin client로 직접 조회**합니다 (user_id 소유권 검사로 IDOR 방지). 같은 도메인 안에서 쓰기=프록시/읽기=직접이라는 비대칭이 있으니 수정 시 주의.
 
-### **Module E: 커리어 문서 스튜디오 & CTP**
+### **Module E: 커리어 문서 스튜디오**
 
 - **이력서/자소서**: `resume-editor.tsx`(1,252줄), `use-cover-letter-wizard.ts`(1,563줄 훅) — Gemini 기반 생성·첨삭, PDF 스냅샷 내보내기.
 - **포트폴리오**: `web/lib/career-portfolios.ts`(함수 104개)가 도메인 허브. 8종 디자인 템플릿 렌더러 + 인라인 편집 + `ai-edit`(Gemini) + 공개 배포(showcase).
-- **CTP (코딩테스트 훈련)**: 문제은행 + Skulpt 웹워커 **클라이언트 채점**(AC/WA/TLE/RTE/OLE) + 모듈별 SVG 알고리즘 시각화(`components/features/ctp/playground/visualizers/**`). 채점 결과는 서버에 저장되지 않음(전부 클라이언트) — 개선 여지.
 
 ---
 
@@ -206,7 +205,7 @@ Module A(정보)와 Module B(행동)를 연결합니다.
     │   ├── insights/         # 기술 블로그·이벤트 피드
     │   └── workspace/        # 워크스페이스 상세
     ├── app/api/              # BFF 라우트 100개 (84 직접구현 / 14 FastAPI 프록시)
-    ├── components/features/  # 도메인별 UI 384개 (career·interview·ctp·workspace…)
+    ├── components/features/  # 도메인별 UI (career·interview·workspace 등)
     ├── lib/                  # 도메인 로직 (interview·server·job-postings·site-helper…)
     ├── store/                # Zustand (면접 셋업 등)
     └── prisma/               # 메인 스키마 (61개 모델) + 마이그레이션 21개
@@ -223,5 +222,5 @@ Module A(정보)와 Module B(행동)를 연결합니다.
 
 ---
 
-**AI 참고**: 향후 작업을 진행할 때 이 문서를 검증된 아키텍처 컨텍스트로 참조하십시오. 더 정밀한 구조 탐색이 필요하면 커밋된 지식그래프(`.understand-anything/knowledge-graph.json`, 2,501노드 — [분석 보고서](docs/architecture/2026-07-03-knowledge-graph-analysis.md))를 대시보드로 열어 확인하세요.
+**AI 참고**: 향후 작업의 현재 기준은 [프로젝트 기준 문서](docs/PROJECT_REFERENCE.md)와 실제 코드입니다. 이 문서는 과거 인수인계 정보이므로, 배포·API·스키마 변경 전에는 반드시 현재 매니페스트와 소스를 다시 확인하세요.
 **경고 (CRITICAL RULE)**: 데이터베이스 리셋(Database Reset)은 절대 금지합니다. 어떠한 경우에도 DB 스키마 삭제(`DROP`)나 초기화를 수행하지 마세요.
