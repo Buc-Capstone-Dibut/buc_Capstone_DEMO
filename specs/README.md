@@ -1,183 +1,81 @@
-# Debut Spec 기반 개발 규칙
+# Debut 최소 Spec 규칙
 
-`specs/`는 아직 구현되지 않았거나 구현 중인 기능의 제품·UX·기술 계약을 관리한다.
+`specs/`는 모든 작업에 문서를 강제하는 곳이 아니다. 코드와 Pull Request만으로 목적과 검증을 이해하기 어려운 변경에만 한 장짜리 Spec을 남긴다.
 
-- `specs/**`: 의도한 동작, 요구사항, 구현 계획, 작업, 검증
-- `docs/PROJECT_REFERENCE.md`: 현재 병합돼 실제로 동작하는 제품·운영 기준
-- 서비스별 `README.md`: 실행 방법, 환경변수, 런타임 경계
-- 코드와 테스트: 실행 가능한 최종 계약
+- 현재 동작의 기준: 코드, 테스트, `docs/PROJECT_REFERENCE.md`, 서비스별 `README.md`
+- 변경 논의와 검토의 기준: Issue와 Pull Request
+- 구현 전 합의가 필요한 기능: `specs/**`
+- 중요한 구조적 결정: 필요할 때만 `docs/decisions/**`에 ADR 작성
 
-Spec을 서비스 디렉토리 하나에 넣지 않는다. 하나의 기능이 `web`, BFF, Prisma, `workspace-server`처럼 여러 영역을 가로지를 수 있기 때문이다.
+Spec은 구현 세부사항을 고정하는 설계도가 아니라, 사람이 정한 의도와 완료 조건을 AI와 팀에 전달하는 짧은 계약이다.
 
-## 디렉토리
+## 언제 작성하는가
+
+| 변경 | 남길 기록 |
+| --- | --- |
+| 문구·스타일·로컬 리팩터링·작은 버그 | Spec 없이 PR 설명 |
+| 사용자 동작이 바뀌거나 여러 모듈을 건드리는 기능 | 한 장짜리 Spec |
+| 인증·권한·데이터 마이그레이션·공용 API/Socket/Yjs 계약 변경 | Spec + 필요한 계약 또는 ADR만 |
+| 탐색용 프로토타입 | Spec 없이 시작하고, 채택할 때 Spec 작성 |
+
+판단이 애매하면 한 장짜리 Spec으로 시작한다. 구현 중 실제로 필요해진 문서만 추가하며, 빈 템플릿을 채우기 위해 파일을 만들지 않는다.
+
+## 구조
+
+기능 하나는 기본적으로 Markdown 파일 하나다.
 
 ```text
 specs/
 ├── README.md
+├── TEMPLATE.md
 └── workspace/
-    └── 001-feature-name/
-        ├── spec.md
-        ├── ux.md
-        ├── plan.md
-        ├── data-model.md
-        ├── tasks.md
-        ├── verification.md
-        ├── contracts/
-        │   ├── rest-api.md
-        │   ├── socket-events.md
-        │   └── yjs-rooms.md
-        └── assets/
-            └── wireframes/
+    └── navigation.md
 ```
 
-폴더 번호는 도메인 안에서 증가시키고 이름은 브랜치 범위와 대응시킨다.
+API 스키마나 중요한 설계 결정처럼 독립적으로 검토할 내용이 생긴 경우에만 같은 이름의 디렉토리 또는 `docs/decisions/`로 분리한다.
 
-```text
-specs/workspace/001-foundation
-branch: feature/workspace-foundation
-```
+## 한 장짜리 Spec
 
-## 공통 메타데이터
+[`TEMPLATE.md`](TEMPLATE.md)를 복사하고 다음 네 가지를 작성한다.
 
-각 `spec.md` 상단에 다음 메타데이터를 둔다.
+1. **Why**: 어떤 사용자 문제를 해결하는가
+2. **Outcome**: 사용자가 최종적으로 무엇을 할 수 있는가
+3. **Boundaries**: 이번 변경에서 하지 않을 것과 반드시 지킬 제약
+4. **Done when**: 관찰하거나 테스트할 수 있는 완료 조건
 
-```yaml
----
-id: WS-001
-title: Workspace Foundation
-status: draft
-owner: team
-branch: feature/workspace-foundation
-target: develop
-created_at: YYYY-MM-DD
-updated_at: YYYY-MM-DD
----
-```
+합의가 필요한 결정은 선택 항목인 **Notes**에만 추가한다. 요구사항 ID, 파일 목록, 클래스명, 상세 작업 순서, 모든 예외 상태를 기본으로 요구하지 않는다. 안전·호환성·공용 계약 때문에 꼭 필요한 경우에만 구체화한다.
 
-상태:
+## 작업 흐름
 
-```text
-draft → approved → in_progress → verified → done
-                                   └──────→ superseded
-```
+1. 사람과 AI가 현재 코드와 관련 문서를 확인한다.
+2. Spec이 필요한 변경이면 AI가 짧은 초안을 만들고 범위가 맞는지 확인한다.
+3. 사용자가 구현을 요청했거나 초안에 동의하면 바로 개발한다.
+4. AI는 작고 검토 가능한 단위로 구현하고 관련 테스트를 함께 수행한다.
+5. PR에 변경 이유, 핵심 변경, 검증 결과를 남긴다.
+6. 제품의 현재 동작이 달라졌다면 `docs/PROJECT_REFERENCE.md` 또는 관련 README를 갱신한다.
 
-- `draft`: 논의 중이며 구현 시작 금지
-- `approved`: 범위와 인수 조건 승인
-- `in_progress`: 연결 브랜치에서 구현 중
-- `verified`: 요구사항과 회귀 검증 완료
-- `done`: 대상 브랜치에 병합되고 현재 문서 반영 완료
-- `superseded`: 다른 Spec으로 대체
+별도의 `approved` 상태와 문서별 승인 절차는 두지 않는다. 다만 파괴적 작업, 보안·권한 완화, 데이터 마이그레이션, 되돌리기 어려운 결정은 구현 전에 명시적으로 확인한다.
 
-## 문서별 책임
+작업 목록은 Issue, PR 또는 현재 대화에서 관리한다. 여러 사람이나 에이전트가 병렬로 작업해 장기 추적이 필요할 때만 Spec 안에 체크리스트를 둔다.
 
-### `spec.md`
+## 유지 방식
 
-- 문제와 배경
-- 사용자·사용 상황
-- 목표와 비목표
-- 사용자 스토리
-- 기능·권한 요구사항
-- 인수 조건
-- 범위 밖 항목
+진행 상태는 Issue와 PR에서 관리한다. 완료된 Spec은 병합 당시 의도와 결정의 기록이며, 현재 동작을 중복 설명하는 운영 문서로 계속 확장하지 않는다. 구현 후의 현재 기준은 코드, 테스트, 프로젝트 기준 문서에 반영한다.
 
-요구사항에는 추적 가능한 ID를 붙인다.
+## 적용 근거
 
-```text
-REQ-001 워크스페이스 멤버만 채팅 채널을 조회할 수 있다.
-REQ-002 완료된 워크스페이스에서는 메시지를 작성할 수 없다.
-```
+이 저장소는 도구의 전체 산출물을 그대로 강제하지 않고 다음 원칙만 채택한다.
 
-### `ux.md`
+- GitHub Spec Kit의 `Spec → Plan → Tasks → Implement` 흐름 중 Spec을 핵심 계약으로 사용한다. Plan과 Tasks는 필요할 때 생성하는 파생물로 본다.
+- 잘 알려진 변경은 승인 단계를 줄이고, 불확실하거나 위험한 변경에만 사람의 검토 지점을 둔다.
+- AI는 초안·분해·구현·검증을 수행하고, 사람은 제품 범위와 중요한 결정을 맡는다.
+- 작은 PR을 기본 협업 단위로 삼고 중요한 구조적 결정에만 ADR을 남긴다.
 
-- 정보 구조와 사용자 흐름
-- 화면·컴포넌트 책임
-- desktop/tablet/mobile 반응형
-- loading, empty, error, success, disabled 상태
-- 키보드 탐색과 접근성
-- 사용자 문구와 피드백
-- 와이어프레임·참고 화면
+참고:
 
-정상 상태 하나만 정의하지 않는다. 권한 없음, 네트워크 실패, 데이터 없음, 긴 콘텐츠, 동시 편집 충돌도 포함한다.
-
-### `plan.md`
-
-- 변경할 모듈과 파일 경계
-- 클라이언트/BFF/실시간 서버 책임
-- 인증·인가 위치
-- API·Socket.IO·Yjs 계약
-- 데이터 모델과 마이그레이션
-- 오류 처리와 호환성
-- 테스트 전략
-- 배포·롤백 고려사항
-
-### `data-model.md`
-
-- 추가·변경할 엔티티와 관계
-- 인덱스·제약조건
-- 기존 데이터 호환성
-- migration 순서
-- 롤백 또는 복구 전략
-
-DB의 기준 스키마와 실제 migration 파일이 최종 계약이며, 문서만 수정하고 스키마를 누락하지 않는다.
-
-### `contracts/`
-
-REST, Socket.IO, Yjs room처럼 구현 사이에 공유되는 계약을 기록한다.
-
-각 계약에는 다음을 포함한다.
-
-- 요청·이벤트 이름과 방향
-- 인증된 사용자 식별 방식
-- request/payload schema
-- success response 또는 broadcast
-- error code와 재시도 정책
-- 버전·하위 호환성
-
-### `tasks.md`
-
-작업을 의존성 순서로 나누고 요구사항과 검증을 연결한다.
-
-```text
-- [ ] TASK-001 Socket.IO 인증 미들웨어 추가
-  - Requirements: REQ-001
-  - Files: workspace-server/src/...
-  - Verification: 비인증 연결 거부 테스트
-  - Depends on: 없음
-```
-
-하나의 Task는 가능하면 독립적으로 구현·검토·검증할 수 있어야 한다.
-
-### `verification.md`
-
-- 요구사항별 테스트 결과
-- lint/typecheck/test/build 명령과 결과
-- 수동 브라우저 시나리오
-- 접근성·반응형 점검
-- 미해결 위험과 후속 작업
-- 최종 인수 여부
-
-단순히 “테스트 통과”라고 쓰지 않고 어떤 요구사항을 어떤 증거로 확인했는지 연결한다.
-
-## AI 작업 규칙
-
-1. AI는 현재 코드와 관련 문서를 먼저 읽는다.
-2. `approved` 이전에는 구현하지 않는다.
-3. `tasks.md`의 Task 하나씩 작업한다.
-4. 요구사항에 없는 범위 확장은 먼저 Spec에 제안한다.
-5. 구현과 테스트를 같은 Task에서 다룬다.
-6. 실패를 숨기거나 검증하지 않은 항목을 완료 처리하지 않는다.
-7. DB 초기화, 데이터 삭제, 권한 정책 완화는 명시적 승인 없이 수행하지 않는다.
-8. 구현이 Spec과 달라졌다면 병합 전에 둘 중 하나를 바로잡는다.
-
-## 완료 조건
-
-Spec은 다음을 모두 만족할 때 `done`으로 변경한다.
-
-- 모든 필수 요구사항이 구현됐다.
-- `tasks.md` 필수 작업이 완료됐다.
-- `verification.md`에 인수 근거가 있다.
-- PR이 대상 브랜치에 병합됐다.
-- 실제 동작 변경이 `docs/PROJECT_REFERENCE.md`와 관련 README에 반영됐다.
-- 대체되거나 취소된 결정이 명확히 표시됐다.
-
-Spec은 완료 후에도 삭제하지 않는다. 이후 동작이 바뀌면 새 Spec에서 대체 관계를 명시하고 기존 Spec은 `superseded`로 남긴다.
+- [GitHub Spec Kit](https://github.com/github/spec-kit)
+- [Spec Kit의 Spec 유지 모델](https://github.github.com/spec-kit/concepts/spec-persistence.html)
+- [AWS AI-Driven Development Life Cycle](https://aws.amazon.com/blogs/devops/ai-driven-development-life-cycle/)
+- [Kiro Quick Spec](https://kiro.dev/docs/specs/quick-spec/)
+- [GitHub의 리뷰하기 쉬운 변경 가이드](https://docs.github.com/en/pull-requests/concepts/helping-others-review-your-changes)
+- [AWS Architecture Decision Records](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html)

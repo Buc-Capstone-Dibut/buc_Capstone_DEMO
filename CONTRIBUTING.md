@@ -1,6 +1,6 @@
 # Debut 개발 워크플로
 
-이 문서는 Debut 모노레포의 브랜치, Pull Request, Spec 기반 개발 규칙을 정의한다.
+이 문서는 Debut 모노레포의 브랜치, Pull Request, AI 협업 개발 규칙을 정의한다.
 
 ## 1. 적용 전략
 
@@ -63,7 +63,7 @@ hotfix/interview-session-start
 
 - `feature/workspace`, `feature/update`, `fix/bug`처럼 범위가 불명확한 이름은 피한다.
 - 개인·도구 이름 접두사는 사용하지 않는다.
-- 한 브랜치는 하나의 Spec 또는 하나의 명확한 수정만 담당한다.
+- 한 브랜치는 하나의 사용자 가치 또는 하나의 명확한 기술적 목적만 담당한다.
 
 현재 `feature/workspace-foundation`은 워크스페이스 공통 기반 정리까지만 담당한다. 모든 후속 워크스페이스 기능을 계속 누적하는 영구 브랜치로 사용하지 않는다.
 
@@ -92,36 +92,24 @@ git rebase origin/develop
 - 완성 전 노출되면 안 되는 기능은 장기 브랜치 대신 feature flag 또는 숨겨진 진입점을 사용한다.
 - 생성형 AI가 많은 코드를 만들 수 있더라도 검토·테스트 가능한 크기를 우선한다.
 
-## 6. Spec 기반 AI 주도 개발
+## 6. AI 주도 개발과 최소 Spec
 
-워크스페이스처럼 `web`, BFF, DB, 실시간 서버를 함께 바꾸는 기능은 코드 작성 전에 `specs/`에 명세한다.
+모든 변경에 Spec을 만들지 않는다. 문구·스타일·작은 버그·로컬 리팩터링은 PR의 `Why / What changed / Verification`만으로 협업한다.
 
-```text
-specs/<도메인>/<번호>-<기능명>/
-├── spec.md
-├── ux.md
-├── plan.md
-├── data-model.md
-├── tasks.md
-├── verification.md
-├── contracts/
-└── assets/
-```
+사용자 동작이 바뀌거나 여러 모듈을 함께 변경하는 기능은 `specs/<도메인>/<기능명>.md` 한 장으로 시작한다. 인증·권한·데이터 마이그레이션·공용 인터페이스처럼 위험하거나 되돌리기 어려운 변경에만 필요한 계약 문서나 ADR을 추가한다.
 
-전체 규칙은 [`specs/README.md`](specs/README.md)를 따른다.
+전체 판단 기준과 최소 템플릿은 [`specs/README.md`](specs/README.md)를 따른다.
 
 기본 순서:
 
-1. `spec.md`에서 문제, 목표, 비목표, 요구사항, 인수 조건을 작성한다.
-2. 사람이 검토해 상태를 `approved`로 변경한다.
-3. `ux.md`, `plan.md`, 데이터/API/Socket 계약을 확정한다.
-4. `tasks.md`를 의존성 순서로 쪼갠다.
-5. Spec과 같은 범위의 브랜치를 만든다.
-6. AI는 Task 단위로 구현하고 검증한다.
-7. `verification.md`에 요구사항별 결과를 남긴다.
-8. PR에서 Spec, 코드, 테스트 결과를 함께 검토한다.
+1. 현재 코드와 관련 문서를 확인한다.
+2. 필요하면 Why, Outcome, Boundaries, Done when만 담은 Spec을 작성한다.
+3. 사람이 제품 범위와 중요한 결정을 확인한다.
+4. AI가 작은 단위로 구현하고 테스트한다.
+5. PR에서 변경 내용과 검증 결과를 함께 검토한다.
+6. 현재 동작이 바뀌면 프로젝트 기준 문서 또는 서비스 README를 갱신한다.
 
-승인되지 않은 Spec을 근거로 구현을 시작하지 않는다. 구현 중 요구사항이 바뀌면 코드만 우회 수정하지 말고 Spec과 작업 목록을 먼저 갱신한다.
+사용자가 명확하게 구현을 요청한 일반 작업에는 별도의 승인 상태를 요구하지 않는다. AI는 제품 범위를 임의로 넓히지 않으며, 파괴적 작업·보안·권한·데이터 변경처럼 중요한 결정만 구현 전에 다시 확인한다.
 
 ## 7. 커밋
 
@@ -143,14 +131,12 @@ refactor(workspace): separate room authorization service
 
 feature/fix/docs 브랜치는 `develop`을 base로 PR을 만든다.
 
-PR 본문에 다음을 포함한다.
+PR 본문은 [기본 템플릿](.github/pull_request_template.md)에 따라 다음을 포함한다.
 
-- 연결된 Spec 경로와 요구사항 ID
-- 변경 범위와 범위 밖 항목
-- UI 변경 전후 화면 또는 영상
-- API·DB·Socket.IO·Yjs 계약 변경
+- 변경 이유
+- 핵심 변경
 - 실행한 자동 테스트와 수동 검증
-- 알려진 위험, 후속 작업, 롤백 방법
+- 관련 Issue·Spec, UI 화면, 계약 변경, 위험과 롤백 정보는 해당할 때만
 
 병합 전 확인:
 

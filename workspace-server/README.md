@@ -171,8 +171,8 @@ workspace-server의 실행 명령은 `tsx watch src/index.ts`, 배포 명령은 
 워크스페이스 기능은 `web`, BFF, Prisma, workspace-server를 함께 변경할 수 있으므로 상세 Spec을 이 README에 누적하지 않는다.
 
 - 브랜치·PR 규칙: [`CONTRIBUTING.md`](../CONTRIBUTING.md)
-- Spec 구조와 AI 작업 규칙: [`specs/README.md`](../specs/README.md)
-- 워크스페이스 기능 Spec: `specs/workspace/<번호>-<기능명>/`
+- 최소 Spec과 AI 작업 규칙: [`specs/README.md`](../specs/README.md)
+- 워크스페이스 기능 Spec: `specs/workspace/<기능명>.md`
 - 현재 구현과 제약: [`HANDOVER.md`](HANDOVER.md)
 
 ## 현재 배포
