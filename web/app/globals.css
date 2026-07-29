@@ -146,6 +146,39 @@ body {
   }
 }
 
+@layer components {
+  .workspace-light-surface {
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 90 43% 51%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 32% 91%;
+    --secondary-foreground: 215 30% 32%;
+    --muted: 215 28% 92%;
+    --muted-foreground: 216 17% 46%;
+    --accent: 213 80% 94%;
+    --accent-foreground: 214 46% 24%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 32% 86%;
+    --input: 214 32% 86%;
+    --ring: 90 43% 51%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 90 43% 51%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 213 80% 94%;
+    --sidebar-accent-foreground: 214 46% 24%;
+    --sidebar-border: 214 32% 86%;
+    --sidebar-ring: 90 43% 51%;
+  }
+}
+
 /* Custom animations */
 @keyframes fadeInUp {
   from {

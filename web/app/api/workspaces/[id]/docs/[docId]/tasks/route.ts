@@ -47,7 +47,8 @@ export async function GET(
             id: true,
             title: true,
             priority: true,
-            due_date: true,
+            start_date: true,
+            end_date: true,
             column: {
               select: {
                 id: true,
@@ -69,7 +70,8 @@ export async function GET(
           id: relation.task.id,
           title: relation.task.title,
           priority: relation.task.priority || "medium",
-          due_date: relation.task.due_date,
+          start_date: relation.task.start_date,
+          end_date: relation.task.end_date,
           column: {
             id: relation.task.column.id,
             title: relation.task.column.title,

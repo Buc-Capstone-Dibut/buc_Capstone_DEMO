@@ -106,7 +106,20 @@ function buildStatusColumns(columns: BoardColumnShape[]) {
   }));
 }
 
-function buildDefaultViewSeeds(workspaceId: string, columns: BoardColumnShape[]) {
+function normalizeColumnOrder(order: string[], liveOrder: string[]) {
+  const liveIds = new Set(liveOrder);
+  const normalized = order.filter(
+    (id, index) => liveIds.has(id) && order.indexOf(id) === index,
+  );
+  const savedIds = new Set(normalized);
+
+  return [...normalized, ...liveOrder.filter((id) => !savedIds.has(id))];
+}
+
+function buildDefaultViewSeeds(
+  workspaceId: string,
+  columns: BoardColumnShape[],
+) {
   const statusColumns = buildStatusColumns(columns);
   const columnOrder = columns.map((column) => column.id);
 
@@ -194,7 +207,8 @@ export function serializeWorkspaceView(
 ) {
   const groupBy = normalizeGroupBy(view.group_by);
   const isLiveStatusView = groupBy === "status" && view.is_system;
-  const fallbackColumns = groupBy === "status" ? buildStatusColumns(columns) : [];
+  const fallbackColumns =
+    groupBy === "status" ? buildStatusColumns(columns) : [];
   const liveColumnOrder = columns.map((column) => column.id);
 
   return {
@@ -209,24 +223,26 @@ export function serializeWorkspaceView(
       ? fallbackColumns
       : toColumnArray(view.columns, fallbackColumns),
     cardProperties: toStringArray(
-      normalizeCardProperties(
-        view.card_properties,
-        [...DEFAULT_CARD_PROPERTIES],
-      ),
+      normalizeCardProperties(view.card_properties, [
+        ...DEFAULT_CARD_PROPERTIES,
+      ]),
       [...DEFAULT_CARD_PROPERTIES],
     ),
     filter:
-      view.filters && typeof view.filters === "object" && !Array.isArray(view.filters)
+      view.filters &&
+      typeof view.filters === "object" &&
+      !Array.isArray(view.filters)
         ? (view.filters as Record<string, unknown>)
         : undefined,
     isSystem: view.is_system,
     showEmptyGroups: view.show_empty_groups,
-    columnOrder: isLiveStatusView
-      ? liveColumnOrder
-      : toStringArray(
-          view.column_order,
-          groupBy === "status" ? liveColumnOrder : [],
-        ),
+    columnOrder:
+      groupBy === "status"
+        ? normalizeColumnOrder(
+            toStringArray(view.column_order, liveColumnOrder),
+            liveColumnOrder,
+          )
+        : toStringArray(view.column_order),
   };
 }
 
@@ -236,7 +252,9 @@ export function buildWorkspaceViewCreateInput(
   viewOrder: number,
 ) {
   const filters =
-    input.filter && typeof input.filter === "object" && !Array.isArray(input.filter)
+    input.filter &&
+    typeof input.filter === "object" &&
+    !Array.isArray(input.filter)
       ? (input.filter as Prisma.InputJsonValue)
       : input.filters &&
           typeof input.filters === "object" &&
@@ -301,7 +319,10 @@ export function buildWorkspaceViewUpdateInput(input: Record<string, unknown>) {
     data.columns = input.columns;
   }
 
-  if (input.cardProperties !== undefined || input.card_properties !== undefined) {
+  if (
+    input.cardProperties !== undefined ||
+    input.card_properties !== undefined
+  ) {
     const properties = input.cardProperties ?? input.card_properties;
     if (Array.isArray(properties)) {
       data.card_properties = normalizeCardProperties(properties);

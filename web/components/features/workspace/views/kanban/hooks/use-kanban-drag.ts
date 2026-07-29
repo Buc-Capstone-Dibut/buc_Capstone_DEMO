@@ -1,34 +1,57 @@
-import { useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import {
   useSensors,
   useSensor,
   PointerSensor,
   KeyboardSensor,
-  DragStartEvent,
-  DragEndEvent,
-  DragOverEvent,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
-import { ViewColumn, Task } from "../../../store/mock-data";
+import {
+  type ViewColumn,
+  type Task,
+  type TaskStatus,
+  type Priority,
+  type Tag,
+} from "../../../store/mock-data";
+
+type KanbanDragColumn = {
+  id: string;
+  statusId?: string;
+  title?: string;
+};
 
 interface UseKanbanDragProps {
-  columns: any[]; // Supports ViewColumn or Member-based columns
+  columns: KanbanDragColumn[];
   groupBy: "status" | "assignee" | "priority" | "dueDate" | "tag";
   activeViewId: string;
-  reorderTask: (taskId: string, newStatus: string, newIndex: number) => void;
+  reorderTask: (
+    taskId: string,
+    newStatus: string,
+    newIndex: number,
+    taskSnapshot?: Task[],
+  ) => void;
   tasks: Task[];
-  updateTaskStatus: (taskId: string, statusId: string) => void;
+  setTasks?: Dispatch<SetStateAction<Task[]>>;
+  resetTasks?: () => void;
+  updateTaskStatus?: (taskId: string, statusId: TaskStatus) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   moveColumnInView: (
     viewId: string,
     fromIndex: number,
     toIndex: number,
   ) => void;
-  priorities: any[];
-  tags: any[];
-  reorderPriorities: (newOrder: any[]) => void;
-  reorderTags: (newOrder: any[]) => void;
-  updateView: (projectId: string, viewId: string, updates: any) => void;
+  updateView: (
+    projectId: string,
+    viewId: string,
+    updates: Record<string, unknown>,
+  ) => void;
+  priorities?: Priority[];
+  tags?: Tag[];
+  reorderPriorities?: (newOrder: Priority[]) => void;
+  reorderTags?: (newOrder: Tag[]) => void;
   projectId: string;
 }
 
@@ -36,15 +59,12 @@ export function useKanbanDrag({
   columns,
   groupBy,
   activeViewId,
-  updateTaskStatus,
   updateTask,
   moveColumnInView,
   reorderTask,
-  priorities,
-  tags,
-  reorderPriorities,
-  reorderTags,
   tasks,
+  setTasks,
+  resetTasks,
   updateView,
   projectId,
 }: UseKanbanDragProps) {
@@ -54,13 +74,109 @@ export function useKanbanDrag({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 6,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  const getTaskGroupValue = (task: Task) => {
+    if (groupBy === "status") return task.columnId || task.status;
+    if (groupBy === "assignee") return task.assigneeId || "unassigned";
+    if (groupBy === "priority") return task.priorityId || "no-priority";
+    if (groupBy === "tag") return task.tags?.[0] || "no-tag";
+    return undefined;
+  };
+
+  const getColumnForTask = (task: Task) => {
+    if (groupBy === "status") {
+      const exactColumn = columns.find((column) => column.id === task.columnId);
+      if (exactColumn) return exactColumn;
+      return columns.find((column) => column.statusId === task.status);
+    }
+    if (groupBy === "priority") {
+      return columns.find(
+        (column) => column.id === (task.priorityId || "no-priority"),
+      );
+    }
+    if (groupBy === "assignee") {
+      return columns.find(
+        (column) => column.id === (task.assigneeId || "unassigned"),
+      );
+    }
+    return undefined;
+  };
+
+  const getTaskUpdatesForColumn = (column: KanbanDragColumn): Partial<Task> => {
+    if (groupBy === "status") {
+      return {
+        columnId: column.id,
+        status: column.statusId || column.id,
+      };
+    }
+    if (groupBy === "priority") {
+      return {
+        priorityId: column.id === "no-priority" ? undefined : column.id,
+      };
+    }
+    if (groupBy === "assignee") {
+      return {
+        assigneeId: column.id === "unassigned" ? undefined : column.id,
+      };
+    }
+    return {};
+  };
+
+  const previewTaskMove = (
+    taskId: string,
+    targetColumn: KanbanDragColumn,
+    overTaskId?: string,
+  ) => {
+    if (!setTasks) return;
+    setTasks((currentTasks) => {
+      const activeTask = currentTasks.find((task) => task.id === taskId);
+      if (!activeTask) return currentTasks;
+
+      const movedTask = {
+        ...activeTask,
+        ...getTaskUpdatesForColumn(targetColumn),
+      };
+      const targetGroup = getTaskGroupValue(movedTask);
+      const remainingTasks = currentTasks.filter((task) => task.id !== taskId);
+      const targetTasks = remainingTasks.filter(
+        (task) => getTaskGroupValue(task) === targetGroup,
+      );
+      const requestedIndex = overTaskId
+        ? targetTasks.findIndex((task) => task.id === overTaskId)
+        : targetTasks.length;
+      const nextIndex =
+        requestedIndex < 0
+          ? targetTasks.length
+          : Math.min(requestedIndex, targetTasks.length);
+      const currentGroupTasks = currentTasks.filter(
+        (task) => getTaskGroupValue(task) === targetGroup,
+      );
+      const currentIndex = currentGroupTasks.findIndex(
+        (task) => task.id === taskId,
+      );
+
+      if (
+        getTaskGroupValue(activeTask) === targetGroup &&
+        currentIndex === nextIndex
+      ) {
+        return currentTasks;
+      }
+
+      targetTasks.splice(nextIndex, 0, movedTask);
+      const otherTasks = remainingTasks.filter(
+        (task) => getTaskGroupValue(task) !== targetGroup,
+      );
+
+      return [...otherTasks, ...targetTasks];
+    });
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === "Column") {
@@ -72,113 +188,25 @@ export function useKanbanDrag({
     setActiveColumn(null);
   };
 
-  // Calculate Group Value from a Column ID
-  const getGroupValueFromColumnId = (colId: string) => {
-    const col = columns.find((c) => c.id === colId);
-    if (!col) return colId; // Fallback
-
-    if (groupBy === "status")
-      return "statusId" in col ? (col as any).statusId : col.id;
-    if (groupBy === "priority")
-      return "statusId" in col ? (col as any).statusId : col.id; // priorityId stored in statusId for dynamic cols
-    if (groupBy === "tag")
-      return "statusId" in col ? (col as any).statusId : col.id; // tagId stored in statusId
-    if (groupBy === "assignee")
-      return col.id === "unassigned" ? "unassigned" : col.id;
-    return colId;
-  };
-
-  const getTaskGroupValue = (task: Task) => {
-    if (groupBy === "status") return task.status;
-    if (groupBy === "assignee") return task.assigneeId || "unassigned";
-    if (groupBy === "priority") return task.priorityId; // Can be undefined
-    if (groupBy === "tag") return task.tags?.[0]; // Can be undefined
-    return undefined;
-  };
-
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || active.data.current?.type !== "Task" || groupBy === "tag") {
+      return;
+    }
 
-    const activeId = active.id as string;
+    const activeTaskId = active.id as string;
     const overId = over.id as string;
-    if (activeId === overId) return;
+    if (activeTaskId === overId) return;
 
-    // Only handle Task dragging in DragOver for live preview
-    if (active.data.current?.type !== "Task") return;
-    if (groupBy === "tag") return;
-
-    const activeTask = tasks.find((t) => t.id === activeId);
-    if (!activeTask) return;
-
-    const overTask = tasks.find((t) => t.id === overId);
-    const overColumn = columns.find((c) => c.id === overId);
-
-    // 1. Moving Over Another Task
+    const overTask = tasks.find((task) => task.id === overId);
     if (overTask) {
-      const activeGroup = getTaskGroupValue(activeTask);
-      const overGroup = getTaskGroupValue(overTask);
-
-      // If sorting items in DIFFERENT lists
-      if (activeGroup !== overGroup) {
-        const newGroupValue = overGroup;
-
-        // Find relative index in target group
-        const tasksInTarget = tasks.filter(
-          (t) => getTaskGroupValue(t) === newGroupValue,
-        );
-        const overIndex = tasksInTarget.findIndex((t) => t.id === overId);
-
-        if (overIndex >= 0) {
-          if (groupBy === "status") {
-            reorderTask(activeId, newGroupValue as string, overIndex);
-          } else if (groupBy === "priority") {
-            // Check if newGroupValue is 'no-priority' (undefined or special ID?)
-            // Usually overTask.priorityId is the value.
-            updateTask(activeId, { priorityId: newGroupValue as string });
-          } else if (groupBy === "assignee") {
-            const newAssigneeId =
-              newGroupValue === "unassigned"
-                ? undefined
-                : (newGroupValue as string);
-            updateTask(activeId, { assigneeId: newAssigneeId });
-          }
-        }
-      }
+      const targetColumn = getColumnForTask(overTask);
+      if (targetColumn) previewTaskMove(activeTaskId, targetColumn, overId);
+      return;
     }
 
-    // 2. Moving Over an Empty Column (Container)
-    if (overColumn) {
-      const targetGroupVal = getGroupValueFromColumnId(overColumn.id);
-      const currentGroupVal = getTaskGroupValue(activeTask);
-
-      if (currentGroupVal !== targetGroupVal) {
-        if (groupBy === "status") {
-          const tasksInCol = tasks.filter(
-            (t) => t.status === targetGroupVal,
-          ).length;
-          reorderTask(activeId, targetGroupVal as string, tasksInCol);
-        } else if (groupBy === "priority") {
-          // Handle 'no-priority' column logic if needed
-          // If targetGroupVal corresponds to 'no-priority' column ID?
-          // In generating columns: 'no-priority' col has statusId/id?
-          // Usually we mapped it.
-          // If targetGroupVal is literally the ID we want to set.
-          // If targetGroupVal is 'no-priority', we set undefined?
-          const newPriorityId =
-            targetGroupVal === "no-priority" || !targetGroupVal
-              ? undefined
-              : (targetGroupVal as string);
-          updateTask(activeId, { priorityId: newPriorityId });
-        } else if (groupBy === "assignee") {
-          const newAssigneeId =
-            targetGroupVal === "unassigned" || !targetGroupVal
-              ? undefined
-              : (targetGroupVal as string);
-          updateTask(activeId, { assigneeId: newAssigneeId });
-        }
-      }
-    }
+    const overColumn = columns.find((column) => column.id === overId);
+    if (overColumn) previewTaskMove(activeTaskId, overColumn);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -186,80 +214,77 @@ export function useKanbanDrag({
     setActiveColumn(null);
     setActiveId(null);
 
-    if (!over) return;
+    if (!over) {
+      resetTasks?.();
+      return;
+    }
 
-    // Handling Column Reordering
     if (active.data.current?.type === "Column") {
       if (active.id !== over.id) {
-        const oldIndex = columns.findIndex((c) => c.id === active.id);
-        const newIndex = columns.findIndex((c) => c.id === over.id);
+        const oldIndex = columns.findIndex((column) => column.id === active.id);
+        const newIndex = columns.findIndex((column) => column.id === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1) {
           if (groupBy === "status") {
-            if (activeViewId)
+            if (activeViewId) {
               moveColumnInView(activeViewId, oldIndex, newIndex);
-          } else if (
-            groupBy === "priority" ||
-            groupBy === "tag" ||
-            groupBy === "assignee"
-          ) {
-            // Allow reordering of ANY column (including 'no-priority', 'no-tag', 'unassigned')
-            // We persist the visual order in the View settings via columnOrder.
-            const allColumnIds = columns.map((c) => c.id);
-            const newOrderIds = arrayMove(allColumnIds, oldIndex, newIndex);
-
+            }
+          } else {
+            const newOrderIds = arrayMove(
+              columns.map((column) => column.id),
+              oldIndex,
+              newIndex,
+            );
             if (projectId && activeViewId) {
-              updateView(projectId, activeViewId, { columnOrder: newOrderIds });
+              updateView(projectId, activeViewId, {
+                columnOrder: newOrderIds,
+              });
             }
           }
         }
       }
+      return;
     }
-    // Remove the premature return here to allow task reordering logic to run
-    // return;
 
-    // Handling Task Dragging (Final Sort)
-    // Cross-column moves usually handled in DragOver now.
-    // We just handle reordering within current list here to persist final index accurately.
     const activeTaskId = active.id as string;
-    const overId = over!.id as string;
-
-    if (activeTaskId !== overId) {
-      const activeTask = tasks.find((t) => t.id === activeTaskId);
-      const overTask = tasks.find((t) => t.id === overId); // Might be same item if moved in DragOver?
-
-      if (activeTask && overTask) {
-        // Both are tasks
-        const activeGroup = getTaskGroupValue(activeTask!);
-        const overGroup = getTaskGroupValue(overTask!);
-
-        // Same group sorting
-        if (activeGroup === overGroup) {
-          const tasksInGroup = tasks.filter(
-            (t) => getTaskGroupValue(t) === activeGroup,
-          );
-          const oldIndex = tasksInGroup.findIndex((t) => t.id === activeTaskId);
-          const newIndex = tasksInGroup.findIndex((t) => t.id === overId);
-
-          if (oldIndex !== newIndex) {
-            if (groupBy === "status") {
-              // Only status view supports custom ordering persistence currently
-              reorderTask(activeTaskId, activeGroup as string, newIndex);
-            }
-          }
-        }
-      }
+    const activeTask = tasks.find((task) => task.id === activeTaskId);
+    if (!activeTask) {
+      resetTasks?.();
+      return;
     }
+
+    const activeGroup = getTaskGroupValue(activeTask);
+    const tasksInGroup = tasks.filter(
+      (task) => getTaskGroupValue(task) === activeGroup,
+    );
+    const newIndex = tasksInGroup.findIndex((task) => task.id === activeTaskId);
+
+    if (groupBy === "status" && activeGroup) {
+      reorderTask(activeTaskId, activeGroup, newIndex, tasks);
+    } else if (groupBy === "priority") {
+      updateTask(activeTaskId, {
+        priorityId: activeGroup === "no-priority" ? undefined : activeGroup,
+      });
+    } else if (groupBy === "assignee") {
+      updateTask(activeTaskId, {
+        assigneeId: activeGroup === "unassigned" ? undefined : activeGroup,
+      });
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveColumn(null);
+    setActiveId(null);
+    resetTasks?.();
   };
 
   return {
     activeId,
-    setActiveId,
     activeColumn,
-    setActiveColumn,
     sensors,
     handleDragStart,
     handleDragEnd,
-    handleDragOver, // Exported
+    handleDragOver,
+    handleDragCancel,
   };
 }

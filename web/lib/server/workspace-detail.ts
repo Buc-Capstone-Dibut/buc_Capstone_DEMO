@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { fetchDevEventById } from "@/lib/server/dev-events";
 import { getTeamTypeLabel } from "@/lib/team-types";
+import { getTodayDateKey, normalizeDateOnly } from "@/lib/workspace/task-dates";
 
 type WorkspaceIdentityInput = {
   id: string;
@@ -31,7 +32,8 @@ type TaskSnapshot = {
   id: string;
   title: string;
   order?: number;
-  due_date: Date | null;
+  start_date: Date | null;
+  end_date: Date | null;
   priority: string | null;
   assignee_id: string | null;
   column_id: string;
@@ -113,81 +115,84 @@ export async function buildWorkspaceDetailPayload(
   const columnById = new Map(columns.map((column) => [column.id, column]));
   const columnIds = columns.map((column) => column.id);
 
-  const [tasks, docsCount, channelCount, recentDocs, activity] = await Promise.all([
-    columnIds.length > 0
-      ? prisma.kanban_tasks.findMany({
-          where: { column_id: { in: columnIds } },
-          select: {
-            id: true,
-            title: true,
-            order: true,
-            due_date: true,
-            priority: true,
-            assignee_id: true,
-            column_id: true,
-            assignee: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar_url: true,
+  const [tasks, docsCount, channelCount, recentDocs, activity] =
+    await Promise.all([
+      columnIds.length > 0
+        ? prisma.kanban_tasks.findMany({
+            where: { column_id: { in: columnIds } },
+            select: {
+              id: true,
+              title: true,
+              order: true,
+              start_date: true,
+              end_date: true,
+              priority: true,
+              assignee_id: true,
+              column_id: true,
+              assignee: {
+                select: {
+                  id: true,
+                  nickname: true,
+                  avatar_url: true,
+                },
               },
             },
-          },
-          orderBy: [{ due_date: "asc" }, { order: "asc" }],
-        })
-      : Promise.resolve<TaskSnapshot[]>([]),
-    prisma.workspace_docs.count({
-      where: {
-        workspace_id: workspace.id,
-        is_archived: false,
-      },
-    }),
-    prisma.workspace_channels.count({
-      where: {
-        workspace_id: workspace.id,
-      },
-    }),
-    prisma.workspace_docs.findMany({
-      where: {
-        workspace_id: workspace.id,
-        is_archived: false,
-      },
-      select: {
-        id: true,
-        title: true,
-        emoji: true,
-        updated_at: true,
-      },
-      orderBy: { updated_at: "desc" },
-      take: 3,
-    }),
-    workspace.squad?.activity_id
-      ? fetchDevEventById(workspace.squad.activity_id)
-      : Promise.resolve(null),
-  ]);
+            orderBy: [{ end_date: "asc" }, { order: "asc" }],
+          })
+        : Promise.resolve<TaskSnapshot[]>([]),
+      prisma.workspace_docs.count({
+        where: {
+          workspace_id: workspace.id,
+          is_archived: false,
+        },
+      }),
+      prisma.workspace_channels.count({
+        where: {
+          workspace_id: workspace.id,
+        },
+      }),
+      prisma.workspace_docs.findMany({
+        where: {
+          workspace_id: workspace.id,
+          is_archived: false,
+        },
+        select: {
+          id: true,
+          title: true,
+          emoji: true,
+          updated_at: true,
+        },
+        orderBy: { updated_at: "desc" },
+        take: 3,
+      }),
+      workspace.squad?.activity_id
+        ? fetchDevEventById(workspace.squad.activity_id)
+        : Promise.resolve(null),
+    ]);
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((task) =>
     isDoneColumn(columnById.get(task.column_id)),
   ).length;
   const openTasks = totalTasks - completedTasks;
-  const now = Date.now();
+  const today = getTodayDateKey();
   const overdueTasks = tasks.filter((task) => {
-    if (!task.due_date) return false;
+    const endDate = normalizeDateOnly(task.end_date);
+    if (!endDate) return false;
     if (isDoneColumn(columnById.get(task.column_id))) return false;
-    return task.due_date.getTime() < now;
+    return endDate < today;
   }).length;
   const scheduledTasks = tasks.filter((task) => {
-    if (!task.due_date) return false;
+    if (!task.start_date && !task.end_date) return false;
     return !isDoneColumn(columnById.get(task.column_id));
   }).length;
 
   const nextActions = tasks
     .filter((task) => !isDoneColumn(columnById.get(task.column_id)))
     .sort((a, b) => {
-      const aTime = a.due_date?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      const bTime = b.due_date?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      if (aTime !== bTime) return aTime - bTime;
+      const aDate = normalizeDateOnly(a.end_date) ?? "9999-12-31";
+      const bDate = normalizeDateOnly(b.end_date) ?? "9999-12-31";
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
       return (a.order ?? 0) - (b.order ?? 0);
     })
     .slice(0, 4)
@@ -197,9 +202,13 @@ export async function buildWorkspaceDetailPayload(
       return {
         id: task.id,
         title: task.title,
-        dueDate: task.due_date,
+        startDate: normalizeDateOnly(task.start_date),
+        endDate: normalizeDateOnly(task.end_date),
         priority: task.priority || "medium",
-        isOverdue: Boolean(task.due_date && task.due_date.getTime() < now),
+        isOverdue: Boolean(
+          normalizeDateOnly(task.end_date) &&
+          normalizeDateOnly(task.end_date)! < today,
+        ),
         column: column
           ? {
               id: column.id,
@@ -218,13 +227,14 @@ export async function buildWorkspaceDetailPayload(
       : workspace.name;
   const goalSummary =
     truncateText(workspace.description, 200) ||
-    truncateText(activity?.summary || activity?.description || activity?.content, 200) ||
+    truncateText(
+      activity?.summary || activity?.description || activity?.content,
+      200,
+    ) ||
     truncateText(workspace.squad?.content, 200) ||
     null;
   const deliverable =
-    activity?.title ||
-    workspace.squad?.title ||
-    workspace.name;
+    activity?.title || workspace.squad?.title || workspace.name;
 
   return {
     goal_summary: goalSummary,
@@ -270,7 +280,10 @@ export async function buildWorkspaceDetailPayload(
             date: activity.date,
             status: activity.status,
             category: activity.category,
-            summary: truncateText(activity.summary || activity.description || activity.content, 160),
+            summary: truncateText(
+              activity.summary || activity.description || activity.content,
+              160,
+            ),
             href: `/insights/activities/${activity.id}`,
           }
         : null,

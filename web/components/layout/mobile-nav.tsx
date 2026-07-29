@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { BookOpen, Mic, Layout, Calendar, Users } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 export function GlobalMobileNav() {
   const pathname = usePathname()
+  const isWorkspaceDetail =
+    pathname !== "/workspace" && pathname?.startsWith("/workspace/")
 
-  // 공개 포트폴리오 페이지(/p/...)는 standalone — 모바일 nav 숨김
-  if (pathname?.startsWith("/p/")) return null
+  // Standalone 화면은 자체 내비게이션을 사용한다.
+  if (pathname?.startsWith("/p/") || isWorkspaceDetail) return null
 
   const navItems = [
     { label: "Insights", href: "/insights", icon: BookOpen },

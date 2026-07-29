@@ -105,7 +105,7 @@ function SortablePropertyItem({ id, visible, onToggle, isLocked }: { id: string,
       'tags': '태그',
       'assignee': '담당자',
       'priority': '우선순위',
-      'dueDate': '마감일',
+      'dueDate': '기간',
    };
 
    const icon = (id === 'tags') ? <TagIcon className="h-3.5 w-3.5" /> :

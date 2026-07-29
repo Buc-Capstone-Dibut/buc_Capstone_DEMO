@@ -72,9 +72,11 @@ export function GlobalHeader() {
   const pathname = usePathname();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null);
+  const isWorkspaceDetail =
+    pathname !== "/workspace" && pathname?.startsWith("/workspace/");
 
-  // 공개 포트폴리오 페이지(/p/...)는 standalone — 글로벌 헤더 숨김
-  if (pathname?.startsWith("/p/")) return null;
+  // Standalone 화면은 자체 내비게이션을 사용한다.
+  if (pathname?.startsWith("/p/") || isWorkspaceDetail) return null;
 
 
   // 현재 활성화된 메인 카테고리 찾기

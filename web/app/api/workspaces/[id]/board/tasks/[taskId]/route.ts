@@ -1,7 +1,10 @@
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { logUserActivityEvent, MY_ACTIVITY_EVENT_TYPES } from "@/lib/activity-events";
+import {
+  logUserActivityEvent,
+  MY_ACTIVITY_EVENT_TYPES,
+} from "@/lib/activity-events";
 import prisma from "@/lib/prisma";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import {
@@ -9,6 +12,12 @@ import {
   REPUTATION_EVENT_TYPES,
   tryApplyReputationEvent,
 } from "@/lib/server/reputation";
+import { findWorkspaceBoard } from "@/lib/server/workspace-boards";
+import {
+  assertValidDateRange,
+  normalizeDateOnly,
+  parseDateOnly,
+} from "@/lib/workspace/task-dates";
 
 export async function PATCH(
   request: Request,
@@ -16,13 +25,12 @@ export async function PATCH(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const user = session.user;
 
   try {
     const { id: workspaceId, taskId } = params;
@@ -50,43 +58,103 @@ export async function PATCH(
       );
     }
 
-    if (updates.due_date) {
-      updates.due_date = new Date(updates.due_date);
-    }
-    if (updates.dueDate) {
-      updates.due_date = new Date(updates.dueDate);
-    }
-
     const allowedUpdates: {
       title?: string;
       description?: string;
+      board_id?: string;
       column_id?: string;
       assignee_id?: string | null;
       tags?: string[];
-      due_date?: Date | null;
+      start_date?: Date | null;
+      end_date?: Date | null;
       order?: number;
       priority?: string | null;
     } = {};
-    if (updates.title !== undefined) allowedUpdates.title = updates.title;
+    if (updates.title !== undefined) {
+      if (typeof updates.title !== "string" || !updates.title.trim()) {
+        return NextResponse.json(
+          { error: "작업 제목을 입력해주세요." },
+          { status: 400 },
+        );
+      }
+      allowedUpdates.title = updates.title.trim();
+    }
     if (updates.description !== undefined)
       allowedUpdates.description = updates.description;
 
     // Support both camelCase and snake_case
+    if (updates.board_id !== undefined)
+      allowedUpdates.board_id = updates.board_id;
+    if (updates.boardId !== undefined)
+      allowedUpdates.board_id = updates.boardId;
+    if (
+      allowedUpdates.board_id !== undefined &&
+      (typeof allowedUpdates.board_id !== "string" ||
+        !allowedUpdates.board_id.trim())
+    ) {
+      return NextResponse.json({ error: "Invalid board" }, { status: 400 });
+    }
+
     if (updates.column_id !== undefined)
       allowedUpdates.column_id = updates.column_id;
     if (updates.columnId !== undefined)
       allowedUpdates.column_id = updates.columnId;
+    if (
+      allowedUpdates.column_id !== undefined &&
+      (typeof allowedUpdates.column_id !== "string" ||
+        !allowedUpdates.column_id.trim())
+    ) {
+      return NextResponse.json({ error: "Invalid column" }, { status: 400 });
+    }
 
     if (updates.assignee_id !== undefined)
       allowedUpdates.assignee_id = updates.assignee_id;
     if (updates.assigneeId !== undefined)
       allowedUpdates.assignee_id = updates.assigneeId;
+    if (
+      allowedUpdates.assignee_id !== undefined &&
+      allowedUpdates.assignee_id !== null
+    ) {
+      const assigneeMembership = await prisma.workspace_members.findUnique({
+        where: {
+          workspace_id_user_id: {
+            workspace_id: workspaceId,
+            user_id: allowedUpdates.assignee_id,
+          },
+        },
+        select: { user_id: true },
+      });
+      if (!assigneeMembership) {
+        return NextResponse.json(
+          { error: "워크스페이스 멤버만 담당자로 지정할 수 있습니다." },
+          { status: 400 },
+        );
+      }
+    }
 
-    if (updates.tags !== undefined) allowedUpdates.tags = updates.tags;
+    if (updates.tags !== undefined) {
+      if (
+        !Array.isArray(updates.tags) ||
+        !updates.tags.every((tag: unknown) => typeof tag === "string")
+      ) {
+        return NextResponse.json({ error: "Invalid tags" }, { status: 400 });
+      }
 
-    if (updates.due_date !== undefined)
-      allowedUpdates.due_date = updates.due_date;
-    // dueDate is handled above by converting to due_date
+      const uniqueTagIds = Array.from(new Set(updates.tags as string[]));
+      const validTagCount = await prisma.kanban_tags.count({
+        where: {
+          workspace_id: workspaceId,
+          id: { in: uniqueTagIds },
+        },
+      });
+      if (validTagCount !== uniqueTagIds.length) {
+        return NextResponse.json(
+          { error: "존재하지 않는 태그가 포함되어 있습니다." },
+          { status: 400 },
+        );
+      }
+      allowedUpdates.tags = uniqueTagIds;
+    }
 
     if (updates.order !== undefined) allowedUpdates.order = updates.order;
     if (updates.priority !== undefined)
@@ -104,11 +172,80 @@ export async function PATCH(
       },
       select: {
         id: true,
+        board_id: true,
+        start_date: true,
+        end_date: true,
       },
     });
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    const hasStartDate =
+      updates.startDate !== undefined || updates.start_date !== undefined;
+    const hasEndDate =
+      updates.endDate !== undefined ||
+      updates.end_date !== undefined ||
+      updates.dueDate !== undefined ||
+      updates.due_date !== undefined;
+    const rawStartDate = updates.startDate ?? updates.start_date;
+    const rawEndDate =
+      updates.endDate ??
+      updates.end_date ??
+      updates.dueDate ??
+      updates.due_date;
+    if (
+      (hasStartDate &&
+        rawStartDate !== null &&
+        rawStartDate !== "" &&
+        !normalizeDateOnly(rawStartDate)) ||
+      (hasEndDate &&
+        rawEndDate !== null &&
+        rawEndDate !== "" &&
+        !normalizeDateOnly(rawEndDate))
+    ) {
+      return NextResponse.json(
+        { error: "날짜는 YYYY-MM-DD 형식이어야 합니다." },
+        { status: 400 },
+      );
+    }
+    const requestedStartDate = hasStartDate
+      ? normalizeDateOnly(rawStartDate)
+      : normalizeDateOnly(task.start_date);
+    const requestedEndDate = hasEndDate
+      ? normalizeDateOnly(rawEndDate)
+      : normalizeDateOnly(task.end_date);
+
+    try {
+      assertValidDateRange(requestedStartDate, requestedEndDate);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Invalid date range",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (hasStartDate) {
+      allowedUpdates.start_date = parseDateOnly(requestedStartDate);
+    }
+    if (hasEndDate) {
+      allowedUpdates.end_date = parseDateOnly(requestedEndDate);
+    }
+
+    if (allowedUpdates.board_id) {
+      const destinationBoard = await findWorkspaceBoard(
+        workspaceId,
+        allowedUpdates.board_id,
+      );
+      if (!destinationBoard || destinationBoard.archived_at) {
+        return NextResponse.json(
+          { error: "Destination board not found" },
+          { status: 404 },
+        );
+      }
     }
 
     if (allowedUpdates.column_id) {
@@ -142,7 +279,11 @@ export async function PATCH(
       });
       const category = (movedColumn?.category || "").toLowerCase();
       const title = (movedColumn?.title || "").toLowerCase();
-      if (category === "done" || category === "completed" || title.includes("done")) {
+      if (
+        category === "done" ||
+        category === "completed" ||
+        title.includes("done")
+      ) {
         await logUserActivityEvent(
           user.id,
           MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
@@ -160,7 +301,14 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json(updatedTask);
+    return NextResponse.json({
+      ...updatedTask,
+      boardId: updatedTask.board_id,
+      columnId: updatedTask.column_id,
+      assigneeId: updatedTask.assignee_id,
+      startDate: normalizeDateOnly(updatedTask.start_date),
+      endDate: normalizeDateOnly(updatedTask.end_date),
+    });
   } catch (error) {
     console.error("Error updating task:", error);
     return NextResponse.json(
@@ -176,13 +324,12 @@ export async function DELETE(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const user = session.user;
 
   try {
     const { id: workspaceId, taskId } = params;

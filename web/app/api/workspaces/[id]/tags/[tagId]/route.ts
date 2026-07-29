@@ -40,8 +40,37 @@ export async function DELETE(
     );
   }
 
-  const deleted = await prisma.kanban_tags.deleteMany({
-    where: { id: tagId, workspace_id: workspaceId },
+  const deleted = await prisma.$transaction(async (tx) => {
+    const tag = await tx.kanban_tags.findFirst({
+      where: { id: tagId, workspace_id: workspaceId },
+      select: { id: true },
+    });
+    if (!tag) return { count: 0 };
+
+    const tasks = await tx.kanban_tasks.findMany({
+      where: {
+        board: { workspace_id: workspaceId },
+        tags: { has: tagId },
+      },
+      select: { id: true, tags: true },
+    });
+
+    await Promise.all(
+      tasks.map((task) =>
+        tx.kanban_tasks.update({
+          where: { id: task.id },
+          data: {
+            tags: {
+              set: task.tags.filter((existingTagId) => existingTagId !== tagId),
+            },
+          },
+        }),
+      ),
+    );
+
+    return tx.kanban_tags.deleteMany({
+      where: { id: tagId, workspace_id: workspaceId },
+    });
   });
 
   if (deleted.count === 0) {
@@ -87,11 +116,25 @@ export async function PATCH(
     );
   }
 
-  const body = await request.json();
+  const body = (await request.json()) as {
+    name?: unknown;
+    color?: unknown;
+  };
+  const data: { name?: string; color?: string } = {};
+  if (body.name !== undefined) {
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    data.name = name;
+  }
+  if (body.color !== undefined && typeof body.color === "string") {
+    data.color = body.color.trim() || "gray";
+  }
 
   const updated = await prisma.kanban_tags.updateMany({
     where: { id: tagId, workspace_id: workspaceId },
-    data: body,
+    data,
   });
 
   if (updated.count === 0) {
