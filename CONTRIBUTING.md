@@ -10,18 +10,15 @@ Debut은 현재 다음 두 장기 브랜치를 사용하는 가벼운 통합 전
 flowchart LR
     M[main<br/>안정·배포 기준]
     D[develop<br/>다음 릴리스 통합]
-    F[feature/*<br/>기능 개발]
-    X[fix/*<br/>일반 버그 수정]
-    H[hotfix/*<br/>운영 긴급 수정]
+    F[feature/도메인-기능명<br/>모든 일반 작업]
+    U[feature/도메인-기능명<br/>운영 긴급 수정]
 
     D --> F
-    D --> X
     F -->|PR| D
-    X -->|PR| D
     D -->|릴리스 PR| M
-    M --> H
-    H -->|PR| M
-    H -->|동일 수정 반영| D
+    M --> U
+    U -->|긴급 PR| M
+    U -->|동일 수정 반영| D
 ```
 
 현대적인 GitHub Flow와 trunk-based development의 핵심인 짧은 브랜치, 작은 변경, 빈번한 통합, PR 검토를 유지하되 `main`을 항상 시연·배포 가능한 상태로 보존하기 위해 `develop`을 통합 브랜치로 둔다.
@@ -41,27 +38,26 @@ flowchart LR
 | --- | --- | --- | --- |
 | `main` | - | - | 안정·배포 기준. 직접 개발하지 않는다. |
 | `develop` | `main`의 최신 릴리스 | `main` | 다음 릴리스에 들어갈 검증된 변경 통합 |
-| `feature/<기능명>` | 최신 `develop` | `develop` | 사용자 기능, UI/UX, 도메인 기능 개발 |
-| `fix/<수정명>` | 최신 `develop` | `develop` | 아직 배포되지 않은 일반 버그 수정 |
-| `docs/<문서명>` | 최신 `develop` | `develop` | 독립적인 문서·Spec 체계 변경 |
-| `hotfix/<수정명>` | 최신 `main` | `main`, 이후 `develop` | 운영 기준의 긴급 수정 |
+| `feature/<도메인>-<기능명>` | 최신 `develop` | `develop` | 기능, UI/UX, 버그 수정, 문서, 리팩터링 등 모든 일반 작업 |
 
-`feature/*`를 `main`에서 만들지 않는다. 예외는 운영 긴급 수정인 `hotfix/*`뿐이다.
+일반 작업은 항상 최신 `develop`에서 만든다. 운영 장애처럼 다음 릴리스를 기다릴 수 없는 긴급 수정만 같은 `feature/<도메인>-<기능명>` 형식으로 최신 `main`에서 만들고, `main` 반영 직후 `develop`에도 동일한 수정을 반영한다.
 
 ## 3. 브랜치 이름
 
-브랜치 이름은 소문자 영문과 하이픈을 사용하고 범위를 드러낸다.
+모든 단기 작업 브랜치는 `feature/<도메인>-<기능명>` 형식만 사용한다. 이름은 소문자 영문과 하이픈으로 작성한다.
 
 ```text
-feature/workspace-navigation
+feature/workspace-sidebar
 feature/workspace-docs-ux
 feature/workspace-chat-auth
-fix/workspace-presence-cleanup
-docs/workspace-spec-rules
-hotfix/interview-session-start
+feature/ai-interview-session-report
+feature/crawler-event-filter
+feature/repo-spec-guide
 ```
 
-- `feature/workspace`, `feature/update`, `fix/bug`처럼 범위가 불명확한 이름은 피한다.
+- 슬래시 뒤 이름은 `workspace`, `ai-interview`, `web`, `crawler`, `repo` 같은 도메인으로 시작하고 이어서 구체적인 작업명을 적는다.
+- `feature/update`, `feature/fix`, `feature/workspace`처럼 범위가 불명확한 이름은 피한다.
+- `fix/*`, `docs/*`, `hotfix/*` 접두사는 만들지 않는다. 작업 성격은 PR 제목과 커밋 타입으로 구분한다.
 - 개인·도구 이름 접두사는 사용하지 않는다.
 - 한 브랜치는 하나의 사용자 가치 또는 하나의 명확한 기술적 목적만 담당한다.
 
@@ -72,7 +68,7 @@ hotfix/interview-session-start
 ```bash
 git switch develop
 git pull --ff-only origin develop
-git switch -c feature/<기능명>
+git switch -c feature/<도메인>-<기능명>
 ```
 
 개발 중에는 `develop`과 차이가 지나치게 커지지 않도록 자주 동기화한다.
@@ -129,7 +125,7 @@ refactor(workspace): separate room authorization service
 
 ## 8. Pull Request
 
-feature/fix/docs 브랜치는 `develop`을 base로 PR을 만든다.
+일반 `feature/*` 브랜치는 `develop`을 base로 PR을 만든다.
 
 PR 본문은 [기본 템플릿](.github/pull_request_template.md)에 따라 다음을 포함한다.
 
@@ -146,7 +142,7 @@ PR 본문은 [기본 템플릿](.github/pull_request_template.md)에 따라 다�
 - 기능과 현재 문서가 일치한다.
 - 비밀값과 불필요한 생성물이 없다.
 
-feature/fix PR은 가능한 한 squash merge하여 하나의 목적 단위로 `develop`에 남긴다. `develop`에서 `main`으로 올리는 릴리스는 별도 PR로 검증하고 릴리스 경계를 보존한다.
+`feature/*` PR은 가능한 한 squash merge하여 하나의 목적 단위로 `develop`에 남긴다. `develop`에서 `main`으로 올리는 릴리스는 별도 PR로 검증하고 릴리스 경계를 보존한다.
 
 ## 9. 릴리스와 긴급 수정
 
@@ -159,7 +155,7 @@ feature/fix PR은 가능한 한 squash merge하여 하나의 목적 단위로 `d
 
 긴급 수정:
 
-1. 최신 `main`에서 `hotfix/<수정명>`을 만든다.
+1. 최신 `main`에서 `feature/<도메인>-<기능명>`을 만든다.
 2. 최소 범위로 수정하고 회귀 검증한다.
 3. `main`에 PR로 병합한다.
 4. 동일 수정이 빠지지 않도록 `develop`에도 즉시 반영한다.
@@ -172,7 +168,8 @@ GitHub에서 `main`, `develop`에 ruleset 또는 branch protection을 설정한�
 - 필수 status check 통과
 - 최소 1명 승인
 - 미해결 대화가 있으면 병합 금지
-- force push와 브랜치 삭제 금지
+- `main`, `develop`의 force push와 삭제 금지
+- 병합된 `feature/*` 원격 브랜치는 삭제
 - 자동 테스트가 안정화되면 linear history 또는 merge queue 검토
 
 현재 저장소에 실제로 설정된 보호 규칙과 이 문서가 다르면 저장소 관리자가 GitHub 설정을 확인해 맞춘다.

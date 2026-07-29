@@ -82,7 +82,7 @@ cd crawler && uv sync
 - 브랜치·Pull Request·커밋 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
 - AI 주도 개발과 최소 Spec 규칙: [specs/README.md](specs/README.md)
 
-현재 저장소는 `main`을 안정·배포 기준, `develop`을 다음 릴리스 통합 기준으로 사용합니다. 일반 기능은 최신 `develop`에서 `feature/<기능명>`으로 분기하고 PR을 통해 `develop`에 병합합니다. 세부 예외와 hotfix 흐름은 기여 가이드를 따릅니다.
+현재 저장소는 `main`을 안정·배포 기준, `develop`을 다음 릴리스 통합 기준으로 사용합니다. 모든 일반 작업은 최신 `develop`에서 `feature/<도메인>-<기능명>`으로 분기하고 `develop`에 병합합니다. 버그·문서·리팩터링도 별도 접두사 없이 같은 규칙을 사용하며, 긴급 수정의 예외 흐름은 기여 가이드를 따릅니다.
 
 ## 문서 바로가기
 
