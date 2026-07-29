@@ -45,6 +45,7 @@ export interface Priority {
 export interface Task {
   id: string;
   projectId: string;
+  boardId?: string;
   columnId?: string; // Added for Kanban
   title: string;
   description?: string;
@@ -56,7 +57,10 @@ export interface Task {
     name?: string | null;
     avatar?: string | null;
   } | null;
-  priorityId?: string;
+  priorityId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  /** @deprecated 기간 기능 이전 중인 레거시 필드 */
   dueDate?: string;
   docRef?: string;
   customFieldValues: TaskFieldValue[];
@@ -138,6 +142,7 @@ export interface BoardView {
     assignee?: string[];
     hiddenColumns?: string[];
     hiddenStatusCategories?: Array<"todo" | "in-progress" | "done">;
+    statusCategoryOrder?: Array<"todo" | "in-progress" | "done">;
   };
   isSystem?: boolean;
   showEmptyGroups?: boolean;
@@ -197,7 +202,10 @@ export const generateTemplates = (projectId: string): Doc[] => [
     updatedAt: new Date().toISOString(),
     content: [
       { type: "heading", content: "Product Requirements Document" },
-      { type: "paragraph", content: "프로젝트의 핵심 목표와 기능을 정리하세요." },
+      {
+        type: "paragraph",
+        content: "프로젝트의 핵심 목표와 기능을 정리하세요.",
+      },
     ],
   },
   {
@@ -442,7 +450,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
           } else {
             // Update existing default view
             mergedViews = mergedViews.map((v) =>
-              v.groupBy === "status" ? { ...v, columns: (data.columns ?? []) as ViewColumn[] } : v,
+              v.groupBy === "status"
+                ? { ...v, columns: (data.columns ?? []) as ViewColumn[] }
+                : v,
             );
           }
         }

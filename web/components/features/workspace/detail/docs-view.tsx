@@ -177,7 +177,8 @@ type LinkedTaskRelation = {
     id: string;
     title: string;
     priority: string | null;
-    due_date: string | null;
+    start_date: string | null;
+    end_date: string | null;
     column: {
       id: string;
       title: string;

@@ -9,14 +9,13 @@ import {
   Project,
   ProjectMember,
 } from "../store/mock-data";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   KanbanSquare,
+  ArrowUpDown,
   Plus,
   Settings2,
-  Pen,
   AlertTriangle,
-  Users,
   Layout,
   Table as TableIcon,
   Tag as TagIcon,
@@ -25,8 +24,13 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
+  ArrowLeft,
+  Filter,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -45,11 +49,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { ViewManagerModal } from "../modules/view-settings/view-manager-modal";
 import { TagManagerModal } from "../modules/tag/tag-manager-modal";
 import { PriorityManagerModal } from "../modules/priority/priority-manager-modal";
 import { StatusManagerModal } from "../modules/status-manager-modal";
-import { NotebookTab } from "../modules/notebook-tab";
+import { CreateTaskDialog, CreateTaskInput } from "./board/create-task-dialog";
 import { AdvancedTaskModal } from "./board/advanced-task-modal";
 
 import { KanbanView } from "../views/kanban/kanban-view";
@@ -93,6 +96,40 @@ const STATUS_SECTION_OPTIONS = [
   { id: "done", label: "완료" },
 ] as const;
 
+type StatusCategory = (typeof STATUS_SECTION_OPTIONS)[number]["id"];
+
+function normalizeStatusCategoryOrder(
+  value?: string[] | null,
+): StatusCategory[] {
+  const validCategories = new Set<StatusCategory>([
+    "todo",
+    "in-progress",
+    "done",
+  ]);
+  const normalized = (value || []).filter(
+    (category, index): category is StatusCategory =>
+      validCategories.has(category as StatusCategory) &&
+      value?.indexOf(category) === index,
+  );
+  const saved = new Set(normalized);
+
+  return [
+    ...normalized,
+    ...STATUS_SECTION_OPTIONS.map((option) => option.id).filter(
+      (category) => !saved.has(category),
+    ),
+  ];
+}
+
+const TASK_SORT_OPTIONS = [
+  { value: "manual", label: "기본 순서" },
+  { value: "title-asc", label: "제목 가나다순" },
+  { value: "priority", label: "우선순위 높은 순" },
+  { value: "assignee", label: "담당자 가나다순" },
+  { value: "start-date", label: "시작일 빠른 순" },
+  { value: "end-date", label: "종료일 빠른 순" },
+] as const;
+
 const DEFAULT_CARD_PROPERTY_SET = new Set(DEFAULT_CARD_PROPERTIES);
 
 function slugifyBoardValue(value?: string | null) {
@@ -100,12 +137,16 @@ function slugifyBoardValue(value?: string | null) {
 }
 
 function normalizeCardProperties(properties?: string[] | null) {
-  const source = Array.isArray(properties) ? properties : DEFAULT_CARD_PROPERTIES;
+  const source = Array.isArray(properties)
+    ? properties
+    : DEFAULT_CARD_PROPERTIES;
   const visible = source.filter(
     (property): property is (typeof DEFAULT_CARD_PROPERTIES)[number] =>
       typeof property === "string" &&
       property !== "title" &&
-      DEFAULT_CARD_PROPERTY_SET.has(property as (typeof DEFAULT_CARD_PROPERTIES)[number]),
+      DEFAULT_CARD_PROPERTY_SET.has(
+        property as (typeof DEFAULT_CARD_PROPERTIES)[number],
+      ),
   );
 
   return ["title", ...Array.from(new Set(visible))];
@@ -127,15 +168,13 @@ function buildFallbackViews(
       name: "Main Board",
       type: "kanban" as const,
       groupBy: "status" as const,
-      columns: columns.map(
-        (column): BoardView["columns"][number] => ({
-          id: column.id,
-          title: column.title,
-          statusId: column.statusId || column.id,
-          category: normalizeColumnCategory(column.category),
-          ...(column.color ? { color: column.color } : {}),
-        }),
-      ),
+      columns: columns.map((column): BoardView["columns"][number] => ({
+        id: column.id,
+        title: column.title,
+        statusId: column.statusId || column.id,
+        category: normalizeColumnCategory(column.category),
+        ...(column.color ? { color: column.color } : {}),
+      })),
       isSystem: true,
       color: "green",
       cardProperties: [...DEFAULT_CARD_PROPERTIES],
@@ -184,49 +223,11 @@ function buildFallbackViews(
   ];
 }
 
-function getViewIcon(view: BoardView) {
-  if (view.icon) {
-    return <span className="text-sm leading-none">{view.icon}</span>;
-  }
-
-  switch (view.groupBy) {
-    case "status":
-      return <KanbanSquare className="h-4 w-4" />;
-    case "assignee":
-      return <Users className="h-4 w-4" />;
-    case "priority":
-      return <Layout className="h-4 w-4" />;
-    case "tag":
-      return <TagIcon className="h-4 w-4" />;
-    default:
-      return <Layout className="h-4 w-4" />;
-  }
-}
-
-function getNotebookTabColor(view: BoardView) {
-  if (view.color === "green") return "bg-green-500";
-  if (view.color === "orange") return "bg-orange-500";
-  if (view.color === "gray") return "bg-gray-500";
-  if (view.color === "violet") return "bg-violet-500";
-  if (view.color === "blue") return "bg-blue-500";
-
-  switch (view.groupBy) {
-    case "status":
-      return "bg-green-500";
-    case "assignee":
-      return "bg-blue-500";
-    case "priority":
-      return "bg-orange-500";
-    case "tag":
-      return "bg-gray-500";
-    default:
-      return "bg-blue-500";
-  }
-}
-
 interface KanbanBoardProps {
   projectId: string;
-  onNavigateToDoc?: (docId: string) => void;
+  boardId: string;
+  onBackToBoards?: () => void;
+  embedded?: boolean;
 }
 
 type PendingBoardAction = {
@@ -236,7 +237,12 @@ type PendingBoardAction = {
   onConfirm: () => Promise<void> | void;
 };
 
-export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
+export function KanbanBoard({
+  projectId,
+  boardId,
+  onBackToBoards,
+  embedded = false,
+}: KanbanBoardProps) {
   const tags = useWorkspaceStore((s) => s.tags);
   const priorities = useWorkspaceStore((s) => s.priorities);
   const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
@@ -247,18 +253,28 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   const storeTasks = useWorkspaceStore((s) => s.tasks);
   const syncProjectData = useWorkspaceStore((s) => s.syncProjectData);
 
-  const { data: boardData, error, isLoading } = useSWR<{
+  const boardKey = `/api/workspaces/${projectId}/board?boardId=${boardId}`;
+  const {
+    data: boardData,
+    error,
+    isLoading,
+  } = useSWR<{
     columns?: BoardColumnResponse[];
     tasks?: Task[];
     members?: BoardMemberResponse[];
-      views?: BoardView[];
-      tags?: any[];
-      workspace?: {
-        readOnly?: boolean;
-        name?: string;
+    views?: BoardView[];
+    tags?: any[];
+    board?: {
+      id: string;
+      name: string;
+      description?: string | null;
+    };
+    workspace?: {
+      readOnly?: boolean;
+      name?: string;
     };
   }>(
-    `/api/workspaces/${projectId}/board`,
+    boardKey,
     async (url) => {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch board data");
@@ -272,6 +288,31 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   const { mutate } = useSWRConfig();
   const isReadOnly = Boolean(boardData?.workspace?.readOnly);
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const queuedMutationCountRef = useRef(0);
+
+  const enqueueBoardMutation = useCallback(
+    (operation: () => Promise<void>, failureMessage: string) => {
+      queuedMutationCountRef.current += 1;
+      const queued = mutationQueueRef.current.then(operation);
+      mutationQueueRef.current = queued.catch(() => undefined);
+
+      void queued
+        .catch((error) => {
+          console.error(failureMessage, error);
+          toast.error(failureMessage);
+        })
+        .finally(() => {
+          queuedMutationCountRef.current -= 1;
+          if (queuedMutationCountRef.current === 0) {
+            void mutate(boardKey);
+          }
+        });
+
+      return queued;
+    },
+    [boardKey, mutate],
+  );
 
   // --- Sync Logic ---
   useEffect(() => {
@@ -308,7 +349,9 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       title: boardData.workspace?.name || "워크스페이스 보드",
       description: "",
       type: "side-project" as const,
-      status: boardData.workspace?.readOnly ? ("completed" as const) : ("live" as const),
+      status: boardData.workspace?.readOnly
+        ? ("completed" as const)
+        : ("live" as const),
       lastActive: "방금 전",
       members: (boardData.members || []).map((member): ProjectMember => ({
         id: member.id,
@@ -322,14 +365,11 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     };
   }, [project, boardData, projectId]);
   const resolvedProject = project || fallbackProject;
-  const tasks = useMemo(
-    () => {
-      const synced = storeTasks.filter((t) => t.projectId === projectId);
-      if (synced.length > 0) return synced;
-      return boardData?.tasks || [];
-    },
-    [storeTasks, projectId, boardData?.tasks],
-  );
+  const tasks = useMemo(() => {
+    const synced = storeTasks.filter((t) => t.projectId === projectId);
+    if (synced.length > 0) return synced;
+    return boardData?.tasks || [];
+  }, [storeTasks, projectId, boardData?.tasks]);
   const resolvedViews = useMemo<BoardView[]>(() => {
     const serverViews =
       Array.isArray(boardData?.views) && boardData.views.length > 0
@@ -343,60 +383,58 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
   // --- View State ---
   const [activeViewId, setActiveViewId] = useState<string>("default");
-  const [viewType, setViewType] = useState<"kanban" | "table">("kanban");
-  const [viewToEdit, setViewToEdit] = useState<any>(null);
+  const [viewType, setViewType] = useState<"kanban" | "table">("table");
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPriorityManagerOpen, setIsPriorityManagerOpen] = useState(false);
   const [isStatusManagerOpen, setIsStatusManagerOpen] = useState(false);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [createTaskDefaults, setCreateTaskDefaults] = useState<
+    Partial<CreateTaskInput>
+  >({});
   const [isViewVisibilityOpen, setIsViewVisibilityOpen] = useState(true);
   const [isHiddenSectionsOpen, setIsHiddenSectionsOpen] = useState(false);
   const [isViewActionsOpen, setIsViewActionsOpen] = useState(true);
+  const [taskQuery, setTaskQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [taskSort, setTaskSort] = useState<
+    "manual" | "title-asc" | "priority" | "assignee" | "start-date" | "end-date"
+  >("manual");
   const [pendingAction, setPendingAction] = useState<PendingBoardAction | null>(
     null,
   );
 
-  const availableTagColors = useMemo(
-    () => Array.from(new Set(tags.map((tag) => tag.color))).filter(Boolean),
-    [tags],
-  );
-
-  const handleUpdateView = useCallback(async (
-    viewId: string,
-    updates: Partial<BoardView>,
-  ) => {
-    try {
-      const response = await fetch(`/api/workspaces/${projectId}/board/views/${viewId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      if (!response.ok) throw new Error(`Status ${response.status}`);
-      await mutate(`/api/workspaces/${projectId}/board`);
-    } catch (error) {
-      console.error("Failed to update view", error);
-      toast.error("뷰 저장에 실패했습니다.");
-    }
-  }, [mutate, projectId]);
-
-  const handleDeleteView = async (viewId: string) => {
-    try {
-      const response = await fetch(`/api/workspaces/${projectId}/board/views/${viewId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error(`Status ${response.status}`);
-      if (activeViewId === viewId) {
-        setActiveViewId("default");
+  const handleUpdateView = useCallback(
+    async (viewId: string, updates: Partial<BoardView>) => {
+      if (boardData?.views) {
+        await mutate(
+          boardKey,
+          {
+            ...boardData,
+            views: boardData.views.map((view) =>
+              view.id === viewId ? { ...view, ...updates } : view,
+            ),
+          },
+          { revalidate: false },
+        );
       }
-      setViewToEdit(null);
-      await mutate(`/api/workspaces/${projectId}/board`);
-      toast.success("뷰를 삭제했습니다.");
-      return true;
-    } catch (error) {
-      console.error("Failed to delete view", error);
-      toast.error("뷰 삭제에 실패했습니다.");
-      return false;
-    }
-  };
+
+      return enqueueBoardMutation(async () => {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/board/views/${viewId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          },
+        );
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+      }, "뷰 저장에 실패했습니다.");
+    },
+    [boardData, boardKey, enqueueBoardMutation, mutate, projectId],
+  );
 
   // Determine Active View
   const activeView = useMemo(() => {
@@ -404,6 +442,32 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     if (activeViewId === "default") return resolvedViews[0];
     return resolvedViews.find((v) => v.id === activeViewId) || resolvedViews[0];
   }, [resolvedViews, activeViewId]);
+  const statusCategoryOrder = useMemo(
+    () =>
+      normalizeStatusCategoryOrder(
+        activeView?.groupBy === "status"
+          ? activeView.filter?.statusCategoryOrder
+          : undefined,
+      ),
+    [activeView],
+  );
+  const statusManagerView = useMemo<BoardView | null>(() => {
+    const statusView =
+      resolvedViews.find(
+        (view) => view.groupBy === "status" && view.isSystem,
+      ) ||
+      resolvedViews.find((view) => view.groupBy === "status") ||
+      null;
+    if (!statusView) return null;
+
+    return {
+      ...statusView,
+      columns:
+        (boardData?.columns as BoardView["columns"] | undefined) ||
+        statusView.columns ||
+        [],
+    };
+  }, [boardData?.columns, resolvedViews]);
 
   const activeCardProperties = useMemo(
     () => normalizeCardProperties(activeView?.cardProperties),
@@ -414,7 +478,11 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   );
 
   const settingsCardProperties = useMemo(() => {
-    const orderedProperties = ["title", ...activeCardProperties, ...DEFAULT_CARD_PROPERTIES];
+    const orderedProperties = [
+      "title",
+      ...activeCardProperties,
+      ...DEFAULT_CARD_PROPERTIES,
+    ];
     return orderedProperties.filter(
       (property, index) => orderedProperties.indexOf(property) === index,
     );
@@ -451,7 +519,12 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   }, [resolvedViews, activeViewId]);
 
   // Determine Columns (Shared Logic)
-  const groupBy = activeView?.groupBy || "status";
+  const groupBy: "status" | "assignee" | "priority" | "tag" =
+    activeView?.groupBy === "assignee" ||
+    activeView?.groupBy === "priority" ||
+    activeView?.groupBy === "tag"
+      ? activeView.groupBy
+      : "status";
 
   const columns = useMemo(() => {
     if (!resolvedProject) return [];
@@ -465,7 +538,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       }));
       const unassignedColumn = {
         id: "unassigned",
-        title: "Unassigned",
+        title: "담당자 없음",
         statusId: "unassigned",
         icon: "❓",
         color: "slate",
@@ -483,7 +556,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         }));
       const noPriorityColumn = {
         id: "no-priority",
-        title: "No Priority",
+        title: "우선순위 없음",
         statusId: "no-priority",
         color: "slate",
         category: "todo" as const,
@@ -499,7 +572,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       }));
       const noTagColumn = {
         id: "no-tag",
-        title: "No Tag",
+        title: "태그 없음",
         statusId: "no-tag",
         color: "slate",
         category: "todo" as const,
@@ -572,6 +645,129 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     hiddenColumnIds,
   ]);
 
+  const tableStatusColumns = useMemo(() => {
+    const statusView = resolvedViews.find((view) => view.groupBy === "status");
+    const statusColumns = [...(statusView?.columns || [])];
+    const categoryOrder = normalizeStatusCategoryOrder(
+      statusView?.filter?.statusCategoryOrder,
+    );
+    const categoryOrderMap = new Map(
+      categoryOrder.map((category, index) => [category, index]),
+    );
+    const orderMap = new Map(
+      (statusView?.columnOrder || []).map((id, index) => [id, index]),
+    );
+
+    return statusColumns.sort(
+      (left, right) =>
+        (categoryOrderMap.get(left.category || "todo") ??
+          Number.MAX_SAFE_INTEGER) -
+          (categoryOrderMap.get(right.category || "todo") ??
+            Number.MAX_SAFE_INTEGER) ||
+        (orderMap.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+          (orderMap.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [resolvedViews]);
+
+  const visibleTasks = useMemo(() => {
+    const query = taskQuery.trim().toLocaleLowerCase();
+    return tasks.filter((task) => {
+      const taskCategory = (boardData?.columns || []).find(
+        (column) => column.id === task.columnId,
+      )?.category;
+      const taskTagNames = (task.tags || []).map(
+        (tagId) => tags.find((tag) => tag.id === tagId)?.name || "",
+      );
+      const searchable = [
+        task.title,
+        task.description,
+        task.assignee,
+        ...taskTagNames,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      if (query && !searchable.includes(query)) return false;
+      if (statusFilter !== "all" && taskCategory !== statusFilter) {
+        return false;
+      }
+      if (
+        priorityFilter !== "all" &&
+        (task.priorityId || "none") !== priorityFilter
+      ) {
+        return false;
+      }
+      if (
+        assigneeFilter !== "all" &&
+        (task.assigneeId || "unassigned") !== assigneeFilter
+      ) {
+        return false;
+      }
+      if (tagFilter !== "all" && !(task.tags || []).includes(tagFilter)) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    assigneeFilter,
+    boardData?.columns,
+    priorityFilter,
+    statusFilter,
+    tagFilter,
+    tags,
+    taskQuery,
+    tasks,
+  ]);
+
+  const sortedVisibleTasks = useMemo(() => {
+    if (taskSort === "manual") return visibleTasks;
+
+    const priorityOrder = new Map(
+      priorities.map((priority) => [priority.id, priority.order] as const),
+    );
+
+    return visibleTasks
+      .map((task, index) => ({ task, index }))
+      .sort((left, right) => {
+        let comparison = 0;
+
+        if (taskSort === "title-asc") {
+          comparison = left.task.title.localeCompare(right.task.title, "ko");
+        } else if (taskSort === "priority") {
+          comparison =
+            (priorityOrder.get(left.task.priorityId || "") ?? 999) -
+            (priorityOrder.get(right.task.priorityId || "") ?? 999);
+        } else if (taskSort === "assignee") {
+          const leftAssignee = left.task.assignee || "\uffff";
+          const rightAssignee = right.task.assignee || "\uffff";
+          comparison = leftAssignee.localeCompare(rightAssignee, "ko");
+        } else if (taskSort === "start-date") {
+          comparison = (left.task.startDate || "9999-12-31").localeCompare(
+            right.task.startDate || "9999-12-31",
+          );
+        } else if (taskSort === "end-date") {
+          comparison = (left.task.endDate || "9999-12-31").localeCompare(
+            right.task.endDate || "9999-12-31",
+          );
+        }
+
+        return comparison || left.index - right.index;
+      })
+      .map(({ task }) => task);
+  }, [priorities, taskSort, visibleTasks]);
+
+  const hasSharedFilters =
+    statusFilter !== "all" ||
+    priorityFilter !== "all" ||
+    assigneeFilter !== "all" ||
+    tagFilter !== "all";
+  const activeSharedFilterCount = [
+    statusFilter,
+    priorityFilter,
+    assigneeFilter,
+    tagFilter,
+  ].filter((value) => value !== "all").length;
+
   const statusColumns = useMemo(
     () =>
       groupBy === "status"
@@ -640,48 +836,91 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   const handleCreateColumn = async (title: string, category: string) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
-      return;
-    }
-    try {
-      const response = await fetch(`/api/workspaces/${projectId}/board/columns`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, category }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || `Status ${response.status}`);
-      }
-      toast.success("세부 단계를 추가했습니다.");
-      mutate(`/api/workspaces/${projectId}/board`);
-    } catch (e: any) {
-      console.error("Failed to create column", e);
-      toast.error(e.message || "세부 단계 추가에 실패했습니다.");
-    }
-  };
-
-  const handleUpdateColumn = async (columnId: string, updates: any) => {
-    if (isReadOnly) {
-      toast.error("종료된 팀 공간은 읽기 전용입니다.");
-      return;
+      return false;
     }
     try {
       const response = await fetch(
-        `/api/workspaces/${projectId}/board/columns/${columnId}`,
+        `/api/workspaces/${projectId}/board/columns`,
         {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, category }),
         },
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload.error || `Status ${response.status}`);
       }
-      mutate(`/api/workspaces/${projectId}/board`);
+      toast.success("세부 단계를 추가했습니다.");
+      await mutate(boardKey);
+      return true;
+    } catch (e: any) {
+      console.error("Failed to create column", e);
+      toast.error(e.message || "세부 단계 추가에 실패했습니다.");
+      return false;
+    }
+  };
+
+  const handleCreateTagFromDialog = useCallback(
+    async (name: string) => {
+      if (isReadOnly) {
+        toast.error("종료된 팀 공간은 읽기 전용입니다.");
+        return null;
+      }
+
+      try {
+        const response = await fetch(`/api/workspaces/${projectId}/tags`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, color: "gray" }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          if (response.status === 409) {
+            toast.error("이미 존재하는 태그입니다.");
+            await mutate(boardKey);
+            return null;
+          }
+          throw new Error(payload.error || `Status ${response.status}`);
+        }
+
+        await mutate(boardKey);
+        toast.success("태그를 만들고 작업에 선택했습니다.");
+        return payload as { id: string; name: string; color?: string };
+      } catch (error) {
+        console.error("Failed to create tag", error);
+        toast.error("태그 생성에 실패했습니다.");
+        return null;
+      }
+    },
+    [boardKey, isReadOnly, mutate, projectId],
+  );
+
+  const handleUpdateColumn = async (columnId: string, updates: any) => {
+    if (isReadOnly) {
+      toast.error("종료된 팀 공간은 읽기 전용입니다.");
+      return false;
+    }
+    try {
+      const response = await fetch(
+        `/api/workspaces/${projectId}/board/columns/${columnId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || `Status ${response.status}`);
+      }
+      await mutate(boardKey);
+      return true;
     } catch (e: any) {
       console.error("Failed to update column", e);
       toast.error(e.message || "세부 단계 수정에 실패했습니다.");
+      return false;
     }
   };
 
@@ -691,10 +930,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       return;
     }
     setPendingAction({
-      title: "섹션을 삭제할까요?",
+      title: "상태를 삭제할까요?",
       description:
-        "비어 있는 세부 단계만 삭제할 수 있습니다. 태스크가 남아 있으면 먼저 다른 단계로 옮겨주세요.",
-      actionLabel: "섹션 삭제",
+        "비어 있는 상태만 삭제할 수 있습니다. 작업이 남아 있으면 먼저 다른 상태로 옮겨주세요.",
+      actionLabel: "상태 삭제",
       onConfirm: async () => {
         try {
           const res = await fetch(
@@ -705,20 +944,25 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
           if (!res.ok) {
             throw new Error(payload.error || `Status ${res.status}`);
           }
-          await mutate(`/api/workspaces/${projectId}/board`);
-          toast.success("세부 단계를 삭제했습니다.");
+          await mutate(boardKey);
+          toast.success("상태를 삭제했습니다.");
         } catch (e: any) {
           console.error("Failed to delete column", e);
-          toast.error(`섹션 삭제 실패: ${e.message}`);
+          toast.error(`상태 삭제 실패: ${e.message}`);
         }
       },
     });
   };
 
-  const handleCreateTask = async (taskProps: any) => {
+  const openCreateTaskDialog = (defaults: Partial<CreateTaskInput> = {}) => {
+    setCreateTaskDefaults(defaults);
+    setIsCreateTaskOpen(true);
+  };
+
+  const handleCreateTask = async (taskProps: CreateTaskInput) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
-      return;
+      return false;
     }
     try {
       const boardColumns = boardData?.columns || [];
@@ -727,17 +971,21 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         taskProps.status,
         taskProps.statusId,
         taskProps.columnCategory,
-      ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+      ].filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      );
 
       let targetColumnId = requestedTargets
-        .map((value) =>
-          boardColumns.find(
-            (column) =>
-              column.id === value ||
-              column.statusId === value ||
-              slugifyBoardValue(column.title) === slugifyBoardValue(value) ||
-              column.category === value,
-          )?.id,
+        .map(
+          (value) =>
+            boardColumns.find(
+              (column) =>
+                column.id === value ||
+                column.statusId === value ||
+                slugifyBoardValue(column.title) === slugifyBoardValue(value) ||
+                column.category === value,
+            )?.id,
         )
         .find(Boolean);
 
@@ -749,7 +997,9 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
 
       const payload: Record<string, unknown> = {
         title: taskProps.title || "새 태스크",
+        description: taskProps.description || "",
         columnId: targetColumnId,
+        boardId,
       };
 
       if ("assigneeId" in taskProps) {
@@ -763,10 +1013,16 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       if (Array.isArray(taskProps.tags)) {
         payload.tags = taskProps.tags;
       }
+      if ("startDate" in taskProps) {
+        payload.startDate = taskProps.startDate ?? null;
+      }
+      if ("endDate" in taskProps) {
+        payload.endDate = taskProps.endDate ?? null;
+      }
 
       if (!payload.columnId) {
         toast.error("태스크를 생성할 섹션(컬럼)을 찾을 수 없습니다.");
-        return;
+        return false;
       }
       const res = await fetch(`/api/workspaces/${projectId}/board/tasks`, {
         method: "POST",
@@ -774,14 +1030,14 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      const createdTask = await res.json();
-      await mutate(`/api/workspaces/${projectId}/board`);
-      if (typeof createdTask?.id === "string") {
-        setActiveTaskId(createdTask.id);
-      }
+      await res.json();
+      await mutate(boardKey);
+      toast.success("작업을 만들었습니다.");
+      return true;
     } catch (e: any) {
       console.error("Failed to create task", e);
       toast.error(`태스크 생성 실패: ${e.message}`);
+      return false;
     }
   };
 
@@ -801,7 +1057,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
             { method: "DELETE" },
           );
           if (!res.ok) throw new Error(`Status ${res.status}`);
-          await mutate(`/api/workspaces/${projectId}/board`);
+          await mutate(boardKey);
         } catch (e: any) {
           console.error("Failed to delete task", e);
           toast.error(`태스크 삭제 실패: ${e.message}`);
@@ -815,16 +1071,26 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
-    try {
-      await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      mutate(`/api/workspaces/${projectId}/board`);
-    } catch (e) {
-      console.error("Failed to update task", e);
-    }
+    syncProjectData(projectId, {
+      tasks: tasks.map((task) =>
+        task.id === taskId ? { ...task, ...updates } : task,
+      ),
+    });
+
+    return enqueueBoardMutation(async () => {
+      const response = await fetch(
+        `/api/workspaces/${projectId}/board/tasks/${taskId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "작업을 수정하지 못했습니다.");
+      }
+    }, "작업을 수정하지 못했습니다.");
   };
 
   const handleMoveColumn = async (
@@ -839,14 +1105,10 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     const reordered = [...displayColumns];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
-    const items = reordered.map((col, index) => ({ id: col.id, order: index }));
     try {
-      await fetch(`/api/workspaces/${projectId}/board/reorder`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "column", items }),
+      await handleUpdateView(viewId, {
+        columnOrder: reordered.map((column) => column.id),
       });
-      mutate(`/api/workspaces/${projectId}/board`);
     } catch (e) {
       console.error("Failed to move column", e);
     }
@@ -856,6 +1118,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     taskId: string,
     newStatus: string,
     newIndex: number,
+    taskSnapshot: Task[] = tasks,
   ) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
@@ -872,7 +1135,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     const targetColumnId = targetColumn?.id || newStatus;
     // Logic specific to reordering is complex to duplicate fully without projectTasks context
     // But since we are at container level, we can use projectTasks!
-    const projectTasks = tasks; // Alias
+    const projectTasks = taskSnapshot;
     const otherTasks = projectTasks.filter((t) => {
       // Simplified Logic: Assuming Status Grouping for drag/drop
       const isInTarget =
@@ -890,16 +1153,32 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
       columnId: targetColumnId,
     }));
 
-    try {
+    const snapshotById = new Map(taskSnapshot.map((task) => [task.id, task]));
+    const orderById = new Map(items.map((item) => [item.id, item.order]));
+    syncProjectData(projectId, {
+      tasks: tasks.map((task) => {
+        const previewTask = snapshotById.get(task.id) || task;
+        const nextOrder = orderById.get(task.id);
+        return nextOrder === undefined
+          ? previewTask
+          : {
+              ...previewTask,
+              columnId: targetColumnId,
+              status: targetColumn?.statusId || previewTask.status,
+              order: nextOrder,
+            };
+      }),
+    });
+
+    return enqueueBoardMutation(async () => {
       await fetch(`/api/workspaces/${projectId}/board/reorder`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "task", items }),
+      }).then((response) => {
+        if (!response.ok) throw new Error(`Status ${response.status}`);
       });
-      mutate(`/api/workspaces/${projectId}/board`);
-    } catch (e) {
-      console.error("Failed to reorder task", e);
-    }
+    }, "작업 순서를 저장하지 못했습니다.");
   };
 
   if (isLoading && !boardData && !resolvedProject) {
@@ -934,48 +1213,93 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
     groupBy === "status" && displayColumns.length === 0 && !isLoading;
 
   return (
-    <div className="flex h-full gap-0 overflow-hidden">
-      <div className="relative z-10 flex h-full flex-1 flex-col overflow-hidden rounded-2xl border bg-background shadow-sm">
-        <div className="flex items-center justify-between border-b bg-muted/10 px-6 py-3">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <KanbanSquare className="h-4 w-4 text-muted-foreground" />
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
-                {activeView?.name || "메인 보드"}
-                <Badge
-                  variant="secondary"
-                  className="h-5 px-1.5 text-[10px] font-normal"
-                >
-                  {tasks.length}
-                </Badge>
+    <div className="flex h-full overflow-hidden">
+      <div
+        className={`relative z-10 flex h-full flex-1 flex-col overflow-hidden bg-background ${
+          embedded ? "" : "rounded-2xl border shadow-sm"
+        }`}
+      >
+        <div className="flex items-center gap-2 overflow-x-auto border-b bg-background px-3 py-2">
+          {embedded && (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onBackToBoards}
+                aria-label="모든 보드"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="max-w-40 truncate text-sm font-semibold">
+                {boardData?.board?.name || "보드"}
               </h2>
+              <Badge
+                variant="secondary"
+                className="h-5 px-1.5 text-[10px] font-normal"
+              >
+                {tasks.length}
+              </Badge>
             </div>
-            {tasks.length >= 450 && (
-              <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-600 animate-pulse">
-                <AlertTriangle className="h-3 w-3" />
-                <span>Limit: {tasks.length}/500</span>
-              </div>
-            )}
-          </div>
+          )}
 
-          <div className="ml-auto mr-4 flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-            <Button
-              variant={viewType === "kanban" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => setViewType("kanban")}
-            >
-              <KanbanSquare className="h-3.5 w-3.5" />
-              보드
-            </Button>
+          {!embedded && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onBackToBoards}
+                  aria-label="보드 목록으로"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <KanbanSquare className="h-4 w-4 text-muted-foreground" />
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  {boardData?.board?.name || "보드"}
+                  <Badge
+                    variant="secondary"
+                    className="h-5 px-1.5 text-[10px] font-normal"
+                  >
+                    {tasks.length}
+                  </Badge>
+                </h2>
+              </div>
+            </div>
+          )}
+
+          {tasks.length >= 450 && (
+            <div className="flex animate-pulse items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-600">
+              <AlertTriangle className="h-3 w-3" />
+              <span>Limit: {tasks.length}/500</span>
+            </div>
+          )}
+
+          <div
+            className={`flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1 ${
+              embedded ? "" : "ml-auto mr-4"
+            }`}
+          >
             <Button
               variant={viewType === "table" ? "secondary" : "ghost"}
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
               onClick={() => setViewType("table")}
+              aria-pressed={viewType === "table"}
             >
               <TableIcon className="h-3.5 w-3.5" />
-              표
+              목록
+            </Button>
+            <Button
+              variant={viewType === "kanban" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewType("kanban")}
+              aria-pressed={viewType === "kanban"}
+            >
+              <KanbanSquare className="h-3.5 w-3.5" />
+              칸반
             </Button>
           </div>
 
@@ -983,232 +1307,489 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  className="h-8 gap-1.5 text-xs"
                 >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  보기 설정
+                  {groupBy === "status"
+                    ? "상태별"
+                    : groupBy === "assignee"
+                      ? "담당자별"
+                      : groupBy === "priority"
+                        ? "우선순위별"
+                        : "태그별"}
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                className="w-[280px] overflow-hidden p-0"
-              >
-                <div className="max-h-[calc(100vh-8rem)] overflow-y-auto overscroll-contain p-4">
-                  <div className="space-y-4">
-                    <Collapsible
-                      open={isViewVisibilityOpen}
-                      onOpenChange={setIsViewVisibilityOpen}
-                    >
-                      <div className="space-y-2">
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
-                          >
-                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              <Eye className="h-3 w-3" />
-                              속성 표시
-                            </div>
-                            {isViewVisibilityOpen ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <DraggablePropertySettings
-                            properties={settingsCardProperties}
-                            visibility={{
-                              tags: propertyVisibility.tags,
-                              assignee: propertyVisibility.assignee,
-                              dueDate: propertyVisibility.dueDate,
-                              priority: propertyVisibility.priority,
-                            }}
-                            onToggle={(prop) => {
-                              if (!activeView) return;
-                              if (prop === "title") return;
-                              const nextProperties = activeCardProperties.includes(prop)
-                                ? activeCardProperties.filter((item) => item !== prop)
-                                : [...activeCardProperties, prop];
-                              void handleUpdateView(activeView.id, {
-                                cardProperties: normalizeCardProperties(nextProperties),
-                              });
-                            }}
-                            onReorder={(newOrder) => {
-                              if (activeView) {
-                                const visiblePropertySet = new Set(activeCardProperties);
-                                void handleUpdateView(activeView.id, {
-                                  cardProperties: normalizeCardProperties(
-                                    newOrder.filter(
-                                      (property) =>
-                                        property === "title" ||
-                                        visiblePropertySet.has(property),
-                                    ),
-                                  ),
-                                });
-                              }
-                            }}
-                          />
-                        </CollapsibleContent>
-                      </div>
-                    </Collapsible>
-                    {isMainBoardView && (
-                      <>
-                        <Separator />
-                        <Collapsible
-                          open={isHiddenSectionsOpen}
-                          onOpenChange={setIsHiddenSectionsOpen}
-                        >
-                          <div className="space-y-3">
-                            <CollapsibleTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
-                              >
-                                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                  <EyeOff className="h-3 w-3" />
-                                  섹션 숨기기
-                                </div>
-                                {isHiddenSectionsOpen ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                )}
-                              </button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="space-y-3">
-                              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                <div className="text-[11px] font-medium text-muted-foreground">
-                                  상위 3축 보기
-                                </div>
-                                <div className="space-y-2">
-                                  {STATUS_SECTION_OPTIONS.map((section) => {
-                                    const checked = !hiddenStatusCategories.has(section.id);
-                                    return (
-                                      <label
-                                        key={section.id}
-                                        className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
-                                      >
-                                        <Checkbox
-                                          checked={checked}
-                                          onCheckedChange={() => {
-                                            void toggleStatusCategoryVisibility(section.id);
-                                          }}
-                                        />
-                                        <span>{section.label}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                <div className="text-[11px] font-medium text-muted-foreground">
-                                  세부 단계 보기
-                                </div>
-                                <div className="space-y-2">
-                                  {statusColumns.map((column) => {
-                                    const checked = !hiddenColumnIds.has(column.id);
-                                    const categoryLabel =
-                                      STATUS_SECTION_OPTIONS.find(
-                                        (section) =>
-                                          section.id === (column.category || "todo"),
-                                      )?.label || "할 일";
-
-                                    return (
-                                      <label
-                                        key={column.id}
-                                        className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
-                                      >
-                                        <Checkbox
-                                          checked={checked}
-                                          onCheckedChange={() => {
-                                            void toggleColumnVisibility(column.id);
-                                          }}
-                                        />
-                                        <div className="min-w-0">
-                                          <div className="truncate">{column.title}</div>
-                                          <div className="text-[11px] text-muted-foreground">
-                                            {categoryLabel}
-                                          </div>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                  {statusColumns.length === 0 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      관리할 세부 단계가 없습니다.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </CollapsibleContent>
-                          </div>
-                        </Collapsible>
-                      </>
-                    )}
-                    <Separator />
-                    <Collapsible
-                      open={isViewActionsOpen}
-                      onOpenChange={setIsViewActionsOpen}
-                    >
-                      <div className="space-y-1">
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="mb-1 flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
-                          >
-                            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              관리
-                            </div>
-                            {isViewActionsOpen ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-full justify-start px-2 text-muted-foreground"
-                            onClick={() => setViewToEdit(activeView)}
-                          >
-                            <Pen className="mr-2 h-3 w-3" />
-                            뷰 이름 변경
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-full justify-start px-2 text-muted-foreground"
-                            onClick={() => setIsTagManagerOpen(true)}
-                          >
-                            <TagIcon className="mr-2 h-4 w-4" />
-                            태그 관리
-                          </Button>
-                        </CollapsibleContent>
-                      </div>
-                    </Collapsible>
-                  </div>
-                </div>
+              <PopoverContent align="end" className="w-40 p-1">
+                {[
+                  ["status", "상태"],
+                  ["assignee", "담당자"],
+                  ["priority", "우선순위"],
+                  ["tag", "태그"],
+                ].map(([value, label]) => (
+                  <Button
+                    key={value}
+                    variant={groupBy === value ? "secondary" : "ghost"}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      const matchingView = resolvedViews.find(
+                        (view) => view.groupBy === value,
+                      );
+                      if (matchingView) setActiveViewId(matchingView.id);
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
               </PopoverContent>
             </Popover>
+            {viewType === "kanban" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    aria-label="보기 설정"
+                    title="보기 설정"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-[280px] overflow-hidden p-0"
+                >
+                  <div className="max-h-[calc(100vh-8rem)] overflow-y-auto overscroll-contain p-4">
+                    <div className="space-y-4">
+                      <Collapsible
+                        open={isViewVisibilityOpen}
+                        onOpenChange={setIsViewVisibilityOpen}
+                      >
+                        <div className="space-y-2">
+                          <CollapsibleTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                            >
+                              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                <Eye className="h-3 w-3" />
+                                속성 표시
+                              </div>
+                              {isViewVisibilityOpen ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <DraggablePropertySettings
+                              properties={settingsCardProperties}
+                              visibility={{
+                                tags: propertyVisibility.tags,
+                                assignee: propertyVisibility.assignee,
+                                dueDate: propertyVisibility.dueDate,
+                                priority: propertyVisibility.priority,
+                              }}
+                              onToggle={(prop) => {
+                                if (!activeView) return;
+                                if (prop === "title") return;
+                                const nextProperties =
+                                  activeCardProperties.includes(prop)
+                                    ? activeCardProperties.filter(
+                                        (item) => item !== prop,
+                                      )
+                                    : [...activeCardProperties, prop];
+                                void handleUpdateView(activeView.id, {
+                                  cardProperties:
+                                    normalizeCardProperties(nextProperties),
+                                });
+                              }}
+                              onReorder={(newOrder) => {
+                                if (activeView) {
+                                  const visiblePropertySet = new Set(
+                                    activeCardProperties,
+                                  );
+                                  void handleUpdateView(activeView.id, {
+                                    cardProperties: normalizeCardProperties(
+                                      newOrder.filter(
+                                        (property) =>
+                                          property === "title" ||
+                                          visiblePropertySet.has(property),
+                                      ),
+                                    ),
+                                  });
+                                }
+                              }}
+                            />
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                      {isMainBoardView && (
+                        <>
+                          <Separator />
+                          <Collapsible
+                            open={isHiddenSectionsOpen}
+                            onOpenChange={setIsHiddenSectionsOpen}
+                          >
+                            <div className="space-y-3">
+                              <CollapsibleTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                                >
+                                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <EyeOff className="h-3 w-3" />
+                                    섹션 숨기기
+                                  </div>
+                                  {isHiddenSectionsOpen ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="space-y-3">
+                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                  <div className="text-[11px] font-medium text-muted-foreground">
+                                    상위 3축 보기
+                                  </div>
+                                  <div className="space-y-2">
+                                    {STATUS_SECTION_OPTIONS.map((section) => {
+                                      const checked =
+                                        !hiddenStatusCategories.has(section.id);
+                                      return (
+                                        <label
+                                          key={section.id}
+                                          className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                        >
+                                          <Checkbox
+                                            checked={checked}
+                                            onCheckedChange={() => {
+                                              void toggleStatusCategoryVisibility(
+                                                section.id,
+                                              );
+                                            }}
+                                          />
+                                          <span>{section.label}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                  <div className="text-[11px] font-medium text-muted-foreground">
+                                    세부 단계 보기
+                                  </div>
+                                  <div className="space-y-2">
+                                    {statusColumns.map((column) => {
+                                      const checked = !hiddenColumnIds.has(
+                                        column.id,
+                                      );
+                                      const categoryLabel =
+                                        STATUS_SECTION_OPTIONS.find(
+                                          (section) =>
+                                            section.id ===
+                                            (column.category || "todo"),
+                                        )?.label || "할 일";
+
+                                      return (
+                                        <label
+                                          key={column.id}
+                                          className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                        >
+                                          <Checkbox
+                                            checked={checked}
+                                            onCheckedChange={() => {
+                                              void toggleColumnVisibility(
+                                                column.id,
+                                              );
+                                            }}
+                                          />
+                                          <div className="min-w-0">
+                                            <div className="truncate">
+                                              {column.title}
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground">
+                                              {categoryLabel}
+                                            </div>
+                                          </div>
+                                        </label>
+                                      );
+                                    })}
+                                    {statusColumns.length === 0 && (
+                                      <div className="text-xs text-muted-foreground">
+                                        관리할 세부 단계가 없습니다.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </div>
+                          </Collapsible>
+                        </>
+                      )}
+                      <Separator />
+                      <Collapsible
+                        open={isViewActionsOpen}
+                        onOpenChange={setIsViewActionsOpen}
+                      >
+                        <div className="space-y-1">
+                          <CollapsibleTrigger asChild>
+                            <button
+                              type="button"
+                              className="mb-1 flex w-full items-center justify-between rounded-md text-left hover:text-foreground"
+                            >
+                              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                관리
+                              </div>
+                              {isViewActionsOpen ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-full justify-start px-2 text-muted-foreground"
+                              onClick={() => setIsTagManagerOpen(true)}
+                            >
+                              <TagIcon className="mr-2 h-4 w-4" />
+                              태그 관리
+                            </Button>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
 
             {isMainBoardView && (
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={() => setIsStatusManagerOpen(true)}
+                aria-label="상태 관리"
+                title="상태 관리"
               >
                 <Layout className="h-3.5 w-3.5" />
-                섹션 관리
               </Button>
             )}
           </div>
+
+          <div className="relative ml-auto min-w-40 max-w-64 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={taskQuery}
+              onChange={(event) => setTaskQuery(event.target.value)}
+              placeholder="작업 검색"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
+          {viewType === "table" && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={taskSort === "manual" ? "outline" : "secondary"}
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5 text-xs"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  정렬
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-44 p-1">
+                {TASK_SORT_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={taskSort === option.value ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 w-full justify-start text-xs"
+                    onClick={() => setTaskSort(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </PopoverContent>
+            </Popover>
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={activeSharedFilterCount > 0 ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 text-xs"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                필터
+                {activeSharedFilterCount > 0 && (
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                    {activeSharedFilterCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[360px] p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold">빠른 필터</span>
+                {hasSharedFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] text-muted-foreground"
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setPriorityFilter("all");
+                      setAssigneeFilter("all");
+                      setTagFilter("all");
+                    }}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    초기화
+                  </Button>
+                )}
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Button
+                  variant={
+                    statusFilter === "in-progress" ? "secondary" : "outline"
+                  }
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() =>
+                    setStatusFilter((current) =>
+                      current === "in-progress" ? "all" : "in-progress",
+                    )
+                  }
+                >
+                  진행 중
+                </Button>
+                <Button
+                  variant={
+                    assigneeFilter === "unassigned" ? "secondary" : "outline"
+                  }
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() =>
+                    setAssigneeFilter((current) =>
+                      current === "unassigned" ? "all" : "unassigned",
+                    )
+                  }
+                >
+                  미할당
+                </Button>
+                <Button
+                  variant={
+                    priorityFilter === "urgent" ? "secondary" : "outline"
+                  }
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() =>
+                    setPriorityFilter((current) =>
+                      current === "urgent" ? "all" : "urgent",
+                    )
+                  }
+                >
+                  긴급
+                </Button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    상태
+                  </span>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                    aria-label="상태 필터"
+                  >
+                    <option value="all">모든 상태</option>
+                    <option value="todo">할 일</option>
+                    <option value="in-progress">진행 중</option>
+                    <option value="done">완료</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    우선순위
+                  </span>
+                  <select
+                    value={priorityFilter}
+                    onChange={(event) => setPriorityFilter(event.target.value)}
+                    className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                    aria-label="우선순위 필터"
+                  >
+                    <option value="all">모든 우선순위</option>
+                    <option value="none">미지정</option>
+                    {priorities.map((priority) => (
+                      <option key={priority.id} value={priority.id}>
+                        {priority.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    담당자
+                  </span>
+                  <select
+                    value={assigneeFilter}
+                    onChange={(event) => setAssigneeFilter(event.target.value)}
+                    className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                    aria-label="담당자 필터"
+                  >
+                    <option value="all">모든 담당자</option>
+                    <option value="unassigned">미할당</option>
+                    {resolvedProject.members.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    태그
+                  </span>
+                  <select
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
+                    className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                    aria-label="태그 필터"
+                  >
+                    <option value="all">모든 태그</option>
+                    {tags.map((tag) => (
+                      <option key={tag.id} value={tag.id}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </PopoverContent>
+          </Popover>
+          {!isReadOnly && (
+            <Button
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={() => openCreateTaskDialog()}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              작업
+            </Button>
+          )}
         </div>
 
         {isReadOnly && (
@@ -1236,25 +1817,30 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                     className="mt-4"
                     onClick={() => handleCreateColumn("Todo", "todo")}
                   >
-                    <Plus className="mr-2 h-4 w-4" />
-                    첫 섹션 만들기
+                    <Plus className="mr-2 h-4 w-4" />첫 섹션 만들기
                   </Button>
                 )}
               </div>
             </div>
           ) : viewType === "table" ? (
             <TableView
-              tasks={tasks}
-              columns={displayColumns}
+              tasks={sortedVisibleTasks}
+              columns={tableStatusColumns}
               priorities={priorities}
               tags={tags}
+              members={resolvedProject.members}
+              groupBy={groupBy}
+              showToolbar={false}
+              compact
+              readOnly={isReadOnly}
               onTaskClick={setActiveTaskId}
               onUpdateTask={handleUpdateTask}
+              onCreateTask={(defaults) => openCreateTaskDialog(defaults)}
             />
           ) : (
             <KanbanView
               projectId={projectId}
-              tasks={tasks}
+              tasks={visibleTasks}
               activeView={activeView}
               groupBy={groupBy}
               displayColumns={displayColumns}
@@ -1270,9 +1856,13 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
               reorderTags={reorderTags}
               onDeleteColumn={handleDeleteColumn}
               onTaskClick={setActiveTaskId}
-              onCreateTask={handleCreateTask}
+              onCreateTask={async (defaults) => {
+                openCreateTaskDialog(defaults);
+              }}
               onDeleteTask={handleDeleteTask}
-              onUpdateColumn={handleUpdateColumn}
+              onUpdateColumn={async (columnId, updates) => {
+                await handleUpdateColumn(columnId, updates);
+              }}
               onHideColumn={(columnId) => {
                 void toggleColumnVisibility(columnId);
               }}
@@ -1286,37 +1876,26 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                 showPriority: propertyVisibility.priority,
                 cardProperties: activeCardProperties,
                 hiddenStatusCategories: Array.from(hiddenStatusCategories),
+                statusCategoryOrder,
               }}
             />
           )}
         </div>
       </div>
 
-      <div className="-ml-px flex w-12 flex-col gap-4 pt-10">
-        {resolvedViews.map((view) => (
-          <NotebookTab
-            key={view.id}
-            label={view.name}
-            active={activeViewId === view.id}
-            onClick={() => setActiveViewId(view.id)}
-            color={getNotebookTabColor(view)}
-            icon={getViewIcon(view)}
-          />
-        ))}
-      </div>
-
       {/* Modals */}
-      <ViewManagerModal
-        projectId={projectId}
-        isOpen={!!viewToEdit}
-        onClose={() => setViewToEdit(null)}
-        view={viewToEdit}
-        availableColors={availableTagColors}
-        onUpdateView={async (viewId, updates) => {
-          await handleUpdateView(viewId, updates);
-          setViewToEdit(null);
-        }}
-        onDeleteView={handleDeleteView}
+      <CreateTaskDialog
+        open={isCreateTaskOpen}
+        onOpenChange={setIsCreateTaskOpen}
+        columns={boardData?.columns || []}
+        members={resolvedProject.members}
+        priorities={priorities}
+        tags={tags}
+        defaults={createTaskDefaults}
+        onCreate={handleCreateTask}
+        onCreateTag={handleCreateTagFromDialog}
+        onManageStatuses={() => setIsStatusManagerOpen(true)}
+        onManagePriorities={() => setIsPriorityManagerOpen(true)}
       />
 
       <TagManagerModal
@@ -1324,7 +1903,7 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         onClose={() => setIsTagManagerOpen(false)}
         workspaceId={projectId}
         tags={tags}
-        onTagsUpdate={() => mutate(`/api/workspaces/${projectId}/board`)}
+        onTagsUpdate={() => mutate(boardKey)}
       />
 
       <PriorityManagerModal
@@ -1332,27 +1911,42 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
         onClose={() => setIsPriorityManagerOpen(false)}
       />
 
-      {isMainBoardView && (
+      {activeTaskId && viewType === "kanban" && (
+        <AdvancedTaskModal
+          taskId={activeTaskId}
+          projectId={projectId}
+          open
+          onOpenChange={(open) => {
+            if (!open) setActiveTaskId(null);
+          }}
+        />
+      )}
+
+      {statusManagerView && (
         <StatusManagerModal
           isOpen={isStatusManagerOpen}
           onClose={() => setIsStatusManagerOpen(false)}
-          activeView={activeView}
-          projectId={projectId}
+          activeView={statusManagerView}
           tasks={tasks}
           onCreateColumn={handleCreateColumn}
           onUpdateColumn={handleUpdateColumn}
           onDeleteColumn={handleDeleteColumn}
-        />
-      )}
-
-      {activeTaskId && (
-        <AdvancedTaskModal
-          taskId={activeTaskId}
-          projectId={projectId}
-          onNavigateToDoc={onNavigateToDoc}
-          open={!!activeTaskId}
-          onOpenChange={(open) => {
-            if (!open) setActiveTaskId(null);
+          onReorderColumns={async (columnIds) => {
+            await handleUpdateView(statusManagerView.id, {
+              columnOrder: columnIds,
+            });
+          }}
+          categoryOrder={normalizeStatusCategoryOrder(
+            statusManagerView.filter?.statusCategoryOrder,
+          )}
+          onReorderCategories={async (categories) => {
+            const currentFilter = statusManagerView.filter || {};
+            await handleUpdateView(statusManagerView.id, {
+              filter: {
+                ...currentFilter,
+                statusCategoryOrder: categories,
+              },
+            });
           }}
         />
       )}

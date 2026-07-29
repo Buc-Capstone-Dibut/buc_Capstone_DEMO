@@ -520,33 +520,33 @@ model profiles {
   squads             squads[]
 
   // Workspace & Notification Relations
-  workspace_members  workspace_members[]
-  workspace_invites  workspace_invites[]
-  workspace_docs     workspace_docs[]
-  started_doc_collab_sessions workspace_doc_collab_sessions[] @relation("WorkspaceDocCollabStartedBy")
-  workspace_doc_live_presence workspace_doc_live_presence[]
-  workspace_doc_templates_created workspace_doc_templates[] @relation("WorkspaceDocTemplateCreator")
-  workspace_doc_assets_created workspace_doc_assets[] @relation("WorkspaceDocAssetCreator")
-  workspace_doc_comments_authored workspace_doc_comments[] @relation("WorkspaceDocCommentAuthor")
-  workspace_doc_comments_resolved workspace_doc_comments[] @relation("WorkspaceDocCommentResolver")
-  created_task_document_links kanban_task_documents[] @relation("WorkspaceTaskDocumentCreator")
-  kanban_tasks       kanban_tasks[]
-  notifications      notifications[]
-  messages           workspace_messages[]
-  blog_bookmarks     blog_bookmarks[]
-  resume_profile     user_resume_profiles?
-  workspace_settings user_workspace_settings?
-  activity_events    user_activity_events[]
-  reputation_events  reputation_events[]
-  resumes            user_resumes[]
-  portfolios         user_portfolios[]
-  showcase_portfolios showcase_portfolios[]
-  portfolio_assets_created user_portfolio_assets[] @relation("PortfolioAssetCreator")
-  job_postings       user_job_postings[]
-  job_posting_folders user_job_posting_folders[]
-  job_posting_schedules user_job_posting_schedules[]
-  job_posting_attachments user_job_posting_attachments[]
-  cover_letters      user_cover_letters[]
+  workspace_members               workspace_members[]
+  workspace_invites               workspace_invites[]
+  workspace_docs                  workspace_docs[]
+  started_doc_collab_sessions     workspace_doc_collab_sessions[] @relation("WorkspaceDocCollabStartedBy")
+  workspace_doc_live_presence     workspace_doc_live_presence[]
+  workspace_doc_templates_created workspace_doc_templates[]       @relation("WorkspaceDocTemplateCreator")
+  workspace_doc_assets_created    workspace_doc_assets[]          @relation("WorkspaceDocAssetCreator")
+  workspace_doc_comments_authored workspace_doc_comments[]        @relation("WorkspaceDocCommentAuthor")
+  workspace_doc_comments_resolved workspace_doc_comments[]        @relation("WorkspaceDocCommentResolver")
+  created_task_document_links     kanban_task_documents[]         @relation("WorkspaceTaskDocumentCreator")
+  kanban_tasks                    kanban_tasks[]
+  notifications                   notifications[]
+  messages                        workspace_messages[]
+  blog_bookmarks                  blog_bookmarks[]
+  resume_profile                  user_resume_profiles?
+  workspace_settings              user_workspace_settings?
+  activity_events                 user_activity_events[]
+  reputation_events               reputation_events[]
+  resumes                         user_resumes[]
+  portfolios                      user_portfolios[]
+  showcase_portfolios             showcase_portfolios[]
+  portfolio_assets_created        user_portfolio_assets[]         @relation("PortfolioAssetCreator")
+  job_postings                    user_job_postings[]
+  job_posting_folders             user_job_posting_folders[]
+  job_posting_schedules           user_job_posting_schedules[]
+  job_posting_attachments         user_job_posting_attachments[]
+  cover_letters                   user_cover_letters[]
 
   @@schema("public")
 }
@@ -586,33 +586,33 @@ model user_resume_profiles {
 }
 
 model user_portfolios {
-  id               String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id          String                  @db.Uuid
-  title            String                  @default("새 포트폴리오")
-  slug             String
-  template_id      String                  @default("developer-minimal")
-  format           String                  @default("slide")
-  page_size        String                  @default("16:9")
-  orientation      String                  @default("landscape")
-  generation_preset String                 @default("interview-pitch")
-  source_project_id String?
+  id                   String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id              String                  @db.Uuid
+  title                String                  @default("새 포트폴리오")
+  slug                 String
+  template_id          String                  @default("developer-minimal")
+  format               String                  @default("slide")
+  page_size            String                  @default("16:9")
+  orientation          String                  @default("landscape")
+  generation_preset    String                  @default("interview-pitch")
+  source_project_id    String?
   source_project_title String?
-  is_public        Boolean                 @default(false)
-  document_payload Json
-  source_snapshot  Json
-  public_summary   Json
-  generation_plan   Json                    @default("{}")
-  generation_status String                  @default("idle")
-  generation_quality Json                   @default("{}")
-  template_blueprint Json                   @default("{}")
-  thumbnail_url     String?
-  generated_at      DateTime?               @db.Timestamptz(6)
-  canvas_version    Int                     @default(4)
-  published_at     DateTime?               @db.Timestamptz(6)
-  created_at       DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime                @default(now()) @updatedAt @db.Timestamptz(6)
-  profiles         profiles                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  assets           user_portfolio_assets[]
+  is_public            Boolean                 @default(false)
+  document_payload     Json
+  source_snapshot      Json
+  public_summary       Json
+  generation_plan      Json                    @default("{}")
+  generation_status    String                  @default("idle")
+  generation_quality   Json                    @default("{}")
+  template_blueprint   Json                    @default("{}")
+  thumbnail_url        String?
+  generated_at         DateTime?               @db.Timestamptz(6)
+  canvas_version       Int                     @default(4)
+  published_at         DateTime?               @db.Timestamptz(6)
+  created_at           DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles             profiles                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assets               user_portfolio_assets[]
 
   @@unique([user_id, slug])
   @@index([user_id, updated_at(sort: Desc)])
@@ -624,18 +624,18 @@ model user_portfolios {
 }
 
 model showcase_portfolios {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id         String   @db.Uuid
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id         String    @db.Uuid
   slug            String
-  title           String   @default("새 포트폴리오")
-  template_id     String   @default("neon-editorial")
-  content_payload Json     @default("{}")
-  tokens_payload  Json     @default("{}")
-  is_public       Boolean  @default(false)
+  title           String    @default("새 포트폴리오")
+  template_id     String    @default("neon-editorial")
+  content_payload Json      @default("{}")
+  tokens_payload  Json      @default("{}")
+  is_public       Boolean   @default(false)
   published_at    DateTime? @db.Timestamptz(6)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
-  profiles        profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  profiles        profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, slug])
   @@index([user_id, updated_at(sort: Desc)])
@@ -644,18 +644,18 @@ model showcase_portfolios {
 }
 
 model user_portfolio_assets {
-  id            String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  portfolio_id  String          @db.Uuid
-  user_id       String          @db.Uuid
-  storage_path  String
-  filename      String
-  mime_type     String
-  size_bytes    Int
-  width         Int?
-  height        Int?
-  created_at    DateTime        @default(now()) @db.Timestamptz(6)
-  portfolio     user_portfolios @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  creator       profiles        @relation("PortfolioAssetCreator", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id           String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  portfolio_id String          @db.Uuid
+  user_id      String          @db.Uuid
+  storage_path String
+  filename     String
+  mime_type    String
+  size_bytes   Int
+  width        Int?
+  height       Int?
+  created_at   DateTime        @default(now()) @db.Timestamptz(6)
+  portfolio    user_portfolios @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator      profiles        @relation("PortfolioAssetCreator", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([portfolio_id, created_at(sort: Desc)])
   @@index([user_id, created_at(sort: Desc)])
@@ -663,29 +663,29 @@ model user_portfolio_assets {
 }
 
 model user_job_postings {
-  id                  String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id             String                          @db.Uuid
-  company_name        String
-  role_title          String
-  posting_url         String?
-  tech_stack          String[]                        @default([])
-  responsibilities    String[]                        @default([])
-  requirements        String[]                        @default([])
-  preferred           String[]                        @default([])
-  company_description String?
-  team_culture        String[]                        @default([])
-  memo                String?
-  status              String                          @default("active")
-  is_favorite         Boolean                         @default(false)
-  folder_id           String?                         @db.Uuid
-  color               String?
-  created_at          DateTime                        @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime                        @default(now()) @db.Timestamptz(6)
-  profiles            profiles                        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  folder              user_job_posting_folders?       @relation(fields: [folder_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  schedules           user_job_posting_schedules[]
-  attachments         user_job_posting_attachments[]
-  target_resumes      user_resumes[]                  @relation("ResumeTargetPosting")
+  id                   String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String                         @db.Uuid
+  company_name         String
+  role_title           String
+  posting_url          String?
+  tech_stack           String[]                       @default([])
+  responsibilities     String[]                       @default([])
+  requirements         String[]                       @default([])
+  preferred            String[]                       @default([])
+  company_description  String?
+  team_culture         String[]                       @default([])
+  memo                 String?
+  status               String                         @default("active")
+  is_favorite          Boolean                        @default(false)
+  folder_id            String?                        @db.Uuid
+  color                String?
+  created_at           DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                       @default(now()) @db.Timestamptz(6)
+  profiles             profiles                       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  folder               user_job_posting_folders?      @relation(fields: [folder_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  schedules            user_job_posting_schedules[]
+  attachments          user_job_posting_attachments[]
+  target_resumes       user_resumes[]                 @relation("ResumeTargetPosting")
   target_cover_letters user_cover_letters[]           @relation("CoverLetterTargetPosting")
 
   @@index([user_id, status, created_at(sort: Desc)])
@@ -695,14 +695,14 @@ model user_job_postings {
 }
 
 model user_job_posting_folders {
-  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id     String              @db.Uuid
-  name        String
-  color       String?
-  sort_order  Int                 @default(0)
-  created_at  DateTime            @default(now()) @db.Timestamptz(6)
-  profiles    profiles            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  postings    user_job_postings[]
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String              @db.Uuid
+  name       String
+  color      String?
+  sort_order Int                 @default(0)
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
+  profiles   profiles            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  postings   user_job_postings[]
 
   @@index([user_id, sort_order])
   @@schema("public")
@@ -810,17 +810,17 @@ model user_activity_events {
 }
 
 model reputation_events {
-  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id    String    @db.Uuid
-  event_type String
-  delta      Int
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String   @db.Uuid
+  event_type  String
+  delta       Int
   source_type String?
-  source_id  String?
-  actor_id   String?   @db.Uuid
-  dedupe_key String?   @unique
-  metadata   Json?
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  profiles   profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  source_id   String?
+  actor_id    String?  @db.Uuid
+  dedupe_key  String?  @unique
+  metadata    Json?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  profiles    profiles @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id, created_at(sort: Desc)])
   @@index([event_type, created_at(sort: Desc)])
@@ -861,13 +861,13 @@ model squad_members {
 // --- WORKSPACE SYSTEM ---
 
 model workspaces {
-  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name        String
-  description String?
-  icon_url    String?
-  category    String  @default("project")
-  space_status workspace_space_status @default(ACTIVE)
-  activated_at DateTime?
+  id               String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String
+  description      String?
+  icon_url         String?
+  category         String                     @default("project")
+  space_status     workspace_space_status     @default(ACTIVE)
+  activated_at     DateTime?
   lifecycle_status workspace_lifecycle_status @default(IN_PROGRESS)
   completed_at     DateTime?
   result_type      String?
@@ -883,18 +883,19 @@ model workspaces {
   members workspace_members[]
   invites workspace_invites[]
 
-  columns    kanban_columns[]
-  tags       kanban_tags[]
-  views      workspace_views[]
-  docs       workspace_docs[]
+  columns             kanban_columns[]
+  boards              workspace_boards[]
+  tags                kanban_tags[]
+  views               workspace_views[]
+  docs                workspace_docs[]
   doc_collab_sessions workspace_doc_collab_sessions[]
-  doc_live_presence workspace_doc_live_presence[]
-  doc_templates workspace_doc_templates[]
-  doc_assets workspace_doc_assets[]
+  doc_live_presence   workspace_doc_live_presence[]
+  doc_templates       workspace_doc_templates[]
+  doc_assets          workspace_doc_assets[]
   task_document_links kanban_task_documents[]
-  doc_comments workspace_doc_comments[]
-  channels   workspace_channels[]
-  whiteboard workspace_whiteboards?
+  doc_comments        workspace_doc_comments[]
+  channels            workspace_channels[]
+  whiteboard          workspace_whiteboards?
 
   squad squads? @relation(fields: [from_squad_id], references: [id])
 
@@ -933,13 +934,13 @@ model workspace_members {
 }
 
 model workspace_invites {
-  id           String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String @db.Uuid
+  id           String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String  @db.Uuid
   email        String
-  token        String @unique
-  role         String @default("member")
+  token        String  @unique
+  role         String  @default("member")
   team_role    String?
-  inviter_id   String @db.Uuid
+  inviter_id   String  @db.Uuid
 
   expires_at DateTime
   created_at DateTime @default(now())
@@ -966,23 +967,41 @@ model kanban_columns {
   @@schema("public")
 }
 
+model workspace_boards {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String    @db.Uuid
+  name         String
+  description  String?
+  position     Int       @default(0)
+  is_default   Boolean   @default(false)
+  archived_at  DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  tasks     kanban_tasks[]
+
+  @@index([workspace_id, archived_at, position])
+  @@schema("public")
+}
+
 model workspace_views {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id    String   @db.Uuid
-  name            String
-  type            String   @default("kanban")
-  group_by        String
-  icon            String?
-  color           String?
-  columns         Json?
-  card_properties Json?
-  filters         Json?
-  show_empty_groups Boolean @default(true)
-  column_order    Json?
-  is_system       Boolean  @default(false)
-  view_order      Int      @default(0)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id      String   @db.Uuid
+  name              String
+  type              String   @default("kanban")
+  group_by          String
+  icon              String?
+  color             String?
+  columns           Json?
+  card_properties   Json?
+  filters           Json?
+  show_empty_groups Boolean  @default(true)
+  column_order      Json?
+  is_system         Boolean  @default(false)
+  view_order        Int      @default(0)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
@@ -1005,6 +1024,7 @@ model kanban_tags {
 
 model kanban_tasks {
   id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  board_id    String    @db.Uuid
   column_id   String    @db.Uuid
   title       String
   description String?
@@ -1012,14 +1032,18 @@ model kanban_tasks {
   priority    String?   @default("medium")
   tags        String[]
   order       Int
-  due_date    DateTime?
+  start_date  DateTime? @db.Date
+  end_date    DateTime? @db.Date
   created_at  DateTime  @default(now())
   updated_at  DateTime  @updatedAt
 
-  column   kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
-  assignee profiles?      @relation(fields: [assignee_id], references: [id])
+  board     workspace_boards        @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  column    kanban_columns          @relation(fields: [column_id], references: [id], onDelete: Cascade)
+  assignee  profiles?               @relation(fields: [assignee_id], references: [id])
   documents kanban_task_documents[]
 
+  @@index([board_id, column_id, order])
+  @@index([board_id, end_date])
   @@index([column_id, order])
   @@index([assignee_id])
   @@schema("public")
@@ -1062,17 +1086,17 @@ model workspace_docs {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  workspace workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  author    profiles         @relation(fields: [author_id], references: [id])
-  parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
-  children  workspace_docs[] @relation("DocHierarchy")
-  state     workspace_doc_states?
-  collab_session workspace_doc_collab_sessions?
-  live_presence workspace_doc_live_presence[]
-  templates_based_on workspace_doc_templates[] @relation("WorkspaceDocTemplateSourceDoc")
-  assets    workspace_doc_assets[]
-  task_links kanban_task_documents[]
-  comments  workspace_doc_comments[]
+  workspace          workspaces                     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  author             profiles                       @relation(fields: [author_id], references: [id])
+  parent             workspace_docs?                @relation("DocHierarchy", fields: [parent_id], references: [id])
+  children           workspace_docs[]               @relation("DocHierarchy")
+  state              workspace_doc_states?
+  collab_session     workspace_doc_collab_sessions?
+  live_presence      workspace_doc_live_presence[]
+  templates_based_on workspace_doc_templates[]      @relation("WorkspaceDocTemplateSourceDoc")
+  assets             workspace_doc_assets[]
+  task_links         kanban_task_documents[]
+  comments           workspace_doc_comments[]
 
   @@index([workspace_id, updated_at(sort: Desc)])
   @@index([workspace_id, parent_id, is_archived, sort_order])
@@ -1081,10 +1105,10 @@ model workspace_docs {
 }
 
 model workspace_doc_states {
-  doc_id      String   @id @db.Uuid
-  yjs_state   String?
-  updated_at  DateTime @default(now()) @updatedAt
-  updated_by  String?  @db.Uuid
+  doc_id     String   @id @db.Uuid
+  yjs_state  String?
+  updated_at DateTime @default(now()) @updatedAt
+  updated_by String?  @db.Uuid
 
   doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
 
@@ -1100,9 +1124,9 @@ model workspace_doc_collab_sessions {
   ended_at         DateTime? @db.Timestamptz(6)
   last_activity_at DateTime? @db.Timestamptz(6)
 
-  doc        workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
-  workspace  workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  started_by_profile profiles? @relation("WorkspaceDocCollabStartedBy", fields: [started_by], references: [id], onDelete: SetNull)
+  doc                workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+  workspace          workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  started_by_profile profiles?      @relation("WorkspaceDocCollabStartedBy", fields: [started_by], references: [id], onDelete: SetNull)
 
   @@index([workspace_id, status, last_activity_at(sort: Desc)])
   @@schema("public")
@@ -1159,8 +1183,8 @@ model workspace_doc_templates {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  workspace workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  creator   profiles         @relation("WorkspaceDocTemplateCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  workspace  workspaces      @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  creator    profiles        @relation("WorkspaceDocTemplateCreator", fields: [created_by], references: [id], onDelete: Cascade)
   source_doc workspace_docs? @relation("WorkspaceDocTemplateSourceDoc", fields: [source_doc_id], references: [id], onDelete: SetNull)
 
   @@index([workspace_id, updated_at(sort: Desc)])
@@ -1170,17 +1194,17 @@ model workspace_doc_templates {
 }
 
 model workspace_doc_comments {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id    String   @db.Uuid
-  doc_id          String   @db.Uuid
-  author_id       String   @db.Uuid
-  parent_id       String?  @db.Uuid
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id    String    @db.Uuid
+  doc_id          String    @db.Uuid
+  author_id       String    @db.Uuid
+  parent_id       String?   @db.Uuid
   content         String
   anchor_block_id String?
   resolved_at     DateTime?
-  resolved_by     String?  @db.Uuid
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  resolved_by     String?   @db.Uuid
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   workspace workspaces               @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
   doc       workspace_docs           @relation(fields: [doc_id], references: [id], onDelete: Cascade)
@@ -1197,7 +1221,7 @@ model workspace_doc_comments {
 model workspace_whiteboards {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   workspace_id String   @unique @db.Uuid
-  yjs_state    String?  // base64-encoded Uint8Array from Y.encodeStateAsUpdate()
+  yjs_state    String? // base64-encoded Uint8Array from Y.encodeStateAsUpdate()
   updated_at   DateTime @default(now()) @updatedAt
 
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)

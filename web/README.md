@@ -60,7 +60,8 @@ flowchart TB
 
 워크스페이스 기능의 역할 경계:
 
-- 칸반·일정·멤버·문서 메타데이터·댓글·자산: `app/api/workspaces/**`
+- 보드·태스크·일정·멤버·문서 메타데이터·댓글·자산: `app/api/workspaces/**`
+- 작업 메뉴는 보드 목록에서 시작하며 보드는 태스크의 수평 분류 단위다. 상세 동작 기준은 [`specs/workspace/boards.md`](../specs/workspace/boards.md)를 따른다.
 - 문서 협업 세션·토큰: `app/api/workspaces/[id]/docs/[docId]/collab/**`
 - Yjs 문서 상태 내부 API: `app/api/collab/docs/[docId]/state`
 - Yjs 화이트보드 상태 내부 API: `app/api/workspaces/[id]/whiteboard`

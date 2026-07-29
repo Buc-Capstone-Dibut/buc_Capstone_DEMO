@@ -10,6 +10,11 @@ import {
   ensureWorkspaceViews,
   serializeWorkspaceView,
 } from "@/lib/server/workspace-views";
+import {
+  ensureDefaultWorkspaceBoard,
+  findWorkspaceBoard,
+} from "@/lib/server/workspace-boards";
+import { normalizeDateOnly } from "@/lib/workspace/task-dates";
 
 export async function GET(
   request: Request,
@@ -26,6 +31,7 @@ export async function GET(
 
   const workspaceId = params.id;
   const userId = session.user.id;
+  const requestedBoardId = new URL(request.url).searchParams.get("boardId");
 
   const memberCheck = await prisma.workspace_members.findUnique({
     where: {
@@ -44,6 +50,15 @@ export async function GET(
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+  }
+
+  const defaultBoard = await ensureDefaultWorkspaceBoard(workspaceId);
+  const selectedBoard = requestedBoardId
+    ? await findWorkspaceBoard(workspaceId, requestedBoardId)
+    : defaultBoard;
+
+  if (!selectedBoard || selectedBoard.archived_at) {
+    return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 
   const columns = await prisma.kanban_columns.findMany({
@@ -67,14 +82,19 @@ export async function GET(
   const [tasks, members, tags, views] = await Promise.all([
     columnIds.length > 0
       ? prisma.kanban_tasks.findMany({
-          where: { column_id: { in: columnIds } },
+          where: {
+            column_id: { in: columnIds },
+            ...(requestedBoardId ? { board_id: selectedBoard.id } : {}),
+          },
           select: {
             id: true,
+            board_id: true,
             column_id: true,
             title: true,
             description: true,
             order: true,
-            due_date: true,
+            start_date: true,
+            end_date: true,
             assignee_id: true,
             tags: true,
             priority: true,
@@ -109,11 +129,13 @@ export async function GET(
       : Promise.resolve<
           Array<{
             id: string;
+            board_id: string;
             column_id: string;
             title: string;
             description: string | null;
             order: number;
-            due_date: Date | null;
+            start_date: Date | null;
+            end_date: Date | null;
             assignee_id: string | null;
             tags: string[];
             priority: string | null;
@@ -174,6 +196,12 @@ export async function GET(
   );
 
   return NextResponse.json({
+    board: {
+      id: selectedBoard.id,
+      name: selectedBoard.name,
+      description: selectedBoard.description,
+      isDefault: selectedBoard.is_default,
+    },
     workspace: {
       lifecycleStatus: workspace.lifecycle_status,
       completedAt: workspace.completed_at,
@@ -188,12 +216,14 @@ export async function GET(
       const primaryDocument = task.documents[0];
       return {
         id: task.id,
+        boardId: task.board_id,
         columnId: task.column_id,
         projectId: workspaceId,
         title: task.title,
         description: task.description,
         order: task.order,
-        dueDate: task.due_date,
+        startDate: normalizeDateOnly(task.start_date),
+        endDate: normalizeDateOnly(task.end_date),
         assignee: task.assignee ? task.assignee.nickname : null,
         assigneeProfile: task.assignee
           ? {

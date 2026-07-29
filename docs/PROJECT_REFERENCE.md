@@ -60,11 +60,11 @@ flowchart LR
 
 ### 화면과 기능
 
-`/workspace/[id]`는 개요, 칸반 보드, 일정, 문서, 아이디어 보드, 채팅, 멤버·설정 화면을 한 프로젝트 공간으로 제공한다. 워크스페이스가 `COMPLETED` 상태가 되면 웹 UI와 주요 쓰기 API는 읽기 전용으로 전환된다.
+`/workspace/[id]`는 개요, 작업 보드, 일정, 문서, 아이디어 보드, 채팅, 멤버·설정 화면을 한 프로젝트 공간으로 제공한다. 작업 메뉴는 보드 목록에서 시작하며, 각 보드는 태스크를 수평적으로 나누는 독립 단위다. 보드 상세에서는 같은 작업을 목록/칸반으로 전환하고 상태·담당자·우선순위·태그로 그룹화하거나 공통 검색·필터를 적용한다. 워크스페이스가 `COMPLETED` 상태가 되면 웹 UI와 주요 쓰기 API는 읽기 전용으로 전환된다.
 
 | 기능 | 웹 구현 | 실시간/저장 경계 |
 | --- | --- | --- |
-| 칸반·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장 |
+| 보드·태스크·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장 |
 | 일반 문서 편집 | BlockNote 일반 편집기 | BFF가 `workspace_docs.content` 저장 |
 | 문서 공동편집 | BlockNote + Yjs | HMAC 토큰 기반 Yjs 방, BFF가 CRDT 상태와 문서 스냅샷 저장 |
 | 화이트보드 | Excalidraw + Yjs | Yjs 방, BFF가 `workspace_whiteboards` 저장 |
@@ -85,7 +85,8 @@ flowchart LR
 
 - 기준 스키마와 마이그레이션: `web/prisma/schema.prisma`, `web/prisma/migrations/**`
 - workspace-server follower 스키마: 채팅 등 런타임에 필요한 Prisma 모델 제공
-- 핵심 모델: `workspaces`, `workspace_members`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
+- 핵심 모델: `workspaces`, `workspace_members`, `workspace_boards`, `kanban_tasks`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
+- 태스크는 반드시 하나의 `workspace_boards`에 속한다. 시작일·종료일은 시간대가 없는 날짜로 저장하며, 상태·우선순위·태그·멤버 설정은 워크스페이스 범위에서 공유한다.
 - `workspace-server` 스키마에서 마이그레이션을 생성하거나 적용하지 않는다. 워크스페이스 모델을 바꿀 때는 web 기준 스키마를 먼저 변경하고 follower를 맞춘다.
 
 ### 현재 제약

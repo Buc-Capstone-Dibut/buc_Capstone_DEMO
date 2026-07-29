@@ -8,14 +8,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, CalendarClock, CircleAlert, UserRound } from "lucide-react";
-import { formatDistanceToNow, isPast } from "date-fns";
-import { ko } from "date-fns/locale";
+import {
+  ArrowRight,
+  CalendarClock,
+  CircleAlert,
+  UserRound,
+} from "lucide-react";
+import {
+  formatTaskDateRange,
+  getTodayDateKey,
+} from "@/lib/workspace/task-dates";
 
 type NextAction = {
   id: string;
   title: string;
-  dueDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   priority?: string | null;
   isOverdue?: boolean;
   assignee?: string | { name?: string | null } | null;
@@ -61,8 +69,13 @@ export function NextActionsCard({ actions }: NextActionsCardProps) {
         {actions.length > 0 ? (
           <div className="space-y-3">
             {actions.slice(0, 4).map((action) => {
-              const dueDate = action.dueDate ? new Date(action.dueDate) : null;
-              const isOverdue = action.isOverdue ?? (dueDate ? isPast(dueDate) : false);
+              const dateRange = formatTaskDateRange(
+                action.startDate,
+                action.endDate,
+              );
+              const isOverdue =
+                action.isOverdue ??
+                Boolean(action.endDate && action.endDate < getTodayDateKey());
 
               return (
                 <div
@@ -84,7 +97,7 @@ export function NextActionsCard({ actions }: NextActionsCardProps) {
                           <UserRound className="h-3.5 w-3.5" />
                           {getAssigneeLabel(action)}
                         </span>
-                        {dueDate && (
+                        {dateRange && (
                           <span
                             className={
                               isOverdue
@@ -97,10 +110,7 @@ export function NextActionsCard({ actions }: NextActionsCardProps) {
                             ) : (
                               <CalendarClock className="h-3.5 w-3.5" />
                             )}
-                            {formatDistanceToNow(dueDate, {
-                              addSuffix: true,
-                              locale: ko,
-                            })}
+                            {dateRange}
                           </span>
                         )}
                       </div>

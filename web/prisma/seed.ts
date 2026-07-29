@@ -278,6 +278,15 @@ async function main() {
   }
   console.log("칸반 컬럼 생성 완료");
 
+  const defaultBoard = await prisma.workspace_boards.create({
+    data: {
+      workspace_id: workspace.id,
+      name: "기본 보드",
+      is_default: true,
+    },
+  });
+  console.log("기본 보드 생성 완료");
+
   // 칸반 태스크 생성
   const tasksData = [
     {
@@ -309,6 +318,7 @@ async function main() {
   for (const task of tasksData) {
     await prisma.kanban_tasks.create({
       data: {
+        board_id: defaultBoard.id,
         column_id: task.column_id,
         title: task.title,
         description: task.description,

@@ -17,7 +17,8 @@ interface ScheduleViewProps {
 type BoardTask = {
   id: string;
   title: string;
-  dueDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   status?: string;
 };
 
@@ -30,7 +31,10 @@ type BoardData = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function ScheduleView({ projectId, onNavigateToDoc }: ScheduleViewProps) {
+export function ScheduleView({
+  projectId,
+  onNavigateToDoc,
+}: ScheduleViewProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const { data: boardData, isLoading } = useSWR<BoardData>(
     `/api/workspaces/${projectId}/board`,
@@ -44,13 +48,19 @@ export function ScheduleView({ projectId, onNavigateToDoc }: ScheduleViewProps) 
   const isReadOnly = Boolean(boardData?.workspace?.readOnly);
 
   const events = tasks.flatMap((task) => {
-    if (!task.dueDate) return [];
+    const start = task.startDate || task.endDate;
+    if (!start) return [];
+    const inclusiveEnd = task.endDate || task.startDate;
+    const end = inclusiveEnd ? new Date(`${inclusiveEnd}T00:00:00.000Z`) : null;
+    if (end) end.setUTCDate(end.getUTCDate() + 1);
 
     return [
       {
         id: task.id,
         title: task.title,
-        date: task.dueDate,
+        start,
+        end: end?.toISOString().slice(0, 10),
+        allDay: true,
         backgroundColor:
           task.status === "done"
             ? "#10b981"
@@ -81,7 +91,7 @@ export function ScheduleView({ projectId, onNavigateToDoc }: ScheduleViewProps) 
         <div>
           <h2 className="text-2xl font-bold">Schedule</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            마감일이 지정된 작업을 달력으로 확인합니다.
+            시작일과 종료일이 지정된 작업을 달력으로 확인합니다.
           </p>
         </div>
       </div>
@@ -110,7 +120,7 @@ export function ScheduleView({ projectId, onNavigateToDoc }: ScheduleViewProps) 
         </div>
         {events.length === 0 && (
           <div className="mt-4 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            아직 마감일이 지정된 작업이 없습니다.
+            아직 기간이 지정된 작업이 없습니다.
           </div>
         )}
       </Card>

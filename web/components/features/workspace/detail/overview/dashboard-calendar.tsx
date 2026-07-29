@@ -18,7 +18,8 @@ import { toast } from "sonner";
 type CalendarTask = {
   id: string;
   title: string;
-  dueDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   status?: string | null;
   category?: string | null;
   priority?: string | null;
@@ -67,20 +68,29 @@ export function DashboardCalendar({
   };
 
   const events: EventInput[] = tasks
-    .filter((t) => t.dueDate)
-    .map((t) => ({
-      id: t.id,
-      title: t.title,
-      start: String(t.dueDate), // FullCalendar prefers 'start'
-      backgroundColor: "transparent",
-      borderColor: "transparent",
-      extendedProps: {
-        status: t.status,
-        category: t.category || "todo", // Stable category from API
-        priority: t.priority,
-        assignee: t.assignee,
-      },
-    }));
+    .filter((task) => task.startDate || task.endDate)
+    .map((t) => {
+      const inclusiveEnd = t.endDate || t.startDate;
+      const exclusiveEnd = inclusiveEnd
+        ? new Date(`${inclusiveEnd}T00:00:00.000Z`)
+        : null;
+      if (exclusiveEnd) exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+      return {
+        id: t.id,
+        title: t.title,
+        start: t.startDate || t.endDate!,
+        end: exclusiveEnd?.toISOString().slice(0, 10),
+        allDay: true,
+        backgroundColor: "transparent",
+        borderColor: "transparent",
+        extendedProps: {
+          status: t.status,
+          category: t.category || "todo", // Stable category from API
+          priority: t.priority,
+          assignee: t.assignee,
+        },
+      };
+    });
 
   const handleEventClick = (info: EventClickArg) => {
     setEditingTaskId(info.event.id);
@@ -88,7 +98,12 @@ export function DashboardCalendar({
 
   const handleEventDrop = async (info: EventDropArg) => {
     const { event } = info;
-    const newDate = event.start;
+    const newStartDate = event.startStr.slice(0, 10);
+    const exclusiveEnd = event.endStr?.slice(0, 10);
+    const inclusiveEnd = exclusiveEnd
+      ? new Date(`${exclusiveEnd}T00:00:00.000Z`)
+      : null;
+    if (inclusiveEnd) inclusiveEnd.setUTCDate(inclusiveEnd.getUTCDate() - 1);
 
     if (isReadOnly) {
       info.revert();
@@ -96,11 +111,17 @@ export function DashboardCalendar({
     }
 
     try {
-      const res = await fetch(`/api/workspaces/${projectId}/board/tasks/${event.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dueDate: newDate }),
-      });
+      const res = await fetch(
+        `/api/workspaces/${projectId}/board/tasks/${event.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startDate: newStartDate,
+            endDate: inclusiveEnd?.toISOString().slice(0, 10) || newStartDate,
+          }),
+        },
+      );
 
       if (!res.ok) throw new Error("Failed to update");
 
@@ -166,7 +187,8 @@ export function DashboardCalendar({
         </div>
         {events.length === 0 && (
           <div className="mt-4 rounded-xl border border-dashed bg-muted/20 px-4 py-5 text-center text-sm text-muted-foreground">
-            아직 마감일이 잡힌 작업이 없습니다. 보드에서 작업에 마감일을 지정하면 여기에 일정이 표시됩니다.
+            아직 마감일이 잡힌 작업이 없습니다. 보드에서 작업에 마감일을
+            지정하면 여기에 일정이 표시됩니다.
           </div>
         )}
       </Card>

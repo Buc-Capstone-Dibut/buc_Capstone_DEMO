@@ -492,14 +492,14 @@ model profiles {
   squad_applications squad_applications[]
   squad_members      squad_members[]
   squads             squads[]
-  
+
   // Workspace & Notification Relations
-  workspace_members  workspace_members[]
-  workspace_invites  workspace_invites[]
-  workspace_docs     workspace_docs[]
-  kanban_tasks       kanban_tasks[]
-  notifications      notifications[]
-  messages           workspace_messages[]
+  workspace_members workspace_members[]
+  workspace_invites workspace_invites[]
+  workspace_docs    workspace_docs[]
+  kanban_tasks      kanban_tasks[]
+  notifications     notifications[]
+  messages          workspace_messages[]
 
   @@schema("public")
 }
@@ -538,58 +538,59 @@ model squad_members {
 // --- WORKSPACE SYSTEM ---
 
 model workspaces {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String
   description String?
   icon_url    String?
-  
+
   // Optional link to origin squad
   from_squad_id String? @unique @db.Uuid
-  
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
 
-  members     workspace_members[]
-  invites     workspace_invites[]
-  
-  columns     kanban_columns[]
-  tags        kanban_tags[]
-  docs        workspace_docs[]
-  channels    workspace_channels[]
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  squad       squads?  @relation(fields: [from_squad_id], references: [id])
+  members workspace_members[]
+  invites workspace_invites[]
+
+  columns  kanban_columns[]
+  boards   workspace_boards[]
+  tags     kanban_tags[]
+  docs     workspace_docs[]
+  channels workspace_channels[]
+
+  squad squads? @relation(fields: [from_squad_id], references: [id])
 
   @@schema("public")
 }
 
 model workspace_members {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String   @db.Uuid
-  user_id      String   @db.Uuid
-  
-  role         String   @default("member") // owner, admin, member, viewer
-  joined_at    DateTime @default(now())
+  id           String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String @db.Uuid
+  user_id      String @db.Uuid
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  user         profiles   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role      String   @default("member") // owner, admin, member, viewer
+  joined_at DateTime @default(now())
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user      profiles   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([workspace_id, user_id])
   @@schema("public")
 }
 
 model workspace_invites {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String   @db.Uuid
+  id           String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String @db.Uuid
   email        String
-  token        String   @unique
-  role         String   @default("member")
-  inviter_id   String   @db.Uuid
-  
-  expires_at   DateTime
-  created_at   DateTime @default(now())
+  token        String @unique
+  role         String @default("member")
+  inviter_id   String @db.Uuid
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  inviter      profiles   @relation(fields: [inviter_id], references: [id])
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  inviter   profiles   @relation(fields: [inviter_id], references: [id])
 
   @@schema("public")
 }
@@ -604,7 +605,7 @@ model kanban_columns {
   order        Int
   tasks        kanban_tasks[]
 
-  workspace    workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }
@@ -616,28 +617,51 @@ model kanban_tags {
   color        String
   created_at   DateTime @default(now())
 
-  workspace    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 
   @@unique([workspace_id, name])
   @@schema("public")
 }
 
+model workspace_boards {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspace_id String    @db.Uuid
+  name         String
+  description  String?
+  position     Int       @default(0)
+  is_default   Boolean   @default(false)
+  archived_at  DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  tasks     kanban_tasks[]
+
+  @@index([workspace_id, archived_at, position])
+  @@schema("public")
+}
+
 model kanban_tasks {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  column_id   String   @db.Uuid
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  board_id    String    @db.Uuid
+  column_id   String    @db.Uuid
   title       String
   description String?
-  assignee_id String?  @db.Uuid
-  priority    String?  @default("medium")
+  assignee_id String?   @db.Uuid
+  priority    String?   @default("medium")
   tags        String[]
   order       Int
-  due_date    DateTime?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  start_date  DateTime? @db.Date
+  end_date    DateTime? @db.Date
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 
-  column      kanban_columns @relation(fields: [column_id], references: [id], onDelete: Cascade)
-  assignee    profiles?      @relation(fields: [assignee_id], references: [id])
+  board    workspace_boards @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  column   kanban_columns   @relation(fields: [column_id], references: [id], onDelete: Cascade)
+  assignee profiles?        @relation(fields: [assignee_id], references: [id])
 
+  @@index([board_id, column_id, order])
+  @@index([board_id, end_date])
   @@schema("public")
 }
 
@@ -654,10 +678,10 @@ model workspace_docs {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  workspace    workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  author       profiles         @relation(fields: [author_id], references: [id])
-  parent       workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
-  children     workspace_docs[] @relation("DocHierarchy")
+  workspace workspaces       @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  author    profiles         @relation(fields: [author_id], references: [id])
+  parent    workspace_docs?  @relation("DocHierarchy", fields: [parent_id], references: [id])
+  children  workspace_docs[] @relation("DocHierarchy")
 
   @@schema("public")
 }
@@ -671,8 +695,8 @@ model workspace_channels {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  workspace    workspaces           @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  messages     workspace_messages[]
+  workspace workspaces           @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  messages  workspace_messages[]
 
   @@unique([workspace_id, name])
   @@schema("public")
@@ -687,8 +711,8 @@ model workspace_messages {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  channel    workspace_channels @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  sender     profiles           @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+  channel workspace_channels @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender  profiles           @relation(fields: [sender_id], references: [id], onDelete: Cascade)
 
   @@index([channel_id, created_at])
   @@schema("public")
@@ -697,16 +721,16 @@ model workspace_messages {
 // --- GLOBAL NOTIFICATION SYSTEM ---
 
 model notifications {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id     String   @db.Uuid
-  type        String   // INVITE, SQUAD, COMMENT, SYSTEM
-  title       String
-  message     String
-  link        String?
-  is_read     Boolean  @default(false)
-  created_at  DateTime @default(now())
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
+  type       String // INVITE, SQUAD, COMMENT, SYSTEM
+  title      String
+  message    String
+  link       String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
 
-  user        profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user profiles @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }

@@ -23,7 +23,9 @@ const isReorderColumnItem = (value: unknown): value is ReorderColumnItem =>
 
 const isReorderTaskItem = (value: unknown): value is ReorderTaskItem =>
   isReorderColumnItem(value) &&
-  (!("columnId" in value) || value.columnId === undefined || typeof value.columnId === "string");
+  (!("columnId" in value) ||
+    value.columnId === undefined ||
+    typeof value.columnId === "string");
 
 export async function PATCH(
   request: Request,
@@ -31,14 +33,12 @@ export async function PATCH(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const user = session.user;
 
   try {
     const { id: workspaceId } = params;
@@ -69,11 +69,17 @@ export async function PATCH(
     }
 
     if (type === "column" && !items.every(isReorderColumnItem)) {
-      return NextResponse.json({ error: "Invalid column payload" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid column payload" },
+        { status: 400 },
+      );
     }
 
     if (type === "task" && !items.every(isReorderTaskItem)) {
-      return NextResponse.json({ error: "Invalid task payload" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid task payload" },
+        { status: 400 },
+      );
     }
 
     const itemIds = Array.from(

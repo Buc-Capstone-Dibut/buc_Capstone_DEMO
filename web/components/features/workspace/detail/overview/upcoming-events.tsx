@@ -15,7 +15,8 @@ import { parseISO, format, isValid, differenceInCalendarDays } from "date-fns";
 type UpcomingTask = {
   id: string;
   title: string;
-  dueDate?: string | Date | null;
+  startDate?: string | null;
+  endDate?: string | null;
   status?: string | null;
   assignee?: unknown;
 };
@@ -39,7 +40,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
 
   const upcomingTasks = tasks
     .filter((t) => {
-      if (!t.dueDate) return false;
+      if (!t.endDate) return false;
       // Check if done
       if (
         t.status === "done" ||
@@ -51,8 +52,8 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
     })
     .sort(
       (a, b) =>
-        (toDate(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY) -
-        (toDate(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY),
+        (toDate(a.endDate)?.getTime() ?? Number.POSITIVE_INFINITY) -
+        (toDate(b.endDate)?.getTime() ?? Number.POSITIVE_INFINITY),
     )
     .slice(0, 4);
 
@@ -96,9 +97,7 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
     <Card className="flex h-full min-h-[280px] max-h-[420px] flex-col border-none bg-transparent shadow-none">
       <CardHeader className="flex flex-row items-center justify-between pb-2 px-0 pt-0">
         <div className="space-y-1">
-          <CardTitle className="text-base font-semibold">
-            예정된 일정
-          </CardTitle>
+          <CardTitle className="text-base font-semibold">예정된 일정</CardTitle>
           <CardDescription>곧 마감되는 작업입니다</CardDescription>
         </div>
         <Button asChild variant="ghost" size="sm" className="gap-1 text-xs">
@@ -118,10 +117,10 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                 >
                   <div className="flex min-w-[3.5rem] flex-col items-center justify-center rounded-lg border bg-background p-2 shadow-sm">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {safeFormat(task.dueDate, "MMM")}
+                      {safeFormat(task.endDate, "MMM")}
                     </span>
                     <span className="mt-0.5 text-xl font-bold leading-none">
-                      {safeFormat(task.dueDate, "d")}
+                      {safeFormat(task.endDate, "d")}
                     </span>
                   </div>
                   <div className="min-w-0 flex-1 py-1">
@@ -129,9 +128,9 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                       <div className="line-clamp-2 text-sm font-medium leading-5">
                         {task.title}
                       </div>
-                      {getDeadlineLabel(task.dueDate) && (
+                      {getDeadlineLabel(task.endDate) && (
                         <span className="shrink-0 rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {getDeadlineLabel(task.dueDate)}
+                          {getDeadlineLabel(task.endDate)}
                         </span>
                       )}
                     </div>
@@ -142,7 +141,9 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                           <span>{getAssigneeName(task.assignee)}</span>
                         </div>
                       )}
-                      {!getAssigneeName(task.assignee) && <span>담당자 없음</span>}
+                      {!getAssigneeName(task.assignee) && (
+                        <span>담당자 없음</span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,12 +18,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   X,
-  Calendar as CalendarIcon,
+  CalendarRange,
   User,
   Flag,
   Tag,
@@ -34,7 +33,6 @@ import {
   Link2,
   Star,
 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
@@ -50,7 +48,9 @@ interface Task {
   columnId: string;
   projectId: string;
   priority?: string;
-  dueDate?: string;
+  boardId?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   assigneeId?: string | null;
   assignee?: { id: string; name: string; avatar?: string };
   tags?: unknown[];
@@ -80,6 +80,12 @@ interface BoardData {
   columns: BoardColumn[];
   members: BoardMember[];
   tags: TagOption[];
+}
+
+interface WorkspaceBoardOption {
+  id: string;
+  name: string;
+  archivedAt?: string | null;
 }
 
 interface WorkspaceDocSummary {
@@ -174,9 +180,9 @@ const getTagDotClass = (color?: string) => {
 };
 
 const getDocPath = (docId: string, docsList: WorkspaceDocSummary[]): string => {
-  const doc = docsList.find(d => d.id === docId);
+  const doc = docsList.find((d) => d.id === docId);
   if (!doc || !doc.parent_id) return "";
-  const parent = docsList.find(d => d.id === doc.parent_id);
+  const parent = docsList.find((d) => d.id === doc.parent_id);
   if (!parent) return "";
   const parentPath = getDocPath(parent.id, docsList);
   return parentPath ? `${parentPath} / ${parent.title}` : parent.title;
@@ -192,6 +198,13 @@ export function AdvancedTaskModal({
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
+  const revalidateBoardData = () =>
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        Boolean(projectId) &&
+        key.startsWith(`/api/workspaces/${projectId}/board`),
+    );
 
   // --- Data Fetching ---
   const swrOptions = {
@@ -205,6 +218,11 @@ export function AdvancedTaskModal({
   );
   const { data: docs = [] } = useSWR<WorkspaceDocSummary[]>(
     projectId && open ? `/api/workspaces/${projectId}/docs` : null,
+    fetcher,
+    swrOptions,
+  );
+  const { data: boardOptions = [] } = useSWR<WorkspaceBoardOption[]>(
+    projectId && open ? `/api/workspaces/${projectId}/boards` : null,
     fetcher,
     swrOptions,
   );
@@ -254,7 +272,9 @@ export function AdvancedTaskModal({
         status: task.status || "todo",
         priority: task.priority || "medium",
         assigneeId: task.assigneeId || "unassigned",
-        dueDate: task.dueDate,
+        boardId: task.boardId,
+        startDate: task.startDate,
+        endDate: task.endDate,
         tags: normalizeTagIds(task.tags),
       });
       setNewTag("");
@@ -311,11 +331,11 @@ export function AdvancedTaskModal({
       if (!res.ok) throw new Error("Failed to update");
 
       // Success: Revalidate to ensure consistency
-      mutate(boardEndpoint);
+      void revalidateBoardData();
     } catch (error) {
       console.error(error);
       toast.error("변경 사항 저장에 실패했습니다.");
-      mutate(boardEndpoint); // Revert on error by re-fetching
+      void revalidateBoardData();
     }
   };
 
@@ -340,7 +360,7 @@ export function AdvancedTaskModal({
       });
       toast.success("태스크를 삭제했습니다.");
       onOpenChange(false);
-      if (boardEndpoint) mutate(boardEndpoint);
+      if (boardEndpoint) void revalidateBoardData();
     } catch {
       toast.error("태스크 삭제에 실패했습니다.");
     }
@@ -380,7 +400,7 @@ export function AdvancedTaskModal({
 
       if (res.status === 409) {
         toast.error("이미 존재하는 태그입니다. 목록에서 선택해주세요.");
-        if (boardEndpoint) mutate(boardEndpoint);
+        if (boardEndpoint) void revalidateBoardData();
         return;
       }
       if (!res.ok) throw new Error("Failed to create tag");
@@ -388,7 +408,7 @@ export function AdvancedTaskModal({
       const createdTag: TagOption = await res.json();
       await handleUpdate({ tags: [...selectedTagIds, createdTag.id] });
       setNewTag("");
-      if (boardEndpoint) mutate(boardEndpoint);
+      if (boardEndpoint) void revalidateBoardData();
     } catch (error) {
       console.error(error);
       toast.error("태그 생성에 실패했습니다.");
@@ -475,7 +495,7 @@ export function AdvancedTaskModal({
         body: JSON.stringify({
           title: "제목 없음",
           parentId: null,
-          kind: "page"
+          kind: "page",
         }),
       });
       if (!res.ok) throw new Error("Failed to create doc");
@@ -505,16 +525,16 @@ export function AdvancedTaskModal({
 
   // --- Helpers ---
   const currentMember = members.find((m) => m.id === localTask.assigneeId);
-  const selectedDate = localTask.dueDate
-    ? new Date(localTask.dueDate)
-    : undefined;
-
   if (!task) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col gap-0 bg-background overflow-hidden outline-none sm:rounded-lg">
-        <DialogTitle className="sr-only">태스크 상세</DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        overlayClassName="bg-black/15 backdrop-blur-[1px]"
+        className="flex h-full w-[min(760px,calc(100vw-3rem))] flex-col gap-0 overflow-hidden bg-background p-0 outline-none sm:max-w-[760px]"
+      >
+        <SheetTitle className="sr-only">태스크 상세</SheetTitle>
 
         {/* Header Section */}
         <div className="flex-shrink-0 border-b p-6 pb-4">
@@ -647,16 +667,16 @@ export function AdvancedTaskModal({
                   <SelectContent className="z-[100]">
                     <SelectItem value="unassigned">담당자 없음</SelectItem>
                     {members.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex items-center gap-2">
+                      <SelectItem key={m.id} value={m.id}>
+                        <div className="flex items-center gap-2">
                           <WorkspaceUserAvatar
                             name={m.name}
                             avatarUrl={m.avatar}
                             className="h-5 w-5"
                           />
                           <span>{m.name}</span>
-                      </div>
-                    </SelectItem>
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -708,67 +728,79 @@ export function AdvancedTaskModal({
                     {linkedDocs.map((relation) => {
                       const path = getDocPath(relation.doc.id, docs);
                       return (
-                      <div
-                        key={relation.id}
-                        className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
-                      >
-                        {/* Primary Badge */}
-                        {relation.isPrimary && (
-                          <div className="absolute -left-1 -top-1">
-                            <Badge variant="default" className="h-4 px-1 text-[9px] shadow-sm">
-                              대표
-                            </Badge>
-                          </div>
-                        )}
-
-                        {/* Left: Doc Info */}
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                          onClick={() => handleOpenLinkedDoc(relation.doc.id)}
+                        <div
+                          key={relation.id}
+                          className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
                         >
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
-                            {relation.doc.emoji ? relation.doc.emoji : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-foreground">
-                              {relation.doc.title}
+                          {/* Primary Badge */}
+                          {relation.isPrimary && (
+                            <div className="absolute -left-1 -top-1">
+                              <Badge
+                                variant="default"
+                                className="h-4 px-1 text-[9px] shadow-sm"
+                              >
+                                대표
+                              </Badge>
                             </div>
-                            {path && (
-                              <div className="truncate text-[10px] text-muted-foreground">
-                                {path}
-                              </div>
-                            )}
-                          </div>
-                        </button>
+                          )}
 
-                        {/* Right: Actions */}
-                        <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
-                          {!relation.isPrimary && (
+                          {/* Left: Doc Info */}
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                            onClick={() => handleOpenLinkedDoc(relation.doc.id)}
+                          >
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
+                              {relation.doc.emoji ? (
+                                relation.doc.emoji
+                              ) : (
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-medium text-foreground">
+                                {relation.doc.title}
+                              </div>
+                              {path && (
+                                <div className="truncate text-[10px] text-muted-foreground">
+                                  {path}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Right: Actions */}
+                          <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+                            {!relation.isPrimary && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                onClick={() =>
+                                  handleUpdateRelation(relation.id, {
+                                    isPrimary: true,
+                                  })
+                                }
+                                title="대표 문서로 설정"
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
-                              onClick={() => handleUpdateRelation(relation.id, { isPrimary: true })}
-                              title="대표 문서로 설정"
+                              className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => handleUnlinkDoc(relation.id)}
+                              title="연결 해제"
                             >
-                              <Star className="h-3.5 w-3.5" />
+                              <X className="h-3.5 w-3.5" />
                             </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleUnlinkDoc(relation.id)}
-                            title="연결 해제"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
+                          </div>
                         </div>
-                      </div>
-                    )})}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
@@ -786,7 +818,10 @@ export function AdvancedTaskModal({
                       문서 연결하기
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-80 overflow-hidden p-2">
+                  <PopoverContent
+                    align="end"
+                    className="w-80 overflow-hidden p-2"
+                  >
                     <div className="flex max-h-[min(72vh,32rem)] flex-col">
                       <Input
                         value={docSearch}
@@ -796,7 +831,9 @@ export function AdvancedTaskModal({
                       />
                       <DocumentPicker
                         docs={docs}
-                        linkedDocIds={linkedDocs.map((relation) => relation.doc.id)}
+                        linkedDocIds={linkedDocs.map(
+                          (relation) => relation.doc.id,
+                        )}
                         search={docSearch}
                         onSelect={(docId) => handleLinkDoc(docId)}
                         className="mt-2 min-h-0 flex-1"
@@ -809,8 +846,8 @@ export function AdvancedTaskModal({
                           className="w-full justify-start text-xs"
                           onClick={handleCreateAndLinkDoc}
                         >
-                          <FileText className="mr-2 h-3.5 w-3.5" />
-                          새 문서 만들고 바로 연결
+                          <FileText className="mr-2 h-3.5 w-3.5" />새 문서
+                          만들고 바로 연결
                         </Button>
                       </div>
                     </div>
@@ -906,37 +943,68 @@ export function AdvancedTaskModal({
                 </div>
               </div>
 
-              {/* Due Date */}
+              {/* Board */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  마감일
+                  보드
                 </span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal bg-transparent border-muted-foreground/20 hover:bg-muted/50",
-                        !selectedDate && "text-muted-foreground",
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate
-                        ? format(selectedDate, "PPP")
-                        : "날짜 선택"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[100]" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) =>
-                        handleUpdate({ dueDate: date?.toISOString() })
+                <Select
+                  value={localTask.boardId}
+                  onValueChange={(boardId) => handleUpdate({ boardId })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="보드 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boardOptions
+                      .filter((board) => !board.archivedAt)
+                      .map((board) => (
+                        <SelectItem key={board.id} value={board.id}>
+                          {board.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date range */}
+              <div className="space-y-2">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
+                  <CalendarRange className="h-3.5 w-3.5" />
+                  작업 기간
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      시작일
+                    </span>
+                    <Input
+                      type="date"
+                      value={localTask.startDate || ""}
+                      max={localTask.endDate || undefined}
+                      onChange={(event) =>
+                        handleUpdate({
+                          startDate: event.target.value || null,
+                        })
                       }
-                      initialFocus
                     />
-                  </PopoverContent>
-                </Popover>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      종료일
+                    </span>
+                    <Input
+                      type="date"
+                      value={localTask.endDate || ""}
+                      min={localTask.startDate || undefined}
+                      onChange={(event) =>
+                        handleUpdate({
+                          endDate: event.target.value || null,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Delete */}
@@ -953,7 +1021,7 @@ export function AdvancedTaskModal({
             </div>
           </div>
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

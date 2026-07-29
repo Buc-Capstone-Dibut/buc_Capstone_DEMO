@@ -70,9 +70,12 @@ export function DraggableTaskCard({
     <div
       ref={setNodeRef}
       style={style}
-      className="relative group/card touch-none"
+      className={`group/card relative touch-none ${
+        disableDrag ? "" : "cursor-grab select-none active:cursor-grabbing"
+      }`}
+      {...(disableDrag ? {} : attributes)}
+      {...(disableDrag ? {} : listeners)}
     >
-      {/* Content Container - Click works here without triggering drag */}
       <div onClick={onClick} className="w-full h-full relative z-10">
         <TaskCard
           task={task}
@@ -82,9 +85,6 @@ export function DraggableTaskCard({
           showDueDate={showDueDate}
           showPriority={showPriority}
           cardProperties={cardProperties}
-          dragHandleProps={
-            disableDrag ? undefined : { ...listeners, ...attributes }
-          }
           onEdit={onClick}
           onDelete={onDelete}
         />

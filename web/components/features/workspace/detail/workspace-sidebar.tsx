@@ -341,7 +341,7 @@ export function WorkspaceSidebar({
 
   const navItems = [
     { id: "overview", label: "개요", icon: LayoutDashboard },
-    { id: "board", label: "보드", icon: Kanban },
+    { id: "board", label: "작업", icon: Kanban },
     { id: "docs", label: "문서", icon: FileText },
     { id: "ideas", label: "아이디어", icon: Lightbulb },
     { id: "members", label: "팀원", icon: Users },
