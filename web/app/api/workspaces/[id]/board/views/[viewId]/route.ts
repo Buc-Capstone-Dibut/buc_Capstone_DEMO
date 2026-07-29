@@ -8,7 +8,11 @@ import {
   serializeWorkspaceView,
 } from "@/lib/server/workspace-views";
 
-async function getAuthorizedView(workspaceId: string, viewId: string, userId: string) {
+async function getAuthorizedView(
+  workspaceId: string,
+  viewId: string,
+  userId: string,
+) {
   const membership = await prisma.workspace_members.findUnique({
     where: {
       workspace_id_user_id: {
@@ -20,7 +24,9 @@ async function getAuthorizedView(workspaceId: string, viewId: string, userId: st
   });
 
   if (!membership) {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    return {
+      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
 
   const view = await prisma.workspace_views.findFirst({
@@ -45,16 +51,16 @@ export async function PATCH(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const workspaceId = params.id;
   const viewId = params.viewId;
-  const authorized = await getAuthorizedView(workspaceId, viewId, session.user.id);
+  const authorized = await getAuthorizedView(workspaceId, viewId, user.id);
 
   if ("error" in authorized) {
     return authorized.error;
@@ -102,16 +108,16 @@ export async function DELETE(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const workspaceId = params.id;
   const viewId = params.viewId;
-  const authorized = await getAuthorizedView(workspaceId, viewId, session.user.id);
+  const authorized = await getAuthorizedView(workspaceId, viewId, user.id);
 
   if ("error" in authorized) {
     return authorized.error;

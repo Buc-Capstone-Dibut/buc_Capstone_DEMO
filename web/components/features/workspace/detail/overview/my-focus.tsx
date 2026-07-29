@@ -1,17 +1,25 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CheckCircle2, Circle, Clock, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { toast } from "sonner";
 
+type FocusTask = {
+  id: string;
+  title: string;
+  assigneeId?: string | null;
+  status?: string;
+  priorityId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+};
+
 interface MyFocusProps {
-  tasks: any[];
+  tasks: FocusTask[];
   userId?: string;
 }
 
@@ -27,6 +35,7 @@ export function MyFocus({ tasks, userId }: MyFocusProps) {
     .slice(0, 5); // Top 5
 
   const handleComplete = (taskId: string) => {
+    void taskId;
     toast.success("Task marked as complete! (Mock)");
     // Here we would call API to update status
   };
@@ -80,10 +89,10 @@ export function MyFocus({ tasks, userId }: MyFocusProps) {
                       >
                         {task.priorityId || "Normal"}
                       </Badge>
-                      {task.dueDate && (
+                      {(task.startDate || task.endDate) && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {new Date(task.dueDate).toLocaleDateString()}
+                          {task.startDate || "미정"} → {task.endDate || "미정"}
                         </span>
                       )}
                     </div>
@@ -97,7 +106,7 @@ export function MyFocus({ tasks, userId }: MyFocusProps) {
             <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
               <CheckCircle2 className="h-6 w-6 opacity-20" />
             </div>
-            <p className="text-sm">You're all caught up!</p>
+            <p className="text-sm">You&apos;re all caught up!</p>
             <Button variant="link" size="sm" className="mt-2 text-primary">
               Pick a new task from Board
             </Button>

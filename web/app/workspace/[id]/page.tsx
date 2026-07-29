@@ -15,10 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 
-const KanbanBoard = dynamic(
+const WorkspaceBoards = dynamic(
   () =>
-    import("@/components/features/workspace/detail/kanban-board").then(
-      (mod) => mod.KanbanBoard,
+    import("@/components/features/workspace/detail/workspace-boards").then(
+      (mod) => mod.WorkspaceBoards,
     ),
   {
     ssr: false,
@@ -77,9 +77,9 @@ const WorkspaceMembersView = dynamic(
 );
 const WorkspaceSettingsView = dynamic(
   () =>
-    import(
-      "@/components/features/workspace/detail/workspace-settings-view"
-    ).then((mod) => mod.WorkspaceSettingsView),
+    import("@/components/features/workspace/detail/workspace-settings-view").then(
+      (mod) => mod.WorkspaceSettingsView,
+    ),
   {
     ssr: false,
     loading: () => <Skeleton className="h-full w-full rounded-lg" />,
@@ -212,7 +212,7 @@ export default function WorkspaceDetailPage() {
 
   const handleTabChange = async (
     tab: string,
-    options?: { docId?: string | null },
+    options?: { docId?: string | null; boardId?: string | null },
   ) => {
     const normalized = normalizeTab(tab);
 
@@ -238,8 +238,16 @@ export default function WorkspaceDetailPage() {
       nextParams.delete("doc");
     }
 
+    if (normalized === "board" && options?.boardId) {
+      nextParams.set("board", options.boardId);
+    } else if (normalized !== "board") {
+      nextParams.delete("board");
+    }
+
     const query = nextParams.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   };
 
   useEffect(() => {
@@ -248,7 +256,9 @@ export default function WorkspaceDetailPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    const stored = safeLocalStorageGet(getWorkspaceSidebarStorageKey(projectId));
+    const stored = safeLocalStorageGet(
+      getWorkspaceSidebarStorageKey(projectId),
+    );
     setIsWorkspaceSidebarCollapsed(stored === "true");
   }, [projectId]);
 
@@ -293,12 +303,15 @@ export default function WorkspaceDetailPage() {
   ]);
 
   const renderContent = () => {
-    if (isReadOnly && (activeTab.startsWith("chat-") || activeTab === "huddle")) {
+    if (
+      isReadOnly &&
+      (activeTab.startsWith("chat-") || activeTab === "huddle")
+    ) {
       return (
         <div className="h-full p-6">
           <div className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">
-            종료된 워크스페이스는 실시간 채팅/음성 기능이 중지됩니다.
-            개요, 보드, 문서 등 읽기 전용 탭에서 기록을 확인할 수 있습니다.
+            종료된 워크스페이스는 실시간 채팅/음성 기능이 중지됩니다. 개요,
+            보드, 문서 등 읽기 전용 탭에서 기록을 확인할 수 있습니다.
           </div>
         </div>
       );
@@ -327,14 +340,23 @@ export default function WorkspaceDetailPage() {
     switch (activeTab) {
       case "board":
         return (
-          <div className="h-full p-6">
-            <KanbanBoard
-              projectId={projectId}
-              onNavigateToDoc={(docId) =>
-                handleTabChange("docs", { docId })
+          <WorkspaceBoards
+            projectId={projectId}
+            readOnly={isReadOnly}
+            initialBoardId={searchParams.get("board")}
+            onBoardSelectionChange={(boardId) => {
+              const nextParams = new URLSearchParams(searchParams.toString());
+              if (boardId) {
+                nextParams.set("board", boardId);
+              } else {
+                nextParams.delete("board");
               }
-            />
-          </div>
+              const query = nextParams.toString();
+              router.replace(query ? `${pathname}?${query}` : pathname, {
+                scroll: false,
+              });
+            }}
+          />
         );
       case "schedule":
         return (
@@ -362,10 +384,12 @@ export default function WorkspaceDetailPage() {
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border bg-background text-muted-foreground">
                     <Lock className="h-5 w-5" />
                   </div>
-                  <h3 className="text-lg font-semibold">종료된 워크스페이스입니다</h3>
+                  <h3 className="text-lg font-semibold">
+                    종료된 워크스페이스입니다
+                  </h3>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    아이디어 보드는 종료 후 편집이 잠깁니다. 개요, 문서, 결과 탭에서
-                    기록만 확인할 수 있습니다.
+                    아이디어 보드는 종료 후 편집이 잠깁니다. 개요, 문서, 결과
+                    탭에서 기록만 확인할 수 있습니다.
                   </p>
                 </div>
               </div>
@@ -411,7 +435,7 @@ export default function WorkspaceDetailPage() {
   };
 
   return (
-    <div className="fixed inset-0 top-14 flex overflow-hidden bg-background">
+    <div className="workspace-light-surface fixed inset-0 flex overflow-hidden bg-white text-foreground">
       <WorkspaceSidebar
         projectId={projectId}
         activeTab={activeTab}
@@ -421,14 +445,14 @@ export default function WorkspaceDetailPage() {
           setIsWorkspaceSidebarCollapsed((prev) => !prev)
         }
       />
-      <main className="flex-1 overflow-y-auto h-full">
+      <main className="h-full flex-1 overflow-y-auto bg-white">
         {isReadOnly && (
           <div className="px-6 pt-4">
             <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>
-                  이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대,
-                  전송은 비활성화됩니다.
+                  이 워크스페이스는 종료되어 읽기 전용입니다. 수정, 초대, 전송은
+                  비활성화됩니다.
                 </span>
                 {workspaceMeta?.result_type && (
                   <span className="font-medium text-foreground">
@@ -477,6 +501,7 @@ export default function WorkspaceDetailPage() {
         }}
         taskId={activeTaskId}
         projectId={projectId}
+        onNavigateToDoc={(docId) => void handleTabChange("docs", { docId })}
       />
     </div>
   );

@@ -45,15 +45,15 @@ export async function POST(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const workspaceId = params.id;
-  const userId = session.user.id;
+  const userId = user.id;
 
   // 1. Check Membership
   const memberCheck = await prisma.workspace_members.findUnique({
@@ -87,10 +87,7 @@ export async function POST(
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
     if (!category) {
-      return NextResponse.json(
-        { error: "Invalid category" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Invalid category" }, { status: 400 });
     }
 
     const duplicate = await prisma.kanban_columns.findFirst({

@@ -6,12 +6,19 @@ import {
   SortableContext,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CheckCircle2, Circle, LoaderCircle, MoreHorizontal, EyeOff } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  LoaderCircle,
+  MoreHorizontal,
+  EyeOff,
+} from "lucide-react";
 import { KanbanColumn } from "./column";
 import { TaskCard } from "../../modules/task/card";
 import { useKanbanDrag } from "./hooks/use-kanban-drag";
 import { cn } from "@/lib/utils";
 import { Task } from "../../store/mock-data";
+import { useEffect, useMemo, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +45,7 @@ interface KanbanViewProps {
     taskId: string,
     newStatus: string,
     newIndex: number,
+    taskSnapshot?: Task[],
   ) => Promise<void>;
   onUpdateView: (projectId: string, viewId: string, updates: any) => void;
   reorderPriorities: (items: any[]) => void;
@@ -56,6 +64,7 @@ interface KanbanViewProps {
     showPriority: boolean;
     cardProperties?: string[];
     hiddenStatusCategories?: Array<"todo" | "in-progress" | "done">;
+    statusCategoryOrder?: Array<"todo" | "in-progress" | "done">;
   };
 }
 
@@ -90,16 +99,12 @@ export function KanbanView({
   projectId,
   tasks,
   activeView,
-  priorities,
-  tags,
   groupBy,
   displayColumns,
   onUpdateTask,
   onMoveColumn,
   onReorderTask,
   onUpdateView,
-  reorderPriorities,
-  reorderTags,
   onDeleteColumn,
   onTaskClick,
   onCreateTask,
@@ -117,6 +122,11 @@ export function KanbanView({
 }: KanbanViewProps) {
   const disableTaskDrag = groupBy === "tag";
   const allowColumnActions = groupBy === "status";
+  const [optimisticTasks, setOptimisticTasks] = useState(tasks);
+
+  useEffect(() => {
+    setOptimisticTasks(tasks);
+  }, [tasks]);
 
   const {
     activeId,
@@ -125,49 +135,74 @@ export function KanbanView({
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    handleDragCancel,
   } = useKanbanDrag({
     columns: displayColumns,
-    groupBy: groupBy as "status" | "priority" | "assignee" | "dueDate" | "tag",
+    groupBy: groupBy as "status" | "priority" | "assignee" | "tag",
     activeViewId: activeView?.id || "",
     projectId,
-    updateTaskStatus: (taskId, status) => onUpdateTask(taskId, { status }),
     updateTask: onUpdateTask,
     moveColumnInView: onMoveColumn,
     reorderTask: onReorderTask,
-    priorities,
-    tags,
-    reorderPriorities,
-    reorderTags,
-    tasks,
+    tasks: optimisticTasks,
+    setTasks: setOptimisticTasks,
+    resetTasks: () => setOptimisticTasks(tasks),
     updateView: onUpdateView,
   });
 
-  const activeTask = tasks.find((t) => t.id === activeId);
+  const activeTask = optimisticTasks.find((t) => t.id === activeId);
 
-  const statusColumnsByCategory = STATUS_SECTIONS.map((section) => ({
-    ...section,
-    columns: displayColumns.filter(
-      (column) => (column.category || "todo") === section.category,
-    ),
-  })).filter(
-    (section) =>
-      !viewSettings.hiddenStatusCategories?.includes(section.category),
-  );
+  const statusColumnsByCategory = useMemo(() => {
+    const sectionMap = new Map(
+      STATUS_SECTIONS.map((section) => [section.category, section]),
+    );
+    const configuredOrder = viewSettings.statusCategoryOrder || [];
+    const categoryOrder = [
+      ...configuredOrder,
+      ...STATUS_SECTIONS.map((section) => section.category).filter(
+        (category) => !configuredOrder.includes(category),
+      ),
+    ];
+
+    return categoryOrder
+      .map((category) => sectionMap.get(category))
+      .filter((section): section is (typeof STATUS_SECTIONS)[number] =>
+        Boolean(section),
+      )
+      .map((section) => ({
+        ...section,
+        columns: displayColumns.filter(
+          (column) => (column.category || "todo") === section.category,
+        ),
+      }))
+      .filter(
+        (section) =>
+          !viewSettings.hiddenStatusCategories?.includes(section.category),
+      );
+  }, [
+    displayColumns,
+    viewSettings.hiddenStatusCategories,
+    viewSettings.statusCategoryOrder,
+  ]);
 
   const getTasksForColumn = (col: any) =>
-    tasks.filter((t) => {
+    optimisticTasks.filter((t) => {
       if (groupBy === "status") {
+        if (t.columnId) return t.columnId === col.id;
         return (
           t.status === col.statusId ||
-          t.columnId === col.id ||
           (t.status === "todo" && col.category === "todo")
         );
       }
       if (groupBy === "assignee") {
-        return col.id === "unassigned" ? !t.assigneeId : t.assigneeId === col.id;
+        return col.id === "unassigned"
+          ? !t.assigneeId
+          : t.assigneeId === col.id;
       }
       if (groupBy === "priority") {
-        return col.id === "no-priority" ? !t.priorityId : t.priorityId === col.id;
+        return col.id === "no-priority"
+          ? !t.priorityId
+          : t.priorityId === col.id;
       }
       if (groupBy === "tag") {
         return col.id === "no-tag"
@@ -214,6 +249,7 @@ export function KanbanView({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         {groupBy === "status" ? (
           <div className="h-full min-w-full overflow-x-auto overflow-y-hidden p-4">
@@ -231,117 +267,123 @@ export function KanbanView({
             ) : (
               <div className="flex h-full min-w-fit items-stretch gap-8">
                 {statusColumnsByCategory.map((section) => (
-                <section
-                  key={section.category}
-                  className="flex h-full min-w-fit shrink-0 flex-col"
-                >
-                  <div className="px-1 pb-4">
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 text-sm font-semibold",
-                        section.accentClass,
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-                            section.badgeClass,
-                          )}
-                        >
-                          {section.icon}
-                          {section.label}
-                        </span>
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {section.columns.length}개 단계
-                        </span>
-                      </div>
-                      {onHideStatusCategory && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="ml-auto h-7 w-7 text-muted-foreground hover:bg-muted"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem
-                              onClick={() => onHideStatusCategory(section.category)}
-                            >
-                              <EyeOff className="mr-2 h-4 w-4" />
-                              이 축 보기 끄기
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                    <div className="mt-3 h-px w-full bg-border" />
-                    <div
-                      className={cn(
-                        "mt-[-1px] h-0.5 w-16 rounded-full",
-                        section.lineClass,
-                      )}
-                    />
-                  </div>
-
-                  <SortableContext
-                    items={section.columns.map((column) => column.id)}
-                    strategy={horizontalListSortingStrategy}
+                  <section
+                    key={section.category}
+                    className="flex h-full min-w-fit shrink-0 flex-col"
                   >
-                    {section.columns.length === 0 ? (
-                      <div className="flex min-h-[220px] w-[280px] items-center justify-center rounded-2xl border border-dashed bg-muted/10 px-6 text-center">
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            표시 중인 세부 단계가 없습니다.
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            보기 설정에서 이 축의 단계를 다시 켤 수 있습니다.
-                          </p>
+                    <div className="px-1 pb-4">
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 text-sm font-semibold",
+                          section.accentClass,
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+                              section.badgeClass,
+                            )}
+                          >
+                            {section.icon}
+                            {section.label}
+                          </span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {section.columns.length}개 단계
+                          </span>
                         </div>
+                        {onHideStatusCategory && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="ml-auto h-7 w-7 text-muted-foreground hover:bg-muted"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  onHideStatusCategory(section.category)
+                                }
+                              >
+                                <EyeOff className="mr-2 h-4 w-4" />이 축 보기
+                                끄기
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex h-full min-w-fit gap-4 pb-2">
-                        {section.columns.map((col) => (
-                          <KanbanColumn
-                            key={col.id}
-                            id={col.id}
-                            column={col}
-                            title={col.title}
-                            tasks={getTasksForColumn(col)}
-                            groupBy={groupBy}
-                            onCreateTask={() => onCreateTask(getCreateTaskInput(col))}
-                            color={col.color}
-                            viewSettings={viewSettings}
-                            onTaskClick={onTaskClick}
-                            onDeleteTask={onDeleteTask}
-                            onRename={
-                              allowColumnActions
-                                ? (newTitle) =>
-                                    onUpdateColumn(col.id, { title: newTitle })
-                                : undefined
-                            }
-                            onDelete={
-                              allowColumnActions
-                                ? () => onDeleteColumn(col.id)
-                                : undefined
-                            }
-                            onHide={
-                              groupBy === "status" && onHideColumn
-                                ? () => onHideColumn(col.id)
-                                : undefined
-                            }
-                            category={section.category}
-                            disableTaskDrag={disableTaskDrag}
-                            allowColumnActions={allowColumnActions}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </SortableContext>
-                </section>
+                      <div className="mt-3 h-px w-full bg-border" />
+                      <div
+                        className={cn(
+                          "mt-[-1px] h-0.5 w-16 rounded-full",
+                          section.lineClass,
+                        )}
+                      />
+                    </div>
+
+                    <SortableContext
+                      items={section.columns.map((column) => column.id)}
+                      strategy={horizontalListSortingStrategy}
+                    >
+                      {section.columns.length === 0 ? (
+                        <div className="flex min-h-[220px] w-[280px] items-center justify-center rounded-2xl border border-dashed bg-muted/10 px-6 text-center">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">
+                              표시 중인 세부 단계가 없습니다.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              보기 설정에서 이 축의 단계를 다시 켤 수 있습니다.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-full min-w-fit gap-4 pb-2">
+                          {section.columns.map((col) => (
+                            <KanbanColumn
+                              key={col.id}
+                              id={col.id}
+                              column={col}
+                              title={col.title}
+                              tasks={getTasksForColumn(col)}
+                              groupBy={groupBy}
+                              onCreateTask={() =>
+                                onCreateTask(getCreateTaskInput(col))
+                              }
+                              color={col.color}
+                              viewSettings={viewSettings}
+                              onTaskClick={onTaskClick}
+                              onDeleteTask={onDeleteTask}
+                              onRename={
+                                allowColumnActions
+                                  ? (newTitle) =>
+                                      onUpdateColumn(col.id, {
+                                        title: newTitle,
+                                      })
+                                  : undefined
+                              }
+                              onDelete={
+                                allowColumnActions
+                                  ? () => onDeleteColumn(col.id)
+                                  : undefined
+                              }
+                              onHide={
+                                groupBy === "status" && onHideColumn
+                                  ? () => onHideColumn(col.id)
+                                  : undefined
+                              }
+                              category={section.category}
+                              disableTaskDrag={disableTaskDrag}
+                              allowColumnActions={allowColumnActions}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </SortableContext>
+                  </section>
                 ))}
               </div>
             )}
@@ -367,19 +409,22 @@ export function KanbanView({
                   onDeleteTask={onDeleteTask}
                   onRename={
                     allowColumnActions
-                      ? (newTitle) => onUpdateColumn(col.id, { title: newTitle })
+                      ? (newTitle) =>
+                          onUpdateColumn(col.id, { title: newTitle })
                       : undefined
                   }
-                    onDelete={
-                      allowColumnActions ? () => onDeleteColumn(col.id) : undefined
-                    }
-                    onHide={
-                      groupBy === "status" && onHideColumn
-                        ? () => onHideColumn(col.id)
-                        : undefined
-                    }
-                    disableTaskDrag={disableTaskDrag}
-                    allowColumnActions={allowColumnActions}
+                  onDelete={
+                    allowColumnActions
+                      ? () => onDeleteColumn(col.id)
+                      : undefined
+                  }
+                  onHide={
+                    groupBy === "status" && onHideColumn
+                      ? () => onHideColumn(col.id)
+                      : undefined
+                  }
+                  disableTaskDrag={disableTaskDrag}
+                  allowColumnActions={allowColumnActions}
                 />
               ))}
             </SortableContext>
@@ -391,7 +436,9 @@ export function KanbanView({
             <KanbanColumn
               id={activeColumn.id}
               column={activeColumn}
-              tasks={tasks.filter((t) => t.columnId === activeColumn.id)}
+              tasks={optimisticTasks.filter(
+                (task) => task.columnId === activeColumn.id,
+              )}
               groupBy={groupBy}
               onTaskClick={() => {}}
               onCreateTask={() => {}}

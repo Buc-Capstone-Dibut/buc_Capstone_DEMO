@@ -341,7 +341,7 @@ export function WorkspaceSidebar({
 
   const navItems = [
     { id: "overview", label: "개요", icon: LayoutDashboard },
-    { id: "board", label: "보드", icon: Kanban },
+    { id: "board", label: "작업", icon: Kanban },
     { id: "docs", label: "문서", icon: FileText },
     { id: "ideas", label: "아이디어", icon: Lightbulb },
     { id: "members", label: "팀원", icon: Users },
@@ -350,7 +350,7 @@ export function WorkspaceSidebar({
 
   if (collapsed) {
     return (
-      <div className="flex h-full w-14 flex-col items-center border-r bg-muted/10 py-3">
+      <div className="flex h-full w-14 flex-col items-center border-r bg-white py-3">
         <Button
           type="button"
           variant="ghost"
@@ -389,7 +389,7 @@ export function WorkspaceSidebar({
   }
 
   return (
-    <div className="w-64 border-r bg-muted/10 h-full flex flex-col">
+    <div className="h-full w-64 border-r bg-white flex flex-col">
       <div className="p-4 border-b">
         <div className="mb-4 flex items-center justify-between gap-2">
           <Link

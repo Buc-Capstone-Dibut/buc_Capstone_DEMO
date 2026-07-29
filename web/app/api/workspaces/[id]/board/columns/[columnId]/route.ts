@@ -48,13 +48,12 @@ export async function PATCH(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const user = session.user;
 
   try {
     const { id: workspaceId, columnId } = params;
@@ -102,7 +101,9 @@ export async function PATCH(
     const nextTitle =
       typeof body.title === "string" ? body.title.trim() : undefined;
     const nextCategory =
-      body.category !== undefined ? normalizeCategory(body.category) : undefined;
+      body.category !== undefined
+        ? normalizeCategory(body.category)
+        : undefined;
 
     if (body.title !== undefined && !nextTitle) {
       return NextResponse.json(
@@ -207,13 +208,12 @@ export async function DELETE(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const user = session.user;
 
   try {
     const { id: workspaceId, columnId } = params;

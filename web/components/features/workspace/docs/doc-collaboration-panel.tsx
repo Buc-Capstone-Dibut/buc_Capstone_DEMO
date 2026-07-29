@@ -1,8 +1,6 @@
 "use client";
 
 import useSWR from "swr";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { Link2, MessageSquare, CalendarIcon, Flag } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +15,8 @@ type LinkedTaskRelation = {
     id: string;
     title: string;
     priority: string | null;
-    due_date: string | null;
+    start_date: string | null;
+    end_date: string | null;
     column: {
       id: string;
       title: string;
@@ -130,13 +129,13 @@ export function DocCollaborationPanel({
                         </div>
                       )}
 
-                      {relation.task.due_date && (
+                      {(relation.task.start_date || relation.task.end_date) && (
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground border rounded-sm px-1.5 py-0.5 bg-muted/30">
                           <CalendarIcon className="h-3 w-3" />
                           <span>
-                            {format(new Date(relation.task.due_date), "M/d", {
-                              locale: ko,
-                            })}
+                            {relation.task.start_date?.slice(5).replace("-", "/") || "미정"}
+                            {" → "}
+                            {relation.task.end_date?.slice(5).replace("-", "/") || "미정"}
                           </span>
                         </div>
                       )}

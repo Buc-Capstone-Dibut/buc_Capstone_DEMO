@@ -7,7 +7,7 @@ const IdeaBoardSDK = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-zinc-900 gap-4">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-white">
         <div className="h-12 w-12 rounded-xl bg-indigo-50 flex items-center justify-center">
           <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
         </div>

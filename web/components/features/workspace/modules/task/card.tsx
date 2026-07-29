@@ -27,6 +27,10 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  formatTaskDateRange,
+  getTodayDateKey,
+} from "@/lib/workspace/task-dates";
 
 interface TaskCardProps {
   task: Task;
@@ -37,7 +41,6 @@ interface TaskCardProps {
   showDueDate?: boolean;
   showPriority?: boolean;
   cardProperties?: string[];
-  dragHandleProps?: Record<string, unknown>;
   onEdit?: () => void;
   onDelete?: () => void;
 }
@@ -50,7 +53,6 @@ function TaskCardImpl({
   showDueDate = true,
   showPriority = true,
   cardProperties,
-  dragHandleProps,
   onEdit,
   onDelete,
 }: TaskCardProps) {
@@ -162,17 +164,22 @@ function TaskCardImpl({
           </div>
         );
       case "dueDate":
-        if (!showDueDate || !task.dueDate) return null;
+        if (!showDueDate || (!task.startDate && !task.endDate)) return null;
+        const dateRange = formatTaskDateRange(task.startDate, task.endDate);
+        const isOverdue = Boolean(
+          task.endDate && task.endDate < getTodayDateKey(),
+        );
         return (
           <div
             key={key}
-            className={`flex items-center text-xs mb-1.5 ${new Date(task.dueDate) < new Date() ? "text-orange-500 font-medium" : "text-muted-foreground"}`}
+            className={`mb-1.5 flex items-center text-xs ${
+              isOverdue
+                ? "font-medium text-orange-500"
+                : "text-muted-foreground"
+            }`}
           >
             <CalendarIcon className="h-3 w-3 mr-1" />
-            {new Date(task.dueDate).toLocaleDateString("en-US", {
-              month: "2-digit",
-              day: "2-digit",
-            })}
+            {dateRange}
           </div>
         );
       case "title":
@@ -193,7 +200,7 @@ function TaskCardImpl({
     task.subtasks?.filter((s) => s.completed).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
 
-  // Determine drag handle color based on Priority first, then First Tag
+  // Keep one fixed-width, non-interactive accent across every Kanban card.
   const priority = priorities.find(
     (p) => p.id === task.priorityId?.toLowerCase(),
   );
@@ -226,20 +233,15 @@ function TaskCardImpl({
 
   return (
     <Card
-      className={`cursor-pointer hover:shadow-md transition-all shadow-sm border-muted-foreground/10 group bg-card relative overflow-hidden ${isOverlay ? "cursor-grabbing shadow-xl rotate-2 scale-105" : ""}`}
+      className={`relative cursor-pointer overflow-hidden border-muted-foreground/10 bg-card shadow-sm transition-all hover:shadow-md ${isOverlay ? "cursor-grabbing scale-[1.02] shadow-xl" : ""}`}
     >
-      {/* Internal Drag Handle (vertical bar on the left) */}
-      {dragHandleProps && (
-        <div
-          {...dragHandleProps}
-          className={cn(
-            "absolute top-0 bottom-0 left-0 w-1.5 z-20 cursor-grab active:cursor-grabbing transition-all hover:w-2.5",
-            currentAccent,
-          )}
-          title="Drag to move"
-          onClick={(e) => e.stopPropagation()} // Stop click propagation from handle
-        />
-      )}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-1",
+          currentAccent,
+        )}
+        aria-hidden="true"
+      />
 
       <CardContent className="p-3">
         {documentCount > 0 && (
