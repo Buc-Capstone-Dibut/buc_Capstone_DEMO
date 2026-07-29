@@ -2540,7 +2540,7 @@ export function DocsView({
       : formatSavedTime(lastSavedAt);
 
   return (
-    <div ref={containerRef} className="relative flex h-full min-w-0">
+    <div ref={containerRef} className="relative flex h-full min-w-0 bg-white">
       {isDocsBootstrapping && (
         <div className="absolute inset-0 z-[80] flex items-center justify-center bg-background/90 backdrop-blur-sm">
           <div className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground shadow-lg">
@@ -2551,7 +2551,7 @@ export function DocsView({
       )}
       {/* Docs Sidebar (Inner) */}
       <div
-        className="flex h-full flex-none flex-col overflow-hidden border-r bg-muted/10"
+        className="flex h-full flex-none flex-col overflow-hidden border-r bg-white"
         style={{ width: sidebarWidth, minWidth: DOCS_SIDEBAR_MIN_WIDTH }}
       >
         {/* ... Sidebar Content ... */}
@@ -2791,7 +2791,7 @@ export function DocsView({
       </div>
 
       {/* Editor Area */}
-      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-white">
         {activeDocId ? (
           <div className="flex flex-col h-full w-full">
             {/* Top Navigation Bar */}

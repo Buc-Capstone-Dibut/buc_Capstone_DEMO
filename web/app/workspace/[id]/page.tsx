@@ -411,7 +411,7 @@ export default function WorkspaceDetailPage() {
   };
 
   return (
-    <div className="fixed inset-0 top-14 flex overflow-hidden bg-background">
+    <div className="workspace-light-surface fixed inset-0 top-14 flex overflow-hidden bg-white text-foreground">
       <WorkspaceSidebar
         projectId={projectId}
         activeTab={activeTab}
@@ -421,7 +421,7 @@ export default function WorkspaceDetailPage() {
           setIsWorkspaceSidebarCollapsed((prev) => !prev)
         }
       />
-      <main className="flex-1 overflow-y-auto h-full">
+      <main className="h-full flex-1 overflow-y-auto bg-white">
         {isReadOnly && (
           <div className="px-6 pt-4">
             <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
