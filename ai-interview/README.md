@@ -1,4 +1,4 @@
-# Dibut AI Interview API (FastAPI)
+# Debut AI Interview API (FastAPI)
 
 AI 면접 질문 생성, 세션 저장, 음성 WebSocket(STT/TTS) 처리를 담당하는 백엔드입니다.
 

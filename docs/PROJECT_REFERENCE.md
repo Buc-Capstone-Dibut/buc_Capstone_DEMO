@@ -1,12 +1,12 @@
-# Dibut 프로젝트 기준 문서
+# Debut 프로젝트 기준 문서
 
-> 이 문서는 저장소 내 유일한 제품·운영 기준 문서다. 코드와 함께 갱신하며, 과거 계획·감사·테스트 보고서는 Git 이력에서만 조회한다.
+> 이 문서는 저장소의 제품·운영 기준 문서다. 서비스별 구현 상세는 각 README와 인수인계 문서가 보완하며, 내용이 충돌하면 실제 코드와 이 문서를 우선한다.
 >
-> **검증 기준:** `main` / `develop` 공통 커밋 `c41d14d` (2026-07-07). 문서 정리일: 2026-07-28.
+> **검증 기준:** `main` / `develop` 공통 커밋 `290976b` (2026-07-28). 문서 점검일: 2026-07-29.
 
 ## 1. 제품 개요
 
-Dibut(Buddy for Developers)는 개발자 취업 준비를 돕는 웹 서비스다. 핵심 기능은 다음과 같다.
+`Debut`은 **Dev + 벗(친구)**이라는 의미를 담은 개발자 취업 준비·협업 서비스다. 문서의 브랜드 표기는 `Debut`, 소문자 기술 식별이 필요할 때는 `debut`을 사용한다. 핵심 기능은 다음과 같다.
 
 | 영역 | 현재 제공 범위 |
 | --- | --- |
@@ -33,15 +33,16 @@ flowchart LR
     U[사용자 브라우저] --> W[web: Next.js / Vercel]
     W --> S[(Supabase: Auth + Postgres)]
     W -->|REST·WebSocket| I[ai-interview: FastAPI / Render]
-    W -->|WSS| C[workspace-server: Socket.IO + Yjs / Render]
+    W <-->|Socket.IO·Yjs WSS| C[workspace-server: Node.js / Render]
+    C -->|채팅 Prisma| S
+    C -->|문서·화이트보드 상태 내부 API| W
     I --> G[Gemini / Vertex AI]
     I --> L[LiveKit]
-    C --> S
     R[crawler] --> S
     R --> J[web public JSON]
 ```
 
-`web`은 단순 프록시가 아니다. `app/api/`의 BFF 라우트가 Supabase/Prisma와 AI 연동을 직접 담당하며, AI 면접 전문 처리만 `ai-interview`으로 위임한다. `workspace-server`는 `web`과 런타임 WSS로 연결되고, 자체 Prisma 스키마도 보유하므로 스키마 변경 시 두 서비스를 모두 점검한다.
+`web`은 단순 프록시가 아니다. `app/api/`의 BFF 라우트가 Supabase/Prisma와 AI 연동을 직접 담당하며, AI 면접 전문 처리만 `ai-interview`으로 위임한다. `workspace-server`는 채팅을 Prisma로 직접 영속화하고, Yjs 문서·화이트보드 상태는 `web`의 내부 BFF API를 통해 저장한다. 워크스페이스 DB 모델의 기준은 `web/prisma/schema.prisma`이며 `workspace-server/prisma/schema.prisma`는 필요한 모델을 따라가는 follower다.
 
 ## 3. 주요 화면과 API 경계
 
@@ -55,7 +56,43 @@ flowchart LR
 
 `web/app/api/`는 career, community, interview, livekit, workspace 등 도메인별 라우트로 구성된다. 인증·데이터 접근은 Supabase 기반이며, 서비스 간 서버 호출은 공개 클라이언트 키가 아닌 서버 환경변수와 소유권 검사를 전제로 한다.
 
-## 4. AI 면접 시스템
+## 4. 워크스페이스 시스템
+
+### 화면과 기능
+
+`/workspace/[id]`는 개요, 칸반 보드, 일정, 문서, 아이디어 보드, 채팅, 멤버·설정 화면을 한 프로젝트 공간으로 제공한다. 워크스페이스가 `COMPLETED` 상태가 되면 웹 UI와 주요 쓰기 API는 읽기 전용으로 전환된다.
+
+| 기능 | 웹 구현 | 실시간/저장 경계 |
+| --- | --- | --- |
+| 칸반·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장 |
+| 일반 문서 편집 | BlockNote 일반 편집기 | BFF가 `workspace_docs.content` 저장 |
+| 문서 공동편집 | BlockNote + Yjs | HMAC 토큰 기반 Yjs 방, BFF가 CRDT 상태와 문서 스냅샷 저장 |
+| 화이트보드 | Excalidraw + Yjs | Yjs 방, BFF가 `workspace_whiteboards` 저장 |
+| 채팅 | Socket.IO | workspace-server가 `workspace_channels/messages`에 직접 저장 |
+| 음성 허들 | LiveKit | workspace-server는 방 목록 갱신 이벤트만 릴레이 |
+
+### 실시간 연결 경계
+
+`workspace-server`는 포트 4000의 단일 HTTP 서버에서 두 연결 방식을 함께 처리한다.
+
+- `/socket.io`: 워크스페이스 방 입장, 채팅 이벤트, 음성방 갱신 알림, 레거시 보드 릴레이
+- 그 외 WebSocket upgrade: `doc:<docId>` 및 `whiteboard:<workspaceId>` Yjs 동기화
+- `/internal/yjs/docs/:docId/reset|flush`: `web` BFF가 호출하는 내부 문서 방 관리 API
+
+문서 공동편집은 BFF가 Supabase 세션·워크스페이스 멤버십·문서 소속을 검사한 후 5분짜리 HMAC 토큰을 발급한다. Yjs 상태는 변경 3초 후, 연결 중 30초마다, 마지막 연결 종료 시 전체 스냅샷으로 저장된다. 문서 상태 저장은 `workspace_doc_states.yjs_state`와 `workspace_docs.content`를 한 DB 트랜잭션에서 갱신한다.
+
+### 데이터 모델과 소유권
+
+- 기준 스키마와 마이그레이션: `web/prisma/schema.prisma`, `web/prisma/migrations/**`
+- workspace-server follower 스키마: 채팅 등 런타임에 필요한 Prisma 모델 제공
+- 핵심 모델: `workspaces`, `workspace_members`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
+- `workspace-server` 스키마에서 마이그레이션을 생성하거나 적용하지 않는다. 워크스페이스 모델을 바꿀 때는 web 기준 스키마를 먼저 변경하고 follower를 맞춘다.
+
+### 현재 제약
+
+현재 코드는 단일 프로세스 실행을 전제로 한다. Socket.IO 방·프레즌스와 Yjs 문서가 프로세스 메모리에 있고 노드 간 공유 계층은 없다. 또한 문서 공동편집을 제외한 Socket.IO 이벤트와 화이트보드 Yjs 연결에는 서버 측 사용자 인증·멤버십 검사가 완성되어 있지 않다. 상세 이벤트 계약과 개선 전 확인사항은 `workspace-server/HANDOVER.md`를 기준으로 한다.
+
+## 5. AI 면접 시스템
 
 ### 흐름
 
@@ -83,7 +120,7 @@ flowchart LR
 
 면접 세션, 턴, 리포트와 리포트 작업, 포트폴리오 소스, 녹화 메타데이터 및 얼굴 신호가 Postgres에 저장된다. 스키마의 실제 기준은 `ai-interview/app/db/database.py`와 각 Prisma 스키마이며, 마이그레이션 또는 모델 변경 시 코드와 배포 DB를 함께 확인한다.
 
-## 5. 환경변수와 로컬 실행
+## 6. 환경변수와 로컬 실행
 
 각 서비스의 `.env.example`을 먼저 복사한다. 키 전체 목록과 선택값은 해당 서비스 README를 따르며, 비밀값은 저장소에 커밋하지 않는다.
 
@@ -98,7 +135,7 @@ cp crawler/.env.example crawler/.env
 
 | 서비스 | 핵심 환경변수 |
 | --- | --- |
-| `web` | Supabase URL/anon key/service-role key, AI API URL·WebSocket URL, Workspace WSS URL |
+| `web` | Supabase URL/anon key/service-role key, AI API URL·WebSocket URL, Workspace WSS URL, `INTERNAL_API_SECRET` |
 | `ai-interview` | `DATABASE_URL`, Gemini 또는 Vertex AI 자격증명, `CORS_ORIGINS`; 화상 사용 시 LiveKit URL/key/secret |
 | `workspace-server` | `DATABASE_URL`, `BFF_URL`, `INTERNAL_API_SECRET` |
 | `crawler` | Supabase 자격증명(적재 시), Gemini/Firecrawl key(선택 기능 사용 시) |
@@ -119,14 +156,14 @@ cd crawler && uv sync
 
 AI 면접 상태 확인은 `curl http://localhost:8001/health`로 한다. 실제 음성·화상 흐름은 유효한 Gemini/Vertex AI 및 LiveKit 환경변수 없이는 동작하지 않는다.
 
-## 6. 배포 기준
+## 7. 배포 기준
 
 - 웹: Vercel에서 Root Directory를 `web`으로 설정하며, 빌드·설치는 각각 `npm run build`, `npm install`이다.
 - AI 면접: Render의 `ai-interview/render.yaml`을 기준으로 Python 3.13.7과 `uv sync --frozen --no-dev`를 사용한다.
 - 워크스페이스: Render의 `workspace-server/render.yaml`을 기준으로 `npm install`, `npm start`를 사용한다.
 - 배포 URL, 키 이름, CORS 허용 도메인은 환경마다 다르므로 매니페스트의 예시값을 그대로 운영 값으로 간주하지 않는다.
 
-## 7. 검증 절차
+## 8. 검증 절차
 
 변경 범위에 맞는 최소 검증을 선택한다.
 
@@ -147,9 +184,18 @@ cd ai-interview
 uv run pytest
 ```
 
-실시간 워크스페이스는 두 서버를 함께 실행한 뒤 브라우저에서 방 입장·동시 편집·채팅을 확인한다. 녹화/리포트 변경은 녹화 업로드, 세그먼트 생성, 결과 화면 재생과 오버레이까지 한 흐름으로 점검한다.
+`workspace-server`에는 현재 자동 테스트·lint·build 스크립트가 없다. 워크스페이스 변경은 `web`과 `workspace-server`를 함께 실행한 뒤 다음 흐름을 수동 검증한다.
 
-## 8. 문서 유지 원칙
+1. 멤버와 비멤버의 워크스페이스 접근
+2. 문서 일반 편집 저장과 새로고침 복원
+3. 두 브라우저의 문서 공동편집, 참가자 표시, 퇴장 후 최종 저장
+4. 화이트보드 동기화와 새로고침 복원
+5. 채널 생성·삭제, 메시지 작성·수정·삭제, 멘션 알림
+6. 완료된 워크스페이스의 읽기 전용 동작
+
+녹화/리포트 변경은 녹화 업로드, 세그먼트 생성, 결과 화면 재생과 오버레이까지 한 흐름으로 점검한다.
+
+## 9. 문서 유지 원칙
 
 1. 새 기능의 현재 동작·설정·운영 절차만 이 문서에 반영한다.
 2. 계획 초안, 감사 결과, 일회성 테스트 케이스, 완료 보고서는 `docs/`에 누적하지 않는다. 필요하면 이슈·PR·Git 커밋에 남긴다.

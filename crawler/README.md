@@ -1,4 +1,4 @@
-# Dibut Crawler
+# Debut Crawler
 
 기술 블로그 RSS/개발 이벤트 데이터를 수집해서 JSON 또는 Supabase로 적재하는 모듈입니다.
 
