@@ -91,7 +91,7 @@ cd crawler && uv sync
 - **기능 명세 기준:** [specs/README.md](specs/README.md)
 - 웹: [web/README.md](web/README.md)
 - AI 면접 서버: [ai-interview/README.md](ai-interview/README.md)
-- 워크스페이스 서버: [workspace-server/README.md](workspace-server/README.md)
+- 워크스페이스 전체 코드 구조: [workspace-server/README.md](workspace-server/README.md)
 - 워크스페이스 코드 인수인계: [workspace-server/HANDOVER.md](workspace-server/HANDOVER.md)
 - 크롤러: [crawler/README.md](crawler/README.md)
 - 기술 인수인계 문서: [PROJECT_HANDOVER_KR.md](PROJECT_HANDOVER_KR.md)
