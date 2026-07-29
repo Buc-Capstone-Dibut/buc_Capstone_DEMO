@@ -77,9 +77,18 @@ cd crawler && uv sync
 - `NEXT_PUBLIC_WS_URL=wss://<workspace-service>`
 - `NEXT_PUBLIC_SOCKET_URL=wss://<workspace-service>`
 
+## 개발 워크플로
+
+- 브랜치·Pull Request·커밋 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Spec 기반 AI 주도 개발 규칙: [specs/README.md](specs/README.md)
+
+현재 저장소는 `main`을 안정·배포 기준, `develop`을 다음 릴리스 통합 기준으로 사용합니다. 일반 기능은 최신 `develop`에서 `feature/<기능명>`으로 분기하고 PR을 통해 `develop`에 병합합니다. 세부 예외와 hotfix 흐름은 기여 가이드를 따릅니다.
+
 ## 문서 바로가기
 
 - **제품·운영 기준:** [docs/PROJECT_REFERENCE.md](docs/PROJECT_REFERENCE.md)
+- **개발·브랜치 기준:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **기능 명세 기준:** [specs/README.md](specs/README.md)
 - 웹: [web/README.md](web/README.md)
 - AI 면접 서버: [ai-interview/README.md](ai-interview/README.md)
 - 워크스페이스 서버: [workspace-server/README.md](workspace-server/README.md)
