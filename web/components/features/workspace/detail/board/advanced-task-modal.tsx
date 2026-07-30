@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -25,8 +25,6 @@ import {
   CalendarRange,
   User,
   Flag,
-  Tag,
-  Plus,
   CheckCircle2,
   Trash2,
   FileText,
@@ -36,8 +34,16 @@ import {
 import { cn } from "@/lib/utils";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { ko } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  TaskTagPicker,
+  type TaskTagOption,
+} from "@/components/features/workspace/common/task-tag-picker";
 import { DocumentPicker } from "@/components/features/workspace/docs/document-picker";
+import { LinkedDocumentPreviewDialog } from "@/components/features/workspace/detail/board/linked-document-preview-dialog";
 
 // --- Types ---
 interface Task {
@@ -48,7 +54,6 @@ interface Task {
   columnId: string;
   projectId: string;
   priority?: string;
-  boardId?: string;
   startDate?: string | null;
   endDate?: string | null;
   assigneeId?: string | null;
@@ -57,11 +62,7 @@ interface Task {
   [key: string]: unknown;
 }
 
-interface TagOption {
-  id: string;
-  name: string;
-  color?: string;
-}
+type TagOption = TaskTagOption;
 
 interface BoardColumn {
   id: string;
@@ -80,12 +81,6 @@ interface BoardData {
   columns: BoardColumn[];
   members: BoardMember[];
   tags: TagOption[];
-}
-
-interface WorkspaceBoardOption {
-  id: string;
-  name: string;
-  archivedAt?: string | null;
 }
 
 interface WorkspaceDocSummary {
@@ -128,34 +123,6 @@ const PRIORITY_LABEL: Record<string, string> = {
   urgent: "긴급",
 };
 
-const TAG_BADGE_CLASS: Record<string, string> = {
-  gray: "bg-slate-100 text-slate-700",
-  red: "bg-red-100 text-red-700",
-  orange: "bg-orange-100 text-orange-700",
-  yellow: "bg-yellow-100 text-yellow-700",
-  green: "bg-green-100 text-green-700",
-  blue: "bg-blue-100 text-blue-700",
-  purple: "bg-purple-100 text-purple-700",
-  pink: "bg-pink-100 text-pink-700",
-};
-
-const TAG_DOT_CLASS: Record<string, string> = {
-  gray: "bg-slate-400",
-  red: "bg-red-400",
-  orange: "bg-orange-400",
-  yellow: "bg-yellow-400",
-  green: "bg-green-400",
-  blue: "bg-blue-400",
-  purple: "bg-purple-400",
-  pink: "bg-pink-400",
-};
-
-const normalizeTagColor = (color?: string) => {
-  if (!color) return "gray";
-  const firstToken = color.toLowerCase().split(" ")[0];
-  return firstToken.replace(/^bg-/, "").replace(/-(100|500)$/, "");
-};
-
 const normalizeTagIds = (tags: unknown): string[] => {
   if (!Array.isArray(tags)) return [];
   return tags
@@ -169,14 +136,23 @@ const normalizeTagIds = (tags: unknown): string[] => {
     .filter((tagId): tagId is string => !!tagId);
 };
 
-const getTagColorClass = (color?: string) => {
-  const normalized = normalizeTagColor(color);
-  return TAG_BADGE_CLASS[normalized] || TAG_BADGE_CLASS.gray;
-};
+const parseDateKey = (value?: string | null) =>
+  value ? parseISO(value) : undefined;
 
-const getTagDotClass = (color?: string) => {
-  const normalized = normalizeTagColor(color);
-  return TAG_DOT_CLASS[normalized] || TAG_DOT_CLASS.gray;
+const formatDateRangeLabel = (
+  startDate?: string | null,
+  endDate?: string | null,
+) => {
+  if (!startDate && !endDate) return "시작일과 종료일 선택";
+  if (startDate && !endDate) {
+    return `${format(parseISO(startDate), "yyyy. M. d.", { locale: ko })}부터`;
+  }
+  if (!startDate && endDate) {
+    return `${format(parseISO(endDate), "yyyy. M. d.", { locale: ko })}까지`;
+  }
+  return `${format(parseISO(startDate!), "yyyy. M. d.", {
+    locale: ko,
+  })} – ${format(parseISO(endDate!), "yyyy. M. d.", { locale: ko })}`;
 };
 
 const getDocPath = (docId: string, docsList: WorkspaceDocSummary[]): string => {
@@ -193,9 +169,7 @@ export function AdvancedTaskModal({
   projectId,
   open,
   onOpenChange,
-  onNavigateToDoc,
 }: AdvancedTaskModalProps) {
-  const router = useRouter();
   const { mutate } = useSWRConfig();
   const boardEndpoint = projectId ? `/api/workspaces/${projectId}/board` : "";
   const revalidateBoardData = () =>
@@ -221,11 +195,6 @@ export function AdvancedTaskModal({
     fetcher,
     swrOptions,
   );
-  const { data: boardOptions = [] } = useSWR<WorkspaceBoardOption[]>(
-    projectId && open ? `/api/workspaces/${projectId}/boards` : null,
-    fetcher,
-    swrOptions,
-  );
   const relationEndpoint =
     projectId && taskId
       ? `/api/workspaces/${projectId}/board/tasks/${taskId}/documents`
@@ -246,25 +215,20 @@ export function AdvancedTaskModal({
   // --- Local State ---
   // We use a local state to drive the UI immediately (Optimistic UI)
   const [localTask, setLocalTask] = useState<Partial<Task>>({});
-  const [newTag, setNewTag] = useState("");
   const [docSearch, setDocSearch] = useState("");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateDraft, setDateDraft] = useState<DateRange | undefined>();
+  const [dateDraftCleared, setDateDraftCleared] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
-  const handleOpenLinkedDoc = (docId: string) => {
-    if (onNavigateToDoc) {
-      onNavigateToDoc(docId);
-      onOpenChange(false);
-      return;
-    }
-
-    if (!projectId) {
-      return;
-    }
-
-    router.push(`/workspace/${projectId}?tab=docs&doc=${docId}`);
-    onOpenChange(false);
+  const handleOpenLinkedDoc = (docId: string, title: string) => {
+    setPreviewDoc({ id: docId, title });
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (task) {
       setLocalTask({
         title: task.title,
@@ -272,12 +236,22 @@ export function AdvancedTaskModal({
         status: task.status || "todo",
         priority: task.priority || "medium",
         assigneeId: task.assigneeId || "unassigned",
-        boardId: task.boardId,
         startDate: task.startDate,
         endDate: task.endDate,
         tags: normalizeTagIds(task.tags),
       });
-      setNewTag("");
+      const startDate = parseDateKey(task.startDate);
+      const endDate = parseDateKey(task.endDate);
+      setDateDraft(
+        startDate
+          ? {
+              from: startDate,
+              to: endDate,
+            }
+          : undefined,
+      );
+      setDatePickerOpen(false);
+      setDateDraftCleared(false);
       setDocSearch("");
     }
   }, [task]);
@@ -286,15 +260,6 @@ export function AdvancedTaskModal({
     () => normalizeTagIds(localTask.tags),
     [localTask.tags],
   );
-
-  const filteredTagOptions = useMemo(() => {
-    const keyword = newTag.trim().toLowerCase();
-    return tagOptions.filter((tag) => {
-      if (selectedTagIds.includes(tag.id)) return false;
-      if (!keyword) return true;
-      return tag.name.toLowerCase().includes(keyword);
-    });
-  }, [newTag, selectedTagIds, tagOptions]);
 
   // --- Handlers ---
 
@@ -352,6 +317,31 @@ export function AdvancedTaskModal({
     }
   };
 
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    setDateDraft(range);
+    setDateDraftCleared(false);
+  };
+
+  const handleClearDateRange = () => {
+    setDateDraft(undefined);
+    setDateDraftCleared(true);
+  };
+
+  const handleApplyDateRange = () => {
+    if (dateDraftCleared) {
+      void handleUpdate({ startDate: null, endDate: null });
+      setDatePickerOpen(false);
+      return;
+    }
+    if (!dateDraft?.from || !dateDraft.to) return;
+
+    void handleUpdate({
+      startDate: format(dateDraft.from, "yyyy-MM-dd"),
+      endDate: format(dateDraft.to, "yyyy-MM-dd"),
+    });
+    setDatePickerOpen(false);
+  };
+
   const handleDelete = async () => {
     if (!confirm("이 태스크를 삭제할까요?")) return;
     try {
@@ -366,29 +356,18 @@ export function AdvancedTaskModal({
     }
   };
 
-  const handleAddTag = async (tagId: string) => {
-    if (selectedTagIds.includes(tagId)) return;
-    await handleUpdate({ tags: [...selectedTagIds, tagId] });
-  };
-
-  const handleRemoveTag = async (tagId: string) => {
-    await handleUpdate({
-      tags: selectedTagIds.filter((selectedId) => selectedId !== tagId),
-    });
-  };
-
-  const handleCreateTag = async () => {
-    if (!projectId) return;
-    const tagName = newTag.trim();
-    if (!tagName) return;
+  const handleCreateTag = async (
+    name: string,
+  ): Promise<TaskTagOption | null> => {
+    if (!projectId) return null;
+    const tagName = name.trim();
+    if (!tagName) return null;
 
     const existingTag = tagOptions.find(
       (tag) => tag.name.toLowerCase() === tagName.toLowerCase(),
     );
     if (existingTag) {
-      await handleAddTag(existingTag.id);
-      setNewTag("");
-      return;
+      return existingTag;
     }
 
     try {
@@ -401,17 +380,17 @@ export function AdvancedTaskModal({
       if (res.status === 409) {
         toast.error("이미 존재하는 태그입니다. 목록에서 선택해주세요.");
         if (boardEndpoint) void revalidateBoardData();
-        return;
+        return null;
       }
       if (!res.ok) throw new Error("Failed to create tag");
 
       const createdTag: TagOption = await res.json();
-      await handleUpdate({ tags: [...selectedTagIds, createdTag.id] });
-      setNewTag("");
       if (boardEndpoint) void revalidateBoardData();
+      return createdTag;
     } catch (error) {
       console.error(error);
       toast.error("태그 생성에 실패했습니다.");
+      return null;
     }
   };
 
@@ -517,7 +496,10 @@ export function AdvancedTaskModal({
       await mutate(`/api/workspaces/${projectId}/docs`);
       toast.success("새 문서를 만들고 연결했습니다.");
 
-      onNavigateToDoc?.(newDoc.id);
+      setPreviewDoc({
+        id: newDoc.id,
+        title: newDoc.title || "제목 없음",
+      });
     } catch {
       toast.error("새 문서 생성 및 연결에 실패했습니다.");
     }
@@ -528,500 +510,516 @@ export function AdvancedTaskModal({
   if (!task) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        overlayClassName="bg-black/15 backdrop-blur-[1px]"
-        className="flex h-full w-[min(760px,calc(100vw-3rem))] flex-col gap-0 overflow-hidden bg-background p-0 outline-none sm:max-w-[760px]"
-      >
-        <SheetTitle className="sr-only">태스크 상세</SheetTitle>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          overlayClassName="bg-black/10 data-[state=closed]:duration-75 data-[state=open]:duration-75"
+          className="flex h-full w-[min(720px,calc(100vw-2rem))] flex-col gap-0 overflow-hidden bg-background p-0 outline-none data-[state=closed]:duration-100 data-[state=open]:duration-150 sm:max-w-[720px]"
+        >
+          <SheetTitle className="sr-only">태스크 상세</SheetTitle>
 
-        {/* Header Section */}
-        <div className="flex-shrink-0 border-b p-6 pb-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="text-xs font-mono uppercase text-muted-foreground"
-              >
-                {task.id.slice(-6)}
-              </Badge>
-              {/* Status Select */}
-              <Select
-                value={localTask.status}
-                onValueChange={handleStatusChange}
-              >
-                <SelectTrigger className="h-7 w-[130px] text-xs border-dashed">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "w-2 h-2 rounded-full",
-                        localTask.status === "done"
-                          ? "bg-green-500"
-                          : localTask.status === "in-progress"
-                            ? "bg-blue-500"
-                            : "bg-gray-400",
-                      )}
-                    />
-                    <SelectValue />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="z-[100]">
-                  {columns.map((col) => (
-                    <SelectItem key={col.id} value={col.statusId || col.id}>
-                      {col.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/*
-              Removed manual Close button as DialogContent provides one automatically.
-              If you want spacing, we can keep an empty div or nothing.
-              Justify-between will push the left content to the left.
-            */}
-          </div>
-
-          <Input
-            value={localTask.title || ""}
-            onChange={(e) =>
-              setLocalTask((prev) => ({ ...prev, title: e.target.value }))
-            }
-            onBlur={(e) => {
-              if (e.target.value !== task.title)
-                handleUpdate({ title: e.target.value });
-            }}
-            className="text-2xl font-bold border-none shadow-none px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/40"
-            placeholder="태스크 제목"
-          />
-        </div>
-
-        {/* Scrollable Content */}
-        <ScrollArea className="flex-1">
-          <div className="flex flex-col md:flex-row h-full">
-            {/* Main Content (Left) */}
-            <div className="flex-1 p-6 space-y-8 border-r">
-              {/* Description */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4" />
-                  설명
-                </div>
-                <Textarea
-                  value={localTask.description || ""}
-                  onChange={(e) =>
-                    setLocalTask((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  onBlur={(e) => {
-                    if (e.target.value !== task.description)
-                      handleUpdate({ description: e.target.value });
-                  }}
-                  placeholder="작업 설명을 더 자세히 적어보세요."
-                  className="min-h-[200px] resize-none border-none bg-muted/30 focus-visible:ring-0 p-4"
-                />
-              </div>
-            </div>
-
-            {/* Sidebar (Right) */}
-            <div className="w-full md:w-[300px] bg-muted/10 p-6 space-y-6">
-              {/* Assignee */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  담당자
-                </span>
-                <Select
-                  value={localTask.assigneeId || "unassigned"}
-                  onValueChange={(val) =>
-                    handleUpdate({
-                      assigneeId: val === "unassigned" ? null : val,
-                    })
-                  }
+          {/* Header Section */}
+          <div className="flex-shrink-0 border-b px-5 py-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="text-xs font-mono uppercase text-muted-foreground"
                 >
-                  <SelectTrigger className="w-full justify-start bg-transparent border-muted-foreground/20 hover:bg-muted/50">
-                    <div className="flex items-center gap-2 text-sm">
-                      {localTask.assigneeId &&
-                      localTask.assigneeId !== "unassigned" ? (
-                        <>
-                          <WorkspaceUserAvatar
-                            name={currentMember?.name}
-                            avatarUrl={currentMember?.avatar}
-                            className="h-5 w-5"
-                            fallbackClassName="text-[10px]"
-                          />
-                          <span>{currentMember?.name}</span>
-                        </>
-                      ) : (
-                        <>
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">
-                            담당자 없음
-                          </span>
-                        </>
-                      )}
+                  {task.id.slice(-6)}
+                </Badge>
+                {/* Status Select */}
+                <Select
+                  value={localTask.status}
+                  onValueChange={handleStatusChange}
+                >
+                  <SelectTrigger className="h-7 w-[130px] text-xs border-dashed">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          localTask.status === "done"
+                            ? "bg-green-500"
+                            : localTask.status === "in-progress"
+                              ? "bg-blue-500"
+                              : "bg-gray-400",
+                        )}
+                      />
+                      <SelectValue />
                     </div>
                   </SelectTrigger>
                   <SelectContent className="z-[100]">
-                    <SelectItem value="unassigned">담당자 없음</SelectItem>
-                    {members.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <WorkspaceUserAvatar
-                            name={m.name}
-                            avatarUrl={m.avatar}
-                            className="h-5 w-5"
-                          />
-                          <span>{m.name}</span>
-                        </div>
+                    {columns.map((col) => (
+                      <SelectItem key={col.id} value={col.statusId || col.id}>
+                        {col.title}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Priority */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  우선순위
-                </span>
-                <Select
-                  value={localTask.priority || "medium"}
-                  onValueChange={(val) => handleUpdate({ priority: val })}
-                >
-                  <SelectTrigger className="w-full justify-start bg-transparent border-muted-foreground/20 hover:bg-muted/50">
-                    <div className="flex items-center gap-2 text-sm capitalize">
-                      <Flag
-                        className={cn(
-                          "h-4 w-4",
-                          localTask.priority === "urgent"
-                            ? "text-red-500 fill-red-500"
-                            : localTask.priority === "high"
-                              ? "text-orange-500"
-                              : localTask.priority === "low"
-                                ? "text-gray-400"
-                                : "text-blue-500",
-                        )}
-                      />
-                      {PRIORITY_LABEL[localTask.priority || "medium"] || "보통"}
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="z-[100]">
-                    <SelectItem value="low">낮음</SelectItem>
-                    <SelectItem value="medium">보통</SelectItem>
-                    <SelectItem value="high">높음</SelectItem>
-                    <SelectItem value="urgent">긴급</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/*
+              Removed manual Close button as DialogContent provides one automatically.
+              If you want spacing, we can keep an empty div or nothing.
+              Justify-between will push the left content to the left.
+            */}
+            </div>
+
+            <Input
+              value={localTask.title || ""}
+              onChange={(e) =>
+                setLocalTask((prev) => ({ ...prev, title: e.target.value }))
+              }
+              onBlur={(e) => {
+                if (e.target.value !== task.title)
+                  handleUpdate({ title: e.target.value });
+              }}
+              className="h-auto border-none px-0 text-xl font-bold shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/40"
+              placeholder="태스크 제목"
+            />
+          </div>
+
+          {/* Scrollable Content */}
+          <ScrollArea className="flex-1">
+            <div className="h-full">
+              {/* Main Content (Left) */}
+              <div className="border-b px-5 py-4">
+                {/* Description */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4" />
+                    설명
+                  </div>
+                  <Textarea
+                    value={localTask.description || ""}
+                    onChange={(e) =>
+                      setLocalTask((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    onBlur={(e) => {
+                      if (e.target.value !== task.description)
+                        handleUpdate({ description: e.target.value });
+                    }}
+                    placeholder="작업 설명을 더 자세히 적어보세요."
+                    className="min-h-[120px] resize-y border-none bg-muted/20 p-3 text-sm leading-6 focus-visible:ring-1"
+                  />
+                </div>
               </div>
 
-              {/* Connected Docs */}
-              <div className="space-y-3">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  연결 문서
-                </span>
+              {/* Sidebar (Right) */}
+              <div className="grid w-full grid-cols-1 gap-5 bg-muted/10 px-5 py-4 md:grid-cols-2">
+                {/* Assignee */}
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    담당자
+                  </span>
+                  <Select
+                    value={localTask.assigneeId || "unassigned"}
+                    onValueChange={(val) =>
+                      handleUpdate({
+                        assigneeId: val === "unassigned" ? null : val,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full justify-start bg-transparent border-muted-foreground/20 hover:bg-muted/50">
+                      <div className="flex items-center gap-2 text-sm">
+                        {localTask.assigneeId &&
+                        localTask.assigneeId !== "unassigned" ? (
+                          <>
+                            <WorkspaceUserAvatar
+                              name={currentMember?.name}
+                              avatarUrl={currentMember?.avatar}
+                              className="h-5 w-5"
+                              fallbackClassName="text-[10px]"
+                            />
+                            <span>{currentMember?.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">
+                              담당자 없음
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="z-[100]">
+                      <SelectItem value="unassigned">담당자 없음</SelectItem>
+                      {members.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <div className="flex items-center gap-2">
+                            <WorkspaceUserAvatar
+                              name={m.name}
+                              avatarUrl={m.avatar}
+                              className="h-5 w-5"
+                            />
+                            <span>{m.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {linkedDocs.length > 0 ? (
-                  <div className="max-h-[min(32vh,18rem)] space-y-2 overflow-y-auto pr-1">
-                    {linkedDocs.map((relation) => {
-                      const path = getDocPath(relation.doc.id, docs);
-                      return (
-                        <div
-                          key={relation.id}
-                          className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
-                        >
-                          {/* Primary Badge */}
-                          {relation.isPrimary && (
-                            <div className="absolute -left-1 -top-1">
-                              <Badge
-                                variant="default"
-                                className="h-4 px-1 text-[9px] shadow-sm"
-                              >
-                                대표
-                              </Badge>
-                            </div>
+                {/* Priority */}
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    우선순위
+                  </span>
+                  <Select
+                    value={localTask.priority || "medium"}
+                    onValueChange={(val) => handleUpdate({ priority: val })}
+                  >
+                    <SelectTrigger className="w-full justify-start bg-transparent border-muted-foreground/20 hover:bg-muted/50">
+                      <div className="flex items-center gap-2 text-sm capitalize">
+                        <Flag
+                          className={cn(
+                            "h-4 w-4",
+                            localTask.priority === "urgent"
+                              ? "text-red-500 fill-red-500"
+                              : localTask.priority === "high"
+                                ? "text-orange-500"
+                                : localTask.priority === "low"
+                                  ? "text-gray-400"
+                                  : "text-blue-500",
                           )}
+                        />
+                        {PRIORITY_LABEL[localTask.priority || "medium"] ||
+                          "보통"}
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="z-[100]">
+                      <SelectItem value="low">낮음</SelectItem>
+                      <SelectItem value="medium">보통</SelectItem>
+                      <SelectItem value="high">높음</SelectItem>
+                      <SelectItem value="urgent">긴급</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                          {/* Left: Doc Info */}
-                          <button
-                            type="button"
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                            onClick={() => handleOpenLinkedDoc(relation.doc.id)}
+                {/* Connected Docs */}
+                <div className="space-y-3 md:col-span-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    연결 문서
+                  </span>
+
+                  {linkedDocs.length > 0 ? (
+                    <div className="max-h-[min(32vh,18rem)] space-y-2 overflow-y-auto pr-1">
+                      {linkedDocs.map((relation) => {
+                        const path = getDocPath(relation.doc.id, docs);
+                        return (
+                          <div
+                            key={relation.id}
+                            className="group relative flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 shadow-sm transition-colors hover:bg-muted/50"
                           >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
-                              {relation.doc.emoji ? (
-                                relation.doc.emoji
-                              ) : (
-                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-medium text-foreground">
-                                {relation.doc.title}
+                            {/* Primary Badge */}
+                            {relation.isPrimary && (
+                              <div className="absolute -left-1 -top-1">
+                                <Badge
+                                  variant="default"
+                                  className="h-4 px-1 text-[9px] shadow-sm"
+                                >
+                                  대표
+                                </Badge>
                               </div>
-                              {path && (
-                                <div className="truncate text-[10px] text-muted-foreground">
-                                  {path}
-                                </div>
-                              )}
-                            </div>
-                          </button>
+                            )}
 
-                          {/* Right: Actions */}
-                          <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
-                            {!relation.isPrimary && (
+                            {/* Left: Doc Info */}
+                            <button
+                              type="button"
+                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                              onClick={() =>
+                                handleOpenLinkedDoc(
+                                  relation.doc.id,
+                                  relation.doc.title,
+                                )
+                              }
+                            >
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted/50 text-base">
+                                {relation.doc.emoji ? (
+                                  relation.doc.emoji
+                                ) : (
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-medium text-foreground">
+                                  {relation.doc.title}
+                                </div>
+                                {path && (
+                                  <div className="truncate text-[10px] text-muted-foreground">
+                                    {path}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Right: Actions */}
+                            <div className="flex shrink-0 items-center gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+                              {!relation.isPrimary && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
+                                  onClick={() =>
+                                    handleUpdateRelation(relation.id, {
+                                      isPrimary: true,
+                                    })
+                                  }
+                                  title="대표 문서로 설정"
+                                >
+                                  <Star className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 rounded-sm text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
-                                onClick={() =>
-                                  handleUpdateRelation(relation.id, {
-                                    isPrimary: true,
-                                  })
-                                }
-                                title="대표 문서로 설정"
+                                className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => handleUnlinkDoc(relation.id)}
+                                title="연결 해제"
                               >
-                                <Star className="h-3.5 w-3.5" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
-                            )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-sm hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => handleUnlinkDoc(relation.id)}
-                              title="연결 해제"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
-                    아직 연결된 문서가 없습니다.
-                  </div>
-                )}
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start border-dashed text-xs"
-                    >
-                      <Link2 className="mr-2 h-3.5 w-3.5" />
-                      문서 연결하기
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="end"
-                    className="w-80 overflow-hidden p-2"
-                  >
-                    <div className="flex max-h-[min(72vh,32rem)] flex-col">
-                      <Input
-                        value={docSearch}
-                        onChange={(e) => setDocSearch(e.target.value)}
-                        placeholder="문서 또는 폴더 검색"
-                        className="h-8 shrink-0 text-xs"
-                      />
-                      <DocumentPicker
-                        docs={docs}
-                        linkedDocIds={linkedDocs.map(
-                          (relation) => relation.doc.id,
-                        )}
-                        search={docSearch}
-                        onSelect={(docId) => handleLinkDoc(docId)}
-                        className="mt-2 min-h-0 flex-1"
-                      />
-                      <div className="mt-2 shrink-0 border-t pt-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="w-full justify-start text-xs"
-                          onClick={handleCreateAndLinkDoc}
-                        >
-                          <FileText className="mr-2 h-3.5 w-3.5" />새 문서
-                          만들고 바로 연결
-                        </Button>
-                      </div>
+                        );
+                      })}
                     </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Tags */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  태그
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {selectedTagIds.map((tagId) => {
-                    const tagInfo = tagOptions.find((tag) => tag.id === tagId);
-                    return (
-                      <Badge
-                        key={tagId}
-                        variant="secondary"
-                        className={cn(
-                          "px-2 py-0.5 text-xs font-normal",
-                          getTagColorClass(tagInfo?.color),
-                        )}
-                      >
-                        {tagInfo?.name || tagId}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tagId)}
-                          className="ml-1 inline-flex items-center rounded-sm opacity-60 hover:opacity-100"
-                          aria-label="태그 제거"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    );
-                  })}
+                  ) : (
+                    <div className="rounded-lg border border-dashed bg-background/60 px-3 py-3 text-xs text-muted-foreground">
+                      아직 연결된 문서가 없습니다.
+                    </div>
+                  )}
 
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-6 px-2 border-dashed text-xs"
+                        className="w-full justify-start border-dashed text-xs"
                       >
-                        <Tag className="h-3 w-3 mr-1" />+ 추가
+                        <Link2 className="mr-2 h-3.5 w-3.5" />
+                        문서 연결하기
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2" align="start">
-                      <form
-                        className="flex items-center gap-2"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          handleCreateTag();
-                        }}
-                      >
+                    <PopoverContent
+                      align="end"
+                      className="w-80 overflow-hidden p-2"
+                    >
+                      <div className="flex max-h-[min(72vh,32rem)] flex-col">
                         <Input
-                          value={newTag}
-                          onChange={(e) => setNewTag(e.target.value)}
-                          placeholder="태그 검색 또는 새 태그 만들기"
-                          className="h-8 text-xs"
+                          value={docSearch}
+                          onChange={(e) => setDocSearch(e.target.value)}
+                          placeholder="문서 또는 폴더 검색"
+                          className="h-8 shrink-0 text-xs"
                         />
-                        <Button type="submit" size="icon" className="h-8 w-8">
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </form>
-
-                      <div className="mt-2 max-h-44 overflow-y-auto space-y-1">
-                        {filteredTagOptions.length > 0 ? (
-                          filteredTagOptions.map((tag) => (
-                            <button
-                              key={tag.id}
-                              type="button"
-                              className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted flex items-center justify-between"
-                              onClick={() => handleAddTag(tag.id)}
-                            >
-                              <span>{tag.name}</span>
-                              <span
-                                className={cn(
-                                  "h-2 w-2 rounded-full",
-                                  getTagDotClass(tag.color),
-                                )}
-                              />
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            선택 가능한 태그가 없습니다.
-                          </div>
-                        )}
+                        <DocumentPicker
+                          docs={docs}
+                          linkedDocIds={linkedDocs.map(
+                            (relation) => relation.doc.id,
+                          )}
+                          search={docSearch}
+                          onSelect={(docId) => handleLinkDoc(docId)}
+                          className="mt-2 min-h-0 flex-1"
+                        />
+                        <div className="mt-2 shrink-0 border-t pt-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="w-full justify-start text-xs"
+                            onClick={handleCreateAndLinkDoc}
+                          >
+                            <FileText className="mr-2 h-3.5 w-3.5" />새 문서
+                            만들고 바로 연결
+                          </Button>
+                        </div>
                       </div>
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
 
-              {/* Board */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  보드
-                </span>
-                <Select
-                  value={localTask.boardId}
-                  onValueChange={(boardId) => handleUpdate({ boardId })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="보드 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {boardOptions
-                      .filter((board) => !board.archivedAt)
-                      .map((board) => (
-                        <SelectItem key={board.id} value={board.id}>
-                          {board.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                {/* Tags */}
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    태그
+                  </span>
+                  <TaskTagPicker
+                    tags={tagOptions}
+                    selectedTagIds={selectedTagIds}
+                    onChange={(nextTags) => handleUpdate({ tags: nextTags })}
+                    onCreateTag={handleCreateTag}
+                    compact
+                  />
+                </div>
 
-              {/* Date range */}
-              <div className="space-y-2">
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
-                  <CalendarRange className="h-3.5 w-3.5" />
-                  작업 기간
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      시작일
-                    </span>
-                    <Input
-                      type="date"
-                      value={localTask.startDate || ""}
-                      max={localTask.endDate || undefined}
-                      onChange={(event) =>
-                        handleUpdate({
-                          startDate: event.target.value || null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      종료일
-                    </span>
-                    <Input
-                      type="date"
-                      value={localTask.endDate || ""}
-                      min={localTask.startDate || undefined}
-                      onChange={(event) =>
-                        handleUpdate({
-                          endDate: event.target.value || null,
-                        })
-                      }
-                    />
-                  </div>
+                {/* Date range */}
+                <div className="space-y-2">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
+                    <CalendarRange className="h-3.5 w-3.5" />
+                    작업 기간
+                  </span>
+                  <Popover
+                    open={datePickerOpen}
+                    onOpenChange={(nextOpen) => {
+                      setDatePickerOpen(nextOpen);
+                      if (!nextOpen) return;
+                      const startDate = parseDateKey(localTask.startDate);
+                      const endDate = parseDateKey(localTask.endDate);
+                      setDateDraft(
+                        startDate
+                          ? {
+                              from: startDate,
+                              to: endDate,
+                            }
+                          : undefined,
+                      );
+                      setDateDraftCleared(false);
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 w-full justify-start gap-2 px-3 text-left text-xs font-normal"
+                      >
+                        <CalendarRange className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span
+                          className={cn(
+                            "truncate",
+                            !localTask.startDate &&
+                              !localTask.endDate &&
+                              "text-muted-foreground",
+                          )}
+                        >
+                          {formatDateRangeLabel(
+                            localTask.startDate,
+                            localTask.endDate,
+                          )}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      sideOffset={6}
+                      className="z-[100] w-auto p-0"
+                    >
+                      <div className="border-b px-3 py-2 text-[11px] text-muted-foreground">
+                        날짜를 선택한 뒤 시작일·종료일을 확인하고 적용하세요.
+                      </div>
+                      <Calendar
+                        mode="range"
+                        selected={dateDraft}
+                        onSelect={handleDateRangeSelect}
+                        defaultMonth={
+                          dateDraft?.from ||
+                          dateDraft?.to ||
+                          parseDateKey(localTask.endDate)
+                        }
+                        locale={ko}
+                        initialFocus
+                      />
+                      <div className="grid grid-cols-2 gap-2 border-t px-3 py-2">
+                        <div className="rounded-md border bg-muted/20 px-2 py-1.5">
+                          <div className="text-[9px] text-muted-foreground">
+                            시작일
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-medium">
+                            {dateDraftCleared
+                              ? "미정"
+                              : dateDraft?.from
+                                ? format(dateDraft.from, "yyyy. M. d.")
+                                : "선택하세요"}
+                          </div>
+                        </div>
+                        <div className="rounded-md border bg-muted/20 px-2 py-1.5">
+                          <div className="text-[9px] text-muted-foreground">
+                            종료일
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-medium">
+                            {dateDraftCleared
+                              ? "미정"
+                              : dateDraft?.to
+                                ? format(dateDraft.to, "yyyy. M. d.")
+                                : "선택하세요"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center border-t px-3 py-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={handleClearDateRange}
+                          disabled={
+                            !dateDraft &&
+                            !localTask.startDate &&
+                            !localTask.endDate
+                          }
+                        >
+                          기간 지우기
+                        </Button>
+                        <div className="ml-auto flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setDatePickerOpen(false)}
+                          >
+                            취소
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 px-3 text-[11px]"
+                            onClick={handleApplyDateRange}
+                            disabled={
+                              !dateDraftCleared &&
+                              !(dateDraft?.from && dateDraft.to)
+                            }
+                          >
+                            적용
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Delete */}
+                <div className="border-t pt-4 md:col-span-2">
+                  <Button
+                    variant="ghost"
+                    onClick={handleDelete}
+                    className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    태스크 삭제
+                  </Button>
                 </div>
               </div>
-
-              {/* Delete */}
-              <div className="pt-6 border-t mt-4">
-                <Button
-                  variant="ghost"
-                  onClick={handleDelete}
-                  className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  태스크 삭제
-                </Button>
-              </div>
             </div>
-          </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+      {projectId && (
+        <LinkedDocumentPreviewDialog
+          workspaceId={projectId}
+          docId={previewDoc?.id || null}
+          fallbackTitle={previewDoc?.title}
+          open={Boolean(previewDoc)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setPreviewDoc(null);
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -106,6 +106,22 @@ function buildStatusColumns(columns: BoardColumnShape[]) {
   }));
 }
 
+function mergeStatusColumnColors(
+  liveColumns: BoardColumnShape[],
+  savedColumns: BoardColumnShape[],
+) {
+  const savedColorById = new Map(
+    savedColumns
+      .filter((column) => column.color)
+      .map((column) => [column.id, column.color]),
+  );
+
+  return liveColumns.map((column) => {
+    const savedColor = savedColorById.get(column.id);
+    return savedColor ? { ...column, color: savedColor } : column;
+  });
+}
+
 function normalizeColumnOrder(order: string[], liveOrder: string[]) {
   const liveIds = new Set(liveOrder);
   const normalized = order.filter(
@@ -209,6 +225,7 @@ export function serializeWorkspaceView(
   const isLiveStatusView = groupBy === "status" && view.is_system;
   const fallbackColumns =
     groupBy === "status" ? buildStatusColumns(columns) : [];
+  const savedColumns = toColumnArray(view.columns, []);
   const liveColumnOrder = columns.map((column) => column.id);
 
   return {
@@ -220,7 +237,7 @@ export function serializeWorkspaceView(
     icon: view.icon || undefined,
     color: view.color || undefined,
     columns: isLiveStatusView
-      ? fallbackColumns
+      ? mergeStatusColumnColors(fallbackColumns, savedColumns)
       : toColumnArray(view.columns, fallbackColumns),
     cardProperties: toStringArray(
       normalizeCardProperties(view.card_properties, [

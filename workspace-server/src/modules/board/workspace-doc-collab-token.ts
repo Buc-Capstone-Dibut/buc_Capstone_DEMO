@@ -1,15 +1,18 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { INTERNAL_API_SECRET } from "../../config/env";
+import { COLLAB_TOKEN_SECRET } from "../../config/env";
 
 type WorkspaceDocCollabTokenPayload = {
-  docId: string;
+  docId?: string;
+  whiteboardId?: string;
   workspaceId: string;
   userId: string;
   exp: number;
 };
 
 function signValue(value: string) {
-  return createHmac("sha256", INTERNAL_API_SECRET).update(value).digest("base64url");
+  return createHmac("sha256", COLLAB_TOKEN_SECRET)
+    .update(value)
+    .digest("base64url");
 }
 
 function decodePayload<T>(value: string): T | null {
@@ -21,7 +24,7 @@ function decodePayload<T>(value: string): T | null {
 }
 
 export function verifyWorkspaceDocCollabToken(token: string) {
-  if (!INTERNAL_API_SECRET) {
+  if (!COLLAB_TOKEN_SECRET) {
     return null;
   }
 
@@ -42,11 +45,22 @@ export function verifyWorkspaceDocCollabToken(token: string) {
   }
 
   const payload = decodePayload<WorkspaceDocCollabTokenPayload>(encodedPayload);
-  if (!payload) {
+  if (
+    !payload ||
+    typeof payload.workspaceId !== "string" ||
+    typeof payload.userId !== "string" ||
+    typeof payload.exp !== "number"
+  ) {
     return null;
   }
 
   if (payload.exp < Date.now()) {
+    return null;
+  }
+
+  const hasDocTarget = typeof payload.docId === "string";
+  const hasWhiteboardTarget = typeof payload.whiteboardId === "string";
+  if (hasDocTarget === hasWhiteboardTarget) {
     return null;
   }
 

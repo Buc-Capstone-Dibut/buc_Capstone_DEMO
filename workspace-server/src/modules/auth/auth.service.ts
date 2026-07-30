@@ -1,55 +1,123 @@
+import { Socket } from "socket.io";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../config/env";
+import { prisma } from "../../database/prisma";
 
-export type Role = 'owner' | 'member' | 'viewer';
+export type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
 
-export interface User {
-  id: string;
-  name: string;
-  avatar?: string;
-}
-
-export interface Membership {
+export type SocketIdentity = {
   userId: string;
   workspaceId: string;
-  role: Role;
-  joinedAt: string;
+  role: WorkspaceRole;
+};
+
+type SupabaseUser = {
+  id: string;
+  email?: string;
+};
+
+type WorkspaceAccessRow = {
+  role: string | null;
+  lifecycle_status: string | null;
+};
+
+const AUTH_TIMEOUT_MS = 5_000;
+
+function normalizeRole(role: string | null): WorkspaceRole {
+  const normalized = (role || "member").toLowerCase();
+  if (
+    normalized === "owner" ||
+    normalized === "admin" ||
+    normalized === "viewer"
+  ) {
+    return normalized;
+  }
+  return "member";
 }
 
-// In-memory Mock Data
-const MOCK_MEMBERSHIPS: Membership[] = [
-  // Owner of p-1
-  { userId: 'u1', workspaceId: 'p-1', role: 'owner', joinedAt: new Date().toISOString() },
-  // Member of p-1
-  { userId: 'u2', workspaceId: 'p-1', role: 'member', joinedAt: new Date().toISOString() },
-];
+function getHandshakeValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 export class AuthService {
+  static async verifyAccessToken(token: string): Promise<SupabaseUser | null> {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !token) {
+      return null;
+    }
 
-  static async getUser(userId: string): Promise<User | null> {
-    // Mock user lookup
-    return { id: userId, name: `User ${userId}` };
+    try {
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+        signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const user = (await response.json()) as SupabaseUser;
+      return typeof user.id === "string" && user.id ? user : null;
+    } catch (error) {
+      console.warn("[AUTH] Supabase token verification failed", error);
+      return null;
+    }
   }
 
-  static async getMembership(userId: string, workspaceId: string): Promise<Membership | null> {
-    const membership = MOCK_MEMBERSHIPS.find(m => m.userId === userId && m.workspaceId === workspaceId);
-    return membership || null;
+  static async getWorkspaceAccess(
+    userId: string,
+    workspaceId: string,
+  ): Promise<SocketIdentity | null> {
+    try {
+      const rows = await prisma.$queryRaw<WorkspaceAccessRow[]>`
+        SELECT
+          wm.role,
+          w.lifecycle_status::text AS lifecycle_status
+        FROM "public"."workspace_members" wm
+        INNER JOIN "public"."workspaces" w ON w.id = wm.workspace_id
+        WHERE wm.workspace_id = ${workspaceId}::uuid
+          AND wm.user_id = ${userId}::uuid
+        LIMIT 1
+      `;
+      const access = rows[0];
+      if (!access || access.lifecycle_status === "COMPLETED") {
+        return null;
+      }
+
+      return {
+        userId,
+        workspaceId,
+        role: normalizeRole(access.role),
+      };
+    } catch (error) {
+      console.error("[AUTH] Workspace membership verification failed", error);
+      return null;
+    }
   }
 
-  static async checkPermission(userId: string, workspaceId: string, requiredRole?: Role[]): Promise<boolean> {
-    const membership = await this.getMembership(userId, workspaceId);
-    if (!membership) return false;
+  static async authenticateSocket(
+    socket: Socket,
+  ): Promise<SocketIdentity | null> {
+    const token = getHandshakeValue(socket.handshake.auth?.token);
+    const workspaceId = getHandshakeValue(socket.handshake.auth?.workspaceId);
+    if (!token || !workspaceId) {
+      return null;
+    }
 
-    if (!requiredRole || requiredRole.length === 0) return true; // Just membership required
+    const user = await this.verifyAccessToken(token);
+    if (!user) {
+      return null;
+    }
 
-    return requiredRole.includes(membership.role);
+    return this.getWorkspaceAccess(user.id, workspaceId);
   }
+}
 
-  static async inviteUser(inviterId: string, workspaceId: string, email: string): Promise<string> {
-    // Check if inviter is owner
-    const isOwner = await this.checkPermission(inviterId, workspaceId, ['owner']);
-    if (!isOwner) throw new Error("Only owners can invite members.");
-
-    // Generate Invite Link (Mock)
-    const token = Buffer.from(`${workspaceId}:${email}:${Date.now()}`).toString('base64');
-    return `http://localhost:3000/invite?token=${token}`;
+export function getSocketIdentity(socket: Socket): SocketIdentity {
+  const identity = socket.data.identity as SocketIdentity | undefined;
+  if (!identity) {
+    throw new Error("인증되지 않은 실시간 연결입니다.");
   }
+  return identity;
 }

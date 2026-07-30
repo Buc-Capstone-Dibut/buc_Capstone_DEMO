@@ -121,14 +121,6 @@ function toSnapshotJsonValue(content: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(normalized)) as Prisma.InputJsonValue;
 }
 
-type SaveWorkspaceDocSnapshotInput = {
-  docId: string;
-  yjsState: string;
-  title?: string;
-  emoji?: string | null;
-  authorId?: string | null;
-};
-
 async function resolveWorkspaceDocWriteContext(
   docId: string,
   authorId?: string | null,
@@ -193,51 +185,6 @@ async function resolveWorkspaceDocWriteContext(
   };
 }
 
-export async function saveWorkspaceDocSnapshot({
-  docId,
-  yjsState,
-  title,
-  emoji,
-  authorId,
-}: SaveWorkspaceDocSnapshotInput) {
-  const context = await resolveWorkspaceDocWriteContext(docId, authorId);
-
-  if (!context.ok) {
-    return context;
-  }
-
-  const { doc, nextAuthorId } = context;
-
-  const trimmedTitle =
-    typeof title === "string" && title.trim().length > 0
-      ? title.trim()
-      : undefined;
-
-  await prisma.$transaction([
-    prisma.workspace_doc_states.upsert({
-      where: { doc_id: docId },
-      create: {
-        doc_id: docId,
-        yjs_state: yjsState,
-      },
-      update: {
-        yjs_state: yjsState,
-      },
-    }),
-    prisma.workspace_docs.update({
-      where: { id: docId },
-      data: {
-        content: yjsStateToSnapshot(yjsState) as Prisma.InputJsonValue,
-        ...(trimmedTitle !== undefined ? { title: trimmedTitle } : {}),
-        ...(emoji !== undefined ? { emoji } : {}),
-        ...(nextAuthorId !== doc.author_id ? { author_id: nextAuthorId } : {}),
-      },
-    }),
-  ]);
-
-  return { ok: true as const };
-}
-
 type SaveWorkspaceDocContentInput = {
   docId: string;
   content: unknown;
@@ -266,8 +213,18 @@ export async function saveWorkspaceDocContent({
       ? title.trim()
       : undefined;
 
-  await prisma.$transaction([
-    prisma.workspace_docs.update({
+  const saved = await prisma.$transaction(async (tx) => {
+    const activeCollabSession =
+      await tx.workspace_doc_collab_sessions.findUnique({
+        where: { doc_id: docId },
+        select: { status: true },
+      });
+
+    if (activeCollabSession?.status === "ACTIVE") {
+      return false;
+    }
+
+    await tx.workspace_docs.update({
       where: { id: docId },
       data: {
         content: toSnapshotJsonValue(content),
@@ -275,13 +232,25 @@ export async function saveWorkspaceDocContent({
         ...(emoji !== undefined ? { emoji } : {}),
         ...(nextAuthorId !== doc.author_id ? { author_id: nextAuthorId } : {}),
       },
-    }),
+    });
+
     // Normal editor saves snapshot content directly. Drop any stale Yjs state so
     // collaboration can be re-seeded from the latest saved content on demand.
-    prisma.workspace_doc_states.deleteMany({
+    await tx.workspace_doc_states.deleteMany({
       where: { doc_id: docId },
-    }),
-  ]);
+    });
+
+    return true;
+  });
+
+  if (!saved) {
+    return {
+      ok: false as const,
+      status: 409,
+      error:
+        "협업 편집 중에는 일반 저장을 사용할 수 없습니다. 협업을 종료한 뒤 저장해 주세요.",
+    };
+  }
 
   return { ok: true as const };
 }

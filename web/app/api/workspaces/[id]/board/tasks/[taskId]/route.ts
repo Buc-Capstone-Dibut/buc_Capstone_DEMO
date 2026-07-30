@@ -12,7 +12,6 @@ import {
   REPUTATION_EVENT_TYPES,
   tryApplyReputationEvent,
 } from "@/lib/server/reputation";
-import { findWorkspaceBoard } from "@/lib/server/workspace-boards";
 import {
   assertValidDateRange,
   normalizeDateOnly,
@@ -61,7 +60,6 @@ export async function PATCH(
     const allowedUpdates: {
       title?: string;
       description?: string;
-      board_id?: string;
       column_id?: string;
       assignee_id?: string | null;
       tags?: string[];
@@ -83,18 +81,6 @@ export async function PATCH(
       allowedUpdates.description = updates.description;
 
     // Support both camelCase and snake_case
-    if (updates.board_id !== undefined)
-      allowedUpdates.board_id = updates.board_id;
-    if (updates.boardId !== undefined)
-      allowedUpdates.board_id = updates.boardId;
-    if (
-      allowedUpdates.board_id !== undefined &&
-      (typeof allowedUpdates.board_id !== "string" ||
-        !allowedUpdates.board_id.trim())
-    ) {
-      return NextResponse.json({ error: "Invalid board" }, { status: 400 });
-    }
-
     if (updates.column_id !== undefined)
       allowedUpdates.column_id = updates.column_id;
     if (updates.columnId !== undefined)
@@ -172,7 +158,6 @@ export async function PATCH(
       },
       select: {
         id: true,
-        board_id: true,
         start_date: true,
         end_date: true,
       },
@@ -235,19 +220,6 @@ export async function PATCH(
       allowedUpdates.end_date = parseDateOnly(requestedEndDate);
     }
 
-    if (allowedUpdates.board_id) {
-      const destinationBoard = await findWorkspaceBoard(
-        workspaceId,
-        allowedUpdates.board_id,
-      );
-      if (!destinationBoard || destinationBoard.archived_at) {
-        return NextResponse.json(
-          { error: "Destination board not found" },
-          { status: 404 },
-        );
-      }
-    }
-
     if (allowedUpdates.column_id) {
       const destinationColumn = await prisma.kanban_columns.findFirst({
         where: {
@@ -303,7 +275,6 @@ export async function PATCH(
 
     return NextResponse.json({
       ...updatedTask,
-      boardId: updatedTask.board_id,
       columnId: updatedTask.column_id,
       assigneeId: updatedTask.assignee_id,
       startDate: normalizeDateOnly(updatedTask.start_date),

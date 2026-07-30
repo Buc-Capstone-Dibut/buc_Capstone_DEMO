@@ -1,28 +1,35 @@
 import { Server, Socket } from "socket.io";
+import { getSocketIdentity } from "../auth/auth.service";
 import { ChatService } from "./chat.service";
 
 export const setupChatGateway = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     // Join Channel Room
     socket.on("chat:join", async (payload: { channelId: string }) => {
-      socket.join(payload.channelId);
+      try {
+        const identity = getSocketIdentity(socket);
+        await ChatService.assertChannelInWorkspace(
+          payload.channelId,
+          identity.workspaceId,
+        );
+        await socket.join(payload.channelId);
+      } catch (error) {
+        console.warn("[CHAT] Rejected channel join", error);
+      }
     });
 
     // Leave Channel Room
     socket.on("chat:leave", (payload: { channelId: string }) => {
-      socket.leave(payload.channelId);
+      void socket.leave(payload.channelId);
     });
 
     // Get Channels
     socket.on(
       "chat:get_channels",
       async (payload: { workspaceId: string }, callback) => {
-        console.log(
-          `[Gateway] Received chat:get_channels for workspace: ${payload.workspaceId}`,
-        );
         try {
-          const channels = await ChatService.getChannels(payload.workspaceId);
-          console.log(`[Gateway] Found ${channels.length} channels`);
+          const identity = getSocketIdentity(socket);
+          const channels = await ChatService.getChannels(identity.workspaceId);
           if (callback) callback({ success: true, data: channels });
         } catch (e: any) {
           console.error(`[Gateway] Error fetching channels:`, e);
@@ -44,12 +51,13 @@ export const setupChatGateway = (io: Server) => {
         callback,
       ) => {
         try {
+          const identity = getSocketIdentity(socket);
           const channel = await ChatService.createChannel(
-            payload.workspaceId,
+            identity.workspaceId,
             payload.name,
             payload.description,
           );
-          io.to(payload.workspaceId).emit("chat:channel_created", channel);
+          io.to(identity.workspaceId).emit("chat:channel_created", channel);
           if (callback) callback({ success: true, data: channel });
         } catch (e: any) {
           if (callback) callback({ success: false, error: e.message });
@@ -67,9 +75,11 @@ export const setupChatGateway = (io: Server) => {
         callback,
       ) => {
         try {
+          const identity = getSocketIdentity(socket);
           const deletedChannel = await ChatService.deleteChannel(
             payload.channelId,
-            payload.requesterId,
+            identity.userId,
+            identity.workspaceId,
           );
 
           io.to(deletedChannel.workspaceId).emit(
@@ -90,7 +100,11 @@ export const setupChatGateway = (io: Server) => {
       "chat:get_messages",
       async (payload: { channelId: string }, callback) => {
         try {
-          const messages = await ChatService.getMessages(payload.channelId);
+          const identity = getSocketIdentity(socket);
+          const messages = await ChatService.getMessages(
+            payload.channelId,
+            identity.workspaceId,
+          );
           if (callback) callback({ success: true, data: messages });
         } catch (e: any) {
           if (callback) callback({ success: false, error: e.message });
@@ -106,10 +120,15 @@ export const setupChatGateway = (io: Server) => {
         callback,
       ) => {
         try {
+          const identity = getSocketIdentity(socket);
+          await ChatService.assertChannelInWorkspace(
+            payload.channelId,
+            identity.workspaceId,
+          );
           const message = await ChatService.saveMessage(
             payload.channelId,
             payload.content,
-            payload.senderId,
+            identity.userId,
           );
 
           // Broadcast to everyone in channel
@@ -135,13 +154,18 @@ export const setupChatGateway = (io: Server) => {
         callback,
       ) => {
         try {
+          const identity = getSocketIdentity(socket);
+          await ChatService.assertChannelInWorkspace(
+            payload.channelId,
+            identity.workspaceId,
+          );
           const message = await ChatService.updateMessage(
             payload.messageId,
             payload.content,
-            payload.requesterId,
+            identity.userId,
           );
 
-          io.to(payload.channelId).emit("chat:message_updated", message);
+          io.to(message.channelId).emit("chat:message_updated", message);
 
           if (callback) callback({ success: true, data: message });
         } catch (e: any) {
@@ -162,12 +186,20 @@ export const setupChatGateway = (io: Server) => {
         callback,
       ) => {
         try {
+          const identity = getSocketIdentity(socket);
+          await ChatService.assertChannelInWorkspace(
+            payload.channelId,
+            identity.workspaceId,
+          );
           const deletedMessage = await ChatService.deleteMessage(
             payload.messageId,
-            payload.requesterId,
+            identity.userId,
           );
 
-          io.to(payload.channelId).emit("chat:message_deleted", deletedMessage);
+          io.to(deletedMessage.channelId).emit(
+            "chat:message_deleted",
+            deletedMessage,
+          );
 
           if (callback) callback({ success: true, data: deletedMessage });
         } catch (e: any) {
@@ -180,8 +212,25 @@ export const setupChatGateway = (io: Server) => {
     // Typing Indicator
     socket.on(
       "chat:typing",
-      (payload: { channelId: string; userId: string; isTyping: boolean }) => {
-        socket.to(payload.channelId).emit("chat:typing", payload);
+      async (payload: {
+        channelId: string;
+        userId: string;
+        isTyping: boolean;
+      }) => {
+        try {
+          const identity = getSocketIdentity(socket);
+          await ChatService.assertChannelInWorkspace(
+            payload.channelId,
+            identity.workspaceId,
+          );
+          socket.to(payload.channelId).emit("chat:typing", {
+            channelId: payload.channelId,
+            userId: identity.userId,
+            isTyping: Boolean(payload.isTyping),
+          });
+        } catch (error) {
+          console.warn("[CHAT] Rejected typing event", error);
+        }
       },
     );
   });

@@ -34,15 +34,6 @@ export async function seedWorkspaceDefaults(
   tx: Prisma.TransactionClient,
   workspaceId: string,
 ) {
-  await tx.workspace_boards.create({
-    data: {
-      workspace_id: workspaceId,
-      name: "기본 보드",
-      position: 0,
-      is_default: true,
-    },
-  });
-
   await tx.kanban_columns.createMany({
     data: DEFAULT_WORKSPACE_COLUMNS.map((column) => ({
       workspace_id: workspaceId,
