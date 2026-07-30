@@ -38,7 +38,10 @@ export function setupYjsGateway(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws, req) => {
-    void setupWSConnection(ws, req);
+    void setupWSConnection(ws, req).catch((error) => {
+      console.error("[YJS] Failed to initialize connection", error);
+      ws.close(1011, "Failed to load document");
+    });
   });
 
   server.on("upgrade", (request, socket, head) => {
@@ -63,4 +66,5 @@ export function setupYjsGateway(server: Server) {
   });
 
   console.log("BOARD: Yjs WebSocket Gateway initialized");
+  return wss;
 }

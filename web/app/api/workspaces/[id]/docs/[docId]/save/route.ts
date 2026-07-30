@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import {
-  saveWorkspaceDocContent,
-  saveWorkspaceDocSnapshot,
-} from "@/lib/server/doc-collab-state";
+import { saveWorkspaceDocContent } from "@/lib/server/doc-collab-state";
+import { getDocCollabState } from "@/lib/server/workspace-doc-collab-session";
 
 export async function POST(
   request: Request,
@@ -23,18 +21,15 @@ export async function POST(
 
     const { id: workspaceId, docId } = params;
     const payload = (await request.json()) as {
-      yjsState?: unknown;
       content?: unknown;
       title?: unknown;
       emoji?: unknown;
       authorId?: unknown;
     };
 
-    const hasYjsState =
-      typeof payload.yjsState === "string" && payload.yjsState.trim().length > 0;
     const hasContentSnapshot = Array.isArray(payload.content);
 
-    if (!hasYjsState && !hasContentSnapshot) {
+    if (!hasContentSnapshot) {
       return NextResponse.json(
         { error: "유효한 문서 본문이 필요합니다." },
         { status: 400 },
@@ -80,6 +75,22 @@ export async function POST(
       );
     }
 
+    const collabState = await getDocCollabState(
+      workspaceId,
+      docId,
+      session.user.id,
+    );
+
+    if (collabState.isActive) {
+      return NextResponse.json(
+        {
+          error:
+            "협업 편집 중에는 일반 저장을 사용할 수 없습니다. 협업을 종료한 뒤 저장해 주세요.",
+        },
+        { status: 409 },
+      );
+    }
+
     const metadata = {
       ...(payload.title === undefined || typeof payload.title === "string"
         ? { title: payload.title }
@@ -96,17 +107,11 @@ export async function POST(
         : {}),
     };
 
-    const result = hasYjsState
-      ? await saveWorkspaceDocSnapshot({
-          docId,
-          yjsState: payload.yjsState as string,
-          ...metadata,
-        })
-      : await saveWorkspaceDocContent({
-          docId,
-          content: payload.content,
-          ...metadata,
-        });
+    const result = await saveWorkspaceDocContent({
+      docId,
+      content: payload.content,
+      ...metadata,
+    });
 
     if (!result.ok) {
       return NextResponse.json(

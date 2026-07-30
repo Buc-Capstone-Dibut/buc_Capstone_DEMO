@@ -4,7 +4,12 @@ import { Server } from "socket.io";
 import { setupSocketGateway } from "./modules/socket/socket.gateway";
 import { setupYjsGateway } from "./modules/board/yjs.gateway";
 import { INTERNAL_API_SECRET } from "./config/env";
-import { flushYjsRoom, resetYjsRoom } from "./modules/board/yjs-utils";
+import {
+    beginYjsShutdown,
+    flushAllYjsRooms,
+    flushYjsRoom,
+    resetYjsRoom,
+} from "./modules/board/yjs-utils";
 
 const PORT = process.env.PORT || 4000;
 
@@ -65,8 +70,50 @@ const io = new Server(httpServer, {
 setupSocketGateway(io);
 
 // Initialize Yjs Gateway
-setupYjsGateway(httpServer);
+const yjsGateway = setupYjsGateway(httpServer);
 
 httpServer.listen(PORT, () => {
     console.log(`🚀 Workspace Server running on port ${PORT}`);
+});
+
+let isShuttingDown = false;
+
+async function shutdown(signal: NodeJS.Signals) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    console.log(`[SERVER] ${signal} received - flushing collaboration state`);
+    const forceExitTimer = setTimeout(() => {
+        console.error("[SERVER] Graceful shutdown timed out");
+        process.exit(1);
+    }, 10_000);
+    forceExitTimer.unref();
+
+    // 새 연결과 추가 변경을 먼저 차단한 다음 room별 직렬 저장 큐를 비운다.
+    beginYjsShutdown();
+    httpServer.close();
+    yjsGateway.clients.forEach((client) => client.terminate());
+    io.close();
+
+    try {
+        const result = await flushAllYjsRooms();
+        console.log(`[SERVER] Flushed ${result.flushedRooms} Yjs rooms`);
+    } catch (error) {
+        process.exitCode = 1;
+        console.error("[SERVER] Failed to flush all Yjs rooms", error);
+    }
+
+    await new Promise<void>((resolve) => {
+        yjsGateway.close(() => resolve());
+    });
+
+    clearTimeout(forceExitTimer);
+    process.exit(process.exitCode ?? 0);
+}
+
+process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
+});
+process.once("SIGINT", () => {
+    void shutdown("SIGINT");
 });

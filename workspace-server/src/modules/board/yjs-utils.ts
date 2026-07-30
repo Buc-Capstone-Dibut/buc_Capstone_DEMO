@@ -14,8 +14,10 @@ const docs = new Map<string, WSSharedDoc>();
 
 const messageSync = 0;
 const messageAwareness = 1;
+const persistenceRetryDelayMs = 5_000;
 
 const docLoadPromises = new Map<string, Promise<WSSharedDoc>>();
+let isYjsShuttingDown = false;
 
 type RoomTarget =
   | { kind: "doc"; id: string }
@@ -78,22 +80,24 @@ function getPersistenceUrl(target: RoomTarget) {
  * - applyUpdate() 호출 → doc.on("update") → 이미 연결된 클라이언트에 자동 브로드캐스트
  */
 const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
-  if (!INTERNAL_API_SECRET) {
-    console.warn("[YJS] INTERNAL_API_SECRET 미설정 - 상태 로드 건너뜀");
+  const target = parseRoomTarget(doc.name);
+  const url = getPersistenceUrl(target);
+  if (!url) {
+    console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 로드 생략`);
     return;
   }
-  try {
-    const target = parseRoomTarget(doc.name);
-    const url = getPersistenceUrl(target);
-    if (!url) {
-      console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 로드 생략`);
-      return;
-    }
 
+  if (!INTERNAL_API_SECRET) {
+    throw new Error("INTERNAL_API_SECRET is required to load Yjs state.");
+  }
+
+  try {
     const res = await fetch(url, {
       headers: { "x-internal-secret": INTERNAL_API_SECRET },
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
 
     const { yjs_state } = (await res.json()) as { yjs_state: string | null };
     if (!yjs_state) return;
@@ -103,6 +107,7 @@ const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
     console.log(`[YJS] '${doc.name}' 상태 로드 완료 (${state.length} bytes)`);
   } catch (err) {
     console.error(`[YJS] '${doc.name}' 로드 오류:`, err);
+    throw err;
   }
 };
 
@@ -111,18 +116,18 @@ const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
  * - debounce (변경 후 3초), 마지막 유저 퇴장 시, 30초 주기 저장에서 호출
  */
 const saveDocState = async (doc: WSSharedDoc): Promise<void> => {
-  if (!INTERNAL_API_SECRET) {
-    console.warn("[YJS] INTERNAL_API_SECRET 미설정 - 저장 건너뜀");
+  const target = parseRoomTarget(doc.name);
+  const url = getPersistenceUrl(target);
+  if (!url) {
+    console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 저장 생략`);
     return;
   }
-  try {
-    const target = parseRoomTarget(doc.name);
-    const url = getPersistenceUrl(target);
-    if (!url) {
-      console.warn(`[YJS] '${doc.name}' 알 수 없는 room prefix - 저장 생략`);
-      return;
-    }
 
+  if (!INTERNAL_API_SECRET) {
+    throw new Error("INTERNAL_API_SECRET is required to save Yjs state.");
+  }
+
+  try {
     const state = Y.encodeStateAsUpdate(doc);
     const yjs_state = Buffer.from(state).toString("base64");
 
@@ -135,13 +140,14 @@ const saveDocState = async (doc: WSSharedDoc): Promise<void> => {
       body: JSON.stringify({ yjs_state }),
     });
 
-    if (res.ok) {
-      console.log(`[YJS] '${doc.name}' 저장 완료 (${state.length} bytes)`);
-    } else {
-      console.error(`[YJS] '${doc.name}' 저장 실패: HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    console.log(`[YJS] '${doc.name}' 저장 완료 (${state.length} bytes)`);
   } catch (err) {
     console.error(`[YJS] '${doc.name}' 저장 오류:`, err);
+    throw err;
   }
 };
 
@@ -159,6 +165,13 @@ class WSSharedDoc extends Y.Doc {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** 30초 주기 저장 타이머 */
   private periodicTimer: ReturnType<typeof setInterval> | null = null;
+  /** 접속자 0명 상태에서 저장 실패 시 재시도하는 타이머 */
+  private disposeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 동일 room의 DB 저장 순서를 보장하는 직렬 큐 */
+  private persistenceQueue: Promise<void> = Promise.resolve();
+  /** 저장할 변경과 마지막 저장 완료 지점을 구분하는 단조 증가 버전 */
+  private changeVersion = 0;
+  private persistedVersion = 0;
 
   constructor(name: string) {
     super({ gc: true });
@@ -207,6 +220,7 @@ class WSSharedDoc extends Y.Doc {
         `[YJS] '${this.name}' 변경됨. ${broadcastCount}/${this.conns.size} 피어에 브로드캐스트`,
       );
 
+      this.changeVersion += 1;
       // 변경 감지 → 3초 후 자동 저장 (debounce)
       this.scheduleSave();
     });
@@ -215,9 +229,36 @@ class WSSharedDoc extends Y.Doc {
     this.periodicTimer = setInterval(() => {
       if (this.conns.size > 0) {
         console.log(`[YJS] '${this.name}' 주기 저장 실행`);
-        saveDocState(this);
+        void this.persist().catch((error) => {
+          console.error(`[YJS] '${this.name}' 주기 저장 실패:`, error);
+        });
       }
     }, 30_000);
+  }
+
+  /**
+   * room 단위 저장 직렬 큐.
+   * 느린 이전 요청이 새 상태를 뒤늦게 덮어쓰는 것을 막고 실패를 호출자까지 전달한다.
+   */
+  persist(force = false) {
+    const targetVersion = this.changeVersion;
+    const operation = this.persistenceQueue.then(async () => {
+      if (!force && targetVersion <= this.persistedVersion) {
+        return;
+      }
+
+      await saveDocState(this);
+      this.persistedVersion = Math.max(this.persistedVersion, targetVersion);
+    });
+
+    // 실패한 요청이 뒤의 재시도까지 영구적으로 막지 않도록 큐 꼬리는 복구한다.
+    this.persistenceQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  async flushPersistence() {
+    this.cancelScheduledSave();
+    await this.persist(true);
   }
 
   /** 마지막 변경 후 3초가 지나면 저장 (중간에 변경이 오면 리셋) */
@@ -225,7 +266,9 @@ class WSSharedDoc extends Y.Doc {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      saveDocState(this);
+      void this.persist().catch((error) => {
+        console.error(`[YJS] '${this.name}' 자동 저장 실패:`, error);
+      });
     }, 3_000);
   }
 
@@ -237,9 +280,25 @@ class WSSharedDoc extends Y.Doc {
     }
   }
 
+  cancelDisposeRetry() {
+    if (this.disposeRetryTimer) {
+      clearTimeout(this.disposeRetryTimer);
+      this.disposeRetryTimer = null;
+    }
+  }
+
+  scheduleDisposeRetry(callback: () => void) {
+    this.cancelDisposeRetry();
+    this.disposeRetryTimer = setTimeout(() => {
+      this.disposeRetryTimer = null;
+      callback();
+    }, persistenceRetryDelayMs);
+  }
+
   /** 모든 타이머 정리 */
   cleanup() {
     this.cancelScheduledSave();
+    this.cancelDisposeRetry();
     if (this.periodicTimer) {
       clearInterval(this.periodicTimer);
       this.periodicTimer = null;
@@ -270,12 +329,16 @@ const getYDocAsync = async (docname: string, gc = true): Promise<WSSharedDoc> =>
     try {
       doc.isHydrating = true;
       await loadDocState(doc);
+      return doc;
+    } catch (error) {
+      doc.cleanup();
+      docs.delete(docname);
+      doc.destroy();
+      throw error;
     } finally {
       doc.isHydrating = false;
       docLoadPromises.delete(docname);
     }
-
-    return doc;
   })();
 
   docLoadPromises.set(docname, loadPromise);
@@ -295,6 +358,40 @@ const send = (doc: WSSharedDoc, conn: WebSocket, m: Uint8Array) => {
   }
 };
 
+const persistAndDisposeWhenIdle = async (doc: WSSharedDoc) => {
+  if (doc.conns.size > 0 || docs.get(doc.name) !== doc) {
+    return;
+  }
+
+  try {
+    await doc.flushPersistence();
+    if (
+      !isYjsShuttingDown &&
+      doc.conns.size === 0 &&
+      docs.get(doc.name) === doc
+    ) {
+      doc.cleanup();
+      docs.delete(doc.name);
+      doc.destroy();
+      console.log(`[YJS] '${doc.name}' 저장 후 메모리에서 해제`);
+    }
+  } catch (error) {
+    console.error(
+      `[YJS] '${doc.name}' 마지막 상태 저장 실패 - ${persistenceRetryDelayMs}ms 후 재시도:`,
+      error,
+    );
+    if (
+      !isYjsShuttingDown &&
+      doc.conns.size === 0 &&
+      docs.get(doc.name) === doc
+    ) {
+      doc.scheduleDisposeRetry(() => {
+        void persistAndDisposeWhenIdle(doc);
+      });
+    }
+  }
+};
+
 const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
   if (doc.conns.has(conn)) {
     const controlledIds = doc.conns.get(conn);
@@ -311,17 +408,15 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
     if (doc.conns.size === 0) {
       doc.cancelScheduledSave(); // debounce 취소 (즉시 저장이 대신함)
       console.log(`[YJS] '${doc.name}' 마지막 유저 퇴장 → 즉시 저장`);
-      saveDocState(doc).then(() => {
-        // 저장 완료 후에도 여전히 접속자가 없으면 메모리에서 제거
-        if (doc.conns.size === 0) {
-          doc.cleanup();
-          docs.delete(doc.name);
-          console.log(`[YJS] '${doc.name}' 메모리에서 해제`);
-        }
-      });
+      void persistAndDisposeWhenIdle(doc);
     }
   }
-  conn.close();
+  if (
+    conn.readyState !== wsReadyStateClosing &&
+    conn.readyState !== wsReadyStateClosed
+  ) {
+    conn.close();
+  }
 };
 
 export const resetYjsRoom = async (roomName: string) => {
@@ -343,6 +438,8 @@ export const resetYjsRoom = async (roomName: string) => {
     };
   }
 
+  // 지연 중이거나 직전 실패 후 재시도 대기 중인 상태까지 DB에 확정한 뒤 제거한다.
+  await doc.flushPersistence();
   doc.cleanup();
   docs.delete(roomName);
   docLoadPromises.delete(roomName);
@@ -363,13 +460,42 @@ export const flushYjsRoom = async (roomName: string) => {
   }
 
   doc.cancelScheduledSave();
-  await saveDocState(doc);
+  await doc.flushPersistence();
 
   return {
     ok: true as const,
     existed: true,
     activeConnections: doc.conns.size,
   };
+};
+
+export const flushAllYjsRooms = async () => {
+  const pendingLoads = Array.from(docLoadPromises.values());
+  await Promise.all(pendingLoads);
+
+  const rooms = Array.from(docs.values());
+  const results = await Promise.allSettled(
+    rooms.map((doc) => doc.flushPersistence()),
+  );
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Failed to persist ${failures.length}/${rooms.length} Yjs rooms before shutdown.`,
+    );
+  }
+
+  return { ok: true as const, flushedRooms: rooms.length };
+};
+
+export const beginYjsShutdown = () => {
+  isYjsShuttingDown = true;
+  docs.forEach((doc) => {
+    doc.cancelScheduledSave();
+    doc.cancelDisposeRetry();
+  });
 };
 
 // ─────────────────────────────────────────────
@@ -389,6 +515,7 @@ export const setupWSConnection = async (
     return;
   }
 
+  doc.cancelDisposeRetry();
   doc.conns.set(conn, new Set());
 
   conn.on("message", (message: ArrayBuffer) => {
@@ -400,15 +527,27 @@ export const setupWSConnection = async (
       switch (messageType) {
         case messageSync:
           encoding.writeVarUint(encoder, messageSync);
-          syncProtocol.readSyncMessage(decoder, encoder, doc, null);
+          syncProtocol.readSyncMessage(decoder, encoder, doc, conn);
           if (encoding.length(encoder) > 1) {
             send(doc, conn, encoding.toUint8Array(encoder));
           }
           break;
         case messageAwareness: {
+          const awarenessUpdate = decoding.readVarUint8Array(decoder);
+          const awarenessDecoder = decoding.createDecoder(awarenessUpdate);
+          const controlledIds = doc.conns.get(conn);
+          const updateCount = decoding.readVarUint(awarenessDecoder);
+
+          for (let index = 0; index < updateCount; index += 1) {
+            const clientId = decoding.readVarUint(awarenessDecoder);
+            decoding.readVarUint(awarenessDecoder);
+            decoding.readVarString(awarenessDecoder);
+            controlledIds?.add(clientId);
+          }
+
           awarenessProtocol.applyAwarenessUpdate(
             doc.awareness,
-            decoding.readVarUint8Array(decoder),
+            awarenessUpdate,
             conn,
           );
           break;

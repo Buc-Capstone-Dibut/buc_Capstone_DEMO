@@ -32,16 +32,27 @@ async function callWorkspaceServerDocRoomAction(
     };
   }
 
-  const response = await fetch(
-    `${getWorkspaceServerHttpUrl()}/internal/yjs/docs/${docId}/${action}`,
-    {
-      method: "POST",
-      headers: {
-        "x-internal-secret": INTERNAL_API_SECRET,
+  let response: Response;
+  try {
+    response = await fetch(
+      `${getWorkspaceServerHttpUrl()}/internal/yjs/docs/${docId}/${action}`,
+      {
+        method: "POST",
+        headers: {
+          "x-internal-secret": INTERNAL_API_SECRET,
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5_000),
       },
-      cache: "no-store",
-    },
-  );
+    );
+  } catch (error) {
+    console.error(`[doc-collab] workspace server ${action} failed`, error);
+    return {
+      ok: false as const,
+      status: 503,
+      error: "Workspace collaboration server is unavailable.",
+    };
+  }
 
   const payload = (await response.json().catch(() => null)) as
     | {
