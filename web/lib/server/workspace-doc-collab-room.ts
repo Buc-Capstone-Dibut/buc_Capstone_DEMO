@@ -23,6 +23,7 @@ function getWorkspaceServerHttpUrl() {
 async function callWorkspaceServerDocRoomAction(
   docId: string,
   action: "reset" | "flush",
+  options: { force?: boolean } = {},
 ) {
   if (!INTERNAL_API_SECRET) {
     return {
@@ -34,8 +35,9 @@ async function callWorkspaceServerDocRoomAction(
 
   let response: Response;
   try {
+    const query = action === "reset" && options.force ? "?force=true" : "";
     response = await fetch(
-      `${getWorkspaceServerHttpUrl()}/internal/yjs/docs/${docId}/${action}`,
+      `${getWorkspaceServerHttpUrl()}/internal/yjs/docs/${docId}/${action}${query}`,
       {
         method: "POST",
         headers: {
@@ -71,8 +73,11 @@ async function callWorkspaceServerDocRoomAction(
   return { ok: true as const };
 }
 
-export function resetWorkspaceDocCollabRoom(docId: string) {
-  return callWorkspaceServerDocRoomAction(docId, "reset");
+export function resetWorkspaceDocCollabRoom(
+  docId: string,
+  options: { force?: boolean } = {},
+) {
+  return callWorkspaceServerDocRoomAction(docId, "reset", options);
 }
 
 export function flushWorkspaceDocCollabRoom(docId: string) {

@@ -150,13 +150,20 @@ WSSharedDoc
 1. 일반 편집기가 현재 내용을 저장한다.
 2. `POST .../collab/start`가 멤버십·쓰기 가능 여부를 확인한다.
 3. 일반 편집 중 저장하지 않은 참가자가 있는지 확인한다.
-4. `workspace_docs.content`에서 Yjs 상태를 seed한다.
-5. 비활성 workspace-server 방을 reset한다.
+4. DB 세션이 비활성이면 workspace-server의 이전 방을 reset한다. 연결만 남은
+   종료 세션은 해당 연결을 끊고 메모리 상태를 폐기한다.
+5. 최신 `workspace_docs.content`에서 Yjs 상태를 seed한다.
 6. `workspace_doc_collab_sessions`를 ACTIVE로 만들고 HMAC 토큰을 반환한다.
 7. 브라우저가 10초마다 `workspace_doc_live_presence` heartbeat를 갱신한다.
 8. 마지막 참가자가 leave하면 세션을 ENDED로 변경한다.
 
 일반 편집 저장은 오래된 `workspace_doc_states`를 삭제한다. 다음 협업 시작 시 최신 `workspace_docs.content`에서 다시 seed한다.
+
+협업 세션 DB 상태와 메모리 WebSocket 방은 서로 다른 저장소다. 비정상 종료로
+DB 세션만 `ENDED`가 되고 방 연결이 남을 수 있으므로, 새 세션 시작은 종료된
+세션의 방을 강제로 정리한 뒤 일반 편집 snapshot을 기준으로 재시드한다. 이때
+이전 방을 저장하지 않는 이유는 이미 일반 편집에서 저장한 최신 snapshot을
+오래된 메모리 상태가 뒤늦게 덮는 것을 방지하기 위해서다.
 
 ## 6. 웹 클라이언트 연결
 

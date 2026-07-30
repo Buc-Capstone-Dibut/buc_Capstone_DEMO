@@ -422,7 +422,19 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
   }
 };
 
-export const resetYjsRoom = async (roomName: string) => {
+type ResetYjsRoomOptions = {
+  /**
+   * DB 협업 세션이 이미 종료된 경우에만 사용한다.
+   * 남아 있는 브라우저 연결과 메모리 상태를 폐기하고 일반 문서 snapshot을
+   * 다시 seed할 수 있게 한다.
+   */
+  force?: boolean;
+};
+
+export const resetYjsRoom = async (
+  roomName: string,
+  options: ResetYjsRoomOptions = {},
+) => {
   const pendingLoad = docLoadPromises.get(roomName);
   if (pendingLoad) {
     await pendingLoad.catch(() => undefined);
@@ -433,7 +445,7 @@ export const resetYjsRoom = async (roomName: string) => {
     return { ok: true as const, existed: false };
   }
 
-  if (doc.conns.size > 0) {
+  if (doc.conns.size > 0 && !options.force) {
     return {
       ok: false as const,
       status: 409,
@@ -441,14 +453,37 @@ export const resetYjsRoom = async (roomName: string) => {
     };
   }
 
+  if (options.force && doc.conns.size > 0) {
+    const staleConnections = Array.from(doc.conns.keys());
+
+    // closeConn은 마지막 연결에서 저장을 예약하므로 사용하지 않는다.
+    // 이 경로에서는 DB의 일반 문서 snapshot이 기준이며, 종료된 세션의
+    // 메모리 상태가 최신 snapshot을 뒤늦게 덮으면 안 된다.
+    doc.conns.clear();
+    staleConnections.forEach((connection) => {
+      try {
+        connection.close(1012, "Collaboration session reset");
+        connection.terminate();
+      } catch (error) {
+        console.warn(`[YJS] '${roomName}' stale connection close failed`, error);
+      }
+    });
+  }
+
   // 지연 중이거나 직전 실패 후 재시도 대기 중인 상태까지 DB에 확정한 뒤 제거한다.
-  await doc.flushPersistence();
+  if (!options.force) {
+    await doc.flushPersistence();
+  }
   doc.cleanup();
   docs.delete(roomName);
   docLoadPromises.delete(roomName);
   doc.destroy();
 
-  return { ok: true as const, existed: true };
+  return {
+    ok: true as const,
+    existed: true,
+    forced: Boolean(options.force),
+  };
 };
 
 export const flushYjsRoom = async (roomName: string) => {

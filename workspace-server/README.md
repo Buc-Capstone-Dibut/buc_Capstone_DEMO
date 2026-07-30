@@ -343,6 +343,6 @@ npm install
 npm run dev
 ```
 
-workspace-server의 개발 명령은 `tsx watch src/index.ts`다. 배포는 `prisma generate && tsc`로 빌드한 뒤 `node dist/index.js`로 실행하며, `/healthz`를 liveness endpoint로 사용한다. 알 수 없는 HTTP 경로는 404를 반환한다.
+workspace-server의 개발 명령은 `tsx watch src/index.ts`다. 배포는 `prisma generate && tsc`로 빌드한 뒤 `node dist/index.js`로 실행하며, `/healthz`를 liveness endpoint로 사용한다. 알 수 없는 HTTP 경로는 404를 반환한다. Render 대시보드의 Build Command가 Blueprint와 어긋난 경우에도 시작 전에 `dist/index.js`가 없으면 `prestart`가 한 번 빌드해 누락된 산출물을 복구한다. 정상 배포에서는 `render.yaml`의 `npm ci && npm run build`가 먼저 실행되므로 `prestart`는 즉시 종료한다.
 
 `render.yaml`은 Render 무료 web service, `npm ci`, TypeScript build, 30초 shutdown delay를 명시한다. 무료 인스턴스의 sleep·재기동은 정상 조건이므로 클라이언트는 연결 중에도 보드·문서 같은 BFF 기능을 막지 않고 작은 상태 표시만 노출한다.

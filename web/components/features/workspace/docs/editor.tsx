@@ -296,7 +296,7 @@ export const DocumentEditor = forwardRef<
 
           try {
             const persisted = await onCheckPersisted(changedAt);
-            onStatusChange?.(persisted ? "synced" : "saving");
+            onStatusChange?.(persisted ? "synced" : "unstable");
           } catch (error) {
             console.error("Failed to confirm collaboration persistence", error);
             onStatusChange?.("unstable");

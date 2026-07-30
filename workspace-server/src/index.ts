@@ -51,9 +51,13 @@ const httpServer = createServer((req, res) => {
     const docId = (resetMatch || flushMatch)?.[1];
     const roomName = `doc:${docId}`;
 
-    const handler = resetMatch ? resetYjsRoom : flushYjsRoom;
+    const forceReset =
+      Boolean(resetMatch) && requestUrl.searchParams.get("force") === "true";
+    const handler = resetMatch
+      ? () => resetYjsRoom(roomName, { force: forceReset })
+      : () => flushYjsRoom(roomName);
 
-    void handler(roomName)
+    void handler()
       .then((result) => {
         if (!result.ok) {
           res.writeHead(result.status, { "Content-Type": "application/json" });

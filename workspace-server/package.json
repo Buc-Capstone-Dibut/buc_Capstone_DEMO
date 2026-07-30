@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "prisma generate && tsc",
+    "prestart": "node scripts/ensure-build.cjs",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",

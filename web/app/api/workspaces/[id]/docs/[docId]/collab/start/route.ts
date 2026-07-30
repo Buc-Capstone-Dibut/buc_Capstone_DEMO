@@ -83,7 +83,10 @@ export async function POST(
 
     if (!existingSession || existingSession.status !== "ACTIVE") {
       // 이전 room의 지연 저장이 새 seed를 뒤늦게 덮지 않도록 room을 먼저 비운다.
-      const reset = await resetWorkspaceDocCollabRoom(docId);
+      // DB 세션이 비활성인데 WebSocket room만 남아 있으면 그 연결은 이전
+      // 세션의 잔존 상태다. 최신 일반 편집 snapshot을 기준으로 재시드할 수
+      // 있도록 잔존 연결과 메모리 room을 함께 정리한다.
+      const reset = await resetWorkspaceDocCollabRoom(docId, { force: true });
       if (!reset.ok) {
         return NextResponse.json(
           { error: "이전 협업 상태를 정리하지 못해 협업을 시작할 수 없습니다." },

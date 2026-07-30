@@ -161,7 +161,7 @@ AI 면접 상태 확인은 `curl http://localhost:8001/health`로 한다. 실제
 
 - 웹: Vercel에서 Root Directory를 `web`으로 설정하며, 빌드·설치는 각각 `npm run build`, `npm install`이다.
 - AI 면접: Render의 `ai-interview/render.yaml`을 기준으로 Python 3.13.7과 `uv sync --frozen --no-dev`를 사용한다.
-- 워크스페이스: Render의 `workspace-server/render.yaml`을 기준으로 `npm install`, `npm start`를 사용한다.
+- 워크스페이스: Render의 `workspace-server/render.yaml`을 기준으로 `npm ci && npm run build`, `npm start`를 사용한다. Render 대시보드에서 수동 생성한 서비스는 이 Blueprint 설정이 자동 반영되지 않을 수 있으므로 Build Command도 동일하게 맞춰야 한다. 시작 시 `dist/index.js`가 없으면 `prestart`가 빌드를 한 번 복구한다.
 - 배포 URL, 키 이름, CORS 허용 도메인은 환경마다 다르므로 매니페스트의 예시값을 그대로 운영 값으로 간주하지 않는다.
 
 ## 8. 검증 절차
@@ -185,7 +185,7 @@ cd ai-interview
 uv run pytest
 ```
 
-`workspace-server`에는 현재 자동 테스트·lint·build 스크립트가 없다. 워크스페이스 변경은 `web`과 `workspace-server`를 함께 실행한 뒤 다음 흐름을 수동 검증한다.
+`workspace-server`에는 `typecheck`, 서비스 단위 `test`, `build` 스크립트가 있다. WebSocket 브라우저 통합 테스트는 아직 없으므로 자동 검사 후 `web`과 `workspace-server`를 함께 실행해 다음 흐름을 수동 검증한다.
 
 1. 멤버와 비멤버의 워크스페이스 접근
 2. 문서 일반 편집 저장과 새로고침 복원
