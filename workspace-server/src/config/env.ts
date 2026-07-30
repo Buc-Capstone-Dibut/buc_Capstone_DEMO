@@ -71,10 +71,58 @@ export const BFF_URL = process.env.BFF_URL || "http://localhost:3000";
 // 서버 간 내부 통신 인증 시크릿
 // Next.js BFF의 INTERNAL_API_SECRET 값과 반드시 일치해야 함
 export const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "";
+export const COLLAB_TOKEN_SECRET =
+  process.env.COLLAB_TOKEN_SECRET || INTERNAL_API_SECRET;
+
+export const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+export const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "";
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+
+function parseAllowedOrigins(value: string | undefined) {
+  const configured = (value || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const bffOrigin = (() => {
+    try {
+      return new URL(BFF_URL).origin;
+    } catch {
+      return "";
+    }
+  })();
+
+  return Array.from(
+    new Set(
+      [...DEFAULT_ALLOWED_ORIGINS, bffOrigin, ...configured].filter(Boolean),
+    ),
+  );
+}
+
+export const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 
 export const env = {
   PORT: Number(PORT),
   DATABASE_URL: process.env.DATABASE_URL || "",
   BFF_URL,
   INTERNAL_API_SECRET,
+  COLLAB_TOKEN_SECRET,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  ALLOWED_ORIGINS,
 };
+
+export function isAllowedOrigin(origin: string | undefined) {
+  if (!origin) {
+    return process.env.NODE_ENV !== "production";
+  }
+  return ALLOWED_ORIGINS.includes(origin);
+}

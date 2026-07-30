@@ -9,6 +9,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { WorkspaceSidebar } from "@/components/features/workspace/detail/workspace-sidebar";
+import { WorkspaceServerStatus } from "@/components/features/workspace/detail/workspace-server-status";
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -492,6 +493,7 @@ export default function WorkspaceDetailPage() {
         projectId={projectId}
         onNavigateToDoc={(docId) => void handleTabChange("docs", { docId })}
       />
+      {!isReadOnly && <WorkspaceServerStatus />}
     </div>
   );
 }

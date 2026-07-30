@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-const COLLAB_SECRET = process.env.INTERNAL_API_SECRET ?? "";
+const COLLAB_SECRET =
+  process.env.COLLAB_TOKEN_SECRET ?? process.env.INTERNAL_API_SECRET ?? "";
 const TOKEN_TTL_MS = 5 * 60 * 1000;
 
 type WorkspaceDocCollabTokenPayload = {
@@ -33,7 +34,9 @@ export function createWorkspaceDocCollabToken(input: {
   userId: string;
 }) {
   if (!COLLAB_SECRET) {
-    throw new Error("INTERNAL_API_SECRET is required to issue collaboration tokens.");
+    throw new Error(
+      "COLLAB_TOKEN_SECRET is required to issue collaboration tokens.",
+    );
   }
 
   const payload: WorkspaceDocCollabTokenPayload = {
@@ -52,7 +55,9 @@ export function createWorkspaceWhiteboardToken(input: {
   userId: string;
 }) {
   if (!COLLAB_SECRET) {
-    throw new Error("INTERNAL_API_SECRET is required to issue collaboration tokens.");
+    throw new Error(
+      "COLLAB_TOKEN_SECRET is required to issue collaboration tokens.",
+    );
   }
 
   const payload: WorkspaceDocCollabTokenPayload = {

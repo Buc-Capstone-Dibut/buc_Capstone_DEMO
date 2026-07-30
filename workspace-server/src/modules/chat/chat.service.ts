@@ -1,8 +1,26 @@
 import "../../config/env";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../database/prisma";
 
-const prisma = new PrismaClient();
 const READ_ONLY_ERROR = "이 워크스페이스는 종료되어 읽기 전용입니다.";
+const MAX_CHANNEL_NAME_LENGTH = 50;
+const MAX_CHANNEL_DESCRIPTION_LENGTH = 500;
+const MAX_MESSAGE_LENGTH = 32_768;
+const MESSAGE_PAGE_SIZE = 100;
+
+function normalizeRequiredText(
+  value: string,
+  label: string,
+  maxLength: number,
+) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized) {
+    throw new Error(`${label}을(를) 입력해주세요.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new Error(`${label}은(는) ${maxLength}자 이하여야 합니다.`);
+  }
+  return normalized;
+}
 
 function toNotificationPreview(content: string) {
   return content
@@ -55,9 +73,8 @@ export class ChatService {
       `;
       return rows[0]?.lifecycle_status === "COMPLETED";
     } catch (error) {
-      // Keep chat available if lifecycle fields are not ready yet.
-      console.warn("[Service] read-only check skipped:", error);
-      return false;
+      console.error("[Service] read-only check failed closed:", error);
+      return true;
     }
   }
 
@@ -107,27 +124,42 @@ export class ChatService {
     description: string = "",
   ) {
     await this.assertWorkspaceWritable(workspaceId);
+    const normalizedName = normalizeRequiredText(
+      name,
+      "채널 이름",
+      MAX_CHANNEL_NAME_LENGTH,
+    );
+    const normalizedDescription = description.trim();
+    if (normalizedDescription.length > MAX_CHANNEL_DESCRIPTION_LENGTH) {
+      throw new Error(
+        `채널 설명은 ${MAX_CHANNEL_DESCRIPTION_LENGTH}자 이하여야 합니다.`,
+      );
+    }
 
     // Check duplicate name
     const existing = await prisma.workspace_channels.findFirst({
-      where: { workspace_id: workspaceId, name },
+      where: { workspace_id: workspaceId, name: normalizedName },
     });
 
     if (existing) {
-      throw new Error(`Channel #${name} already exists.`);
+      throw new Error(`Channel #${normalizedName} already exists.`);
     }
 
     return await prisma.workspace_channels.create({
       data: {
         workspace_id: workspaceId,
-        name,
-        description,
+        name: normalizedName,
+        description: normalizedDescription,
         type: "PUBLIC",
       },
     });
   }
 
-  static async deleteChannel(channelId: string, requesterId: string) {
+  static async deleteChannel(
+    channelId: string,
+    requesterId: string,
+    workspaceId: string,
+  ) {
     const channel = await prisma.workspace_channels.findUnique({
       where: { id: channelId },
       select: {
@@ -139,6 +171,9 @@ export class ChatService {
 
     if (!channel) {
       throw new Error("채널을 찾을 수 없습니다.");
+    }
+    if (channel.workspace_id !== workspaceId) {
+      throw new Error("이 워크스페이스의 채널이 아닙니다.");
     }
 
     if (channel.name === "general") {
@@ -157,7 +192,10 @@ export class ChatService {
       },
     });
 
-    if (!member || !["owner", "admin"].includes((member.role || "").toLowerCase())) {
+    if (
+      !member ||
+      !["owner", "admin"].includes((member.role || "").toLowerCase())
+    ) {
       throw new Error("채널 삭제 권한이 없습니다.");
     }
 
@@ -180,12 +218,31 @@ export class ChatService {
     });
   }
 
+  static async assertChannelInWorkspace(
+    channelId: string,
+    workspaceId: string,
+  ) {
+    const channel = await prisma.workspace_channels.findUnique({
+      where: { id: channelId },
+      select: {
+        id: true,
+        workspace_id: true,
+      },
+    });
+    if (!channel || channel.workspace_id !== workspaceId) {
+      throw new Error("채널 접근 권한이 없습니다.");
+    }
+    return channel;
+  }
+
   // --- Message Management ---
 
-  static async getMessages(channelId: string) {
+  static async getMessages(channelId: string, workspaceId: string) {
+    await this.assertChannelInWorkspace(channelId, workspaceId);
     const messages = await prisma.workspace_messages.findMany({
       where: { channel_id: channelId },
-      orderBy: { created_at: "asc" },
+      orderBy: { created_at: "desc" },
+      take: MESSAGE_PAGE_SIZE,
       include: {
         sender: {
           select: {
@@ -198,7 +255,7 @@ export class ChatService {
     });
 
     // Send absolute time; UI should render in client locale/timezone.
-    return messages.map((msg) => toMessagePayload(msg));
+    return messages.reverse().map((msg) => toMessagePayload(msg));
   }
 
   static async saveMessage(
@@ -210,11 +267,16 @@ export class ChatService {
     if (!channel) throw new Error("Channel not found");
 
     await this.assertWorkspaceWritable(channel.workspace_id);
+    const normalizedContent = normalizeRequiredText(
+      content,
+      "메시지",
+      MAX_MESSAGE_LENGTH,
+    );
 
     const msg = await prisma.workspace_messages.create({
       data: {
         channel_id: channelId,
-        content,
+        content: normalizedContent,
         sender_id: senderId,
         type: "TEXT",
       },
@@ -238,7 +300,7 @@ export class ChatService {
         const mentionedUserIds = new Set<string>();
         let match;
 
-        while ((match = mentionRegex.exec(content)) !== null) {
+        while ((match = mentionRegex.exec(normalizedContent)) !== null) {
           if (match[1] !== senderId) {
             // Self-mention check
             mentionedUserIds.add(match[1]);
@@ -248,26 +310,40 @@ export class ChatService {
         if (mentionedUserIds.size > 0) {
           const channel = await this.getChannelById(channelId);
           const workspaceId = channel?.workspace_id;
+          const validMembers = workspaceId
+            ? await prisma.workspace_members.findMany({
+                where: {
+                  workspace_id: workspaceId,
+                  user_id: { in: Array.from(mentionedUserIds) },
+                },
+                select: { user_id: true },
+              })
+            : [];
+          const validMemberIds = new Set(
+            validMembers.map((member) => member.user_id),
+          );
 
           await Promise.all(
-            Array.from(mentionedUserIds).map(async (targetUserId) => {
-              const displayContent = toNotificationPreview(content);
+            Array.from(mentionedUserIds)
+              .filter((targetUserId) => validMemberIds.has(targetUserId))
+              .map(async (targetUserId) => {
+                const displayContent = toNotificationPreview(normalizedContent);
 
-              await prisma.notifications.create({
-                data: {
-                  user_id: targetUserId,
-                  type: "MENTION",
-                  title: `New mention in #${channel?.name || "chat"}`,
-                  message: `${msg.sender?.nickname || "Someone"} mentioned you: "${displayContent.substring(0, 50)}${displayContent.length > 50 ? "..." : ""}"`,
-                  link:
-                    workspaceId && channelId
-                      ? `/workspace/${workspaceId}?tab=chat-${channelId}`
-                      : workspaceId
-                        ? `/workspace/${workspaceId}`
-                        : undefined,
-                },
-              });
-            }),
+                await prisma.notifications.create({
+                  data: {
+                    user_id: targetUserId,
+                    type: "MENTION",
+                    title: `New mention in #${channel?.name || "chat"}`,
+                    message: `${msg.sender?.nickname || "Someone"} mentioned you: "${displayContent.substring(0, 50)}${displayContent.length > 50 ? "..." : ""}"`,
+                    link:
+                      workspaceId && channelId
+                        ? `/workspace/${workspaceId}?tab=chat-${channelId}`
+                        : workspaceId
+                          ? `/workspace/${workspaceId}`
+                          : undefined,
+                  },
+                });
+              }),
           );
         }
       } catch (error) {
@@ -286,10 +362,11 @@ export class ChatService {
     content: string,
     requesterId: string,
   ) {
-    const nextContent = content.trim();
-    if (!nextContent) {
-      throw new Error("메시지 내용을 입력해주세요.");
-    }
+    const nextContent = normalizeRequiredText(
+      content,
+      "메시지",
+      MAX_MESSAGE_LENGTH,
+    );
 
     const existingMessage = await prisma.workspace_messages.findUnique({
       where: { id: messageId },

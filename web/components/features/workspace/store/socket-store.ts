@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase/client";
 
 const WORKSPACE_SERVER_UNSTABLE_MESSAGE =
   "워크스페이스 서버가 불안정합니다. 잠시 후 다시 시도해주세요.";
@@ -85,6 +86,8 @@ interface MessageMutationAck {
 interface SocketStore {
   socket: Socket | null;
   isConnected: boolean;
+  connectionState:
+    "idle" | "connecting" | "connected" | "reconnecting" | "error";
   currentUserId: string | null;
 
   channels: Channel[];
@@ -140,6 +143,7 @@ function normalizeChannel(channel: ChannelPayload): Channel {
 export const useSocketStore = create<SocketStore>((set, get) => ({
   socket: null,
   isConnected: false,
+  connectionState: "idle",
   currentUserId: null,
 
   channels: [],
@@ -151,27 +155,65 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       return;
     }
 
-    set({ currentUserId: userId });
+    set({
+      currentUserId: userId,
+      connectionState: "connecting",
+    });
 
     const socket = io(url, {
       path: "/socket.io",
       transports: ["websocket"],
-      reconnectionAttempts: 5,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3_000,
+      timeout: 10_000,
+      auth: (callback) => {
+        void supabase.auth
+          .getSession()
+          .then(({ data }) => {
+            callback({
+              token: data.session?.access_token || "",
+              workspaceId: projectId,
+            });
+          })
+          .catch(() => {
+            callback({ token: "", workspaceId: projectId });
+          });
+      },
     });
 
     socket.on("connect", () => {
-      set({ isConnected: true });
-      socket.emit("join", { userId, projectId });
+      set({ isConnected: true, connectionState: "connected" });
       get().fetchChannels(projectId, socket); // Pass socket instance
     });
 
     socket.on("connect_error", (err) => {
       console.error("[Socket] Connection Error:", err);
-      notifyWorkspaceServerUnstable();
+      set((state) => ({
+        isConnected: false,
+        connectionState:
+          state.connectionState === "connected"
+            ? "reconnecting"
+            : state.connectionState,
+      }));
     });
 
-    socket.on("disconnect", () => {
-      set({ isConnected: false });
+    socket.on("disconnect", (reason) => {
+      set({
+        isConnected: false,
+        connectionState:
+          reason === "io client disconnect" ? "idle" : "reconnecting",
+      });
+    });
+
+    socket.io.on("reconnect_attempt", () => {
+      set({ connectionState: "reconnecting" });
+    });
+
+    socket.io.on("reconnect_failed", () => {
+      set({ connectionState: "error" });
+      notifyWorkspaceServerUnstable();
     });
 
     socket.on(
@@ -300,6 +342,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       set({
         socket: null,
         isConnected: false,
+        connectionState: "idle",
         currentUserId: null,
         channels: [],
         messages: [],

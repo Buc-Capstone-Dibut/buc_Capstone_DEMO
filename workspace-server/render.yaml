@@ -2,14 +2,28 @@ services:
   - type: web
     name: dibut-workspace-server
     runtime: node
-    buildCommand: npm install
+    plan: free
+    rootDir: workspace-server
+    buildCommand: npm ci && npm run build
     startCommand: npm start
+    healthCheckPath: /healthz
+    maxShutdownDelaySeconds: 30
     envVars:
       - key: PORT
         value: 4000
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: BFF_URL
         sync: false
       - key: INTERNAL_API_SECRET
+        sync: false
+      - key: COLLAB_TOKEN_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
         sync: false

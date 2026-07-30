@@ -2,7 +2,7 @@ import { Server, Socket } from "socket.io";
 import { setupChatGateway } from "../chat/chat.gateway";
 // import { setupHuddleGateway } from '../huddle/huddle.gateway'; // Removed
 import { setupBoardGateway } from "../board/board.gateway";
-import { ChatService } from "../chat/chat.service";
+import { AuthService, getSocketIdentity } from "../auth/auth.service";
 
 interface ConnectedUser {
   socketId: string;
@@ -13,65 +13,84 @@ interface ConnectedUser {
 
 // In-memory store for connected users (for demo purposes)
 export const connectedUsers = new Map<string, ConnectedUser>();
+const EVENT_WINDOW_MS = 10_000;
+const MAX_EVENTS_PER_WINDOW = 120;
 
 export const setupSocketGateway = (io: Server) => {
+  io.use((socket, next) => {
+    void AuthService.authenticateSocket(socket)
+      .then((identity) => {
+        if (!identity) {
+          next(new Error("워크스페이스 접근 권한을 확인할 수 없습니다."));
+          return;
+        }
+        socket.data.identity = identity;
+        next();
+      })
+      .catch((error) => {
+        console.error("[AUTH] Socket authentication failed", error);
+        next(new Error("실시간 연결 인증에 실패했습니다."));
+      });
+  });
+
   io.on("connection", (socket: Socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    const identity = getSocketIdentity(socket);
+    console.log(
+      `[SOCKET] Connected ${socket.id} to workspace ${identity.workspaceId}`,
+    );
 
-    // Handle initial join/auth
-    socket.on("join", async ({ userId, projectId }) => {
-      const workspaceId = typeof projectId === "string" ? projectId.trim() : "";
-      if (!workspaceId) {
+    connectedUsers.set(socket.id, {
+      socketId: socket.id,
+      userId: identity.userId,
+      projectId: identity.workspaceId,
+      online: true,
+    });
+    void socket.join(identity.workspaceId);
+    io.to(identity.workspaceId).emit("presence:update", {
+      userId: identity.userId,
+      status: "online",
+    });
+
+    let eventWindowStartedAt = Date.now();
+    let eventCount = 0;
+    socket.use((_event, next) => {
+      const now = Date.now();
+      if (now - eventWindowStartedAt >= EVENT_WINDOW_MS) {
+        eventWindowStartedAt = now;
+        eventCount = 0;
+      }
+      eventCount += 1;
+      if (eventCount > MAX_EVENTS_PER_WINDOW) {
+        next(
+          new Error("실시간 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
+        );
         return;
       }
-
-      const readOnly = await ChatService.isWorkspaceReadOnly(workspaceId);
-      if (readOnly) {
-        socket.emit("workspace:readonly", {
-          projectId: workspaceId,
-          message:
-            "이 워크스페이스는 종료되어 실시간 기능이 중지되었습니다.",
-        });
-        socket.disconnect(true);
-        return;
-      }
-
-      console.log(`User ${userId} joined project ${workspaceId}`);
-
-      connectedUsers.set(socket.id, {
-        socketId: socket.id,
-        userId,
-        projectId: workspaceId,
-        online: true,
-      });
-
-      // Join project room
-      socket.join(workspaceId);
-
-      // Broadcast presence update
-      io.to(workspaceId).emit("presence:update", {
-        userId,
-        status: "online",
-      });
+      next();
     });
 
     socket.on("disconnect", () => {
       const user = connectedUsers.get(socket.id);
       if (user) {
         console.log(`User ${user.userId} disconnected`);
-        io.to(user.projectId).emit("presence:update", {
-          userId: user.userId,
-          status: "offline",
-        });
         connectedUsers.delete(socket.id);
+        const hasAnotherConnection = Array.from(connectedUsers.values()).some(
+          (candidate) =>
+            candidate.userId === user.userId &&
+            candidate.projectId === user.projectId,
+        );
+        if (!hasAnotherConnection) {
+          io.to(user.projectId).emit("presence:update", {
+            userId: user.userId,
+            status: "offline",
+          });
+        }
       }
     });
 
     // Voice State Update Relay
-    socket.on("voice:update", ({ projectId }) => {
-      // Broadcast to everyone in the project (including sender, though sender usually updates self)
-      // Using broadcast.to avoids sender re-fetch if desired, but io.to is safer to ensure consistency
-      socket.to(projectId).emit("voice:update");
+    socket.on("voice:update", () => {
+      socket.to(identity.workspaceId).emit("voice:update");
     });
   });
 
