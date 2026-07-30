@@ -440,7 +440,7 @@ export const NormalDocumentEditor = forwardRef<
         </BlockNoteView>
       </div>
 
-      <style jsx global>{`
+      <style>{`
         .doc-editor-surface a[href*="?tab=board&task="] {
           display: inline-flex;
           align-items: center;
