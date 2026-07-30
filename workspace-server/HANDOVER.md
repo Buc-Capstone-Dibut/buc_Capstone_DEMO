@@ -1,6 +1,6 @@
 # Workspace Server 코드 인수인계
 
-> 코드 점검 기준: `develop`의 `290976b` (2026-07-28)
+> 코드 점검 기준: `feature/workspace` (2026-07-30)
 >
 > 이 문서는 현재 구현을 설명한다. 제품·운영의 상위 기준은 [`docs/PROJECT_REFERENCE.md`](../docs/PROJECT_REFERENCE.md)다.
 
@@ -25,9 +25,9 @@
 4. `upgrade` 이벤트에서 `/socket.io`는 Socket.IO에 남기고 나머지는 Yjs WebSocketServer가 처리한다.
 5. HTTP server가 `PORT`에서 listen한다.
 
-HTTP 요청은 문서 방 reset/flush 두 경로만 별도로 처리한다. 나머지 경로는 단순 실행 문자열과 HTTP 200을 반환하므로, 현재 응답은 실제 DB·BFF readiness를 의미하지 않는다.
+HTTP 요청은 `/healthz`, 루트 상태, 문서 방 reset/flush를 처리한다. 알 수 없는 경로는 404다. `/healthz`는 프로세스 liveness이며 DB·BFF readiness를 보장하지 않는다.
 
-Socket.IO CORS는 현재 `origin: "*"`다. raw WebSocket은 Origin을 검사하지 않는다.
+Socket.IO와 raw Yjs WebSocket은 `ALLOWED_ORIGINS` allowlist를 적용한다.
 
 ## 3. 환경변수 로딩
 
@@ -44,22 +44,25 @@ Socket.IO CORS는 현재 `origin: "*"`다. raw WebSocket은 Origin을 검사하�
 | --- | --- | --- |
 | `DATABASE_URL` | ChatService Prisma | 시작 경고 후 실제 쿼리에서 실패 가능 |
 | `BFF_URL` | Yjs 상태 API | `http://localhost:3000` 사용 |
-| `INTERNAL_API_SECRET` | 내부 API·HMAC 토큰 | Yjs 상태 로드·저장 생략, 문서 토큰 검증 실패 |
+| `INTERNAL_API_SECRET` | BFF 내부 상태 API | Yjs 상태 로드·저장 실패 |
+| `COLLAB_TOKEN_SECRET` | 문서·화이트보드 HMAC token | 미설정 시 내부 secret으로 호환 |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Socket.IO 사용자 검증 | 신규 Socket.IO 연결 거부 |
+| `ALLOWED_ORIGINS` | 웹 Origin allowlist | localhost와 BFF Origin만 허용 |
 | `PORT` | HTTP/WS listen | 4000 |
 
 ## 4. Socket.IO 실행 경로
 
 ### 연결과 워크스페이스 방
 
-`src/modules/socket/socket.gateway.ts`의 `join` 이벤트는 클라이언트가 보낸 `userId`, `projectId`를 받아 `projectId` room에 들어간다.
+`src/modules/socket/socket.gateway.ts`의 middleware는 handshake의 Supabase access token을 Auth `/user` API로 검증하고, DB의 `workspace_members`와 lifecycle을 확인한다.
 
-- `ChatService.isWorkspaceReadOnly()`로 `COMPLETED` 여부 확인
-- 완료된 워크스페이스면 `workspace:readonly`를 보내고 연결 종료
+- 검증한 `userId`, `workspaceId`, `role`을 `socket.data.identity`에 저장
+- 완료된 워크스페이스·비회원·유효하지 않은 token은 연결 전 거부
 - 연결 정보는 `Map<socketId, ConnectedUser>`에 저장
-- 입장·퇴장 시 `presence:update` 방송
-- `voice:update`는 해당 워크스페이스 room에 목록 갱신 신호만 전달
+- 마지막 탭이 퇴장할 때 `presence:update` offline 방송
+- `voice:update` room은 인증된 workspace에서만 결정
 
-현재 Supabase JWT 검증과 `workspace_members` 멤버십 검증은 없다. 연결 Map은 프로세스 로컬이며 동일 사용자의 다중 탭을 하나의 온라인 상태로 합치지 않는다.
+클라이언트는 Socket.IO auth callback에서 재연결마다 현재 Supabase session token을 전달한다. 연결 Map은 여전히 단일 프로세스 로컬이다.
 
 ### 채팅
 
@@ -78,9 +81,9 @@ Socket.IO CORS는 현재 `origin: "*"`다. raw WebSocket은 Origin을 검사하�
 
 주의할 점:
 
-- gateway가 인증된 socket 사용자와 payload의 `senderId`/`requesterId`를 결합하지 않는다.
-- 채널 조회·입장·메시지 조회에서 워크스페이스 멤버십을 검사하지 않는다.
-- `isWorkspaceReadOnly()`의 raw SQL이 실패하면 `false`를 반환해 쓰기를 허용한다.
+- gateway는 payload의 `senderId`/`requesterId`를 사용하지 않고 인증된 socket 사용자로 덮어쓴다.
+- 채널 조회·입장·메시지 조회는 인증된 워크스페이스와 채널 소속을 확인한다.
+- `isWorkspaceReadOnly()`의 raw SQL 실패는 쓰기를 차단한다.
 - 메시지 조회는 pagination이 없고 전체 기록을 반환한다.
 - 멘션 알림은 대기열 없이 fire-and-forget Promise로 생성한다.
 - 입력 schema, 최대 길이, 업로드 크기, 이벤트 rate limit가 없다.
@@ -89,7 +92,7 @@ Socket.IO CORS는 현재 `origin: "*"`다. raw WebSocket은 Origin을 검사하�
 
 `src/modules/board/board.gateway.ts`의 `board:join`, `board:update`는 요소 배열을 room에 릴레이할 뿐 저장하지 않는다. 현재 웹의 아이디어 보드는 이 이벤트가 아니라 Yjs `whiteboard:<workspaceId>` 방을 사용한다.
 
-`src/modules/auth/auth.service.ts`의 mock membership과 `src/modules/chat/chat.types.ts`도 현재 gateway에서 사용하지 않는다.
+`src/modules/auth/auth.service.ts`는 Supabase 사용자와 DB 멤버십을 검증한다. `src/modules/chat/chat.types.ts`는 현재 gateway에서 사용하지 않는다.
 
 ## 5. Yjs 실행 경로
 
@@ -97,11 +100,11 @@ Socket.IO CORS는 현재 `origin: "*"`다. raw WebSocket은 Origin을 검사하�
 
 `src/modules/board/yjs.gateway.ts`가 `/socket.io` 외 WebSocket upgrade를 받는다.
 
-- `doc:*`: `token` query parameter 필수
-- 기타 방: 현재 토큰 없이 허용
-- 토큰 서명: `INTERNAL_API_SECRET` 기반 HMAC SHA-256
-- 토큰 payload: `docId`, `workspaceId`, `userId`, `exp`
-- 서버 검증: 서명·만료·방의 `docId` 일치
+- `doc:*`, `whiteboard:*`: `token` query parameter 필수
+- 토큰 서명: `COLLAB_TOKEN_SECRET` 기반 HMAC SHA-256
+- 토큰 payload: `docId` 또는 `whiteboardId`, `workspaceId`, `userId`, `exp`
+- 서버 검증: 서명·만료·방 target 일치
+- WebSocket Origin allowlist, 8MB payload 상한, 30초 heartbeat 적용
 
 BFF 토큰 발급 API가 로그인, 멤버십, 문서 소속과 활성 협업 세션을 확인한다. 토큰 유효기간은 5분이지만 연결 후 권한 변경이나 멤버 탈퇴를 다시 확인하지 않는다.
 
@@ -197,9 +200,9 @@ workspace-server의 follower에는 채팅에 필요한 모델은 있지만 다�
 
 ## 8. 장애와 종료 동작
 
-현재 구현에는 프로세스 종료 hook이 없다. SIGTERM/SIGINT 시 활성 Yjs 방을 순회해 flush하지 않고 프로세스가 종료된다.
+SIGTERM/SIGINT에서 신규 Yjs 변경을 차단하고 활성 room을 flush한 뒤 Socket.IO와 WebSocket을 닫는다. Render의 30초 종료 유예 안에서 완료하도록 내부 강제 종료는 25초다.
 
-Socket.IO 클라이언트는 WebSocket transport만 사용하고 재연결을 5회 시도한다. 재연결이 모두 실패해도 Zustand store의 socket 객체가 남을 수 있으므로 같은 화면에서 명시적 재연결이 되지 않을 수 있다.
+Socket.IO 클라이언트는 WebSocket transport로 최대 10회 재연결하고, 재연결마다 Supabase token을 새로 가져온다. 연결 중에는 웹 기능을 차단하지 않고 작은 cold-start 상태를 표시한다.
 
 Yjs awareness의 연결별 controlled client ID Set을 채우는 코드가 없어 WebSocket close 시 awareness 상태가 즉시 제거되지 않을 수 있다.
 
@@ -238,7 +241,7 @@ Yjs awareness의 연결별 controlled client ID Set을 채우는 코드가 없�
 
 ## 10. 최소 수동 회귀
 
-현재 workspace-server에는 자동 테스트 스크립트가 없다. 변경 후 최소한 다음을 두 브라우저 세션으로 확인한다.
+현재 workspace-server에는 `typecheck`, `build`, dependency audit가 있다. WebSocket 통합 테스트는 아직 없으므로 변경 후 최소한 다음을 두 브라우저 세션으로 확인한다.
 
 1. 워크스페이스 입장과 완료 상태 연결 차단
 2. 채널 자동 생성, 채널 생성·삭제

@@ -48,6 +48,8 @@ import {
   LayoutTemplate,
   CopyPlus,
   PencilLine,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -236,6 +238,8 @@ const formatSavedTime = (value?: string | null) => {
   }).format(date)} 저장됨`;
 };
 
+const DOCS_SIDEBAR_COLLAPSED_WIDTH = 52;
+const DOCS_SIDEBAR_COLLAPSE_THRESHOLD = 132;
 const DOCS_SIDEBAR_MIN_WIDTH = 256;
 const DOCS_SIDEBAR_MAX_WIDTH = 560;
 
@@ -340,11 +344,7 @@ export function DocsView({
     data: docs,
     mutate: mutateDocs,
     isLoading,
-  } = useSWR<WorkspaceDocSummary[]>(
-    docsCacheKey,
-    fetcher,
-    docsSWRConfig,
-  );
+  } = useSWR<WorkspaceDocSummary[]>(docsCacheKey, fetcher, docsSWRConfig);
   const { data: archivedDocs, mutate: mutateArchivedDocs } = useSWR<
     WorkspaceDocSummary[]
   >(archivedDocsCacheKey, fetcher, docsSWRConfig);
@@ -358,13 +358,18 @@ export function DocsView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({});
-  const [sidebarMode, setSidebarMode] = useState<"active" | "archived">("active");
+  const [sidebarMode, setSidebarMode] = useState<"active" | "archived">(
+    "active",
+  );
   const [sidebarWidth, setSidebarWidth] = useState(DOCS_SIDEBAR_MIN_WIDTH);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isOrganizeMode, setIsOrganizeMode] = useState(false);
   const [editorMode, setEditorMode] = useState<"normal" | "collab">("normal");
   const [collabToken, setCollabToken] = useState<string | null>(null);
-  const [collabInitialYjsState, setCollabInitialYjsState] = useState<string | null>(null);
+  const [collabInitialYjsState, setCollabInitialYjsState] = useState<
+    string | null
+  >(null);
   const [collabStatus, setCollabStatus] = useState<
     "connecting" | "saving" | "synced" | "unstable"
   >("synced");
@@ -377,14 +382,21 @@ export function DocsView({
   const [isSwitchingDoc, setIsSwitchingDoc] = useState(false);
   const [isDocsBootstrapping, setIsDocsBootstrapping] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<string[]>([]);
+  const [selectedArchivedDocIds, setSelectedArchivedDocIds] = useState<
+    string[]
+  >([]);
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
-  const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] = useState(false);
-  const [isEditTemplateDialogOpen, setIsEditTemplateDialogOpen] = useState(false);
+  const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] =
+    useState(false);
+  const [isEditTemplateDialogOpen, setIsEditTemplateDialogOpen] =
+    useState(false);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [isUpdatingTemplateDetails, setIsUpdatingTemplateDetails] = useState(false);
+  const [isUpdatingTemplateDetails, setIsUpdatingTemplateDetails] =
+    useState(false);
   const [templateActionId, setTemplateActionId] = useState<string | null>(null);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(
+    null,
+  );
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
   const [templateEmoji, setTemplateEmoji] = useState<string | null>("📄");
@@ -453,35 +465,36 @@ export function DocsView({
     ? `/api/workspaces/${projectId}/docs/${activeDocId}`
     : null;
 
-  const resolvedActiveDoc = useMemo(
-    () => {
-      if (activeDoc && activeDocId && activeDoc.id === activeDocId) {
-        return activeDoc;
-      }
+  const resolvedActiveDoc = useMemo(() => {
+    if (activeDoc && activeDocId && activeDoc.id === activeDocId) {
+      return activeDoc;
+    }
 
-      if (!activeDocCacheKey || !activeDocId) {
-        return null;
-      }
+    if (!activeDocCacheKey || !activeDocId) {
+      return null;
+    }
 
-      const cachedDoc = readCachedSwrData<ActiveWorkspaceDoc | null>(
-        cache.get(activeDocCacheKey),
-      );
+    const cachedDoc = readCachedSwrData<ActiveWorkspaceDoc | null>(
+      cache.get(activeDocCacheKey),
+    );
 
-      return cachedDoc && cachedDoc.id === activeDocId ? cachedDoc : null;
-    },
-    [activeDoc, activeDocCacheKey, activeDocId, cache],
-  );
+    return cachedDoc && cachedDoc.id === activeDocId ? cachedDoc : null;
+  }, [activeDoc, activeDocCacheKey, activeDocId, cache]);
 
-  const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<LinkedTaskRelation[]>(
-    activeDocId ? `/api/workspaces/${projectId}/docs/${activeDocId}/tasks` : null,
+  const { data: linkedTasks, mutate: mutateLinkedTasks } = useSWR<
+    LinkedTaskRelation[]
+  >(
+    activeDocId
+      ? `/api/workspaces/${projectId}/docs/${activeDocId}/tasks`
+      : null,
     fetcher,
-    swrOptions
+    swrOptions,
   );
 
   const { data: boardData } = useSWR<BoardTaskCollection>(
     projectId ? `/api/workspaces/${projectId}/board` : null,
     fetcher,
-    swrOptions
+    swrOptions,
   );
 
   const [taskSearch, setTaskSearch] = useState("");
@@ -492,10 +505,13 @@ export function DocsView({
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  const handleOpenTaskLocally = useCallback((taskId: string) => {
-    onNavigateToTask?.(taskId);
-    setSelectedTaskId(taskId);
-  }, [onNavigateToTask]);
+  const handleOpenTaskLocally = useCallback(
+    (taskId: string) => {
+      onNavigateToTask?.(taskId);
+      setSelectedTaskId(taskId);
+    },
+    [onNavigateToTask],
+  );
   const [docWorkerId, setDocWorkerId] = useState("");
 
   const docMap = useMemo(() => {
@@ -528,16 +544,17 @@ export function DocsView({
     const response = await fetch(
       `/api/my/workspace-settings/${encodeURIComponent(handle)}`,
     );
-    const payload = (await response.json().catch(() => null)) as
-      | WorkspaceSettingsResponse
-      | null;
+    const payload = (await response
+      .json()
+      .catch(() => null)) as WorkspaceSettingsResponse | null;
 
     if (!response.ok || !payload?.success) {
       throw new Error("문서 보기 설정을 불러오지 못했습니다.");
     }
 
     workspaceSettingsPayloadRef.current =
-      payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+      payload.data?.settingsPayload &&
+      typeof payload.data.settingsPayload === "object"
         ? payload.data.settingsPayload
         : {};
     workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
@@ -579,16 +596,17 @@ export function DocsView({
             settingsPayload: nextSettingsPayload,
           }),
         });
-        const payload = (await response.json().catch(() => null)) as
-          | WorkspaceSettingsResponse
-          | null;
+        const payload = (await response
+          .json()
+          .catch(() => null)) as WorkspaceSettingsResponse | null;
 
         if (!response.ok || !payload?.success) {
           throw new Error("문서 보기 설정 저장에 실패했습니다.");
         }
 
         workspaceSettingsPayloadRef.current =
-          payload.data?.settingsPayload && typeof payload.data.settingsPayload === "object"
+          payload.data?.settingsPayload &&
+          typeof payload.data.settingsPayload === "object"
             ? payload.data.settingsPayload
             : nextSettingsPayload;
         workspacePublicSummaryRef.current = payload.data?.publicSummary ?? {};
@@ -651,9 +669,10 @@ export function DocsView({
 
   const syncHeaderFromResolvedDoc = useCallback(
     (
-      nextDoc:
-        | Pick<ActiveWorkspaceDoc, "id" | "title" | "emoji" | "author" | "author_id">
-        | null,
+      nextDoc: Pick<
+        ActiveWorkspaceDoc,
+        "id" | "title" | "emoji" | "author" | "author_id"
+      > | null,
     ) => {
       const nextTitle = nextDoc?.title ?? "";
       const nextEmoji = nextDoc?.emoji ?? null;
@@ -661,7 +680,12 @@ export function DocsView({
       setTitle(nextTitle);
       setEmoji(nextEmoji);
       setDocWorkerId(nextWorkerId);
-      applyHeaderBaseline(nextDoc?.id ?? null, nextTitle, nextEmoji, nextWorkerId);
+      applyHeaderBaseline(
+        nextDoc?.id ?? null,
+        nextTitle,
+        nextEmoji,
+        nextWorkerId,
+      );
       headerReadyRef.current = true;
     },
     [applyHeaderBaseline],
@@ -729,10 +753,15 @@ export function DocsView({
     const containerWidth = containerRef.current?.getBoundingClientRect().width;
     return clampDocsSidebarWidth(nextWidth, containerWidth);
   }, []);
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setIsSidebarCollapsed((current) => !current);
+  }, []);
   // Sync state with fetching data
   useEffect(() => {
     if (resolvedActiveDoc) {
-      const isDocChanged = headerBaselineRef.current.docId !== resolvedActiveDoc.id;
+      const isDocChanged =
+        headerBaselineRef.current.docId !== resolvedActiveDoc.id;
       if (isDocChanged || !isHeaderDirty || !headerReadyRef.current) {
         syncHeaderFromResolvedDoc(resolvedActiveDoc);
       }
@@ -741,7 +770,10 @@ export function DocsView({
 
     if (activeDocId) {
       const pendingDoc = docMap.get(activeDocId);
-      if (headerBaselineRef.current.docId !== activeDocId || headerReadyRef.current) {
+      if (
+        headerBaselineRef.current.docId !== activeDocId ||
+        headerReadyRef.current
+      ) {
         syncHeaderFromSummary(
           pendingDoc
             ? {
@@ -781,7 +813,9 @@ export function DocsView({
   const normalDocDirty =
     !isReadOnly &&
     editorMode === "normal" &&
-    (isHeaderDirty || normalBodyDirty || editorRef.current?.hasUnsavedChanges());
+    (isHeaderDirty ||
+      normalBodyDirty ||
+      editorRef.current?.hasUnsavedChanges());
 
   useEffect(() => {
     activeDocModeRef.current = editorMode === "collab" ? "COLLAB" : "NORMAL";
@@ -879,15 +913,18 @@ export function DocsView({
       try {
         const settings = await loadWorkspaceViewSettings();
         const settingsPayload =
-          settings?.settingsPayload && typeof settings.settingsPayload === "object"
+          settings?.settingsPayload &&
+          typeof settings.settingsPayload === "object"
             ? settings.settingsPayload
             : {};
         const docsViewSettings =
-          settingsPayload.docsView && typeof settingsPayload.docsView === "object"
+          settingsPayload.docsView &&
+          typeof settingsPayload.docsView === "object"
             ? (settingsPayload.docsView as Record<string, unknown>)
             : {};
         const projectSettings =
-          docsViewSettings[projectId] && typeof docsViewSettings[projectId] === "object"
+          docsViewSettings[projectId] &&
+          typeof docsViewSettings[projectId] === "object"
             ? (docsViewSettings[projectId] as Record<string, unknown>)
             : {};
         const serverExpandedDocs =
@@ -916,7 +953,11 @@ export function DocsView({
   useEffect(() => {
     if (!expandedDocsHydratedRef.current) return;
     const serialized = JSON.stringify(expandedDocs);
-    const savedToLocal = safeStorageSet("local", expandedDocsStorageKey, serialized);
+    const savedToLocal = safeStorageSet(
+      "local",
+      expandedDocsStorageKey,
+      serialized,
+    );
 
     if (!savedToLocal) {
       persistWorkspaceViewSettings(expandedDocs);
@@ -994,14 +1035,10 @@ export function DocsView({
           },
         )) as WorkspaceDocSummary[] | undefined;
 
-        await mutateCache(
-          archivedDocsCacheKey,
-          fetcher(archivedDocsCacheKey),
-          {
-            populateCache: true,
-            revalidate: false,
-          },
-        );
+        await mutateCache(archivedDocsCacheKey, fetcher(archivedDocsCacheKey), {
+          populateCache: true,
+          revalidate: false,
+        });
 
         const prioritizedDocIds = Array.isArray(prefetchedDocs)
           ? [
@@ -1035,7 +1072,10 @@ export function DocsView({
           requestIdleCallback?: (callback: () => void) => number;
         };
 
-        if (typeof window !== "undefined" && windowWithIdle.requestIdleCallback) {
+        if (
+          typeof window !== "undefined" &&
+          windowWithIdle.requestIdleCallback
+        ) {
           await new Promise<void>((resolve) => {
             windowWithIdle.requestIdleCallback?.(() => {
               void runPrefetch().then(resolve);
@@ -1125,38 +1165,42 @@ export function DocsView({
     return chain;
   }, [activeDocId, docMap]);
 
-  const handleCreateRootDoc = async (
-    kind: "page" | "folder" = "page",
-    templateId?: string,
-  ) => {
-    if (isReadOnly) {
-      toast.error("종료된 팀 공간은 읽기 전용입니다.");
-      return;
-    }
-    try {
-      const res = await fetch(`/api/workspaces/${projectId}/docs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(templateId
-            ? {}
-            : { title: kind === "folder" ? "새 폴더" : "제목 없음" }),
-          parentId: null,
-          kind,
-          ...(templateId ? { templateId } : {}),
-        }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      const newDoc = await res.json();
-      mutateDocs();
-      if (kind === "page") {
-        void switchActiveDoc(newDoc.id);
+  const handleCreateRootDoc = useCallback(
+    async (kind: "page" | "folder" = "page", templateId?: string) => {
+      if (isReadOnly) {
+        toast.error("종료된 팀 공간은 읽기 전용입니다.");
+        return;
       }
-      toast.success(kind === "folder" ? "새 폴더가 생성되었습니다." : "새 문서가 생성되었습니다.");
-    } catch {
-      toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
-    }
-  };
+      try {
+        const res = await fetch(`/api/workspaces/${projectId}/docs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(templateId
+              ? {}
+              : { title: kind === "folder" ? "새 폴더" : "제목 없음" }),
+            parentId: null,
+            kind,
+            ...(templateId ? { templateId } : {}),
+          }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        const newDoc = await res.json();
+        void mutateDocs();
+        if (kind === "page") {
+          void switchActiveDoc(newDoc.id);
+        }
+        toast.success(
+          kind === "folder"
+            ? "새 폴더가 생성되었습니다."
+            : "새 문서가 생성되었습니다.",
+        );
+      } catch {
+        toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
+      }
+    },
+    [isReadOnly, mutateDocs, projectId, switchActiveDoc],
+  );
 
   const availableTasks = useMemo(() => {
     if (!boardData?.tasks) return [];
@@ -1174,15 +1218,18 @@ export function DocsView({
   const handleLinkTask = async (taskId: string) => {
     if (!activeDocId) return;
     try {
-      const res = await fetch(`/api/workspaces/${projectId}/board/tasks/${taskId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          docId: activeDocId,
-          relationType: "reference",
-          isPrimary: false,
-        }),
-      });
+      const res = await fetch(
+        `/api/workspaces/${projectId}/board/tasks/${taskId}/documents`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            docId: activeDocId,
+            relationType: "reference",
+            isPrimary: false,
+          }),
+        },
+      );
       if (!res.ok) throw new Error("Failed");
 
       setTaskSearch("");
@@ -1198,31 +1245,34 @@ export function DocsView({
     void mutateArchivedDocs();
   }, [mutateArchivedDocs, mutateDocs]);
 
-  const sendCollabLeaveBeacon = useCallback((docId: string) => {
-    const url = `/api/workspaces/${projectId}/docs/${docId}/collab/leave`;
+  const sendCollabLeaveBeacon = useCallback(
+    (docId: string) => {
+      const url = `/api/workspaces/${projectId}/docs/${docId}/collab/leave`;
 
-    if (
-      typeof navigator !== "undefined" &&
-      typeof navigator.sendBeacon === "function"
-    ) {
-      try {
-        const sent = navigator.sendBeacon(
-          url,
-          new Blob([], { type: "application/json" }),
-        );
-        if (sent) {
-          return;
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.sendBeacon === "function"
+      ) {
+        try {
+          const sent = navigator.sendBeacon(
+            url,
+            new Blob([], { type: "application/json" }),
+          );
+          if (sent) {
+            return;
+          }
+        } catch {
+          // Fall through to keepalive fetch.
         }
-      } catch {
-        // Fall through to keepalive fetch.
       }
-    }
 
-    void fetch(url, {
-      method: "POST",
-      keepalive: true,
-    }).catch(() => undefined);
-  }, [projectId]);
+      void fetch(url, {
+        method: "POST",
+        keepalive: true,
+      }).catch(() => undefined);
+    },
+    [projectId],
+  );
 
   const syncDocPresence = useCallback(
     async (
@@ -1234,12 +1284,15 @@ export function DocsView({
       },
     ) => {
       try {
-        await fetch(`/api/workspaces/${projectId}/docs/${docId}/collab/presence`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          keepalive: body.active === false,
-        });
+        await fetch(
+          `/api/workspaces/${projectId}/docs/${docId}/collab/presence`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            keepalive: body.active === false,
+          },
+        );
       } catch (error) {
         console.error("Doc presence sync failed", error);
       }
@@ -1256,27 +1309,33 @@ export function DocsView({
       );
 
       if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as
-          | { error?: string; message?: string }
-          | null;
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+        } | null;
         throw new Error(
-          payload?.error || payload?.message || "문서 영구 삭제에 실패했습니다.",
+          payload?.error ||
+            payload?.message ||
+            "문서 영구 삭제에 실패했습니다.",
         );
       }
     },
     [projectId],
   );
 
-  const handleToggleArchivedDoc = useCallback((docId: string, checked: boolean) => {
-    setSelectedArchivedDocIds((prev) => {
-      if (checked) {
-        if (prev.includes(docId)) return prev;
-        return [...prev, docId];
-      }
+  const handleToggleArchivedDoc = useCallback(
+    (docId: string, checked: boolean) => {
+      setSelectedArchivedDocIds((prev) => {
+        if (checked) {
+          if (prev.includes(docId)) return prev;
+          return [...prev, docId];
+        }
 
-      return prev.filter((selectedId) => selectedId !== docId);
-    });
-  }, []);
+        return prev.filter((selectedId) => selectedId !== docId);
+      });
+    },
+    [],
+  );
 
   const handleToggleAllArchivedDocs = useCallback(() => {
     if (!archivedDocs?.length) return;
@@ -1302,7 +1361,8 @@ export function DocsView({
     const failedDocIds = effectiveArchivedDeleteIds.filter(
       (_, index) => results[index]?.status === "rejected",
     );
-    const deletedCount = effectiveArchivedDeleteIds.length - failedDocIds.length;
+    const deletedCount =
+      effectiveArchivedDeleteIds.length - failedDocIds.length;
 
     refreshDocs();
     setSelectedArchivedDocIds(failedDocIds);
@@ -1327,9 +1387,10 @@ export function DocsView({
       });
 
       if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as
-          | { error?: string; message?: string }
-          | null;
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+        } | null;
         throw new Error(
           payload?.error || payload?.message || "문서 복원에 실패했습니다.",
         );
@@ -1348,7 +1409,8 @@ export function DocsView({
     const failedDocIds = effectiveArchivedDeleteIds.filter(
       (_, index) => results[index]?.status === "rejected",
     );
-    const restoredCount = effectiveArchivedDeleteIds.length - failedDocIds.length;
+    const restoredCount =
+      effectiveArchivedDeleteIds.length - failedDocIds.length;
 
     refreshDocs();
     setSelectedArchivedDocIds(failedDocIds);
@@ -1369,7 +1431,9 @@ export function DocsView({
       event.preventDefault();
 
       const startX = event.clientX;
-      const startWidth = sidebarWidth;
+      const startWidth = isSidebarCollapsed
+        ? DOCS_SIDEBAR_COLLAPSED_WIDTH
+        : sidebarWidth;
       const previousCursor = document.body.style.cursor;
       const previousUserSelect = document.body.style.userSelect;
 
@@ -1378,10 +1442,15 @@ export function DocsView({
       document.body.style.userSelect = "none";
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
-        const nextWidth = clampSidebarWidthToContainer(
-          startWidth + moveEvent.clientX - startX,
-        );
+        const rawWidth = startWidth + moveEvent.clientX - startX;
+        if (rawWidth <= DOCS_SIDEBAR_COLLAPSE_THRESHOLD) {
+          setIsSidebarCollapsed(true);
+          return;
+        }
+
+        const nextWidth = clampSidebarWidthToContainer(rawWidth);
         setSidebarWidth(nextWidth);
+        setIsSidebarCollapsed(false);
       };
 
       const handlePointerUp = () => {
@@ -1395,13 +1464,20 @@ export function DocsView({
       window.addEventListener("pointermove", handlePointerMove);
       window.addEventListener("pointerup", handlePointerUp, { once: true });
     },
-    [clampSidebarWidthToContainer, sidebarWidth],
+    [clampSidebarWidthToContainer, isSidebarCollapsed, sidebarWidth],
   );
 
   const handleSidebarResizeKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key === "ArrowLeft") {
         event.preventDefault();
+        if (
+          isSidebarCollapsed ||
+          sidebarWidth - 16 <= DOCS_SIDEBAR_COLLAPSE_THRESHOLD
+        ) {
+          setIsSidebarCollapsed(true);
+          return;
+        }
         setSidebarWidth((currentWidth) =>
           clampSidebarWidthToContainer(currentWidth - 16),
         );
@@ -1409,6 +1485,10 @@ export function DocsView({
 
       if (event.key === "ArrowRight") {
         event.preventDefault();
+        if (isSidebarCollapsed) {
+          setIsSidebarCollapsed(false);
+          return;
+        }
         setSidebarWidth((currentWidth) =>
           clampSidebarWidthToContainer(currentWidth + 16),
         );
@@ -1416,10 +1496,16 @@ export function DocsView({
 
       if (event.key === "Home") {
         event.preventDefault();
+        setIsSidebarCollapsed(true);
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
         setSidebarWidth(DOCS_SIDEBAR_MIN_WIDTH);
+        setIsSidebarCollapsed(false);
       }
     },
-    [clampSidebarWidthToContainer],
+    [clampSidebarWidthToContainer, isSidebarCollapsed, sidebarWidth],
   );
 
   const handleDocArchived = useCallback(
@@ -1606,7 +1692,9 @@ export function DocsView({
         } catch (error) {
           if (!options?.silent) {
             toast.error(
-              error instanceof Error ? error.message : "문서 저장에 실패했습니다.",
+              error instanceof Error
+                ? error.message
+                : "문서 저장에 실패했습니다.",
             );
           }
           return false;
@@ -1673,7 +1761,9 @@ export function DocsView({
     } else {
       const headerSaved = await flushPendingHeaderSave();
       if (!headerSaved) {
-        toast.error("현재 문서 정보를 저장하지 못해 템플릿으로 만들 수 없습니다.");
+        toast.error(
+          "현재 문서 정보를 저장하지 못해 템플릿으로 만들 수 없습니다.",
+        );
         return false;
       }
       await mutateActiveDoc();
@@ -1707,21 +1797,24 @@ export function DocsView({
         return;
       }
 
-      const response = await fetch(`/api/workspaces/${projectId}/doc-templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: templateName,
-          description: templateDescription,
-          emoji: templateEmoji,
-          title: templateDocTitle.trim() || activePageDoc.title,
-          sourceDocId: activePageDoc.id,
-        }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${projectId}/doc-templates`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: templateName,
+            description: templateDescription,
+            emoji: templateEmoji,
+            title: templateDocTitle.trim() || activePageDoc.title,
+            sourceDocId: activePageDoc.id,
+          }),
+        },
+      );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "템플릿 저장에 실패했습니다.");
@@ -1781,9 +1874,9 @@ export function DocsView({
           },
         );
 
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
 
         if (!response.ok) {
           throw new Error(payload?.error || "템플릿 갱신에 실패했습니다.");
@@ -1793,7 +1886,9 @@ export function DocsView({
         toast.success("현재 문서 내용으로 템플릿을 갱신했습니다.");
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "템플릿 갱신에 실패했습니다.",
+          error instanceof Error
+            ? error.message
+            : "템플릿 갱신에 실패했습니다.",
         );
       } finally {
         setTemplateActionId(null);
@@ -1835,9 +1930,9 @@ export function DocsView({
         },
       );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "템플릿 수정에 실패했습니다.");
@@ -1866,7 +1961,9 @@ export function DocsView({
 
   const handleDeleteTemplate = useCallback(
     async (template: DocTemplate) => {
-      const confirmed = window.confirm(`템플릿 "${template.name}"을 삭제할까요?`);
+      const confirmed = window.confirm(
+        `템플릿 "${template.name}"을 삭제할까요?`,
+      );
       if (!confirmed) return;
 
       setTemplateActionId(template.id);
@@ -1878,9 +1975,9 @@ export function DocsView({
           },
         );
 
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
 
         if (!response.ok) {
           throw new Error(payload?.error || "템플릿 삭제에 실패했습니다.");
@@ -1890,7 +1987,9 @@ export function DocsView({
         toast.success("템플릿을 삭제했습니다.");
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "템플릿 삭제에 실패했습니다.",
+          error instanceof Error
+            ? error.message
+            : "템플릿 삭제에 실패했습니다.",
         );
       } finally {
         setTemplateActionId(null);
@@ -1908,13 +2007,11 @@ export function DocsView({
         },
       );
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            error?: string;
-            ended?: boolean;
-            collab?: WorkspaceDocCollabState;
-          }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        ended?: boolean;
+        collab?: WorkspaceDocCollabState;
+      } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "협업 나가기에 실패했습니다.");
@@ -1966,7 +2063,9 @@ export function DocsView({
               pendingCollabEntryDocIdRef.current = null;
               const headerSaved = await flushPendingHeaderSave();
               if (!headerSaved) {
-                toast.error("현재 문서 정보를 저장하지 못해 이동을 취소했습니다.");
+                toast.error(
+                  "현재 문서 정보를 저장하지 못해 이동을 취소했습니다.",
+                );
                 return;
               }
 
@@ -2162,17 +2261,17 @@ export function DocsView({
         const response = await fetch(
           `/api/workspaces/${projectId}/docs/${activeDocId}/collab/token`,
         );
-        const payload = (await response.json().catch(() => null)) as
-          | {
-              error?: string;
-              token?: string;
-              collab?: WorkspaceDocCollabState;
-            }
-          | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          token?: string;
+          collab?: WorkspaceDocCollabState;
+        } | null;
 
         if (!response.ok) {
           if (response.status !== 409) {
-            throw new Error(payload?.error || "협업 문서에 연결할 수 없습니다.");
+            throw new Error(
+              payload?.error || "협업 문서에 연결할 수 없습니다.",
+            );
           }
           return;
         }
@@ -2236,7 +2335,10 @@ export function DocsView({
   }, [editorMode, handleSaveCurrentDoc, isReadOnly]);
 
   useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
-  useEffect(() => () => persistWorkspaceViewSettings.cancel(), [persistWorkspaceViewSettings]);
+  useEffect(
+    () => () => persistWorkspaceViewSettings.cancel(),
+    [persistWorkspaceViewSettings],
+  );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -2251,9 +2353,26 @@ export function DocsView({
     }
   };
 
+  const reflectActiveDocEmojiInTree = useCallback(
+    (nextEmoji: string | null) => {
+      const targetDocId = activeDocIdRef.current;
+      if (!targetDocId) return;
+
+      void mutateDocs(
+        (currentDocs) =>
+          currentDocs?.map((doc) =>
+            doc.id === targetDocId ? { ...doc, emoji: nextEmoji } : doc,
+          ),
+        { revalidate: false },
+      );
+    },
+    [mutateDocs],
+  );
+
   const handleEmojiSelect = (emojiData: EmojiSelection) => {
     const nextEmoji = emojiData.native ?? null;
     setEmoji(nextEmoji);
+    reflectActiveDocEmojiInTree(nextEmoji);
     if (editorMode === "collab" && activeDocId) {
       debouncedUpdate({
         docId: activeDocId,
@@ -2267,6 +2386,7 @@ export function DocsView({
 
   const handleRemoveEmoji = () => {
     setEmoji(null);
+    reflectActiveDocEmojiInTree(null);
     if (editorMode === "collab" && activeDocId) {
       debouncedUpdate({
         docId: activeDocId,
@@ -2322,18 +2442,17 @@ export function DocsView({
         },
       );
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            error?: string;
-            token?: string;
-            seedState?: string | null;
-            blockers?: Array<{ userId: string; name: string }>;
-            collab?: WorkspaceDocCollabState;
-          }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        token?: string;
+        seedState?: string | null;
+        blockers?: Array<{ userId: string; name: string }>;
+        collab?: WorkspaceDocCollabState;
+      } | null;
 
       if (!response.ok) {
-        const blockerNames = payload?.blockers?.map((blocker) => blocker.name) ?? [];
+        const blockerNames =
+          payload?.blockers?.map((blocker) => blocker.name) ?? [];
         const suffix =
           blockerNames.length > 0 ? ` (${blockerNames.join(", ")})` : "";
         throw new Error(
@@ -2431,12 +2550,16 @@ export function DocsView({
       pendingCollabEntryDocIdRef.current = null;
       const headerSaved = await flushPendingHeaderSave();
       if (!headerSaved) {
-        toast.error("현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.");
+        toast.error(
+          "현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.",
+        );
         return false;
       }
 
       try {
-        const leaveResult = await leaveDocCollab(currentDocId, { silent: true });
+        const leaveResult = await leaveDocCollab(currentDocId, {
+          silent: true,
+        });
         toast.success(
           leaveResult.ended
             ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
@@ -2462,11 +2585,17 @@ export function DocsView({
     }
 
     return true;
-  }, [flushPendingHeaderSave, handleSaveCurrentDoc, isSavingDocument, leaveDocCollab]);
-
-  useEffect(() => registerDocsBeforeLeaveHandler(handleBeforeLeaveDocs), [
-    handleBeforeLeaveDocs,
+  }, [
+    flushPendingHeaderSave,
+    handleSaveCurrentDoc,
+    isSavingDocument,
+    leaveDocCollab,
   ]);
+
+  useEffect(
+    () => registerDocsBeforeLeaveHandler(handleBeforeLeaveDocs),
+    [handleBeforeLeaveDocs],
+  );
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -2553,132 +2682,187 @@ export function DocsView({
       {/* Docs Sidebar (Inner) */}
       <div
         className="flex h-full flex-none flex-col overflow-hidden border-r bg-white"
-        style={{ width: sidebarWidth, minWidth: DOCS_SIDEBAR_MIN_WIDTH }}
+        style={{
+          width: isSidebarCollapsed
+            ? DOCS_SIDEBAR_COLLAPSED_WIDTH
+            : sidebarWidth,
+          minWidth: isSidebarCollapsed
+            ? DOCS_SIDEBAR_COLLAPSED_WIDTH
+            : DOCS_SIDEBAR_MIN_WIDTH,
+        }}
       >
         {/* ... Sidebar Content ... */}
-        <div className="p-4 border-b flex items-center justify-between h-14">
-          <span className="font-semibold text-sm">
-            {sidebarMode === "archived" ? "휴지통" : "문서"}
-          </span>
-          <div className="flex items-center gap-1">
-            {sidebarMode === "active" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={`h-7 w-7 ${
-                  isOrganizeMode
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground"
-                }`}
-                onClick={() => setIsOrganizeMode((prev) => !prev)}
-                disabled={isReadOnly}
-                title="문서 정리 모드"
-              >
-                <ArrowUpDown className="h-4 w-4" />
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={isReadOnly}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => handleCreateRootDoc("page")}>
-                  <FileText className="h-4 w-4" />
-                  새 문서
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleCreateRootDoc("folder")}>
-                  <FolderPlus className="h-4 w-4" />
-                  새 폴더
-                </DropdownMenuItem>
-                {templates && templates.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <LayoutTemplate className="h-4 w-4" />
-                        템플릿에서 시작
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-64">
-                        {templates.map((template) => (
-                          <DropdownMenuItem
-                            key={template.id}
-                            onClick={() =>
-                              handleCreateRootDoc("page", template.id)
-                            }
-                            className="items-start"
-                          >
-                            <span className="text-base">{template.emoji || "📄"}</span>
-                            <div className="min-w-0">
-                              <p className="font-medium">{template.name}</p>
-                              <p className="line-clamp-2 text-xs text-muted-foreground">
-                                {template.description}
-                              </p>
-                            </div>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                {activePageDoc && (
-                  <DropdownMenuItem onClick={openSaveTemplateDialog}>
-                    <CopyPlus className="h-4 w-4" />
-                    현재 문서를 템플릿으로 저장
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => setIsTemplateManagerOpen(true)}>
-                  <LayoutTemplate className="h-4 w-4" />
-                  템플릿 관리
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
+        <div
+          className={`flex h-14 items-center border-b ${
+            isSidebarCollapsed ? "justify-center px-1" : "justify-between p-4"
+          }`}
+        >
+          {isSidebarCollapsed ? (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className={`h-7 w-7 ${
-                sidebarMode === "archived"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground"
-              }`}
-              onClick={() =>
-                setSidebarMode((prev) =>
-                  prev === "archived" ? "active" : "archived",
-                )
-              }
+              className="h-9 w-9 text-muted-foreground"
+              onClick={toggleSidebarCollapsed}
+              title="문서 패널 펼치기"
+              aria-label="문서 패널 펼치기"
             >
-              <Trash2 className="h-4 w-4" />
+              <PanelLeftOpen className="h-4 w-4" />
             </Button>
-          </div>
+          ) : (
+            <>
+              <span className="font-semibold text-sm">
+                {sidebarMode === "archived" ? "휴지통" : "문서"}
+              </span>
+              <div className="flex items-center gap-1">
+                {sidebarMode === "active" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`h-7 w-7 ${
+                      isOrganizeMode
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                    onClick={() => setIsOrganizeMode((prev) => !prev)}
+                    disabled={isReadOnly}
+                    title="문서 정리 모드"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={isReadOnly}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      onClick={() => handleCreateRootDoc("page")}
+                    >
+                      <FileText className="h-4 w-4" />새 문서
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleCreateRootDoc("folder")}
+                    >
+                      <FolderPlus className="h-4 w-4" />새 폴더
+                    </DropdownMenuItem>
+                    {templates && templates.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <LayoutTemplate className="h-4 w-4" />
+                            템플릿에서 시작
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="w-64">
+                            {templates.map((template) => (
+                              <DropdownMenuItem
+                                key={template.id}
+                                onClick={() =>
+                                  handleCreateRootDoc("page", template.id)
+                                }
+                                className="items-start"
+                              >
+                                <span className="text-base">
+                                  {template.emoji || "📄"}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="font-medium">{template.name}</p>
+                                  <p className="line-clamp-2 text-xs text-muted-foreground">
+                                    {template.description}
+                                  </p>
+                                </div>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    {activePageDoc && (
+                      <DropdownMenuItem onClick={openSaveTemplateDialog}>
+                        <CopyPlus className="h-4 w-4" />
+                        현재 문서를 템플릿으로 저장
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => setIsTemplateManagerOpen(true)}
+                    >
+                      <LayoutTemplate className="h-4 w-4" />
+                      템플릿 관리
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={`h-7 w-7 ${
+                    sidebarMode === "archived"
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                  onClick={() =>
+                    setSidebarMode((prev) =>
+                      prev === "archived" ? "active" : "archived",
+                    )
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={toggleSidebarCollapsed}
+                  title="문서 패널 접기"
+                  aria-label="문서 패널 접기"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
         </div>
         <ScrollArea className="min-w-0 flex-1 py-2">
-          <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
-            <span>{sidebarMode === "active" ? "전체 문서" : "휴지통"}</span>
-            {sidebarMode === "active" && isOrganizeMode && (
-              <span className="rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-foreground">
-                정리 모드
-              </span>
-            )}
-          </div>
-          <div className="px-2 space-y-0.5">
+          {!isSidebarCollapsed ? (
+            <div className="px-2 mb-1 text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between group">
+              <span>{sidebarMode === "active" ? "전체 문서" : "휴지통"}</span>
+              {sidebarMode === "active" && isOrganizeMode && (
+                <span className="rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-foreground">
+                  정리 모드
+                </span>
+              )}
+            </div>
+          ) : null}
+          <div
+            className={
+              isSidebarCollapsed ? "space-y-0.5 px-1" : "px-2 space-y-0.5"
+            }
+          >
             {sidebarMode === "active" && isLoading ? (
-              <div className="text-xs text-muted-foreground p-2">
-                문서를 불러오는 중...
-              </div>
+              isSidebarCollapsed ? (
+                <Loader2 className="mx-auto mt-2 h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="text-xs text-muted-foreground p-2">
+                  문서를 불러오는 중...
+                </div>
+              )
             ) : sidebarMode === "active" && docs && docs.length > 0 ? (
               <DocumentList
                 workspaceId={projectId}
                 docs={docs}
+                collapsed={isSidebarCollapsed}
                 readOnly={isReadOnly}
                 organizeMode={isOrganizeMode}
                 onExpand={toggleDoc}
@@ -2688,66 +2872,87 @@ export function DocsView({
                 onMutate={refreshDocs}
                 onDocArchived={handleDocArchived}
               />
-            ) : sidebarMode === "archived" && archivedDocs && archivedDocs.length > 0 ? (
+            ) : sidebarMode === "archived" &&
+              archivedDocs &&
+              archivedDocs.length > 0 ? (
               <div className="space-y-1">
-                <div className="mb-2 flex items-center gap-2 rounded-md border bg-background/70 px-2 py-1.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 shrink-0 px-2 text-xs"
-                    onClick={handleToggleAllArchivedDocs}
-                  >
-                    {allArchivedSelected ? "전체 해제" : "전체 선택"}
-                  </Button>
-                  <div className="ml-auto flex min-w-0 items-center gap-1">
-                    {selectedArchivedDocIds.length > 0 && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 shrink-0 px-2 text-[11px]"
-                          onClick={() => void handleBulkRestore()}
-                        >
-                          복원
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 shrink-0 px-2 text-[11px] text-red-600 hover:bg-red-50 hover:text-red-700 disabled:text-muted-foreground"
-                          onClick={() => void handleBulkPermanentDelete()}
-                          disabled={effectiveArchivedDeleteIds.length === 0}
-                        >
-                          삭제
-                        </Button>
-                      </>
-                    )}
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {selectedArchivedDocIds.length}개 선택
-                    </span>
+                {!isSidebarCollapsed ? (
+                  <div className="mb-2 flex items-center gap-2 rounded-md border bg-background/70 px-2 py-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0 px-2 text-xs"
+                      onClick={handleToggleAllArchivedDocs}
+                    >
+                      {allArchivedSelected ? "전체 해제" : "전체 선택"}
+                    </Button>
+                    <div className="ml-auto flex min-w-0 items-center gap-1">
+                      {selectedArchivedDocIds.length > 0 && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 shrink-0 px-2 text-[11px]"
+                            onClick={() => void handleBulkRestore()}
+                          >
+                            복원
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 shrink-0 px-2 text-[11px] text-red-600 hover:bg-red-50 hover:text-red-700 disabled:text-muted-foreground"
+                            onClick={() => void handleBulkPermanentDelete()}
+                            disabled={effectiveArchivedDeleteIds.length === 0}
+                          >
+                            삭제
+                          </Button>
+                        </>
+                      )}
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {selectedArchivedDocIds.length}개 선택
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ) : null}
                 {archivedDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted/40"
+                    className={`flex items-center rounded-md text-sm text-muted-foreground hover:bg-muted/40 ${
+                      isSidebarCollapsed
+                        ? "mx-auto h-9 w-9 justify-center p-0"
+                        : "gap-2 px-2 py-2"
+                    }`}
+                    title={isSidebarCollapsed ? doc.title : undefined}
                   >
-                    <Checkbox
-                      checked={selectedArchivedDocIdSet.has(doc.id)}
-                      onCheckedChange={(checked) =>
-                        handleToggleArchivedDoc(doc.id, checked === true)
-                      }
-                      aria-label={`${doc.title} 선택`}
-                    />
-                    <div className="min-w-0 flex flex-1 items-center gap-2">
+                    {!isSidebarCollapsed ? (
+                      <Checkbox
+                        checked={selectedArchivedDocIdSet.has(doc.id)}
+                        onCheckedChange={(checked) =>
+                          handleToggleArchivedDoc(doc.id, checked === true)
+                        }
+                        aria-label={`${doc.title} 선택`}
+                      />
+                    ) : null}
+                    <div
+                      className={`min-w-0 flex items-center ${
+                        isSidebarCollapsed ? "justify-center" : "flex-1 gap-2"
+                      }`}
+                    >
                       {doc.kind === "folder" ? (
                         <Archive className="h-4 w-4 shrink-0" />
+                      ) : doc.emoji ? (
+                        <span className="text-base leading-none">
+                          {doc.emoji}
+                        </span>
                       ) : (
                         <FileText className="h-4 w-4 shrink-0" />
                       )}
-                      <span className="truncate">{doc.title}</span>
+                      {!isSidebarCollapsed ? (
+                        <span className="truncate">{doc.title}</span>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -2755,12 +2960,14 @@ export function DocsView({
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-muted-foreground gap-2">
                 <FileText className="h-8 w-8 opacity-20" />
-                <span className="text-xs">
-                  {sidebarMode === "active"
-                    ? "아직 문서가 없습니다."
-                    : "휴지통이 비어 있습니다."}
-                </span>
-                {sidebarMode === "active" && (
+                {!isSidebarCollapsed ? (
+                  <span className="text-xs">
+                    {sidebarMode === "active"
+                      ? "아직 문서가 없습니다."
+                      : "휴지통이 비어 있습니다."}
+                  </span>
+                ) : null}
+                {sidebarMode === "active" && !isSidebarCollapsed && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -2783,7 +2990,7 @@ export function DocsView({
         tabIndex={0}
         onPointerDown={handleSidebarResizeStart}
         onKeyDown={handleSidebarResizeKeyDown}
-        onDoubleClick={() => setSidebarWidth(DOCS_SIDEBAR_MIN_WIDTH)}
+        onDoubleClick={toggleSidebarCollapsed}
         className={`group relative hidden w-1 flex-none cursor-col-resize bg-transparent transition-colors lg:block ${
           isResizingSidebar ? "bg-border/80" : "hover:bg-border/60"
         }`}
@@ -2840,9 +3047,12 @@ export function DocsView({
                         fallbackClassName="bg-emerald-100 text-[10px] font-semibold text-emerald-700"
                       />
                     ))}
-                    {collabParticipants.length > collabParticipantList.length && (
+                    {collabParticipants.length >
+                      collabParticipantList.length && (
                       <span className="ml-2 inline-flex h-7 items-center rounded-full border bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                        +{collabParticipants.length - collabParticipantList.length}
+                        +
+                        {collabParticipants.length -
+                          collabParticipantList.length}
                       </span>
                     )}
                   </div>
@@ -2856,20 +3066,21 @@ export function DocsView({
                   {editorMode === "collab" ? (
                     collabStatus === "unstable" ? (
                       <WifiOff className="h-3.5 w-3.5 text-amber-500" />
-                    ) : collabStatus === "connecting" || collabStatus === "saving" ? (
+                    ) : collabStatus === "connecting" ||
+                      collabStatus === "saving" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                     ) : (
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                     )
+                  ) : isSavingDocument ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   ) : (
-                    isSavingDocument ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    )
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                   )}
                   <span className="hidden sm:inline">
-                    {editorMode === "collab" ? collabStatusText : normalStatusText}
+                    {editorMode === "collab"
+                      ? collabStatusText
+                      : normalStatusText}
                   </span>
                 </div>
                 {!isReadOnly && editorMode === "collab" ? (
@@ -2940,12 +3151,16 @@ export function DocsView({
                 <div className="max-w-4xl mx-auto w-full pt-12 px-12 pb-4">
                   <div className="flex items-start gap-4">
                     <div className="group relative shrink-0">
-                      <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+                      <Popover
+                        open={isEmojiPickerOpen}
+                        onOpenChange={setIsEmojiPickerOpen}
+                      >
                         <PopoverTrigger asChild>
                           {emoji ? (
                             <button
                               type="button"
                               disabled={isReadOnly}
+                              title="아이콘 변경"
                               className={`flex h-16 w-16 items-center justify-center rounded-2xl transition-colors ${
                                 isReadOnly
                                   ? "cursor-not-allowed opacity-60"
@@ -2960,221 +3175,236 @@ export function DocsView({
                             <Button
                               type="button"
                               variant="ghost"
-                              className="h-16 min-w-16 rounded-2xl border border-dashed border-border/70 bg-background/70 px-3 text-muted-foreground hover:bg-muted/60"
+                              size="icon"
+                              title="아이콘"
+                              aria-label="아이콘 선택"
+                              className="h-16 w-16 rounded-2xl border border-dashed border-border/70 bg-background/70 text-muted-foreground hover:bg-muted/60"
                               disabled={isReadOnly}
                             >
-                              <Smile className="mr-2 h-4 w-4" />
-                            아이콘
-                          </Button>
-                        )}
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0 border-none"
-                        align="start"
-                      >
-                        <Picker
-                          data={data}
-                          onEmojiSelect={handleEmojiSelect}
-                          theme="light"
-                        />
-                      </PopoverContent>
-                    </Popover>
+                              <Smile className="h-5 w-5" />
+                            </Button>
+                          )}
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-0 border-none"
+                          align="start"
+                        >
+                          <Picker
+                            data={data}
+                            onEmojiSelect={handleEmojiSelect}
+                            theme="light"
+                          />
+                        </PopoverContent>
+                      </Popover>
 
-                    {emoji && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
-                        onClick={handleRemoveEmoji}
-                        disabled={isReadOnly}
-                      >
-                        <span className="sr-only">Remove</span>×
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1 pt-1">
-                    <Input
-                      value={title}
-                      onChange={handleTitleChange}
-                      placeholder="Untitled"
-                      disabled={isReadOnly}
-                      className="h-auto border-none p-0 text-[2.2rem] font-extrabold tracking-tight shadow-none placeholder:text-muted-foreground/45 focus-visible:ring-0 md:text-[2.7rem]"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    <span>
-                      {formatMetaDate(
-                        resolvedActiveDoc?.createdAt || resolvedActiveDoc?.created_at,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    <span>
-                      {formatMetaDate(
-                        resolvedActiveDoc?.updatedAt || resolvedActiveDoc?.updated_at,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <UserRound className="h-3.5 w-3.5" />
-                    {isReadOnly ? (
-                      <span className="font-medium">{docWorkerName}</span>
-                    ) : (
-                      <Select
-                        value={docWorkerId || undefined}
-                        onValueChange={handleDocWorkerChange}
-                      >
-                        <SelectTrigger className="h-7 min-w-[120px] border-0 bg-transparent px-0 text-sm font-medium shadow-none focus:ring-0 focus:ring-offset-0">
-                          <SelectValue placeholder="작업자 선택" />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                          {(workspaceMeta?.members || []).map((member) => (
-                            <SelectItem key={member.id} value={member.id}>
-                              {member.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-
-                  {activeDocId && linkedTasks !== undefined && (
-                    <div className="flex items-center gap-1.5 text-sm max-w-full min-w-0">
-                      <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                        {linkedTasks.length > 0 ? (
-                          <>
-                            {linkedTasks.slice(0, 4).map((relation) => (
-                              <button
-                                key={relation.id}
-                                type="button"
-                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70 max-w-[150px]"
-                                onClick={() => handleOpenTaskLocally(relation.task.id)}
-                              >
-                                <span className="truncate">{relation.task.title}</span>
-                              </button>
-                            ))}
-                            {linkedTasks.length > 4 && (
-                              <span className="text-xs font-medium text-muted-foreground px-1">
-                                +{linkedTasks.length - 4}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/70">연결 없음</span>
-                        )}
-                        
-                        {!isReadOnly && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground shrink-0"
-                                title="태스크 연결하기"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </button>
-                            </PopoverTrigger>
-                          <PopoverContent align="start" className="z-[60] w-72 p-2">
-                            <Input
-                              value={taskSearch}
-                              onChange={(e) => setTaskSearch(e.target.value)}
-                              placeholder="태스크 검색..."
-                              className="h-8 text-xs"
-                            />
-                            <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
-                              {availableTasks.length > 0 ? (
-                                availableTasks.map((task) => (
-                                  <button
-                                    key={task.id}
-                                    type="button"
-                                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
-                                    onClick={() => handleLinkTask(task.id)}
-                                  >
-                                    <div className="min-w-0 pr-2">
-                                      <div className="truncate font-medium text-foreground">
-                                        {task.title}
-                                      </div>
-                                    </div>
-                                    <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                  </button>
-                                ))
-                              ) : (
-                                <div className="px-2 py-2 text-xs text-muted-foreground">
-                                  연결 가능한 태스크가 없습니다.
-                                </div>
-                              )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                      {emoji && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                          onClick={handleRemoveEmoji}
+                          disabled={isReadOnly}
+                        >
+                          <span className="sr-only">Remove</span>×
+                        </Button>
                       )}
                     </div>
+
+                    <div className="min-w-0 flex-1 pt-1">
+                      <Input
+                        value={title}
+                        onChange={handleTitleChange}
+                        placeholder="Untitled"
+                        disabled={isReadOnly}
+                        className="h-auto border-none p-0 text-[2.2rem] font-extrabold tracking-tight shadow-none placeholder:text-muted-foreground/45 focus-visible:ring-0 md:text-[2.7rem]"
+                        autoFocus
+                      />
+                    </div>
                   </div>
-                )}
+
+                  <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      <span>
+                        {formatMetaDate(
+                          resolvedActiveDoc?.createdAt ||
+                            resolvedActiveDoc?.created_at,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      <span>
+                        {formatMetaDate(
+                          resolvedActiveDoc?.updatedAt ||
+                            resolvedActiveDoc?.updated_at,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <UserRound className="h-3.5 w-3.5" />
+                      {isReadOnly ? (
+                        <span className="font-medium">{docWorkerName}</span>
+                      ) : (
+                        <Select
+                          value={docWorkerId || undefined}
+                          onValueChange={handleDocWorkerChange}
+                        >
+                          <SelectTrigger className="h-7 min-w-[120px] border-0 bg-transparent px-0 text-sm font-medium shadow-none focus:ring-0 focus:ring-offset-0">
+                            <SelectValue placeholder="작업자 선택" />
+                          </SelectTrigger>
+                          <SelectContent align="start">
+                            {(workspaceMeta?.members || []).map((member) => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    {activeDocId && linkedTasks !== undefined && (
+                      <div className="flex items-center gap-1.5 text-sm max-w-full min-w-0">
+                        <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          {linkedTasks.length > 0 ? (
+                            <>
+                              {linkedTasks.slice(0, 4).map((relation) => (
+                                <button
+                                  key={relation.id}
+                                  type="button"
+                                  className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70 max-w-[150px]"
+                                  onClick={() =>
+                                    handleOpenTaskLocally(relation.task.id)
+                                  }
+                                >
+                                  <span className="truncate">
+                                    {relation.task.title}
+                                  </span>
+                                </button>
+                              ))}
+                              {linkedTasks.length > 4 && (
+                                <span className="text-xs font-medium text-muted-foreground px-1">
+                                  +{linkedTasks.length - 4}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/70">
+                              연결 없음
+                            </span>
+                          )}
+
+                          {!isReadOnly && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground shrink-0"
+                                  title="태스크 연결하기"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="start"
+                                className="z-[60] w-72 p-2"
+                              >
+                                <Input
+                                  value={taskSearch}
+                                  onChange={(e) =>
+                                    setTaskSearch(e.target.value)
+                                  }
+                                  placeholder="태스크 검색..."
+                                  className="h-8 text-xs"
+                                />
+                                <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                                  {availableTasks.length > 0 ? (
+                                    availableTasks.map((task) => (
+                                      <button
+                                        key={task.id}
+                                        type="button"
+                                        className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs hover:bg-muted"
+                                        onClick={() => handleLinkTask(task.id)}
+                                      >
+                                        <div className="min-w-0 pr-2">
+                                          <div className="truncate font-medium text-foreground">
+                                            {task.title}
+                                          </div>
+                                        </div>
+                                        <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="px-2 py-2 text-xs text-muted-foreground">
+                                      연결 가능한 태스크가 없습니다.
+                                    </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-px bg-border my-6" />
                 </div>
 
-                <div className="h-px bg-border my-6" />
-              </div>
-
-              {editorMode === "collab" && collabToken ? (
-                <DocumentEditor
-                  ref={editorRef}
-                  key={`collab-${activeDocId}`}
-                  docId={activeDocId}
-                  workspaceId={projectId}
-                  readOnly={isReadOnly}
-                  collabToken={collabToken}
-                  initialYjsState={collabInitialYjsState}
-                  onStatusChange={setCollabStatus}
-                  onTaskLinked={() => {
-                    void mutateLinkedTasks();
-                  }}
-                  onOpenTask={handleOpenTaskLocally}
-                  user={
-                    user
-                      ? {
-                          name:
-                            profile?.nickname ||
-                            user.email?.split("@")[0] ||
-                            "User",
-                          color: stringToColor(user.id),
-                        }
-                      : undefined
-                  }
-                />
-              ) : (
-                <NormalDocumentEditor
-                  ref={editorRef}
-                  key={`normal-${activeDocId}`}
-                  docId={activeDocId}
-                  workspaceId={projectId}
-                  initialContent={resolvedActiveDoc?.content}
-                  readOnly={isReadOnly}
-                  onDirtyChange={setNormalBodyDirty}
-                  onTaskLinked={() => {
-                    void mutateLinkedTasks();
-                  }}
-                  onOpenTask={handleOpenTaskLocally}
-                  user={
-                    user
-                      ? {
-                          name:
-                            profile?.nickname ||
-                            user.email?.split("@")[0] ||
-                            "User",
-                          color: stringToColor(user.id),
-                        }
-                      : undefined
-                  }
-                />
-              )}
+                {editorMode === "collab" && collabToken ? (
+                  <DocumentEditor
+                    ref={editorRef}
+                    key={`collab-${activeDocId}`}
+                    docId={activeDocId}
+                    workspaceId={projectId}
+                    readOnly={isReadOnly}
+                    collabToken={collabToken}
+                    initialYjsState={collabInitialYjsState}
+                    onStatusChange={setCollabStatus}
+                    onTaskLinked={() => {
+                      void mutateLinkedTasks();
+                    }}
+                    onOpenTask={handleOpenTaskLocally}
+                    user={
+                      user
+                        ? {
+                            name:
+                              profile?.nickname ||
+                              user.email?.split("@")[0] ||
+                              "User",
+                            color: stringToColor(user.id),
+                          }
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <NormalDocumentEditor
+                    ref={editorRef}
+                    key={`normal-${activeDocId}`}
+                    docId={activeDocId}
+                    workspaceId={projectId}
+                    initialContent={resolvedActiveDoc?.content}
+                    readOnly={isReadOnly}
+                    onDirtyChange={setNormalBodyDirty}
+                    onTaskLinked={() => {
+                      void mutateLinkedTasks();
+                    }}
+                    onOpenTask={handleOpenTaskLocally}
+                    user={
+                      user
+                        ? {
+                            name:
+                              profile?.nickname ||
+                              user.email?.split("@")[0] ||
+                              "User",
+                            color: stringToColor(user.id),
+                          }
+                        : undefined
+                    }
+                  />
+                )}
               </div>
 
               <DocCollaborationPanel
@@ -3215,7 +3445,8 @@ export function DocsView({
           <DialogHeader>
             <DialogTitle>현재 문서를 템플릿으로 저장</DialogTitle>
             <DialogDescription>
-              제목, 설명, 기본 아이콘을 정해 재사용 가능한 문서 템플릿으로 저장합니다.
+              제목, 설명, 기본 아이콘을 정해 재사용 가능한 문서 템플릿으로
+              저장합니다.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -3234,7 +3465,9 @@ export function DocsView({
               <Input
                 id="doc-template-emoji"
                 value={templateEmoji ?? ""}
-                onChange={(event) => setTemplateEmoji(event.target.value || null)}
+                onChange={(event) =>
+                  setTemplateEmoji(event.target.value || null)
+                }
                 placeholder="📄"
                 disabled={isSavingTemplate}
               />
@@ -3317,7 +3550,9 @@ export function DocsView({
               <Input
                 id="edit-doc-template-emoji"
                 value={templateEmoji ?? ""}
-                onChange={(event) => setTemplateEmoji(event.target.value || null)}
+                onChange={(event) =>
+                  setTemplateEmoji(event.target.value || null)
+                }
                 placeholder="📄"
                 disabled={isUpdatingTemplateDetails}
               />
@@ -3373,12 +3608,16 @@ export function DocsView({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isTemplateManagerOpen} onOpenChange={setIsTemplateManagerOpen}>
+      <Dialog
+        open={isTemplateManagerOpen}
+        onOpenChange={setIsTemplateManagerOpen}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>템플릿 관리</DialogTitle>
             <DialogDescription>
-              워크스페이스에서 직접 만든 문서 템플릿을 사용하거나 정리할 수 있습니다.
+              워크스페이스에서 직접 만든 문서 템플릿을 사용하거나 정리할 수
+              있습니다.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[65vh] pr-4">
@@ -3394,7 +3633,9 @@ export function DocsView({
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{template.emoji || "📄"}</span>
+                            <span className="text-lg">
+                              {template.emoji || "📄"}
+                            </span>
                             <span className="truncate font-medium">
                               {template.name}
                             </span>
@@ -3435,7 +3676,9 @@ export function DocsView({
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                void handleRefreshTemplateFromCurrentDoc(template.id)
+                                void handleRefreshTemplateFromCurrentDoc(
+                                  template.id,
+                                )
                               }
                               disabled={isBusy}
                             >
@@ -3463,7 +3706,8 @@ export function DocsView({
                 })
               ) : (
                 <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  아직 저장된 템플릿이 없습니다. 문서를 하나 만든 뒤 템플릿으로 저장해보세요.
+                  아직 저장된 템플릿이 없습니다. 문서를 하나 만든 뒤 템플릿으로
+                  저장해보세요.
                 </div>
               )}
             </div>

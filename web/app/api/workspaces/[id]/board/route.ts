@@ -10,14 +10,10 @@ import {
   ensureWorkspaceViews,
   serializeWorkspaceView,
 } from "@/lib/server/workspace-views";
-import {
-  ensureDefaultWorkspaceBoard,
-  findWorkspaceBoard,
-} from "@/lib/server/workspace-boards";
 import { normalizeDateOnly } from "@/lib/workspace/task-dates";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } },
 ) {
   const supabase = createRouteHandlerClient({ cookies });
@@ -31,7 +27,6 @@ export async function GET(
 
   const workspaceId = params.id;
   const userId = session.user.id;
-  const requestedBoardId = new URL(request.url).searchParams.get("boardId");
 
   const memberCheck = await prisma.workspace_members.findUnique({
     where: {
@@ -50,15 +45,6 @@ export async function GET(
 
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-  }
-
-  const defaultBoard = await ensureDefaultWorkspaceBoard(workspaceId);
-  const selectedBoard = requestedBoardId
-    ? await findWorkspaceBoard(workspaceId, requestedBoardId)
-    : defaultBoard;
-
-  if (!selectedBoard || selectedBoard.archived_at) {
-    return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 
   const columns = await prisma.kanban_columns.findMany({
@@ -84,11 +70,9 @@ export async function GET(
       ? prisma.kanban_tasks.findMany({
           where: {
             column_id: { in: columnIds },
-            ...(requestedBoardId ? { board_id: selectedBoard.id } : {}),
           },
           select: {
             id: true,
-            board_id: true,
             column_id: true,
             title: true,
             description: true,
@@ -129,7 +113,6 @@ export async function GET(
       : Promise.resolve<
           Array<{
             id: string;
-            board_id: string;
             column_id: string;
             title: string;
             description: string | null;
@@ -196,12 +179,6 @@ export async function GET(
   );
 
   return NextResponse.json({
-    board: {
-      id: selectedBoard.id,
-      name: selectedBoard.name,
-      description: selectedBoard.description,
-      isDefault: selectedBoard.is_default,
-    },
     workspace: {
       lifecycleStatus: workspace.lifecycle_status,
       completedAt: workspace.completed_at,
@@ -216,7 +193,6 @@ export async function GET(
       const primaryDocument = task.documents[0];
       return {
         id: task.id,
-        boardId: task.board_id,
         columnId: task.column_id,
         projectId: workspaceId,
         title: task.title,

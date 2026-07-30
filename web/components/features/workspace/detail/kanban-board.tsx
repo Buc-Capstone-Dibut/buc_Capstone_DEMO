@@ -24,11 +24,12 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  ArrowLeft,
   Filter,
   Search,
   X,
+  ChartGantt,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +54,6 @@ import { TagManagerModal } from "../modules/tag/tag-manager-modal";
 import { PriorityManagerModal } from "../modules/priority/priority-manager-modal";
 import { StatusManagerModal } from "../modules/status-manager-modal";
 import { CreateTaskDialog, CreateTaskInput } from "./board/create-task-dialog";
-import { AdvancedTaskModal } from "./board/advanced-task-modal";
 
 import { KanbanView } from "../views/kanban/kanban-view";
 import { TableView } from "../views/table/table-view";
@@ -66,6 +66,22 @@ import { DraggablePropertySettings } from "../modules/view-settings/property-set
 import { Eye } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+
+const TimelineView = dynamic(
+  () =>
+    import("../views/timeline/timeline-view").then(
+      (module) => module.TimelineView,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        타임라인을 준비하고 있습니다.
+      </div>
+    ),
+  },
+);
 
 type BoardColumnResponse = {
   id: string;
@@ -225,9 +241,6 @@ function buildFallbackViews(
 
 interface KanbanBoardProps {
   projectId: string;
-  boardId: string;
-  onBackToBoards?: () => void;
-  embedded?: boolean;
 }
 
 type PendingBoardAction = {
@@ -237,23 +250,17 @@ type PendingBoardAction = {
   onConfirm: () => Promise<void> | void;
 };
 
-export function KanbanBoard({
-  projectId,
-  boardId,
-  onBackToBoards,
-  embedded = false,
-}: KanbanBoardProps) {
+export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const tags = useWorkspaceStore((s) => s.tags);
   const priorities = useWorkspaceStore((s) => s.priorities);
   const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
   const reorderTags = useWorkspaceStore((s) => s.reorderTags);
-  const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
   const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
   const projects = useWorkspaceStore((s) => s.projects);
   const storeTasks = useWorkspaceStore((s) => s.tasks);
   const syncProjectData = useWorkspaceStore((s) => s.syncProjectData);
 
-  const boardKey = `/api/workspaces/${projectId}/board?boardId=${boardId}`;
+  const boardKey = `/api/workspaces/${projectId}/board`;
   const {
     data: boardData,
     error,
@@ -264,11 +271,6 @@ export function KanbanBoard({
     members?: BoardMemberResponse[];
     views?: BoardView[];
     tags?: any[];
-    board?: {
-      id: string;
-      name: string;
-      description?: string | null;
-    };
     workspace?: {
       readOnly?: boolean;
       name?: string;
@@ -290,6 +292,7 @@ export function KanbanBoard({
   const isReadOnly = Boolean(boardData?.workspace?.readOnly);
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const queuedMutationCountRef = useRef(0);
+  const taskMutationVersionRef = useRef(new Map<string, number>());
 
   const enqueueBoardMutation = useCallback(
     (operation: () => Promise<void>, failureMessage: string) => {
@@ -383,10 +386,13 @@ export function KanbanBoard({
 
   // --- View State ---
   const [activeViewId, setActiveViewId] = useState<string>("default");
-  const [viewType, setViewType] = useState<"kanban" | "table">("table");
+  const [viewType, setViewType] = useState<"kanban" | "table" | "timeline">(
+    "table",
+  );
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPriorityManagerOpen, setIsPriorityManagerOpen] = useState(false);
   const [isStatusManagerOpen, setIsStatusManagerOpen] = useState(false);
+  const [allGroupsCollapsed, setAllGroupsCollapsed] = useState(false);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [createTaskDefaults, setCreateTaskDefaults] = useState<
     Partial<CreateTaskInput>
@@ -460,12 +466,22 @@ export function KanbanBoard({
       null;
     if (!statusView) return null;
 
+    const configuredColumnById = new Map(
+      (statusView.columns || []).map((column) => [column.id, column]),
+    );
+    const liveColumns =
+      (boardData?.columns as BoardView["columns"] | undefined) ||
+      statusView.columns ||
+      [];
+
     return {
       ...statusView,
-      columns:
-        (boardData?.columns as BoardView["columns"] | undefined) ||
-        statusView.columns ||
-        [],
+      columns: liveColumns.map((column) => ({
+        ...column,
+        ...(configuredColumnById.get(column.id)?.color
+          ? { color: configuredColumnById.get(column.id)?.color }
+          : {}),
+      })),
     };
   }, [boardData?.columns, resolvedViews]);
 
@@ -924,6 +940,37 @@ export function KanbanBoard({
     }
   };
 
+  const handleUpdateStatusColumn = async (
+    columnId: string,
+    updates: { title?: string; color?: string; category?: string },
+  ) => {
+    const { color, ...columnUpdates } = updates;
+    const hasColumnUpdates = Object.values(columnUpdates).some(
+      (value) => value !== undefined,
+    );
+
+    if (hasColumnUpdates) {
+      const updated = await handleUpdateColumn(columnId, columnUpdates);
+      if (!updated) return false;
+    }
+
+    if (color !== undefined) {
+      if (!statusManagerView) return false;
+      const nextColumns = statusManagerView.columns.map((column) =>
+        column.id === columnId ? { ...column, color } : column,
+      );
+      try {
+        await handleUpdateView(statusManagerView.id, {
+          columns: nextColumns,
+        });
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleDeleteColumn = async (columnId: string) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
@@ -999,7 +1046,6 @@ export function KanbanBoard({
         title: taskProps.title || "새 태스크",
         description: taskProps.description || "",
         columnId: targetColumnId,
-        boardId,
       };
 
       if ("assigneeId" in taskProps) {
@@ -1071,26 +1117,55 @@ export function KanbanBoard({
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
+    const previousTask = tasks.find((task) => task.id === taskId);
+    const mutationVersion =
+      (taskMutationVersionRef.current.get(taskId) || 0) + 1;
+    taskMutationVersionRef.current.set(taskId, mutationVersion);
+
     syncProjectData(projectId, {
       tasks: tasks.map((task) =>
         task.id === taskId ? { ...task, ...updates } : task,
       ),
     });
 
-    return enqueueBoardMutation(async () => {
-      const response = await fetch(
-        `/api/workspaces/${projectId}/board/tasks/${taskId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updates),
-        },
-      );
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(payload?.error || "작업을 수정하지 못했습니다.");
+    try {
+      return await enqueueBoardMutation(async () => {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/board/tasks/${taskId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          },
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error || "작업을 수정하지 못했습니다.");
+        }
+      }, "작업을 수정하지 못했습니다.");
+    } catch (error) {
+      if (
+        previousTask &&
+        taskMutationVersionRef.current.get(taskId) === mutationVersion
+      ) {
+        const currentProjectTasks = useWorkspaceStore
+          .getState()
+          .tasks.filter((task) => task.projectId === projectId);
+        const rollbackFields = Object.fromEntries(
+          Object.keys(updates).map((key) => [
+            key,
+            previousTask[key as keyof Task],
+          ]),
+        ) as Partial<Task>;
+
+        syncProjectData(projectId, {
+          tasks: currentProjectTasks.map((task) =>
+            task.id === taskId ? { ...task, ...rollbackFields } : task,
+          ),
+        });
       }
-    }, "작업을 수정하지 못했습니다.");
+      throw error;
+    }
   };
 
   const handleMoveColumn = async (
@@ -1214,60 +1289,18 @@ export function KanbanBoard({
 
   return (
     <div className="flex h-full overflow-hidden">
-      <div
-        className={`relative z-10 flex h-full flex-1 flex-col overflow-hidden bg-background ${
-          embedded ? "" : "rounded-2xl border shadow-sm"
-        }`}
-      >
+      <div className="relative z-10 flex h-full flex-1 flex-col overflow-hidden bg-background">
         <div className="flex items-center gap-2 overflow-x-auto border-b bg-background px-3 py-2">
-          {embedded && (
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onBackToBoards}
-                aria-label="모든 보드"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <h2 className="max-w-40 truncate text-sm font-semibold">
-                {boardData?.board?.name || "보드"}
-              </h2>
-              <Badge
-                variant="secondary"
-                className="h-5 px-1.5 text-[10px] font-normal"
-              >
-                {tasks.length}
-              </Badge>
-            </div>
-          )}
-
-          {!embedded && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onBackToBoards}
-                  aria-label="보드 목록으로"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <KanbanSquare className="h-4 w-4 text-muted-foreground" />
-                <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  {boardData?.board?.name || "보드"}
-                  <Badge
-                    variant="secondary"
-                    className="h-5 px-1.5 text-[10px] font-normal"
-                  >
-                    {tasks.length}
-                  </Badge>
-                </h2>
-              </div>
-            </div>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <KanbanSquare className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">보드</h2>
+            <Badge
+              variant="secondary"
+              className="h-5 px-1.5 text-[10px] font-normal"
+            >
+              {tasks.length}
+            </Badge>
+          </div>
 
           {tasks.length >= 450 && (
             <div className="flex animate-pulse items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-600">
@@ -1276,11 +1309,7 @@ export function KanbanBoard({
             </div>
           )}
 
-          <div
-            className={`flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1 ${
-              embedded ? "" : "ml-auto mr-4"
-            }`}
-          >
+          <div className="ml-3 flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1">
             <Button
               variant={viewType === "table" ? "secondary" : "ghost"}
               size="sm"
@@ -1300,6 +1329,16 @@ export function KanbanBoard({
             >
               <KanbanSquare className="h-3.5 w-3.5" />
               칸반
+            </Button>
+            <Button
+              variant={viewType === "timeline" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewType("timeline")}
+              aria-pressed={viewType === "timeline"}
+            >
+              <ChartGantt className="h-3.5 w-3.5" />
+              타임라인
             </Button>
           </div>
 
@@ -1452,19 +1491,25 @@ export function KanbanBoard({
                                   )}
                                 </button>
                               </CollapsibleTrigger>
-                              <CollapsibleContent className="space-y-3">
-                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                  <div className="text-[11px] font-medium text-muted-foreground">
-                                    상위 3축 보기
+                              <CollapsibleContent className="space-y-0 border-y">
+                                <div className="py-3">
+                                  <div className="mb-2">
+                                    <div className="text-xs font-semibold">
+                                      업무 단계
+                                    </div>
+                                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                                      모든 상태를 할 일 · 진행 중 · 완료 축으로
+                                      묶습니다.
+                                    </div>
                                   </div>
-                                  <div className="space-y-2">
+                                  <div className="divide-y">
                                     {STATUS_SECTION_OPTIONS.map((section) => {
                                       const checked =
                                         !hiddenStatusCategories.has(section.id);
                                       return (
                                         <label
                                           key={section.id}
-                                          className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                          className="flex cursor-pointer items-center gap-2 py-2 text-sm hover:bg-muted/30"
                                         >
                                           <Checkbox
                                             checked={checked}
@@ -1480,11 +1525,17 @@ export function KanbanBoard({
                                     })}
                                   </div>
                                 </div>
-                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                  <div className="text-[11px] font-medium text-muted-foreground">
-                                    세부 단계 보기
+                                <div className="border-t py-3">
+                                  <div className="mb-2">
+                                    <div className="text-xs font-semibold">
+                                      세부 상태
+                                    </div>
+                                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                                      실제 작업에 지정되는 상태와 소속 업무
+                                      단계입니다.
+                                    </div>
                                   </div>
-                                  <div className="space-y-2">
+                                  <div className="divide-y">
                                     {statusColumns.map((column) => {
                                       const checked = !hiddenColumnIds.has(
                                         column.id,
@@ -1499,7 +1550,7 @@ export function KanbanBoard({
                                       return (
                                         <label
                                           key={column.id}
-                                          className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                          className="flex cursor-pointer items-center gap-2 py-2 text-sm hover:bg-muted/30"
                                         >
                                           <Checkbox
                                             checked={checked}
@@ -1509,11 +1560,11 @@ export function KanbanBoard({
                                               );
                                             }}
                                           />
-                                          <div className="min-w-0">
-                                            <div className="truncate">
+                                          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                                            <div className="truncate font-medium">
                                               {column.title}
                                             </div>
-                                            <div className="text-[11px] text-muted-foreground">
+                                            <div className="shrink-0 border-l pl-2 text-[10px] text-muted-foreground">
                                               {categoryLabel}
                                             </div>
                                           </div>
@@ -1582,6 +1633,26 @@ export function KanbanBoard({
                 title="상태 관리"
               >
                 <Layout className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {(viewType === "table" || viewType === "timeline") && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setAllGroupsCollapsed((current) => !current)}
+                aria-label={
+                  allGroupsCollapsed ? "모든 그룹 펼치기" : "모든 그룹 접기"
+                }
+                title={
+                  allGroupsCollapsed ? "모든 그룹 펼치기" : "모든 그룹 접기"
+                }
+              >
+                {allGroupsCollapsed ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
               </Button>
             )}
           </div>
@@ -1836,8 +1907,10 @@ export function KanbanBoard({
               onTaskClick={setActiveTaskId}
               onUpdateTask={handleUpdateTask}
               onCreateTask={(defaults) => openCreateTaskDialog(defaults)}
+              onCreateTag={handleCreateTagFromDialog}
+              allGroupsCollapsed={allGroupsCollapsed}
             />
-          ) : (
+          ) : viewType === "kanban" ? (
             <KanbanView
               projectId={projectId}
               tasks={visibleTasks}
@@ -1879,6 +1952,17 @@ export function KanbanBoard({
                 statusCategoryOrder,
               }}
             />
+          ) : (
+            <TimelineView
+              tasks={sortedVisibleTasks}
+              groupBy={groupBy}
+              groupColumns={displayColumns}
+              statusColumns={tableStatusColumns}
+              onTaskClick={setActiveTaskId}
+              onUpdateTask={handleUpdateTask}
+              readOnly={isReadOnly}
+              allGroupsCollapsed={allGroupsCollapsed}
+            />
           )}
         </div>
       </div>
@@ -1911,17 +1995,6 @@ export function KanbanBoard({
         onClose={() => setIsPriorityManagerOpen(false)}
       />
 
-      {activeTaskId && viewType === "kanban" && (
-        <AdvancedTaskModal
-          taskId={activeTaskId}
-          projectId={projectId}
-          open
-          onOpenChange={(open) => {
-            if (!open) setActiveTaskId(null);
-          }}
-        />
-      )}
-
       {statusManagerView && (
         <StatusManagerModal
           isOpen={isStatusManagerOpen}
@@ -1929,7 +2002,7 @@ export function KanbanBoard({
           activeView={statusManagerView}
           tasks={tasks}
           onCreateColumn={handleCreateColumn}
-          onUpdateColumn={handleUpdateColumn}
+          onUpdateColumn={handleUpdateStatusColumn}
           onDeleteColumn={handleDeleteColumn}
           onReorderColumns={async (columnIds) => {
             await handleUpdateView(statusManagerView.id, {

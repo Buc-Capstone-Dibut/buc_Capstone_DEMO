@@ -4,10 +4,6 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import {
-  ensureDefaultWorkspaceBoard,
-  findWorkspaceBoard,
-} from "@/lib/server/workspace-boards";
-import {
   assertValidDateRange,
   normalizeDateOnly,
   parseDateOnly,
@@ -56,7 +52,6 @@ export async function POST(
     const {
       title,
       description,
-      boardId,
       columnId,
       assigneeId,
       priority,
@@ -80,13 +75,6 @@ export async function POST(
 
     if (!column) {
       return NextResponse.json({ error: "Column not found" }, { status: 404 });
-    }
-
-    const board = boardId
-      ? await findWorkspaceBoard(workspaceId, boardId)
-      : await ensureDefaultWorkspaceBoard(workspaceId);
-    if (!board || board.archived_at) {
-      return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
 
     if (assigneeId) {
@@ -165,7 +153,7 @@ export async function POST(
 
     // 2. Get Max Order in Column
     const lastTask = await prisma.kanban_tasks.findFirst({
-      where: { board_id: board.id, column_id: columnId },
+      where: { column_id: columnId },
       orderBy: { order: "desc" },
       select: { order: true },
     });
@@ -182,7 +170,6 @@ export async function POST(
     const task = await prisma.kanban_tasks.create({
       data: {
         title: title,
-        board_id: board.id,
         column_id: columnId,
         order: newOrder,
         description: description || "",
@@ -200,7 +187,6 @@ export async function POST(
     // Formatting for frontend
     const formattedTask = {
       id: task.id,
-      boardId: task.board_id,
       columnId: task.column_id,
       title: task.title,
       description: task.description,

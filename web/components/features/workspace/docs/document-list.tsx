@@ -41,6 +41,7 @@ interface Doc extends DocTreeItem {
 interface DocumentListProps {
   workspaceId: string;
   docs: Doc[];
+  collapsed?: boolean;
   readOnly?: boolean;
   organizeMode?: boolean;
   level?: number;
@@ -109,9 +110,9 @@ async function persistMove(
   });
 
   if (!res.ok) {
-    const payload = (await res.json().catch(() => null)) as
-      | { error?: string }
-      | null;
+    const payload = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
     throw new Error(payload?.error || "문서 이동에 실패했습니다.");
   }
 }
@@ -178,6 +179,7 @@ function DocumentTreeBranch({
   docs,
   readOnly = false,
   organizeMode = false,
+  collapsed = false,
   level = 0,
   parentId = null,
   onExpand,
@@ -287,7 +289,9 @@ function DocumentTreeBranch({
     event.stopPropagation();
     if (readOnly) return;
 
-    const nextTitle = window.prompt("새 이름을 입력하세요.", currentTitle)?.trim();
+    const nextTitle = window
+      .prompt("새 이름을 입력하세요.", currentTitle)
+      ?.trim();
     if (!nextTitle || nextTitle === currentTitle) return;
 
     try {
@@ -332,7 +336,8 @@ function DocumentTreeBranch({
                 setDropPreview(null);
               }}
               onDragOver={(event) => {
-                if (!canDrag || !draggingDocId || draggingDocId === doc.id) return;
+                if (!canDrag || !draggingDocId || draggingDocId === doc.id)
+                  return;
                 event.preventDefault();
                 const position = getDropPosition(event, isFolder);
                 if (
@@ -369,7 +374,10 @@ function DocumentTreeBranch({
                 }
               }}
               className={cn(
-                "group relative flex min-h-[32px] items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                "group relative flex min-h-[32px] items-center rounded-md text-sm font-medium transition-colors",
+                collapsed
+                  ? "mx-auto h-9 w-9 justify-center px-0 py-1"
+                  : "gap-2 px-2 py-1.5",
                 isActive
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -378,7 +386,12 @@ function DocumentTreeBranch({
                   previewPosition === "inside" &&
                   "bg-amber-50 text-foreground ring-1 ring-amber-300/70",
               )}
-              style={{ paddingLeft: level ? `${level * 12 + 8}px` : "8px" }}
+              style={
+                collapsed
+                  ? undefined
+                  : { paddingLeft: level ? `${level * 12 + 8}px` : "8px" }
+              }
+              title={collapsed ? doc.title : undefined}
             >
               {organizeMode && previewPosition === "before" && (
                 <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded-full bg-amber-400" />
@@ -387,27 +400,36 @@ function DocumentTreeBranch({
                 <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-amber-400" />
               )}
 
-              <div
-                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/70"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onExpand?.(doc.id);
-                }}
-              >
-                {hasChildren ? (
-                  isExpanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
+              {!collapsed ? (
+                <div
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/70"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onExpand?.(doc.id);
+                  }}
+                >
+                  {hasChildren ? (
+                    isExpanded ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )
                   ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )
-                ) : (
-                  <div className="w-3.5" />
-                )}
-              </div>
+                    <div className="w-3.5" />
+                  )}
+                </div>
+              ) : null}
 
-              <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
+              <div
+                className={cn(
+                  "flex min-w-0 items-center truncate",
+                  collapsed ? "justify-center" : "flex-1 gap-2",
+                )}
+              >
                 {doc.emoji ? (
-                  <span>{doc.emoji}</span>
+                  <span className={cn(collapsed && "text-base leading-none")}>
+                    {doc.emoji}
+                  </span>
                 ) : isFolder ? (
                   isExpanded ? (
                     <FolderOpen className="h-4 w-4 shrink-0" />
@@ -417,114 +439,129 @@ function DocumentTreeBranch({
                 ) : (
                   <File className="h-4 w-4 shrink-0" />
                 )}
-                <div className="flex min-w-0 items-center gap-1.5 truncate">
-                  <span className="truncate">{doc.title}</span>
-                  {doc.kind === "page" && doc.collab?.isActive ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      협업
-                      {doc.collab.participantCount
-                        ? ` ${doc.collab.participantCount}`
-                        : ""}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div
-                className={cn(
-                  "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
-                  organizeMode
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
-                )}
-              >
-                {organizeMode && !readOnly ? (
-                  <div
-                    className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground/60 hover:bg-muted/70 active:cursor-grabbing"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <GripVertical className="h-3.5 w-3.5" />
+                {!collapsed ? (
+                  <div className="flex min-w-0 items-center gap-1.5 truncate">
+                    <span className="truncate">{doc.title}</span>
+                    {doc.kind === "page" && doc.collab?.isActive ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        협업
+                        {doc.collab.participantCount
+                          ? ` ${doc.collab.participantCount}`
+                          : ""}
+                      </span>
+                    ) : null}
                   </div>
-                ) : !readOnly ? (
-                  <>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        {isFolder ? (
-                          <>
-                            <DropdownMenuItem
-                              onClick={(event) =>
-                                handleCreateChild(event, doc.id, "page")
-                              }
-                            >
-                              <File className="mr-2 h-4 w-4" />
-                              하위 문서 추가
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(event) =>
-                                handleCreateChild(event, doc.id, "folder")
-                              }
-                            >
-                              <FolderPlus className="mr-2 h-4 w-4" />
-                              하위 폴더 추가
-                            </DropdownMenuItem>
-                          </>
-                        ) : (
-                          <>
-                            <DropdownMenuItem
-                              onClick={(event) =>
-                                handleCreateSibling(event, doc.parent_id, "page")
-                              }
-                            >
-                              <File className="mr-2 h-4 w-4" />
-                              같은 위치에 문서 추가
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(event) =>
-                                handleCreateSibling(event, doc.parent_id, "folder")
-                              }
-                            >
-                              <FolderPlus className="mr-2 h-4 w-4" />
-                              같은 위치에 폴더 추가
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <button
-                      type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
-                      onClick={(event) => handleRename(event, doc.id, doc.title)}
-                    >
-                      <PencilLine className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-
-                    <button
-                      type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded-sm text-red-500 hover:bg-red-50"
-                      onClick={(event) => handleDelete(event, doc.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </>
                 ) : null}
               </div>
+
+              {!collapsed ? (
+                <div
+                  className={cn(
+                    "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
+                    organizeMode
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                  )}
+                >
+                  {organizeMode && !readOnly ? (
+                    <div
+                      className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground/60 hover:bg-muted/70 active:cursor-grabbing"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </div>
+                  ) : !readOnly ? (
+                    <>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          {isFolder ? (
+                            <>
+                              <DropdownMenuItem
+                                onClick={(event) =>
+                                  handleCreateChild(event, doc.id, "page")
+                                }
+                              >
+                                <File className="mr-2 h-4 w-4" />
+                                하위 문서 추가
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(event) =>
+                                  handleCreateChild(event, doc.id, "folder")
+                                }
+                              >
+                                <FolderPlus className="mr-2 h-4 w-4" />
+                                하위 폴더 추가
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                onClick={(event) =>
+                                  handleCreateSibling(
+                                    event,
+                                    doc.parent_id,
+                                    "page",
+                                  )
+                                }
+                              >
+                                <File className="mr-2 h-4 w-4" />
+                                같은 위치에 문서 추가
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(event) =>
+                                  handleCreateSibling(
+                                    event,
+                                    doc.parent_id,
+                                    "folder",
+                                  )
+                                }
+                              >
+                                <FolderPlus className="mr-2 h-4 w-4" />
+                                같은 위치에 폴더 추가
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <button
+                        type="button"
+                        className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-muted/70"
+                        onClick={(event) =>
+                          handleRename(event, doc.id, doc.title)
+                        }
+                      >
+                        <PencilLine className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="flex h-6 w-6 items-center justify-center rounded-sm text-red-500 hover:bg-red-50"
+                        onClick={(event) => handleDelete(event, doc.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {isExpanded && (
               <DocumentTreeBranch
                 workspaceId={workspaceId}
                 docs={docs}
+                collapsed={collapsed}
                 readOnly={readOnly}
                 organizeMode={organizeMode}
                 level={level + 1}

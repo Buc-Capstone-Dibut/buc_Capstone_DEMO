@@ -158,13 +158,13 @@ flowchart LR
 - 서버는 `workspace_whiteboards.yjs_state`에 전체 상태를 저장한다.
 - 완료 워크스페이스의 `viewModeEnabled`는 현재 클라이언트가 설정한다.
 
-### 우선 해결할 문제
+### 현재 보안 경계와 남은 문제
 
-- workspace-server는 `doc:*`만 token을 검사한다. `whiteboard:*`는 인증과 membership 검사가 없다.
-- 워크스페이스 UUID를 아는 비회원도 WebSocket 연결·상태 수신·변경 방송을 시도할 수 있다.
-- 완료 워크스페이스도 서버 메모리에서는 변경이 방송될 수 있고, BFF 저장 단계에서만 거절된다.
+- `doc:*`와 `whiteboard:*` 모두 BFF가 멤버십·수명주기를 확인한 뒤 발급한 HMAC token을 요구한다.
+- raw WebSocket Origin은 `ALLOWED_ORIGINS`와 일치해야 하며 payload는 8MB로 제한한다.
+- 완료 워크스페이스의 신규 token 발급은 BFF에서 차단한다. 다만 연결 후 멤버 탈퇴·완료 전환은 기존 연결에 즉시 반영되지 않는다.
 - awareness 사용자 정보도 서버에서 검증하지 않아 신뢰할 수 있는 신원 정보가 아니다.
-- payload·파일 크기·rate limit가 없고 자산이 전체 Yjs state 크기를 키울 수 있다.
+- 파일 자산이 전체 Yjs state 크기를 키우며, 현재 확인된 화이트보드 state는 Vercel Functions 요청 한도에 가까워 별도 자산 저장소 분리가 필요하다.
 - 연결 표시는 WebSocket 연결 여부이며 DB 저장 성공 여부가 아니다.
 - 같은 React 인스턴스에서 `projectId`만 바뀌면 기존 Y.Doc ref를 재사용할 여지가 있다. 라우트 전환 시 문서 재생성 또는 명시적 destroy가 필요하다.
 
@@ -181,16 +181,14 @@ flowchart LR
 
 workspace-server가 `workspace_channels`, `workspace_messages`, `notifications`를 Prisma로 직접 읽고 쓴다. 알림·mention count의 일부는 클라이언트 store에서 관리하고, 메시지는 현재 전체 목록을 한 번에 조회한다.
 
-### 우선 해결할 문제
+### 현재 보안 경계와 남은 문제
 
-- Socket.IO handshake에 Supabase access token 인증이 없다.
-- `join`이 클라이언트의 `userId`, `projectId`를 신뢰하며 membership을 확인하지 않는다.
-- 채팅 이벤트도 `workspaceId`, `channelId`, `senderId`, `requesterId`를 신뢰한다.
-- 따라서 다른 사용자를 사칭하거나 알게 된 채널·워크스페이스 식별자로 접근할 가능성이 있다.
-- read-only DB 확인은 조회 오류 시 fail-open이므로 장애 중 쓰기를 허용할 수 있다.
+- Socket.IO handshake마다 Supabase access token을 Auth 서버에서 확인하고 DB 멤버십·활성 워크스페이스를 검증한다.
+- room, 채널, 메시지 작성자·수정자·삭제자는 handshake에서 확정한 사용자와 워크스페이스에 묶는다.
+- 수명주기 DB 확인 오류는 fail-closed다.
 - private channel 타입은 있지만 서버 측 채널 membership 권한 모델이 없다.
 - 메시지 pagination, payload schema·크기 제한, rate limit가 없다.
-- presence는 프로세스 메모리 기반이다. 같은 사용자의 여러 연결 중 하나만 끊겨도 offline이 방송될 수 있다.
+- presence는 프로세스 메모리 기반이며, 같은 프로세스 안에서는 동일 사용자의 마지막 연결이 종료될 때만 offline을 방송한다.
 - 멀티 인스턴스에서는 room, presence, broadcast가 공유되지 않는다.
 
 현재 `board.gateway.ts`의 `board:*` Socket.IO relay는 웹 화이트보드가 사용하지 않는 이전 구현이다. 화이트보드는 Yjs 경로를 사용한다.
@@ -260,7 +258,7 @@ workspace-server/
 
 | 경로·이벤트 | 역할 |
 | --- | --- |
-| Socket.IO `join`, `presence:update` | 워크스페이스 입장과 상태 방송 |
+| Socket.IO handshake, `presence:update` | Supabase token·멤버십 확인과 상태 방송 |
 | Socket.IO `chat:*` | 채널·메시지·typing |
 | Socket.IO `voice:update` | LiveKit 참가자 목록 재조회 신호 |
 | Yjs `doc:<docId>` | BlockNote 문서 협업 |
@@ -268,16 +266,16 @@ workspace-server/
 | `POST /internal/yjs/docs/:docId/reset` | 비활성 문서 room 제거 |
 | `POST /internal/yjs/docs/:docId/flush` | 메모리의 문서 상태 즉시 저장 |
 
-`auth.service.ts`, `chat.types.ts`, Socket.IO `board:*`는 현재 주 실행 경로의 인증 또는 화이트보드 동기화에 사용되지 않는 레거시 후보 코드다.
+`auth.service.ts`는 Socket.IO 인증 경계다. `chat.types.ts`와 Socket.IO `board:*`는 현재 주 화이트보드 동기화 경로가 아닌 레거시 호환 후보 코드다.
 
 ## 기술 부채 우선순위
 
 ### P0 — 기능 추가 전에 막아야 함
 
-1. Socket.IO handshake 인증과 server-derived user identity
-2. 모든 chat/join/voice 이벤트의 workspace·channel authorization
-3. whiteboard Yjs token, membership, writable 검증
-4. Yjs 저장 실패 전파, retry, 저장 직렬화, 마지막 연결 종료 시 안전한 room 해제
+1. 메시지 payload schema·길이 제한과 per-socket rate limit
+2. 연결 중 멤버십 회수·워크스페이스 완료 전환 반영
+3. whiteboard 파일 자산을 Yjs state 밖의 저장소로 분리
+4. Yjs 저장 실패의 브라우저 전달과 복구 UX
 
 ### P1 — 협업 신뢰성
 
@@ -314,7 +312,11 @@ workspace-server/
 | `DATABASE_URL` | 예 | 채팅·알림 Prisma 연결 |
 | `DIRECT_URL` | Prisma 명령 사용 시 | follower schema direct connection |
 | `BFF_URL` | 예 | Yjs 상태 로드·저장 대상 Next.js 주소 |
-| `INTERNAL_API_SECRET` | 예 | BFF 내부 API와 문서 협업 HMAC 서명 |
+| `INTERNAL_API_SECRET` | 예 | BFF 내부 상태 API 인증 |
+| `COLLAB_TOKEN_SECRET` | 예 | 문서·화이트보드 접속 token HMAC 서명 |
+| `SUPABASE_URL` | 예 | Socket.IO access token 검증 대상 |
+| `SUPABASE_ANON_KEY` | 예 | Supabase Auth `/user` 검증 API key |
+| `ALLOWED_ORIGINS` | 배포 시 예 | 쉼표 구분 웹 Origin allowlist |
 | `PORT` | 아니오 | 기본값 `4000` |
 
 ### web
@@ -325,6 +327,7 @@ workspace-server/
 | `NEXT_PUBLIC_SOCKET_URL` | whiteboard Yjs server 주소 |
 | `WORKSPACE_SERVER_HTTP_URL` | BFF가 reset/flush를 호출할 내부 HTTP 주소 |
 | `INTERNAL_API_SECRET` | workspace-server와 동일한 값 |
+| `COLLAB_TOKEN_SECRET` | workspace-server와 동일한 HMAC 전용 값 |
 
 ```bash
 cp workspace-server/.env.example workspace-server/.env
@@ -340,6 +343,6 @@ npm install
 npm run dev
 ```
 
-workspace-server의 개발 명령은 `tsx watch src/index.ts`, 시작 명령은 `tsx src/index.ts`다. 현재 별도의 compile, lint, test script가 없다. 기타 HTTP 요청에 대한 200 실행 문자열은 DB와 BFF 의존성을 검사하는 readiness endpoint가 아니다.
+workspace-server의 개발 명령은 `tsx watch src/index.ts`다. 배포는 `prisma generate && tsc`로 빌드한 뒤 `node dist/index.js`로 실행하며, `/healthz`를 liveness endpoint로 사용한다. 알 수 없는 HTTP 경로는 404를 반환한다.
 
-`render.yaml` 기준 배포는 Node runtime, `npm install`, `npm start`이며 `DATABASE_URL`, `BFF_URL`, `INTERNAL_API_SECRET`이 필요하다.
+`render.yaml`은 Render 무료 web service, `npm ci`, TypeScript build, 30초 shutdown delay를 명시한다. 무료 인스턴스의 sleep·재기동은 정상 조건이므로 클라이언트는 연결 중에도 보드·문서 같은 BFF 기능을 막지 않고 작은 상태 표시만 노출한다.

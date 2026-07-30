@@ -49,7 +49,7 @@ export async function DELETE(
 
     const tasks = await tx.kanban_tasks.findMany({
       where: {
-        board: { workspace_id: workspaceId },
+        column: { workspace_id: workspaceId },
         tags: { has: tagId },
       },
       select: { id: true, tags: true },

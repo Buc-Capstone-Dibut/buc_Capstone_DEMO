@@ -82,6 +82,15 @@ export async function POST(
     let seedState: string | null = null;
 
     if (!existingSession || existingSession.status !== "ACTIVE") {
+      // 이전 room의 지연 저장이 새 seed를 뒤늦게 덮지 않도록 room을 먼저 비운다.
+      const reset = await resetWorkspaceDocCollabRoom(docId);
+      if (!reset.ok) {
+        return NextResponse.json(
+          { error: "이전 협업 상태를 정리하지 못해 협업을 시작할 수 없습니다." },
+          { status: reset.status },
+        );
+      }
+
       const seeded = await syncDocCollabStateFromSnapshot(docId);
       if (!seeded.ok) {
         return NextResponse.json(
@@ -90,14 +99,6 @@ export async function POST(
         );
       }
       seedState = seeded.yjsState;
-
-      const reset = await resetWorkspaceDocCollabRoom(docId);
-      if (!reset.ok) {
-        return NextResponse.json(
-          { error: "이전 협업 상태를 정리하지 못해 협업을 시작할 수 없습니다." },
-          { status: reset.status },
-        );
-      }
     }
 
     const result = await startDocCollabSession(
