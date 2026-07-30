@@ -2,9 +2,77 @@ import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import {
+  decodeWorkspaceDocYjsState,
+  InvalidWorkspaceDocYjsStateError,
   snapshotToYjsState,
-  yjsStateToSnapshot,
 } from "@/lib/server/workspace-doc-collab";
+
+const COLLAB_REVISION_INTERVAL_MS = 30_000;
+const MAX_REVISIONS_PER_DOC = 50;
+
+type RecordWorkspaceDocRevisionInput = {
+  docId: string;
+  source: "manual" | "collaboration";
+  yjsState: string;
+  content: Prisma.InputJsonValue;
+  byteSize: number;
+  createdBy?: string | null;
+  throttle?: boolean;
+};
+
+async function recordWorkspaceDocRevision({
+  docId,
+  source,
+  yjsState,
+  content,
+  byteSize,
+  createdBy,
+  throttle = false,
+}: RecordWorkspaceDocRevisionInput) {
+  try {
+    if (throttle) {
+      const latestRevision = await prisma.workspace_doc_revisions.findFirst({
+        where: { doc_id: docId },
+        orderBy: { created_at: "desc" },
+        select: { created_at: true },
+      });
+      if (
+        latestRevision &&
+        Date.now() - latestRevision.created_at.getTime() <
+          COLLAB_REVISION_INTERVAL_MS
+      ) {
+        return;
+      }
+    }
+
+    await prisma.workspace_doc_revisions.create({
+      data: {
+        doc_id: docId,
+        source,
+        yjs_state: yjsState,
+        content,
+        byte_size: byteSize,
+        created_by: createdBy ?? null,
+      },
+    });
+
+    const staleRevisions = await prisma.workspace_doc_revisions.findMany({
+      where: { doc_id: docId },
+      orderBy: { created_at: "desc" },
+      skip: MAX_REVISIONS_PER_DOC,
+      select: { id: true },
+    });
+    if (staleRevisions.length > 0) {
+      await prisma.workspace_doc_revisions.deleteMany({
+        where: { id: { in: staleRevisions.map((revision) => revision.id) } },
+      });
+    }
+  } catch (error) {
+    // Revision history must never block the primary document save. This also
+    // keeps the hotfix backward-compatible until the new migration is applied.
+    console.error("Failed to record workspace document revision", error);
+  }
+}
 
 export async function loadOrSeedDocCollabState(docId: string) {
   const existingState = await prisma.workspace_doc_states.findUnique({
@@ -73,6 +141,20 @@ export async function syncDocCollabStateFromSnapshot(docId: string) {
 }
 
 export async function saveDocCollabState(docId: string, yjsState: string) {
+  let decodedState;
+  try {
+    decodedState = decodeWorkspaceDocYjsState(yjsState);
+  } catch (error) {
+    if (error instanceof InvalidWorkspaceDocYjsStateError) {
+      return {
+        ok: false as const,
+        status: error.status,
+        error: error.message,
+      };
+    }
+    throw error;
+  }
+
   const doc = await prisma.workspace_docs.findUnique({
     where: { id: docId },
     select: {
@@ -94,8 +176,9 @@ export async function saveDocCollabState(docId: string, yjsState: string) {
     };
   }
 
-  await prisma.$transaction([
-    prisma.workspace_doc_states.upsert({
+  const persistedAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.workspace_doc_states.upsert({
       where: { doc_id: docId },
       create: {
         doc_id: docId,
@@ -104,16 +187,25 @@ export async function saveDocCollabState(docId: string, yjsState: string) {
       update: {
         yjs_state: yjsState,
       },
-    }),
-    prisma.workspace_docs.update({
+    });
+    await tx.workspace_docs.update({
       where: { id: docId },
       data: {
-        content: yjsStateToSnapshot(yjsState) as Prisma.InputJsonValue,
+        content: decodedState.snapshot as Prisma.InputJsonValue,
       },
-    }),
-  ]);
+    });
+  });
 
-  return { ok: true as const };
+  await recordWorkspaceDocRevision({
+    docId,
+    source: "collaboration",
+    yjsState,
+    content: decodedState.snapshot as Prisma.InputJsonValue,
+    byteSize: decodedState.byteLength,
+    throttle: true,
+  });
+
+  return { ok: true as const, persistedAt: persistedAt.toISOString() };
 }
 
 function toSnapshotJsonValue(content: unknown): Prisma.InputJsonValue {
@@ -191,6 +283,7 @@ type SaveWorkspaceDocContentInput = {
   title?: string;
   emoji?: string | null;
   authorId?: string | null;
+  savedBy?: string | null;
 };
 
 export async function saveWorkspaceDocContent({
@@ -199,6 +292,7 @@ export async function saveWorkspaceDocContent({
   title,
   emoji,
   authorId,
+  savedBy,
 }: SaveWorkspaceDocContentInput) {
   const context = await resolveWorkspaceDocWriteContext(docId, authorId);
 
@@ -212,6 +306,10 @@ export async function saveWorkspaceDocContent({
     typeof title === "string" && title.trim().length > 0
       ? title.trim()
       : undefined;
+
+  const normalizedContent = toSnapshotJsonValue(content);
+  const revisionYjsState = snapshotToYjsState(content);
+  const revisionByteSize = Buffer.from(revisionYjsState, "base64").byteLength;
 
   const saved = await prisma.$transaction(async (tx) => {
     const activeCollabSession =
@@ -251,6 +349,15 @@ export async function saveWorkspaceDocContent({
         "협업 편집 중에는 일반 저장을 사용할 수 없습니다. 협업을 종료한 뒤 저장해 주세요.",
     };
   }
+
+  await recordWorkspaceDocRevision({
+    docId,
+    source: "manual",
+    yjsState: revisionYjsState,
+    content: normalizedContent,
+    byteSize: revisionByteSize,
+    createdBy: savedBy,
+  });
 
   return { ok: true as const };
 }

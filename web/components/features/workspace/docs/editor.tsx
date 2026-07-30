@@ -52,6 +52,7 @@ interface DocumentEditorProps {
   collabToken: string;
   onStatusChange?: (status: "connecting" | "saving" | "synced" | "unstable") => void;
   onParticipantsChange?: (participants: UserInfo[]) => void;
+  onCheckPersisted?: (changedAt: number) => Promise<boolean>;
 }
 
 export interface DocumentEditorHandle {
@@ -88,6 +89,7 @@ export const DocumentEditor = forwardRef<
     collabToken,
     onStatusChange,
     onParticipantsChange,
+    onCheckPersisted,
   }: DocumentEditorProps,
   ref,
 ) {
@@ -95,6 +97,8 @@ export const DocumentEditor = forwardRef<
   const pathname = usePathname();
   const saveIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generatedUserInfoRef = useRef<UserInfo | null>(null);
+  const collabTokenRef = useRef(collabToken);
+  collabTokenRef.current = collabToken;
   const userName = user?.name;
   const userColor = user?.color;
 
@@ -186,12 +190,16 @@ export const DocumentEditor = forwardRef<
       {
         connect: false,
         params: {
-          token: collabToken,
+          token: collabTokenRef.current,
         },
       },
     );
     return { doc: ydoc, provider: websocketProvider };
-  }, [collabToken, decodeYjsState, docId, initialYjsState]);
+  }, [decodeYjsState, docId, initialYjsState]);
+
+  useEffect(() => {
+    provider.params.token = collabToken;
+  }, [collabToken, provider]);
 
   // Stable user info
   const userInfo = useMemo(() => {
@@ -248,7 +256,7 @@ export const DocumentEditor = forwardRef<
 
     const handleProviderStatus = ({ status }: { status: string }) => {
       if (status === "connected") {
-        onStatusChange?.("synced");
+        onStatusChange?.("connecting");
         return;
       }
       onStatusChange?.("unstable");
@@ -264,14 +272,37 @@ export const DocumentEditor = forwardRef<
       onParticipantsChange?.(users);
     };
 
-    const handleDocUpdate = () => {
+    const handleDocUpdate = (_update: Uint8Array, origin: unknown) => {
+      if (origin === provider) {
+        return;
+      }
+
+      const changedAt = Date.now();
       onStatusChange?.("saving");
       if (saveIndicatorTimerRef.current) {
         clearTimeout(saveIndicatorTimerRef.current);
       }
       saveIndicatorTimerRef.current = setTimeout(() => {
-        onStatusChange?.(provider.wsconnected ? "synced" : "unstable");
-      }, 1200);
+        void (async () => {
+          if (!provider.wsconnected) {
+            onStatusChange?.("unstable");
+            return;
+          }
+
+          if (!onCheckPersisted) {
+            onStatusChange?.("unstable");
+            return;
+          }
+
+          try {
+            const persisted = await onCheckPersisted(changedAt);
+            onStatusChange?.(persisted ? "synced" : "saving");
+          } catch (error) {
+            console.error("Failed to confirm collaboration persistence", error);
+            onStatusChange?.("unstable");
+          }
+        })();
+      }, 4_000);
     };
 
     provider.on("status", handleProviderStatus);
@@ -294,7 +325,13 @@ export const DocumentEditor = forwardRef<
       provider.destroy();
       doc.destroy();
     };
-  }, [doc, onParticipantsChange, onStatusChange, provider]);
+  }, [
+    doc,
+    onCheckPersisted,
+    onParticipantsChange,
+    onStatusChange,
+    provider,
+  ]);
 
   const handleTaskMention = useCallback(async (
     task: WorkspaceTaskSearchResult,

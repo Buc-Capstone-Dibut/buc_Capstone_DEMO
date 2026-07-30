@@ -49,6 +49,11 @@ interface NormalDocumentEditorProps {
   onTaskLinked?: () => void;
   onOpenTask?: (taskId: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  saveMetadata?: {
+    title: string;
+    emoji: string | null;
+    authorId?: string;
+  };
 }
 
 export interface NormalDocumentEditorHandle {
@@ -92,6 +97,7 @@ export const NormalDocumentEditor = forwardRef<
     onTaskLinked,
     onOpenTask,
     onDirtyChange,
+    saveMetadata,
   }: NormalDocumentEditorProps,
   ref,
 ) {
@@ -186,13 +192,12 @@ export const NormalDocumentEditor = forwardRef<
   );
 
   useEffect(() => {
-    lastSavedSnapshotRef.current = serializeBlocks(
-      normalizeSnapshotBlocks(initialContent),
-    );
-    emitDirtyChange(false);
-  }, [docId, emitDirtyChange, initialContent]);
+    // BlockNote is uncontrolled. A background SWR refresh must never replace the
+    // saved baseline while the user is editing, otherwise unsaved work appears clean.
+    if (latestDirtyRef.current) {
+      return;
+    }
 
-  useEffect(() => {
     if (
       initialContent &&
       Array.isArray(initialContent) &&
@@ -221,10 +226,15 @@ export const NormalDocumentEditor = forwardRef<
       const snapshot = normalizeSnapshotBlocks(editor.document);
       const serializedSnapshot = serializeBlocks(snapshot);
 
-      if (!resolvedWorkspaceId || readOnly) {
-        lastSavedSnapshotRef.current = serializedSnapshot;
-        emitDirtyChange(serializeBlocks(editor.document) !== serializedSnapshot);
-        return true;
+      if (readOnly) {
+        return !latestDirtyRef.current;
+      }
+
+      if (!resolvedWorkspaceId) {
+        if (!options?.silent) {
+          toast.error("워크스페이스 정보를 찾을 수 없어 저장하지 못했습니다.");
+        }
+        return false;
       }
 
       try {
@@ -237,6 +247,7 @@ export const NormalDocumentEditor = forwardRef<
             },
             body: JSON.stringify({
               content: snapshot,
+              ...saveMetadata,
             }),
           },
         );
@@ -260,7 +271,14 @@ export const NormalDocumentEditor = forwardRef<
         return false;
       }
     },
-    [docId, editor.document, emitDirtyChange, readOnly, resolvedWorkspaceId],
+    [
+      docId,
+      editor,
+      emitDirtyChange,
+      readOnly,
+      resolvedWorkspaceId,
+      saveMetadata,
+    ],
   );
 
   useImperativeHandle(

@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { touchDocPresence } from "@/lib/server/workspace-doc-collab-session";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
 
-type PresenceMode = "NORMAL" | "COLLAB";
-
-export async function POST(
-  request: Request,
+export async function GET(
+  _request: Request,
   { params }: { params: { id: string; docId: string } },
 ) {
   try {
@@ -21,16 +18,6 @@ export async function POST(
     }
 
     const { id: workspaceId, docId } = params;
-    const body = (await request.json().catch(() => null)) as {
-      mode?: PresenceMode;
-      isDirty?: boolean;
-      active?: boolean;
-    } | null;
-
-    const mode = body?.mode === "COLLAB" ? "COLLAB" : "NORMAL";
-    const isDirty = Boolean(body?.isDirty);
-    const active = body?.active !== false;
-
     const membership = await prisma.workspace_members.findUnique({
       where: {
         workspace_id_user_id: {
@@ -51,27 +38,24 @@ export async function POST(
         workspace_id: workspaceId,
         kind: "page",
       },
-      select: { id: true },
+      select: {
+        state: {
+          select: { updated_at: true },
+        },
+      },
     });
 
     if (!doc) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    await touchDocPresence({
-      workspaceId,
-      docId,
-      userId: user.id,
-      mode,
-      isDirty,
-      active,
+    return NextResponse.json({
+      persistedAt: doc.state?.updated_at.toISOString() ?? null,
     });
-
-    return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("API: Doc Presence Error", error);
+    console.error("API: Doc Collab Status Error", error);
     return NextResponse.json(
-      { error: "문서 상태 동기화에 실패했습니다." },
+      { error: "협업 저장 상태를 확인하지 못했습니다." },
       { status: 500 },
     );
   }

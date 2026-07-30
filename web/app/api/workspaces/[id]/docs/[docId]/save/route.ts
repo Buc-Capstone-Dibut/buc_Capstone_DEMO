@@ -12,10 +12,10 @@ export async function POST(
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -40,7 +40,7 @@ export async function POST(
       where: {
         workspace_id_user_id: {
           workspace_id: workspaceId,
-          user_id: session.user.id,
+          user_id: user.id,
         },
       },
       select: { user_id: true },
@@ -78,7 +78,7 @@ export async function POST(
     const collabState = await getDocCollabState(
       workspaceId,
       docId,
-      session.user.id,
+      user.id,
     );
 
     if (collabState.isActive) {
@@ -110,6 +110,7 @@ export async function POST(
     const result = await saveWorkspaceDocContent({
       docId,
       content: payload.content,
+      savedBy: user.id,
       ...metadata,
     });
 

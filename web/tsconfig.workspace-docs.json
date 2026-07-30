@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/api/collab/docs/[docId]/state/route.ts",
+    "app/api/workspaces/[id]/docs/[docId]/save/route.ts",
+    "app/api/workspaces/[id]/docs/[docId]/collab/**/*.ts",
+    "components/features/workspace/detail/docs-view.tsx",
+    "components/features/workspace/docs/**/*.tsx",
+    "lib/server/doc-collab-state.ts",
+    "lib/server/workspace-doc-collab*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
