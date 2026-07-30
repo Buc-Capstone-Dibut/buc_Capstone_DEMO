@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -13,7 +13,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Tags,
   UserRound,
   X,
 } from "lucide-react";
@@ -42,7 +41,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  TaskTagPicker,
+  TaskTagSummary,
+  type TaskTagOption,
+} from "@/components/features/workspace/common/task-tag-picker";
 import {
   DocumentPicker,
   DocumentPickerItem,
@@ -76,6 +86,8 @@ interface TableViewProps {
   onTaskClick: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: TaskUpdate) => void | Promise<void>;
   onCreateTask: (task: Partial<Task>) => void | Promise<void>;
+  onCreateTag?: (name: string) => Promise<TaskTagOption | null>;
+  allGroupsCollapsed?: boolean;
 }
 
 type FilterType = "status" | "priority" | "tag" | "assignee";
@@ -86,6 +98,7 @@ type TaskGroup = {
   accent: string;
   icon: "status" | "assignee" | "priority" | "tag";
   category?: "todo" | "in-progress" | "done";
+  avatarUrl?: string | null;
   tasks: Task[];
   completed: number;
 };
@@ -115,6 +128,37 @@ const STATUS_CATEGORY_LABELS = {
   "in-progress": "진행 중",
   done: "완료",
 } as const;
+
+const PRIORITY_SOFT_CLASSES: Record<string, string> = {
+  urgent: "bg-red-50/80 text-red-600 hover:bg-red-100/70",
+  high: "bg-orange-50/80 text-orange-600 hover:bg-orange-100/70",
+  medium: "bg-amber-50/80 text-amber-600 hover:bg-amber-100/70",
+  low: "bg-slate-50 text-slate-500 hover:bg-slate-100/70",
+};
+
+const PRIORITY_GROUP_ACCENTS: Record<string, string> = {
+  urgent: "#D05C5C",
+  high: "#C77B30",
+  medium: "#B28B28",
+  low: "#5D865F",
+};
+
+const ASSIGNEE_GROUP_ACCENTS = [
+  "#4D7C9B",
+  "#8067A8",
+  "#5D865F",
+  "#B35C81",
+  "#A47A44",
+  "#547E82",
+] as const;
+
+function getStableAssigneeAccent(value: string) {
+  const hash = Array.from(value).reduce(
+    (result, character) => (result * 31 + character.charCodeAt(0)) >>> 0,
+    0,
+  );
+  return ASSIGNEE_GROUP_ACCENTS[hash % ASSIGNEE_GROUP_ACCENTS.length];
+}
 
 const TAG_ACCENTS: Record<string, string> = {
   red: "#ef4444",
@@ -323,6 +367,8 @@ export function TableView({
   readOnly = false,
   onUpdateTask,
   onCreateTask,
+  onCreateTag,
+  allGroupsCollapsed,
 }: TableViewProps) {
   const [query, setQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<
@@ -339,6 +385,7 @@ export function TableView({
     () => new Set(),
   );
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const collapseCommandRef = useRef<boolean | undefined>(undefined);
 
   const getFilterOptions = (type: FilterType): FilterOption[] => {
     switch (type) {
@@ -424,8 +471,9 @@ export function TableView({
           ? {
               key: column?.id || "__no-status__",
               label: column?.title || "상태 없음",
-              accent:
-                column?.category === "done"
+              accent: column?.color
+                ? getColorAccent(column.color)
+                : column?.category === "done"
                   ? "#22c55e"
                   : column?.category === "in-progress"
                     ? "#3b82f6"
@@ -437,14 +485,17 @@ export function TableView({
             ? {
                 key: member?.id || "__unassigned__",
                 label: member?.name || "담당자 없음",
-                accent: member?.role === "leader" ? "#8b5cf6" : "#3b82f6",
+                accent: member ? getStableAssigneeAccent(member.id) : "#8B8B87",
                 icon: "assignee" as const,
+                avatarUrl: member?.avatar,
               }
             : groupBy === "priority"
               ? {
                   key: priority?.id || "__no-priority__",
                   label: priority?.name || "우선순위 없음",
-                  accent: getColorAccent(priority?.color),
+                  accent:
+                    PRIORITY_GROUP_ACCENTS[priority?.id || ""] ||
+                    getColorAccent(priority?.color),
                   icon: "priority" as const,
                 }
               : {
@@ -479,6 +530,22 @@ export function TableView({
         (orderMap.get(right.key) ?? Number.MAX_SAFE_INTEGER),
     );
   }, [columns, filteredTasks, groupBy, members, priorities, tags]);
+
+  useEffect(() => {
+    if (
+      typeof allGroupsCollapsed !== "boolean" ||
+      collapseCommandRef.current === allGroupsCollapsed
+    ) {
+      return;
+    }
+
+    collapseCommandRef.current = allGroupsCollapsed;
+    setCollapsedGroups(
+      allGroupsCollapsed
+        ? new Set(groups.map((group) => group.key))
+        : new Set(),
+    );
+  }, [allGroupsCollapsed, groups]);
 
   const summary = useMemo(() => {
     let completed = 0;
@@ -768,7 +835,7 @@ export function TableView({
                     style={{
                       borderLeftColor: group.accent,
                       backgroundColor: compact
-                        ? `color-mix(in srgb, ${group.accent} 9%, white)`
+                        ? `color-mix(in srgb, ${group.accent} 12%, white)`
                         : undefined,
                     }}
                     onClick={() => toggleGroup(group.key)}
@@ -781,9 +848,12 @@ export function TableView({
                     )}
                     <div
                       className={cn(
-                        "flex items-center justify-center bg-slate-100",
+                        "flex items-center justify-center",
                         compact ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg",
                       )}
+                      style={{
+                        backgroundColor: `color-mix(in srgb, ${group.accent} 16%, white)`,
+                      }}
                     >
                       {group.icon === "tag" ? (
                         <CircleDot
@@ -791,10 +861,19 @@ export function TableView({
                           style={{ color: group.accent }}
                         />
                       ) : group.icon === "assignee" ? (
-                        <UserRound
-                          className="h-4 w-4"
-                          style={{ color: group.accent }}
-                        />
+                        group.key === "__unassigned__" ? (
+                          <UserRound
+                            className="h-4 w-4"
+                            style={{ color: group.accent }}
+                          />
+                        ) : (
+                          <WorkspaceUserAvatar
+                            name={group.label}
+                            avatarUrl={group.avatarUrl}
+                            className={cn(compact ? "h-5 w-5" : "h-7 w-7")}
+                            fallbackClassName="text-[9px]"
+                          />
+                        )
                       ) : group.icon === "priority" ? (
                         <CircleDot
                           className="h-4 w-4"
@@ -842,7 +921,12 @@ export function TableView({
                   </button>
 
                   {!collapsed && (
-                    <Table className={compact ? "[&_td]:py-2" : undefined}>
+                    <Table
+                      className={cn(
+                        "animate-in fade-in slide-in-from-top-1 duration-150",
+                        compact && "[&_td]:py-2",
+                      )}
+                    >
                       <TableHeader>
                         <TableRow
                           className={cn(
@@ -900,9 +984,7 @@ export function TableView({
                           </TableHead>
                           <TableHead
                             className={cn(
-                              groupBy === "tag"
-                                ? "hidden"
-                                : "hidden min-w-[180px] 2xl:table-cell",
+                              "hidden min-w-[150px] lg:table-cell",
                               compact &&
                                 "h-5 py-0 text-[9px] font-medium tracking-wide",
                             )}
@@ -918,6 +1000,16 @@ export function TableView({
                           const priority = priorities.find(
                             (item) => item.id === task.priorityId,
                           );
+                          const assigneeMember = members.find(
+                            (member) => member.id === task.assigneeId,
+                          );
+                          const assigneeName =
+                            task.assignee ||
+                            task.assigneeProfile?.name ||
+                            assigneeMember?.name;
+                          const assigneeAvatar =
+                            task.assigneeProfile?.avatar ||
+                            assigneeMember?.avatar;
                           const taskTags = (task.tags || []).map((tagRef) =>
                             resolveTag(tagRef, tags),
                           );
@@ -936,10 +1028,11 @@ export function TableView({
                             <Fragment key={task.id}>
                               <TableRow
                                 className={cn(
-                                  "group cursor-pointer hover:bg-slate-50/80",
+                                  "group cursor-pointer border-l-2 hover:bg-slate-50/80",
                                   isExpanded &&
                                     "border-b-0 bg-slate-100/70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] hover:bg-slate-100/70",
                                 )}
+                                style={{ borderLeftColor: group.accent }}
                                 onClick={() => {
                                   setEditingTaskId(null);
                                   setExpandedTaskIds((current) => {
@@ -1043,7 +1136,9 @@ export function TableView({
                                           disabled={readOnly}
                                           className={cn(
                                             "h-7 justify-start px-2 text-xs",
-                                            priority?.color,
+                                            PRIORITY_SOFT_CLASSES[
+                                              priority?.id || ""
+                                            ],
                                           )}
                                         >
                                           {priority?.name || "미지정"}
@@ -1080,79 +1175,82 @@ export function TableView({
                                   {groupBy === "assignee" ? (
                                     dateSummary
                                   ) : (
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          disabled={readOnly}
-                                          className="h-8 max-w-[140px] justify-start gap-2 px-1.5 text-xs font-normal"
-                                        >
-                                          {task.assignee ? (
-                                            <>
-                                              <WorkspaceUserAvatar
-                                                name={task.assignee}
-                                                avatarUrl={
-                                                  task.assigneeProfile?.avatar
+                                    <TooltipProvider delayDuration={150}>
+                                      <Popover>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <PopoverTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={readOnly}
+                                                className="h-8 w-8 rounded-full p-1"
+                                                aria-label={
+                                                  assigneeName || "미할당"
                                                 }
+                                              >
+                                                {assigneeName ? (
+                                                  <WorkspaceUserAvatar
+                                                    name={assigneeName}
+                                                    avatarUrl={assigneeAvatar}
+                                                    className="h-5 w-5"
+                                                    fallbackClassName="text-[9px]"
+                                                  />
+                                                ) : (
+                                                  <UserRound className="h-4 w-4 text-muted-foreground" />
+                                                )}
+                                              </Button>
+                                            </PopoverTrigger>
+                                          </TooltipTrigger>
+                                          <TooltipContent
+                                            side="top"
+                                            className="px-2 py-1 text-xs"
+                                          >
+                                            {assigneeName || "미할당"}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <PopoverContent
+                                          className="w-52 p-1"
+                                          align="start"
+                                        >
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-full justify-start text-xs text-muted-foreground"
+                                            onClick={() =>
+                                              void onUpdateTask(task.id, {
+                                                assigneeId: null,
+                                              })
+                                            }
+                                          >
+                                            담당자 없음
+                                          </Button>
+                                          {members.map((member) => (
+                                            <Button
+                                              key={member.id}
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-9 w-full justify-start gap-2 text-xs"
+                                              onClick={() =>
+                                                void onUpdateTask(task.id, {
+                                                  assigneeId: member.id,
+                                                })
+                                              }
+                                            >
+                                              <WorkspaceUserAvatar
+                                                name={member.name}
+                                                avatarUrl={member.avatar}
                                                 className="h-5 w-5"
                                                 fallbackClassName="text-[9px]"
                                               />
                                               <span className="truncate">
-                                                {task.assignee}
+                                                {member.name}
                                               </span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <UserRound className="h-4 w-4 text-muted-foreground" />
-                                              <span className="text-muted-foreground">
-                                                미할당
-                                              </span>
-                                            </>
-                                          )}
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent
-                                        className="w-52 p-1"
-                                        align="start"
-                                      >
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-full justify-start text-xs text-muted-foreground"
-                                          onClick={() =>
-                                            void onUpdateTask(task.id, {
-                                              assigneeId: null,
-                                            })
-                                          }
-                                        >
-                                          담당자 없음
-                                        </Button>
-                                        {members.map((member) => (
-                                          <Button
-                                            key={member.id}
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-9 w-full justify-start gap-2 text-xs"
-                                            onClick={() =>
-                                              void onUpdateTask(task.id, {
-                                                assigneeId: member.id,
-                                              })
-                                            }
-                                          >
-                                            <WorkspaceUserAvatar
-                                              name={member.name}
-                                              avatarUrl={member.avatar}
-                                              className="h-5 w-5"
-                                              fallbackClassName="text-[9px]"
-                                            />
-                                            <span className="truncate">
-                                              {member.name}
-                                            </span>
-                                          </Button>
-                                        ))}
-                                      </PopoverContent>
-                                    </Popover>
+                                            </Button>
+                                          ))}
+                                        </PopoverContent>
+                                      </Popover>
+                                    </TooltipProvider>
                                   )}
                                 </TableCell>
 
@@ -1167,28 +1265,20 @@ export function TableView({
                                   {groupBy === "tag" ? dateSummary : null}
                                 </TableCell>
 
-                                <TableCell className="hidden 2xl:table-cell">
-                                  <div className="flex max-w-[260px] flex-wrap gap-1">
-                                    {taskTags.slice(0, 3).map((tag) => (
-                                      <Badge
-                                        key={tag.id}
-                                        variant="secondary"
-                                        className="h-5 max-w-[100px] truncate rounded-md px-1.5 text-[10px] font-normal"
-                                      >
-                                        {tag.name}
-                                      </Badge>
-                                    ))}
-                                    {taskTags.length > 3 && (
-                                      <span className="text-[10px] text-muted-foreground">
-                                        +{taskTags.length - 3}
-                                      </span>
-                                    )}
-                                  </div>
+                                <TableCell className="hidden lg:table-cell">
+                                  <TaskTagSummary
+                                    tags={taskTags}
+                                    maxVisible={2}
+                                    className="max-w-[180px]"
+                                  />
                                 </TableCell>
                               </TableRow>
 
                               {isExpanded && (
-                                <TableRow className="animate-in border-b bg-slate-50/40 fade-in slide-in-from-top-1 duration-200 hover:bg-slate-50/40">
+                                <TableRow
+                                  className="animate-in border-b border-l-[3px] bg-slate-50/40 fade-in slide-in-from-top-1 duration-150 hover:bg-slate-50/40"
+                                  style={{ borderLeftColor: group.accent }}
+                                >
                                   <TableCell colSpan={6} className="p-0">
                                     <div className="py-1.5 pl-12 pr-4">
                                       <div className="min-w-0">
@@ -1201,7 +1291,7 @@ export function TableView({
                                                 </span>
                                                 <Input
                                                   defaultValue={task.title}
-                                                  className="h-8 bg-white text-sm font-medium"
+                                                  className="h-7 rounded-none border-0 border-b border-transparent bg-transparent px-0 text-sm font-semibold shadow-none transition-colors hover:border-slate-200 focus-visible:border-slate-300 focus-visible:ring-0"
                                                   onBlur={(event) => {
                                                     const title =
                                                       event.target.value.trim();
@@ -1226,7 +1316,7 @@ export function TableView({
                                                     task.description || ""
                                                   }
                                                   placeholder="작업 설명을 입력하세요."
-                                                  className="min-h-20 resize-y bg-white text-xs leading-5"
+                                                  className="min-h-14 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-xs leading-5 shadow-none transition-colors hover:bg-slate-100/40 focus-visible:bg-white/70 focus-visible:ring-0"
                                                   onBlur={(event) => {
                                                     if (
                                                       event.target.value !==
@@ -1258,7 +1348,7 @@ export function TableView({
                                                     max={
                                                       task.endDate || undefined
                                                     }
-                                                    className="h-8 min-w-0 bg-white px-2 text-[11px]"
+                                                    className="h-8 min-w-0 rounded-none border-0 border-b bg-transparent px-1 text-[11px] shadow-none focus-visible:ring-0"
                                                     onChange={(event) =>
                                                       void onUpdateTask(
                                                         task.id,
@@ -1281,7 +1371,7 @@ export function TableView({
                                                       task.startDate ||
                                                       undefined
                                                     }
-                                                    className="h-8 min-w-0 bg-white px-2 text-[11px]"
+                                                    className="h-8 min-w-0 rounded-none border-0 border-b bg-transparent px-1 text-[11px] shadow-none focus-visible:ring-0"
                                                     onChange={(event) =>
                                                       void onUpdateTask(
                                                         task.id,
@@ -1300,109 +1390,50 @@ export function TableView({
                                                 <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
                                                   태그
                                                 </span>
-                                                <Popover>
-                                                  <PopoverTrigger asChild>
-                                                    <Button
-                                                      variant="outline"
-                                                      size="sm"
-                                                      className="h-8 w-full justify-start gap-2 bg-white px-2 text-xs font-normal"
-                                                    >
-                                                      <Tags className="h-3.5 w-3.5 text-muted-foreground" />
-                                                      {taskTags.length > 0
-                                                        ? `${taskTags.length}개 선택`
-                                                        : "태그 선택"}
-                                                    </Button>
-                                                  </PopoverTrigger>
-                                                  <PopoverContent
-                                                    className="w-56 p-1"
-                                                    align="start"
-                                                  >
-                                                    {tags.length > 0 ? (
-                                                      tags.map((tag) => {
-                                                        const selected = (
-                                                          task.tags || []
-                                                        ).some(
-                                                          (tagRef) =>
-                                                            tagRef === tag.id ||
-                                                            tagRef === tag.name,
-                                                        );
-
-                                                        return (
-                                                          <Button
-                                                            key={tag.id}
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-8 w-full justify-start gap-2 text-xs"
-                                                            onClick={() => {
-                                                              const nextTags =
-                                                                selected
-                                                                  ? (
-                                                                      task.tags ||
-                                                                      []
-                                                                    ).filter(
-                                                                      (
-                                                                        tagRef,
-                                                                      ) =>
-                                                                        tagRef !==
-                                                                          tag.id &&
-                                                                        tagRef !==
-                                                                          tag.name,
-                                                                    )
-                                                                  : [
-                                                                      ...(task.tags ||
-                                                                        []),
-                                                                      tag.id,
-                                                                    ];
-
-                                                              void onUpdateTask(
-                                                                task.id,
-                                                                {
-                                                                  tags: nextTags,
-                                                                },
-                                                              );
-                                                            }}
-                                                          >
-                                                            <span
-                                                              className="h-2.5 w-2.5 rounded-full"
-                                                              style={{
-                                                                backgroundColor:
-                                                                  getColorAccent(
-                                                                    tag.color,
-                                                                  ),
-                                                              }}
-                                                            />
-                                                            <span className="min-w-0 flex-1 truncate text-left">
-                                                              {tag.name}
-                                                            </span>
-                                                            {selected && (
-                                                              <Check className="h-3.5 w-3.5" />
-                                                            )}
-                                                          </Button>
-                                                        );
-                                                      })
-                                                    ) : (
-                                                      <p className="px-2 py-3 text-xs text-muted-foreground">
-                                                        사용할 수 있는 태그가
-                                                        없습니다.
-                                                      </p>
-                                                    )}
-                                                  </PopoverContent>
-                                                </Popover>
+                                                <TaskTagPicker
+                                                  tags={tags}
+                                                  selectedTagIds={taskTags.map(
+                                                    (tag) => tag.id,
+                                                  )}
+                                                  onChange={(nextTags) =>
+                                                    onUpdateTask(task.id, {
+                                                      tags: nextTags,
+                                                    })
+                                                  }
+                                                  onCreateTag={onCreateTag}
+                                                  readOnly={readOnly}
+                                                  compact
+                                                  className="min-h-8 border-0 bg-transparent px-0 py-1"
+                                                />
                                               </div>
                                             </div>
                                           </div>
                                         ) : (
                                           <div className="grid border-y border-slate-200/80 md:grid-cols-[minmax(0,1.5fr)_minmax(190px,0.7fr)_minmax(150px,0.55fr)] md:divide-x md:divide-slate-200/80">
-                                            <div className="min-w-0 py-2 pr-5">
+                                            <button
+                                              type="button"
+                                              className="min-w-0 py-2 pr-5 text-left transition-colors hover:bg-slate-100/60"
+                                              onClick={() =>
+                                                !readOnly &&
+                                                setEditingTaskId(task.id)
+                                              }
+                                            >
                                               <span className="text-[10px] font-medium text-muted-foreground">
                                                 설명
                                               </span>
                                               <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-700">
                                                 {task.description?.trim() ||
-                                                  "설명이 없습니다. 수정을 눌러 내용을 추가하세요."}
+                                                  "설명을 클릭해 내용을 추가하세요."}
                                               </p>
-                                            </div>
-                                            <div className="min-w-0 border-t border-slate-200/80 py-2 md:border-t-0 md:px-4">
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="min-w-0 border-t border-slate-200/80 py-2 text-left transition-colors hover:bg-slate-100/60 md:border-t-0 md:px-4"
+                                              onClick={() =>
+                                                !readOnly &&
+                                                setEditingTaskId(task.id)
+                                              }
+                                            >
                                               <span className="text-[10px] font-medium text-muted-foreground">
                                                 기간
                                               </span>
@@ -1412,8 +1443,15 @@ export function TableView({
                                                 →{" "}
                                                 {task.endDate || "종료일 미정"}
                                               </p>
-                                            </div>
-                                            <div className="min-w-0 border-t border-slate-200/80 py-2 md:border-t-0 md:pl-4">
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="min-w-0 border-t border-slate-200/80 py-2 text-left transition-colors hover:bg-slate-100/60 md:border-t-0 md:pl-4"
+                                              onClick={() =>
+                                                !readOnly &&
+                                                setEditingTaskId(task.id)
+                                              }
+                                            >
                                               <span className="text-[10px] font-medium text-muted-foreground">
                                                 태그
                                               </span>
@@ -1441,7 +1479,7 @@ export function TableView({
                                                   </span>
                                                 )}
                                               </div>
-                                            </div>
+                                            </button>
                                           </div>
                                         )}
                                         <div className="flex items-end gap-2">
@@ -1470,12 +1508,12 @@ export function TableView({
                                               {editingTaskId === task.id ? (
                                                 <>
                                                   <Check className="h-3.5 w-3.5" />
-                                                  완료
+                                                  저장
                                                 </>
                                               ) : (
                                                 <>
                                                   <Pencil className="h-3.5 w-3.5" />
-                                                  수정
+                                                  편집
                                                 </>
                                               )}
                                             </Button>

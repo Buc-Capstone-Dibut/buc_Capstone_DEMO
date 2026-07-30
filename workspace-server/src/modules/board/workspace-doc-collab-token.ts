@@ -2,7 +2,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { INTERNAL_API_SECRET } from "../../config/env";
 
 type WorkspaceDocCollabTokenPayload = {
-  docId: string;
+  docId?: string;
+  whiteboardId?: string;
   workspaceId: string;
   userId: string;
   exp: number;
@@ -42,11 +43,22 @@ export function verifyWorkspaceDocCollabToken(token: string) {
   }
 
   const payload = decodePayload<WorkspaceDocCollabTokenPayload>(encodedPayload);
-  if (!payload) {
+  if (
+    !payload ||
+    typeof payload.workspaceId !== "string" ||
+    typeof payload.userId !== "string" ||
+    typeof payload.exp !== "number"
+  ) {
     return null;
   }
 
   if (payload.exp < Date.now()) {
+    return null;
+  }
+
+  const hasDocTarget = typeof payload.docId === "string";
+  const hasWhiteboardTarget = typeof payload.whiteboardId === "string";
+  if (hasDocTarget === hasWhiteboardTarget) {
     return null;
   }
 

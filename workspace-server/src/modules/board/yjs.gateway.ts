@@ -10,13 +10,20 @@ function rejectUpgrade(socket: any, statusCode: number, message: string) {
   socket.destroy();
 }
 
-function isAuthorizedDocUpgrade(request: IncomingMessage) {
+function authorizeYjsUpgrade(request: IncomingMessage) {
   const requestUrl = request.url || "";
   const url = new URL(requestUrl, `http://${request.headers.host || "localhost"}`);
   const roomName = extractDocNameFromRequestUrl(requestUrl);
 
-  if (!roomName.startsWith("doc:")) {
-    return { ok: true as const, roomName };
+  const isDocRoom = roomName.startsWith("doc:");
+  const isWhiteboardRoom = roomName.startsWith("whiteboard:");
+  if (!isDocRoom && !isWhiteboardRoom) {
+    return {
+      ok: false as const,
+      roomName,
+      statusCode: 404,
+      message: "Unknown collaboration room",
+    };
   }
 
   const token = url.searchParams.get("token");
@@ -25,13 +32,18 @@ function isAuthorizedDocUpgrade(request: IncomingMessage) {
   }
 
   const payload = verifyWorkspaceDocCollabToken(token);
-  const docId = roomName.slice(4);
+  const targetId = isDocRoom
+    ? roomName.slice("doc:".length)
+    : roomName.slice("whiteboard:".length);
+  const matchesTarget = isDocRoom
+    ? payload?.docId === targetId
+    : payload?.whiteboardId === targetId && payload.workspaceId === targetId;
 
-  if (!payload || payload.docId !== docId) {
+  if (!payload || !matchesTarget) {
     return { ok: false as const, roomName, statusCode: 401, message: "Invalid token" };
   }
 
-  return { ok: true as const, roomName };
+  return { ok: true as const, roomName, userId: payload.userId };
 }
 
 export function setupYjsGateway(server: Server) {
@@ -50,7 +62,7 @@ export function setupYjsGateway(server: Server) {
       return;
     }
 
-    const authCheck = isAuthorizedDocUpgrade(request);
+    const authCheck = authorizeYjsUpgrade(request);
     if (!authCheck.ok) {
       console.warn(`[YJS] Rejected upgrade for ${authCheck.roomName}: ${authCheck.message}`);
       rejectUpgrade(socket, authCheck.statusCode, authCheck.message);

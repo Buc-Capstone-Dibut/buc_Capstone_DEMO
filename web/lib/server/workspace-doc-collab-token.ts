@@ -4,7 +4,8 @@ const COLLAB_SECRET = process.env.INTERNAL_API_SECRET ?? "";
 const TOKEN_TTL_MS = 5 * 60 * 1000;
 
 type WorkspaceDocCollabTokenPayload = {
-  docId: string;
+  docId?: string;
+  whiteboardId?: string;
   workspaceId: string;
   userId: string;
   exp: number;
@@ -46,6 +47,25 @@ export function createWorkspaceDocCollabToken(input: {
   return `${encodedPayload}.${signature}`;
 }
 
+export function createWorkspaceWhiteboardToken(input: {
+  workspaceId: string;
+  userId: string;
+}) {
+  if (!COLLAB_SECRET) {
+    throw new Error("INTERNAL_API_SECRET is required to issue collaboration tokens.");
+  }
+
+  const payload: WorkspaceDocCollabTokenPayload = {
+    whiteboardId: input.workspaceId,
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+    exp: Date.now() + TOKEN_TTL_MS,
+  };
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = signValue(encodedPayload);
+  return `${encodedPayload}.${signature}`;
+}
+
 export function verifyWorkspaceDocCollabToken(token: string) {
   if (!COLLAB_SECRET) {
     return null;
@@ -67,7 +87,18 @@ export function verifyWorkspaceDocCollabToken(token: string) {
 
   const payload = fromBase64Url<WorkspaceDocCollabTokenPayload>(encodedPayload);
   if (!payload) return null;
-  if (payload.exp < Date.now()) return null;
+  if (
+    typeof payload.workspaceId !== "string" ||
+    typeof payload.userId !== "string" ||
+    typeof payload.exp !== "number" ||
+    payload.exp < Date.now()
+  ) {
+    return null;
+  }
+
+  const hasDocTarget = typeof payload.docId === "string";
+  const hasWhiteboardTarget = typeof payload.whiteboardId === "string";
+  if (hasDocTarget === hasWhiteboardTarget) return null;
 
   return payload;
 }

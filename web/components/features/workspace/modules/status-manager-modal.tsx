@@ -11,12 +11,19 @@ import { Input } from "@/components/ui/input";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Loader2,
+  Palette,
   Plus,
   Settings2,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { BoardView, Task, ViewColumn } from "../store/mock-data";
 
 type StatusCategory = "todo" | "in-progress" | "done";
@@ -49,6 +56,40 @@ const CATEGORY_CONFIG: Record<
     inputPlaceholder: "예: 배포 완료, 제출 완료",
   },
 };
+
+const STATUS_COLOR_OPTIONS = [
+  { value: "gray", label: "회색", accent: "#787774" },
+  { value: "red", label: "빨강", accent: "#C4554D" },
+  { value: "orange", label: "주황", accent: "#C77B30" },
+  { value: "yellow", label: "노랑", accent: "#A98A32" },
+  { value: "green", label: "초록", accent: "#5D865F" },
+  { value: "blue", label: "파랑", accent: "#4D7C9B" },
+  { value: "indigo", label: "남색", accent: "#5F6FA6" },
+  { value: "violet", label: "보라", accent: "#8067A8" },
+  { value: "pink", label: "분홍", accent: "#B35C81" },
+] as const;
+
+function getDefaultColor(category: StatusCategory) {
+  if (category === "in-progress") return "blue";
+  if (category === "done") return "green";
+  return "gray";
+}
+
+function normalizeStatusColor(
+  color: string | undefined,
+  category: StatusCategory,
+) {
+  const normalized = (color || "")
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase()
+    .replace(/^(bg|text|border)-/, "")
+    .replace(/-\d+(?:\/\d+)?$/, "");
+
+  return STATUS_COLOR_OPTIONS.some((option) => option.value === normalized)
+    ? normalized
+    : getDefaultColor(category);
+}
 
 function normalizeCategory(value?: string | null): StatusCategory {
   if (value === "in-progress" || value === "done") return value;
@@ -92,6 +133,9 @@ export function StatusManagerModal({
   });
   const [titleEdits, setTitleEdits] = useState<Record<string, string>>({});
   const [pendingOperation, setPendingOperation] = useState<string | null>(null);
+  const [colorPickerColumnId, setColorPickerColumnId] = useState<string | null>(
+    null,
+  );
 
   const groupedColumns = useMemo(() => {
     const groups: Record<StatusCategory, ViewColumn[]> = {
@@ -142,6 +186,7 @@ export function StatusManagerModal({
       done: "",
     });
     setPendingOperation(null);
+    setColorPickerColumnId(null);
   }, [isOpen]);
 
   const handleAddColumn = async (
@@ -242,6 +287,27 @@ export function StatusManagerModal({
     }
   };
 
+  const changeColumnColor = async (
+    column: ViewColumn,
+    category: StatusCategory,
+    color: string,
+  ) => {
+    if (pendingOperation) return;
+    const currentColor = normalizeStatusColor(column.color, category);
+    if (currentColor === color) {
+      setColorPickerColumnId(null);
+      return;
+    }
+
+    setPendingOperation(`update:${column.id}`);
+    try {
+      const updated = await onUpdateColumn(column.id, { color });
+      if (updated) setColorPickerColumnId(null);
+    } finally {
+      setPendingOperation(null);
+    }
+  };
+
   if (!activeView) return null;
 
   return (
@@ -258,16 +324,17 @@ export function StatusManagerModal({
         </DialogHeader>
 
         <div className="max-h-[78vh] overflow-y-auto p-6">
-          <div className="text-sm text-muted-foreground">
-            메인 보드는{" "}
-            <span className="font-medium text-foreground">
-              할 일 / 진행 중 / 완료
-            </span>
-            3축을 유지합니다. 각 축 아래에 필요한 세부 단계만 추가해서
-            사용하세요.
+          <div className="border-b pb-4">
+            <div className="text-sm font-medium text-foreground">
+              업무 단계 → 세부 상태
+            </div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">
+              할 일 · 진행 중 · 완료가 상위 업무 단계이고, 그 아래 항목이 작업에
+              직접 지정되는 세부 상태입니다.
+            </div>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-2">
             {categoryOrder.map((category, categoryIndex) => {
               const config = CATEGORY_CONFIG[category];
               const categoryColumns = groupedColumns[category];
@@ -275,7 +342,7 @@ export function StatusManagerModal({
                 pendingOperation === `category:${category}`;
 
               return (
-                <section key={category} className="rounded-xl border bg-card">
+                <section key={category} className="border-b first:border-t">
                   <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Badge variant="outline" className={config.badgeClass}>
@@ -325,8 +392,8 @@ export function StatusManagerModal({
                     </div>
                   </div>
 
-                  <div className="border-t px-3 py-2">
-                    <div className="space-y-1.5">
+                  <div className="border-t px-4 py-1">
+                    <div className="divide-y">
                       {categoryColumns.map((column) => {
                         const columnIndex = categoryColumns.findIndex(
                           (item) => item.id === column.id,
@@ -339,6 +406,14 @@ export function StatusManagerModal({
                           pendingOperation === `update:${column.id}`;
                         const isReordering =
                           pendingOperation === `reorder:${column.id}`;
+                        const selectedColor = normalizeStatusColor(
+                          column.color,
+                          category,
+                        );
+                        const selectedColorOption =
+                          STATUS_COLOR_OPTIONS.find(
+                            (option) => option.value === selectedColor,
+                          ) || STATUS_COLOR_OPTIONS[0];
                         const deleteReason =
                           taskCount > 0
                             ? `작업 ${taskCount}개를 먼저 다른 상태로 옮겨주세요.`
@@ -349,12 +424,70 @@ export function StatusManagerModal({
                         return (
                           <div
                             key={column.id}
-                            className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/30"
+                            className="group flex items-center gap-2 py-1.5 hover:bg-muted/30"
                           >
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30"
-                              aria-hidden="true"
-                            />
+                            <Popover
+                              open={colorPickerColumnId === column.id}
+                              onOpenChange={(open) =>
+                                setColorPickerColumnId(open ? column.id : null)
+                              }
+                            >
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="group/color relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  aria-label={`${column.title} 상태 색상 변경`}
+                                  title="상태 색상 변경"
+                                  disabled={pendingOperation !== null}
+                                >
+                                  <span
+                                    className="h-3 w-3 rounded-full ring-1 ring-black/5 transition-transform group-hover/color:scale-110"
+                                    style={{
+                                      backgroundColor:
+                                        selectedColorOption.accent,
+                                    }}
+                                  />
+                                  <Palette className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-background p-px text-muted-foreground opacity-0 transition-opacity group-hover/color:opacity-100 group-focus-visible/color:opacity-100" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="start"
+                                className="w-48 p-3"
+                              >
+                                <div className="mb-2 text-xs font-medium">
+                                  상태 색상
+                                </div>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  {STATUS_COLOR_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      className="flex h-9 items-center justify-center rounded-md border border-transparent hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      aria-label={`${option.label}으로 변경`}
+                                      title={option.label}
+                                      onClick={() =>
+                                        void changeColumnColor(
+                                          column,
+                                          category,
+                                          option.value,
+                                        )
+                                      }
+                                    >
+                                      <span
+                                        className="flex h-5 w-5 items-center justify-center rounded-full text-white"
+                                        style={{
+                                          backgroundColor: option.accent,
+                                        }}
+                                      >
+                                        {selectedColor === option.value ? (
+                                          <Check className="h-3 w-3" />
+                                        ) : null}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                             <Input
                               aria-label={`${column.title} 상태 이름`}
                               className="h-8 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
@@ -435,7 +568,7 @@ export function StatusManagerModal({
                         );
                       })}
 
-                      <div className="flex items-center gap-2 rounded-lg border border-dashed px-2 py-1.5 focus-within:border-primary/40 focus-within:bg-primary/[0.02]">
+                      <div className="flex items-center gap-2 border-t border-dashed py-1.5 focus-within:border-primary/40 focus-within:bg-primary/[0.02]">
                         {pendingOperation === `create:${category}` ? (
                           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                         ) : (

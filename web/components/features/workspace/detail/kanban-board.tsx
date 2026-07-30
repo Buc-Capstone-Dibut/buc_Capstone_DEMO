@@ -292,6 +292,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const isReadOnly = Boolean(boardData?.workspace?.readOnly);
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const queuedMutationCountRef = useRef(0);
+  const taskMutationVersionRef = useRef(new Map<string, number>());
 
   const enqueueBoardMutation = useCallback(
     (operation: () => Promise<void>, failureMessage: string) => {
@@ -391,6 +392,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPriorityManagerOpen, setIsPriorityManagerOpen] = useState(false);
   const [isStatusManagerOpen, setIsStatusManagerOpen] = useState(false);
+  const [allGroupsCollapsed, setAllGroupsCollapsed] = useState(false);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [createTaskDefaults, setCreateTaskDefaults] = useState<
     Partial<CreateTaskInput>
@@ -464,12 +466,22 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       null;
     if (!statusView) return null;
 
+    const configuredColumnById = new Map(
+      (statusView.columns || []).map((column) => [column.id, column]),
+    );
+    const liveColumns =
+      (boardData?.columns as BoardView["columns"] | undefined) ||
+      statusView.columns ||
+      [];
+
     return {
       ...statusView,
-      columns:
-        (boardData?.columns as BoardView["columns"] | undefined) ||
-        statusView.columns ||
-        [],
+      columns: liveColumns.map((column) => ({
+        ...column,
+        ...(configuredColumnById.get(column.id)?.color
+          ? { color: configuredColumnById.get(column.id)?.color }
+          : {}),
+      })),
     };
   }, [boardData?.columns, resolvedViews]);
 
@@ -928,6 +940,37 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     }
   };
 
+  const handleUpdateStatusColumn = async (
+    columnId: string,
+    updates: { title?: string; color?: string; category?: string },
+  ) => {
+    const { color, ...columnUpdates } = updates;
+    const hasColumnUpdates = Object.values(columnUpdates).some(
+      (value) => value !== undefined,
+    );
+
+    if (hasColumnUpdates) {
+      const updated = await handleUpdateColumn(columnId, columnUpdates);
+      if (!updated) return false;
+    }
+
+    if (color !== undefined) {
+      if (!statusManagerView) return false;
+      const nextColumns = statusManagerView.columns.map((column) =>
+        column.id === columnId ? { ...column, color } : column,
+      );
+      try {
+        await handleUpdateView(statusManagerView.id, {
+          columns: nextColumns,
+        });
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleDeleteColumn = async (columnId: string) => {
     if (isReadOnly) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
@@ -1074,26 +1117,55 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       toast.error("종료된 팀 공간은 읽기 전용입니다.");
       return;
     }
+    const previousTask = tasks.find((task) => task.id === taskId);
+    const mutationVersion =
+      (taskMutationVersionRef.current.get(taskId) || 0) + 1;
+    taskMutationVersionRef.current.set(taskId, mutationVersion);
+
     syncProjectData(projectId, {
       tasks: tasks.map((task) =>
         task.id === taskId ? { ...task, ...updates } : task,
       ),
     });
 
-    return enqueueBoardMutation(async () => {
-      const response = await fetch(
-        `/api/workspaces/${projectId}/board/tasks/${taskId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updates),
-        },
-      );
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(payload?.error || "작업을 수정하지 못했습니다.");
+    try {
+      return await enqueueBoardMutation(async () => {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/board/tasks/${taskId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          },
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error || "작업을 수정하지 못했습니다.");
+        }
+      }, "작업을 수정하지 못했습니다.");
+    } catch (error) {
+      if (
+        previousTask &&
+        taskMutationVersionRef.current.get(taskId) === mutationVersion
+      ) {
+        const currentProjectTasks = useWorkspaceStore
+          .getState()
+          .tasks.filter((task) => task.projectId === projectId);
+        const rollbackFields = Object.fromEntries(
+          Object.keys(updates).map((key) => [
+            key,
+            previousTask[key as keyof Task],
+          ]),
+        ) as Partial<Task>;
+
+        syncProjectData(projectId, {
+          tasks: currentProjectTasks.map((task) =>
+            task.id === taskId ? { ...task, ...rollbackFields } : task,
+          ),
+        });
       }
-    }, "작업을 수정하지 못했습니다.");
+      throw error;
+    }
   };
 
   const handleMoveColumn = async (
@@ -1237,7 +1309,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
             </div>
           )}
 
-          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1">
+          <div className="ml-3 flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1">
             <Button
               variant={viewType === "table" ? "secondary" : "ghost"}
               size="sm"
@@ -1271,49 +1343,47 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            {viewType !== "timeline" ? (
-              <Popover>
-                <PopoverTrigger asChild>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {groupBy === "status"
+                    ? "상태별"
+                    : groupBy === "assignee"
+                      ? "담당자별"
+                      : groupBy === "priority"
+                        ? "우선순위별"
+                        : "태그별"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-40 p-1">
+                {[
+                  ["status", "상태"],
+                  ["assignee", "담당자"],
+                  ["priority", "우선순위"],
+                  ["tag", "태그"],
+                ].map(([value, label]) => (
                   <Button
-                    variant="outline"
+                    key={value}
+                    variant={groupBy === value ? "secondary" : "ghost"}
                     size="sm"
-                    className="h-8 gap-1.5 text-xs"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      const matchingView = resolvedViews.find(
+                        (view) => view.groupBy === value,
+                      );
+                      if (matchingView) setActiveViewId(matchingView.id);
+                    }}
                   >
-                    {groupBy === "status"
-                      ? "상태별"
-                      : groupBy === "assignee"
-                        ? "담당자별"
-                        : groupBy === "priority"
-                          ? "우선순위별"
-                          : "태그별"}
-                    <ChevronDown className="h-3.5 w-3.5" />
+                    {label}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-40 p-1">
-                  {[
-                    ["status", "상태"],
-                    ["assignee", "담당자"],
-                    ["priority", "우선순위"],
-                    ["tag", "태그"],
-                  ].map(([value, label]) => (
-                    <Button
-                      key={value}
-                      variant={groupBy === value ? "secondary" : "ghost"}
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        const matchingView = resolvedViews.find(
-                          (view) => view.groupBy === value,
-                        );
-                        if (matchingView) setActiveViewId(matchingView.id);
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            ) : null}
+                ))}
+              </PopoverContent>
+            </Popover>
             {viewType === "kanban" && (
               <Popover>
                 <PopoverTrigger asChild>
@@ -1421,19 +1491,25 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                                   )}
                                 </button>
                               </CollapsibleTrigger>
-                              <CollapsibleContent className="space-y-3">
-                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                  <div className="text-[11px] font-medium text-muted-foreground">
-                                    상위 3축 보기
+                              <CollapsibleContent className="space-y-0 border-y">
+                                <div className="py-3">
+                                  <div className="mb-2">
+                                    <div className="text-xs font-semibold">
+                                      업무 단계
+                                    </div>
+                                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                                      모든 상태를 할 일 · 진행 중 · 완료 축으로
+                                      묶습니다.
+                                    </div>
                                   </div>
-                                  <div className="space-y-2">
+                                  <div className="divide-y">
                                     {STATUS_SECTION_OPTIONS.map((section) => {
                                       const checked =
                                         !hiddenStatusCategories.has(section.id);
                                       return (
                                         <label
                                           key={section.id}
-                                          className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                          className="flex cursor-pointer items-center gap-2 py-2 text-sm hover:bg-muted/30"
                                         >
                                           <Checkbox
                                             checked={checked}
@@ -1449,11 +1525,17 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                                     })}
                                   </div>
                                 </div>
-                                <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                  <div className="text-[11px] font-medium text-muted-foreground">
-                                    세부 단계 보기
+                                <div className="border-t py-3">
+                                  <div className="mb-2">
+                                    <div className="text-xs font-semibold">
+                                      세부 상태
+                                    </div>
+                                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                                      실제 작업에 지정되는 상태와 소속 업무
+                                      단계입니다.
+                                    </div>
                                   </div>
-                                  <div className="space-y-2">
+                                  <div className="divide-y">
                                     {statusColumns.map((column) => {
                                       const checked = !hiddenColumnIds.has(
                                         column.id,
@@ -1468,7 +1550,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                                       return (
                                         <label
                                           key={column.id}
-                                          className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/80"
+                                          className="flex cursor-pointer items-center gap-2 py-2 text-sm hover:bg-muted/30"
                                         >
                                           <Checkbox
                                             checked={checked}
@@ -1478,11 +1560,11 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                                               );
                                             }}
                                           />
-                                          <div className="min-w-0">
-                                            <div className="truncate">
+                                          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                                            <div className="truncate font-medium">
                                               {column.title}
                                             </div>
-                                            <div className="text-[11px] text-muted-foreground">
+                                            <div className="shrink-0 border-l pl-2 text-[10px] text-muted-foreground">
                                               {categoryLabel}
                                             </div>
                                           </div>
@@ -1551,6 +1633,26 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                 title="상태 관리"
               >
                 <Layout className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {(viewType === "table" || viewType === "timeline") && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setAllGroupsCollapsed((current) => !current)}
+                aria-label={
+                  allGroupsCollapsed ? "모든 그룹 펼치기" : "모든 그룹 접기"
+                }
+                title={
+                  allGroupsCollapsed ? "모든 그룹 펼치기" : "모든 그룹 접기"
+                }
+              >
+                {allGroupsCollapsed ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
               </Button>
             )}
           </div>
@@ -1805,6 +1907,8 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
               onTaskClick={setActiveTaskId}
               onUpdateTask={handleUpdateTask}
               onCreateTask={(defaults) => openCreateTaskDialog(defaults)}
+              onCreateTag={handleCreateTagFromDialog}
+              allGroupsCollapsed={allGroupsCollapsed}
             />
           ) : viewType === "kanban" ? (
             <KanbanView
@@ -1851,8 +1955,13 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           ) : (
             <TimelineView
               tasks={sortedVisibleTasks}
-              columns={boardData?.columns || []}
+              groupBy={groupBy}
+              groupColumns={displayColumns}
+              statusColumns={tableStatusColumns}
               onTaskClick={setActiveTaskId}
+              onUpdateTask={handleUpdateTask}
+              readOnly={isReadOnly}
+              allGroupsCollapsed={allGroupsCollapsed}
             />
           )}
         </div>
@@ -1893,7 +2002,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           activeView={statusManagerView}
           tasks={tasks}
           onCreateColumn={handleCreateColumn}
-          onUpdateColumn={handleUpdateColumn}
+          onUpdateColumn={handleUpdateStatusColumn}
           onDeleteColumn={handleDeleteColumn}
           onReorderColumns={async (columnIds) => {
             await handleUpdateView(statusManagerView.id, {

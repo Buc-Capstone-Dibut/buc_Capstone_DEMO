@@ -24,23 +24,23 @@ type RoomTarget =
   | { kind: "whiteboard"; id: string }
   | { kind: "unknown"; raw: string };
 
-function isUuidLike(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
+function isWorkspaceEntityId(value: string) {
+  // 기존 데이터는 UUID 길이/구분자 형식이지만 RFC UUID version/variant 비트를
+  // 강제하지 않는다. URL 경로로 안전한 16진수 ID 형식만 검증한다.
+  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function parseRoomTarget(roomName: string): RoomTarget {
   if (roomName.startsWith("doc:")) {
     const id = roomName.slice(4);
-    return isUuidLike(id)
+    return isWorkspaceEntityId(id)
       ? { kind: "doc", id }
       : { kind: "unknown", raw: roomName };
   }
 
   if (roomName.startsWith("whiteboard:")) {
     const id = roomName.slice("whiteboard:".length);
-    return isUuidLike(id)
+    return isWorkspaceEntityId(id)
       ? { kind: "whiteboard", id }
       : { kind: "unknown", raw: roomName };
   }
@@ -240,10 +240,10 @@ class WSSharedDoc extends Y.Doc {
    * room 단위 저장 직렬 큐.
    * 느린 이전 요청이 새 상태를 뒤늦게 덮어쓰는 것을 막고 실패를 호출자까지 전달한다.
    */
-  persist(force = false) {
+  persist() {
     const targetVersion = this.changeVersion;
     const operation = this.persistenceQueue.then(async () => {
-      if (!force && targetVersion <= this.persistedVersion) {
+      if (targetVersion <= this.persistedVersion) {
         return;
       }
 
@@ -258,7 +258,10 @@ class WSSharedDoc extends Y.Doc {
 
   async flushPersistence() {
     this.cancelScheduledSave();
-    await this.persist(true);
+    // DB에서 불러온 뒤 변경이 없었던 room은 다시 직렬화해 저장하지 않는다.
+    // 이미지가 포함된 화이트보드는 상태가 수 MB까지 커질 수 있어, 단순 조회/퇴장
+    // 때마다 동일한 Base64 payload를 전송하는 비용을 피한다.
+    await this.persist();
   }
 
   /** 마지막 변경 후 3초가 지나면 저장 (중간에 변경이 오면 리셋) */

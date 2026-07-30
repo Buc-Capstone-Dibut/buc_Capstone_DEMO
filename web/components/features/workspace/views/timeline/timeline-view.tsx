@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import {
   addDays,
   addMonths,
@@ -22,33 +28,34 @@ import {
   subWeeks,
 } from "date-fns";
 import { ko } from "date-fns/locale";
-import { CalendarRange, ChevronLeft, ChevronRight, Circle } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Task } from "../../store/mock-data";
+import {
+  TimelineBody,
+  type TimelineCell,
+  type TimelineColumn,
+  type TimelineGroupBy,
+  type TimelineScale,
+} from "./timeline-body";
 
-type TimelineScale = "day" | "week" | "month";
-
-type TimelineColumn = {
-  id: string;
-  title: string;
-  category?: string;
-};
+type ScheduleFilter = "all" | "scheduled" | "unscheduled";
 
 interface TimelineViewProps {
   tasks: Task[];
-  columns: TimelineColumn[];
+  groupBy: TimelineGroupBy;
+  groupColumns: TimelineColumn[];
+  statusColumns: TimelineColumn[];
   onTaskClick: (taskId: string) => void;
+  onUpdateTask: (
+    taskId: string,
+    updates: Partial<Task>,
+  ) => Promise<void> | void;
+  readOnly?: boolean;
+  allGroupsCollapsed?: boolean;
 }
-
-type TimelineCell = {
-  key: string;
-  start: Date;
-  end: Date;
-  label: string;
-  sublabel?: string;
-};
 
 type TimelineSegment = {
   key: string;
@@ -57,32 +64,21 @@ type TimelineSegment = {
   label: string;
 };
 
+type TaskPanelResizeInteraction = {
+  pointerId: number;
+  originClientX: number;
+  originWidth: number;
+};
+
+const DEFAULT_TASK_PANEL_WIDTH = 288;
+const MIN_TASK_PANEL_WIDTH = 220;
+const MAX_TASK_PANEL_WIDTH = 480;
+
 const SCALE_OPTIONS: Array<{ value: TimelineScale; label: string }> = [
   { value: "day", label: "일간" },
   { value: "week", label: "주간" },
   { value: "month", label: "월간" },
 ];
-
-const STATUS_STYLES: Record<
-  string,
-  { dot: string; bar: string; barText: string }
-> = {
-  todo: {
-    dot: "text-slate-400",
-    bar: "border-slate-300 bg-slate-100",
-    barText: "text-slate-700",
-  },
-  "in-progress": {
-    dot: "text-blue-500",
-    bar: "border-blue-300 bg-blue-100",
-    barText: "text-blue-800",
-  },
-  done: {
-    dot: "text-emerald-500",
-    bar: "border-emerald-300 bg-emerald-100",
-    barText: "text-emerald-800",
-  },
-};
 
 function parseDateOnly(value?: string | null) {
   if (!value) return null;
@@ -207,12 +203,29 @@ function buildHeaderSegments(
   return segments;
 }
 
+function clampTaskPanelWidth(width: number) {
+  return Math.min(
+    MAX_TASK_PANEL_WIDTH,
+    Math.max(MIN_TASK_PANEL_WIDTH, Math.round(width)),
+  );
+}
+
 export function TimelineView({
   tasks,
-  columns,
+  groupBy,
+  groupColumns,
+  statusColumns,
   onTaskClick,
+  onUpdateTask,
+  readOnly = false,
+  allGroupsCollapsed,
 }: TimelineViewProps) {
   const [scale, setScale] = useState<TimelineScale>("day");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
+  const [taskPanelWidth, setTaskPanelWidth] = useState(
+    DEFAULT_TASK_PANEL_WIDTH,
+  );
+  const taskPanelResizeRef = useRef<TaskPanelResizeInteraction | null>(null);
   const [anchorDate, setAnchorDate] = useState(() => {
     const today = startOfDay(new Date());
     const scheduledDates = tasks
@@ -232,10 +245,6 @@ export function TimelineView({
     );
   });
 
-  const columnById = useMemo(
-    () => new Map(columns.map((column) => [column.id, column])),
-    [columns],
-  );
   const range = useMemo(
     () => getTimelineRange(scale, anchorDate),
     [anchorDate, scale],
@@ -252,11 +261,32 @@ export function TimelineView({
   const totalDays = differenceInCalendarDays(range.end, range.start);
   const timelineWidth = totalDays * range.pixelsPerDay;
   const today = startOfDay(new Date());
-  const todayOffset = differenceInCalendarDays(today, range.start);
-  const showTodayLine = todayOffset >= 0 && todayOffset < totalDays;
-  const scheduledCount = tasks.filter(
-    (task) => task.startDate || task.endDate,
-  ).length;
+  const { scheduledTasks, unscheduledTasks } = useMemo(
+    () =>
+      tasks.reduce(
+        (result, task) => {
+          if (task.startDate || task.endDate) {
+            result.scheduledTasks.push(task);
+          } else {
+            result.unscheduledTasks.push(task);
+          }
+          return result;
+        },
+        {
+          scheduledTasks: [] as Task[],
+          unscheduledTasks: [] as Task[],
+        },
+      ),
+    [tasks],
+  );
+  const scheduledCount = scheduledTasks.length;
+  const unscheduledCount = unscheduledTasks.length;
+  const displayedTasks =
+    scheduleFilter === "scheduled"
+      ? scheduledTasks
+      : scheduleFilter === "unscheduled"
+        ? unscheduledTasks
+        : tasks;
 
   const moveRange = (direction: -1 | 1) => {
     setAnchorDate((current) => {
@@ -264,6 +294,51 @@ export function TimelineView({
       if (scale === "week") return addWeeks(current, direction * 6);
       return addMonths(current, direction * 3);
     });
+  };
+
+  const beginTaskPanelResize = (event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    taskPanelResizeRef.current = {
+      pointerId: event.pointerId,
+      originClientX: event.clientX,
+      originWidth: taskPanelWidth,
+    };
+  };
+
+  const continueTaskPanelResize = (event: PointerEvent<HTMLButtonElement>) => {
+    const interaction = taskPanelResizeRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) return;
+    setTaskPanelWidth(
+      clampTaskPanelWidth(
+        interaction.originWidth + event.clientX - interaction.originClientX,
+      ),
+    );
+  };
+
+  const finishTaskPanelResize = (event: PointerEvent<HTMLButtonElement>) => {
+    const interaction = taskPanelResizeRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) return;
+    taskPanelResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleTaskPanelResizeKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key === "Home") {
+      event.preventDefault();
+      setTaskPanelWidth(DEFAULT_TASK_PANEL_WIDTH);
+      return;
+    }
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    setTaskPanelWidth((current) =>
+      clampTaskPanelWidth(current + direction * 16),
+    );
   };
 
   return (
@@ -317,29 +392,75 @@ export function TimelineView({
           </Button>
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <CalendarRange className="h-3.5 w-3.5" />
-          <span>기간 설정 {scheduledCount}</span>
-          <span className="text-border">·</span>
-          <span>미정 {tasks.length - scheduledCount}</span>
+        <div className="ml-auto flex items-center gap-0.5 rounded-md bg-muted/50 p-0.5">
+          {[
+            { value: "all", label: "전체", count: tasks.length },
+            {
+              value: "scheduled",
+              label: "기간 설정",
+              count: scheduledCount,
+            },
+            {
+              value: "unscheduled",
+              label: "미정",
+              count: unscheduledCount,
+            },
+          ].map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              variant={scheduleFilter === option.value ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-[11px]"
+              onClick={() => setScheduleFilter(option.value as ScheduleFilter)}
+              aria-pressed={scheduleFilter === option.value}
+            >
+              {option.value === "scheduled" ? (
+                <CalendarRange className="h-3.5 w-3.5" />
+              ) : null}
+              {option.label}
+              <span className="text-[10px] text-muted-foreground">
+                {option.count}
+              </span>
+            </Button>
+          ))}
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
         <div
           className="relative min-w-max"
-          style={{ width: 288 + timelineWidth }}
+          style={{ width: taskPanelWidth + timelineWidth }}
         >
           <div className="sticky top-0 z-30 flex h-[70px] border-b bg-background">
-            <div className="sticky left-0 z-40 flex w-72 shrink-0 items-end border-r bg-background px-4 pb-2">
+            <div
+              className="sticky left-0 z-40 flex shrink-0 items-end border-r bg-background px-4 pb-2"
+              style={{ width: taskPanelWidth }}
+            >
               <div>
                 <div className="text-xs font-semibold text-foreground">
                   작업
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted-foreground">
-                  {tasks.length}개
+                  {displayedTasks.length}개
                 </div>
               </div>
+              <button
+                type="button"
+                className="group/resizer absolute inset-y-0 -right-1 z-50 w-2 touch-none cursor-col-resize select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                aria-label="작업 패널 너비 조절"
+                title="드래그하여 너비 조절 · 더블클릭하여 초기화"
+                onPointerDown={beginTaskPanelResize}
+                onPointerMove={continueTaskPanelResize}
+                onPointerUp={finishTaskPanelResize}
+                onPointerCancel={finishTaskPanelResize}
+                onDoubleClick={() =>
+                  setTaskPanelWidth(DEFAULT_TASK_PANEL_WIDTH)
+                }
+                onKeyDown={handleTaskPanelResizeKeyDown}
+              >
+                <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors group-hover/resizer:bg-primary/60 group-focus-visible/resizer:bg-primary/60" />
+              </button>
             </div>
 
             <div
@@ -351,13 +472,20 @@ export function TimelineView({
                   const width =
                     differenceInCalendarDays(segment.end, segment.start) *
                     range.pixelsPerDay;
+                  const visibleLabel =
+                    scale !== "month" && width < 72
+                      ? format(segment.start, "M월", { locale: ko })
+                      : segment.label;
                   return (
                     <div
                       key={segment.key}
-                      className="flex shrink-0 items-center justify-center border-r px-2 text-[11px] font-semibold text-foreground"
+                      className="flex min-w-0 shrink-0 items-center justify-center overflow-hidden border-r px-1 text-[11px] font-semibold text-foreground"
                       style={{ width }}
+                      title={segment.label}
                     >
-                      {segment.label}
+                      <span className="block min-w-0 truncate whitespace-nowrap">
+                        {visibleLabel}
+                      </span>
                     </div>
                   );
                 })}
@@ -399,120 +527,24 @@ export function TimelineView({
             </div>
           </div>
 
-          {tasks.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              표시할 작업이 없습니다.
-            </div>
-          ) : (
-            tasks.map((task) => {
-              const column = task.columnId
-                ? columnById.get(task.columnId)
-                : undefined;
-              const category = column?.category || "todo";
-              const statusStyle = STATUS_STYLES[category] || STATUS_STYLES.todo;
-              const taskStart = parseDateOnly(task.startDate || task.endDate);
-              const taskEnd = parseDateOnly(task.endDate || task.startDate);
-              const hasVisibleRange = Boolean(
-                taskStart &&
-                taskEnd &&
-                taskEnd >= range.start &&
-                taskStart < range.end,
-              );
-
-              let barLeft = 0;
-              let barWidth = 0;
-              if (hasVisibleRange && taskStart && taskEnd) {
-                const clippedStart = max([taskStart, range.start]);
-                const clippedEnd = min([addDays(taskEnd, 1), range.end]);
-                barLeft =
-                  differenceInCalendarDays(clippedStart, range.start) *
-                  range.pixelsPerDay;
-                barWidth = Math.max(
-                  range.pixelsPerDay * 0.72,
-                  differenceInCalendarDays(clippedEnd, clippedStart) *
-                    range.pixelsPerDay,
-                );
-              }
-
-              return (
-                <div
-                  key={task.id}
-                  className="group flex h-12 border-b bg-background hover:bg-muted/20"
-                >
-                  <button
-                    type="button"
-                    className="sticky left-0 z-20 flex w-72 shrink-0 items-center gap-2 border-r bg-background px-4 text-left group-hover:bg-muted/20"
-                    onClick={() => onTaskClick(task.id)}
-                  >
-                    <Circle
-                      className={cn(
-                        "h-2.5 w-2.5 shrink-0 fill-current",
-                        statusStyle.dot,
-                      )}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                      {task.title}
-                    </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {column?.title || "미분류"}
-                    </span>
-                  </button>
-
-                  <div
-                    className="relative shrink-0"
-                    style={{ width: timelineWidth }}
-                  >
-                    {cells.map((cell) => {
-                      const left =
-                        differenceInCalendarDays(cell.start, range.start) *
-                        range.pixelsPerDay;
-                      return (
-                        <div
-                          key={cell.key}
-                          className="pointer-events-none absolute inset-y-0 border-r"
-                          style={{
-                            left,
-                            width:
-                              differenceInCalendarDays(cell.end, cell.start) *
-                              range.pixelsPerDay,
-                          }}
-                        />
-                      );
-                    })}
-
-                    {showTodayLine ? (
-                      <div
-                        className="pointer-events-none absolute inset-y-0 z-10 border-l-2 border-dashed border-blue-500/70"
-                        style={{
-                          left:
-                            todayOffset * range.pixelsPerDay +
-                            range.pixelsPerDay / 2,
-                        }}
-                      />
-                    ) : null}
-
-                    {hasVisibleRange ? (
-                      <button
-                        type="button"
-                        className={cn(
-                          "absolute top-2.5 z-20 h-7 overflow-hidden rounded-md border px-2 text-left text-[10px] font-medium shadow-sm transition hover:brightness-95",
-                          statusStyle.bar,
-                          statusStyle.barText,
-                        )}
-                        style={{ left: barLeft, width: barWidth }}
-                        onClick={() => onTaskClick(task.id)}
-                        title={`${task.title} · ${task.startDate || "미정"} → ${
-                          task.endDate || "미정"
-                        }`}
-                      >
-                        <span className="block truncate">{task.title}</span>
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
+          <TimelineBody
+            tasks={displayedTasks}
+            groupBy={groupBy}
+            groupColumns={groupColumns}
+            statusColumns={statusColumns}
+            cells={cells}
+            rangeStart={range.start}
+            rangeEnd={range.end}
+            pixelsPerDay={range.pixelsPerDay}
+            timelineWidth={timelineWidth}
+            taskPanelWidth={taskPanelWidth}
+            scale={scale}
+            today={today}
+            onTaskClick={onTaskClick}
+            onUpdateTask={onUpdateTask}
+            readOnly={readOnly}
+            allGroupsCollapsed={allGroupsCollapsed}
+          />
         </div>
       </div>
     </div>
