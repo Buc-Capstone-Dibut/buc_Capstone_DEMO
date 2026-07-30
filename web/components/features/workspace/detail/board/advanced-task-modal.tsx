@@ -48,7 +48,6 @@ interface Task {
   columnId: string;
   projectId: string;
   priority?: string;
-  boardId?: string;
   startDate?: string | null;
   endDate?: string | null;
   assigneeId?: string | null;
@@ -80,12 +79,6 @@ interface BoardData {
   columns: BoardColumn[];
   members: BoardMember[];
   tags: TagOption[];
-}
-
-interface WorkspaceBoardOption {
-  id: string;
-  name: string;
-  archivedAt?: string | null;
 }
 
 interface WorkspaceDocSummary {
@@ -221,11 +214,6 @@ export function AdvancedTaskModal({
     fetcher,
     swrOptions,
   );
-  const { data: boardOptions = [] } = useSWR<WorkspaceBoardOption[]>(
-    projectId && open ? `/api/workspaces/${projectId}/boards` : null,
-    fetcher,
-    swrOptions,
-  );
   const relationEndpoint =
     projectId && taskId
       ? `/api/workspaces/${projectId}/board/tasks/${taskId}/documents`
@@ -272,7 +260,6 @@ export function AdvancedTaskModal({
         status: task.status || "todo",
         priority: task.priority || "medium",
         assigneeId: task.assigneeId || "unassigned",
-        boardId: task.boardId,
         startDate: task.startDate,
         endDate: task.endDate,
         tags: normalizeTagIds(task.tags),
@@ -941,30 +928,6 @@ export function AdvancedTaskModal({
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
-
-              {/* Board */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">
-                  보드
-                </span>
-                <Select
-                  value={localTask.boardId}
-                  onValueChange={(boardId) => handleUpdate({ boardId })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="보드 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {boardOptions
-                      .filter((board) => !board.archivedAt)
-                      .map((board) => (
-                        <SelectItem key={board.id} value={board.id}>
-                          {board.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Date range */}

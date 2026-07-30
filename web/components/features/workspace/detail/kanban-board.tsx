@@ -24,11 +24,12 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  ArrowLeft,
   Filter,
   Search,
   X,
+  ChartGantt,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +54,6 @@ import { TagManagerModal } from "../modules/tag/tag-manager-modal";
 import { PriorityManagerModal } from "../modules/priority/priority-manager-modal";
 import { StatusManagerModal } from "../modules/status-manager-modal";
 import { CreateTaskDialog, CreateTaskInput } from "./board/create-task-dialog";
-import { AdvancedTaskModal } from "./board/advanced-task-modal";
 
 import { KanbanView } from "../views/kanban/kanban-view";
 import { TableView } from "../views/table/table-view";
@@ -66,6 +66,22 @@ import { DraggablePropertySettings } from "../modules/view-settings/property-set
 import { Eye } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+
+const TimelineView = dynamic(
+  () =>
+    import("../views/timeline/timeline-view").then(
+      (module) => module.TimelineView,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        타임라인을 준비하고 있습니다.
+      </div>
+    ),
+  },
+);
 
 type BoardColumnResponse = {
   id: string;
@@ -225,9 +241,6 @@ function buildFallbackViews(
 
 interface KanbanBoardProps {
   projectId: string;
-  boardId: string;
-  onBackToBoards?: () => void;
-  embedded?: boolean;
 }
 
 type PendingBoardAction = {
@@ -237,23 +250,17 @@ type PendingBoardAction = {
   onConfirm: () => Promise<void> | void;
 };
 
-export function KanbanBoard({
-  projectId,
-  boardId,
-  onBackToBoards,
-  embedded = false,
-}: KanbanBoardProps) {
+export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const tags = useWorkspaceStore((s) => s.tags);
   const priorities = useWorkspaceStore((s) => s.priorities);
   const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
   const reorderTags = useWorkspaceStore((s) => s.reorderTags);
-  const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
   const setActiveTaskId = useWorkspaceStore((s) => s.setActiveTaskId);
   const projects = useWorkspaceStore((s) => s.projects);
   const storeTasks = useWorkspaceStore((s) => s.tasks);
   const syncProjectData = useWorkspaceStore((s) => s.syncProjectData);
 
-  const boardKey = `/api/workspaces/${projectId}/board?boardId=${boardId}`;
+  const boardKey = `/api/workspaces/${projectId}/board`;
   const {
     data: boardData,
     error,
@@ -264,11 +271,6 @@ export function KanbanBoard({
     members?: BoardMemberResponse[];
     views?: BoardView[];
     tags?: any[];
-    board?: {
-      id: string;
-      name: string;
-      description?: string | null;
-    };
     workspace?: {
       readOnly?: boolean;
       name?: string;
@@ -383,7 +385,9 @@ export function KanbanBoard({
 
   // --- View State ---
   const [activeViewId, setActiveViewId] = useState<string>("default");
-  const [viewType, setViewType] = useState<"kanban" | "table">("table");
+  const [viewType, setViewType] = useState<"kanban" | "table" | "timeline">(
+    "table",
+  );
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPriorityManagerOpen, setIsPriorityManagerOpen] = useState(false);
   const [isStatusManagerOpen, setIsStatusManagerOpen] = useState(false);
@@ -999,7 +1003,6 @@ export function KanbanBoard({
         title: taskProps.title || "새 태스크",
         description: taskProps.description || "",
         columnId: targetColumnId,
-        boardId,
       };
 
       if ("assigneeId" in taskProps) {
@@ -1214,60 +1217,18 @@ export function KanbanBoard({
 
   return (
     <div className="flex h-full overflow-hidden">
-      <div
-        className={`relative z-10 flex h-full flex-1 flex-col overflow-hidden bg-background ${
-          embedded ? "" : "rounded-2xl border shadow-sm"
-        }`}
-      >
+      <div className="relative z-10 flex h-full flex-1 flex-col overflow-hidden bg-background">
         <div className="flex items-center gap-2 overflow-x-auto border-b bg-background px-3 py-2">
-          {embedded && (
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onBackToBoards}
-                aria-label="모든 보드"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <h2 className="max-w-40 truncate text-sm font-semibold">
-                {boardData?.board?.name || "보드"}
-              </h2>
-              <Badge
-                variant="secondary"
-                className="h-5 px-1.5 text-[10px] font-normal"
-              >
-                {tasks.length}
-              </Badge>
-            </div>
-          )}
-
-          {!embedded && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onBackToBoards}
-                  aria-label="보드 목록으로"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <KanbanSquare className="h-4 w-4 text-muted-foreground" />
-                <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  {boardData?.board?.name || "보드"}
-                  <Badge
-                    variant="secondary"
-                    className="h-5 px-1.5 text-[10px] font-normal"
-                  >
-                    {tasks.length}
-                  </Badge>
-                </h2>
-              </div>
-            </div>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <KanbanSquare className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">보드</h2>
+            <Badge
+              variant="secondary"
+              className="h-5 px-1.5 text-[10px] font-normal"
+            >
+              {tasks.length}
+            </Badge>
+          </div>
 
           {tasks.length >= 450 && (
             <div className="flex animate-pulse items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-600">
@@ -1276,11 +1237,7 @@ export function KanbanBoard({
             </div>
           )}
 
-          <div
-            className={`flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1 ${
-              embedded ? "" : "ml-auto mr-4"
-            }`}
-          >
+          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-lg bg-muted/50 p-1">
             <Button
               variant={viewType === "table" ? "secondary" : "ghost"}
               size="sm"
@@ -1301,50 +1258,62 @@ export function KanbanBoard({
               <KanbanSquare className="h-3.5 w-3.5" />
               칸반
             </Button>
+            <Button
+              variant={viewType === "timeline" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setViewType("timeline")}
+              aria-pressed={viewType === "timeline"}
+            >
+              <ChartGantt className="h-3.5 w-3.5" />
+              타임라인
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                >
-                  {groupBy === "status"
-                    ? "상태별"
-                    : groupBy === "assignee"
-                      ? "담당자별"
-                      : groupBy === "priority"
-                        ? "우선순위별"
-                        : "태그별"}
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-40 p-1">
-                {[
-                  ["status", "상태"],
-                  ["assignee", "담당자"],
-                  ["priority", "우선순위"],
-                  ["tag", "태그"],
-                ].map(([value, label]) => (
+            {viewType !== "timeline" ? (
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button
-                    key={value}
-                    variant={groupBy === value ? "secondary" : "ghost"}
+                    variant="outline"
                     size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      const matchingView = resolvedViews.find(
-                        (view) => view.groupBy === value,
-                      );
-                      if (matchingView) setActiveViewId(matchingView.id);
-                    }}
+                    className="h-8 gap-1.5 text-xs"
                   >
-                    {label}
+                    {groupBy === "status"
+                      ? "상태별"
+                      : groupBy === "assignee"
+                        ? "담당자별"
+                        : groupBy === "priority"
+                          ? "우선순위별"
+                          : "태그별"}
+                    <ChevronDown className="h-3.5 w-3.5" />
                   </Button>
-                ))}
-              </PopoverContent>
-            </Popover>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-40 p-1">
+                  {[
+                    ["status", "상태"],
+                    ["assignee", "담당자"],
+                    ["priority", "우선순위"],
+                    ["tag", "태그"],
+                  ].map(([value, label]) => (
+                    <Button
+                      key={value}
+                      variant={groupBy === value ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        const matchingView = resolvedViews.find(
+                          (view) => view.groupBy === value,
+                        );
+                        if (matchingView) setActiveViewId(matchingView.id);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            ) : null}
             {viewType === "kanban" && (
               <Popover>
                 <PopoverTrigger asChild>
@@ -1837,7 +1806,7 @@ export function KanbanBoard({
               onUpdateTask={handleUpdateTask}
               onCreateTask={(defaults) => openCreateTaskDialog(defaults)}
             />
-          ) : (
+          ) : viewType === "kanban" ? (
             <KanbanView
               projectId={projectId}
               tasks={visibleTasks}
@@ -1879,6 +1848,12 @@ export function KanbanBoard({
                 statusCategoryOrder,
               }}
             />
+          ) : (
+            <TimelineView
+              tasks={sortedVisibleTasks}
+              columns={boardData?.columns || []}
+              onTaskClick={setActiveTaskId}
+            />
           )}
         </div>
       </div>
@@ -1910,17 +1885,6 @@ export function KanbanBoard({
         isOpen={isPriorityManagerOpen}
         onClose={() => setIsPriorityManagerOpen(false)}
       />
-
-      {activeTaskId && viewType === "kanban" && (
-        <AdvancedTaskModal
-          taskId={activeTaskId}
-          projectId={projectId}
-          open
-          onOpenChange={(open) => {
-            if (!open) setActiveTaskId(null);
-          }}
-        />
-      )}
 
       {statusManagerView && (
         <StatusManagerModal

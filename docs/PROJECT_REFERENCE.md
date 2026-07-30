@@ -8,25 +8,25 @@
 
 `Debut`은 **Dev + 벗(친구)**이라는 의미를 담은 개발자 취업 준비·협업 서비스다. 문서의 브랜드 표기는 `Debut`, 소문자 기술 식별이 필요할 때는 `debut`을 사용한다. 핵심 기능은 다음과 같다.
 
-| 영역 | 현재 제공 범위 |
-| --- | --- |
-| AI 면접 | 공고·이력서 기반 면접 준비, 음성/화상 면접, 세션·질문 기록, 분석 리포트 |
-| 커리어 | 이력서·자기소개서·포트폴리오·프로젝트·경험·채용공고 관리 및 AI 보조 |
-| 워크스페이스 | 문서/화이트보드, 채팅, 프레즌스 및 Yjs 기반 실시간 협업 |
-| 커뮤니티 | 게시판, 댓글, 스쿼드 |
-| 인사이트 | 기술 블로그와 개발 활동/이벤트 콘텐츠 |
+| 영역         | 현재 제공 범위                                                          |
+| ------------ | ----------------------------------------------------------------------- |
+| AI 면접      | 공고·이력서 기반 면접 준비, 음성/화상 면접, 세션·질문 기록, 분석 리포트 |
+| 커리어       | 이력서·자기소개서·포트폴리오·프로젝트·경험·채용공고 관리 및 AI 보조     |
+| 워크스페이스 | 문서/화이트보드, 채팅, 프레즌스 및 Yjs 기반 실시간 협업                 |
+| 커뮤니티     | 게시판, 댓글, 스쿼드                                                    |
+| 인사이트     | 기술 블로그와 개발 활동/이벤트 콘텐츠                                   |
 
 코딩 테스트 훈련(CTP) 기능은 2026-07-28 정리 작업에서 코드와 문서 대상에서 제거되었으며, 현재 제품 범위에 포함하지 않는다.
 
 ## 2. 저장소와 런타임 구성
 
-| 경로 | 기술 | 책임 | 기본 로컬 포트 | 배포 |
-| --- | --- | --- | ---: | --- |
-| `web/` | Next.js 14, React, Prisma | 사용자 UI와 주 BFF API | 3000 | Vercel (`web/vercel.json`) |
-| `ai-interview/` | Python, FastAPI, uv | 면접 세션·질문·리포트·음성 WebSocket | 8001 | Render (`ai-interview/render.yaml`) |
-| `workspace-server/` | Node.js, Socket.IO, Yjs, Prisma | 실시간 협업, 채팅, 프레즌스 | 4000 | Render (`workspace-server/render.yaml`) |
-| `crawler/` | Python, uv | RSS/개발 이벤트 수집과 JSON·Supabase 적재 | - | 수동 또는 Cron |
-| `docs/` | Markdown | 이 기준 문서와 README에서 참조하는 아키텍처 이미지 | - | - |
+| 경로                | 기술                            | 책임                                               | 기본 로컬 포트 | 배포                                    |
+| ------------------- | ------------------------------- | -------------------------------------------------- | -------------: | --------------------------------------- |
+| `web/`              | Next.js 14, React, Prisma       | 사용자 UI와 주 BFF API                             |           3000 | Vercel (`web/vercel.json`)              |
+| `ai-interview/`     | Python, FastAPI, uv             | 면접 세션·질문·리포트·음성 WebSocket               |           8001 | Render (`ai-interview/render.yaml`)     |
+| `workspace-server/` | Node.js, Socket.IO, Yjs, Prisma | 실시간 협업, 채팅, 프레즌스                        |           4000 | Render (`workspace-server/render.yaml`) |
+| `crawler/`          | Python, uv                      | RSS/개발 이벤트 수집과 JSON·Supabase 적재          |              - | 수동 또는 Cron                          |
+| `docs/`             | Markdown                        | 이 기준 문서와 README에서 참조하는 아키텍처 이미지 |              - | -                                       |
 
 ```mermaid
 flowchart LR
@@ -46,13 +46,13 @@ flowchart LR
 
 ## 3. 주요 화면과 API 경계
 
-| 웹 경로 | 기능 | 주 연동 대상 |
-| --- | --- | --- |
-| `/career/*`, `/resume/*` | 커리어 문서·공고·포트폴리오 관리 | `web/app/api/career`, Supabase/Prisma, AI |
-| `/interview/*` | 설정, 준비, 음성/화상 면접, 결과·분석 | `web/app/api/interview`, FastAPI, LiveKit |
-| `/workspace/[id]` | 협업 문서/화이트보드/채팅 | Socket.IO, Yjs, workspace-server |
-| `/community/*` | 게시판·스쿼드 | `web/app/api/community`, Supabase/Prisma |
-| `/insights/*` | 기술 블로그·개발 활동 | BFF 및 crawler 산출물 |
+| 웹 경로                  | 기능                                  | 주 연동 대상                              |
+| ------------------------ | ------------------------------------- | ----------------------------------------- |
+| `/career/*`, `/resume/*` | 커리어 문서·공고·포트폴리오 관리      | `web/app/api/career`, Supabase/Prisma, AI |
+| `/interview/*`           | 설정, 준비, 음성/화상 면접, 결과·분석 | `web/app/api/interview`, FastAPI, LiveKit |
+| `/workspace/[id]`        | 협업 문서/화이트보드/채팅             | Socket.IO, Yjs, workspace-server          |
+| `/community/*`           | 게시판·스쿼드                         | `web/app/api/community`, Supabase/Prisma  |
+| `/insights/*`            | 기술 블로그·개발 활동                 | BFF 및 crawler 산출물                     |
 
 `web/app/api/`는 career, community, interview, livekit, workspace 등 도메인별 라우트로 구성된다. 인증·데이터 접근은 Supabase 기반이며, 서비스 간 서버 호출은 공개 클라이언트 키가 아닌 서버 환경변수와 소유권 검사를 전제로 한다.
 
@@ -60,16 +60,16 @@ flowchart LR
 
 ### 화면과 기능
 
-`/workspace/[id]`는 개요, 작업 보드, 일정, 문서, 아이디어 보드, 채팅, 멤버·설정 화면을 한 프로젝트 공간으로 제공한다. 작업 메뉴는 보드 목록에서 시작하며, 각 보드는 태스크를 수평적으로 나누는 독립 단위다. 보드 상세에서는 같은 작업을 목록/칸반으로 전환하고 상태·담당자·우선순위·태그로 그룹화하거나 공통 검색·필터를 적용한다. 워크스페이스가 `COMPLETED` 상태가 되면 웹 UI와 주요 쓰기 API는 읽기 전용으로 전환된다.
+`/workspace/[id]`는 개요, 작업 보드, 일정, 문서, 아이디어 보드, 채팅, 멤버·설정 화면을 한 프로젝트 공간으로 제공한다. 작업 메뉴는 별도 목록 없이 워크스페이스의 단일 보드로 바로 진입한다. 같은 작업을 목록/칸반/타임라인으로 전환하고, 타임라인에서는 일간·주간·월간 축척으로 기간을 확인한다. 목록과 칸반은 상태·담당자·우선순위·태그로 그룹화하며 모든 보기에 공통 검색·필터를 적용한다. 워크스페이스가 `COMPLETED` 상태가 되면 웹 UI와 주요 쓰기 API는 읽기 전용으로 전환된다.
 
-| 기능 | 웹 구현 | 실시간/저장 경계 |
-| --- | --- | --- |
-| 보드·태스크·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장 |
-| 일반 문서 편집 | BlockNote 일반 편집기 | BFF가 `workspace_docs.content` 저장 |
-| 문서 공동편집 | BlockNote + Yjs | HMAC 토큰 기반 Yjs 방, BFF가 CRDT 상태와 문서 스냅샷 저장 |
-| 화이트보드 | Excalidraw + Yjs | Yjs 방, BFF가 `workspace_whiteboards` 저장 |
-| 채팅 | Socket.IO | workspace-server가 `workspace_channels/messages`에 직접 저장 |
-| 음성 허들 | LiveKit | workspace-server는 방 목록 갱신 이벤트만 릴레이 |
+| 기능                  | 웹 구현                         | 실시간/저장 경계                                             |
+| --------------------- | ------------------------------- | ------------------------------------------------------------ |
+| 보드·태스크·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장                                     |
+| 일반 문서 편집        | BlockNote 일반 편집기           | BFF가 `workspace_docs.content` 저장                          |
+| 문서 공동편집         | BlockNote + Yjs                 | HMAC 토큰 기반 Yjs 방, BFF가 CRDT 상태와 문서 스냅샷 저장    |
+| 화이트보드            | Excalidraw + Yjs                | Yjs 방, BFF가 `workspace_whiteboards` 저장                   |
+| 채팅                  | Socket.IO                       | workspace-server가 `workspace_channels/messages`에 직접 저장 |
+| 음성 허들             | LiveKit                         | workspace-server는 방 목록 갱신 이벤트만 릴레이              |
 
 ### 실시간 연결 경계
 
@@ -85,8 +85,8 @@ flowchart LR
 
 - 기준 스키마와 마이그레이션: `web/prisma/schema.prisma`, `web/prisma/migrations/**`
 - workspace-server follower 스키마: 채팅 등 런타임에 필요한 Prisma 모델 제공
-- 핵심 모델: `workspaces`, `workspace_members`, `workspace_boards`, `kanban_tasks`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
-- 태스크는 반드시 하나의 `workspace_boards`에 속한다. 시작일·종료일은 시간대가 없는 날짜로 저장하며, 상태·우선순위·태그·멤버 설정은 워크스페이스 범위에서 공유한다.
+- 핵심 모델: `workspaces`, `workspace_members`, `kanban_columns`, `kanban_tasks`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
+- 태스크는 워크스페이스 공용 컬럼에 직접 속한다. 시작일·종료일은 시간대가 없는 날짜로 저장하며, 상태·우선순위·태그·멤버 설정은 워크스페이스 범위에서 공유한다.
 - `workspace-server` 스키마에서 마이그레이션을 생성하거나 적용하지 않는다. 워크스페이스 모델을 바꿀 때는 web 기준 스키마를 먼저 변경하고 follower를 맞춘다.
 
 ### 현재 제약
@@ -106,14 +106,14 @@ flowchart LR
 
 ### FastAPI 공개 경계
 
-| 경로 | 용도 |
-| --- | --- |
-| `GET /health`, `GET /docs` | 상태 확인 및 OpenAPI |
-| `/v1/interview/parse-job`, `/parse-resume` | 입력 문서 파싱 |
-| `/v1/interview/session/*`, `/sessions/{id}/*` | 세션 시작·완료·조회·리포트 상태/재시도 |
-| `WS /v1/interview/ws/client` | 실시간 음성 면접 |
-| `/v1/interview/livekit/token` | 화상 면접 연결 토큰 |
-| `/v1/interview/portfolio/*` | 공개 GitHub 레포 기반 포트폴리오 디펜스 |
+| 경로                                          | 용도                                    |
+| --------------------------------------------- | --------------------------------------- |
+| `GET /health`, `GET /docs`                    | 상태 확인 및 OpenAPI                    |
+| `/v1/interview/parse-job`, `/parse-resume`    | 입력 문서 파싱                          |
+| `/v1/interview/session/*`, `/sessions/{id}/*` | 세션 시작·완료·조회·리포트 상태/재시도  |
+| `WS /v1/interview/ws/client`                  | 실시간 음성 면접                        |
+| `/v1/interview/livekit/token`                 | 화상 면접 연결 토큰                     |
+| `/v1/interview/portfolio/*`                   | 공개 GitHub 레포 기반 포트폴리오 디펜스 |
 
 정확한 요청/응답 계약은 FastAPI 실행 중 `/docs`를 기준으로 삼는다. 웹의 세션 목록·상세 일부는 FastAPI를 통과하지 않고 BFF가 Supabase에서 직접 읽는다.
 
@@ -134,12 +134,12 @@ cp crawler/.env.example crawler/.env
 
 필수 연동 범주:
 
-| 서비스 | 핵심 환경변수 |
-| --- | --- |
-| `web` | Supabase URL/anon key/service-role key, AI API URL·WebSocket URL, Workspace WSS URL, `INTERNAL_API_SECRET` |
-| `ai-interview` | `DATABASE_URL`, Gemini 또는 Vertex AI 자격증명, `CORS_ORIGINS`; 화상 사용 시 LiveKit URL/key/secret |
-| `workspace-server` | `DATABASE_URL`, `BFF_URL`, `INTERNAL_API_SECRET` |
-| `crawler` | Supabase 자격증명(적재 시), Gemini/Firecrawl key(선택 기능 사용 시) |
+| 서비스             | 핵심 환경변수                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `web`              | Supabase URL/anon key/service-role key, AI API URL·WebSocket URL, Workspace WSS URL, `INTERNAL_API_SECRET` |
+| `ai-interview`     | `DATABASE_URL`, Gemini 또는 Vertex AI 자격증명, `CORS_ORIGINS`; 화상 사용 시 LiveKit URL/key/secret        |
+| `workspace-server` | `DATABASE_URL`, `BFF_URL`, `INTERNAL_API_SECRET`                                                           |
+| `crawler`          | Supabase 자격증명(적재 시), Gemini/Firecrawl key(선택 기능 사용 시)                                        |
 
 ```bash
 # web

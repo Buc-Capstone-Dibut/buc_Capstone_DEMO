@@ -45,7 +45,6 @@ export interface Priority {
 export interface Task {
   id: string;
   projectId: string;
-  boardId?: string;
   columnId?: string; // Added for Kanban
   title: string;
   description?: string;

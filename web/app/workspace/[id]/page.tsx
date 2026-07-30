@@ -15,10 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 
-const WorkspaceBoards = dynamic(
+const KanbanBoard = dynamic(
   () =>
-    import("@/components/features/workspace/detail/workspace-boards").then(
-      (mod) => mod.WorkspaceBoards,
+    import("@/components/features/workspace/detail/kanban-board").then(
+      (mod) => mod.KanbanBoard,
     ),
   {
     ssr: false,
@@ -212,7 +212,7 @@ export default function WorkspaceDetailPage() {
 
   const handleTabChange = async (
     tab: string,
-    options?: { docId?: string | null; boardId?: string | null },
+    options?: { docId?: string | null },
   ) => {
     const normalized = normalizeTab(tab);
 
@@ -238,11 +238,7 @@ export default function WorkspaceDetailPage() {
       nextParams.delete("doc");
     }
 
-    if (normalized === "board" && options?.boardId) {
-      nextParams.set("board", options.boardId);
-    } else if (normalized !== "board") {
-      nextParams.delete("board");
-    }
+    nextParams.delete("board");
 
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, {
@@ -254,6 +250,17 @@ export default function WorkspaceDetailPage() {
     const nextTab = normalizeTab(searchParams.get("tab"));
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!searchParams.has("board")) return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("board");
+    const query = nextParams.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     const stored = safeLocalStorageGet(
@@ -339,25 +346,7 @@ export default function WorkspaceDetailPage() {
 
     switch (activeTab) {
       case "board":
-        return (
-          <WorkspaceBoards
-            projectId={projectId}
-            readOnly={isReadOnly}
-            initialBoardId={searchParams.get("board")}
-            onBoardSelectionChange={(boardId) => {
-              const nextParams = new URLSearchParams(searchParams.toString());
-              if (boardId) {
-                nextParams.set("board", boardId);
-              } else {
-                nextParams.delete("board");
-              }
-              const query = nextParams.toString();
-              router.replace(query ? `${pathname}?${query}` : pathname, {
-                scroll: false,
-              });
-            }}
-          />
-        );
+        return <KanbanBoard projectId={projectId} />;
       case "schedule":
         return (
           <ScheduleView

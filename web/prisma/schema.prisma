@@ -884,7 +884,6 @@ model workspaces {
   invites workspace_invites[]
 
   columns             kanban_columns[]
-  boards              workspace_boards[]
   tags                kanban_tags[]
   views               workspace_views[]
   docs                workspace_docs[]
@@ -967,24 +966,6 @@ model kanban_columns {
   @@schema("public")
 }
 
-model workspace_boards {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workspace_id String    @db.Uuid
-  name         String
-  description  String?
-  position     Int       @default(0)
-  is_default   Boolean   @default(false)
-  archived_at  DateTime?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-
-  workspace workspaces     @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
-  tasks     kanban_tasks[]
-
-  @@index([workspace_id, archived_at, position])
-  @@schema("public")
-}
-
 model workspace_views {
   id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   workspace_id      String   @db.Uuid
@@ -1024,7 +1005,6 @@ model kanban_tags {
 
 model kanban_tasks {
   id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  board_id    String    @db.Uuid
   column_id   String    @db.Uuid
   title       String
   description String?
@@ -1037,14 +1017,12 @@ model kanban_tasks {
   created_at  DateTime  @default(now())
   updated_at  DateTime  @updatedAt
 
-  board     workspace_boards        @relation(fields: [board_id], references: [id], onDelete: Cascade)
   column    kanban_columns          @relation(fields: [column_id], references: [id], onDelete: Cascade)
   assignee  profiles?               @relation(fields: [assignee_id], references: [id])
   documents kanban_task_documents[]
 
-  @@index([board_id, column_id, order])
-  @@index([board_id, end_date])
   @@index([column_id, order])
+  @@index([end_date])
   @@index([assignee_id])
   @@schema("public")
 }
