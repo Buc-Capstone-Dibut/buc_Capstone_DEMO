@@ -3,7 +3,10 @@ import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { getDocCollabState } from "@/lib/server/workspace-doc-collab-session";
-import { createWorkspaceDocCollabToken } from "@/lib/server/workspace-doc-collab-token";
+import {
+  createWorkspaceDocCollabToken,
+  WORKSPACE_DOC_COLLAB_TOKEN_TTL_MS,
+} from "@/lib/server/workspace-doc-collab-token";
 
 export async function GET(
   _request: Request,
@@ -12,10 +15,10 @@ export async function GET(
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -25,7 +28,7 @@ export async function GET(
       where: {
         workspace_id_user_id: {
           workspace_id: workspaceId,
-          user_id: session.user.id,
+          user_id: user.id,
         },
       },
       select: { user_id: true },
@@ -51,7 +54,7 @@ export async function GET(
     const collabState = await getDocCollabState(
       workspaceId,
       docId,
-      session.user.id,
+      user.id,
     );
     if (!collabState.isActive) {
       return NextResponse.json(
@@ -60,12 +63,16 @@ export async function GET(
       );
     }
 
+    const issuedAt = Date.now();
     return NextResponse.json({
       token: createWorkspaceDocCollabToken({
         docId,
         workspaceId,
-        userId: session.user.id,
+        userId: user.id,
       }),
+      tokenExpiresAt: new Date(
+        issuedAt + WORKSPACE_DOC_COLLAB_TOKEN_TTL_MS,
+      ).toISOString(),
       collab: collabState,
     });
   } catch (error) {

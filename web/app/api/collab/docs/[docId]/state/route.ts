@@ -74,7 +74,10 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      persistedAt: result.persistedAt,
+    });
   } catch (error) {
     console.error("[doc-collab] failed to save state", error);
     return NextResponse.json(

@@ -18,10 +18,10 @@ export async function POST(
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -31,7 +31,7 @@ export async function POST(
       where: {
         workspace_id_user_id: {
           workspace_id: workspaceId,
-          user_id: session.user.id,
+          user_id: user.id,
         },
       },
       select: { user_id: true },
@@ -65,7 +65,7 @@ export async function POST(
     await touchDocPresence({
       workspaceId,
       docId,
-      userId: session.user.id,
+      userId: user.id,
       mode: "NORMAL",
       isDirty: false,
     });
@@ -104,7 +104,7 @@ export async function POST(
     const result = await startDocCollabSession(
       workspaceId,
       docId,
-      session.user.id,
+      user.id,
     );
 
     if (!result.ok) {
@@ -124,7 +124,7 @@ export async function POST(
       token: createWorkspaceDocCollabToken({
         docId,
         workspaceId,
-        userId: session.user.id,
+        userId: user.id,
       }),
     });
   } catch (error) {

@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 const COLLAB_SECRET =
   process.env.COLLAB_TOKEN_SECRET ?? process.env.INTERNAL_API_SECRET ?? "";
-const TOKEN_TTL_MS = 5 * 60 * 1000;
+export const WORKSPACE_DOC_COLLAB_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 type WorkspaceDocCollabTokenPayload = {
   docId?: string;
@@ -43,7 +43,7 @@ export function createWorkspaceDocCollabToken(input: {
     docId: input.docId,
     workspaceId: input.workspaceId,
     userId: input.userId,
-    exp: Date.now() + TOKEN_TTL_MS,
+    exp: Date.now() + WORKSPACE_DOC_COLLAB_TOKEN_TTL_MS,
   };
   const encodedPayload = toBase64Url(JSON.stringify(payload));
   const signature = signValue(encodedPayload);
@@ -64,7 +64,7 @@ export function createWorkspaceWhiteboardToken(input: {
     whiteboardId: input.workspaceId,
     workspaceId: input.workspaceId,
     userId: input.userId,
-    exp: Date.now() + TOKEN_TTL_MS,
+    exp: Date.now() + WORKSPACE_DOC_COLLAB_TOKEN_TTL_MS,
   };
   const encodedPayload = toBase64Url(JSON.stringify(payload));
   const signature = signValue(encodedPayload);

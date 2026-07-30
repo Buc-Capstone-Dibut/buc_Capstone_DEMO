@@ -1075,6 +1075,7 @@ model workspace_docs {
   assets             workspace_doc_assets[]
   task_links         kanban_task_documents[]
   comments           workspace_doc_comments[]
+  revisions          workspace_doc_revisions[]
 
   @@index([workspace_id, updated_at(sort: Desc)])
   @@index([workspace_id, parent_id, is_archived, sort_order])
@@ -1090,6 +1091,22 @@ model workspace_doc_states {
 
   doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
 
+  @@schema("public")
+}
+
+model workspace_doc_revisions {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  doc_id     String   @db.Uuid
+  source     String   @default("snapshot")
+  yjs_state  String?
+  content    Json?    @db.Json
+  byte_size  Int      @default(0)
+  created_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  doc workspace_docs @relation(fields: [doc_id], references: [id], onDelete: Cascade)
+
+  @@index([doc_id, created_at(sort: Desc)])
   @@schema("public")
 }
 

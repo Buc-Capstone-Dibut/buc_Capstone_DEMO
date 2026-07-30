@@ -11,6 +11,7 @@ import {
 import { WorkspaceSidebar } from "@/components/features/workspace/detail/workspace-sidebar";
 import { WorkspaceServerStatus } from "@/components/features/workspace/detail/workspace-server-status";
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
+import { DocsErrorBoundary } from "@/components/features/workspace/docs/docs-error-boundary";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -357,13 +358,15 @@ export default function WorkspaceDetailPage() {
         );
       case "docs":
         return (
-          <DocsView
-            projectId={projectId}
-            initialDocId={searchParams.get("doc")}
-            onNavigateToTask={(taskId) => {
-              setActiveTaskId(taskId);
-            }}
-          />
+          <DocsErrorBoundary resetKey={searchParams.get("doc")}>
+            <DocsView
+              projectId={projectId}
+              initialDocId={searchParams.get("doc")}
+              onNavigateToTask={(taskId) => {
+                setActiveTaskId(taskId);
+              }}
+            />
+          </DocsErrorBoundary>
         );
       case "ideas":
         if (isCompleted) {

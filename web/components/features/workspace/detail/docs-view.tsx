@@ -215,7 +215,23 @@ type EmojiSelection = {
 
 type EditorHandle = DocumentEditorHandle | NormalDocumentEditorHandle;
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
+        ? payload.error
+        : `문서 데이터를 불러오지 못했습니다. (${response.status})`;
+    throw new Error(message);
+  }
+
+  return payload;
+};
 
 const formatMetaDate = (value?: string | Date | null) => {
   if (!value) return "-";
@@ -852,6 +868,88 @@ export function DocsView({
   }, [editorMode]);
 
   useEffect(() => {
+    if (editorMode !== "collab" || !activeDocId || !collabToken) {
+      return;
+    }
+
+    let cancelled = false;
+    const refreshToken = async () => {
+      try {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/docs/${activeDocId}/collab/token`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          token?: string;
+          error?: string;
+        } | null;
+
+        if (!response.ok || !payload?.token) {
+          throw new Error(
+            payload?.error || "협업 연결을 갱신하지 못했습니다.",
+          );
+        }
+
+        if (!cancelled) {
+          setCollabToken(payload.token);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Doc collaboration token refresh failed", error);
+          setCollabStatus("unstable");
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshToken();
+    }, 4 * 60 * 1_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeDocId, collabToken, editorMode, projectId]);
+
+  const checkCollabPersisted = useCallback(
+    async (changedAt: number) => {
+      if (!activeDocId) return false;
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await fetch(
+          `/api/workspaces/${projectId}/docs/${activeDocId}/collab/status`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          persistedAt?: string | null;
+          error?: string;
+        } | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error || "협업 저장 상태를 확인하지 못했습니다.",
+          );
+        }
+
+        const persistedAt = payload?.persistedAt
+          ? Date.parse(payload.persistedAt)
+          : Number.NaN;
+        if (Number.isFinite(persistedAt) && persistedAt >= changedAt) {
+          setLastSavedAt(payload?.persistedAt ?? null);
+          return true;
+        }
+
+        if (attempt < 2) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1_500));
+        }
+      }
+
+      return false;
+    },
+    [activeDocId, projectId],
+  );
+
+  useEffect(() => {
     if (!activeDocCollabState?.isActive) {
       setCollabParticipants([]);
       return;
@@ -1164,43 +1262,6 @@ export function DocsView({
 
     return chain;
   }, [activeDocId, docMap]);
-
-  const handleCreateRootDoc = useCallback(
-    async (kind: "page" | "folder" = "page", templateId?: string) => {
-      if (isReadOnly) {
-        toast.error("종료된 팀 공간은 읽기 전용입니다.");
-        return;
-      }
-      try {
-        const res = await fetch(`/api/workspaces/${projectId}/docs`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...(templateId
-              ? {}
-              : { title: kind === "folder" ? "새 폴더" : "제목 없음" }),
-            parentId: null,
-            kind,
-            ...(templateId ? { templateId } : {}),
-          }),
-        });
-        if (!res.ok) throw new Error("Failed");
-        const newDoc = await res.json();
-        void mutateDocs();
-        if (kind === "page") {
-          void switchActiveDoc(newDoc.id);
-        }
-        toast.success(
-          kind === "folder"
-            ? "새 폴더가 생성되었습니다."
-            : "새 문서가 생성되었습니다.",
-        );
-      } catch {
-        toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
-      }
-    },
-    [isReadOnly, mutateDocs, projectId, switchActiveDoc],
-  );
 
   const availableTasks = useMemo(() => {
     if (!boardData?.tasks) return [];
@@ -1649,16 +1710,6 @@ export function DocsView({
         debouncedUpdate.cancel();
 
         try {
-          const headerSaved = await persistDocHeader(
-            savingDocId,
-            buildHeaderPayload(savingTitle, savingEmoji, savingWorkerId),
-            { silent: true },
-          );
-
-          if (!headerSaved) {
-            throw new Error("문서 정보 저장에 실패했습니다.");
-          }
-
           const contentSaved = editorRef.current
             ? await editorRef.current.saveNow({ silent: true })
             : true;
@@ -1718,7 +1769,6 @@ export function DocsView({
       isReadOnly,
       mutateActiveDoc,
       mutateDocs,
-      persistDocHeader,
       title,
     ],
   );
@@ -1840,14 +1890,6 @@ export function DocsView({
     templateEmoji,
     templateName,
   ]);
-
-  const handleUseTemplate = useCallback(
-    async (templateId: string) => {
-      await handleCreateRootDoc("page", templateId);
-      setIsTemplateManagerOpen(false);
-    },
-    [handleCreateRootDoc],
-  );
 
   const handleRefreshTemplateFromCurrentDoc = useCallback(
     async (templateId: string) => {
@@ -2143,6 +2185,51 @@ export function DocsView({
       syncHeaderFromSummary,
       syncDocQuery,
     ],
+  );
+
+  const handleCreateRootDoc = useCallback(
+    async (kind: "page" | "folder" = "page", templateId?: string) => {
+      if (isReadOnly) {
+        toast.error("종료된 팀 공간은 읽기 전용입니다.");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/workspaces/${projectId}/docs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(templateId
+              ? {}
+              : { title: kind === "folder" ? "새 폴더" : "제목 없음" }),
+            parentId: null,
+            kind,
+            ...(templateId ? { templateId } : {}),
+          }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        const newDoc = await res.json();
+        void mutateDocs();
+        if (kind === "page") {
+          void switchActiveDoc(newDoc.id);
+        }
+        toast.success(
+          kind === "folder"
+            ? "새 폴더가 생성되었습니다."
+            : "새 문서가 생성되었습니다.",
+        );
+      } catch {
+        toast.error(kind === "folder" ? "폴더 생성 실패" : "문서 생성 실패");
+      }
+    },
+    [isReadOnly, mutateDocs, projectId, switchActiveDoc],
+  );
+
+  const handleUseTemplate = useCallback(
+    async (templateId: string) => {
+      await handleCreateRootDoc("page", templateId);
+      setIsTemplateManagerOpen(false);
+    },
+    [handleCreateRootDoc],
   );
 
   useEffect(() => {
@@ -3363,6 +3450,7 @@ export function DocsView({
                     collabToken={collabToken}
                     initialYjsState={collabInitialYjsState}
                     onStatusChange={setCollabStatus}
+                    onCheckPersisted={checkCollabPersisted}
                     onTaskLinked={() => {
                       void mutateLinkedTasks();
                     }}
@@ -3387,6 +3475,11 @@ export function DocsView({
                     workspaceId={projectId}
                     initialContent={resolvedActiveDoc?.content}
                     readOnly={isReadOnly}
+                    saveMetadata={{
+                      title,
+                      emoji: emoji ?? null,
+                      ...(docWorkerId ? { authorId: docWorkerId } : {}),
+                    }}
                     onDirtyChange={setNormalBodyDirty}
                     onTaskLinked={() => {
                       void mutateLinkedTasks();
