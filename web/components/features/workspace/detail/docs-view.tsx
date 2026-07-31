@@ -3,13 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
-import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
 import { DocCollaborationPanel } from "@/components/features/workspace/docs/doc-collaboration-panel";
 import { DocumentList } from "@/components/features/workspace/docs/document-list";
-import {
-  DocumentEditor,
-  type DocumentEditorHandle,
-} from "@/components/features/workspace/docs/editor";
 import {
   NormalDocumentEditor,
   type NormalDocumentEditorHandle,
@@ -43,8 +38,6 @@ import {
   Link2,
   Trash2,
   UserRound,
-  Users,
-  WifiOff,
   LayoutTemplate,
   CopyPlus,
   PencilLine,
@@ -106,30 +99,6 @@ type WorkspaceDocSummary = {
   parent_id: string | null;
   sort_order?: number;
   updated_at?: string;
-  collab?: WorkspaceDocCollabState;
-};
-
-type WorkspaceDocCollabParticipant = {
-  userId: string;
-  name: string;
-  avatarUrl: string | null;
-  mode: string;
-  isDirty: boolean;
-  lastSeenAt: string;
-};
-
-type WorkspaceDocCollabState = {
-  isActive: boolean;
-  participantCount: number;
-  startedAt: string | null;
-  lastActivityAt: string | null;
-  startedBy: {
-    id: string;
-    name: string;
-    avatarUrl: string | null;
-  } | null;
-  participants: WorkspaceDocCollabParticipant[];
-  currentUserParticipating: boolean;
 };
 
 type ActiveWorkspaceDoc = {
@@ -148,7 +117,6 @@ type ActiveWorkspaceDoc = {
     nickname: string | null;
     avatar_url: string | null;
   } | null;
-  collab?: WorkspaceDocCollabState;
 };
 
 type WorkspaceMeta = {
@@ -213,7 +181,7 @@ type EmojiSelection = {
   native?: string;
 };
 
-type EditorHandle = DocumentEditorHandle | NormalDocumentEditorHandle;
+type EditorHandle = NormalDocumentEditorHandle;
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -245,9 +213,9 @@ const formatMetaDate = (value?: string | Date | null) => {
 };
 
 const formatSavedTime = (value?: string | null) => {
-  if (!value) return "실시간 동기화";
+  if (!value) return "저장 대기";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "실시간 동기화";
+  if (Number.isNaN(date.getTime())) return "저장 대기";
   return `${new Intl.DateTimeFormat("ko-KR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -381,19 +349,6 @@ export function DocsView({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isOrganizeMode, setIsOrganizeMode] = useState(false);
-  const [editorMode, setEditorMode] = useState<"normal" | "collab">("normal");
-  const [collabToken, setCollabToken] = useState<string | null>(null);
-  const [collabInitialYjsState, setCollabInitialYjsState] = useState<
-    string | null
-  >(null);
-  const [collabStatus, setCollabStatus] = useState<
-    "connecting" | "saving" | "synced" | "unstable"
-  >("synced");
-  const [collabParticipants, setCollabParticipants] = useState<
-    WorkspaceDocCollabParticipant[]
-  >([]);
-  const [isStartingCollab, setIsStartingCollab] = useState(false);
-  const [isLeavingCollab, setIsLeavingCollab] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
   const [isSwitchingDoc, setIsSwitchingDoc] = useState(false);
   const [isDocsBootstrapping, setIsDocsBootstrapping] = useState(false);
@@ -430,7 +385,6 @@ export function DocsView({
     emoji: null,
     docWorkerId: "",
   });
-  const activeDocModeRef = useRef<"NORMAL" | "COLLAB">("NORMAL");
   const activeDocDirtyRef = useRef(false);
   const activeDocIdRef = useRef<string | null>(null);
   const initialDocIdRef = useRef<string | null | undefined>(undefined);
@@ -443,8 +397,6 @@ export function DocsView({
     docId: string | null;
     options?: { syncQuery?: boolean };
   } | null>(null);
-  const suppressedCollabAutoJoinDocIdRef = useRef<string | null>(null);
-  const pendingCollabEntryDocIdRef = useRef<string | null>(null);
   const headerDraftRef = useRef<{
     docId: string | null;
     title: string;
@@ -456,7 +408,6 @@ export function DocsView({
     emoji: null,
     docWorkerId: "",
   });
-  const headerSaveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
 
   // Active Doc Data (If Selected)
@@ -470,9 +421,8 @@ export function DocsView({
     {
       ...swrOptions,
       dedupingInterval: 1_500,
-      // Live collaborative edits flow through the y-websocket channel, so the
-      // active doc body does not need a 2s HTTP poll fighting the editor for the
-      // main thread. Keep a slow background refetch as a safety net only.
+      // Avoid re-rendering the editor shell while the user is typing. Normal
+      // saves explicitly refresh the active document after persistence.
       refreshInterval: activeDocId ? 30_000 : 0,
     },
   );
@@ -534,13 +484,6 @@ export function DocsView({
     const entries = (docs || []).map((doc) => [doc.id, doc] as const);
     return new Map(entries);
   }, [docs]);
-
-  const activeDocCollabState = useMemo(
-    () =>
-      resolvedActiveDoc?.collab ??
-      (activeDocId ? docMap.get(activeDocId)?.collab : undefined),
-    [activeDocId, docMap, resolvedActiveDoc],
-  );
 
   useEffect(() => {
     headerDraftRef.current = {
@@ -828,151 +771,17 @@ export function DocsView({
 
   const normalDocDirty =
     !isReadOnly &&
-    editorMode === "normal" &&
     (isHeaderDirty ||
       normalBodyDirty ||
       editorRef.current?.hasUnsavedChanges());
 
   useEffect(() => {
-    activeDocModeRef.current = editorMode === "collab" ? "COLLAB" : "NORMAL";
     activeDocDirtyRef.current = Boolean(normalDocDirty);
-  }, [editorMode, normalDocDirty]);
+  }, [normalDocDirty]);
 
   useEffect(() => {
     activeDocIdRef.current = activeDocId;
   }, [activeDocId]);
-
-  useEffect(() => {
-    if (
-      suppressedCollabAutoJoinDocIdRef.current &&
-      suppressedCollabAutoJoinDocIdRef.current !== activeDocId
-    ) {
-      suppressedCollabAutoJoinDocIdRef.current = null;
-    }
-
-    if (
-      pendingCollabEntryDocIdRef.current &&
-      pendingCollabEntryDocIdRef.current !== activeDocId
-    ) {
-      pendingCollabEntryDocIdRef.current = null;
-    }
-  }, [activeDocId]);
-
-  useEffect(() => {
-    if (editorMode !== "collab") {
-      setCollabToken(null);
-      setCollabInitialYjsState(null);
-      setCollabStatus("synced");
-      setCollabParticipants([]);
-    }
-  }, [editorMode]);
-
-  useEffect(() => {
-    if (editorMode !== "collab" || !activeDocId || !collabToken) {
-      return;
-    }
-
-    let cancelled = false;
-    const refreshToken = async () => {
-      try {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/docs/${activeDocId}/collab/token`,
-          { cache: "no-store" },
-        );
-        const payload = (await response.json().catch(() => null)) as {
-          token?: string;
-          error?: string;
-        } | null;
-
-        if (!response.ok || !payload?.token) {
-          throw new Error(
-            payload?.error || "협업 연결을 갱신하지 못했습니다.",
-          );
-        }
-
-        if (!cancelled) {
-          setCollabToken(payload.token);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Doc collaboration token refresh failed", error);
-          setCollabStatus("unstable");
-        }
-      }
-    };
-
-    const intervalId = window.setInterval(() => {
-      void refreshToken();
-    }, 4 * 60 * 1_000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [activeDocId, collabToken, editorMode, projectId]);
-
-  const checkCollabPersisted = useCallback(
-    async (changedAt: number) => {
-      if (!activeDocId) return false;
-
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/docs/${activeDocId}/collab/status`,
-          { cache: "no-store" },
-        );
-        const payload = (await response.json().catch(() => null)) as {
-          persistedAt?: string | null;
-          error?: string;
-        } | null;
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.error || "협업 저장 상태를 확인하지 못했습니다.",
-          );
-        }
-
-        const persistedAt = payload?.persistedAt
-          ? Date.parse(payload.persistedAt)
-          : Number.NaN;
-        if (Number.isFinite(persistedAt) && persistedAt >= changedAt) {
-          setLastSavedAt(payload?.persistedAt ?? null);
-          return true;
-        }
-
-        if (attempt < 2) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1_500));
-        }
-      }
-
-      return false;
-    },
-    [activeDocId, projectId],
-  );
-
-  useEffect(() => {
-    if (!activeDocCollabState?.isActive) {
-      setCollabParticipants([]);
-      return;
-    }
-
-    setCollabParticipants(activeDocCollabState.participants);
-  }, [activeDocCollabState]);
-
-  useEffect(() => {
-    if (!activeDocId || !activeDocCollabState?.isActive) {
-      return;
-    }
-
-    if (activeDocCollabState.currentUserParticipating) {
-      if (pendingCollabEntryDocIdRef.current === activeDocId) {
-        pendingCollabEntryDocIdRef.current = null;
-      }
-
-      if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
-        suppressedCollabAutoJoinDocIdRef.current = null;
-      }
-    }
-  }, [activeDocCollabState, activeDocId]);
 
   useEffect(() => {
     if (sidebarMode === "archived" && isOrganizeMode) {
@@ -1306,60 +1115,6 @@ export function DocsView({
     void mutateArchivedDocs();
   }, [mutateArchivedDocs, mutateDocs]);
 
-  const sendCollabLeaveBeacon = useCallback(
-    (docId: string) => {
-      const url = `/api/workspaces/${projectId}/docs/${docId}/collab/leave`;
-
-      if (
-        typeof navigator !== "undefined" &&
-        typeof navigator.sendBeacon === "function"
-      ) {
-        try {
-          const sent = navigator.sendBeacon(
-            url,
-            new Blob([], { type: "application/json" }),
-          );
-          if (sent) {
-            return;
-          }
-        } catch {
-          // Fall through to keepalive fetch.
-        }
-      }
-
-      void fetch(url, {
-        method: "POST",
-        keepalive: true,
-      }).catch(() => undefined);
-    },
-    [projectId],
-  );
-
-  const syncDocPresence = useCallback(
-    async (
-      docId: string,
-      body: {
-        mode: "NORMAL" | "COLLAB";
-        isDirty: boolean;
-        active?: boolean;
-      },
-    ) => {
-      try {
-        await fetch(
-          `/api/workspaces/${projectId}/docs/${docId}/collab/presence`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            keepalive: body.active === false,
-          },
-        );
-      } catch (error) {
-        console.error("Doc presence sync failed", error);
-      }
-    },
-    [projectId],
-  );
   const permanentlyDeleteDoc = useCallback(
     async (docId: string) => {
       const res = await fetch(
@@ -1588,115 +1343,9 @@ export function DocsView({
     [activeDocId, docs, refreshDocs, syncDocQuery],
   );
 
-  const persistDocHeaderRequest = useCallback(
-    async (
-      docId: string,
-      updates: Record<string, unknown>,
-      options?: { silent?: boolean },
-    ) => {
-      if (isReadOnly) {
-        return true;
-      }
-
-      try {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/docs/${docId}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updates),
-          },
-        );
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(
-            payload?.error || payload?.message || "저장에 실패했습니다.",
-          );
-        }
-
-        void mutateDocs();
-        if (activeDocIdRef.current === docId) {
-          void mutateActiveDoc();
-        }
-        return true;
-      } catch (error) {
-        console.error("Doc metadata save failed", error);
-        if (!options?.silent) {
-          toast.error(
-            error instanceof Error ? error.message : "저장에 실패했습니다.",
-          );
-        }
-        return false;
-      }
-    },
-    [isReadOnly, mutateActiveDoc, mutateDocs, projectId],
-  );
-
-  const persistDocHeader = useCallback(
-    (
-      docId: string,
-      updates: Record<string, unknown>,
-      options?: { silent?: boolean },
-    ) => {
-      const run = () => persistDocHeaderRequest(docId, updates, options);
-      const next = headerSaveChainRef.current.then(run, run);
-      headerSaveChainRef.current = next.catch(() => true);
-      return next;
-    },
-    [persistDocHeaderRequest],
-  );
-
-  const buildHeaderPayload = useCallback(
-    (
-      nextTitle: string,
-      nextEmoji: string | null,
-      nextWorkerId: string,
-    ): Record<string, unknown> => ({
-      title: nextTitle,
-      emoji: nextEmoji,
-      ...(nextWorkerId ? { authorId: nextWorkerId } : {}),
-    }),
-    [],
-  );
-
-  const debouncedUpdate = useDebouncedCallback(
-    async (payload: {
-      docId: string;
-      title: string;
-      emoji: string | null;
-      docWorkerId: string;
-    }) => {
-      const saved = await persistDocHeader(
-        payload.docId,
-        buildHeaderPayload(payload.title, payload.emoji, payload.docWorkerId),
-        { silent: true },
-      );
-      if (!saved) return;
-
-      if (activeDocIdRef.current === payload.docId) {
-        applyHeaderBaseline(
-          payload.docId,
-          payload.title,
-          payload.emoji,
-          payload.docWorkerId,
-          headerDraftRef.current,
-        );
-      }
-    },
-    1000,
-  );
-
-  const flushPendingHeaderSave = useCallback(async () => {
-    const flushed = debouncedUpdate.flush();
-    const flushedResult = await Promise.resolve(flushed ?? true);
-    const chainedResult = await headerSaveChainRef.current;
-    return flushedResult !== false && chainedResult !== false;
-  }, [debouncedUpdate]);
-
   const handleSaveCurrentDoc = useCallback(
     (options?: { silent?: boolean }) => {
-      if (isReadOnly || !activeDocId || editorMode !== "normal") {
+      if (isReadOnly || !activeDocId) {
         return Promise.resolve(true);
       }
 
@@ -1707,8 +1356,6 @@ export function DocsView({
         const savingWorkerId = docWorkerId;
 
         setIsSavingDocument(true);
-        debouncedUpdate.cancel();
-
         try {
           const contentSaved = editorRef.current
             ? await editorRef.current.saveNow({ silent: true })
@@ -1761,11 +1408,8 @@ export function DocsView({
     [
       activeDocId,
       applyHeaderBaseline,
-      debouncedUpdate,
       docWorkerId,
-      editorMode,
       emoji,
-      buildHeaderPayload,
       isReadOnly,
       mutateActiveDoc,
       mutateDocs,
@@ -1802,30 +1446,16 @@ export function DocsView({
       return false;
     }
 
-    if (editorMode === "normal") {
-      const saved = await handleSaveCurrentDoc({ silent: true });
-      if (!saved) {
-        toast.error("현재 문서를 저장하지 못해 템플릿으로 만들 수 없습니다.");
-        return false;
-      }
-    } else {
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        toast.error(
-          "현재 문서 정보를 저장하지 못해 템플릿으로 만들 수 없습니다.",
-        );
-        return false;
-      }
-      await mutateActiveDoc();
+    const saved = await handleSaveCurrentDoc({ silent: true });
+    if (!saved) {
+      toast.error("현재 문서를 저장하지 못해 템플릿으로 만들 수 없습니다.");
+      return false;
     }
 
     return true;
   }, [
     activePageDoc,
-    editorMode,
-    flushPendingHeaderSave,
     handleSaveCurrentDoc,
-    mutateActiveDoc,
   ]);
 
   const handleCreateTemplate = useCallback(async () => {
@@ -2040,49 +1670,6 @@ export function DocsView({
     [mutateTemplates, projectId],
   );
 
-  const leaveDocCollab = useCallback(
-    async (docId: string, options?: { silent?: boolean }) => {
-      const response = await fetch(
-        `/api/workspaces/${projectId}/docs/${docId}/collab/leave`,
-        {
-          method: "POST",
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as {
-        error?: string;
-        ended?: boolean;
-        collab?: WorkspaceDocCollabState;
-      } | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "협업 나가기에 실패했습니다.");
-      }
-
-      setEditorMode("normal");
-      setCollabToken(null);
-      setCollabInitialYjsState(null);
-      setCollabStatus("synced");
-      setCollabParticipants(payload?.collab?.participants ?? []);
-      void mutateDocs();
-      void mutateActiveDoc();
-
-      if (!options?.silent) {
-        toast.success(
-          payload?.ended
-            ? "협업을 종료하고 일반 편집으로 전환했습니다."
-            : "협업에서 나갔습니다.",
-        );
-      }
-
-      return {
-        ended: Boolean(payload?.ended),
-        collab: payload?.collab ?? null,
-      };
-    },
-    [mutateActiveDoc, mutateDocs, projectId],
-  );
-
   const switchActiveDoc = useCallback(
     async (docId: string | null, options?: { syncQuery?: boolean }) => {
       if (switchingDocRef.current) {
@@ -2094,37 +1681,19 @@ export function DocsView({
 
       switchingDocRef.current = true;
       setIsSwitchingDoc(true);
-      debouncedUpdate.cancel();
       try {
         try {
           const previousDocId = activeDocIdRef.current;
 
-          if (previousDocId) {
-            if (editorMode === "collab") {
-              suppressedCollabAutoJoinDocIdRef.current = previousDocId;
-              pendingCollabEntryDocIdRef.current = null;
-              const headerSaved = await flushPendingHeaderSave();
-              if (!headerSaved) {
-                toast.error(
-                  "현재 문서 정보를 저장하지 못해 이동을 취소했습니다.",
-                );
-                return;
-              }
-
-              const leaveResult = await leaveDocCollab(previousDocId, {
-                silent: true,
-              });
-              toast.success(
-                leaveResult.ended
-                  ? "현재 문서를 떠나면서 협업이 종료되었습니다."
-                  : "현재 문서 협업에서 나갔습니다.",
-              );
-            } else if (!isReadOnly && (normalDocDirty || isSavingDocument)) {
-              const saved = await handleSaveCurrentDoc({ silent: true });
-              if (!saved) {
-                toast.error("현재 문서를 저장하지 못해 이동을 취소했습니다.");
-                return;
-              }
+          if (
+            previousDocId &&
+            !isReadOnly &&
+            (normalDocDirty || isSavingDocument)
+          ) {
+            const saved = await handleSaveCurrentDoc({ silent: true });
+            if (!saved) {
+              toast.error("현재 문서를 저장하지 못해 이동을 취소했습니다.");
+              return;
             }
           }
 
@@ -2172,14 +1741,10 @@ export function DocsView({
       }
     },
     [
-      debouncedUpdate,
       docMap,
-      editorMode,
-      flushPendingHeaderSave,
       handleSaveCurrentDoc,
       isReadOnly,
       isSavingDocument,
-      leaveDocCollab,
       normalDocDirty,
       syncHeaderFromResolvedDoc,
       syncHeaderFromSummary,
@@ -2258,156 +1823,8 @@ export function DocsView({
   );
 
   useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
-
-    void syncDocPresence(activeDocId, {
-      mode: activeDocModeRef.current,
-      isDirty: activeDocDirtyRef.current,
-      active: true,
-    });
-
-    const intervalId = window.setInterval(() => {
-      void syncDocPresence(activeDocId, {
-        mode: activeDocModeRef.current,
-        isDirty: activeDocDirtyRef.current,
-        active: true,
-      });
-    }, 10_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-      void syncDocPresence(activeDocId, {
-        mode: activeDocModeRef.current,
-        isDirty: false,
-        active: false,
-      });
-    };
-  }, [activeDocId, isReadOnly, syncDocPresence]);
-
-  useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
-
-    void syncDocPresence(activeDocId, {
-      mode: activeDocModeRef.current,
-      isDirty: activeDocDirtyRef.current,
-      active: true,
-    });
-  }, [activeDocId, editorMode, isReadOnly, normalDocDirty, syncDocPresence]);
-
-  useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
-
-    if (editorMode !== "collab" || isLeavingCollab || isSwitchingDoc) {
-      return;
-    }
-
-    if (pendingCollabEntryDocIdRef.current === activeDocId) {
-      return;
-    }
-
-    if (typeof activeDocCollabState === "undefined") {
-      return;
-    }
-
-    if (!activeDocCollabState.isActive) {
-      setEditorMode("normal");
-      setCollabToken(null);
-      setCollabInitialYjsState(null);
-      setCollabStatus("synced");
-      toast.info("현재 문서 협업이 종료되어 일반 편집으로 전환되었습니다.");
-      return;
-    }
-  }, [
-    activeDocCollabState,
-    activeDocId,
-    editorMode,
-    isLeavingCollab,
-    isReadOnly,
-    isSwitchingDoc,
-  ]);
-
-  useEffect(() => {
-    if (!activeDocId || isReadOnly) return;
-
-    if (editorMode === "collab" || isLeavingCollab || isSwitchingDoc) {
-      return;
-    }
-
-    if (!activeDocCollabState?.isActive) {
-      return;
-    }
-
-    if (suppressedCollabAutoJoinDocIdRef.current === activeDocId) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    const joinActiveCollab = async () => {
-      try {
-        const response = await fetch(
-          `/api/workspaces/${projectId}/docs/${activeDocId}/collab/token`,
-        );
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-          token?: string;
-          collab?: WorkspaceDocCollabState;
-        } | null;
-
-        if (!response.ok) {
-          if (response.status !== 409) {
-            throw new Error(
-              payload?.error || "협업 문서에 연결할 수 없습니다.",
-            );
-          }
-          return;
-        }
-
-        if (isCancelled || !payload?.token) return;
-
-        pendingCollabEntryDocIdRef.current = activeDocId;
-        suppressedCollabAutoJoinDocIdRef.current = null;
-        await syncDocPresence(activeDocId, {
-          mode: "COLLAB",
-          isDirty: false,
-          active: true,
-        });
-        setCollabToken(payload.token);
-        setCollabInitialYjsState(null);
-        setCollabParticipants(payload.collab?.participants ?? []);
-        setCollabStatus("connecting");
-        setEditorMode("collab");
-      } catch (error) {
-        if (!isCancelled) {
-          console.error("Doc collab join failed", error);
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "협업 문서 연결에 실패했습니다.",
-          );
-        }
-      }
-    };
-
-    void joinActiveCollab();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [
-    activeDocCollabState,
-    activeDocId,
-    editorMode,
-    isLeavingCollab,
-    isReadOnly,
-    isSwitchingDoc,
-    projectId,
-    syncDocPresence,
-  ]);
-
-  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (editorMode !== "normal" || isReadOnly) return;
+      if (isReadOnly) return;
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() !== "s") return;
 
@@ -2419,25 +1836,15 @@ export function DocsView({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [editorMode, handleSaveCurrentDoc, isReadOnly]);
+  }, [handleSaveCurrentDoc, isReadOnly]);
 
-  useEffect(() => () => debouncedUpdate.cancel(), [debouncedUpdate]);
   useEffect(
     () => () => persistWorkspaceViewSettings.cancel(),
     [persistWorkspaceViewSettings],
   );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value;
-    setTitle(newTitle);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title: newTitle,
-        emoji: emoji ?? null,
-        docWorkerId,
-      });
-    }
+    setTitle(e.target.value);
   };
 
   const reflectActiveDocEmojiInTree = useCallback(
@@ -2460,207 +1867,22 @@ export function DocsView({
     const nextEmoji = emojiData.native ?? null;
     setEmoji(nextEmoji);
     reflectActiveDocEmojiInTree(nextEmoji);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji: nextEmoji,
-        docWorkerId,
-      });
-    }
     setIsEmojiPickerOpen(false);
   };
 
   const handleRemoveEmoji = () => {
     setEmoji(null);
     reflectActiveDocEmojiInTree(null);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji: null,
-        docWorkerId,
-      });
-    }
   };
 
   const handleDocWorkerChange = (value: string) => {
     setDocWorkerId(value);
-    if (editorMode === "collab" && activeDocId) {
-      debouncedUpdate({
-        docId: activeDocId,
-        title,
-        emoji: emoji ?? null,
-        docWorkerId: value,
-      });
-    }
   };
-
-  const handleStartCollab = useCallback(async () => {
-    const targetDocId = activeDocIdRef.current;
-    if (
-      isReadOnly ||
-      !targetDocId ||
-      editorMode === "collab" ||
-      switchingDocRef.current ||
-      isSwitchingDoc ||
-      isLoadingActiveDoc
-    ) {
-      return;
-    }
-
-    setIsStartingCollab(true);
-    try {
-      const saved = await handleSaveCurrentDoc({ silent: true });
-      if (!saved) {
-        throw new Error("협업 시작 전에 문서를 저장하지 못했습니다.");
-      }
-
-      await syncDocPresence(targetDocId, {
-        mode: "NORMAL",
-        isDirty: false,
-        active: true,
-      });
-
-      const response = await fetch(
-        `/api/workspaces/${projectId}/docs/${targetDocId}/collab/start`,
-        {
-          method: "POST",
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as {
-        error?: string;
-        token?: string;
-        seedState?: string | null;
-        blockers?: Array<{ userId: string; name: string }>;
-        collab?: WorkspaceDocCollabState;
-      } | null;
-
-      if (!response.ok) {
-        const blockerNames =
-          payload?.blockers?.map((blocker) => blocker.name) ?? [];
-        const suffix =
-          blockerNames.length > 0 ? ` (${blockerNames.join(", ")})` : "";
-        throw new Error(
-          `${payload?.error || "협업 시작에 실패했습니다."}${suffix}`,
-        );
-      }
-
-      if (!payload?.token) {
-        throw new Error("협업 토큰을 받지 못했습니다.");
-      }
-
-      pendingCollabEntryDocIdRef.current = targetDocId;
-      suppressedCollabAutoJoinDocIdRef.current = null;
-      await syncDocPresence(targetDocId, {
-        mode: "COLLAB",
-        isDirty: false,
-        active: true,
-      });
-
-      setCollabToken(payload.token);
-      setCollabInitialYjsState(payload.seedState ?? null);
-      setCollabParticipants(payload.collab?.participants ?? []);
-      setCollabStatus("connecting");
-      setEditorMode("collab");
-      void mutateDocs();
-      void mutateActiveDoc();
-      toast.success("협업을 시작했습니다.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "협업 시작에 실패했습니다.",
-      );
-    } finally {
-      setIsStartingCollab(false);
-    }
-  }, [
-    editorMode,
-    handleSaveCurrentDoc,
-    isLoadingActiveDoc,
-    isReadOnly,
-    isSwitchingDoc,
-    mutateActiveDoc,
-    mutateDocs,
-    projectId,
-    syncDocPresence,
-  ]);
-
-  const handleLeaveCollab = useCallback(async () => {
-    if (!activeDocId || editorMode !== "collab") return;
-
-    setIsLeavingCollab(true);
-    try {
-      suppressedCollabAutoJoinDocIdRef.current = activeDocId;
-      pendingCollabEntryDocIdRef.current = null;
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        throw new Error("문서 정보를 저장하지 못해 협업에서 나갈 수 없습니다.");
-      }
-
-      const result = await leaveDocCollab(activeDocId, { silent: true });
-      if (result.ended) {
-        await mutateActiveDoc();
-        toast.success("협업을 종료하고 일반 편집으로 돌아왔습니다.");
-        return;
-      }
-
-      setActiveDocId(null);
-      syncDocQuery(null);
-      toast.success(
-        "협업에서 나갔습니다. 다른 팀원이 계속 편집 중이어서 문서를 닫았습니다.",
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "협업 나가기에 실패했습니다.",
-      );
-    } finally {
-      setIsLeavingCollab(false);
-    }
-  }, [
-    activeDocId,
-    editorMode,
-    flushPendingHeaderSave,
-    leaveDocCollab,
-    mutateActiveDoc,
-    syncDocQuery,
-  ]);
 
   const handleBeforeLeaveDocs = useCallback(async () => {
     const currentDocId = activeDocIdRef.current;
     if (!currentDocId) {
       return true;
-    }
-
-    if (activeDocModeRef.current === "COLLAB") {
-      suppressedCollabAutoJoinDocIdRef.current = currentDocId;
-      pendingCollabEntryDocIdRef.current = null;
-      const headerSaved = await flushPendingHeaderSave();
-      if (!headerSaved) {
-        toast.error(
-          "현재 문서 정보를 저장하지 못해 화면을 이동하지 않았습니다.",
-        );
-        return false;
-      }
-
-      try {
-        const leaveResult = await leaveDocCollab(currentDocId, {
-          silent: true,
-        });
-        toast.success(
-          leaveResult.ended
-            ? "문서 탭을 벗어나며 현재 협업이 종료되었습니다."
-            : "문서 탭을 벗어나며 현재 협업에서 나갔습니다.",
-        );
-        return true;
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "협업을 종료하지 못해 화면을 이동하지 않았습니다.",
-        );
-        return false;
-      }
     }
 
     if (activeDocDirtyRef.current || isSavingDocument) {
@@ -2672,12 +1894,7 @@ export function DocsView({
     }
 
     return true;
-  }, [
-    flushPendingHeaderSave,
-    handleSaveCurrentDoc,
-    isSavingDocument,
-    leaveDocCollab,
-  ]);
+  }, [handleSaveCurrentDoc, isSavingDocument]);
 
   useEffect(
     () => registerDocsBeforeLeaveHandler(handleBeforeLeaveDocs),
@@ -2686,11 +1903,7 @@ export function DocsView({
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (activeDocModeRef.current === "COLLAB") {
-        if (!isHeaderDirty) {
-          return;
-        }
-      } else if (!activeDocDirtyRef.current && !isSavingDocument) {
+      if (!activeDocDirtyRef.current && !isSavingDocument) {
         return;
       }
 
@@ -2702,24 +1915,7 @@ export function DocsView({
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [isHeaderDirty, isSavingDocument]);
-
-  useEffect(() => {
-    if (editorMode !== "collab") return;
-
-    const handlePageHide = () => {
-      const currentDocId = activeDocIdRef.current;
-      if (!currentDocId) return;
-
-      void flushPendingHeaderSave();
-      sendCollabLeaveBeacon(currentDocId);
-    };
-
-    window.addEventListener("pagehide", handlePageHide);
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [editorMode, flushPendingHeaderSave, sendCollabLeaveBeacon]);
+  }, [isSavingDocument]);
 
   const docWorkerName =
     workspaceMeta?.members?.find((member) => member.id === docWorkerId)?.name ||
@@ -2739,17 +1935,6 @@ export function DocsView({
       ? "이동 전 저장 중..."
       : "문서를 전환하는 중..."
     : "문서를 불러오는 중...";
-  const collabBadgeVisible =
-    editorMode === "collab" || Boolean(resolvedActiveDoc?.collab?.isActive);
-  const collabParticipantList = collabParticipants.slice(0, 4);
-  const collabStatusText =
-    collabStatus === "connecting"
-      ? "연결 중"
-      : collabStatus === "saving"
-        ? "실시간 저장 중"
-        : collabStatus === "unstable"
-          ? "연결 불안정"
-          : "동기화 완료";
   const normalStatusText = isSavingDocument
     ? "저장 중..."
     : normalDocDirty
@@ -3117,108 +2302,35 @@ export function DocsView({
               </div>
 
               <div className="flex items-center gap-2">
-                {collabBadgeVisible && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    협업 중
-                  </span>
-                )}
-                {collabParticipantList.length > 0 && (
-                  <div className="hidden items-center -space-x-2 sm:flex">
-                    {collabParticipantList.map((participant) => (
-                      <WorkspaceUserAvatar
-                        key={participant.userId}
-                        name={participant.name}
-                        avatarUrl={participant.avatarUrl}
-                        className="h-7 w-7 border-2 border-background shadow-sm"
-                        fallbackClassName="bg-emerald-100 text-[10px] font-semibold text-emerald-700"
-                      />
-                    ))}
-                    {collabParticipants.length >
-                      collabParticipantList.length && (
-                      <span className="ml-2 inline-flex h-7 items-center rounded-full border bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                        +
-                        {collabParticipants.length -
-                          collabParticipantList.length}
-                      </span>
-                    )}
-                  </div>
-                )}
                 {isReadOnly && (
                   <span className="text-[11px] text-muted-foreground rounded-md border bg-muted/30 px-2 py-1 mr-2">
                     읽기 전용
                   </span>
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {editorMode === "collab" ? (
-                    collabStatus === "unstable" ? (
-                      <WifiOff className="h-3.5 w-3.5 text-amber-500" />
-                    ) : collabStatus === "connecting" ||
-                      collabStatus === "saving" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    )
-                  ) : isSavingDocument ? (
+                  {isSavingDocument ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   ) : (
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                   )}
-                  <span className="hidden sm:inline">
-                    {editorMode === "collab"
-                      ? collabStatusText
-                      : normalStatusText}
-                  </span>
+                  <span className="hidden sm:inline">{normalStatusText}</span>
                 </div>
-                {!isReadOnly && editorMode === "collab" ? (
+                {!isReadOnly ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="h-8 gap-1.5"
-                    onClick={() => void handleLeaveCollab()}
-                    disabled={isLeavingCollab}
+                    onClick={() => void handleSaveCurrentDoc()}
+                    disabled={isSavingDocument || !resolvedActiveDoc}
                   >
-                    {isLeavingCollab ? (
+                    {isSavingDocument ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Users className="h-3.5 w-3.5" />
+                      <Save className="h-3.5 w-3.5" />
                     )}
-                    협업 나가기
+                    저장
                   </Button>
-                ) : !isReadOnly ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5"
-                      onClick={() => void handleStartCollab()}
-                      disabled={isStartingCollab || !resolvedActiveDoc}
-                    >
-                      {isStartingCollab ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Users className="h-3.5 w-3.5" />
-                      )}
-                      협업 시작
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5"
-                      onClick={() => void handleSaveCurrentDoc()}
-                      disabled={isSavingDocument || !resolvedActiveDoc}
-                    >
-                      {isSavingDocument ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Save className="h-3.5 w-3.5" />
-                      )}
-                      저장
-                    </Button>
-                  </>
                 ) : null}
               </div>
             </header>
@@ -3440,64 +2552,35 @@ export function DocsView({
                   <div className="h-px bg-border my-6" />
                 </div>
 
-                {editorMode === "collab" && collabToken ? (
-                  <DocumentEditor
-                    ref={editorRef}
-                    key={`collab-${activeDocId}`}
-                    docId={activeDocId}
-                    workspaceId={projectId}
-                    readOnly={isReadOnly}
-                    collabToken={collabToken}
-                    initialYjsState={collabInitialYjsState}
-                    onStatusChange={setCollabStatus}
-                    onCheckPersisted={checkCollabPersisted}
-                    onTaskLinked={() => {
-                      void mutateLinkedTasks();
-                    }}
-                    onOpenTask={handleOpenTaskLocally}
-                    user={
-                      user
-                        ? {
-                            name:
-                              profile?.nickname ||
-                              user.email?.split("@")[0] ||
-                              "User",
-                            color: stringToColor(user.id),
-                          }
-                        : undefined
-                    }
-                  />
-                ) : (
-                  <NormalDocumentEditor
-                    ref={editorRef}
-                    key={`normal-${activeDocId}`}
-                    docId={activeDocId}
-                    workspaceId={projectId}
-                    initialContent={resolvedActiveDoc?.content}
-                    readOnly={isReadOnly}
-                    saveMetadata={{
-                      title,
-                      emoji: emoji ?? null,
-                      ...(docWorkerId ? { authorId: docWorkerId } : {}),
-                    }}
-                    onDirtyChange={setNormalBodyDirty}
-                    onTaskLinked={() => {
-                      void mutateLinkedTasks();
-                    }}
-                    onOpenTask={handleOpenTaskLocally}
-                    user={
-                      user
-                        ? {
-                            name:
-                              profile?.nickname ||
-                              user.email?.split("@")[0] ||
-                              "User",
-                            color: stringToColor(user.id),
-                          }
-                        : undefined
-                    }
-                  />
-                )}
+                <NormalDocumentEditor
+                  ref={editorRef}
+                  key={`normal-${activeDocId}`}
+                  docId={activeDocId}
+                  workspaceId={projectId}
+                  initialContent={resolvedActiveDoc?.content}
+                  readOnly={isReadOnly}
+                  saveMetadata={{
+                    title,
+                    emoji: emoji ?? null,
+                    ...(docWorkerId ? { authorId: docWorkerId } : {}),
+                  }}
+                  onDirtyChange={setNormalBodyDirty}
+                  onTaskLinked={() => {
+                    void mutateLinkedTasks();
+                  }}
+                  onOpenTask={handleOpenTaskLocally}
+                  user={
+                    user
+                      ? {
+                          name:
+                            profile?.nickname ||
+                            user.email?.split("@")[0] ||
+                            "User",
+                          color: stringToColor(user.id),
+                        }
+                      : undefined
+                  }
+                />
               </div>
 
               <DocCollaborationPanel

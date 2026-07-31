@@ -1,7 +1,7 @@
 import { IncomingMessage, Server } from "http";
 import { WebSocketServer } from "ws";
 import { setupWSConnection, extractDocNameFromRequestUrl } from "./yjs-utils";
-import { verifyWorkspaceDocCollabToken } from "./workspace-doc-collab-token";
+import { verifyWorkspaceWhiteboardToken } from "./workspace-whiteboard-token";
 import { isAllowedOrigin } from "../../config/env";
 
 const MAX_YJS_PAYLOAD_BYTES = 8 * 1024 * 1024;
@@ -22,9 +22,8 @@ function authorizeYjsUpgrade(request: IncomingMessage) {
   );
   const roomName = extractDocNameFromRequestUrl(requestUrl);
 
-  const isDocRoom = roomName.startsWith("doc:");
   const isWhiteboardRoom = roomName.startsWith("whiteboard:");
-  if (!isDocRoom && !isWhiteboardRoom) {
+  if (!isWhiteboardRoom) {
     return {
       ok: false as const,
       roomName,
@@ -43,13 +42,10 @@ function authorizeYjsUpgrade(request: IncomingMessage) {
     };
   }
 
-  const payload = verifyWorkspaceDocCollabToken(token);
-  const targetId = isDocRoom
-    ? roomName.slice("doc:".length)
-    : roomName.slice("whiteboard:".length);
-  const matchesTarget = isDocRoom
-    ? payload?.docId === targetId
-    : payload?.whiteboardId === targetId && payload.workspaceId === targetId;
+  const payload = verifyWorkspaceWhiteboardToken(token);
+  const targetId = roomName.slice("whiteboard:".length);
+  const matchesTarget =
+    payload?.whiteboardId === targetId && payload.workspaceId === targetId;
 
   if (!payload || !matchesTarget) {
     return {

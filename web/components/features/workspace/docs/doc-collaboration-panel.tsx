@@ -181,7 +181,7 @@ export function DocCollaborationPanel({
     <>
       <div
         role="separator"
-        aria-label="문서 협업 패널 너비 조절"
+        aria-label="문서 보조 패널 너비 조절"
         aria-orientation="vertical"
         tabIndex={0}
         onPointerDown={handleResizeStart}

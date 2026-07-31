@@ -20,7 +20,6 @@ const docLoadPromises = new Map<string, Promise<WSSharedDoc>>();
 let isYjsShuttingDown = false;
 
 type RoomTarget =
-  | { kind: "doc"; id: string }
   | { kind: "whiteboard"; id: string }
   | { kind: "unknown"; raw: string };
 
@@ -31,13 +30,6 @@ function isWorkspaceEntityId(value: string) {
 }
 
 function parseRoomTarget(roomName: string): RoomTarget {
-  if (roomName.startsWith("doc:")) {
-    const id = roomName.slice(4);
-    return isWorkspaceEntityId(id)
-      ? { kind: "doc", id }
-      : { kind: "unknown", raw: roomName };
-  }
-
   if (roomName.startsWith("whiteboard:")) {
     const id = roomName.slice("whiteboard:".length);
     return isWorkspaceEntityId(id)
@@ -61,8 +53,6 @@ export function extractDocNameFromRequestUrl(requestUrl?: string | null) {
 
 function getPersistenceUrl(target: RoomTarget) {
   switch (target.kind) {
-    case "doc":
-      return `${BFF_URL}/api/collab/docs/${target.id}/state`;
     case "whiteboard":
       return `${BFF_URL}/api/workspaces/${target.id}/whiteboard`;
     default:
@@ -420,91 +410,6 @@ const closeConn = (doc: WSSharedDoc, conn: WebSocket) => {
   ) {
     conn.close();
   }
-};
-
-type ResetYjsRoomOptions = {
-  /**
-   * DB 협업 세션이 이미 종료된 경우에만 사용한다.
-   * 남아 있는 브라우저 연결과 메모리 상태를 폐기하고 일반 문서 snapshot을
-   * 다시 seed할 수 있게 한다.
-   */
-  force?: boolean;
-};
-
-export const resetYjsRoom = async (
-  roomName: string,
-  options: ResetYjsRoomOptions = {},
-) => {
-  const pendingLoad = docLoadPromises.get(roomName);
-  if (pendingLoad) {
-    await pendingLoad.catch(() => undefined);
-  }
-
-  const doc = docs.get(roomName);
-  if (!doc) {
-    return { ok: true as const, existed: false };
-  }
-
-  if (doc.conns.size > 0 && !options.force) {
-    return {
-      ok: false as const,
-      status: 409,
-      error: "Document room is still active.",
-    };
-  }
-
-  if (options.force && doc.conns.size > 0) {
-    const staleConnections = Array.from(doc.conns.keys());
-
-    // closeConn은 마지막 연결에서 저장을 예약하므로 사용하지 않는다.
-    // 이 경로에서는 DB의 일반 문서 snapshot이 기준이며, 종료된 세션의
-    // 메모리 상태가 최신 snapshot을 뒤늦게 덮으면 안 된다.
-    doc.conns.clear();
-    staleConnections.forEach((connection) => {
-      try {
-        connection.close(1012, "Collaboration session reset");
-        connection.terminate();
-      } catch (error) {
-        console.warn(`[YJS] '${roomName}' stale connection close failed`, error);
-      }
-    });
-  }
-
-  // 지연 중이거나 직전 실패 후 재시도 대기 중인 상태까지 DB에 확정한 뒤 제거한다.
-  if (!options.force) {
-    await doc.flushPersistence();
-  }
-  doc.cleanup();
-  docs.delete(roomName);
-  docLoadPromises.delete(roomName);
-  doc.destroy();
-
-  return {
-    ok: true as const,
-    existed: true,
-    forced: Boolean(options.force),
-  };
-};
-
-export const flushYjsRoom = async (roomName: string) => {
-  const pendingLoad = docLoadPromises.get(roomName);
-  if (pendingLoad) {
-    await pendingLoad.catch(() => undefined);
-  }
-
-  const doc = docs.get(roomName);
-  if (!doc) {
-    return { ok: true as const, existed: false };
-  }
-
-  doc.cancelScheduledSave();
-  await doc.flushPersistence();
-
-  return {
-    ok: true as const,
-    existed: true,
-    activeConnections: doc.conns.size,
-  };
 };
 
 export const flushAllYjsRooms = async () => {

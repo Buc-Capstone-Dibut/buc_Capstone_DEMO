@@ -101,10 +101,8 @@ flowchart LR
 
 ## 문서
 
-실제 오케스트레이터는 약 3,489줄의 `detail/docs-view.tsx`다. 편집기는 다음 두 경로로 분리된다.
-
-- 일반 편집기: `web/components/features/workspace/docs/normal-editor.tsx`
-- 협업 편집기: `web/components/features/workspace/docs/editor.tsx`
+실제 오케스트레이터는 `detail/docs-view.tsx`이며 편집기는
+`web/components/features/workspace/docs/normal-editor.tsx` 하나를 사용한다.
 
 ### 현재 기능
 
@@ -114,38 +112,18 @@ flowchart LR
 - 문서 파일 자산 업로드·조회·삭제
 - 댓글, 답글, block anchor, resolve
 - 태스크 연결과 문서 본문의 `#` 태스크 참조
-- 일반 편집과 명시적 실시간 협업 모드
+- 명시적 저장과 탭 이탈 전 저장
 
 ### 일반 편집
 
 1. BlockNote block JSON을 로컬 dirty 상태로 관리한다.
 2. 수동 저장, `Ctrl/Cmd+S`, 탭 이탈 전 저장으로 `/docs/:docId/save`를 호출한다.
 3. 일반 저장은 `workspace_docs.content`를 갱신한다.
-4. 기존 Yjs 상태를 제거해 다음 협업 시작 시 최신 JSON snapshot으로 다시 seed한다.
-
-### 협업 편집
-
-1. 협업 시작 전에 일반 편집 내용을 저장한다.
-2. BFF가 workspace membership과 쓰기 가능 상태를 확인한다.
-3. 다른 일반 편집자에게 미저장 변경이 있으면 협업 시작을 막는다.
-4. BFF가 `docId`, `workspaceId`, `userId`, 만료 시각을 담은 5분 HMAC token을 발급한다.
-5. 클라이언트가 `doc:<docId>` Yjs room에 연결하고 BlockNote와 Y.Doc을 연결한다.
-6. workspace-server가 변경 3초 후, 연결 중 30초마다, 마지막 연결 종료 시 전체 Yjs 상태를 BFF에 저장한다.
-7. BFF는 `workspace_doc_states.yjs_state`와 변환된 `workspace_docs.content`를 한 트랜잭션으로 갱신한다.
-
-협업 세션은 `workspace_doc_collab_sessions`, 편집 모드·dirty 상태는 `workspace_doc_live_presence`에 저장한다. 클라이언트 heartbeat는 10초, 서버가 유효하게 보는 presence TTL은 30초다.
 
 ### 제약
 
-- JSON snapshot과 Yjs 상태의 이중 표현, 일반/협업 모드 전환, 제목과 본문의 별도 저장 경로가 복잡도를 높인다.
-- 협업 화면의 “동기화됨”은 WebSocket/Yjs protocol sync 상태이지 DB 영속화 완료 확인이 아니다.
-- Yjs 저장 실패가 브라우저에 전달되지 않는다.
-- 마지막 사용자가 나갈 때 저장 함수가 내부 오류를 삼킨 뒤 room을 메모리에서 제거할 수 있어 데이터 유실 가능성이 있다.
-- debounce, 주기 저장, 퇴장 저장을 직렬화하거나 version 검사하지 않아 요청 완료 순서 역전 위험이 있다.
-- 연결 시 token을 검사하지만 연결 후 token 만료나 membership 회수는 기존 연결에 즉시 반영되지 않는다.
-- 전체 Yjs state를 매번 Base64로 저장하며 크기 제한·증분 이력·복구 버전이 없다.
-- DB heartbeat는 background tab과 네트워크 지연에 민감하고 요청량이 늘어난다.
-- `workspace_doc_states.updated_by`가 실시간 저장의 감사 주체로 일관되게 기록되지 않는다.
+- 동일 문서를 동시에 편집할 때 CRDT 기반 병합은 제공하지 않는다.
+- 저장 충돌 방지용 revision/ETag 계약은 아직 없다.
 - 문서 UI와 편집기 계층을 대상으로 한 자동화 테스트는 현재 확인되지 않는다.
 
 ## 아이디어 보드
@@ -160,7 +138,7 @@ flowchart LR
 
 ### 현재 보안 경계와 남은 문제
 
-- `doc:*`와 `whiteboard:*` 모두 BFF가 멤버십·수명주기를 확인한 뒤 발급한 HMAC token을 요구한다.
+- `whiteboard:*`는 BFF가 멤버십·수명주기를 확인한 뒤 발급한 HMAC token을 요구한다.
 - raw WebSocket Origin은 `ALLOWED_ORIGINS`와 일치해야 하며 payload는 8MB로 제한한다.
 - 완료 워크스페이스의 신규 token 발급은 BFF에서 차단한다. 다만 연결 후 멤버 탈퇴·완료 전환은 기존 연결에 즉시 반영되지 않는다.
 - awareness 사용자 정보도 서버에서 검증하지 않아 신뢰할 수 있는 신원 정보가 아니다.
@@ -222,7 +200,7 @@ workspace-server가 `workspace_channels`, `workspace_messages`, `notifications`�
 | --- | --- |
 | 공간·멤버 | `workspaces`, `workspace_members`, `workspace_invites` |
 | 칸반 | `kanban_columns`, `workspace_views`, `kanban_tags`, `kanban_tasks`, `kanban_task_documents` |
-| 문서 | `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_doc_assets`, `workspace_doc_templates`, `workspace_doc_comments` |
+| 문서 | `workspace_docs`, `workspace_doc_assets`, `workspace_doc_templates`, `workspace_doc_comments` |
 | 화이트보드 | `workspace_whiteboards` |
 | 채팅 | `workspace_channels`, `workspace_messages` |
 | 알림 | `notifications` |
@@ -240,7 +218,7 @@ workspace-server/
 │       ├── auth/auth.service.ts
 │       ├── board/
 │       │   ├── board.gateway.ts
-│       │   ├── workspace-doc-collab-token.ts
+│       │   ├── workspace-whiteboard-token.ts
 │       │   ├── yjs.gateway.ts
 │       │   └── yjs-utils.ts
 │       ├── chat/
@@ -261,10 +239,7 @@ workspace-server/
 | Socket.IO handshake, `presence:update` | Supabase token·멤버십 확인과 상태 방송 |
 | Socket.IO `chat:*` | 채널·메시지·typing |
 | Socket.IO `voice:update` | LiveKit 참가자 목록 재조회 신호 |
-| Yjs `doc:<docId>` | BlockNote 문서 협업 |
 | Yjs `whiteboard:<workspaceId>` | Excalidraw 협업 |
-| `POST /internal/yjs/docs/:docId/reset` | 비활성 문서 room 제거 |
-| `POST /internal/yjs/docs/:docId/flush` | 메모리의 문서 상태 즉시 저장 |
 
 `auth.service.ts`는 Socket.IO 인증 경계다. `chat.types.ts`와 Socket.IO `board:*`는 현재 주 화이트보드 동기화 경로가 아닌 레거시 호환 후보 코드다.
 
@@ -313,7 +288,7 @@ workspace-server/
 | `DIRECT_URL` | Prisma 명령 사용 시 | follower schema direct connection |
 | `BFF_URL` | 예 | Yjs 상태 로드·저장 대상 Next.js 주소 |
 | `INTERNAL_API_SECRET` | 예 | BFF 내부 상태 API 인증 |
-| `COLLAB_TOKEN_SECRET` | 예 | 문서·화이트보드 접속 token HMAC 서명 |
+| `WHITEBOARD_TOKEN_SECRET` | 예 | 화이트보드 접속 token HMAC 서명 |
 | `SUPABASE_URL` | 예 | Socket.IO access token 검증 대상 |
 | `SUPABASE_ANON_KEY` | 예 | Supabase Auth `/user` 검증 API key |
 | `ALLOWED_ORIGINS` | 배포 시 예 | 쉼표 구분 웹 Origin allowlist |
@@ -323,11 +298,10 @@ workspace-server/
 
 | 키 | 용도 |
 | --- | --- |
-| `NEXT_PUBLIC_WS_URL` | Socket.IO와 문서 Yjs server 주소 |
+| `NEXT_PUBLIC_WS_URL` | Socket.IO server 주소 |
 | `NEXT_PUBLIC_SOCKET_URL` | whiteboard Yjs server 주소 |
-| `WORKSPACE_SERVER_HTTP_URL` | BFF가 reset/flush를 호출할 내부 HTTP 주소 |
 | `INTERNAL_API_SECRET` | workspace-server와 동일한 값 |
-| `COLLAB_TOKEN_SECRET` | workspace-server와 동일한 HMAC 전용 값 |
+| `WHITEBOARD_TOKEN_SECRET` | workspace-server와 동일한 HMAC 전용 값 |
 
 ```bash
 cp workspace-server/.env.example workspace-server/.env

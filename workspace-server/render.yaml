@@ -19,7 +19,7 @@ services:
         sync: false
       - key: INTERNAL_API_SECRET
         sync: false
-      - key: COLLAB_TOKEN_SECRET
+      - key: WHITEBOARD_TOKEN_SECRET
         sync: false
       - key: SUPABASE_URL
         sync: false

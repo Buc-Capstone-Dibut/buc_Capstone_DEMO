@@ -6,7 +6,7 @@
 
 ## 1. 한 줄 요약
 
-`workspace-server`는 포트 4000에서 Socket.IO와 raw WebSocket을 동시에 제공하는 단일 Node.js 프로세스다. 채팅은 Prisma로 DB에 직접 저장하고, 문서·화이트보드 Yjs 상태는 Next.js BFF 내부 API를 통해 저장한다.
+`workspace-server`는 포트 4000에서 Socket.IO와 raw WebSocket을 동시에 제공하는 단일 Node.js 프로세스다. 채팅은 Prisma로 DB에 직접 저장하고, 화이트보드 Yjs 상태는 Next.js BFF 내부 API를 통해 저장한다.
 
 이 서버는 다음을 소유하지 않는다.
 
@@ -25,7 +25,7 @@
 4. `upgrade` 이벤트에서 `/socket.io`는 Socket.IO에 남기고 나머지는 Yjs WebSocketServer가 처리한다.
 5. HTTP server가 `PORT`에서 listen한다.
 
-HTTP 요청은 `/healthz`, 루트 상태, 문서 방 reset/flush를 처리한다. 알 수 없는 경로는 404다. `/healthz`는 프로세스 liveness이며 DB·BFF readiness를 보장하지 않는다.
+HTTP 요청은 `/healthz`와 루트 상태를 처리한다. 알 수 없는 경로는 404다. `/healthz`는 프로세스 liveness이며 DB·BFF readiness를 보장하지 않는다.
 
 Socket.IO와 raw Yjs WebSocket은 `ALLOWED_ORIGINS` allowlist를 적용한다.
 
@@ -45,7 +45,7 @@ Socket.IO와 raw Yjs WebSocket은 `ALLOWED_ORIGINS` allowlist를 적용한다.
 | `DATABASE_URL` | ChatService Prisma | 시작 경고 후 실제 쿼리에서 실패 가능 |
 | `BFF_URL` | Yjs 상태 API | `http://localhost:3000` 사용 |
 | `INTERNAL_API_SECRET` | BFF 내부 상태 API | Yjs 상태 로드·저장 실패 |
-| `COLLAB_TOKEN_SECRET` | 문서·화이트보드 HMAC token | 미설정 시 내부 secret으로 호환 |
+| `WHITEBOARD_TOKEN_SECRET` | 화이트보드 HMAC token | 기존 `COLLAB_TOKEN_SECRET`, 내부 secret 순으로 호환 |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Socket.IO 사용자 검증 | 신규 Socket.IO 연결 거부 |
 | `ALLOWED_ORIGINS` | 웹 Origin allowlist | localhost와 BFF Origin만 허용 |
 | `PORT` | HTTP/WS listen | 4000 |
@@ -100,13 +100,13 @@ Socket.IO와 raw Yjs WebSocket은 `ALLOWED_ORIGINS` allowlist를 적용한다.
 
 `src/modules/board/yjs.gateway.ts`가 `/socket.io` 외 WebSocket upgrade를 받는다.
 
-- `doc:*`, `whiteboard:*`: `token` query parameter 필수
-- 토큰 서명: `COLLAB_TOKEN_SECRET` 기반 HMAC SHA-256
-- 토큰 payload: `docId` 또는 `whiteboardId`, `workspaceId`, `userId`, `exp`
+- `whiteboard:*`: `token` query parameter 필수
+- 토큰 서명: `WHITEBOARD_TOKEN_SECRET` 기반 HMAC SHA-256
+- 토큰 payload: `whiteboardId`, `workspaceId`, `userId`, `exp`
 - 서버 검증: 서명·만료·방 target 일치
 - WebSocket Origin allowlist, 8MB payload 상한, 30초 heartbeat 적용
 
-BFF 토큰 발급 API가 로그인, 멤버십, 문서 소속과 활성 협업 세션을 확인한다. 토큰 유효기간은 5분이지만 연결 후 권한 변경이나 멤버 탈퇴를 다시 확인하지 않는다.
+BFF 토큰 발급 API가 로그인, 멤버십과 워크스페이스 쓰기 가능 상태를 확인한다. 토큰 유효기간은 5분이지만 연결 후 권한 변경이나 멤버 탈퇴를 다시 확인하지 않는다.
 
 ### 메모리 문서
 
@@ -129,7 +129,6 @@ WSSharedDoc
 
 | 대상 | GET/PUT BFF 경로 | DB 모델 |
 | --- | --- | --- |
-| `doc:<uuid>` | `/api/collab/docs/:docId/state` | `workspace_doc_states`, `workspace_docs` |
 | `whiteboard:<uuid>` | `/api/workspaces/:id/whiteboard` | `workspace_whiteboards` |
 
 모든 호출은 `x-internal-secret`을 사용한다. 저장 시 `Y.encodeStateAsUpdate(doc)` 전체 결과를 Base64 JSON으로 전송한다.
@@ -139,31 +138,6 @@ WSSharedDoc
 - 마지막 변경 후 3초
 - 연결자가 있는 동안 30초마다
 - 마지막 WebSocket 연결 종료
-- 내부 `/flush` 호출
-
-현재 저장 함수는 오류를 throw하지 않고 로그만 남긴다. 따라서 마지막 연결 종료 저장이 실패해도 문서가 메모리에서 제거될 수 있고 `/flush`도 성공 응답을 반환할 수 있다. 상태 GET이 실패해도 빈 문서로 연결을 계속한다.
-
-### 문서 협업 수명주기
-
-웹의 `docs-view.tsx`와 BFF가 Yjs 연결 외에 별도 협업 세션을 관리한다.
-
-1. 일반 편집기가 현재 내용을 저장한다.
-2. `POST .../collab/start`가 멤버십·쓰기 가능 여부를 확인한다.
-3. 일반 편집 중 저장하지 않은 참가자가 있는지 확인한다.
-4. DB 세션이 비활성이면 workspace-server의 이전 방을 reset한다. 연결만 남은
-   종료 세션은 해당 연결을 끊고 메모리 상태를 폐기한다.
-5. 최신 `workspace_docs.content`에서 Yjs 상태를 seed한다.
-6. `workspace_doc_collab_sessions`를 ACTIVE로 만들고 HMAC 토큰을 반환한다.
-7. 브라우저가 10초마다 `workspace_doc_live_presence` heartbeat를 갱신한다.
-8. 마지막 참가자가 leave하면 세션을 ENDED로 변경한다.
-
-일반 편집 저장은 오래된 `workspace_doc_states`를 삭제한다. 다음 협업 시작 시 최신 `workspace_docs.content`에서 다시 seed한다.
-
-협업 세션 DB 상태와 메모리 WebSocket 방은 서로 다른 저장소다. 비정상 종료로
-DB 세션만 `ENDED`가 되고 방 연결이 남을 수 있으므로, 새 세션 시작은 종료된
-세션의 방을 강제로 정리한 뒤 일반 편집 snapshot을 기준으로 재시드한다. 이때
-이전 방을 저장하지 않는 이유는 이미 일반 편집에서 저장한 최신 snapshot을
-오래된 메모리 상태가 뒤늦게 덮는 것을 방지하기 위해서다.
 
 ## 6. 웹 클라이언트 연결
 
@@ -172,8 +146,8 @@ DB 세션만 `ENDED`가 되고 방 연결이 남을 수 있으므로, 새 세션
 | `web/app/workspace/[id]/page.tsx` | 로그인 사용자와 활성 워크스페이스를 Socket.IO store에 연결 |
 | `web/components/features/workspace/store/socket-store.ts` | Socket.IO 연결·채널·메시지 Zustand 상태 |
 | `web/components/features/workspace/detail/chat/team-chat.tsx` | 채팅 UI와 멘션/태스크/문서 토큰 직렬화 |
-| `web/components/features/workspace/docs/editor.tsx` | BlockNote + Yjs 문서 편집기 |
-| `web/components/features/workspace/detail/docs-view.tsx` | 일반/협업 모드 전환과 협업 세션 heartbeat |
+| `web/components/features/workspace/docs/normal-editor.tsx` | BlockNote 일반 문서 편집기 |
+| `web/components/features/workspace/detail/docs-view.tsx` | 문서 탐색·편집·저장 |
 | `web/components/features/workspace/detail/idea-board/idea-board-sdk.tsx` | Excalidraw + Yjs 화이트보드 |
 | `web/components/features/workspace/voice/voice-manager.tsx` | LiveKit 연결 및 `voice:update` 발생 |
 
@@ -191,9 +165,6 @@ DB 세션만 `ENDED`가 되고 방 연결이 남을 수 있으므로, 새 세션
 workspace-server의 follower에는 채팅에 필요한 모델은 있지만 다음 최신 모델·필드가 포함되지 않았다.
 
 - `workspaces.lifecycle_status`, `space_status`, 결과 필드
-- `workspace_doc_states`
-- `workspace_doc_collab_sessions`
-- `workspace_doc_live_presence`
 - `workspace_whiteboards`
 - 문서 자산·댓글·템플릿·태스크 링크
 

@@ -66,7 +66,6 @@ flowchart LR
 | --------------------- | ------------------------------- | ------------------------------------------------------------ |
 | 보드·태스크·일정·멤버 | `web/app/api/workspaces/[id]/*` | BFF가 Prisma로 직접 저장                                     |
 | 일반 문서 편집        | BlockNote 일반 편집기           | BFF가 `workspace_docs.content` 저장                          |
-| 문서 공동편집         | BlockNote + Yjs                 | HMAC 토큰 기반 Yjs 방, BFF가 CRDT 상태와 문서 스냅샷 저장    |
 | 화이트보드            | Excalidraw + Yjs                | Yjs 방, BFF가 `workspace_whiteboards` 저장                   |
 | 채팅                  | Socket.IO                       | workspace-server가 `workspace_channels/messages`에 직접 저장 |
 | 음성 허들             | LiveKit                         | workspace-server는 방 목록 갱신 이벤트만 릴레이              |
@@ -76,22 +75,19 @@ flowchart LR
 `workspace-server`는 포트 4000의 단일 HTTP 서버에서 두 연결 방식을 함께 처리한다.
 
 - `/socket.io`: 워크스페이스 방 입장, 채팅 이벤트, 음성방 갱신 알림, 레거시 보드 릴레이
-- 그 외 WebSocket upgrade: `doc:<docId>` 및 `whiteboard:<workspaceId>` Yjs 동기화
-- `/internal/yjs/docs/:docId/reset|flush`: `web` BFF가 호출하는 내부 문서 방 관리 API
-
-문서 공동편집은 BFF가 Supabase 세션·워크스페이스 멤버십·문서 소속을 검사한 후 5분짜리 HMAC 토큰을 발급한다. Yjs 상태는 변경 3초 후, 연결 중 30초마다, 마지막 연결 종료 시 전체 스냅샷으로 저장된다. 문서 상태 저장은 `workspace_doc_states.yjs_state`와 `workspace_docs.content`를 한 DB 트랜잭션에서 갱신한다.
+- 그 외 WebSocket upgrade: `whiteboard:<workspaceId>` Yjs 동기화
 
 ### 데이터 모델과 소유권
 
 - 기준 스키마와 마이그레이션: `web/prisma/schema.prisma`, `web/prisma/migrations/**`
 - workspace-server follower 스키마: 채팅 등 런타임에 필요한 Prisma 모델 제공
-- 핵심 모델: `workspaces`, `workspace_members`, `kanban_columns`, `kanban_tasks`, `workspace_docs`, `workspace_doc_states`, `workspace_doc_collab_sessions`, `workspace_doc_live_presence`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
+- 핵심 모델: `workspaces`, `workspace_members`, `kanban_columns`, `kanban_tasks`, `workspace_docs`, `workspace_whiteboards`, `workspace_channels`, `workspace_messages`
 - 태스크는 워크스페이스 공용 컬럼에 직접 속한다. 시작일·종료일은 시간대가 없는 날짜로 저장하며, 상태·우선순위·태그·멤버 설정은 워크스페이스 범위에서 공유한다.
 - `workspace-server` 스키마에서 마이그레이션을 생성하거나 적용하지 않는다. 워크스페이스 모델을 바꿀 때는 web 기준 스키마를 먼저 변경하고 follower를 맞춘다.
 
 ### 현재 제약
 
-현재 코드는 단일 프로세스 실행을 전제로 한다. Socket.IO 방·프레즌스와 Yjs 문서가 프로세스 메모리에 있고 노드 간 공유 계층은 없다. 또한 문서 공동편집을 제외한 Socket.IO 이벤트와 화이트보드 Yjs 연결에는 서버 측 사용자 인증·멤버십 검사가 완성되어 있지 않다. 상세 이벤트 계약과 개선 전 확인사항은 `workspace-server/HANDOVER.md`를 기준으로 한다.
+현재 코드는 단일 프로세스 실행을 전제로 한다. Socket.IO 방·프레즌스와 화이트보드 Yjs 방은 프로세스 메모리에 있고 노드 간 공유 계층은 없다. 상세 이벤트 계약과 개선 전 확인사항은 `workspace-server/HANDOVER.md`를 기준으로 한다.
 
 ## 5. AI 면접 시스템
 

@@ -71,8 +71,10 @@ export const BFF_URL = process.env.BFF_URL || "http://localhost:3000";
 // 서버 간 내부 통신 인증 시크릿
 // Next.js BFF의 INTERNAL_API_SECRET 값과 반드시 일치해야 함
 export const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "";
-export const COLLAB_TOKEN_SECRET =
-  process.env.COLLAB_TOKEN_SECRET || INTERNAL_API_SECRET;
+export const WHITEBOARD_TOKEN_SECRET =
+  process.env.WHITEBOARD_TOKEN_SECRET ||
+  process.env.COLLAB_TOKEN_SECRET ||
+  INTERNAL_API_SECRET;
 
 export const SUPABASE_URL =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -114,7 +116,7 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL || "",
   BFF_URL,
   INTERNAL_API_SECRET,
-  COLLAB_TOKEN_SECRET,
+  WHITEBOARD_TOKEN_SECRET,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   ALLOWED_ORIGINS,

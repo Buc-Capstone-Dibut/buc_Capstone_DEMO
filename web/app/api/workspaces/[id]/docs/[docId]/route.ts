@@ -5,7 +5,6 @@ import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { getDocCollabState } from "@/lib/server/workspace-doc-collab-session";
 
 type DocKind = "page" | "folder";
 
@@ -102,12 +101,7 @@ export async function GET(
       );
     }
 
-    const collab = await getDocCollabState(workspaceId, docId, session.user.id);
-
-    return NextResponse.json({
-      ...doc,
-      collab,
-    });
+    return NextResponse.json(doc);
   } catch (error) {
     console.error("API: Get Doc Error", error);
     const message =

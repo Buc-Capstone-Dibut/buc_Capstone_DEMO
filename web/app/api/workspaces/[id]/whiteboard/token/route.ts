@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { ensureWorkspaceWritable } from "@/lib/server/workspace-lifecycle";
-import { createWorkspaceWhiteboardToken } from "@/lib/server/workspace-doc-collab-token";
+import { createWorkspaceWhiteboardToken } from "@/lib/server/workspace-whiteboard-token";
 
 export const dynamic = "force-dynamic";
 

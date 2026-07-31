@@ -53,19 +53,17 @@ flowchart TB
 
 | 키                          | 실행 위치 | 예시/설명                                                   |
 | --------------------------- | --------- | ----------------------------------------------------------- |
-| `NEXT_PUBLIC_WS_URL`        | 브라우저  | Socket.IO와 문서 Yjs 주소. 로컬 `ws://localhost:4000`       |
+| `NEXT_PUBLIC_WS_URL`        | 브라우저  | Socket.IO 주소. 로컬 `ws://localhost:4000`                  |
 | `NEXT_PUBLIC_SOCKET_URL`    | 브라우저  | 화이트보드 Yjs 주소. 현재 위 값과 동일                      |
-| `WORKSPACE_SERVER_HTTP_URL` | BFF 서버  | 문서 방 reset/flush 호출 주소. 로컬 `http://localhost:4000` |
 | `INTERNAL_API_SECRET`       | BFF 서버  | workspace-server와 동일한 긴 랜덤 값                        |
 
 워크스페이스 기능의 역할 경계:
 
 - 보드·태스크·일정·멤버·문서 메타데이터·댓글·자산: `app/api/workspaces/**`
 - 작업 메뉴는 워크스페이스의 단일 보드로 바로 진입한다. 목록·칸반·일간/주간/월간 타임라인과 그룹·필터의 상세 동작 기준은 [`specs/workspace/board.md`](../specs/workspace/board.md)를 따른다.
-- 문서 협업 세션·토큰: `app/api/workspaces/[id]/docs/[docId]/collab/**`
-- Yjs 문서 상태 내부 API: `app/api/collab/docs/[docId]/state`
+- 문서 편집·저장: `app/api/workspaces/[id]/docs/**`
 - Yjs 화이트보드 상태 내부 API: `app/api/workspaces/[id]/whiteboard`
-- 채팅·실시간 문서/화이트보드 전송: `workspace-server`
+- 채팅·화이트보드 실시간 전송: `workspace-server`
 
 세부 이벤트와 저장 흐름은 [workspace-server 코드 인수인계](../workspace-server/HANDOVER.md)를 참조합니다.
 

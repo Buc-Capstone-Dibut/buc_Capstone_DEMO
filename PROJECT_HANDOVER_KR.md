@@ -98,14 +98,11 @@ Module A(정보)와 Module B(행동)를 연결합니다.
   - Prisma를 통해 `max(order) + 1`을 계산합니다.
   - 새로운 태스크 카드를 즉시 삽입합니다.
 
-#### **2. 실시간 협업 ("Google Docs" 경험)**
+#### **2. 문서와 아이디어 보드**
 
 - **문서 에디터**:
   - **라이브러리**: `BlockNote` (노션 스타일의 블록 기반 에디팅).
-  - **동기화**: **Yjs** (CRDT 라이브러리)를 사용하여 다중 사용자 간 충돌 없는 동기화를 처리합니다.
-  - **일반/협업 모드**: 일반 편집은 BFF가 `workspace_docs.content`를 저장하고, 협업 모드는 별도 세션·presence와 `doc:<docId>` Yjs 방을 사용합니다.
-  - **인가**: BFF가 Supabase 세션·워크스페이스 멤버십·문서 소속을 확인한 뒤 5분 HMAC 토큰을 발급합니다.
-  - **영속화**: workspace-server가 Yjs 전체 상태를 BFF 내부 API로 보내면 `workspace_doc_states`와 `workspace_docs.content`가 한 트랜잭션에서 갱신됩니다.
+  - **저장**: 일반 편집기에서 명시적으로 저장하며 BFF가 `workspace_docs.content` JSON 스냅샷을 갱신합니다.
 - **아이디어 보드**:
   - **라이브러리**: `Excalidraw`, `y-excalidraw`, Yjs.
   - **동기화**: `whiteboard:<workspaceId>` Yjs 방을 사용하고 `workspace_whiteboards`에 상태를 저장합니다.
@@ -175,8 +172,6 @@ Module A(정보)와 Module B(행동)를 연결합니다.
 - `workspaces`: 최상위 엔티티.
 - `kanban_tasks`: 핵심 작업 단위. `kanban_columns`와 연결됩니다.
 - `workspace_docs`: 블록 기반 문서 스냅샷.
-- `workspace_doc_states`: 문서 공동편집 Yjs 상태.
-- `workspace_doc_collab_sessions` / `workspace_doc_live_presence`: 공동편집 세션과 heartbeat.
 - `workspace_whiteboards`: 워크스페이스별 화이트보드 Yjs 상태.
 - `workspace_channels` / `workspace_messages`: 채팅 데이터.
 

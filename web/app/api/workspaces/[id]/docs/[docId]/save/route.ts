@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { saveWorkspaceDocContent } from "@/lib/server/doc-collab-state";
-import { getDocCollabState } from "@/lib/server/workspace-doc-collab-session";
+import { saveWorkspaceDocContent } from "@/lib/server/workspace-doc-save";
 
 export async function POST(
   request: Request,
@@ -75,22 +74,6 @@ export async function POST(
       );
     }
 
-    const collabState = await getDocCollabState(
-      workspaceId,
-      docId,
-      user.id,
-    );
-
-    if (collabState.isActive) {
-      return NextResponse.json(
-        {
-          error:
-            "협업 편집 중에는 일반 저장을 사용할 수 없습니다. 협업을 종료한 뒤 저장해 주세요.",
-        },
-        { status: 409 },
-      );
-    }
-
     const metadata = {
       ...(payload.title === undefined || typeof payload.title === "string"
         ? { title: payload.title }
@@ -110,7 +93,6 @@ export async function POST(
     const result = await saveWorkspaceDocContent({
       docId,
       content: payload.content,
-      savedBy: user.id,
       ...metadata,
     });
 

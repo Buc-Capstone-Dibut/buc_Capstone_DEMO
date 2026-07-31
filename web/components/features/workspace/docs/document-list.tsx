@@ -32,10 +32,6 @@ interface Doc extends DocTreeItem {
   title: string;
   emoji?: string | null;
   updated_at?: string;
-  collab?: {
-    isActive?: boolean;
-    participantCount?: number;
-  };
 }
 
 interface DocumentListProps {
@@ -442,15 +438,6 @@ function DocumentTreeBranch({
                 {!collapsed ? (
                   <div className="flex min-w-0 items-center gap-1.5 truncate">
                     <span className="truncate">{doc.title}</span>
-                    {doc.kind === "page" && doc.collab?.isActive ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        협업
-                        {doc.collab.participantCount
-                          ? ` ${doc.collab.participantCount}`
-                          : ""}
-                      </span>
-                    ) : null}
                   </div>
                 ) : null}
               </div>
