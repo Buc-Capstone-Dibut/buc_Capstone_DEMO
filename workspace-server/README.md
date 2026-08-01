@@ -133,7 +133,8 @@ flowchart LR
 - room 이름: `whiteboard:<workspaceId>`
 - `elements`는 Y.Array, 파일 자산은 Y.Map으로 동기화한다.
 - awareness에 사용자 ID·표시명·cursor 색상을 넣는다.
-- 서버는 `workspace_whiteboards.yjs_state`에 전체 상태를 저장한다.
+- 서버는 `Y.encodeStateAsUpdate()` 원시 바이트를 `workspace_whiteboards.yjs_state` (`bytea`)에 저장한다.
+- BFF 저장 안전 한도는 4MiB이며, 클라이언트 상단에서 현재 스냅샷 용량을 표시한다.
 - 완료 워크스페이스의 `viewModeEnabled`는 현재 클라이언트가 설정한다.
 
 ### 현재 보안 경계와 남은 문제

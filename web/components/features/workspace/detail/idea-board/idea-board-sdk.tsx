@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
-import { RefreshCw, Users } from "lucide-react";
+import { Database, RefreshCw, Users } from "lucide-react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { ExcalidrawBinding } from "y-excalidraw";
@@ -16,13 +16,11 @@ export interface IdeaBoardSDKProps {
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "ws://localhost:4000";
 const TOKEN_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
+const WHITEBOARD_SAFE_LIMIT_BYTES = 4 * 1024 * 1024;
+const SIZE_MEASURE_DEBOUNCE_MS = 500;
 
 type ConnectionStatus =
-  | "authorizing"
-  | "connecting"
-  | "syncing"
-  | "synced"
-  | "error";
+  "authorizing" | "connecting" | "syncing" | "synced" | "error";
 
 type CollaborationSession = {
   doc: Y.Doc;
@@ -62,6 +60,12 @@ function getCursorDisplayName(
   );
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 export default function IdeaBoardSDK({
   projectId,
   readOnly = false,
@@ -74,6 +78,7 @@ export default function IdeaBoardSDK({
     useState<ConnectionStatus>("authorizing");
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [awarenessUsers, setAwarenessUsers] = useState(0);
+  const [whiteboardSizeBytes, setWhiteboardSizeBytes] = useState(0);
   const [collaborationSession, setCollaborationSession] =
     useState<CollaborationSession | null>(null);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
@@ -105,6 +110,7 @@ export default function IdeaBoardSDK({
     setConnectionStatus("authorizing");
     setConnectionError(null);
     setAwarenessUsers(0);
+    setWhiteboardSizeBytes(0);
 
     const fetchToken = async () => {
       const response = await fetch(
@@ -236,14 +242,9 @@ export default function IdeaBoardSDK({
       session?.provider.destroy();
       session?.doc.destroy();
       setAwarenessUsers(0);
+      setWhiteboardSizeBytes(0);
     };
-  }, [
-    authLoading,
-    connectionAttempt,
-    projectId,
-    readOnly,
-    user,
-  ]);
+  }, [authLoading, connectionAttempt, projectId, readOnly, user]);
 
   useEffect(() => {
     const session = collaborationSession;
@@ -269,6 +270,37 @@ export default function IdeaBoardSDK({
     });
     handleAwarenessChange();
   }, [collaborationSession, profile?.nickname, user]);
+
+  useEffect(() => {
+    const session = collaborationSession;
+    if (!session) {
+      setWhiteboardSizeBytes(0);
+      return;
+    }
+
+    let measureTimer: ReturnType<typeof setTimeout> | null = null;
+    const measureSize = () => {
+      measureTimer = null;
+      setWhiteboardSizeBytes(Y.encodeStateAsUpdate(session.doc).byteLength);
+    };
+    const scheduleMeasure = () => {
+      if (measureTimer) clearTimeout(measureTimer);
+      measureTimer = setTimeout(measureSize, SIZE_MEASURE_DEBOUNCE_MS);
+    };
+    const handleSync = (synced: boolean) => {
+      if (synced) scheduleMeasure();
+    };
+
+    session.doc.on("update", scheduleMeasure);
+    session.provider.on("sync", handleSync);
+    measureSize();
+
+    return () => {
+      if (measureTimer) clearTimeout(measureTimer);
+      session.doc.off("update", scheduleMeasure);
+      session.provider.off("sync", handleSync);
+    };
+  }, [collaborationSession]);
 
   useEffect(() => {
     if (
@@ -322,6 +354,13 @@ export default function IdeaBoardSDK({
   }[connectionStatus];
 
   const isSynced = connectionStatus === "synced";
+  const sizeRatio = whiteboardSizeBytes / WHITEBOARD_SAFE_LIMIT_BYTES;
+  const sizeTone =
+    sizeRatio >= 0.9
+      ? "border-red-200 bg-red-50/90 text-red-700"
+      : sizeRatio >= 0.7
+        ? "border-amber-200 bg-amber-50/90 text-amber-700"
+        : "border-gray-200/50 bg-white/60 text-gray-500";
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-white">
@@ -363,6 +402,16 @@ export default function IdeaBoardSDK({
             <span>{awarenessUsers}명 참여 중</span>
           </div>
         )}
+        {isSynced && (
+          <div
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors duration-300 backdrop-blur-md ${sizeTone}`}
+            title="현재 Yjs 저장 상태 용량입니다. Vercel 전송 안전 기준은 4 MiB입니다."
+            aria-live="polite"
+          >
+            <Database className="h-3 w-3" />
+            <span>{formatBytes(whiteboardSizeBytes)} / 4 MB</span>
+          </div>
+        )}
       </div>
 
       {connectionError && (
@@ -381,9 +430,7 @@ export default function IdeaBoardSDK({
         <div ref={wrapperRef} className="absolute inset-0 h-full w-full">
           <Excalidraw
             key={projectId}
-            excalidrawAPI={(api) =>
-              setExcalidrawSession({ projectId, api })
-            }
+            excalidrawAPI={(api) => setExcalidrawSession({ projectId, api })}
             onPointerUpdate={readOnly ? undefined : handlePointerUpdate}
             viewModeEnabled={readOnly}
             theme="light"
