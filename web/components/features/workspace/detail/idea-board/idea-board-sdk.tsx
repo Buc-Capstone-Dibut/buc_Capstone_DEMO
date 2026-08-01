@@ -14,7 +14,6 @@ export interface IdeaBoardSDKProps {
   readOnly?: boolean;
 }
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "ws://localhost:4000";
 const TOKEN_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
 const WHITEBOARD_SAFE_LIMIT_BYTES = 4 * 1024 * 1024;
 const SIZE_MEASURE_DEBOUNCE_MS = 500;
@@ -31,6 +30,15 @@ type ExcalidrawSession = {
   projectId: string;
   api: ExcalidrawImperativeAPI;
 };
+
+function getWhiteboardSocketUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (configuredUrl) return configuredUrl;
+  if (typeof window === "undefined") return "ws://localhost:4000";
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/workspace-realtime/yjs`;
+}
 
 function stringToHue(seed: string) {
   let hash = 0;
@@ -141,7 +149,7 @@ export default function IdeaBoardSDK({
 
         const doc = new Y.Doc();
         const websocketProvider = new WebsocketProvider(
-          SOCKET_URL,
+          getWhiteboardSocketUrl(),
           `whiteboard:${projectId}`,
           doc,
           {

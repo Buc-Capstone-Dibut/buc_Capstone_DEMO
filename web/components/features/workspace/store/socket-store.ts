@@ -94,7 +94,12 @@ interface SocketStore {
   messages: Message[];
   activeChannelId: string | null;
 
-  connectSocket: (url: string, userId: string, projectId: string) => void;
+  connectSocket: (
+    url: string,
+    userId: string,
+    projectId: string,
+    path?: string,
+  ) => void;
   disconnectSocket: () => void;
 
   // Channel Actions
@@ -150,7 +155,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
   messages: [],
   activeChannelId: null,
 
-  connectSocket: (url, userId, projectId) => {
+  connectSocket: (url, userId, projectId, path = "/socket.io") => {
     if (get().socket) {
       return;
     }
@@ -161,8 +166,9 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     });
 
     const socket = io(url, {
-      path: "/socket.io",
-      transports: ["websocket"],
+      path,
+      addTrailingSlash: false,
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 500,
@@ -190,12 +196,9 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
 
     socket.on("connect_error", (err) => {
       console.error("[Socket] Connection Error:", err);
-      set((state) => ({
+      set(() => ({
         isConnected: false,
-        connectionState:
-          state.connectionState === "connected"
-            ? "reconnecting"
-            : state.connectionState,
+        connectionState: socket.active ? "reconnecting" : "error",
       }));
     });
 
