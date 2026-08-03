@@ -131,7 +131,7 @@ WSSharedDoc
 | --- | --- | --- |
 | `whiteboard:<uuid>` | `/api/workspaces/:id/whiteboard` | `workspace_whiteboards` |
 
-모든 호출은 `x-internal-secret`을 사용한다. 저장 시 `Y.encodeStateAsUpdate(doc)` 전체 결과를 Base64 JSON으로 전송한다.
+모든 호출은 `x-internal-secret`을 사용한다. 저장 시 `Y.encodeStateAsUpdate(doc)` 전체 결과를 `application/octet-stream` 원시 바이트로 전송하고, DB의 `bytea` 컬럼에 저장한다. Vercel Function의 4.5MB payload 제한을 고려해 BFF 저장 안전 한도는 4MiB다.
 
 저장 시점:
 

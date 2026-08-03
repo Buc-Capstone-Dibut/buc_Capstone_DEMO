@@ -54,6 +54,21 @@ export class AuthService {
       });
 
       if (!response.ok) {
+        let reason = "unknown";
+        try {
+          const body = (await response.json()) as {
+            code?: string;
+            error_code?: string;
+            msg?: string;
+          };
+          reason = body.error_code || body.code || body.msg || reason;
+        } catch {
+          // Supabase can return an empty body for an upstream timeout.
+        }
+        console.warn("[AUTH] Supabase rejected the access token", {
+          status: response.status,
+          reason,
+        });
         return null;
       }
 
@@ -102,15 +117,27 @@ export class AuthService {
     const token = getHandshakeValue(socket.handshake.auth?.token);
     const workspaceId = getHandshakeValue(socket.handshake.auth?.workspaceId);
     if (!token || !workspaceId) {
+      console.warn("[AUTH] Socket handshake is missing credentials", {
+        hasToken: Boolean(token),
+        hasWorkspaceId: Boolean(workspaceId),
+      });
       return null;
     }
 
     const user = await this.verifyAccessToken(token);
     if (!user) {
+      console.warn("[AUTH] Socket access token verification failed");
       return null;
     }
 
-    return this.getWorkspaceAccess(user.id, workspaceId);
+    const identity = await this.getWorkspaceAccess(user.id, workspaceId);
+    if (!identity) {
+      console.warn("[AUTH] Socket workspace access verification failed", {
+        userId: user.id,
+        workspaceId,
+      });
+    }
+    return identity;
   }
 }
 

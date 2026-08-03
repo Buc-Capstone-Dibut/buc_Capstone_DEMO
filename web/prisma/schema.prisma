@@ -1145,7 +1145,7 @@ model workspace_doc_comments {
 model workspace_whiteboards {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   workspace_id String   @unique @db.Uuid
-  yjs_state    String? // base64-encoded Uint8Array from Y.encodeStateAsUpdate()
+  yjs_state    Bytes?   @db.ByteA // Raw Y.encodeStateAsUpdate() binary snapshot
   updated_at   DateTime @default(now()) @updatedAt
 
   workspace workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)

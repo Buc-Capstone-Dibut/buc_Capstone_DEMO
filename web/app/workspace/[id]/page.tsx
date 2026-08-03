@@ -296,8 +296,12 @@ export default function WorkspaceDetailPage() {
       return;
     }
 
-    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
-    connectSocket(url, user.id, projectId);
+    const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
+    const url = configuredUrl || window.location.origin;
+    const socketPath = configuredUrl
+      ? "/socket.io"
+      : "/workspace-realtime/connect";
+    connectSocket(url, user.id, projectId, socketPath);
 
     return () => {
       disconnectSocket();
@@ -496,7 +500,10 @@ export default function WorkspaceDetailPage() {
         projectId={projectId}
         onNavigateToDoc={(docId) => void handleTabChange("docs", { docId })}
       />
-      {!isReadOnly && <WorkspaceServerStatus />}
+      {!isReadOnly &&
+        (activeTab.startsWith("chat-") || activeTab === "huddle") && (
+          <WorkspaceServerStatus />
+        )}
     </div>
   );
 }

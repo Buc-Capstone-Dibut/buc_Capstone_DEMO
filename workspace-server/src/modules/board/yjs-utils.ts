@@ -89,12 +89,11 @@ const loadDocState = async (doc: WSSharedDoc): Promise<void> => {
       throw new Error(`HTTP ${res.status}`);
     }
 
-    const { yjs_state } = (await res.json()) as { yjs_state: string | null };
-    if (!yjs_state) return;
+    const state = new Uint8Array(await res.arrayBuffer());
+    if (!state.byteLength) return;
 
-    const state = Buffer.from(yjs_state, "base64");
     Y.applyUpdate(doc, state);
-    console.log(`[YJS] '${doc.name}' 상태 로드 완료 (${state.length} bytes)`);
+    console.log(`[YJS] '${doc.name}' 상태 로드 완료 (${state.byteLength} bytes)`);
   } catch (err) {
     console.error(`[YJS] '${doc.name}' 로드 오류:`, err);
     throw err;
@@ -119,22 +118,22 @@ const saveDocState = async (doc: WSSharedDoc): Promise<void> => {
 
   try {
     const state = Y.encodeStateAsUpdate(doc);
-    const yjs_state = Buffer.from(state).toString("base64");
-
+    const requestBody = new ArrayBuffer(state.byteLength);
+    new Uint8Array(requestBody).set(state);
     const res = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/octet-stream",
         "x-internal-secret": INTERNAL_API_SECRET,
       },
-      body: JSON.stringify({ yjs_state }),
+      body: requestBody,
     });
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
 
-    console.log(`[YJS] '${doc.name}' 저장 완료 (${state.length} bytes)`);
+    console.log(`[YJS] '${doc.name}' 저장 완료 (${state.byteLength} bytes)`);
   } catch (err) {
     console.error(`[YJS] '${doc.name}' 저장 오류:`, err);
     throw err;
@@ -250,7 +249,7 @@ class WSSharedDoc extends Y.Doc {
     this.cancelScheduledSave();
     // DB에서 불러온 뒤 변경이 없었던 room은 다시 직렬화해 저장하지 않는다.
     // 이미지가 포함된 화이트보드는 상태가 수 MB까지 커질 수 있어, 단순 조회/퇴장
-    // 때마다 동일한 Base64 payload를 전송하는 비용을 피한다.
+    // 때마다 동일한 바이너리 payload를 전송하는 비용을 피한다.
     await this.persist();
   }
 

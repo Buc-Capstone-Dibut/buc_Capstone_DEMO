@@ -33,6 +33,21 @@ const nextConfig = {
   // Skip generating .map files for production browser bundles. They balloon
   // .next/static (~40% extra) and Vercel never serves them by default anyway.
   productionBrowserSourceMaps: false,
+  async rewrites() {
+    const workspaceServerUrl =
+      process.env.WORKSPACE_SERVER_URL || "http://localhost:4000";
+
+    return [
+      {
+        source: "/workspace-realtime/connect",
+        destination: `${workspaceServerUrl}/socket.io/`,
+      },
+      {
+        source: "/workspace-realtime/yjs/:path*",
+        destination: `${workspaceServerUrl}/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {
