@@ -15,15 +15,6 @@ def _safe_int(value: str | None, default: int) -> int:
         return default
 
 
-def _resolve_path(path_value: str | None, default_path: Path, base_dir: Path) -> Path:
-    if not path_value:
-        return default_path
-    path = Path(path_value).expanduser()
-    if not path.is_absolute():
-        path = (base_dir / path).resolve()
-    return path
-
-
 def _load_dotenv_files(project_root: Path, crawler_root: Path) -> Path | None:
     dotenv_paths = [
         project_root / ".env",
@@ -44,8 +35,6 @@ def _load_dotenv_files(project_root: Path, crawler_root: Path) -> Path | None:
 class Settings:
     project_root: Path
     crawler_root: Path
-    web_data_dir: Path
-    dev_event_json_path: Path
     blogs_table: str
     supabase_url: str | None
     supabase_key: str | None
@@ -62,22 +51,9 @@ def _build_settings() -> Settings:
     project_root = crawler_root.parent
     loaded_env_file = _load_dotenv_files(project_root, crawler_root)
 
-    web_data_dir = _resolve_path(
-        os.getenv("WEB_DATA_DIR"),
-        project_root / "web" / "public" / "data",
-        crawler_root,
-    )
-    dev_event_json_path = _resolve_path(
-        os.getenv("DEV_EVENT_JSON_PATH"),
-        web_data_dir / "dev-events.json",
-        crawler_root,
-    )
-
     return Settings(
         project_root=project_root,
         crawler_root=crawler_root,
-        web_data_dir=web_data_dir,
-        dev_event_json_path=dev_event_json_path,
         blogs_table=os.getenv("SUPABASE_BLOGS_TABLE", "blogs"),
         supabase_url=os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
         supabase_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -130,8 +106,6 @@ settings = _build_settings()
 
 PROJECT_ROOT = settings.project_root
 CRAWLER_ROOT = settings.crawler_root
-WEB_DATA_DIR = settings.web_data_dir
-DEV_EVENT_JSON_PATH = settings.dev_event_json_path
 
 BLOGS_TABLE = settings.blogs_table
 SUPABASE_URL = settings.supabase_url

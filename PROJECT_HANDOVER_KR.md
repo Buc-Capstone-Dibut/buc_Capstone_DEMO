@@ -45,7 +45,7 @@
 - **구현 방식**:
   - **Fetching**: 공식 API의 Rate Limit을 우회하기 위해 `requests`를 사용하여 `raw.githubusercontent.com/.../README.md`에 직접 접근합니다.
   - **중복 제거 (Deduplication)**: `(Link + Title)` 조합을 기반으로 결정론적(Deterministic)인 **UUID v5**를 생성합니다. 소스 데이터가 업데이트되어도 ID가 변하지 않아 데이터 일관성을 보장합니다.
-  - **Serving**: 데이터를 JSON(`public/data/dev-events.json`)으로 캐싱하고, Next.js Server Components에서 `fs`로 읽어와 < 100ms의 LCP(초기 로딩 속도)를 달성합니다.
+  - **Serving**: 데이터를 Supabase `dev_events`에서 읽어 Next.js Server Components로 제공합니다.
 
 #### **2. 기술 블로그 (RSS Pipeline)**
 

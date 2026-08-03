@@ -1,6 +1,6 @@
 # Debut Crawler
 
-기술 블로그 RSS/개발 이벤트 데이터를 수집해서 JSON 또는 Supabase로 적재하는 모듈입니다.
+기술 블로그 RSS/개발 이벤트 데이터를 수집해서 Supabase에 적재하는 모듈입니다.
 
 ## 수집 파이프라인
 
@@ -9,8 +9,7 @@ flowchart LR
     SRC[RSS / Event Source] --> P[Parser]
     P --> N[Normalizer]
     N --> T[Tagger - Gemini optional]
-    T --> OUT1[web/public/data/*.json]
-    T --> OUT2[(Supabase Table)]
+    T --> OUT[(Supabase Table)]
 ```
 
 ## 실행 전 준비
@@ -41,10 +40,8 @@ GitHub Dev-Event README를 파싱한 뒤, 상세 페이지는 **Firecrawl + Gemi
 
 | 키 | 필수 | 설명 |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | 선택 | Supabase 저장 시 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 선택 | Supabase 저장 시 |
+| `NEXT_PUBLIC_SUPABASE_URL` | 필수 | Supabase 연결 |
+| `SUPABASE_SERVICE_ROLE_KEY` | 필수 | Supabase 쓰기 권한 |
 | `GEMINI_API_KEY` | 선택 | AI 태깅 사용 시 |
 | `FIRECRAWL_API_KEY` | 선택 | dev_event 상세 페이지 심층 크롤링 시 |
-| `WEB_DATA_DIR` | 선택 | JSON 출력 경로 변경 |
-| `DEV_EVENT_JSON_PATH` | 선택 | 이벤트 파일 경로 변경 |
 | `SUPABASE_BLOGS_TABLE` | 선택 | 테이블명 커스텀 |

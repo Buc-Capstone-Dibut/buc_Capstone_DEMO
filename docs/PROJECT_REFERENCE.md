@@ -25,7 +25,7 @@
 | `web/`              | Next.js 14, React, Prisma       | 사용자 UI와 주 BFF API                             |           3000 | Vercel (`web/vercel.json`)              |
 | `ai-interview/`     | Python, FastAPI, uv             | 면접 세션·질문·리포트·음성 WebSocket               |           8001 | Render (`ai-interview/render.yaml`)     |
 | `workspace-server/` | Node.js, Socket.IO, Yjs, Prisma | 실시간 협업, 채팅, 프레즌스                        |           4000 | Render (`workspace-server/render.yaml`) |
-| `crawler/`          | Python, uv                      | RSS/개발 이벤트 수집과 JSON·Supabase 적재          |              - | 수동 또는 Cron                          |
+| `crawler/`          | Python, uv                      | RSS/개발 이벤트 수집과 Supabase 적재              |              - | 수동 또는 Cron                          |
 | `docs/`             | Markdown                        | 이 기준 문서와 README에서 참조하는 아키텍처 이미지 |              - | -                                       |
 
 ```mermaid
@@ -39,7 +39,6 @@ flowchart LR
     I --> G[Gemini / Vertex AI]
     I --> L[LiveKit]
     R[crawler] --> S
-    R --> J[web public JSON]
 ```
 
 `web`은 단순 프록시가 아니다. `app/api/`의 BFF 라우트가 Supabase/Prisma와 AI 연동을 직접 담당하며, AI 면접 전문 처리만 `ai-interview`으로 위임한다. `workspace-server`는 채팅을 Prisma로 직접 영속화하고, Yjs 문서·화이트보드 상태는 `web`의 내부 BFF API를 통해 저장한다. 워크스페이스 DB 모델의 기준은 `web/prisma/schema.prisma`이며 `workspace-server/prisma/schema.prisma`는 필요한 모델을 따라가는 follower다.

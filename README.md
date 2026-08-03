@@ -17,10 +17,9 @@ flowchart LR
     R -->|채팅 영속화| S
     R -->|문서·화이트보드 상태 내부 API| W
     C[crawler / Python] --> S
-    C --> J[web 정적 JSON]
 ```
 
-사용자 트래픽은 **Vercel**에 배포된 `web`(Next.js)으로 들어오고, REST/WSS로 **Render**의 두 백엔드와 통신합니다 — 면접 엔진 `ai-interview`(FastAPI)와 실시간 협업 `workspace-server`(Node). 데이터와 인증은 **Supabase**(Postgres + Auth)가 맡습니다. 면접·생성 파이프라인은 Gemini·OpenAI·LiveKit·GitHub API 등 외부 서비스를 사용하며, `crawler`(Python)는 수집 결과를 Postgres 또는 웹 정적 JSON에 적재합니다.
+사용자 트래픽은 **Vercel**에 배포된 `web`(Next.js)으로 들어오고, REST/WSS로 **Render**의 두 백엔드와 통신합니다 — 면접 엔진 `ai-interview`(FastAPI)와 실시간 협업 `workspace-server`(Node). 데이터와 인증은 **Supabase**(Postgres + Auth)가 맡습니다. 면접·생성 파이프라인은 Gemini·OpenAI·LiveKit·GitHub API 등 외부 서비스를 사용하며, `crawler`(Python)는 수집 결과를 Supabase에 적재합니다.
 
 > 현재 제품·운영 기준은 [프로젝트 기준 문서](docs/PROJECT_REFERENCE.md)입니다. `web`은 프론트엔드이자 BFF API를 직접 운영하고, `ai-interview`는 AI 면접 전문 엔진입니다.
 
