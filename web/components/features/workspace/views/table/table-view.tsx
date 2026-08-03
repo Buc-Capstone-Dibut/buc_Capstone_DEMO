@@ -268,12 +268,12 @@ function InlineTaskDocuments({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-slate-200/80 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-1">
         <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
           <FileText className="h-3.5 w-3.5" />
           연결 문서
         </span>
-        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+        <div className="flex min-w-0 flex-wrap gap-1">
           {linkedDocs.length > 0 ? (
             linkedDocs.map((relation) => (
               <div
@@ -800,7 +800,11 @@ export function TableView({
         )}
       >
         {groups.length > 0 ? (
-          <div className={cn(compact ? "divide-y" : "space-y-4")}>
+          <div
+            className={cn(
+              compact ? "space-y-1.5 bg-slate-50/60 pb-1.5" : "space-y-4",
+            )}
+          >
             {compact && (
               <div className="grid h-5 grid-cols-[minmax(0,1fr)_80px_64px] items-center border-b bg-slate-50/60 px-4 text-[9px] font-medium tracking-wide text-muted-foreground">
                 <span>분류</span>
@@ -822,18 +826,16 @@ export function TableView({
                     "overflow-hidden bg-white",
                     compact ? "" : "rounded-xl border shadow-sm",
                   )}
-                  style={{ borderLeftColor: group.accent }}
                 >
                   <button
                     type="button"
                     className={cn(
                       "flex w-full items-center text-left transition-[background-color,filter]",
                       compact
-                        ? "gap-2 border-l-2 px-4 py-2 hover:brightness-[0.98]"
-                        : "gap-3 border-l-4 px-4 py-3 hover:bg-slate-50",
+                        ? "gap-2.5 px-4 py-2.5 hover:brightness-[0.98]"
+                        : "gap-3 px-4 py-3 hover:bg-slate-50",
                     )}
                     style={{
-                      borderLeftColor: group.accent,
                       backgroundColor: compact
                         ? `color-mix(in srgb, ${group.accent} 12%, white)`
                         : undefined,
@@ -849,7 +851,7 @@ export function TableView({
                     <div
                       className={cn(
                         "flex items-center justify-center",
-                        compact ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg",
+                        compact ? "h-7 w-7 rounded-md" : "h-8 w-8 rounded-lg",
                       )}
                       style={{
                         backgroundColor: `color-mix(in srgb, ${group.accent} 16%, white)`,
@@ -888,7 +890,12 @@ export function TableView({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold">
+                        <h3
+                          className={cn(
+                            "truncate font-semibold",
+                            compact ? "text-[15px]" : "text-sm",
+                          )}
+                        >
                           {group.label}
                         </h3>
                         {groupBy === "status" && group.category && (
@@ -905,6 +912,9 @@ export function TableView({
                         <span className="text-xs text-muted-foreground">
                           {group.completed}/{group.tasks.length} 완료
                         </span>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {progress}%
+                        </span>
                       </div>
                       {!compact && (
                         <div className="mt-1 h-1.5 max-w-48 overflow-hidden rounded-full bg-slate-100">
@@ -915,40 +925,44 @@ export function TableView({
                         </div>
                       )}
                     </div>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {progress}%
-                    </span>
                   </button>
 
                   {!collapsed && (
                     <Table
                       className={cn(
                         "animate-in fade-in slide-in-from-top-1 duration-150",
-                        compact && "[&_td]:py-2",
+                        compact && "[&_td]:py-1.5 [&_td]:text-xs",
                       )}
                     >
                       <TableHeader>
                         <TableRow
                           className={cn(
                             compact
-                              ? "h-5 bg-white hover:bg-white"
+                              ? "h-5 bg-slate-50/40 text-slate-400 hover:bg-slate-50/40"
                               : "bg-slate-50/80 hover:bg-slate-50/80",
                           )}
                         >
                           <TableHead
                             className={cn(
-                              "min-w-[280px] pl-6",
+                              "relative min-w-[280px] pl-6",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
+                            {compact && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute inset-y-0 left-0 w-[3px]"
+                                style={{ backgroundColor: group.accent }}
+                              />
+                            )}
                             제목
                           </TableHead>
                           <TableHead
                             className={cn(
                               "w-[130px]",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
                             {groupBy === "status" ? "기간" : "상태"}
@@ -957,7 +971,7 @@ export function TableView({
                             className={cn(
                               "hidden w-[120px] lg:table-cell",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
                             {groupBy === "priority" ? "기간" : "우선순위"}
@@ -966,7 +980,7 @@ export function TableView({
                             className={cn(
                               "hidden w-[150px] md:table-cell",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
                             {groupBy === "assignee" ? "기간" : "담당자"}
@@ -977,7 +991,7 @@ export function TableView({
                                 ? "hidden w-[230px] xl:table-cell"
                                 : "hidden",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
                             기간
@@ -986,7 +1000,7 @@ export function TableView({
                             className={cn(
                               "hidden min-w-[150px] lg:table-cell",
                               compact &&
-                                "h-5 py-0 text-[9px] font-medium tracking-wide",
+                                "h-5 py-0 text-[9px] font-normal tracking-wide text-slate-400",
                             )}
                           >
                             태그
@@ -1028,30 +1042,40 @@ export function TableView({
                             <Fragment key={task.id}>
                               <TableRow
                                 className={cn(
-                                  "group cursor-pointer border-l-2 hover:bg-slate-50/80",
+                                  "group cursor-pointer hover:bg-slate-50/80",
                                   isExpanded &&
                                     "border-b-0 bg-slate-100/70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] hover:bg-slate-100/70",
                                 )}
-                                style={{ borderLeftColor: group.accent }}
                                 onClick={() => {
                                   setEditingTaskId(null);
                                   setExpandedTaskIds((current) => {
-                                    const next = new Set(current);
-                                    if (next.has(task.id)) {
-                                      next.delete(task.id);
-                                    } else {
-                                      next.add(task.id);
-                                    }
-                                    return next;
+                                    if (current.has(task.id)) return new Set();
+                                    return new Set([task.id]);
                                   });
                                 }}
                                 aria-expanded={isExpanded}
                               >
-                                <TableCell className="pl-6 font-medium">
-                                  <div className="flex items-center gap-2">
+                                <TableCell
+                                  className={cn(
+                                    "relative font-medium",
+                                    compact ? "pl-5" : "pl-6",
+                                  )}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="absolute inset-y-0 left-0 w-[3px]"
+                                    style={{ backgroundColor: group.accent }}
+                                  />
+                                  <div
+                                    className={cn(
+                                      "flex items-center",
+                                      compact ? "gap-1.5" : "gap-2",
+                                    )}
+                                  >
                                     <ChevronRight
                                       className={cn(
-                                        "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                                        compact ? "h-3 w-3" : "h-3.5 w-3.5",
+                                        "text-muted-foreground transition-transform",
                                         isExpanded
                                           ? "rotate-90"
                                           : "group-hover:translate-x-0.5",
@@ -1059,10 +1083,13 @@ export function TableView({
                                     />
                                     <span
                                       className={cn(
-                                        "line-clamp-1 text-sm",
+                                        "line-clamp-1",
+                                        compact ? "text-xs" : "text-sm",
                                         isExpanded
-                                          ? "font-bold text-slate-950"
-                                          : "font-medium",
+                                          ? "font-semibold text-slate-950"
+                                          : compact
+                                            ? "font-normal text-slate-700"
+                                            : "font-medium",
                                       )}
                                     >
                                       {task.title}
@@ -1276,11 +1303,18 @@ export function TableView({
 
                               {isExpanded && (
                                 <TableRow
-                                  className="animate-in border-b border-l-[3px] bg-slate-50/40 fade-in slide-in-from-top-1 duration-150 hover:bg-slate-50/40"
-                                  style={{ borderLeftColor: group.accent }}
+                                  className="animate-in border-b fade-in slide-in-from-top-1 duration-150 hover:bg-transparent"
                                 >
-                                  <TableCell colSpan={6} className="p-0">
-                                    <div className="py-1.5 pl-12 pr-4">
+                                  <TableCell
+                                    colSpan={6}
+                                    className="relative bg-slate-100/55 p-0 shadow-[inset_0_3px_7px_rgba(15,23,42,0.09),inset_0_-1px_2px_rgba(15,23,42,0.04)]"
+                                  >
+                                    <span
+                                      aria-hidden="true"
+                                      className="absolute inset-y-0 left-0 z-10 w-[3px]"
+                                      style={{ backgroundColor: group.accent }}
+                                    />
+                                    <div className="border-t border-slate-200/70 py-2 pl-12 pr-4">
                                       <div className="min-w-0">
                                         {editingTaskId === task.id ? (
                                           <div className="grid gap-4 border-y border-slate-200/80 py-2.5 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -1482,8 +1516,8 @@ export function TableView({
                                             </button>
                                           </div>
                                         )}
-                                        <div className="flex items-end gap-2">
-                                          <div className="min-w-0 flex-1">
+                                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                                          <div className="min-w-0">
                                             <InlineTaskDocuments
                                               task={task}
                                               isEditing={
@@ -1496,7 +1530,7 @@ export function TableView({
                                             <Button
                                               variant="ghost"
                                               size="sm"
-                                              className="mb-0.5 h-6 shrink-0 gap-1.5 px-2 text-[11px]"
+                                              className="h-6 shrink-0 gap-1 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
                                               onClick={() =>
                                                 setEditingTaskId((current) =>
                                                   current === task.id

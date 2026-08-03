@@ -85,7 +85,7 @@ export function DashboardCalendar({
         borderColor: "transparent",
         extendedProps: {
           status: t.status,
-          category: t.category || "todo", // Stable category from API
+          category: t.category || t.status || "todo", // Stable category from API
           priority: t.priority,
           assignee: t.assignee,
         },
@@ -141,7 +141,7 @@ export function DashboardCalendar({
 
     return (
       <div
-        className="w-full flex items-center gap-1.5 px-1.5 py-1 rounded-sm border-l-[3px] shadow-sm bg-card/90 hover:bg-accent/50 transition-all cursor-pointer overflow-hidden"
+        className="flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-none border border-slate-200 border-l-[3px] bg-white px-2 py-1 shadow-none transition-colors hover:bg-slate-50"
         style={{ borderLeftColor: color }}
       >
         {isUrgent && (

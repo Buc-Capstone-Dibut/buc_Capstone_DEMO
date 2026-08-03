@@ -5,7 +5,15 @@ import useSWR, { mutate as globalMutate } from "swr";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { CheckCircle2, Loader2, Lock, Save, Settings } from "lucide-react";
+import {
+  CheckCircle2,
+  ImagePlus,
+  Loader2,
+  Lock,
+  Save,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -49,10 +57,7 @@ import {
 import { normalizeTeamType, TEAM_TYPE_OPTIONS } from "@/lib/team-types";
 
 const formSchema = z.object({
-  name: z
-    .string()
-    .min(2, "팀 공간 이름은 2글자 이상이어야 합니다.")
-    .max(50),
+  name: z.string().min(2, "팀 공간 이름은 2글자 이상이어야 합니다.").max(50),
   category: z.string().min(1, "유형을 선택해주세요."),
   description: z
     .string()
@@ -73,6 +78,7 @@ type WorkspaceResponse = {
   category?: string | null;
   description?: string | null;
   from_squad_id?: string | null;
+  cover_image_url?: string | null;
 };
 
 const fetcher = async (url: string) => {
@@ -96,6 +102,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
   const [completionPeriod, setCompletionPeriod] = useState("");
   const [completionTags, setCompletionTags] = useState("");
   const [resultNote, setResultNote] = useState("");
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverRemoving, setCoverRemoving] = useState(false);
   const { data, isLoading } = useSWR(`/api/workspaces/${projectId}`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
@@ -137,7 +146,74 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
     if (!data) return;
     setResultLink(data.result_link || "");
     setResultNote(data.result_note || "");
+    setCoverImageUrl(data.cover_image_url || null);
   }, [data]);
+
+  const refreshWorkspace = () => {
+    void globalMutate(`/api/workspaces/${projectId}`);
+    void globalMutate("/api/workspaces");
+  };
+
+  const handleCoverUpload = async (file: File | undefined) => {
+    if (!file || isCompleted) return;
+    if (
+      !new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type) ||
+      file.size > 5 * 1024 * 1024
+    ) {
+      toast.error(
+        "JPG, PNG, WebP 형식의 5MB 이하 이미지만 업로드할 수 있습니다.",
+      );
+      return;
+    }
+
+    try {
+      setCoverUploading(true);
+      const formData = new FormData();
+      formData.set("file", file);
+      const response = await fetch(`/api/workspaces/${projectId}/cover`, {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result.error || "대표이미지를 업로드하지 못했습니다.");
+      setCoverImageUrl(result.coverImageUrl || null);
+      refreshWorkspace();
+      toast.success("프로젝트 대표이미지를 저장했습니다.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "대표이미지를 업로드하지 못했습니다.",
+      );
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const handleCoverRemove = async () => {
+    if (!coverImageUrl || isCompleted) return;
+    try {
+      setCoverRemoving(true);
+      const response = await fetch(`/api/workspaces/${projectId}/cover`, {
+        method: "DELETE",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result.error || "대표이미지를 제거하지 못했습니다.");
+      setCoverImageUrl(null);
+      refreshWorkspace();
+      toast.success("프로젝트 대표이미지를 제거했습니다.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "대표이미지를 제거하지 못했습니다.",
+      );
+    } finally {
+      setCoverRemoving(false);
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -187,7 +263,9 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         throw new Error(result.error || "팀 공간 종료에 실패했습니다.");
       }
 
-      toast.success("팀 공간이 종료되어 읽기 전용 전환 및 커리어 후보 생성이 완료되었습니다.");
+      toast.success(
+        "팀 공간이 종료되어 읽기 전용 전환 및 커리어 후보 생성이 완료되었습니다.",
+      );
       setCompleteDialogOpen(false);
       void globalMutate(`/api/workspaces/${projectId}`);
       void globalMutate("/api/workspaces");
@@ -251,48 +329,51 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         </p>
         {isCompleted && (
           <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5">
-            <Lock className="h-3.5 w-3.5" />이 팀 공간은 종료되어 읽기
-            전용 상태입니다.
+            <Lock className="h-3.5 w-3.5" />이 팀 공간은 종료되어 읽기 전용
+            상태입니다.
           </p>
         )}
       </div>
 
       <Separator />
 
-      {isCompleted && (data?.result_type || data?.result_link || data?.result_note) && (
-        <Card className="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 className="h-4 w-4" />
-              종료 결과
-            </CardTitle>
-            <CardDescription>
-              이 팀 공간은 종료되었고 아래 내용으로 기록이 남아 있습니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {data?.result_type && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">결과 타입</span>
-                <Badge variant="secondary">{data.result_type}</Badge>
-              </div>
-            )}
-            {data?.result_note && (
-              <p className="text-foreground leading-relaxed">{data.result_note}</p>
-            )}
-            {data?.result_link && (
-              <a
-                href={data.result_link}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex text-primary underline underline-offset-4"
-              >
-                GitHub 링크 열기
-              </a>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {isCompleted &&
+        (data?.result_type || data?.result_link || data?.result_note) && (
+          <Card className="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="h-4 w-4" />
+                종료 결과
+              </CardTitle>
+              <CardDescription>
+                이 팀 공간은 종료되었고 아래 내용으로 기록이 남아 있습니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {data?.result_type && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">결과 타입</span>
+                  <Badge variant="secondary">{data.result_type}</Badge>
+                </div>
+              )}
+              {data?.result_note && (
+                <p className="text-foreground leading-relaxed">
+                  {data.result_note}
+                </p>
+              )}
+              {data?.result_link && (
+                <a
+                  href={data.result_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex text-primary underline underline-offset-4"
+                >
+                  GitHub 링크 열기
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       <Card>
         <CardHeader className="pb-3">
@@ -399,15 +480,94 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ImagePlus className="h-4 w-4" />
+            프로젝트 대표 이미지
+          </CardTitle>
+          <CardDescription>
+            상단 프로젝트 영역과 워크스페이스 종료 후 생성되는 커리어 프로젝트
+            초안에 함께 사용됩니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-50 sm:w-44">
+              {coverImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={coverImageUrl}
+                  alt="프로젝트 대표 이미지 미리보기"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="text-center text-xs text-slate-400">
+                  <ImagePlus className="mx-auto h-5 w-5" />
+                  <span className="mt-2 block">대표 이미지 없음</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                JPG, PNG, WebP · 최대 5MB
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  asChild
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isCompleted || coverUploading}
+                >
+                  <label className="cursor-pointer">
+                    {coverUploading ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {coverImageUrl ? "이미지 변경" : "이미지 업로드"}
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={isCompleted || coverUploading}
+                      onChange={(event) =>
+                        void handleCoverUpload(event.target.files?.[0])
+                      }
+                    />
+                  </label>
+                </Button>
+                {coverImageUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={isCompleted || coverRemoving}
+                    onClick={() => void handleCoverRemove()}
+                  >
+                    {coverRemoving ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    제거
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="shadow-sm mt-8">
         <CardHeader className="pb-3 border-b border-border/40">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Settings className="h-4 w-4" />
-            팀 공간 관리
+            <Settings className="h-4 w-4" />팀 공간 관리
           </CardTitle>
           <CardDescription>
-            팀 공간의 상태를 변경하거나 데이터를 영구적으로 삭제할 수
-            있습니다.
+            팀 공간의 상태를 변경하거나 데이터를 영구적으로 삭제할 수 있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
@@ -471,8 +631,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
             <DialogDescription>
               종료하면 모든 쓰기 기능이 차단되고 읽기 전용으로 전환됩니다.
               입력한 진행 기간, 핵심 태그, 결과 메모는 참여자별 커리어관리 탭의
-              프로젝트 불러오기 후보 생성에 활용되어, 각자 프로젝트 초안으로 바로 가져올 수
-              있습니다.
+              프로젝트 불러오기 후보 생성에 활용되어, 각자 프로젝트 초안으로
+              바로 가져올 수 있습니다.
             </DialogDescription>
           </DialogHeader>
 
@@ -487,8 +647,13 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="completionPeriod">진행 기간 (커리어용, 선택)</Label>
-              <div id="completionPeriod" className="rounded-lg border bg-muted/20 p-3">
+              <Label htmlFor="completionPeriod">
+                진행 기간 (커리어용, 선택)
+              </Label>
+              <div
+                id="completionPeriod"
+                className="rounded-lg border bg-muted/20 p-3"
+              >
                 <MonthRangePicker
                   value={completionPeriod}
                   onChange={setCompletionPeriod}
@@ -504,7 +669,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 placeholder="예: React, 협업, 문제해결"
               />
               <p className="text-xs text-muted-foreground">
-                쉼표(,)로 구분하면 커리어관리 프로젝트 불러오기 후보 태그로 반영됩니다.
+                쉼표(,)로 구분하면 커리어관리 프로젝트 불러오기 후보 태그로
+                반영됩니다.
               </p>
             </div>
             <div className="space-y-2">
@@ -517,7 +683,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground">
-                커리어관리에서 프로젝트 불러오기 시 1줄 요약/결과 설명 초안으로 사용됩니다.
+                커리어관리에서 프로젝트 불러오기 시 1줄 요약/결과 설명 초안으로
+                사용됩니다.
               </p>
             </div>
           </div>
@@ -560,8 +727,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
           <DialogHeader>
             <DialogTitle>팀 공간 삭제</DialogTitle>
             <DialogDescription>
-              이 작업은 되돌릴 수 없습니다. 아래 안내를 확인하고 정확한
-              팀 공간 이름을 입력해야 삭제가 가능합니다.
+              이 작업은 되돌릴 수 없습니다. 아래 안내를 확인하고 정확한 팀 공간
+              이름을 입력해야 삭제가 가능합니다.
             </DialogDescription>
           </DialogHeader>
 
@@ -572,8 +739,8 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
               입력하세요.
             </p>
             <div className="space-y-2">
-                <Input
-                  value={deleteConfirmName}
+              <Input
+                value={deleteConfirmName}
                 onChange={(e) => setDeleteConfirmName(e.target.value)}
                 placeholder="프로젝트 이름을 입력해 주세요"
                 autoComplete="off"

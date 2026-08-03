@@ -47,7 +47,10 @@ const workspaceDraftSchema = z.object({
   techStack: z.array(z.string().max(40)).max(12).optional(),
 });
 
-function normalizeShortText(value: unknown, maxLength = 500): string | undefined {
+function normalizeShortText(
+  value: unknown,
+  maxLength = 500,
+): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim();
   if (!normalized) return undefined;
@@ -154,22 +157,22 @@ async function buildWorkspaceDraftWithAi(
 
 [워크스페이스 활동 데이터]
 ${JSON.stringify(
-    {
-      workspaceName: candidate.workspaceName,
-      workspaceCategory: candidate.workspaceCategory,
-      role: candidate.role,
-      teamRole: candidate.teamRole,
-      period: buildWorkspacePeriodLabel(candidate),
-      resultType: candidate.resultType,
-      resultLink: candidate.resultLink,
-      resultNote: candidate.resultNote,
-      taskSummary: candidate.taskSummary,
-      completedTaskTitles: candidate.completedTaskTitles.slice(0, 12),
-      focusTags: candidate.focusTags,
-    },
-    null,
-    2,
-  )}
+  {
+    workspaceName: candidate.workspaceName,
+    workspaceCategory: candidate.workspaceCategory,
+    role: candidate.role,
+    teamRole: candidate.teamRole,
+    period: buildWorkspacePeriodLabel(candidate),
+    resultType: candidate.resultType,
+    resultLink: candidate.resultLink,
+    resultNote: candidate.resultNote,
+    taskSummary: candidate.taskSummary,
+    completedTaskTitles: candidate.completedTaskTitles.slice(0, 12),
+    focusTags: candidate.focusTags,
+  },
+  null,
+  2,
+)}
 
 [출력 JSON 스키마]
 {
@@ -224,11 +227,15 @@ ${JSON.stringify(
     return {
       draft: {
         ...fallback,
-        description: normalizeShortText(aiDraft.description, 500) || fallback.description,
-        situation: normalizeShortText(aiDraft.situation, 2000) || fallback.situation,
+        description:
+          normalizeShortText(aiDraft.description, 500) || fallback.description,
+        situation:
+          normalizeShortText(aiDraft.situation, 2000) || fallback.situation,
         role: normalizeShortText(aiDraft.role, 1200) || fallback.role,
-        solution: normalizeShortText(aiDraft.solution, 2000) || fallback.solution,
-        difficulty: normalizeShortText(aiDraft.difficulty, 1200) || fallback.difficulty,
+        solution:
+          normalizeShortText(aiDraft.solution, 2000) || fallback.solution,
+        difficulty:
+          normalizeShortText(aiDraft.difficulty, 1200) || fallback.difficulty,
         result: normalizeShortText(aiDraft.result, 2000) || fallback.result,
         lesson: normalizeShortText(aiDraft.lesson, 1200) || fallback.lesson,
         tags: normalizeTagArray(nextTags),
@@ -264,7 +271,13 @@ async function ensureActiveResume(userId: string) {
         is_active: true,
         resume_payload: {
           experience: [],
-          personalInfo: { name: "", email: "", phone: "", intro: "", links: {} },
+          personalInfo: {
+            name: "",
+            email: "",
+            phone: "",
+            intro: "",
+            links: {},
+          },
           education: [],
           skills: [],
           selfIntroduction: "",
@@ -293,7 +306,9 @@ function formatYearMonth(value: string | null): string | null {
   return `${year}.${month}`;
 }
 
-function buildWorkspacePeriodLabel(candidate: WorkspaceCareerImportCandidate): string {
+function buildWorkspacePeriodLabel(
+  candidate: WorkspaceCareerImportCandidate,
+): string {
   if (candidate.periodLabel) {
     return candidate.periodLabel;
   }
@@ -332,7 +347,9 @@ function buildExperienceFromWorkspaceCandidate(
     candidate.resultType || "",
   ]
     .map((value) => value.trim())
-    .filter((value, index, arr) => Boolean(value) && arr.indexOf(value) === index);
+    .filter(
+      (value, index, arr) => Boolean(value) && arr.indexOf(value) === index,
+    );
 
   const resultLines = [
     candidate.resultType ? `종료 결과: ${candidate.resultType}` : "",
@@ -346,16 +363,27 @@ function buildExperienceFromWorkspaceCandidate(
     period: buildWorkspacePeriodLabel(candidate),
     description,
     tags,
+    representativeImage: candidate.coverImageUrl
+      ? {
+          url: candidate.coverImageUrl,
+          alt: `${candidate.workspaceName} 대표 이미지`,
+          updatedAt: candidate.updatedAt,
+        }
+      : undefined,
     role: primaryRole,
     solution: candidate.taskSummary || undefined,
     result:
-      resultLines.length > 0 ? resultLines.join("\n") : candidate.taskSummary || undefined,
+      resultLines.length > 0
+        ? resultLines.join("\n")
+        : candidate.taskSummary || undefined,
   };
 }
 
 export async function saveExperienceAction(data: ExperienceInput) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
@@ -367,7 +395,9 @@ export async function saveExperienceAction(data: ExperienceInput) {
 
   if (data.id) {
     // Update existing
-    const index = experiences.findIndex((experience) => experience.id === data.id);
+    const index = experiences.findIndex(
+      (experience) => experience.id === data.id,
+    );
     if (index !== -1) {
       experiences[index] = { ...experiences[index], ...data };
     } else {
@@ -383,7 +413,7 @@ export async function saveExperienceAction(data: ExperienceInput) {
 
   await prisma.user_resumes.update({
     where: { id: activeResume.id },
-    data: { resume_payload: payload as Prisma.InputJsonValue }
+    data: { resume_payload: payload as Prisma.InputJsonValue },
   });
 
   // --- 전역 프로필 동기화 ---
@@ -396,13 +426,15 @@ export async function saveExperienceAction(data: ExperienceInput) {
 
 export async function deleteExperienceAction(id: string) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
 
   const activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: userId, is_active: true }
+    where: { user_id: userId, is_active: true },
   });
 
   if (!activeResume) throw new Error("No active resume");
@@ -414,12 +446,12 @@ export async function deleteExperienceAction(id: string) {
 
   await prisma.user_resumes.update({
     where: { id: activeResume.id },
-    data: { resume_payload: payload as Prisma.InputJsonValue }
+    data: { resume_payload: payload as Prisma.InputJsonValue },
   });
 
   // Explicitly delete from master profile to avoid merge-only reappearances
   const profile = await prisma.user_resume_profiles.findUnique({
-    where: { user_id: userId }
+    where: { user_id: userId },
   });
 
   if (profile && profile.resume_payload) {
@@ -430,7 +462,7 @@ export async function deleteExperienceAction(id: string) {
       );
       await prisma.user_resume_profiles.update({
         where: { user_id: userId },
-        data: { resume_payload: profilePayload as Prisma.InputJsonValue }
+        data: { resume_payload: profilePayload as Prisma.InputJsonValue },
       });
     }
   }
@@ -445,26 +477,28 @@ export async function deleteExperienceAction(id: string) {
 
 export async function getExperiencesByIdsAction(ids: string[]) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
 
   // Read from master profile first (authoritative source for career experiences)
   const profile = await prisma.user_resume_profiles.findUnique({
-    where: { user_id: userId }
+    where: { user_id: userId },
   });
 
   if (profile && profile.resume_payload) {
     const payload = toMutableResumePayload(profile.resume_payload);
     const experiences = getTimeline(payload);
-    const matched = experiences.filter(e => ids.includes(e.id!));
+    const matched = experiences.filter((e) => ids.includes(e.id!));
     if (matched.length > 0) return matched;
   }
 
   // Fallback to active resume
   const activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: userId, is_active: true }
+    where: { user_id: userId, is_active: true },
   });
 
   if (!activeResume) return [];
@@ -477,14 +511,16 @@ export async function getExperiencesByIdsAction(ids: string[]) {
 
 export async function getAllExperiencesAction() {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
 
   // Read from master profile first (authoritative source for career experiences)
   const profile = await prisma.user_resume_profiles.findUnique({
-    where: { user_id: userId }
+    where: { user_id: userId },
   });
 
   if (profile && profile.resume_payload) {
@@ -495,7 +531,7 @@ export async function getAllExperiencesAction() {
 
   // Fallback to active resume
   const activeResume = await prisma.user_resumes.findFirst({
-    where: { user_id: userId, is_active: true }
+    where: { user_id: userId, is_active: true },
   });
 
   if (!activeResume) return [];
@@ -508,16 +544,22 @@ export async function getAllExperiencesAction() {
 
 export async function getWorkspaceExperienceImportCandidatesAction() {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
   return getWorkspaceCareerImportCandidates(userId);
 }
 
-export async function importWorkspaceExperienceCandidateAction(workspaceId: string) {
+export async function importWorkspaceExperienceCandidateAction(
+  workspaceId: string,
+) {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session) throw new Error("Unauthorized");
 
   const userId = session.user.id;
@@ -527,7 +569,10 @@ export async function importWorkspaceExperienceCandidateAction(workspaceId: stri
     throw new Error("워크스페이스 식별자가 올바르지 않습니다.");
   }
 
-  const candidate = await getWorkspaceCareerImportCandidate(userId, normalizedWorkspaceId);
+  const candidate = await getWorkspaceCareerImportCandidate(
+    userId,
+    normalizedWorkspaceId,
+  );
   if (!candidate) {
     throw new Error("불러올 수 있는 워크스페이스 프로젝트 후보가 없습니다.");
   }
@@ -564,7 +609,9 @@ export async function importWorkspaceExperienceCandidateAction(workspaceId: stri
   };
 }
 
-export async function prepareWorkspaceExperienceDraftAction(workspaceId: string) {
+export async function prepareWorkspaceExperienceDraftAction(
+  workspaceId: string,
+) {
   const supabase = await createClient();
   const {
     data: { session },
@@ -578,7 +625,10 @@ export async function prepareWorkspaceExperienceDraftAction(workspaceId: string)
     throw new Error("워크스페이스 식별자가 올바르지 않습니다.");
   }
 
-  const candidate = await getWorkspaceCareerImportCandidate(userId, normalizedWorkspaceId);
+  const candidate = await getWorkspaceCareerImportCandidate(
+    userId,
+    normalizedWorkspaceId,
+  );
   if (!candidate) {
     throw new Error("불러올 수 있는 워크스페이스 프로젝트 후보가 없습니다.");
   }
@@ -594,13 +644,15 @@ export async function prepareWorkspaceExperienceDraftAction(workspaceId: string)
       ? "AI가 워크스페이스 활동 내역을 분석해 초안을 채웠습니다. 확인 후 수정하고 다음 단계로 넘어가세요."
       : "워크스페이스 활동 내역 기반으로 기본 초안을 채웠습니다. 확인 후 수정하고 다음 단계로 넘어가세요.",
     draft: {
-      company: normalizeShortText(draft.company, 120) || candidate.workspaceName,
+      company:
+        normalizeShortText(draft.company, 120) || candidate.workspaceName,
       position:
         normalizeShortText(draft.position, 120) ||
         candidate.teamRole ||
         normalizeRoleLabel(candidate.role),
       period:
-        normalizeShortText(draft.period, 80) || buildWorkspacePeriodLabel(candidate),
+        normalizeShortText(draft.period, 80) ||
+        buildWorkspacePeriodLabel(candidate),
       description: normalizeShortText(draft.description, 500) || "",
       tags: normalizeTagArray(draft.tags),
       techStack: normalizeTagArray(draft.techStack),
@@ -664,7 +716,9 @@ export async function getWorkspaceProjectImportCandidatesAction() {
   return getWorkspaceExperienceImportCandidatesAction();
 }
 
-export async function importWorkspaceProjectCandidateAction(workspaceId: string) {
+export async function importWorkspaceProjectCandidateAction(
+  workspaceId: string,
+) {
   return importWorkspaceExperienceCandidateAction(workspaceId);
 }
 
