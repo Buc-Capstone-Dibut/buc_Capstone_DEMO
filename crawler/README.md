@@ -36,6 +36,10 @@ uv run python -m src.apps.dev_event.cli --limit 10
 
 GitHub Dev-Event README를 파싱한 뒤, 상세 페이지는 **Firecrawl + Gemini**로 심층 크롤링합니다(`FIRECRAWL_API_KEY` 설정 시).
 
+### GitHub Actions
+
+`.github/workflows/crawler.yml`이 매일 03:15(KST)에 두 크롤러를 실행합니다. GitHub Actions의 Repository Secrets에 `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `FIRECRAWL_API_KEY`를 등록해야 합니다. `workflow_dispatch`로 특정 크롤러만 수동 실행할 수도 있습니다.
+
 ## 주요 환경변수
 
 | 키 | 필수 | 설명 |

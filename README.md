@@ -30,7 +30,7 @@ flowchart LR
 | `web/` | Next.js 프론트 + BFF API | 3000 | Vercel |
 | `ai-interview/` | 면접 엔진 FastAPI | 8001 | Render |
 | `workspace-server/` | Socket.IO + Yjs 서버 | 4000 | Render |
-| `crawler/` | RSS/이벤트 수집기 | - | Cron/수동 |
+| `crawler/` | RSS/이벤트 수집기 | - | GitHub Actions/수동 |
 | `docs/` | 설계/운영 문서 | - | - |
 
 ## 로컬 실행 순서

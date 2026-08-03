@@ -25,7 +25,7 @@
 | `web/`              | Next.js 14, React, Prisma       | 사용자 UI와 주 BFF API                             |           3000 | Vercel (`web/vercel.json`)              |
 | `ai-interview/`     | Python, FastAPI, uv             | 면접 세션·질문·리포트·음성 WebSocket               |           8001 | Render (`ai-interview/render.yaml`)     |
 | `workspace-server/` | Node.js, Socket.IO, Yjs, Prisma | 실시간 협업, 채팅, 프레즌스                        |           4000 | Render (`workspace-server/render.yaml`) |
-| `crawler/`          | Python, uv                      | RSS/개발 이벤트 수집과 Supabase 적재              |              - | 수동 또는 Cron                          |
+| `crawler/`          | Python, uv                      | RSS/개발 이벤트 수집과 Supabase 적재              |              - | GitHub Actions 스케줄/수동               |
 | `docs/`             | Markdown                        | 이 기준 문서와 README에서 참조하는 아키텍처 이미지 |              - | -                                       |
 
 ```mermaid
