@@ -18,7 +18,10 @@ function isDoneColumn(column: { title: string; category: string | null }) {
   if (category === "done" || category === "completed") {
     return true;
   }
-  const normalizedTitle = column.title.trim().toLowerCase().replace(/\s+/g, "-");
+  const normalizedTitle = column.title
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
   return DONE_COLUMN_TITLES.has(normalizedTitle);
 }
 
@@ -42,8 +45,11 @@ function normalizeOptionalText(value: unknown): string | null {
 }
 
 function normalizeTagList(value: unknown): string[] {
-  const source =
-    Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
   if (!Array.isArray(source)) return [];
 
   const dedupe = new Set<string>();
@@ -109,7 +115,9 @@ export async function POST(
       );
     }
 
-    const body = (await request.json().catch(() => ({}))) as CompleteWorkspaceBody;
+    const body = (await request
+      .json()
+      .catch(() => ({}))) as CompleteWorkspaceBody;
     const resultType = normalizeOptionalText(body.resultType);
     const resultLink = normalizeOptionalText(body.resultLink);
     const resultNote = normalizeOptionalText(body.resultNote);
@@ -122,6 +130,7 @@ export async function POST(
         id: true,
         name: true,
         category: true,
+        cover_image_url: true,
         created_at: true,
         activated_at: true,
       },
@@ -152,7 +161,9 @@ export async function POST(
       },
     });
 
-    const doneColumnIds = columns.filter(isDoneColumn).map((column) => column.id);
+    const doneColumnIds = columns
+      .filter(isDoneColumn)
+      .map((column) => column.id);
     const memberIds = members.map((member) => member.user_id);
 
     const completedTasks =
@@ -217,6 +228,7 @@ export async function POST(
               workspaceId,
               workspaceName: workspaceSummary.name,
               workspaceCategory: workspaceSummary.category,
+              coverImageUrl: workspaceSummary.cover_image_url,
               role: member.role || "member",
               teamRole: member.team_role || null,
               periodLabel,
@@ -243,7 +255,9 @@ export async function POST(
         new Set(
           members
             .map((member) => member.user_id)
-            .filter((memberUserId): memberUserId is string => Boolean(memberUserId)),
+            .filter((memberUserId): memberUserId is string =>
+              Boolean(memberUserId),
+            ),
         ),
       );
 

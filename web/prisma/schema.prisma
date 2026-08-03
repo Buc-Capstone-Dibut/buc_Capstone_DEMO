@@ -863,6 +863,7 @@ model workspaces {
   name             String
   description      String?
   icon_url         String?
+  cover_image_url  String?
   category         String                     @default("project")
   space_status     workspace_space_status     @default(ACTIVE)
   activated_at     DateTime?

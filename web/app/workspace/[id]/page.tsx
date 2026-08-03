@@ -13,9 +13,9 @@ import { WorkspaceServerStatus } from "@/components/features/workspace/detail/wo
 import { DashboardOverview } from "@/components/features/workspace/detail/dashboard-overview";
 import { DocsErrorBoundary } from "@/components/features/workspace/docs/docs-error-boundary";
 import dynamic from "next/dynamic";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
+import { WorkspaceTabLoading } from "@/components/features/workspace/detail/workspace-tab-loading";
 
 const KanbanBoard = dynamic(
   () =>
@@ -24,7 +24,12 @@ const KanbanBoard = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="작업 보드를 준비하고 있어요"
+        description="팀의 작업 흐름을 불러오는 중입니다."
+      />
+    ),
   },
 );
 const ScheduleView = dynamic(
@@ -34,7 +39,12 @@ const ScheduleView = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="일정을 준비하고 있어요"
+        description="작업 마감일과 팀 일정을 불러오는 중입니다."
+      />
+    ),
   },
 );
 const DocsView = dynamic(
@@ -44,7 +54,12 @@ const DocsView = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="문서를 불러오고 있어요"
+        description="팀 문서와 연결된 정보를 준비하는 중입니다."
+      />
+    ),
   },
 );
 const IdeaBoard = dynamic(
@@ -54,7 +69,12 @@ const IdeaBoard = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="아이디어를 정리하고 있어요"
+        description="팀의 아이디어 보드를 불러오는 중입니다."
+      />
+    ),
   },
 );
 const TeamChat = dynamic(
@@ -64,7 +84,12 @@ const TeamChat = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="대화를 불러오고 있어요"
+        description="팀 채널과 최근 대화를 준비하는 중입니다."
+      />
+    ),
   },
 );
 const WorkspaceMembersView = dynamic(
@@ -74,7 +99,12 @@ const WorkspaceMembersView = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="팀원을 불러오고 있어요"
+        description="참여 중인 팀원 정보를 준비하는 중입니다."
+      />
+    ),
   },
 );
 const WorkspaceSettingsView = dynamic(
@@ -84,7 +114,12 @@ const WorkspaceSettingsView = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="설정을 준비하고 있어요"
+        description="팀 공간 설정 정보를 불러오는 중입니다."
+      />
+    ),
   },
 );
 const LiveHuddle = dynamic(
@@ -94,7 +129,12 @@ const LiveHuddle = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="음성 공간을 준비하고 있어요"
+        description="팀의 음성 채널을 연결하는 중입니다."
+      />
+    ),
   },
 );
 const UnifiedInbox = dynamic(
@@ -104,7 +144,12 @@ const UnifiedInbox = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="받은 작업을 불러오고 있어요"
+        description="내게 연결된 팀 알림과 작업을 준비하는 중입니다."
+      />
+    ),
   },
 );
 const MyBriefcase = dynamic(
@@ -114,7 +159,12 @@ const MyBriefcase = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full w-full rounded-lg" />,
+    loading: () => (
+      <WorkspaceTabLoading
+        title="내 작업 공간을 준비하고 있어요"
+        description="개인 작업 정보를 불러오는 중입니다."
+      />
+    ),
   },
 );
 import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
@@ -354,12 +404,7 @@ export default function WorkspaceDetailPage() {
       case "board":
         return <KanbanBoard projectId={projectId} />;
       case "schedule":
-        return (
-          <ScheduleView
-            projectId={projectId}
-            onNavigateToDoc={(docId) => handleTabChange("docs", { docId })}
-          />
-        );
+        return <ScheduleView projectId={projectId} />;
       case "docs":
         return (
           <DocsErrorBoundary resetKey={searchParams.get("doc")}>

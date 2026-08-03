@@ -45,6 +45,37 @@ interface TaskCardProps {
   onDelete?: () => void;
 }
 
+const TASK_ACCENT_CLASSES: Record<string, string> = {
+  slate: "bg-slate-500",
+  gray: "bg-gray-500",
+  red: "bg-red-500",
+  orange: "bg-orange-500",
+  amber: "bg-amber-500",
+  yellow: "bg-yellow-500",
+  green: "bg-green-500",
+  emerald: "bg-emerald-500",
+  teal: "bg-teal-500",
+  cyan: "bg-cyan-500",
+  sky: "bg-sky-500",
+  blue: "bg-blue-500",
+  indigo: "bg-indigo-500",
+  violet: "bg-violet-500",
+  purple: "bg-purple-500",
+  fuchsia: "bg-fuchsia-500",
+  pink: "bg-pink-500",
+  rose: "bg-rose-500",
+};
+
+function getTaskAccentClass(color?: string | null) {
+  if (!color) return "bg-primary/20";
+
+  const classColor = color.match(/(?:bg|text)-([a-z]+)-/)?.[1];
+  const plainColor = color.trim().toLowerCase();
+  return (
+    TASK_ACCENT_CLASSES[classColor || plainColor] || "bg-primary/20"
+  );
+}
+
 function TaskCardImpl({
   task,
   isOverlay,
@@ -202,38 +233,22 @@ function TaskCardImpl({
 
   // Keep one fixed-width, non-interactive accent across every Kanban card.
   const priority = priorities.find(
-    (p) => p.id === task.priorityId?.toLowerCase(),
+    (p) => p.id.toLowerCase() === task.priorityId?.toLowerCase(),
   );
   const firstTagId = task.tags?.[0];
   const firstTag = firstTagId
-    ? tags.find((t) => t.id === firstTagId)
+    ? tags.find((t) => t.id === firstTagId || t.name === firstTagId)
     : undefined;
 
-  // Helper: Handle both legacy 'bg-red-500' and new 'red' formats
-  const getSolidColor = (color: string) => {
-    if (!color) return "bg-primary/20";
-
-    // If it's a legacy Tailwind class
-    if (color.includes("bg-") || color.includes("text-")) {
-      const match = color.match(/(?:bg|text)-([a-z]+)-/);
-      if (match && match[1]) {
-        return `bg-${match[1]}-500`;
-      }
-    }
-
-    // If it's a base color name (new system)
-    return `bg-${color}-500`;
-  };
-
   const currentAccent = priority
-    ? getSolidColor(priority.color)
+    ? getTaskAccentClass(priority.color)
     : firstTag
-      ? getSolidColor(firstTag.color)
+      ? getTaskAccentClass(firstTag.color)
       : "bg-primary/20 hover:bg-primary/40";
 
   return (
     <Card
-      className={`relative cursor-pointer overflow-hidden border-muted-foreground/10 bg-card shadow-sm transition-all hover:shadow-md ${isOverlay ? "cursor-grabbing scale-[1.02] shadow-xl" : ""}`}
+      className={`relative cursor-pointer overflow-hidden rounded-sm border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.10)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_4px_10px_rgba(15,23,42,0.10)] ${isOverlay ? "cursor-grabbing scale-[1.02] shadow-xl" : ""}`}
     >
       <div
         className={cn(

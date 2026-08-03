@@ -252,7 +252,7 @@ export function KanbanView({
         onDragCancel={handleDragCancel}
       >
         {groupBy === "status" ? (
-          <div className="h-full min-w-full overflow-x-auto overflow-y-hidden p-4">
+          <div className="h-full min-w-full overflow-x-auto overflow-y-hidden p-3">
             {statusColumnsByCategory.length === 0 ? (
               <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed bg-muted/20 px-8 text-center">
                 <div className="space-y-2">
@@ -265,7 +265,7 @@ export function KanbanView({
                 </div>
               </div>
             ) : (
-              <div className="flex h-full min-w-fit items-stretch gap-8">
+              <div className="flex h-full min-w-fit items-stretch gap-5">
                 {statusColumnsByCategory.map((section) => (
                   <section
                     key={section.category}
@@ -281,7 +281,7 @@ export function KanbanView({
                         <div className="flex items-center gap-2">
                           <span
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+                              "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-semibold",
                               section.badgeClass,
                             )}
                           >
@@ -319,7 +319,7 @@ export function KanbanView({
                       <div className="mt-3 h-px w-full bg-border" />
                       <div
                         className={cn(
-                          "mt-[-1px] h-0.5 w-16 rounded-full",
+                          "mt-[-1px] h-0.5 w-16",
                           section.lineClass,
                         )}
                       />
