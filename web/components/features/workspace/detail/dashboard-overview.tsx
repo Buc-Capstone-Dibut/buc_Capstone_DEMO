@@ -29,6 +29,10 @@ type BoardTask = {
   id: string;
   title: string;
   status?: string;
+  category?: string | null;
+  columnTitle?: string | null;
+  endDate?: string | null;
+  assignee?: string | null;
 };
 
 type BoardData = {
@@ -43,7 +47,8 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 // page bundle through this overview. Load it client-side after paint so it no
 // longer blocks initial render. ssr:false — FullCalendar is browser-only.
 const DashboardCalendar = dynamic(
-  () => import("./overview/dashboard-calendar").then((m) => m.DashboardCalendar),
+  () =>
+    import("./overview/dashboard-calendar").then((m) => m.DashboardCalendar),
   {
     ssr: false,
     loading: () => (
@@ -60,11 +65,12 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
     dedupingInterval: 30_000,
   } as const;
 
-  const { data: project, isLoading: isProjectLoading } = useSWR<WorkspaceProject>(
-    `/api/workspaces/${projectId}`,
-    fetcher,
-    swrOptions,
-  );
+  const { data: project, isLoading: isProjectLoading } =
+    useSWR<WorkspaceProject>(
+      `/api/workspaces/${projectId}`,
+      fetcher,
+      swrOptions,
+    );
 
   const { data: boardData, isLoading: isBoardLoading } = useSWR<BoardData>(
     `/api/workspaces/${projectId}/board`,
@@ -83,7 +89,9 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
   const tasks = boardData?.tasks ?? [];
   const showResultCard =
     project?.lifecycle_status === "COMPLETED" ||
-    Boolean(project?.result_type || project?.result_link || project?.result_note);
+    Boolean(
+      project?.result_type || project?.result_link || project?.result_note,
+    );
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 p-6 animate-in fade-in duration-500">
@@ -91,11 +99,7 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
 
       <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-6">
-          <TeamPulse
-            members={boardData?.members ?? []}
-            projectId={projectId}
-            lifecycleStatus={project?.lifecycle_status}
-          />
+          <TeamPulse tasks={tasks} projectId={projectId} />
           {showResultCard && (
             <WorkspaceResultCard
               lifecycleStatus={project?.lifecycle_status}
@@ -108,7 +112,7 @@ export function DashboardOverview({ projectId }: DashboardOverviewProps) {
         </div>
 
         <div className="min-w-0">
-          <div className="rounded-2xl border bg-background shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-md border bg-background shadow-sm">
             <DashboardCalendar projectId={projectId} tasks={tasks} />
           </div>
         </div>

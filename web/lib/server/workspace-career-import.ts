@@ -7,6 +7,7 @@ export type WorkspaceCareerImportCandidate = {
   workspaceId: string;
   workspaceName: string;
   workspaceCategory: string | null;
+  coverImageUrl: string | null;
   role: string;
   teamRole: string | null;
   periodLabel: string | null;
@@ -84,8 +85,11 @@ function normalizeTaskTitles(value: unknown): string[] {
 }
 
 function normalizeFocusTags(value: unknown): string[] {
-  const source =
-    Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
   if (!Array.isArray(source)) return [];
 
   const dedupe = new Set<string>();
@@ -105,7 +109,9 @@ function normalizeStatus(value: unknown): WorkspaceCareerImportCandidateStatus {
     : "PENDING";
 }
 
-function normalizeCandidate(value: unknown): WorkspaceCareerImportCandidate | null {
+function normalizeCandidate(
+  value: unknown,
+): WorkspaceCareerImportCandidate | null {
   const source = asRecord(value);
   const workspaceId = asTrimmedString(source.workspaceId, 80);
   const workspaceName = asTrimmedString(source.workspaceName, 120);
@@ -114,7 +120,8 @@ function normalizeCandidate(value: unknown): WorkspaceCareerImportCandidate | nu
     return null;
   }
 
-  const createdAt = normalizeIsoDate(source.createdAt) || new Date().toISOString();
+  const createdAt =
+    normalizeIsoDate(source.createdAt) || new Date().toISOString();
   const updatedAt = normalizeIsoDate(source.updatedAt) || createdAt;
   const status = normalizeStatus(source.status);
   const importedAt =
@@ -124,6 +131,7 @@ function normalizeCandidate(value: unknown): WorkspaceCareerImportCandidate | nu
     workspaceId,
     workspaceName,
     workspaceCategory: asNullableString(source.workspaceCategory, 80),
+    coverImageUrl: asNullableString(source.coverImageUrl, 1200),
     role: asTrimmedString(source.role, 60) || "member",
     teamRole: asNullableString(source.teamRole, 80),
     periodLabel: asNullableString(source.periodLabel, 80),
@@ -237,7 +245,10 @@ export async function getWorkspaceCareerImportCandidate(
   db: WorkspaceCareerImportDbClient = prisma,
 ): Promise<WorkspaceCareerImportCandidate | null> {
   const candidates = await getWorkspaceCareerImportCandidates(userId, db);
-  return candidates.find((candidate) => candidate.workspaceId === workspaceId) || null;
+  return (
+    candidates.find((candidate) => candidate.workspaceId === workspaceId) ||
+    null
+  );
 }
 
 export async function upsertWorkspaceCareerImportCandidate(
@@ -260,31 +271,37 @@ export async function upsertWorkspaceCareerImportCandidate(
     throw new Error("Invalid workspace career import candidate");
   }
 
-  const next = await updateCandidateList(userId, (current) => {
-    const existing = current.find(
-      (item) => item.workspaceId === candidate.workspaceId,
-    );
-    const nextCandidate =
-      existing?.status === "IMPORTED"
-        ? {
-            ...candidate,
-            status: "IMPORTED" as const,
-            importedAt: existing.importedAt,
-            importedExperienceId: existing.importedExperienceId,
-            createdAt: existing.createdAt,
-          }
-        : {
-            ...candidate,
-            createdAt: existing?.createdAt || candidate.createdAt,
-          };
+  const next = await updateCandidateList(
+    userId,
+    (current) => {
+      const existing = current.find(
+        (item) => item.workspaceId === candidate.workspaceId,
+      );
+      const nextCandidate =
+        existing?.status === "IMPORTED"
+          ? {
+              ...candidate,
+              status: "IMPORTED" as const,
+              importedAt: existing.importedAt,
+              importedExperienceId: existing.importedExperienceId,
+              createdAt: existing.createdAt,
+            }
+          : {
+              ...candidate,
+              createdAt: existing?.createdAt || candidate.createdAt,
+            };
 
-    return [
-      ...current.filter((item) => item.workspaceId !== candidate.workspaceId),
-      nextCandidate,
-    ];
-  }, db);
+      return [
+        ...current.filter((item) => item.workspaceId !== candidate.workspaceId),
+        nextCandidate,
+      ];
+    },
+    db,
+  );
 
-  return next.find((item) => item.workspaceId === candidate.workspaceId) || null;
+  return (
+    next.find((item) => item.workspaceId === candidate.workspaceId) || null
+  );
 }
 
 export async function markWorkspaceCareerImportCandidateImported(

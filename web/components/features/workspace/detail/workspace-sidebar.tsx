@@ -55,6 +55,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { parseWorkspaceChatNotificationTarget } from "@/lib/workspace-notifications";
 import {
   getWorkspaceVoiceRoomsApiPath,
@@ -127,6 +128,7 @@ export function WorkspaceSidebar({
     deleteChannel,
     joinChannel,
     setChannelMention,
+    connectionState,
   } = useSocketStore();
   const { notifications, markAsRead } = useNotifications();
   const { user } = useAuth({ loadProfile: false });
@@ -235,6 +237,12 @@ export function WorkspaceSidebar({
     project?.my_role === "owner" || project?.my_role === "admin";
   const isReadOnly =
     project?.read_only || project?.lifecycle_status === "COMPLETED";
+  const isChannelsLoading =
+    !isReadOnly &&
+    channels.length === 0 &&
+    connectionState !== "connected" &&
+    connectionState !== "error";
+  const isVoiceLoading = !isReadOnly && roomParticipants === undefined;
 
   // Leave Workspace Handler
   const handleLeaveWorkspace = async () => {
@@ -528,7 +536,13 @@ export function WorkspaceSidebar({
             </button>
           </div>
           <div className="space-y-0.5">
-            {channels.map((channel) => {
+            {isChannelsLoading ? (
+              <div className="space-y-1 px-2 py-1" aria-label="채널 불러오는 중">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-4/5" />
+              </div>
+            ) : (
+              channels.map((channel) => {
               const showBadge =
                 (channel.unreadCount || 0) > 0 || channel.hasMention;
               const isMentioned = channel.hasMention;
@@ -622,8 +636,9 @@ export function WorkspaceSidebar({
                   )}
                 </div>
               );
-            })}
-            {channels.length === 0 && (
+              })
+            )}
+            {!isChannelsLoading && channels.length === 0 && (
               <>
                 <Button
                   type="button"
@@ -661,7 +676,7 @@ export function WorkspaceSidebar({
                 </div>
               </>
             )}
-            {isReadOnly && channels.length > 0 && (
+            {!isChannelsLoading && isReadOnly && channels.length > 0 && (
               <div className="px-2 pt-1 text-[11px] text-muted-foreground">
                 종료된 팀 공간은 실시간 채팅이 중지됩니다.
               </div>
@@ -676,6 +691,13 @@ export function WorkspaceSidebar({
               <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-pointer" />
             </div>
             <div className="space-y-0.5">
+              {isVoiceLoading ? (
+                <div className="space-y-1 px-2 py-1" aria-label="음성 채널 불러오는 중">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-4/5" />
+                </div>
+              ) : (
+                <>
               <Button
                 variant={currentRoom === "dev-room" ? "secondary" : "ghost"}
                 className={cn(
@@ -759,6 +781,8 @@ export function WorkspaceSidebar({
                     </div>
                   ))}
                 </div>
+              )}
+                </>
               )}
             </div>
           </div>

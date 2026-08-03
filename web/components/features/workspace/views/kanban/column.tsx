@@ -34,15 +34,15 @@ import { Input } from "@/components/ui/input";
 
 // Predefined colors
 const COLUMN_COLORS = [
-  { name: "Gray", value: "bg-slate-100", border: "border-slate-200" },
-  { name: "Red", value: "bg-red-50", border: "border-red-200" },
-  { name: "Orange", value: "bg-orange-50", border: "border-orange-200" },
-  { name: "Amber", value: "bg-amber-50", border: "border-amber-200" },
-  { name: "Green", value: "bg-green-50", border: "border-green-200" },
-  { name: "Blue", value: "bg-blue-50", border: "border-blue-200" },
-  { name: "Indigo", value: "bg-indigo-50", border: "border-indigo-200" },
-  { name: "Violet", value: "bg-violet-50", border: "border-violet-200" },
-  { name: "Pink", value: "bg-pink-50", border: "border-pink-200" },
+  { name: "Gray", value: "bg-slate-50/70", border: "border-slate-200/80" },
+  { name: "Red", value: "bg-red-50/55", border: "border-red-200/70" },
+  { name: "Orange", value: "bg-orange-50/55", border: "border-orange-200/70" },
+  { name: "Amber", value: "bg-amber-50/55", border: "border-amber-200/70" },
+  { name: "Green", value: "bg-green-50/55", border: "border-green-200/70" },
+  { name: "Blue", value: "bg-blue-50/55", border: "border-blue-200/70" },
+  { name: "Indigo", value: "bg-indigo-50/55", border: "border-indigo-200/70" },
+  { name: "Violet", value: "bg-violet-50/55", border: "border-violet-200/70" },
+  { name: "Pink", value: "bg-pink-50/55", border: "border-pink-200/70" },
 ];
 
 interface KanbanColumnProps {
@@ -150,7 +150,7 @@ export function KanbanColumn({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "h-full w-80 flex-shrink-0 rounded-xl bg-slate-100/50 border-2 border-dashed border-primary/20 opacity-50",
+          "h-full w-80 flex-shrink-0 rounded-md border-2 border-dashed border-primary/20 bg-slate-50/70 opacity-50",
         )}
       />
     );
@@ -161,7 +161,7 @@ export function KanbanColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-xl border shadow-sm transition-all",
+        "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-md border transition-all",
         colorConfig.value,
         colorConfig.border,
         // 드래그 중인 task가 이 컬럼 위에 올라오면 드롭 대상임을 시각적으로 표시
@@ -173,7 +173,7 @@ export function KanbanColumn({
       {/* Header */}
       <div
         className={cn(
-          "flex items-center justify-between p-3 hover:bg-black/5 transition-colors",
+          "flex items-center justify-between border-b border-black/5 p-3 hover:bg-black/[0.035] transition-colors",
           groupBy === "status" && "cursor-grab active:cursor-grabbing",
         )}
         {...(groupBy === "status" ? listeners : {})}
@@ -181,7 +181,7 @@ export function KanbanColumn({
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div
             className={cn(
-              "px-2 py-0.5 rounded text-xs font-semibold capitalize flex items-center gap-1.5 border",
+              "flex items-center gap-1.5 rounded-none border px-2 py-0.5 text-xs font-semibold capitalize",
               // Use the column's color config for the header badge background
               // We make it slightly more opaque/bold than the column background if needed,
               // or just match the column's theme.
@@ -322,7 +322,7 @@ export function KanbanColumn({
       </div>
 
       {/* Task List */}
-      <div className="flex-1 p-2 overflow-y-auto min-h-0 bg-transparent flex flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-transparent p-2">
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -344,7 +344,7 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 py-6 text-xs text-muted-foreground/50 select-none">
+          <div className="flex flex-1 select-none items-center justify-center rounded-sm border border-dashed border-muted-foreground/20 py-6 text-xs text-muted-foreground/50">
             여기로 드롭하여 이동
           </div>
         )}

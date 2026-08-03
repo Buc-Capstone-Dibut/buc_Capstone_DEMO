@@ -55,6 +55,7 @@ export async function GET(
         name: true,
         description: true,
         icon_url: true,
+        cover_image_url: true,
         category: true,
         space_status: true,
         activated_at: true,
@@ -169,7 +170,10 @@ export async function GET(
     return NextResponse.json(formattedWorkspace);
   } catch (error: unknown) {
     console.error("API: Get Workspace Error", error);
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -182,11 +186,7 @@ export async function PATCH(
     const resolvedParams = await params;
     const { id: workspaceId } = resolvedParams;
     const body = await request.json();
-    const {
-      name,
-      description,
-      category,
-    } = body;
+    const { name, description, category } = body;
 
     const supabase = createRouteHandlerClient({ cookies });
     const {
@@ -247,7 +247,10 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (error: unknown) {
     console.error("API: Update Workspace Error", error);
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -295,6 +298,9 @@ export async function DELETE(
     return NextResponse.json({ message: "Workspace deleted successfully" });
   } catch (error: unknown) {
     console.error("API: Delete Workspace Error", error);
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(error) },
+      { status: 500 },
+    );
   }
 }
