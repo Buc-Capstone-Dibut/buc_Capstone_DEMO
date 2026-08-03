@@ -1,7 +1,6 @@
 from src.common.config.settings import (
     BLOGS_TABLE,
     CRAWLER_ROOT,
-    DEV_EVENT_JSON_PATH,
     FIRECRAWL_API_KEY,
     GEMINI_API_KEY,
     PROJECT_ROOT,
@@ -10,14 +9,12 @@ from src.common.config.settings import (
     SUPABASE_URL,
     TAG_REQUEST_DELAY_MS,
     TAG_RETRY_BASE_MS,
-    WEB_DATA_DIR,
     settings,
 )
 
 __all__ = [
     "BLOGS_TABLE",
     "CRAWLER_ROOT",
-    "DEV_EVENT_JSON_PATH",
     "FIRECRAWL_API_KEY",
     "GEMINI_API_KEY",
     "PROJECT_ROOT",
@@ -26,6 +23,5 @@ __all__ = [
     "SUPABASE_URL",
     "TAG_REQUEST_DELAY_MS",
     "TAG_RETRY_BASE_MS",
-    "WEB_DATA_DIR",
     "settings",
 ]

@@ -1,5 +1,3 @@
-import path from "path";
-import fs from "fs";
 import { DevEvent } from "@/lib/types/dev-event";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,49 +8,25 @@ const DEV_EVENTS_CACHE_TTL_MS = 60_000;
 const DEV_EVENT_COLUMNS =
   "id, title, link, host, date, start_date, end_date, tags, category, status, source, created_at, description, thumbnail, content, summary, target_audience, fee, schedule, benefits";
 
-function loadDevEventsFromFile(): DevEvent[] {
-  const filePath = path.join(process.cwd(), "public", "data", "dev-events.json");
-  if (!fs.existsSync(filePath)) {
-    console.warn("dev-events.json not found");
-    return [];
-  }
-  const fileContents = fs.readFileSync(filePath, "utf8");
-  return JSON.parse(fileContents) as DevEvent[];
-}
-
-// 개발자 행사 데이터 로드 — Supabase(dev_events) 우선, 실패/빈 결과 시 JSON 파일 폴백.
-// DB 컬럼이 DevEvent 와 snake_case 로 1:1 이라 별도 매핑이 필요 없다.
+// 개발자 행사 데이터는 Supabase dev_events를 단일 원본으로 사용한다.
 async function loadDevEvents(): Promise<DevEvent[]> {
-  const now = Date.now();
-  if (cachedEvents && now - cachedEventsAt < DEV_EVENTS_CACHE_TTL_MS) {
+  if (cachedEvents && Date.now() - cachedEventsAt < DEV_EVENTS_CACHE_TTL_MS) {
     return cachedEvents;
   }
 
-  let events: DevEvent[] = [];
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("dev_events")
-      .select(DEV_EVENT_COLUMNS)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    events = (data as DevEvent[]) ?? [];
-  } catch (e) {
-    console.warn("dev_events DB 읽기 실패 — JSON 폴백:", e);
-  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("dev_events")
+    .select(DEV_EVENT_COLUMNS)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
 
-  // DB 가 비어 있으면 JSON 스냅샷으로 폴백 (전환 과도기 안전망)
-  if (events.length === 0) {
-    events = loadDevEventsFromFile();
-  }
-
-  cachedEvents = events;
-  cachedEventsAt = now;
-  return events;
+  cachedEvents = (data as DevEvent[]) ?? [];
+  cachedEventsAt = Date.now();
+  return cachedEvents;
 }
 
-// 개발자 행사 목록 조회 (JSON 파일 기반)
-// Server-Only: fs 사용
+// 개발자 행사 목록 조회 (Supabase 기반)
 export async function fetchDevEvents({
   search,
   category,
@@ -176,7 +150,7 @@ export async function fetchClosingSoonEvents(days = 7) {
       const currentYear = new Date().getFullYear();
 
       // 일단 현재 연도로 생성
-      let date = new Date(currentYear, month - 1, day);
+      const date = new Date(currentYear, month - 1, day);
 
       // 만약 생성된 날짜가 현재보다 6개월 이상 과거라면, 내년 행사일 가능성이 높음 (또는 이미 지난 행사)
       // 하지만 "마감 임박" 로직에서는 미래 날짜가 중요하므로,
