@@ -1,5 +1,4 @@
 import time
-import uuid
 
 from loguru import logger
 
@@ -33,6 +32,8 @@ def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None 
 
     events = parse_dev_events(content)
     logger.info(f"Parsed {len(events)} events from README.")
+    if not events:
+        raise RuntimeError("Parsed no events; refusing to modify the Supabase snapshot.")
 
     processed_count = 0
 
@@ -93,28 +94,13 @@ def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None 
             except Exception as e:
                 logger.error(f"Deep crawl failed for {event.title}: {e}")
 
-    save_events_to_json(events, repository)
+    save_events_to_database(events, repository)
 
 
-def save_events_to_json(events, repository: DevEventRepository):
-    try:
-        data = [event.model_dump(mode="json") for event in events]
-
-        seen_ids = set()
-        for item in data:
-            base_str = f"{item['link']}-{item['title']}"
-            item_id = str(uuid.uuid5(uuid.NAMESPACE_URL, base_str))
-
-            counter = 0
-            while item_id in seen_ids:
-                counter += 1
-                item_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{base_str}-{counter}"))
-
-            item["id"] = item_id
-            seen_ids.add(item_id)
-
-        repository.save_all(data)
-        logger.info(f"✅ Saved {len(events)} events to {repository.file_path}")
-    except Exception as e:
-        logger.error(f"Failed to save JSON: {e}")
-
+def save_events_to_database(events, repository: DevEventRepository):
+    data = [event.model_dump(mode="json") for event in events]
+    saved_count = repository.upsert_all(data)
+    active_links = {event.link for event in events if event.link}
+    deleted_count = repository.delete_missing(active_links)
+    logger.info(f"✅ Saved {saved_count} events to Supabase")
+    logger.info(f"🧹 Removed {deleted_count} events missing from the source")

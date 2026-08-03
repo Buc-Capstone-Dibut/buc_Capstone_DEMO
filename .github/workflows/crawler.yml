@@ -1,0 +1,70 @@
+name: Crawler
+
+on:
+  schedule:
+    # 03:15 KST every day (GitHub Actions uses UTC).
+    - cron: "15 18 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "실행할 크롤러"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - tech_blog
+          - dev_event
+      dev_event_limit:
+        description: "개발자 행사 상세 크롤링 시도 횟수 (0 = 무제한)"
+        required: true
+        default: "10"
+        type: string
+
+concurrency:
+  group: crawler
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: crawler
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install crawler dependencies
+        run: uv sync --locked
+
+      - name: Run selected crawler
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target || 'all' }}
+          DEV_EVENT_LIMIT: ${{ inputs.dev_event_limit || '10' }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$TARGET" == "all" || "$TARGET" == "tech_blog" ]]; then
+            uv run python -m src.apps.tech_blog.cli
+          fi
+
+          if [[ "$TARGET" == "all" || "$TARGET" == "dev_event" ]]; then
+            uv run python -m src.apps.dev_event.cli --limit "$DEV_EVENT_LIMIT"
+          fi
