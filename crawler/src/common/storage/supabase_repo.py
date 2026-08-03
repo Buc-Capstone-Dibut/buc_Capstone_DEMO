@@ -59,3 +59,16 @@ class SupabaseTableRepository:
         )
         return len(response.data) if response.data else len(rows)
 
+    def delete_missing_by_source(self, source: str, active_links: list[str]) -> int:
+        """Delete rows for a source whose links are absent from the current source snapshot."""
+        if not active_links:
+            raise ValueError("Refusing to delete rows without active source links.")
+
+        response = (
+            self.client.table(self.table_name)
+            .delete()
+            .eq("source", source)
+            .not_.in_("link", active_links)
+            .execute()
+        )
+        return len(response.data or [])

@@ -32,6 +32,8 @@ def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None 
 
     events = parse_dev_events(content)
     logger.info(f"Parsed {len(events)} events from README.")
+    if not events:
+        raise RuntimeError("Parsed no events; refusing to modify the Supabase snapshot.")
 
     processed_count = 0
 
@@ -98,4 +100,7 @@ def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None 
 def save_events_to_database(events, repository: DevEventRepository):
     data = [event.model_dump(mode="json") for event in events]
     saved_count = repository.upsert_all(data)
+    active_links = {event.link for event in events if event.link}
+    deleted_count = repository.delete_missing(active_links)
     logger.info(f"✅ Saved {saved_count} events to Supabase")
+    logger.info(f"🧹 Removed {deleted_count} events missing from the source")

@@ -69,3 +69,8 @@ class DevEventRepository:
         saved_count = self._db.upsert_many(db_rows, on_conflict="source_key")
         logger.info(f"🗄️  Supabase dev_events upsert: {saved_count}건")
         return saved_count
+
+    def delete_missing(self, active_links: set[str], source: str = "github") -> int:
+        deleted_count = self._db.delete_missing_by_source(source, sorted(active_links))
+        logger.info(f"🧹 Supabase dev_events stale rows deleted: {deleted_count}건")
+        return deleted_count
