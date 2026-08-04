@@ -111,7 +111,6 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
   const priorities = useWorkspaceStore((s) => s.priorities);
   const reorderPriorities = useWorkspaceStore((s) => s.reorderPriorities);
   const reorderTags = useWorkspaceStore((s) => s.reorderTags);
-  const updateViewCardProperties = useWorkspaceStore((s) => s.updateViewCardProperties);
   const updateView = useWorkspaceStore((s) => s.updateView);
   const deleteView = useWorkspaceStore((s) => s.deleteView);
   const activeTaskId = useWorkspaceStore((s) => s.activeTaskId);
