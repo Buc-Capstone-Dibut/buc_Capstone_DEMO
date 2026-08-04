@@ -422,11 +422,6 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                         if (prop === "dueDate") setShowDueDate(!showDueDate);
                         if (prop === "priority") setShowPriority(!showPriority);
                       }}
-                      onReorder={(newOrder) => {
-                        if (activeView) {
-                          updateViewCardProperties(activeView.id, newOrder);
-                        }
-                      }}
                     />
                   </div>
                   {/* ... */}

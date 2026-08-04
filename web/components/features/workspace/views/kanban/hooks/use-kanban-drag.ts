@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { type Dispatch, type SetStateAction, useRef, useState } from "react";
 import {
   useSensors,
   useSensor,
@@ -23,6 +23,11 @@ type KanbanDragColumn = {
   title?: string;
 };
 
+export type KanbanDropPreview = {
+  columnId: string;
+  index: number;
+};
+
 interface UseKanbanDragProps {
   columns: KanbanDragColumn[];
   groupBy: "status" | "assignee" | "priority" | "dueDate" | "tag";
@@ -32,12 +37,15 @@ interface UseKanbanDragProps {
     newStatus: string,
     newIndex: number,
     taskSnapshot?: Task[],
-  ) => void;
+  ) => Promise<void> | void;
   tasks: Task[];
   setTasks?: Dispatch<SetStateAction<Task[]>>;
   resetTasks?: () => void;
   updateTaskStatus?: (taskId: string, statusId: TaskStatus) => void;
-  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  updateTask: (
+    taskId: string,
+    updates: Partial<Task>,
+  ) => Promise<void> | void;
   moveColumnInView: (
     viewId: string,
     fromIndex: number,
@@ -70,6 +78,9 @@ export function useKanbanDrag({
 }: UseKanbanDragProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeColumn, setActiveColumn] = useState<ViewColumn | null>(null);
+  const [dropPreview, setDropPreview] = useState<KanbanDropPreview | null>(null);
+  const dropPreviewRef = useRef<KanbanDropPreview | null>(null);
+  const dragStartTasksRef = useRef<Task[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -129,61 +140,69 @@ export function useKanbanDrag({
     return {};
   };
 
-  const previewTaskMove = (
+  const updateDropPreview = (nextPreview: KanbanDropPreview | null) => {
+    const current = dropPreviewRef.current;
+    if (
+      current?.columnId === nextPreview?.columnId &&
+      current?.index === nextPreview?.index
+    ) {
+      return;
+    }
+    dropPreviewRef.current = nextPreview;
+    setDropPreview(nextPreview);
+  };
+
+  const buildTaskMoveSnapshot = (
     taskId: string,
     targetColumn: KanbanDragColumn,
-    overTaskId?: string,
+    requestedIndex: number,
   ) => {
-    if (!setTasks) return;
-    setTasks((currentTasks) => {
-      const activeTask = currentTasks.find((task) => task.id === taskId);
-      if (!activeTask) return currentTasks;
+    const activeTask = tasks.find((task) => task.id === taskId);
+    if (!activeTask) return tasks;
 
-      const movedTask = {
-        ...activeTask,
-        ...getTaskUpdatesForColumn(targetColumn),
-      };
-      const targetGroup = getTaskGroupValue(movedTask);
-      const remainingTasks = currentTasks.filter((task) => task.id !== taskId);
-      const targetTasks = remainingTasks.filter(
-        (task) => getTaskGroupValue(task) === targetGroup,
-      );
-      const requestedIndex = overTaskId
-        ? targetTasks.findIndex((task) => task.id === overTaskId)
-        : targetTasks.length;
-      const nextIndex =
-        requestedIndex < 0
-          ? targetTasks.length
-          : Math.min(requestedIndex, targetTasks.length);
-      const currentGroupTasks = currentTasks.filter(
-        (task) => getTaskGroupValue(task) === targetGroup,
-      );
-      const currentIndex = currentGroupTasks.findIndex(
-        (task) => task.id === taskId,
-      );
+    const movedTask = {
+      ...activeTask,
+      ...getTaskUpdatesForColumn(targetColumn),
+    };
+    const targetGroup = getTaskGroupValue(movedTask);
+    const remainingTasks = tasks.filter((task) => task.id !== taskId);
+    const targetTasks = remainingTasks.filter(
+      (task) => getTaskGroupValue(task) === targetGroup,
+    );
+    const nextIndex = Math.max(
+      0,
+      Math.min(requestedIndex, targetTasks.length),
+    );
+    targetTasks.splice(nextIndex, 0, movedTask);
 
-      if (
-        getTaskGroupValue(activeTask) === targetGroup &&
-        currentIndex === nextIndex
-      ) {
-        return currentTasks;
-      }
+    const firstTargetPosition = remainingTasks.findIndex(
+      (task) => getTaskGroupValue(task) === targetGroup,
+    );
+    const otherTasks = remainingTasks.filter(
+      (task) => getTaskGroupValue(task) !== targetGroup,
+    );
+    const insertionIndex =
+      firstTargetPosition < 0
+        ? otherTasks.length
+        : remainingTasks
+            .slice(0, firstTargetPosition)
+            .filter((task) => getTaskGroupValue(task) !== targetGroup).length;
 
-      targetTasks.splice(nextIndex, 0, movedTask);
-      const otherTasks = remainingTasks.filter(
-        (task) => getTaskGroupValue(task) !== targetGroup,
-      );
-
-      return [...otherTasks, ...targetTasks];
-    });
+    return [
+      ...otherTasks.slice(0, insertionIndex),
+      ...targetTasks,
+      ...otherTasks.slice(insertionIndex),
+    ];
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    updateDropPreview(null);
     if (event.active.data.current?.type === "Column") {
       setActiveColumn(event.active.data.current.column);
       setActiveId(null);
       return;
     }
+    dragStartTasksRef.current = tasks;
     setActiveId(event.active.id as string);
     setActiveColumn(null);
   };
@@ -191,26 +210,57 @@ export function useKanbanDrag({
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over || active.data.current?.type !== "Task" || groupBy === "tag") {
+      updateDropPreview(null);
       return;
     }
 
     const activeTaskId = active.id as string;
     const overId = over.id as string;
-    if (activeTaskId === overId) return;
-
     const overTask = tasks.find((task) => task.id === overId);
-    if (overTask) {
-      const targetColumn = getColumnForTask(overTask);
-      if (targetColumn) previewTaskMove(activeTaskId, targetColumn, overId);
+    const dropColumnId = over.data.current?.columnId;
+    const targetColumn = overTask
+      ? getColumnForTask(overTask)
+      : columns.find(
+          (column) =>
+            column.id ===
+            (typeof dropColumnId === "string" ? dropColumnId : overId),
+        );
+    if (!targetColumn) {
+      updateDropPreview(null);
       return;
     }
 
-    const overColumn = columns.find((column) => column.id === overId);
-    if (overColumn) previewTaskMove(activeTaskId, overColumn);
+    const activeTask = tasks.find((task) => task.id === activeTaskId);
+    if (!activeTask) return;
+    const movedTask = {
+      ...activeTask,
+      ...getTaskUpdatesForColumn(targetColumn),
+    };
+    const targetGroup = getTaskGroupValue(movedTask);
+    const targetTasks = tasks.filter(
+      (task) =>
+        task.id !== activeTaskId && getTaskGroupValue(task) === targetGroup,
+    );
+    let targetIndex = targetTasks.length;
+
+    if (overTask) {
+      const overIndex = targetTasks.findIndex((task) => task.id === overTask.id);
+      const activeRect = active.rect.current.translated;
+      const isBelowOverTask = Boolean(
+        activeRect &&
+          activeRect.top + activeRect.height / 2 >
+            over.rect.top + over.rect.height / 2,
+      );
+      targetIndex = Math.max(0, overIndex + (isBelowOverTask ? 1 : 0));
+    }
+
+    updateDropPreview({ columnId: targetColumn.id, index: targetIndex });
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const finalDropPreview = dropPreviewRef.current;
+    updateDropPreview(null);
     setActiveColumn(null);
     setActiveId(null);
 
@@ -220,9 +270,14 @@ export function useKanbanDrag({
     }
 
     if (active.data.current?.type === "Column") {
-      if (active.id !== over.id) {
+      const dropColumnId = over.data.current?.columnId;
+      const overColumnId =
+        typeof dropColumnId === "string" ? dropColumnId : String(over.id);
+      if (String(active.id) !== overColumnId) {
         const oldIndex = columns.findIndex((column) => column.id === active.id);
-        const newIndex = columns.findIndex((column) => column.id === over.id);
+        const newIndex = columns.findIndex(
+          (column) => column.id === overColumnId,
+        );
 
         if (oldIndex !== -1 && newIndex !== -1) {
           if (groupBy === "status") {
@@ -253,26 +308,73 @@ export function useKanbanDrag({
       return;
     }
 
-    const activeGroup = getTaskGroupValue(activeTask);
-    const tasksInGroup = tasks.filter(
-      (task) => getTaskGroupValue(task) === activeGroup,
-    );
-    const newIndex = tasksInGroup.findIndex((task) => task.id === activeTaskId);
+    const overTask = tasks.find((task) => task.id === over.id);
+    const dropColumnId = over.data.current?.columnId;
+    const targetColumn = finalDropPreview
+      ? columns.find((column) => column.id === finalDropPreview.columnId)
+      : overTask
+        ? getColumnForTask(overTask)
+        : columns.find(
+            (column) =>
+              column.id ===
+              (typeof dropColumnId === "string"
+                ? dropColumnId
+                : String(over.id)),
+          );
 
-    if (groupBy === "status" && activeGroup) {
-      reorderTask(activeTaskId, activeGroup, newIndex, tasks);
-    } else if (groupBy === "priority") {
-      updateTask(activeTaskId, {
-        priorityId: activeGroup === "no-priority" ? undefined : activeGroup,
-      });
-    } else if (groupBy === "assignee") {
-      updateTask(activeTaskId, {
-        assigneeId: activeGroup === "unassigned" ? undefined : activeGroup,
-      });
+    if (!targetColumn) {
+      resetTasks?.();
+      return;
+    }
+
+    const movedTask = {
+      ...activeTask,
+      ...getTaskUpdatesForColumn(targetColumn),
+    };
+    const targetGroup = getTaskGroupValue(movedTask);
+    const targetTasks = tasks.filter(
+      (task) =>
+        task.id !== activeTaskId && getTaskGroupValue(task) === targetGroup,
+    );
+    const overIndex = overTask
+      ? targetTasks.findIndex((task) => task.id === overTask.id)
+      : targetTasks.length;
+    const newIndex = finalDropPreview
+      ? finalDropPreview.index
+      : overIndex < 0
+        ? targetTasks.length
+        : overIndex;
+    const nextTasks = buildTaskMoveSnapshot(
+      activeTaskId,
+      targetColumn,
+      newIndex,
+    );
+
+    setTasks?.(nextTasks);
+
+    try {
+      if (groupBy === "status" && targetGroup) {
+        await reorderTask(activeTaskId, targetGroup, newIndex, nextTasks);
+      } else if (groupBy === "priority") {
+        await updateTask(activeTaskId, {
+          priorityId: targetGroup === "no-priority" ? undefined : targetGroup,
+        });
+      } else if (groupBy === "assignee") {
+        await updateTask(activeTaskId, {
+          assigneeId: targetGroup === "unassigned" ? undefined : targetGroup,
+        });
+      }
+    } catch {
+      if (setTasks && dragStartTasksRef.current.length > 0) {
+        setTasks(dragStartTasksRef.current);
+      } else {
+        resetTasks?.();
+      }
     }
   };
 
   const handleDragCancel = () => {
+    updateDropPreview(null);
     setActiveColumn(null);
     setActiveId(null);
     resetTasks?.();
@@ -281,6 +383,7 @@ export function useKanbanDrag({
   return {
     activeId,
     activeColumn,
+    dropPreview,
     sensors,
     handleDragStart,
     handleDragEnd,

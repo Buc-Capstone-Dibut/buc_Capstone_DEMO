@@ -8,6 +8,11 @@ import {
   type PointerEvent,
 } from "react";
 import {
+  motion,
+  useAnimationControls,
+  useReducedMotion,
+} from "framer-motion";
+import {
   addDays,
   addMonths,
   addWeeks,
@@ -222,6 +227,8 @@ export function TimelineView({
 }: TimelineViewProps) {
   const [scale, setScale] = useState<TimelineScale>("day");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
+  const timelineAnimation = useAnimationControls();
+  const reduceMotion = useReducedMotion();
   const [taskPanelWidth, setTaskPanelWidth] = useState(
     DEFAULT_TASK_PANEL_WIDTH,
   );
@@ -288,13 +295,47 @@ export function TimelineView({
         ? unscheduledTasks
         : tasks;
 
+  const animateRangeChange = (
+    direction: -1 | 1,
+    updateAnchorDate: () => void,
+  ) => {
+    if (!reduceMotion) {
+      timelineAnimation.stop();
+      timelineAnimation.set({ x: direction * 28, opacity: 0.72 });
+    }
+
+    updateAnchorDate();
+
+    if (!reduceMotion) {
+      void timelineAnimation.start({
+        x: 0,
+        opacity: 1,
+        transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
+      });
+    }
+  };
+
   const moveRange = (direction: -1 | 1) => {
-    setAnchorDate((current) => {
+    animateRangeChange(direction, () =>
+      setAnchorDate((current) => {
       if (scale === "day") return addDays(current, direction * 14);
       if (scale === "week") return addWeeks(current, direction * 6);
       return addMonths(current, direction * 3);
-    });
+      }),
+    );
   };
+
+  const moveToToday = () => {
+    const nextAnchorDate = startOfDay(new Date());
+    const dayDifference = differenceInCalendarDays(nextAnchorDate, anchorDate);
+    if (dayDifference === 0) return;
+    animateRangeChange(dayDifference > 0 ? 1 : -1, () =>
+      setAnchorDate(nextAnchorDate),
+    );
+  };
+
+  const rangeStepLabel =
+    scale === "day" ? "2주" : scale === "week" ? "6주" : "3개월";
 
   const beginTaskPanelResize = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -367,7 +408,8 @@ export function TimelineView({
             size="icon"
             className="h-7 w-7"
             onClick={() => moveRange(-1)}
-            aria-label="이전 기간"
+            aria-label={`이전 ${rangeStepLabel}`}
+            title={`이전 ${rangeStepLabel}`}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -376,7 +418,7 @@ export function TimelineView({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-xs"
-            onClick={() => setAnchorDate(startOfDay(new Date()))}
+            onClick={moveToToday}
           >
             오늘
           </Button>
@@ -386,7 +428,8 @@ export function TimelineView({
             size="icon"
             className="h-7 w-7"
             onClick={() => moveRange(1)}
-            aria-label="다음 기간"
+            aria-label={`다음 ${rangeStepLabel}`}
+            title={`다음 ${rangeStepLabel}`}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -463,7 +506,8 @@ export function TimelineView({
               </button>
             </div>
 
-            <div
+            <motion.div
+              animate={timelineAnimation}
               className="relative shrink-0 bg-muted/[0.12]"
               style={{ width: timelineWidth }}
             >
@@ -524,7 +568,7 @@ export function TimelineView({
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           </div>
 
           <TimelineBody
@@ -544,6 +588,7 @@ export function TimelineView({
             onUpdateTask={onUpdateTask}
             readOnly={readOnly}
             allGroupsCollapsed={allGroupsCollapsed}
+            timelineAnimation={timelineAnimation}
           />
         </div>
       </div>
