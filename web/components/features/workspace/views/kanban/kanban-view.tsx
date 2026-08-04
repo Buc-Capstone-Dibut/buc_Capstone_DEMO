@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  pointerWithin,
+  type CollisionDetection,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -57,6 +63,7 @@ interface KanbanViewProps {
   onUpdateColumn: (columnId: string, updates: any) => Promise<void>;
   onHideColumn?: (columnId: string) => void;
   onHideStatusCategory?: (category: "todo" | "in-progress" | "done") => void;
+  onDragStateChange?: (isDragging: boolean) => void;
   viewSettings: {
     showTags: boolean;
     showAssignee: boolean;
@@ -74,26 +81,100 @@ const STATUS_SECTIONS = [
     label: "할 일",
     icon: <Circle className="h-4 w-4" />,
     accentClass: "text-slate-700",
-    lineClass: "bg-slate-300",
-    badgeClass: "border-slate-200 bg-slate-100 text-slate-700",
+    badgeClass: "border-transparent bg-transparent text-slate-700",
   },
   {
     category: "in-progress" as const,
     label: "진행 중",
     icon: <LoaderCircle className="h-4 w-4" />,
     accentClass: "text-blue-700",
-    lineClass: "bg-blue-300",
-    badgeClass: "border-blue-200 bg-blue-100 text-blue-700",
+    badgeClass: "border-transparent bg-transparent text-blue-700",
   },
   {
     category: "done" as const,
     label: "완료",
     icon: <CheckCircle2 className="h-4 w-4" />,
     accentClass: "text-green-700",
-    lineClass: "bg-green-300",
-    badgeClass: "border-green-200 bg-green-100 text-green-700",
+    badgeClass: "border-transparent bg-transparent text-green-700",
   },
 ] as const;
+
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  const isColumnDrag = args.active.data.current?.type === "Column";
+
+  if (isColumnDrag) {
+    const columnContainers = args.droppableContainers.filter(
+      (container) =>
+        container.id !== args.active.id &&
+        container.data.current?.type === "Column",
+    );
+
+    return closestCorners({
+      ...args,
+      droppableContainers: columnContainers,
+    });
+  }
+
+  const taskContainers = args.droppableContainers.filter(
+    (container) =>
+      container.id !== args.active.id &&
+      (container.data.current?.type === "Task" ||
+        container.data.current?.type === "ColumnDropZone"),
+  );
+  const taskCollisionArgs = {
+    ...args,
+    droppableContainers: taskContainers,
+  };
+
+  // Task drag only considers cards and the small end-of-column drop target.
+  const pointerCollisions = pointerWithin(taskCollisionArgs);
+  if (pointerCollisions.length === 0) {
+    return args.pointerCoordinates
+      ? []
+      : closestCorners(taskCollisionArgs);
+  }
+
+  const collisionsByType = (type: "Task" | "ColumnDropZone") =>
+    pointerCollisions.filter(
+      (collision) =>
+        collision.data?.droppableContainer.data.current?.type === type,
+    );
+
+  const taskCollisions = collisionsByType("Task");
+  if (taskCollisions.length > 0) return taskCollisions;
+
+  const columnDropCollisions = collisionsByType("ColumnDropZone");
+  if (columnDropCollisions.length > 0) return columnDropCollisions;
+
+  return pointerCollisions;
+};
+
+function KanbanColumnOverlay({
+  column,
+  tasks,
+}: {
+  column: { id: string; title?: string };
+  tasks: Task[];
+}) {
+  return (
+    <div className="w-80 overflow-hidden rounded-md border border-slate-200 bg-background p-2 shadow-xl">
+      <div className="mb-2 flex items-center justify-between border-b pb-2 text-xs font-semibold">
+        <span className="truncate">{column.title || "컬럼"}</span>
+        <span className="text-muted-foreground">{tasks.length}</span>
+      </div>
+      <div className="space-y-2">
+        {tasks.slice(0, 4).map((task) => (
+          <TaskCard key={task.id} task={task} />
+        ))}
+        {tasks.length > 4 ? (
+          <div className="py-1 text-center text-[10px] text-muted-foreground">
+            외 {tasks.length - 4}개 작업
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function KanbanView({
   projectId,
@@ -112,6 +193,7 @@ export function KanbanView({
   onUpdateColumn,
   onHideColumn,
   onHideStatusCategory,
+  onDragStateChange,
   viewSettings = {
     showTags: true,
     showAssignee: true,
@@ -131,6 +213,7 @@ export function KanbanView({
   const {
     activeId,
     activeColumn,
+    dropPreview,
     sensors,
     handleDragStart,
     handleDragOver,
@@ -151,6 +234,17 @@ export function KanbanView({
   });
 
   const activeTask = optimisticTasks.find((t) => t.id === activeId);
+
+  useEffect(() => {
+    onDragStateChange?.(Boolean(activeId));
+  }, [activeId, onDragStateChange]);
+
+  useEffect(
+    () => () => {
+      onDragStateChange?.(false);
+    },
+    [onDragStateChange],
+  );
 
   const statusColumnsByCategory = useMemo(() => {
     const sectionMap = new Map(
@@ -242,10 +336,13 @@ export function KanbanView({
   };
 
   return (
-    <div className="flex-1 h-full overflow-x-auto overflow-y-hidden">
+    <div className="relative flex-1 h-full overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth sm:snap-none">
+      <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full border bg-background/90 px-3 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur sm:hidden">
+        좌우로 밀어 다른 컬럼 보기
+      </div>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={kanbanCollisionDetection}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -265,13 +362,13 @@ export function KanbanView({
                 </div>
               </div>
             ) : (
-              <div className="flex h-full min-w-fit items-stretch gap-5">
+              <div className="flex h-full min-w-fit items-stretch gap-6">
                 {statusColumnsByCategory.map((section) => (
                   <section
                     key={section.category}
                     className="flex h-full min-w-fit shrink-0 flex-col"
                   >
-                    <div className="px-1 pb-4">
+                    <div className="px-1 pb-0.5">
                       <div
                         className={cn(
                           "flex items-center gap-2 text-sm font-semibold",
@@ -281,7 +378,7 @@ export function KanbanView({
                         <div className="flex items-center gap-2">
                           <span
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-semibold",
+                              "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-bold",
                               section.badgeClass,
                             )}
                           >
@@ -316,13 +413,7 @@ export function KanbanView({
                           </DropdownMenu>
                         )}
                       </div>
-                      <div className="mt-3 h-px w-full bg-border" />
-                      <div
-                        className={cn(
-                          "mt-[-1px] h-0.5 w-16",
-                          section.lineClass,
-                        )}
-                      />
+                      <div className="mt-1.5 h-px w-full bg-border/70" />
                     </div>
 
                     <SortableContext
@@ -341,7 +432,7 @@ export function KanbanView({
                           </div>
                         </div>
                       ) : (
-                        <div className="flex h-full min-w-fit gap-4 pb-2">
+                        <div className="flex h-full min-w-fit gap-5 pb-2">
                           {section.columns.map((col) => (
                             <KanbanColumn
                               key={col.id}
@@ -378,6 +469,12 @@ export function KanbanView({
                               category={section.category}
                               disableTaskDrag={disableTaskDrag}
                               allowColumnActions={allowColumnActions}
+                              dropPreview={
+                                dropPreview?.columnId === col.id
+                                  ? dropPreview
+                                  : null
+                              }
+                              activeTaskId={activeId}
                             />
                           ))}
                         </div>
@@ -425,6 +522,10 @@ export function KanbanView({
                   }
                   disableTaskDrag={disableTaskDrag}
                   allowColumnActions={allowColumnActions}
+                  dropPreview={
+                    dropPreview?.columnId === col.id ? dropPreview : null
+                  }
+                  activeTaskId={activeId}
                 />
               ))}
             </SortableContext>
@@ -433,22 +534,11 @@ export function KanbanView({
 
         <DragOverlay>
           {activeColumn ? (
-            <KanbanColumn
-              id={activeColumn.id}
+            <KanbanColumnOverlay
               column={activeColumn}
               tasks={optimisticTasks.filter(
                 (task) => task.columnId === activeColumn.id,
               )}
-              groupBy={groupBy}
-              onTaskClick={() => {}}
-              onCreateTask={() => {}}
-              viewSettings={{
-                showTags: true,
-                showAssignee: true,
-                showDueDate: true,
-                showPriority: true,
-              }}
-              isOverlay
             />
           ) : activeTask ? (
             <TaskCard task={activeTask} isOverlay />

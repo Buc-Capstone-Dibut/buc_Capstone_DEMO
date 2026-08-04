@@ -2,6 +2,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
   MoreHorizontal,
@@ -10,6 +11,8 @@ import {
   Pencil,
   Palette,
   EyeOff,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,18 +34,21 @@ import { Task, CustomFieldConfig } from "../../store/mock-data";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import type { KanbanDropPreview } from "./hooks/use-kanban-drag";
 
 // Predefined colors
 const COLUMN_COLORS = [
-  { name: "Gray", value: "bg-slate-50/70", border: "border-slate-200/80" },
-  { name: "Red", value: "bg-red-50/55", border: "border-red-200/70" },
-  { name: "Orange", value: "bg-orange-50/55", border: "border-orange-200/70" },
-  { name: "Amber", value: "bg-amber-50/55", border: "border-amber-200/70" },
-  { name: "Green", value: "bg-green-50/55", border: "border-green-200/70" },
-  { name: "Blue", value: "bg-blue-50/55", border: "border-blue-200/70" },
-  { name: "Indigo", value: "bg-indigo-50/55", border: "border-indigo-200/70" },
-  { name: "Violet", value: "bg-violet-50/55", border: "border-violet-200/70" },
-  { name: "Pink", value: "bg-pink-50/55", border: "border-pink-200/70" },
+  // Column colors are intentionally kept neutral. Color is reserved for task
+  // accents so the board stays visually close to a clean, card-first layout.
+  { name: "Gray", value: "bg-transparent", border: "border-transparent" },
+  { name: "Red", value: "bg-transparent", border: "border-transparent" },
+  { name: "Orange", value: "bg-transparent", border: "border-transparent" },
+  { name: "Amber", value: "bg-transparent", border: "border-transparent" },
+  { name: "Green", value: "bg-transparent", border: "border-transparent" },
+  { name: "Blue", value: "bg-transparent", border: "border-transparent" },
+  { name: "Indigo", value: "bg-transparent", border: "border-transparent" },
+  { name: "Violet", value: "bg-transparent", border: "border-transparent" },
+  { name: "Pink", value: "bg-transparent", border: "border-transparent" },
 ];
 
 interface KanbanColumnProps {
@@ -51,7 +57,6 @@ interface KanbanColumnProps {
   title?: string;
   tasks: Task[];
   customFields?: CustomFieldConfig[];
-  isOverlay?: boolean;
   icon?: React.ReactNode | string;
   color?: string; // e.g. "red", "blue" - maps to predefined colors
   onTaskClick: (taskId: string) => void;
@@ -73,6 +78,8 @@ interface KanbanColumnProps {
   className?: string;
   disableTaskDrag?: boolean;
   allowColumnActions?: boolean;
+  dropPreview?: KanbanDropPreview | null;
+  activeTaskId?: string | null;
 }
 
 export function KanbanColumn({
@@ -81,7 +88,6 @@ export function KanbanColumn({
   tasks,
   customFields,
   icon,
-  color,
   onTaskClick,
   onCreateTask,
   onRename,
@@ -95,6 +101,8 @@ export function KanbanColumn({
   className,
   disableTaskDrag = false,
   allowColumnActions = true,
+  dropPreview,
+  activeTaskId,
 }: KanbanColumnProps) {
   const {
     attributes,
@@ -123,14 +131,27 @@ export function KanbanColumn({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(title ?? "");
-
-  // Determine styles from color prop
-  const colorConfig =
-    COLUMN_COLORS.find(
-      (c) =>
-        c.name.toLowerCase() === color?.toLowerCase() ||
-        c.value.includes(color || ""),
-    ) || COLUMN_COLORS[0];
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const wipLimit = category === "in-progress" ? 5 : null;
+  const isAtWipLimit = wipLimit !== null && tasks.length >= wipLimit;
+  const previewTasks = tasks.filter((task) => task.id !== activeTaskId);
+  const indicatorBeforeTaskId = dropPreview
+    ? previewTasks[dropPreview.index]?.id
+    : undefined;
+  const showEndDropIndicator = Boolean(
+    dropPreview && !indicatorBeforeTaskId,
+  );
+  const {
+    setNodeRef: setTaskAreaRef,
+    isOver: isTaskAreaOver,
+  } = useDroppable({
+    id: `column-drop-${id}`,
+    data: {
+      type: "ColumnDropZone",
+      columnId: id,
+    },
+    disabled: disableTaskDrag,
+  });
 
   const handleTitleSubmit = () => {
     setIsEditing(false);
@@ -150,7 +171,7 @@ export function KanbanColumn({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "h-full w-80 flex-shrink-0 rounded-md border-2 border-dashed border-primary/20 bg-slate-50/70 opacity-50",
+          "h-full w-80 flex-shrink-0 rounded-md border-2 border-dashed border-slate-300 bg-transparent opacity-50",
         )}
       />
     );
@@ -161,11 +182,10 @@ export function KanbanColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "h-full w-80 flex-shrink-0 flex flex-col group/column rounded-md border transition-all",
-        colorConfig.value,
-        colorConfig.border,
+        "h-full w-[calc(100vw-2rem)] max-w-80 snap-start flex-shrink-0 flex flex-col group/column rounded-md border border-transparent bg-transparent transition-all sm:w-80",
         // 드래그 중인 task가 이 컬럼 위에 올라오면 드롭 대상임을 시각적으로 표시
         isOver && "ring-2 ring-primary/50 ring-offset-1",
+        isCollapsed && "h-auto self-start",
         className,
       )}
       {...(groupBy === "status" ? attributes : {})}
@@ -173,7 +193,7 @@ export function KanbanColumn({
       {/* Header */}
       <div
         className={cn(
-          "flex items-center justify-between border-b border-black/5 p-3 hover:bg-black/[0.035] transition-colors",
+          "flex items-center justify-between border-b border-border/70 px-1.5 py-1 transition-colors",
           groupBy === "status" && "cursor-grab active:cursor-grabbing",
         )}
         {...(groupBy === "status" ? listeners : {})}
@@ -181,14 +201,7 @@ export function KanbanColumn({
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div
             className={cn(
-              "flex items-center gap-1.5 rounded-none border px-2 py-0.5 text-xs font-semibold capitalize",
-              // Use the column's color config for the header badge background
-              // We make it slightly more opaque/bold than the column background if needed,
-              // or just match the column's theme.
-              // Here uses the same background logic but adds a border for definition.
-              colorConfig?.value
-                ? `${colorConfig.value} ${colorConfig.border} text-slate-700`
-                : "bg-slate-100 border-slate-200 text-slate-700",
+              "flex items-center gap-1.5 rounded-none border-0 px-0 py-0.5 text-xs font-semibold capitalize text-slate-700",
             )}
           >
             {/* If column has explicit category or color config */}
@@ -212,17 +225,42 @@ export function KanbanColumn({
                 onPointerDown={(e) => e.stopPropagation()} // Prevent drag start when clicking input
               />
             )}
-            <span className="ml-1 text-muted-foreground font-normal opacity-70">
-              {tasks.length}
+            <span
+              className={cn(
+                "ml-1 font-normal text-muted-foreground opacity-70",
+                isAtWipLimit && "font-semibold text-amber-600 opacity-100",
+              )}
+              title={
+                wipLimit === null
+                  ? undefined
+                  : `권장 진행 작업 수 ${wipLimit}개`
+              }
+            >
+              {wipLimit === null ? tasks.length : `${tasks.length}/${wipLimit}`}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center opacity-0 group-hover/column:opacity-100 transition-opacity">
+        <div className="flex items-center transition-opacity sm:opacity-0 sm:group-hover/column:opacity-100">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:bg-slate-200"
+            className="h-7 w-7 text-muted-foreground hover:bg-muted"
+            aria-label={isCollapsed ? "컬럼 펼치기" : "컬럼 접기"}
+            title={isCollapsed ? "컬럼 펼치기" : "컬럼 접기"}
+            onClick={() => setIsCollapsed((current) => !current)}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {isCollapsed ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:bg-muted"
             onClick={onCreateTask}
             onPointerDown={(event) => event.stopPropagation()}
           >
@@ -235,7 +273,7 @@ export function KanbanColumn({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:bg-slate-200"
+                  className="h-7 w-7 text-muted-foreground hover:bg-muted"
                   onPointerDown={(event) => event.stopPropagation()}
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -322,44 +360,63 @@ export function KanbanColumn({
       </div>
 
       {/* Task List */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-transparent p-2">
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
+      {!isCollapsed && (
+        <div
+          className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto bg-transparent px-0 py-1"
         >
-          {tasks.map((task) => (
-            <DraggableTaskCard
-              key={task.id}
-              task={task}
-              customFields={customFields ?? []}
-              showTags={viewSettings?.showTags ?? true}
-              showAssignee={viewSettings?.showAssignee ?? true}
-              showDueDate={viewSettings?.showDueDate ?? true}
-              showPriority={viewSettings?.showPriority ?? true}
-              cardProperties={viewSettings?.cardProperties || []}
-              onClick={() => onTaskClick(task.id)}
-              onDelete={onDeleteTask ? () => onDeleteTask(task.id) : undefined}
-              disableDrag={disableTaskDrag}
-            />
-          ))}
-        </SortableContext>
-        {tasks.length === 0 && (
-          <div className="flex flex-1 select-none items-center justify-center rounded-sm border border-dashed border-muted-foreground/20 py-6 text-xs text-muted-foreground/50">
-            여기로 드롭하여 이동
+          <SortableContext
+            items={tasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {tasks.map((task) => (
+              <DraggableTaskCard
+                key={task.id}
+                task={task}
+                customFields={customFields ?? []}
+                showTags={viewSettings?.showTags ?? true}
+                showAssignee={viewSettings?.showAssignee ?? true}
+                showDueDate={viewSettings?.showDueDate ?? true}
+                showPriority={viewSettings?.showPriority ?? true}
+                cardProperties={viewSettings?.cardProperties || []}
+                onClick={() => onTaskClick(task.id)}
+                onDelete={
+                  onDeleteTask ? () => onDeleteTask(task.id) : undefined
+                }
+                disableDrag={disableTaskDrag}
+                dropIndicator={
+                  indicatorBeforeTaskId === task.id ? "before" : undefined
+                }
+              />
+            ))}
+          </SortableContext>
+          <div
+            ref={setTaskAreaRef}
+            className={cn(
+              "relative shrink-0 rounded-sm transition-colors",
+              tasks.length === 0 && "min-h-[120px]",
+              isTaskAreaOver && "bg-primary/[0.03]",
+            )}
+          >
+            {showEndDropIndicator ? (
+              <div
+                className="pointer-events-none absolute inset-x-1 top-0 z-30 h-0.5 rounded-full bg-primary"
+                aria-hidden="true"
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              className="h-8 w-full justify-start text-sm text-muted-foreground/50 hover:text-muted-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateTask();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <Plus className="h-3.5 w-3.5 mr-2" /> 새 태스크
+            </Button>
           </div>
-        )}
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground/50 hover:text-muted-foreground h-8 text-sm"
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent drag interaction or other bubbling
-            onCreateTask();
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Plus className="h-3.5 w-3.5 mr-2" /> 새 태스크
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

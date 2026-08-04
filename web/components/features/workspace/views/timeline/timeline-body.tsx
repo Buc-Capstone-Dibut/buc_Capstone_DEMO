@@ -19,6 +19,7 @@ import {
   startOfDay,
 } from "date-fns";
 import { ChevronDown, Circle } from "lucide-react";
+import { motion } from "framer-motion";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,9 @@ type TimelineBodyProps = {
   ) => Promise<void> | void;
   readOnly?: boolean;
   allGroupsCollapsed?: boolean;
+  timelineAnimation: ReturnType<
+    typeof import("framer-motion")["useAnimationControls"]
+  >;
 };
 
 type TimelineGroup = {
@@ -324,6 +328,7 @@ export function TimelineBody({
   onUpdateTask,
   readOnly = false,
   allGroupsCollapsed,
+  timelineAnimation,
 }: TimelineBodyProps) {
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     () => new Set(),
@@ -567,7 +572,8 @@ export function TimelineBody({
                   {scheduledTaskCount}/{group.tasks.length} 기간 설정
                 </span>
               </button>
-              <div
+              <motion.div
+                animate={timelineAnimation}
                 className="relative shrink-0"
                 style={{
                   width: timelineWidth,
@@ -636,7 +642,8 @@ export function TimelineBody({
                         </span>
                       </button>
 
-                      <div
+                      <motion.div
+                        animate={timelineAnimation}
                         className="relative shrink-0"
                         style={{ width: timelineWidth }}
                       >
@@ -731,7 +738,7 @@ export function TimelineBody({
                             ) : null}
                           </div>
                         ) : null}
-                      </div>
+                      </motion.div>
                     </div>
                   );
                 })
