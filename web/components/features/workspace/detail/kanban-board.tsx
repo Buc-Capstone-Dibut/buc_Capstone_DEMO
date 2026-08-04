@@ -66,6 +66,7 @@ import { DraggablePropertySettings } from "../modules/view-settings/property-set
 import { Eye } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useBoardRealtime } from "../hooks/use-board-realtime";
 
 const TimelineView = dynamic(
   () =>
@@ -293,6 +294,42 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const queuedMutationCountRef = useRef(0);
   const taskMutationVersionRef = useRef(new Map<string, number>());
+  const isKanbanDraggingRef = useRef(false);
+  const pendingRealtimeRefreshRef = useRef(false);
+
+  const refreshBoardFromRealtime = useCallback(() => {
+    if (
+      queuedMutationCountRef.current > 0 ||
+      isKanbanDraggingRef.current
+    ) {
+      pendingRealtimeRefreshRef.current = true;
+      return;
+    }
+
+    pendingRealtimeRefreshRef.current = false;
+    void mutate(boardKey);
+  }, [boardKey, mutate]);
+
+  const handleKanbanDragStateChange = useCallback(
+    (isDragging: boolean) => {
+      isKanbanDraggingRef.current = isDragging;
+
+      if (
+        !isDragging &&
+        pendingRealtimeRefreshRef.current &&
+        queuedMutationCountRef.current === 0
+      ) {
+        pendingRealtimeRefreshRef.current = false;
+        void mutate(boardKey);
+      }
+    },
+    [boardKey, mutate],
+  );
+
+  useBoardRealtime({
+    workspaceId: projectId,
+    onBoardChanged: refreshBoardFromRealtime,
+  });
 
   const enqueueBoardMutation = useCallback(
     (operation: () => Promise<void>, failureMessage: string) => {
@@ -308,7 +345,12 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         .finally(() => {
           queuedMutationCountRef.current -= 1;
           if (queuedMutationCountRef.current === 0) {
-            void mutate(boardKey);
+            if (isKanbanDraggingRef.current) {
+              pendingRealtimeRefreshRef.current = true;
+            } else {
+              pendingRealtimeRefreshRef.current = false;
+              void mutate(boardKey);
+            }
           }
         });
 
@@ -1447,22 +1489,6 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                                     normalizeCardProperties(nextProperties),
                                 });
                               }}
-                              onReorder={(newOrder) => {
-                                if (activeView) {
-                                  const visiblePropertySet = new Set(
-                                    activeCardProperties,
-                                  );
-                                  void handleUpdateView(activeView.id, {
-                                    cardProperties: normalizeCardProperties(
-                                      newOrder.filter(
-                                        (property) =>
-                                          property === "title" ||
-                                          visiblePropertySet.has(property),
-                                      ),
-                                    ),
-                                  });
-                                }
-                              }}
                             />
                           </CollapsibleContent>
                         </div>
@@ -1942,6 +1968,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
               onHideStatusCategory={(category) => {
                 void toggleStatusCategoryVisibility(category);
               }}
+              onDragStateChange={handleKanbanDragStateChange}
               viewSettings={{
                 showTags: propertyVisibility.tags,
                 showAssignee: propertyVisibility.assignee,

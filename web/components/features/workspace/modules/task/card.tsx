@@ -113,128 +113,31 @@ function TaskCardImpl({
       ? cardProperties
       : ["title", "priority", "tags", "assignee", "dueDate"];
 
-  const renderProperty = (prop: string, index: number) => {
-    const key = `${prop}-${index}`;
-    switch (prop) {
-      case "priority":
-        if (!showPriority || !task.priorityId) return null;
-        const priority = priorities.find((p) => p.id === task.priorityId);
-        if (!priority) return null;
+  const visibleProperties = new Set(propertyOrder);
+  const priority = priorities.find(
+    (item) => item.id.toLowerCase() === task.priorityId?.toLowerCase(),
+  );
+  const visibleTags = (task.tags || []).map((tagIdentifier, index) => {
+    const tag =
+      tags.find((item) => item.id === tagIdentifier) ||
+      tags.find((item) => item.name === tagIdentifier) || {
+        id: `temp-${index}`,
+        name: tagIdentifier,
+        color: "gray",
+      };
+    const colorClass =
+      tag.color.includes("bg-") || tag.color.includes("text-")
+        ? tag.color
+        : `bg-${tag.color}-100 text-${tag.color}-700`;
 
-        return (
-          <Badge
-            key={key}
-            variant="outline"
-            className={cn(
-              "text-[10px] px-1.5 py-0 h-5 font-medium border mb-1.5 w-fit",
-              priority.color,
-            )}
-          >
-            {priority.name}
-          </Badge>
-        );
-
-      case "tags":
-        if (!showTags) return null;
-        if (!task.tags || task.tags.length === 0) return null;
-        return (
-          <div key={key} className="flex items-center gap-1 flex-wrap mb-1.5">
-            {task.tags.map((tagIdentifier: string, idx) => {
-              // 1. Try lookup by ID
-              let tag = tags.find((t) => t.id === tagIdentifier);
-
-              // 2. Try lookup by Name (if ID lookup failed)
-              if (!tag) {
-                tag = tags.find((t) => t.name === tagIdentifier);
-              }
-
-              // 3. Fallback: Treat identifier as Name
-              if (!tag) {
-                tag = {
-                  id: `temp-${idx}`,
-                  name: tagIdentifier,
-                  color: "gray", // Default color for unknown tags
-                };
-              }
-
-              // Use tag color or fallback
-              const colorClass =
-                tag.color.includes("bg-") || tag.color.includes("text-")
-                  ? tag.color
-                  : `bg-${tag.color}-100 text-${tag.color}-700`;
-
-              return (
-                <Badge
-                  key={tag.id || idx}
-                  variant="secondary"
-                  className={cn(
-                    "text-[10px] px-1.5 py-0.5 h-auto font-medium rounded-md border-0 pointer-events-none",
-                    colorClass,
-                  )}
-                >
-                  {tag.name}
-                </Badge>
-              );
-            })}
-          </div>
-        );
-      case "assignee":
-        if (!showAssignee || !task.assignee) return null;
-        return (
-          <div
-            key={key}
-            className="flex items-center gap-1.5 bg-muted/40 px-1.5 py-0.5 rounded text-[11px] mb-1.5 inline-flex w-fit"
-          >
-            <WorkspaceUserAvatar
-              name={task.assignee}
-              avatarUrl={task.assigneeProfile?.avatar}
-              className="h-3.5 w-3.5"
-              fallbackClassName="text-[8px]"
-            />
-            <span>{task.assignee}</span>
-          </div>
-        );
-      case "dueDate":
-        if (!showDueDate || (!task.startDate && !task.endDate)) return null;
-        const dateRange = formatTaskDateRange(task.startDate, task.endDate);
-        const isOverdue = Boolean(
-          task.endDate && task.endDate < getTodayDateKey(),
-        );
-        return (
-          <div
-            key={key}
-            className={`mb-1.5 flex items-center text-xs ${
-              isOverdue
-                ? "font-medium text-orange-500"
-                : "text-muted-foreground"
-            }`}
-          >
-            <CalendarIcon className="h-3 w-3 mr-1" />
-            {dateRange}
-          </div>
-        );
-      case "title":
-        return (
-          <div
-            key={key}
-            className="text-sm font-medium leading-normal text-card-foreground line-clamp-2 w-full mb-1.5"
-          >
-            {task.title}
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+    return { ...tag, colorClass };
+  });
 
   const completedSubtasks =
     task.subtasks?.filter((s) => s.completed).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
 
   // Keep one fixed-width, non-interactive accent across every Kanban card.
-  const priority = priorities.find(
-    (p) => p.id.toLowerCase() === task.priorityId?.toLowerCase(),
-  );
   const firstTagId = task.tags?.[0];
   const firstTag = firstTagId
     ? tags.find((t) => t.id === firstTagId || t.name === firstTagId)
@@ -248,7 +151,7 @@ function TaskCardImpl({
 
   return (
     <Card
-      className={`relative cursor-pointer overflow-hidden rounded-sm border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.10)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_4px_10px_rgba(15,23,42,0.10)] ${isOverlay ? "cursor-grabbing scale-[1.02] shadow-xl" : ""}`}
+      className={`relative cursor-pointer overflow-hidden rounded-md border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_4px_10px_rgba(15,23,42,0.10)] ${isOverlay ? "cursor-grabbing scale-[1.02] shadow-xl" : ""}`}
     >
       <div
         className={cn(
@@ -259,29 +162,15 @@ function TaskCardImpl({
       />
 
       <CardContent className="p-3">
-        {documentCount > 0 && (
-          <div className="mb-1.5 flex items-center gap-1.5 pr-8 text-[11px] text-muted-foreground">
-            <FileText className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
-              {primaryDocument?.emoji ? `${primaryDocument.emoji} ` : ""}
-              {primaryDocument?.title || "연결 문서"}
-            </span>
-            {documentCount > 1 && (
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
-                +{documentCount - 1}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Task Settings Button - DropdownMenu */}
-        <div className="absolute top-2 right-2 z-30">
+        <div className="absolute right-2 top-2 z-30">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:bg-muted rounded-md pointer-events-auto ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="h-5 w-5 rounded-sm text-muted-foreground hover:bg-muted pointer-events-auto ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               >
@@ -323,22 +212,96 @@ function TaskCardImpl({
           </DropdownMenu>
         </div>
 
-        <div className="flex flex-col items-start w-full">
-          {propertyOrder.map((prop, idx) => renderProperty(prop, idx))}
+        {(visibleProperties.has("priority") && showPriority && priority) ||
+        (visibleProperties.has("tags") && showTags && visibleTags.length > 0) ? (
+          <div className="mb-1.5 flex min-h-4 items-center gap-1 pr-6">
+            {visibleProperties.has("priority") && showPriority && priority && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-4 rounded-sm px-1.5 py-0 text-[9px] font-semibold leading-none",
+                  priority.color,
+                )}
+              >
+                {priority.name}
+              </Badge>
+            )}
+            {visibleProperties.has("tags") &&
+              showTags &&
+              visibleTags.slice(0, 2).map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="secondary"
+                  className={cn(
+                    "h-4 rounded-sm border-0 px-1.5 py-0 text-[9px] font-medium leading-none",
+                    tag.colorClass,
+                  )}
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+          </div>
+        ) : null}
+
+        <div className="line-clamp-2 pr-6 text-[13px] font-semibold leading-[1.35] text-slate-800">
+          {task.title}
         </div>
 
-        {totalSubtasks > 0 && (
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 w-full mt-1">
-            <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity ml-auto">
-              <div className="flex items-center gap-0.5">
-                {/* CheckSquare icon assumed unnecessary or omitted in orig, adding simplified text */}
+        {documentCount > 0 && (
+          <div className="mt-1 flex items-center gap-1 pr-5 text-[10px] text-muted-foreground">
+            <FileText className="h-3 w-3 shrink-0" />
+            <span className="truncate">
+              {primaryDocument?.emoji ? `${primaryDocument.emoji} ` : ""}
+              {primaryDocument?.title || "연결 문서"}
+            </span>
+            {documentCount > 1 && <span>+{documentCount - 1}</span>}
+          </div>
+        )}
+
+        {(visibleProperties.has("dueDate") &&
+          showDueDate &&
+          (task.startDate || task.endDate)) ||
+        (visibleProperties.has("assignee") && showAssignee && task.assignee) ||
+        totalSubtasks > 0 ? (
+          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px] text-muted-foreground">
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-1",
+                task.endDate && task.endDate < getTodayDateKey()
+                  ? "font-medium text-orange-500"
+                  : "",
+              )}
+            >
+              {visibleProperties.has("dueDate") &&
+                showDueDate &&
+                (task.startDate || task.endDate) && (
+                  <>
+                    <CalendarIcon className="h-3 w-3 shrink-0" />
+                    <span className="truncate">
+                      {formatTaskDateRange(task.startDate, task.endDate)}
+                    </span>
+                  </>
+                )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {totalSubtasks > 0 && (
                 <span>
                   {completedSubtasks}/{totalSubtasks}
                 </span>
-              </div>
+              )}
+              {visibleProperties.has("assignee") &&
+                showAssignee &&
+                task.assignee && (
+                  <WorkspaceUserAvatar
+                    name={task.assignee}
+                    avatarUrl={task.assigneeProfile?.avatar}
+                    className="h-4 w-4"
+                    fallbackClassName="text-[8px]"
+                  />
+                )}
             </div>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
