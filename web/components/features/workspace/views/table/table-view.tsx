@@ -59,6 +59,7 @@ import {
 } from "@/components/features/workspace/docs/document-picker";
 import { LinkedDocumentPreviewDialog } from "@/components/features/workspace/detail/board/linked-document-preview-dialog";
 import { cn } from "@/lib/utils";
+import { mergeTableTaskGroups } from "@/lib/workspace/table-task-groups";
 import useSWR from "swr";
 import {
   Priority,
@@ -460,6 +461,83 @@ export function TableView({
   const groups = useMemo<TaskGroup[]>(() => {
     const grouped = new Map<string, TaskGroup>();
 
+    const configuredGroups: TaskGroup[] =
+      groupBy === "status"
+        ? columns.map((column) => ({
+            key: column.id,
+            label: column.title,
+            accent: column.color
+              ? getColorAccent(column.color)
+              : column.category === "done"
+                ? "#22c55e"
+                : column.category === "in-progress"
+                  ? "#3b82f6"
+                  : "#64748b",
+            icon: "status" as const,
+            category: column.category || "todo",
+            tasks: [],
+            completed: 0,
+          }))
+        : groupBy === "assignee"
+          ? [
+              {
+                key: "__unassigned__",
+                label: "담당자 없음",
+                accent: "#8B8B87",
+                icon: "assignee" as const,
+                tasks: [],
+                completed: 0,
+              },
+              ...members.map((member) => ({
+                key: member.id,
+                label: member.name,
+                accent: getStableAssigneeAccent(member.id),
+                icon: "assignee" as const,
+                avatarUrl: member.avatar,
+                tasks: [],
+                completed: 0,
+              })),
+            ]
+          : groupBy === "priority"
+            ? [
+                {
+                  key: "__no-priority__",
+                  label: "우선순위 없음",
+                  accent: "#94a3b8",
+                  icon: "priority" as const,
+                  tasks: [],
+                  completed: 0,
+                },
+                ...priorities.map((priority) => ({
+                  key: priority.id,
+                  label: priority.name,
+                  accent:
+                    PRIORITY_GROUP_ACCENTS[priority.id] ||
+                    getColorAccent(priority.color),
+                  icon: "priority" as const,
+                  tasks: [],
+                  completed: 0,
+                })),
+              ]
+            : [
+                {
+                  key: "__no-tag__",
+                  label: "태그 없음",
+                  accent: "#94a3b8",
+                  icon: "tag" as const,
+                  tasks: [],
+                  completed: 0,
+                },
+                ...tags.map((tag) => ({
+                  key: tag.id,
+                  label: tag.name,
+                  accent: getColorAccent(tag.color),
+                  icon: "tag" as const,
+                  tasks: [],
+                  completed: 0,
+                })),
+              ];
+
     filteredTasks.forEach((task) => {
       const column = getTaskColumn(task, columns);
       const priority = priorities.find((item) => item.id === task.priorityId);
@@ -518,16 +596,9 @@ export function TableView({
       }
     });
 
-    const result = Array.from(grouped.values());
-    if (groupBy !== "status") return result;
-
-    const orderMap = new Map(
-      columns.map((column, index) => [column.id, index]),
-    );
-    return result.sort(
-      (left, right) =>
-        (orderMap.get(left.key) ?? Number.MAX_SAFE_INTEGER) -
-        (orderMap.get(right.key) ?? Number.MAX_SAFE_INTEGER),
+    return mergeTableTaskGroups(
+      configuredGroups,
+      Array.from(grouped.values()),
     );
   }, [columns, filteredTasks, groupBy, members, priorities, tags]);
 

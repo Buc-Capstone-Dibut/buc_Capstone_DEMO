@@ -204,7 +204,7 @@ export async function POST(
   } catch (error) {
     console.error("Create Task Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "작업을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 500 },
     );
   }

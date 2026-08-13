@@ -68,6 +68,7 @@ interface WorkspaceSidebarProps {
   onTabChange: (tab: string) => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  onChatIntent?: () => void;
 }
 
 type WorkspaceSummary = {
@@ -119,6 +120,7 @@ export function WorkspaceSidebar({
   onTabChange,
   collapsed = false,
   onToggleCollapsed,
+  onChatIntent,
 }: WorkspaceSidebarProps) {
   const router = useRouter();
   const {
@@ -562,11 +564,14 @@ export function WorkspaceSidebar({
                       isReadOnly && "cursor-not-allowed opacity-60",
                     )}
                     disabled={isReadOnly}
+                    onMouseEnter={onChatIntent}
+                    onFocus={onChatIntent}
                     onClick={() => {
                       if (isReadOnly) {
                         toast.error("종료된 팀 공간은 실시간 채팅을 사용할 수 없습니다.");
                         return;
                       }
+                      onChatIntent?.();
                       const relevantNotifications = notifications?.filter(
                         (n) =>
                           !n.is_read &&

@@ -77,17 +77,18 @@ const IdeaBoard = dynamic(
     ),
   },
 );
+const loadTeamChatModule = () =>
+  import("@/components/features/workspace/detail/chat/team-chat");
+
 const TeamChat = dynamic(
-  () =>
-    import("@/components/features/workspace/detail/chat/team-chat").then(
-      (mod) => mod.TeamChat,
-    ),
+  () => loadTeamChatModule().then((mod) => mod.TeamChat),
   {
     ssr: false,
     loading: () => (
       <WorkspaceTabLoading
         title="대화를 불러오고 있어요"
         description="팀 채널과 최근 대화를 준비하는 중입니다."
+        skeletonDurationMs={120}
       />
     ),
   },
@@ -261,6 +262,13 @@ export default function WorkspaceDetailPage() {
   );
   const isCompleted = workspaceMeta?.lifecycle_status === "COMPLETED";
   const hasWorkspaceMeta = Boolean(workspaceMeta);
+
+  useEffect(() => {
+    // Preserve the split bundle while using the quiet moment after the shell
+    // mounts to prepare chat before a channel is normally selected.
+    const timeout = window.setTimeout(() => void loadTeamChatModule(), 200);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   const handleTabChange = async (
     tab: string,
@@ -486,6 +494,7 @@ export default function WorkspaceDetailPage() {
         onToggleCollapsed={() =>
           setIsWorkspaceSidebarCollapsed((prev) => !prev)
         }
+        onChatIntent={() => void loadTeamChatModule()}
       />
       <main className="h-full flex-1 overflow-y-auto bg-white">
         {isReadOnly && (
