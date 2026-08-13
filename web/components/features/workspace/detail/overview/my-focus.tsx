@@ -7,11 +7,13 @@ import { CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { isTaskAssignedTo } from "@/lib/workspace/task-assignees";
 
 type FocusTask = {
   id: string;
   title: string;
   assigneeId?: string | null;
+  assigneeIds?: string[];
   status?: string;
   priorityId?: string | null;
   startDate?: string | null;
@@ -28,7 +30,7 @@ export function MyFocus({ tasks, userId }: MyFocusProps) {
   const myTasks = tasks
     .filter(
       (t) =>
-        t.assigneeId === userId &&
+        Boolean(userId && isTaskAssignedTo(t, userId)) &&
         t.status !== "done" &&
         t.status !== "completed",
     )

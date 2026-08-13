@@ -41,13 +41,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import {
+  TaskAssigneePicker,
+} from "@/components/features/workspace/common/task-assignee-picker";
 import {
   TaskTagPicker,
   TaskTagSummary,
@@ -60,6 +57,12 @@ import {
 import { LinkedDocumentPreviewDialog } from "@/components/features/workspace/detail/board/linked-document-preview-dialog";
 import { cn } from "@/lib/utils";
 import { mergeTableTaskGroups } from "@/lib/workspace/table-task-groups";
+import {
+  getTaskAssigneeIds,
+  getTaskAssigneeSearchText,
+  isTaskAssignedTo,
+  isTaskUnassigned,
+} from "@/lib/workspace/task-assignees";
 import useSWR from "swr";
 import {
   Priority,
@@ -423,7 +426,7 @@ export function TableView({
       const searchableText = [
         task.title,
         task.description,
-        task.assignee,
+        getTaskAssigneeSearchText(task),
         ...tagNames,
       ]
         .filter(Boolean)
@@ -450,9 +453,11 @@ export function TableView({
               return values.includes(tag.id) || values.includes(tag.name);
             });
           case "assignee":
-            return task.assigneeId
-              ? values.includes(task.assigneeId)
-              : values.includes("unassigned");
+            return values.some((value) =>
+              value === "unassigned"
+                ? isTaskUnassigned(task)
+                : isTaskAssignedTo(task, value),
+            );
         }
       });
     });
@@ -541,8 +546,36 @@ export function TableView({
     filteredTasks.forEach((task) => {
       const column = getTaskColumn(task, columns);
       const priority = priorities.find((item) => item.id === task.priorityId);
-      const member = members.find((item) => item.id === task.assigneeId);
       const primaryTag = task.tags?.[0] ? resolveTag(task.tags[0], tags) : null;
+
+      if (groupBy === "assignee") {
+        const assigneeIds = getTaskAssigneeIds(task);
+        const groupIds = assigneeIds.length > 0 ? assigneeIds : ["__unassigned__"];
+        groupIds.forEach((groupId) => {
+          const assigneeMember = members.find((item) => item.id === groupId);
+          const descriptor = {
+            key: groupId,
+            label: assigneeMember?.name || "담당자 없음",
+            accent: assigneeMember
+              ? getStableAssigneeAccent(assigneeMember.id)
+              : "#8B8B87",
+            icon: "assignee" as const,
+            avatarUrl: assigneeMember?.avatar,
+          };
+          const existing = grouped.get(groupId);
+          if (existing) {
+            existing.tasks.push(task);
+            if (isTaskDone(task, columns)) existing.completed += 1;
+          } else {
+            grouped.set(groupId, {
+              ...descriptor,
+              tasks: [task],
+              completed: isTaskDone(task, columns) ? 1 : 0,
+            });
+          }
+        });
+        return;
+      }
 
       const descriptor =
         groupBy === "status"
@@ -559,15 +592,7 @@ export function TableView({
               icon: "status" as const,
               category: column?.category || "todo",
             }
-          : groupBy === "assignee"
-            ? {
-                key: member?.id || "__unassigned__",
-                label: member?.name || "담당자 없음",
-                accent: member ? getStableAssigneeAccent(member.id) : "#8B8B87",
-                icon: "assignee" as const,
-                avatarUrl: member?.avatar,
-              }
-            : groupBy === "priority"
+          : groupBy === "priority"
               ? {
                   key: priority?.id || "__no-priority__",
                   label: priority?.name || "우선순위 없음",
@@ -1085,16 +1110,7 @@ export function TableView({
                           const priority = priorities.find(
                             (item) => item.id === task.priorityId,
                           );
-                          const assigneeMember = members.find(
-                            (member) => member.id === task.assigneeId,
-                          );
-                          const assigneeName =
-                            task.assignee ||
-                            task.assigneeProfile?.name ||
-                            assigneeMember?.name;
-                          const assigneeAvatar =
-                            task.assigneeProfile?.avatar ||
-                            assigneeMember?.avatar;
+                          const taskAssigneeIds = getTaskAssigneeIds(task);
                           const taskTags = (task.tags || []).map((tagRef) =>
                             resolveTag(tagRef, tags),
                           );
@@ -1273,82 +1289,17 @@ export function TableView({
                                   {groupBy === "assignee" ? (
                                     dateSummary
                                   ) : (
-                                    <TooltipProvider delayDuration={150}>
-                                      <Popover>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <PopoverTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                disabled={readOnly}
-                                                className="h-8 w-8 rounded-full p-1"
-                                                aria-label={
-                                                  assigneeName || "미할당"
-                                                }
-                                              >
-                                                {assigneeName ? (
-                                                  <WorkspaceUserAvatar
-                                                    name={assigneeName}
-                                                    avatarUrl={assigneeAvatar}
-                                                    className="h-5 w-5"
-                                                    fallbackClassName="text-[9px]"
-                                                  />
-                                                ) : (
-                                                  <UserRound className="h-4 w-4 text-muted-foreground" />
-                                                )}
-                                              </Button>
-                                            </PopoverTrigger>
-                                          </TooltipTrigger>
-                                          <TooltipContent
-                                            side="top"
-                                            className="px-2 py-1 text-xs"
-                                          >
-                                            {assigneeName || "미할당"}
-                                          </TooltipContent>
-                                        </Tooltip>
-                                        <PopoverContent
-                                          className="w-52 p-1"
-                                          align="start"
-                                        >
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 w-full justify-start text-xs text-muted-foreground"
-                                            onClick={() =>
-                                              void onUpdateTask(task.id, {
-                                                assigneeId: null,
-                                              })
-                                            }
-                                          >
-                                            담당자 없음
-                                          </Button>
-                                          {members.map((member) => (
-                                            <Button
-                                              key={member.id}
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-9 w-full justify-start gap-2 text-xs"
-                                              onClick={() =>
-                                                void onUpdateTask(task.id, {
-                                                  assigneeId: member.id,
-                                                })
-                                              }
-                                            >
-                                              <WorkspaceUserAvatar
-                                                name={member.name}
-                                                avatarUrl={member.avatar}
-                                                className="h-5 w-5"
-                                                fallbackClassName="text-[9px]"
-                                              />
-                                              <span className="truncate">
-                                                {member.name}
-                                              </span>
-                                            </Button>
-                                          ))}
-                                        </PopoverContent>
-                                      </Popover>
-                                    </TooltipProvider>
+                                    <TaskAssigneePicker
+                                      members={members}
+                                      value={taskAssigneeIds}
+                                      onValueChange={(assigneeIds) =>
+                                        void onUpdateTask(task.id, {
+                                          assigneeIds,
+                                        })
+                                      }
+                                      disabled={readOnly}
+                                      className="h-8 max-w-[145px] border-0 bg-transparent px-1 shadow-none hover:bg-muted"
+                                    />
                                   )}
                                 </TableCell>
 

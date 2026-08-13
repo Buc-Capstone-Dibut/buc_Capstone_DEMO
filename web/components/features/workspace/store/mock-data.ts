@@ -42,6 +42,12 @@ export interface Priority {
   order: number;
 }
 
+export interface TaskAssignee {
+  id: string;
+  name?: string | null;
+  avatar?: string | null;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -49,8 +55,10 @@ export interface Task {
   title: string;
   description?: string;
   status: TaskStatus;
-  assignee?: string;
+  assignee?: string | null;
   assigneeId?: string | null;
+  assigneeIds?: string[];
+  assignees?: TaskAssignee[];
   assigneeProfile?: {
     id?: string;
     name?: string | null;

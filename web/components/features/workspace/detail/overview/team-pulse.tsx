@@ -12,6 +12,7 @@ type WorkspaceTask = {
   columnTitle?: string | null;
   endDate?: string | null;
   assignee?: string | null;
+  assignees?: Array<{ id: string; name?: string | null }>;
 };
 
 interface TeamPulseProps {
@@ -82,7 +83,11 @@ export function TeamPulse({ tasks, projectId }: TeamPulseProps) {
                       </span>
                       <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
                         <UserRound className="h-3 w-3 shrink-0" />
-                        {task.assignee || "담당자 없음"}
+                        {task.assignees?.length
+                          ? task.assignees
+                              .map((assignee) => assignee.name || "이름 없음")
+                              .join(", ")
+                          : task.assignee || "담당자 없음"}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">

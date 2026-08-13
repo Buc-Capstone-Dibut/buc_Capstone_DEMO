@@ -32,6 +32,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import {
+  isTaskAssignedTo,
+  isTaskUnassigned,
+} from "@/lib/workspace/task-assignees";
 
 interface KanbanViewProps {
   projectId: string;
@@ -290,8 +294,8 @@ export function KanbanView({
       }
       if (groupBy === "assignee") {
         return col.id === "unassigned"
-          ? !t.assigneeId
-          : t.assigneeId === col.id;
+          ? isTaskUnassigned(t)
+          : isTaskAssignedTo(t, col.id);
       }
       if (groupBy === "priority") {
         return col.id === "no-priority"
@@ -314,7 +318,7 @@ export function KanbanView({
     if (groupBy === "assignee") {
       return {
         status: "todo",
-        assigneeId: column.id === "unassigned" ? null : column.id,
+        assigneeIds: column.id === "unassigned" ? [] : [column.id],
       };
     }
 

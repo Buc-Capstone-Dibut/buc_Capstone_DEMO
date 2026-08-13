@@ -16,6 +16,13 @@ import {
   type Priority,
   type Tag,
 } from "../../../store/mock-data";
+import {
+  getTaskAssigneeIds,
+  getTaskAssignees,
+  isTaskAssignedTo,
+  isTaskUnassigned,
+  moveTaskAssigneeIds,
+} from "@/lib/workspace/task-assignees";
 
 type KanbanDragColumn = {
   id: string;
@@ -95,7 +102,8 @@ export function useKanbanDrag({
 
   const getTaskGroupValue = (task: Task) => {
     if (groupBy === "status") return task.columnId || task.status;
-    if (groupBy === "assignee") return task.assigneeId || "unassigned";
+    if (groupBy === "assignee")
+      return getTaskAssigneeIds(task)[0] || "unassigned";
     if (groupBy === "priority") return task.priorityId || "no-priority";
     if (groupBy === "tag") return task.tags?.[0] || "no-tag";
     return undefined;
@@ -114,7 +122,8 @@ export function useKanbanDrag({
     }
     if (groupBy === "assignee") {
       return columns.find(
-        (column) => column.id === (task.assigneeId || "unassigned"),
+        (column) =>
+          column.id === (getTaskAssigneeIds(task)[0] || "unassigned"),
       );
     }
     return undefined;
@@ -132,12 +141,27 @@ export function useKanbanDrag({
         priorityId: column.id === "no-priority" ? undefined : column.id,
       };
     }
-    if (groupBy === "assignee") {
-      return {
-        assigneeId: column.id === "unassigned" ? undefined : column.id,
-      };
-    }
     return {};
+  };
+
+  const taskBelongsToColumn = (task: Task, columnId: string) => {
+    if (groupBy === "status") {
+      return task.columnId === columnId || task.status === columnId;
+    }
+    if (groupBy === "priority") {
+      return (task.priorityId || "no-priority") === columnId;
+    }
+    if (groupBy === "assignee") {
+      return columnId === "unassigned"
+        ? isTaskUnassigned(task)
+        : isTaskAssignedTo(task, columnId);
+    }
+    if (groupBy === "tag") {
+      return columnId === "no-tag"
+        ? !task.tags?.length
+        : Boolean(task.tags?.includes(columnId));
+    }
+    return false;
   };
 
   const updateDropPreview = (nextPreview: KanbanDropPreview | null) => {
@@ -203,7 +227,11 @@ export function useKanbanDrag({
       return;
     }
     dragStartTasksRef.current = tasks;
-    setActiveId(event.active.id as string);
+    setActiveId(
+      typeof event.active.data.current?.taskId === "string"
+        ? event.active.data.current.taskId
+        : String(event.active.id),
+    );
     setActiveColumn(null);
   };
 
@@ -214,17 +242,26 @@ export function useKanbanDrag({
       return;
     }
 
-    const activeTaskId = active.id as string;
-    const overId = over.id as string;
-    const overTask = tasks.find((task) => task.id === overId);
+    const activeTaskId =
+      typeof active.data.current?.taskId === "string"
+        ? active.data.current.taskId
+        : String(active.id);
+    const overTaskId =
+      typeof over.data.current?.taskId === "string"
+        ? over.data.current.taskId
+        : over.data.current?.type === "Task"
+          ? String(over.id)
+          : null;
+    const overTask = overTaskId
+      ? tasks.find((task) => task.id === overTaskId)
+      : undefined;
     const dropColumnId = over.data.current?.columnId;
-    const targetColumn = overTask
-      ? getColumnForTask(overTask)
-      : columns.find(
-          (column) =>
-            column.id ===
-            (typeof dropColumnId === "string" ? dropColumnId : overId),
-        );
+    const targetColumn =
+      columns.find(
+        (column) =>
+          column.id ===
+          (typeof dropColumnId === "string" ? dropColumnId : String(over.id)),
+      ) || (overTask ? getColumnForTask(overTask) : undefined);
     if (!targetColumn) {
       updateDropPreview(null);
       return;
@@ -232,14 +269,9 @@ export function useKanbanDrag({
 
     const activeTask = tasks.find((task) => task.id === activeTaskId);
     if (!activeTask) return;
-    const movedTask = {
-      ...activeTask,
-      ...getTaskUpdatesForColumn(targetColumn),
-    };
-    const targetGroup = getTaskGroupValue(movedTask);
     const targetTasks = tasks.filter(
       (task) =>
-        task.id !== activeTaskId && getTaskGroupValue(task) === targetGroup,
+        task.id !== activeTaskId && taskBelongsToColumn(task, targetColumn.id),
     );
     let targetIndex = targetTasks.length;
 
@@ -301,29 +333,84 @@ export function useKanbanDrag({
       return;
     }
 
-    const activeTaskId = active.id as string;
+    const activeTaskId =
+      typeof active.data.current?.taskId === "string"
+        ? active.data.current.taskId
+        : String(active.id);
     const activeTask = tasks.find((task) => task.id === activeTaskId);
     if (!activeTask) {
       resetTasks?.();
       return;
     }
 
-    const overTask = tasks.find((task) => task.id === over.id);
+    const overTaskId =
+      typeof over.data.current?.taskId === "string"
+        ? over.data.current.taskId
+        : over.data.current?.type === "Task"
+          ? String(over.id)
+          : null;
+    const overTask = overTaskId
+      ? tasks.find((task) => task.id === overTaskId)
+      : undefined;
     const dropColumnId = over.data.current?.columnId;
     const targetColumn = finalDropPreview
       ? columns.find((column) => column.id === finalDropPreview.columnId)
-      : overTask
-        ? getColumnForTask(overTask)
-        : columns.find(
+      : columns.find(
             (column) =>
               column.id ===
               (typeof dropColumnId === "string"
                 ? dropColumnId
                 : String(over.id)),
-          );
+          ) || (overTask ? getColumnForTask(overTask) : undefined);
 
     if (!targetColumn) {
       resetTasks?.();
+      return;
+    }
+
+    if (groupBy === "assignee") {
+      const sourceColumnId =
+        typeof active.data.current?.columnId === "string"
+          ? active.data.current.columnId
+          : null;
+      if (sourceColumnId === targetColumn.id) {
+        resetTasks?.();
+        return;
+      }
+
+      const nextAssigneeIds = moveTaskAssigneeIds(
+        getTaskAssigneeIds(activeTask),
+        sourceColumnId,
+        targetColumn.id,
+      );
+      const existingAssignees = getTaskAssignees(activeTask);
+      const nextAssignees = nextAssigneeIds.map(
+        (id) => existingAssignees.find((assignee) => assignee.id === id) || { id },
+      );
+      const primary = nextAssignees[0] ?? null;
+      const nextTasks = tasks.map((task) =>
+        task.id === activeTaskId
+          ? {
+              ...task,
+              assigneeIds: nextAssigneeIds,
+              assignees: nextAssignees,
+              assigneeId: primary?.id ?? null,
+              assignee: primary?.name ?? null,
+              assigneeProfile: primary,
+            }
+          : task,
+      );
+      setTasks?.(nextTasks);
+
+      try {
+        await updateTask(activeTaskId, { assigneeIds: nextAssigneeIds });
+      } catch {
+        if (setTasks && dragStartTasksRef.current.length > 0) {
+          setTasks(dragStartTasksRef.current);
+        } else {
+          resetTasks?.();
+        }
+      }
       return;
     }
 
@@ -358,10 +445,6 @@ export function useKanbanDrag({
       } else if (groupBy === "priority") {
         await updateTask(activeTaskId, {
           priorityId: targetGroup === "no-priority" ? undefined : targetGroup,
-        });
-      } else if (groupBy === "assignee") {
-        await updateTask(activeTaskId, {
-          assigneeId: targetGroup === "unassigned" ? undefined : targetGroup,
         });
       }
     } catch {

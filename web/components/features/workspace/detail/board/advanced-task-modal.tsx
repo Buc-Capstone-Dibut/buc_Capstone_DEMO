@@ -23,7 +23,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   X,
   CalendarRange,
-  User,
   Flag,
   CheckCircle2,
   Trash2,
@@ -37,13 +36,14 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
-import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { TaskAssigneePicker } from "@/components/features/workspace/common/task-assignee-picker";
 import {
   TaskTagPicker,
   type TaskTagOption,
 } from "@/components/features/workspace/common/task-tag-picker";
 import { DocumentPicker } from "@/components/features/workspace/docs/document-picker";
 import { LinkedDocumentPreviewDialog } from "@/components/features/workspace/detail/board/linked-document-preview-dialog";
+import { buildTaskAssignmentFields } from "@/lib/workspace/task-assignees";
 
 // --- Types ---
 interface Task {
@@ -57,7 +57,18 @@ interface Task {
   startDate?: string | null;
   endDate?: string | null;
   assigneeId?: string | null;
-  assignee?: { id: string; name: string; avatar?: string };
+  assigneeIds?: string[];
+  assignees?: Array<{
+    id: string;
+    name?: string | null;
+    avatar?: string | null;
+  }>;
+  assignee?: string | null;
+  assigneeProfile?: {
+    id: string;
+    name?: string | null;
+    avatar?: string | null;
+  } | null;
   tags?: unknown[];
   [key: string]: unknown;
 }
@@ -235,7 +246,10 @@ export function AdvancedTaskModal({
         description: task.description || "",
         status: task.status || "todo",
         priority: task.priority || "medium",
-        assigneeId: task.assigneeId || "unassigned",
+        assigneeId: task.assigneeId || null,
+        assigneeIds:
+          task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []),
+        assignees: task.assignees || [],
         startDate: task.startDate,
         endDate: task.endDate,
         tags: normalizeTagIds(task.tags),
@@ -265,9 +279,15 @@ export function AdvancedTaskModal({
 
   const handleUpdate = async (updates: Partial<Task>) => {
     if (!task || !projectId || !boardEndpoint) return;
+    const optimisticUpdates: Partial<Task> = Array.isArray(updates.assigneeIds)
+      ? {
+          ...updates,
+          ...buildTaskAssignmentFields(updates.assigneeIds, members),
+        }
+      : updates;
 
     // 1. Optimistic Update Local State
-    setLocalTask((prev) => ({ ...prev, ...updates }));
+    setLocalTask((prev) => ({ ...prev, ...optimisticUpdates }));
 
     // 2. Optimistic Update SWR Cache
     await mutate(
@@ -275,7 +295,7 @@ export function AdvancedTaskModal({
       (current: BoardData | undefined) => {
         if (!current) return current;
         const newTasks = current.tasks.map((t: Task) =>
-          t.id === task.id ? { ...t, ...updates } : t,
+          t.id === task.id ? { ...t, ...optimisticUpdates } : t,
         );
         return { ...current, tasks: newTasks };
       },
@@ -506,7 +526,6 @@ export function AdvancedTaskModal({
   };
 
   // --- Helpers ---
-  const currentMember = members.find((m) => m.id === localTask.assigneeId);
   if (!task) return null;
 
   return (
@@ -616,53 +635,15 @@ export function AdvancedTaskModal({
                   <span className="text-xs font-semibold text-muted-foreground uppercase">
                     담당자
                   </span>
-                  <Select
-                    value={localTask.assigneeId || "unassigned"}
-                    onValueChange={(val) =>
-                      handleUpdate({
-                        assigneeId: val === "unassigned" ? null : val,
-                      })
+                  <TaskAssigneePicker
+                    members={members}
+                    value={localTask.assigneeIds || []}
+                    onValueChange={(assigneeIds) =>
+                      void handleUpdate({ assigneeIds })
                     }
-                  >
-                    <SelectTrigger className="w-full justify-start bg-transparent border-muted-foreground/20 hover:bg-muted/50">
-                      <div className="flex items-center gap-2 text-sm">
-                        {localTask.assigneeId &&
-                        localTask.assigneeId !== "unassigned" ? (
-                          <>
-                            <WorkspaceUserAvatar
-                              name={currentMember?.name}
-                              avatarUrl={currentMember?.avatar}
-                              className="h-5 w-5"
-                              fallbackClassName="text-[10px]"
-                            />
-                            <span>{currentMember?.name}</span>
-                          </>
-                        ) : (
-                          <>
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              담당자 없음
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent className="z-[100]">
-                      <SelectItem value="unassigned">담당자 없음</SelectItem>
-                      {members.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          <div className="flex items-center gap-2">
-                            <WorkspaceUserAvatar
-                              name={m.name}
-                              avatarUrl={m.avatar}
-                              className="h-5 w-5"
-                            />
-                            <span>{m.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    className="border-muted-foreground/20 bg-transparent hover:bg-muted/50"
+                    contentClassName="z-[100]"
+                  />
                 </div>
 
                 {/* Priority */}

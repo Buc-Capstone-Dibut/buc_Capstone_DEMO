@@ -171,11 +171,17 @@ export async function POST(
         ? await prisma.kanban_tasks.findMany({
             where: {
               column_id: { in: doneColumnIds },
-              assignee_id: { in: memberIds },
+              OR: [
+                { assignees: { some: { user_id: { in: memberIds } } } },
+                { assignee_id: { in: memberIds } },
+              ],
             },
             select: {
               assignee_id: true,
               title: true,
+              assignees: {
+                select: { user_id: true },
+              },
             },
             orderBy: {
               updated_at: "desc",
@@ -185,14 +191,21 @@ export async function POST(
 
     const completedTaskTitlesByUser = new Map<string, string[]>();
     for (const task of completedTasks) {
-      if (!task.assignee_id) continue;
       const title = task.title.trim();
       if (!title) continue;
-      const current = completedTaskTitlesByUser.get(task.assignee_id) || [];
-      if (!current.includes(title)) {
-        current.push(title);
+      const assigneeIds = Array.from(
+        new Set([
+          ...task.assignees.map((assignee) => assignee.user_id),
+          ...(task.assignees.length === 0 && task.assignee_id
+            ? [task.assignee_id]
+            : []),
+        ]),
+      );
+      for (const assigneeId of assigneeIds) {
+        const current = completedTaskTitlesByUser.get(assigneeId) || [];
+        if (!current.includes(title)) current.push(title);
+        completedTaskTitlesByUser.set(assigneeId, current);
       }
-      completedTaskTitlesByUser.set(task.assignee_id, current);
     }
 
     const completedAt = new Date();

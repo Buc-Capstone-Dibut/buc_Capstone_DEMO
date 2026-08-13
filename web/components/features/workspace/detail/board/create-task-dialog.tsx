@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { TaskAssigneePicker } from "@/components/features/workspace/common/task-assignee-picker";
 import { cn } from "@/lib/utils";
 
 type TaskColumnOption = {
@@ -63,6 +63,7 @@ export type CreateTaskInput = {
   statusId?: string;
   columnCategory?: string;
   assigneeId?: string | null;
+  assigneeIds?: string[];
   priorityId?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -117,7 +118,7 @@ export function CreateTaskDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [columnId, setColumnId] = useState("");
-  const [assigneeId, setAssigneeId] = useState("unassigned");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [priorityId, setPriorityId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -152,7 +153,9 @@ export function CreateTaskDialog({
     );
     setDescription(defaults?.description || "");
     setColumnId(getDefaultColumnId(columns, defaults?.columnId));
-    setAssigneeId(defaults?.assigneeId || "unassigned");
+    setAssigneeIds(
+      defaults?.assigneeIds || (defaults?.assigneeId ? [defaults.assigneeId] : []),
+    );
     setPriorityId(defaults?.priorityId || defaultPriorityId);
     setStartDate(defaults?.startDate || "");
     setEndDate(defaults?.endDate || "");
@@ -186,7 +189,7 @@ export function CreateTaskDialog({
       title: title.trim(),
       description: description.trim(),
       columnId,
-      assigneeId: assigneeId === "unassigned" ? null : assigneeId,
+      assigneeIds,
       priorityId: priorityId || null,
       startDate: startDate || null,
       endDate: endDate || null,
@@ -298,26 +301,12 @@ export function CreateTaskDialog({
               <div className="flex h-6 items-center">
                 <span className="text-xs font-medium">담당자</span>
               </div>
-              <Select value={assigneeId} onValueChange={setAssigneeId}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="담당자 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">미할당</SelectItem>
-                  {members.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      <div className="flex items-center gap-2">
-                        <WorkspaceUserAvatar
-                          name={member.name}
-                          avatarUrl={member.avatar}
-                          className="h-5 w-5"
-                        />
-                        <span>{member.name || "이름 없음"}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TaskAssigneePicker
+                members={members}
+                value={assigneeIds}
+                onValueChange={setAssigneeIds}
+                placeholder="담당자 선택"
+              />
             </div>
 
             <div className="space-y-1.5">

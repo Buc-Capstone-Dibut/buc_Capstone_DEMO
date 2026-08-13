@@ -24,6 +24,7 @@ type CalendarTask = {
   category?: string | null;
   priority?: string | null;
   assignee?: unknown;
+  assignees?: Array<{ id: string; name?: string | null }>;
 };
 
 interface DashboardCalendarProps {
@@ -88,6 +89,7 @@ export function DashboardCalendar({
           category: t.category || t.status || "todo", // Stable category from API
           priority: t.priority,
           assignee: t.assignee,
+          assignees: t.assignees,
         },
       };
     });
