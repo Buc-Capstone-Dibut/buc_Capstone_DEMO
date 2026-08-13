@@ -11,6 +11,7 @@ import {
   serializeWorkspaceView,
 } from "@/lib/server/workspace-views";
 import { normalizeDateOnly } from "@/lib/workspace/task-dates";
+import { serializeTaskAssignees } from "@/lib/server/task-assignees";
 
 export async function GET(
   _request: Request,
@@ -105,43 +106,25 @@ export async function GET(
               },
             },
             assignee: {
-              select: { nickname: true, avatar_url: true },
+              select: { id: true, nickname: true, avatar_url: true },
+            },
+            assignees: {
+              orderBy: [
+                { position: "asc" },
+                { assigned_at: "asc" },
+                { user_id: "asc" },
+              ],
+              select: {
+                user_id: true,
+                user: {
+                  select: { id: true, nickname: true, avatar_url: true },
+                },
+              },
             },
           },
           orderBy: { order: "asc" },
         })
-      : Promise.resolve<
-          Array<{
-            id: string;
-            column_id: string;
-            title: string;
-            description: string | null;
-            order: number;
-            start_date: Date | null;
-            end_date: Date | null;
-            assignee_id: string | null;
-            tags: string[];
-            priority: string | null;
-            documents: Array<{
-              is_primary: boolean;
-              relation_type: string;
-              doc: {
-                id: string;
-                title: string;
-                emoji: string | null;
-                kind: string;
-                is_archived: boolean;
-              };
-            }>;
-            _count: {
-              documents: number;
-            };
-            assignee: {
-              nickname: string | null;
-              avatar_url: string | null;
-            } | null;
-          }>
-        >([]),
+      : Promise.resolve([]),
     prisma.workspace_members.findMany({
       where: { workspace_id: workspaceId },
       select: {
@@ -191,6 +174,7 @@ export async function GET(
     tasks: tasks.map((task) => {
       const columnMeta = columnMetaById.get(task.column_id);
       const primaryDocument = task.documents[0];
+      const assignmentFields = serializeTaskAssignees(task.assignees, task);
       return {
         id: task.id,
         columnId: task.column_id,
@@ -200,15 +184,7 @@ export async function GET(
         order: task.order,
         startDate: normalizeDateOnly(task.start_date),
         endDate: normalizeDateOnly(task.end_date),
-        assignee: task.assignee ? task.assignee.nickname : null,
-        assigneeProfile: task.assignee
-          ? {
-              id: task.assignee_id,
-              name: task.assignee.nickname || "Unknown",
-              avatar: task.assignee.avatar_url,
-            }
-          : null,
-        assigneeId: task.assignee_id,
+        ...assignmentFields,
         tags: task.tags,
         priority: task.priority || "medium",
         priorityId: task.priority || "medium",

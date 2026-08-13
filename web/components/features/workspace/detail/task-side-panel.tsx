@@ -1,14 +1,15 @@
 "use client";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useWorkspaceStore, Task } from "../store/mock-data";
+import { useWorkspaceStore } from "../store/mock-data";
 import { Calendar as CalendarIcon, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { TaskAssigneePicker } from "@/components/features/workspace/common/task-assignee-picker";
+import { getTaskAssigneeIds } from "@/lib/workspace/task-assignees";
 
 interface TaskSidePanelProps {
   taskId: string | null;
@@ -20,7 +21,9 @@ interface TaskSidePanelProps {
 export function TaskSidePanel({ taskId, open, onOpenChange, onNavigateToDoc }: TaskSidePanelProps) {
   const tasks = useWorkspaceStore((s) => s.tasks);
   const updateTask = useWorkspaceStore((s) => s.updateTask);
+  const projects = useWorkspaceStore((s) => s.projects);
   const task = tasks.find(t => t.id === taskId);
+  const members = projects.find((project) => project.id === task?.projectId)?.members || [];
 
   if (!task) return null;
 
@@ -61,16 +64,13 @@ export function TaskSidePanel({ taskId, open, onOpenChange, onNavigateToDoc }: T
             </div>
             <div className="space-y-2">
               <Label>Assignee</Label>
-               <Select defaultValue={task.assignee || "unassigned"} onValueChange={(v) => updateTask(task.id, { assignee: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  <SelectItem value="Junghwan">Junghwan</SelectItem>
-                  <SelectItem value="Frontend">Frontend Dev</SelectItem>
-                </SelectContent>
-              </Select>
+              <TaskAssigneePicker
+                members={members}
+                value={getTaskAssigneeIds(task)}
+                onValueChange={(assigneeIds) =>
+                  updateTask(task.id, { assigneeIds })
+                }
+              />
             </div>
           </div>
 

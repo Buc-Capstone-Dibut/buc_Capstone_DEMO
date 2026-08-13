@@ -29,6 +29,7 @@ import {
   type TimelineInteractionMode,
 } from "@/lib/workspace/timeline-range";
 import type { Task } from "../../store/mock-data";
+import { getTaskAssigneeIds } from "@/lib/workspace/task-assignees";
 
 export type TimelineScale = "day" | "week" | "month";
 export type TimelineGroupBy = "status" | "assignee" | "priority" | "tag";
@@ -183,7 +184,8 @@ function parseTaskDate(value?: string | null) {
 }
 
 function getTaskGroupId(task: Task, groupBy: TimelineGroupBy) {
-  if (groupBy === "assignee") return task.assigneeId || "unassigned";
+  if (groupBy === "assignee")
+    return getTaskAssigneeIds(task)[0] || "unassigned";
   if (groupBy === "priority") return task.priorityId || "no-priority";
   if (groupBy === "tag") return task.tags?.[0] || "no-tag";
   return task.columnId || "unassigned-status";
@@ -196,10 +198,17 @@ function groupTasks(
 ) {
   const tasksByGroup = new Map<string, Task[]>();
   tasks.forEach((task) => {
-    const groupId = getTaskGroupId(task, groupBy);
-    const groupTasks = tasksByGroup.get(groupId) || [];
-    groupTasks.push(task);
-    tasksByGroup.set(groupId, groupTasks);
+    const groupIds =
+      groupBy === "assignee"
+        ? getTaskAssigneeIds(task).length > 0
+          ? getTaskAssigneeIds(task)
+          : ["unassigned"]
+        : [getTaskGroupId(task, groupBy)];
+    groupIds.forEach((groupId) => {
+      const groupedTasks = tasksByGroup.get(groupId) || [];
+      groupedTasks.push(task);
+      tasksByGroup.set(groupId, groupedTasks);
+    });
   });
 
   const groups: TimelineGroup[] = [];

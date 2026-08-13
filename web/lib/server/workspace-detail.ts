@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { fetchDevEventById } from "@/lib/server/dev-events";
 import { getTeamTypeLabel } from "@/lib/team-types";
 import { getTodayDateKey, normalizeDateOnly } from "@/lib/workspace/task-dates";
+import { serializeTaskAssignees } from "@/lib/server/task-assignees";
 
 type WorkspaceIdentityInput = {
   id: string;
@@ -42,6 +43,14 @@ type TaskSnapshot = {
     nickname: string | null;
     avatar_url: string | null;
   } | null;
+  assignees: Array<{
+    user_id: string;
+    user: {
+      id: string;
+      nickname: string | null;
+      avatar_url: string | null;
+    };
+  }>;
 };
 
 const DONE_TITLES = new Set(["done", "completed", "finished"]);
@@ -76,16 +85,6 @@ function isDoneColumn(column?: ColumnSnapshot | null) {
     category === "completed" ||
     DONE_TITLES.has(normalizedTitle)
   );
-}
-
-function formatAssignee(task: TaskSnapshot) {
-  if (!task.assignee) return null;
-
-  return {
-    id: task.assignee.id,
-    name: task.assignee.nickname || "Unknown",
-    avatar: task.assignee.avatar_url,
-  };
 }
 
 export async function buildWorkspaceDetailPayload(
@@ -134,6 +133,23 @@ export async function buildWorkspaceDetailPayload(
                   id: true,
                   nickname: true,
                   avatar_url: true,
+                },
+              },
+              assignees: {
+                orderBy: [
+                  { position: "asc" },
+                  { assigned_at: "asc" },
+                  { user_id: "asc" },
+                ],
+                select: {
+                  user_id: true,
+                  user: {
+                    select: {
+                      id: true,
+                      nickname: true,
+                      avatar_url: true,
+                    },
+                  },
                 },
               },
             },
@@ -216,7 +232,7 @@ export async function buildWorkspaceDetailPayload(
               category: column.category || "todo",
             }
           : null,
-        assignee: formatAssignee(task),
+        ...serializeTaskAssignees(task.assignees, task),
       };
     });
 

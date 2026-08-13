@@ -90,6 +90,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SlidersHorizontal, Eye, Filter } from "lucide-react";
+import {
+  isTaskAssignedTo,
+  isTaskUnassigned,
+} from "@/lib/workspace/task-assignees";
 
 interface KanbanBoardProps {
   projectId: string;
@@ -453,8 +457,8 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                     return t.status === col.id;
                   }
                   if (groupBy === "assignee") {
-                    if (col.id === "unassigned") return !t.assignee;
-                    return t.assignee === col.title;
+                    if (col.id === "unassigned") return isTaskUnassigned(t);
+                    return isTaskAssignedTo(t, col.id);
                   }
 
                   if (groupBy === "priority") {
@@ -501,8 +505,8 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                           "statusId" in col ? col.statusId : col.id;
                       } else if (groupBy === "assignee") {
                         defaultProps.status = "todo";
-                        if (col.id !== "unassigned")
-                          defaultProps.assignee = col.title;
+                        defaultProps.assigneeIds =
+                          col.id === "unassigned" ? [] : [col.id];
                       } else if (groupBy === "priority") {
                         defaultProps.status = "todo";
                         if (col.id !== "no-priority")
@@ -581,9 +585,8 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                     return t.status === col.id;
                   }
                   if (groupBy === "assignee") {
-                    if (col.id === "unassigned")
-                      return !t.assignee || t.assignee === "unassigned";
-                    return t.assignee === col.title;
+                    if (col.id === "unassigned") return isTaskUnassigned(t);
+                    return isTaskAssignedTo(t, col.id);
                   }
 
                   if (groupBy === "priority") {
@@ -629,7 +632,6 @@ export function KanbanBoard({ projectId, onNavigateToDoc }: KanbanBoardProps) {
                   showPriority,
                   cardProperties: activeView?.cardProperties,
                 }}
-                isOverlay
                 className="rotate-2 scale-105 shadow-2xl opacity-90 ring-1 ring-primary/20"
               />
             ) : null}

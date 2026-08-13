@@ -8,6 +8,10 @@ import {
   normalizeDateOnly,
   parseDateOnly,
 } from "@/lib/workspace/task-dates";
+import {
+  parseTaskAssigneeIds,
+  serializeTaskAssignees,
+} from "@/lib/server/task-assignees";
 
 export async function POST(
   request: Request,
@@ -15,15 +19,15 @@ export async function POST(
 ) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const workspaceId = params.id;
-  const userId = session.user.id;
+  const userId = user.id;
 
   // 1. Check Membership
   const memberCheck = await prisma.workspace_members.findUnique({
@@ -49,19 +53,38 @@ export async function POST(
 
   try {
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 },
+      );
+    }
     const {
       title,
       description,
       columnId,
-      assigneeId,
       priority,
       tags,
       startDate,
       endDate,
       dueDate,
     } = body;
+    let assigneeIds: string[];
+    try {
+      assigneeIds = parseTaskAssigneeIds(body) ?? [];
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Invalid assignees" },
+        { status: 400 },
+      );
+    }
 
-    if (!title || !columnId) {
+    if (
+      typeof title !== "string" ||
+      !title.trim() ||
+      typeof columnId !== "string" ||
+      !columnId.trim()
+    ) {
       return NextResponse.json(
         { error: "Title and Column ID are required" },
         { status: 400 },
@@ -77,17 +100,14 @@ export async function POST(
       return NextResponse.json({ error: "Column not found" }, { status: 404 });
     }
 
-    if (assigneeId) {
-      const assigneeMembership = await prisma.workspace_members.findUnique({
+    if (assigneeIds.length > 0) {
+      const assigneeMemberCount = await prisma.workspace_members.count({
         where: {
-          workspace_id_user_id: {
-            workspace_id: workspaceId,
-            user_id: assigneeId,
-          },
+          workspace_id: workspaceId,
+          user_id: { in: assigneeIds },
         },
-        select: { user_id: true },
       });
-      if (!assigneeMembership) {
+      if (assigneeMemberCount !== assigneeIds.length) {
         return NextResponse.json(
           { error: "워크스페이스 멤버만 담당자로 지정할 수 있습니다." },
           { status: 400 },
@@ -169,11 +189,18 @@ export async function POST(
     // 3. Create Task
     const task = await prisma.kanban_tasks.create({
       data: {
-        title: title,
+        title: title.trim(),
         column_id: columnId,
         order: newOrder,
         description: description || "",
-        assignee_id: assigneeId || null,
+        assignee_id: assigneeIds[0] ?? null,
+        assignees: {
+          create: assigneeIds.map((assigneeUserId, position) => ({
+            user_id: assigneeUserId,
+            assigned_by: userId,
+            position,
+          })),
+        },
         tags: normalizedTags,
         start_date: parseDateOnly(dateRange.startDate),
         end_date: parseDateOnly(dateRange.endDate),
@@ -181,6 +208,14 @@ export async function POST(
       },
       include: {
         assignee: true,
+        assignees: {
+          orderBy: [
+            { position: "asc" },
+            { assigned_at: "asc" },
+            { user_id: "asc" },
+          ],
+          include: { user: true },
+        },
       },
     });
 
@@ -193,8 +228,7 @@ export async function POST(
       order: task.order,
       startDate: normalizeDateOnly(task.start_date),
       endDate: normalizeDateOnly(task.end_date),
-      assignee: task.assignee ? task.assignee.nickname : null,
-      assigneeId: task.assignee_id,
+      ...serializeTaskAssignees(task.assignees, task),
       tags: task.tags,
       priorityId: task.priority || "medium",
       status: column.title.toLowerCase().replace(/\s+/g, "-"),

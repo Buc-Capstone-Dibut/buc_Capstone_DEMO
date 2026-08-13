@@ -16,6 +16,8 @@ interface DraggableTaskCardProps {
   onDelete?: () => void;
   disableDrag?: boolean;
   dropIndicator?: "before";
+  sortableId?: string;
+  sourceColumnId?: string;
 }
 
 export function DraggableTaskCard({
@@ -30,6 +32,8 @@ export function DraggableTaskCard({
   onDelete,
   disableDrag = false,
   dropIndicator,
+  sortableId,
+  sourceColumnId,
 }: DraggableTaskCardProps & { showPriority?: boolean }) {
   const {
     attributes,
@@ -39,10 +43,12 @@ export function DraggableTaskCard({
     transition,
     isDragging,
   } = useSortable({
-    id: task.id,
+    id: sortableId || task.id,
     data: {
       type: "Task",
       task,
+      taskId: task.id,
+      columnId: sourceColumnId,
     },
     disabled: disableDrag,
   });

@@ -19,6 +19,7 @@ type UpcomingTask = {
   endDate?: string | null;
   status?: string | null;
   assignee?: unknown;
+  assignees?: Array<{ id: string; name?: string | null }>;
 };
 
 interface UpcomingEventsProps {
@@ -69,7 +70,13 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
     }
   };
 
-  const getAssigneeName = (assignee: unknown) => {
+  const getAssigneeName = (task: UpcomingTask) => {
+    if (task.assignees?.length) {
+      return task.assignees
+        .map((assignee) => assignee.name || "이름 없음")
+        .join(", ");
+    }
+    const assignee = task.assignee;
     if (!assignee) return null;
     if (typeof assignee === "string") return assignee;
     if (typeof assignee === "object" && assignee && "name" in assignee) {
@@ -135,13 +142,13 @@ export function UpcomingEvents({ projectId, tasks = [] }: UpcomingEventsProps) {
                       )}
                     </div>
                     <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      {getAssigneeName(task.assignee) && (
+                      {getAssigneeName(task) && (
                         <div className="flex items-center gap-1.5 rounded-md border bg-background px-1.5 py-0.5">
                           <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                          <span>{getAssigneeName(task.assignee)}</span>
+                          <span>{getAssigneeName(task)}</span>
                         </div>
                       )}
-                      {!getAssigneeName(task.assignee) && (
+                      {!getAssigneeName(task) && (
                         <span>담당자 없음</span>
                       )}
                     </div>

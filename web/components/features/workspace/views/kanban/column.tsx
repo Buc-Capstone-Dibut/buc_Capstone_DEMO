@@ -141,6 +141,8 @@ export function KanbanColumn({
   const showEndDropIndicator = Boolean(
     dropPreview && !indicatorBeforeTaskId,
   );
+  const getSortableTaskId = (taskId: string) =>
+    groupBy === "assignee" ? `${taskId}::assignee::${id}` : taskId;
   const {
     setNodeRef: setTaskAreaRef,
     isOver: isTaskAreaOver,
@@ -365,13 +367,15 @@ export function KanbanColumn({
           className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto bg-transparent px-0 py-1"
         >
           <SortableContext
-            items={tasks.map((t) => t.id)}
+            items={tasks.map((task) => getSortableTaskId(task.id))}
             strategy={verticalListSortingStrategy}
           >
             {tasks.map((task) => (
               <DraggableTaskCard
-                key={task.id}
+                key={getSortableTaskId(task.id)}
                 task={task}
+                sortableId={getSortableTaskId(task.id)}
+                sourceColumnId={id}
                 customFields={customFields ?? []}
                 showTags={viewSettings?.showTags ?? true}
                 showAssignee={viewSettings?.showAssignee ?? true}

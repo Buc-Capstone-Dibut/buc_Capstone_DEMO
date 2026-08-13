@@ -67,6 +67,12 @@ import { Eye } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useBoardRealtime } from "../hooks/use-board-realtime";
+import {
+  buildTaskAssignmentFields,
+  getTaskAssigneeSearchText,
+  isTaskAssignedTo,
+  isTaskUnassigned,
+} from "@/lib/workspace/task-assignees";
 
 const TimelineView = dynamic(
   () =>
@@ -739,7 +745,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       const searchable = [
         task.title,
         task.description,
-        task.assignee,
+        getTaskAssigneeSearchText(task),
         ...taskTagNames,
       ]
         .filter(Boolean)
@@ -757,7 +763,9 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       }
       if (
         assigneeFilter !== "all" &&
-        (task.assigneeId || "unassigned") !== assigneeFilter
+        (assigneeFilter === "unassigned"
+          ? !isTaskUnassigned(task)
+          : !isTaskAssignedTo(task, assigneeFilter))
       ) {
         return false;
       }
@@ -796,8 +804,9 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
             (priorityOrder.get(left.task.priorityId || "") ?? 999) -
             (priorityOrder.get(right.task.priorityId || "") ?? 999);
         } else if (taskSort === "assignee") {
-          const leftAssignee = left.task.assignee || "\uffff";
-          const rightAssignee = right.task.assignee || "\uffff";
+          const leftAssignee = getTaskAssigneeSearchText(left.task) || "\uffff";
+          const rightAssignee =
+            getTaskAssigneeSearchText(right.task) || "\uffff";
           comparison = leftAssignee.localeCompare(rightAssignee, "ko");
         } else if (taskSort === "start-date") {
           comparison = (left.task.startDate || "9999-12-31").localeCompare(
@@ -1090,8 +1099,10 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         columnId: targetColumnId,
       };
 
-      if ("assigneeId" in taskProps) {
-        payload.assigneeId = taskProps.assigneeId ?? null;
+      if ("assigneeIds" in taskProps) {
+        payload.assigneeIds = taskProps.assigneeIds || [];
+      } else if ("assigneeId" in taskProps) {
+        payload.assigneeIds = taskProps.assigneeId ? [taskProps.assigneeId] : [];
       }
 
       if ("priorityId" in taskProps) {
@@ -1164,13 +1175,22 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       return;
     }
     const previousTask = tasks.find((task) => task.id === taskId);
+    const optimisticUpdates = Array.isArray(updates.assigneeIds)
+      ? {
+          ...updates,
+          ...buildTaskAssignmentFields(
+            updates.assigneeIds,
+            resolvedProject?.members || [],
+          ),
+        }
+      : updates;
     const mutationVersion =
       (taskMutationVersionRef.current.get(taskId) || 0) + 1;
     taskMutationVersionRef.current.set(taskId, mutationVersion);
 
     syncProjectData(projectId, {
       tasks: tasks.map((task) =>
-        task.id === taskId ? { ...task, ...updates } : task,
+        task.id === taskId ? { ...task, ...optimisticUpdates } : task,
       ),
     });
 
@@ -1198,7 +1218,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           .getState()
           .tasks.filter((task) => task.projectId === projectId);
         const rollbackFields = Object.fromEntries(
-          Object.keys(updates).map((key) => [
+          Object.keys(optimisticUpdates).map((key) => [
             key,
             previousTask[key as keyof Task],
           ]),

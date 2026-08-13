@@ -3,14 +3,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarIcon,
@@ -19,7 +17,6 @@ import {
   Clock,
   MessageSquare,
   X,
-  CheckSquare,
   Trash2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -31,6 +28,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TaskAssigneePicker } from "@/components/features/workspace/common/task-assignee-picker";
+import { getTaskAssigneeIds } from "@/lib/workspace/task-assignees";
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -177,50 +176,14 @@ export function TaskDetailModal({
                   <User className="h-4 w-4" /> 담당자
                 </div>
                 <div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 -ml-2 justify-start font-normal"
-                      >
-                        {task.assignee ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-5 w-5">
-                              <AvatarFallback className="text-[9px]">
-                                {task.assignee.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            {task.assignee}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/50">
-                            할당되지 않음
-                          </span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[200px] p-0" align="start">
-                      <ScrollArea className="h-60">
-                        {members.map((m: any) => (
-                          <div
-                            key={m.id}
-                            className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
-                            onClick={() =>
-                              onUpdate(task.id, { assigneeId: m.id })
-                            }
-                          >
-                            <Avatar className="h-5 w-5">
-                              <AvatarFallback className="text-[10px]">
-                                {m.name?.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            {m.name || "Unknown"}
-                          </div>
-                        ))}
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
+                  <TaskAssigneePicker
+                    members={members}
+                    value={getTaskAssigneeIds(task)}
+                    onValueChange={(assigneeIds) =>
+                      onUpdate(task.id, { assigneeIds })
+                    }
+                    className="-ml-2 border-0 bg-transparent shadow-none"
+                  />
                 </div>
 
                 {/* Priority */}

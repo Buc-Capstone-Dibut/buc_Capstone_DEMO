@@ -26,7 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { WorkspaceUserAvatar } from "@/components/features/workspace/common/workspace-user-avatar";
+import { TaskAssigneeAvatars } from "@/components/features/workspace/common/task-assignee-picker";
+import { getTaskAssignees } from "@/lib/workspace/task-assignees";
 import {
   formatTaskDateRange,
   getTodayDateKey,
@@ -106,6 +107,7 @@ function TaskCardImpl({
       : primaryDocument
         ? 1
         : 0;
+  const assignees = getTaskAssignees(task);
 
   // Default order if not provided or empty
   const propertyOrder =
@@ -261,7 +263,9 @@ function TaskCardImpl({
         {(visibleProperties.has("dueDate") &&
           showDueDate &&
           (task.startDate || task.endDate)) ||
-        (visibleProperties.has("assignee") && showAssignee && task.assignee) ||
+        (visibleProperties.has("assignee") &&
+          showAssignee &&
+          assignees.length > 0) ||
         totalSubtasks > 0 ? (
           <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px] text-muted-foreground">
             <div
@@ -291,12 +295,11 @@ function TaskCardImpl({
               )}
               {visibleProperties.has("assignee") &&
                 showAssignee &&
-                task.assignee && (
-                  <WorkspaceUserAvatar
-                    name={task.assignee}
-                    avatarUrl={task.assigneeProfile?.avatar}
-                    className="h-4 w-4"
-                    fallbackClassName="text-[8px]"
+                assignees.length > 0 && (
+                  <TaskAssigneeAvatars
+                    assignees={assignees}
+                    max={3}
+                    avatarClassName="h-4 w-4"
                   />
                 )}
             </div>

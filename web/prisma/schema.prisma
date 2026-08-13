@@ -529,6 +529,8 @@ model profiles {
   workspace_doc_comments_resolved workspace_doc_comments[]       @relation("WorkspaceDocCommentResolver")
   created_task_document_links     kanban_task_documents[]        @relation("WorkspaceTaskDocumentCreator")
   kanban_tasks                    kanban_tasks[]
+  task_assignments                kanban_task_assignees[]        @relation("TaskAssignee")
+  task_assignments_created        kanban_task_assignees[]        @relation("TaskAssigner")
   notifications                   notifications[]
   messages                        workspace_messages[]
   blog_bookmarks                  blog_bookmarks[]
@@ -1016,11 +1018,30 @@ model kanban_tasks {
 
   column    kanban_columns          @relation(fields: [column_id], references: [id], onDelete: Cascade)
   assignee  profiles?               @relation(fields: [assignee_id], references: [id])
+  assignees kanban_task_assignees[]
   documents kanban_task_documents[]
 
   @@index([column_id, order])
   @@index([end_date])
   @@index([assignee_id])
+  @@schema("public")
+}
+
+model kanban_task_assignees {
+  task_id     String   @db.Uuid
+  user_id     String   @db.Uuid
+  assigned_by String?  @db.Uuid
+  assigned_at DateTime @default(now()) @db.Timestamptz(6)
+  position    Int      @default(0)
+
+  task     kanban_tasks @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user     profiles     @relation("TaskAssignee", fields: [user_id], references: [id], onDelete: Cascade)
+  assigner profiles?    @relation("TaskAssigner", fields: [assigned_by], references: [id], onDelete: SetNull)
+
+  @@id([task_id, user_id])
+  @@index([user_id, task_id])
+  @@index([assigned_by])
+  @@index([task_id, position, assigned_at, user_id])
   @@schema("public")
 }
 

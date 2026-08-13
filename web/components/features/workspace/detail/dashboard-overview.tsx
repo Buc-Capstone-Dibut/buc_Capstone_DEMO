@@ -33,6 +33,12 @@ type BoardTask = {
   columnTitle?: string | null;
   endDate?: string | null;
   assignee?: string | null;
+  assigneeIds?: string[];
+  assignees?: Array<{
+    id: string;
+    name?: string | null;
+    avatar?: string | null;
+  }>;
 };
 
 type BoardData = {

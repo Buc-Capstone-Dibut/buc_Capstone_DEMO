@@ -186,7 +186,15 @@ export async function GET(req: Request) {
       FROM "public"."kanban_tasks" kt
       JOIN "public"."kanban_columns" kc
         ON kc.id = kt.column_id
-      WHERE kt.assignee_id = ${resolvedProfileId}::uuid
+      WHERE (
+          kt.assignee_id = ${resolvedProfileId}::uuid
+          OR EXISTS (
+            SELECT 1
+            FROM "public"."kanban_task_assignees" kta
+            WHERE kta.task_id = kt.id
+              AND kta.user_id = ${resolvedProfileId}::uuid
+          )
+        )
         AND kc.workspace_id IN (${workspaceIdParams})
       GROUP BY kc.workspace_id
     `;

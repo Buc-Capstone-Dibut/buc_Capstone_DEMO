@@ -27,6 +27,7 @@ type NextAction = {
   priority?: string | null;
   isOverdue?: boolean;
   assignee?: string | { name?: string | null } | null;
+  assignees?: Array<{ id: string; name?: string | null }>;
   column?: { title?: string | null } | null;
 };
 
@@ -48,6 +49,11 @@ function getPriorityLabel(priority?: string | null) {
 }
 
 function getAssigneeLabel(action: NextAction) {
+  if (action.assignees?.length) {
+    return action.assignees
+      .map((assignee) => assignee.name || "이름 없음")
+      .join(", ");
+  }
   if (!action.assignee) return "담당자 미지정";
   if (typeof action.assignee === "string") return action.assignee;
   return action.assignee.name || "담당자 미지정";

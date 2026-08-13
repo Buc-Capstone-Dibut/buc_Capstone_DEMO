@@ -17,6 +17,10 @@ import {
   normalizeDateOnly,
   parseDateOnly,
 } from "@/lib/workspace/task-dates";
+import {
+  parseTaskAssigneeIds,
+  serializeTaskAssignees,
+} from "@/lib/server/task-assignees";
 
 export async function PATCH(
   request: Request,
@@ -34,6 +38,12 @@ export async function PATCH(
   try {
     const { id: workspaceId, taskId } = params;
     const updates = await request.json();
+    if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 },
+      );
+    }
 
     // Verify workspace membership
     const member = await prisma.workspace_members.findUnique({
@@ -68,6 +78,15 @@ export async function PATCH(
       order?: number;
       priority?: string | null;
     } = {};
+    let assigneeIds: string[] | undefined;
+    try {
+      assigneeIds = parseTaskAssigneeIds(updates);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Invalid assignees" },
+        { status: 400 },
+      );
+    }
     if (updates.title !== undefined) {
       if (typeof updates.title !== "string" || !updates.title.trim()) {
         return NextResponse.json(
@@ -93,24 +112,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid column" }, { status: 400 });
     }
 
-    if (updates.assignee_id !== undefined)
-      allowedUpdates.assignee_id = updates.assignee_id;
-    if (updates.assigneeId !== undefined)
-      allowedUpdates.assignee_id = updates.assigneeId;
-    if (
-      allowedUpdates.assignee_id !== undefined &&
-      allowedUpdates.assignee_id !== null
-    ) {
-      const assigneeMembership = await prisma.workspace_members.findUnique({
+    if (assigneeIds !== undefined) {
+      allowedUpdates.assignee_id = assigneeIds[0] ?? null;
+      const assigneeMemberCount = await prisma.workspace_members.count({
         where: {
-          workspace_id_user_id: {
-            workspace_id: workspaceId,
-            user_id: allowedUpdates.assignee_id,
-          },
+          workspace_id: workspaceId,
+          user_id: { in: assigneeIds },
         },
-        select: { user_id: true },
       });
-      if (!assigneeMembership) {
+      if (assigneeMemberCount !== assigneeIds.length) {
         return NextResponse.json(
           { error: "워크스페이스 멤버만 담당자로 지정할 수 있습니다." },
           { status: 400 },
@@ -237,11 +247,42 @@ export async function PATCH(
       }
     }
 
-    const updatedTask = await prisma.kanban_tasks.update({
-      where: {
-        id: taskId,
-      },
-      data: allowedUpdates,
+    const updatedTask = await prisma.$transaction(async (tx) => {
+      await tx.kanban_tasks.update({
+        where: { id: taskId },
+        data: allowedUpdates,
+      });
+
+      if (assigneeIds !== undefined) {
+        await tx.kanban_task_assignees.deleteMany({
+          where: { task_id: taskId },
+        });
+        if (assigneeIds.length > 0) {
+          await tx.kanban_task_assignees.createMany({
+            data: assigneeIds.map((assigneeUserId, position) => ({
+              task_id: taskId,
+              user_id: assigneeUserId,
+              assigned_by: user.id,
+              position,
+            })),
+          });
+        }
+      }
+
+      return tx.kanban_tasks.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignee: true,
+          assignees: {
+            orderBy: [
+              { position: "asc" },
+              { assigned_at: "asc" },
+              { user_id: "asc" },
+            ],
+            include: { user: true },
+          },
+        },
+      });
     });
 
     if (allowedUpdates.column_id) {
@@ -256,27 +297,34 @@ export async function PATCH(
         category === "completed" ||
         title.includes("done")
       ) {
-        await logUserActivityEvent(
-          user.id,
-          MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
-          updatedTask.id,
+        const completionUserIds = Array.from(
+          new Set([user.id, ...updatedTask.assignees.map((item) => item.user_id)]),
         );
-        await tryApplyReputationEvent({
-          userId: user.id,
-          eventType: REPUTATION_EVENT_TYPES.workspaceTaskCompleted,
-          delta: REPUTATION_DELTAS.workspaceTaskCompleted,
-          sourceType: "workspace_task",
-          sourceId: updatedTask.id,
-          dedupeKey: `workspace_task_completed:${updatedTask.id}:${user.id}`,
-          metadata: { workspaceId },
-        });
+        await Promise.all(
+          completionUserIds.map(async (completionUserId) => {
+            await logUserActivityEvent(
+              completionUserId,
+              MY_ACTIVITY_EVENT_TYPES.workspaceTaskCompleted,
+              updatedTask.id,
+            );
+            await tryApplyReputationEvent({
+              userId: completionUserId,
+              eventType: REPUTATION_EVENT_TYPES.workspaceTaskCompleted,
+              delta: REPUTATION_DELTAS.workspaceTaskCompleted,
+              sourceType: "workspace_task",
+              sourceId: updatedTask.id,
+              dedupeKey: `workspace_task_completed:${updatedTask.id}:${completionUserId}`,
+              metadata: { workspaceId },
+            });
+          }),
+        );
       }
     }
 
     return NextResponse.json({
       ...updatedTask,
       columnId: updatedTask.column_id,
-      assigneeId: updatedTask.assignee_id,
+      ...serializeTaskAssignees(updatedTask.assignees, updatedTask),
       startDate: normalizeDateOnly(updatedTask.start_date),
       endDate: normalizeDateOnly(updatedTask.end_date),
     });
