@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type WorkspaceTabLoadingProps = {
   title: string;
   description: string;
+  skeletonDurationMs?: number;
 };
 
 /**
@@ -17,13 +18,17 @@ type WorkspaceTabLoadingProps = {
 export function WorkspaceTabLoading({
   title,
   description,
+  skeletonDurationMs = 450,
 }: WorkspaceTabLoadingProps) {
   const [showBrandLoading, setShowBrandLoading] = useState(false);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setShowBrandLoading(true), 450);
+    const timeout = window.setTimeout(
+      () => setShowBrandLoading(true),
+      skeletonDurationMs,
+    );
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [skeletonDurationMs]);
 
   if (!showBrandLoading) {
     return <Skeleton className="h-full w-full rounded-lg" />;

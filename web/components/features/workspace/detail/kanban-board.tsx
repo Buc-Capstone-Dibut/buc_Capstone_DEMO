@@ -1117,8 +1117,12 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      await res.json();
+      const responsePayload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          responsePayload?.error || `Server returned ${res.status}`,
+        );
+      }
       await mutate(boardKey);
       toast.success("작업을 만들었습니다.");
       return true;
