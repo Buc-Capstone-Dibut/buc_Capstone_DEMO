@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { isTeamType, normalizeTeamType } from "@/lib/team-types";
 import { normalizeWorkspaceCategory } from "@/lib/server/workspace-bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +113,6 @@ export async function PATCH(
     const {
       title,
       content,
-      type,
       capacity,
       tech_stack,
       place_type,
@@ -126,21 +124,20 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     if (title) updateData.title = title;
     if (content) updateData.content = content;
-    if (type) {
-      if (!isTeamType(type)) {
-        return NextResponse.json(
-          { error: "Invalid team type" },
-          { status: 400 },
-        );
-      }
-      updateData.type = normalizeTeamType(type);
-    }
+    const isFullEdit =
+      title !== undefined ||
+      content !== undefined ||
+      capacity !== undefined ||
+      tech_stack !== undefined ||
+      place_type !== undefined ||
+      location !== undefined;
+    if (isFullEdit) updateData.type = "project";
     if (capacity) updateData.capacity = Number(capacity); // Ensure number
     if (tech_stack) updateData.tech_stack = tech_stack;
-    if (place_type) updateData.place_type = place_type;
-    // Handle location explicitly. If place_type is online, location might be cleared or set to something else.
-    // SquadForm sends location even if online (as 'reference').
-    if (location !== undefined) updateData.location = location;
+    if (isFullEdit) {
+      updateData.place_type = "online";
+      updateData.location = null;
+    }
     if (status) updateData.status = status;
 
     updateData.updated_at = new Date();
@@ -161,8 +158,8 @@ export async function PATCH(
 
         if (title) workspaceUpdateData.name = title;
         if (content) workspaceUpdateData.description = content;
-        if (type) {
-          workspaceUpdateData.category = normalizeWorkspaceCategory(type);
+        if (isFullEdit) {
+          workspaceUpdateData.category = normalizeWorkspaceCategory("project");
         }
 
         if (Object.keys(workspaceUpdateData).length > 0) {

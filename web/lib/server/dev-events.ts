@@ -1,5 +1,6 @@
 import { DevEvent } from "@/lib/types/dev-event";
 import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
 
 let cachedEvents: DevEvent[] | null = null;
 let cachedEventsAt = 0;
@@ -7,6 +8,86 @@ const DEV_EVENTS_CACHE_TTL_MS = 60_000;
 
 const DEV_EVENT_COLUMNS =
   "id, title, link, host, date, start_date, end_date, tags, category, status, source, created_at, description, thumbnail, content, summary, target_audience, fee, schedule, benefits";
+
+const RECOMMENDATION_ALIASES: Record<string, string[]> = {
+  react: ["react", "frontend", "프론트엔드", "javascript", "typescript"],
+  "next.js": ["next.js", "nextjs", "frontend", "프론트엔드", "react"],
+  nextjs: ["next.js", "nextjs", "frontend", "프론트엔드", "react"],
+  vue: ["vue", "frontend", "프론트엔드", "javascript"],
+  javascript: ["javascript", "frontend", "프론트엔드", "web"],
+  typescript: ["typescript", "frontend", "프론트엔드", "web"],
+  java: ["java", "backend", "백엔드", "spring"],
+  spring: ["spring", "backend", "백엔드", "java"],
+  kotlin: ["kotlin", "backend", "백엔드", "android", "모바일"],
+  python: ["python", "backend", "백엔드", "ai", "데이터"],
+  fastapi: ["fastapi", "python", "backend", "백엔드"],
+  node: ["node", "node.js", "backend", "백엔드", "javascript"],
+  "node.js": ["node", "node.js", "backend", "백엔드", "javascript"],
+  aws: ["aws", "cloud", "클라우드", "devops"],
+  docker: ["docker", "cloud", "클라우드", "devops"],
+  kubernetes: ["kubernetes", "cloud", "클라우드", "devops"],
+  ai: ["ai", "인공지능", "머신러닝", "데이터"],
+  ml: ["ml", "머신러닝", "ai", "데이터"],
+  data: ["data", "데이터", "ai"],
+  android: ["android", "모바일", "kotlin"],
+  ios: ["ios", "모바일", "swift"],
+};
+
+function recommendationTerms(profileTags: string[]) {
+  const terms = new Set<string>();
+
+  profileTags.forEach((tag) => {
+    const normalized = tag.trim().toLowerCase();
+    if (!normalized) return;
+    terms.add(normalized);
+    RECOMMENDATION_ALIASES[normalized]?.forEach((alias) => terms.add(alias));
+  });
+
+  return [...terms];
+}
+
+function recommendationScore(event: DevEvent, terms: string[]) {
+  if (terms.length === 0) return 0;
+
+  const eventTags = event.tags.map((tag) => tag.toLowerCase());
+  const searchable = [
+    event.title,
+    event.host,
+    event.category,
+    event.summary,
+    event.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return terms.reduce((score, term) => {
+    if (eventTags.some((tag) => tag === term || tag.includes(term))) {
+      return score + 4;
+    }
+    return searchable.includes(term) ? score + 1 : score;
+  }, 0);
+}
+
+export async function fetchCurrentProfileTechStack(): Promise<string[]> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { tech_stack: true },
+    });
+
+    return profile?.tech_stack ?? [];
+  } catch (error) {
+    console.warn("프로필 기반 대외활동 추천 정보를 불러오지 못했습니다:", error);
+    return [];
+  }
+}
 
 // 개발자 행사 데이터는 Supabase dev_events를 단일 원본으로 사용한다.
 async function loadDevEvents(): Promise<DevEvent[]> {
@@ -31,12 +112,14 @@ export async function fetchDevEvents({
   search,
   category,
   tags,
+  recommendationTags,
   page = 1,
   limit = 12,
 }: {
   search?: string;
   category?: string;
   tags?: string[];
+  recommendationTags?: string[];
   page?: number;
   limit?: number;
 } = {}) {
@@ -66,6 +149,18 @@ export async function fetchDevEvents({
       filteredEvents = filteredEvents.filter((e) =>
         e.tags.some((tag) => lowerTags.includes(tag.toLowerCase())),
       );
+    }
+
+    if (recommendationTags && recommendationTags.length > 0) {
+      const terms = recommendationTerms(recommendationTags);
+      filteredEvents = filteredEvents
+        .map((event, index) => ({
+          event,
+          index,
+          score: recommendationScore(event, terms),
+        }))
+        .sort((a, b) => b.score - a.score || a.index - b.index)
+        .map(({ event }) => event);
     }
 
     // Pagination

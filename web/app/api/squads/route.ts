@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { isTeamType, normalizeTeamType } from "@/lib/team-types";
 import {
   normalizeWorkspaceCategory,
   seedWorkspaceDefaults,
@@ -15,11 +14,8 @@ export async function POST(request: Request) {
     const {
       title,
       content,
-      type,
       capacity,
       tech_stack,
-      place_type,
-      location,
       activity_id,
       user_id,
     } = body;
@@ -28,19 +24,11 @@ export async function POST(request: Request) {
     const missing = [];
     if (!title) missing.push("title");
     if (!content) missing.push("content");
-    if (!type) missing.push("type");
     if (!user_id) missing.push("user_id");
 
     if (missing.length > 0) {
       return NextResponse.json(
         { error: `Missing required fields: ${missing.join(", ")}` },
-        { status: 400 },
-      );
-    }
-
-    if (!isTeamType(type)) {
-      return NextResponse.json(
-        { error: "Invalid team type" },
         { status: 400 },
       );
     }
@@ -70,11 +58,11 @@ export async function POST(request: Request) {
         data: {
           title,
           content,
-          type: normalizeTeamType(type),
+          type: "project",
           capacity: parseInt(capacity),
           tech_stack: tech_stack || [],
-          place_type,
-          location,
+          place_type: "online",
+          location: null,
           activity_id: activity_id || null,
           leader_id: leaderId,
           recruited_count: 1,
@@ -93,7 +81,7 @@ export async function POST(request: Request) {
         data: {
           name: title,
           description: content,
-          category: normalizeWorkspaceCategory(type),
+          category: normalizeWorkspaceCategory("project"),
           from_squad_id: newSquad.id,
           space_status: "DRAFT",
         },

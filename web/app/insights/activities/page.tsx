@@ -1,5 +1,6 @@
 import {
   fetchDevEvents,
+  fetchCurrentProfileTechStack,
   getAllEventTags,
   fetchClosingSoonEvents,
 } from "@/lib/server/dev-events";
@@ -39,16 +40,22 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
       ? parseInt(resolvedSearchParams.page)
       : 1;
 
+  const [recommendationTags, allTags, recentSquads, closingEvents] =
+    await Promise.all([
+      fetchCurrentProfileTechStack(),
+      getAllEventTags(category),
+      fetchRecentSquads(5),
+      fetchClosingSoonEvents(),
+    ]);
+
   const { events, totalPages, totalCount } = await fetchDevEvents({
     search,
     category,
     tags,
+    recommendationTags,
     page,
     limit: 12,
   });
-  const allTags = await getAllEventTags(category);
-  const recentSquads = await fetchRecentSquads(5);
-  const closingEvents = await fetchClosingSoonEvents();
 
   return (
     <div className="w-full min-h-screen bg-background text-foreground">
@@ -61,8 +68,8 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
                 대외활동
               </h1>
               <p className="text-muted-foreground text-lg">
-                해커톤, 컨퍼런스, 다양한 개발자 행사를 통해 커리어를
-                성장시키세요.
+                내 프로필의 기술 스택과 관심 분야에 맞는 개발자 활동을
+                먼저 추천합니다.
                 <span className="ml-2 text-[12px] bg-muted px-2 py-1 rounded-full font-bold tracking-wider uppercase">
                   Total {totalCount}
                 </span>
@@ -80,7 +87,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
             <ActivityFilter allTags={allTags} />
           </div>
           <div className="shrink-0 w-full md:w-auto">
-            <RecruitSearchSort />
+            <RecruitSearchSort recommendationTags={recommendationTags} />
           </div>
         </div>
 
