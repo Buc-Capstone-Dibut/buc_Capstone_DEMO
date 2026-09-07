@@ -1,19 +1,18 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Sparkles } from "lucide-react";
 import { useDebounce } from "use-debounce";
 
-export function RecruitSearchSort() {
+interface RecruitSearchSortProps {
+  recommendationTags?: string[];
+}
+
+export function RecruitSearchSort({
+  recommendationTags = [],
+}: RecruitSearchSortProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -21,7 +20,6 @@ export function RecruitSearchSort() {
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || ""
   );
-  const [sort, setSort] = useState(searchParams.get("sort") || "latest");
 
   // Debounce search input
   const [debouncedSearch] = useDebounce(searchTerm, 300);
@@ -36,38 +34,32 @@ export function RecruitSearchSort() {
       params.delete("search");
     }
 
-    if (sort && sort !== "latest") {
-      params.set("sort", sort);
-    } else {
-      params.delete("sort");
-    }
+    params.delete("sort");
+    params.delete("page");
 
     router.push(`?${params.toString()}`);
-  }, [debouncedSearch, sort, router, searchParams]);
+  }, [debouncedSearch, router, searchParams]);
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-center">
       <div className="relative w-full sm:w-[300px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="제목, 기업명 검색..."
+          placeholder="활동명, 주최기관 검색..."
           className="pl-9 h-10 rounded-xl bg-muted/50 border-none focus-visible:ring-1"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="flex items-center gap-2 w-full sm:w-auto">
-        <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="h-10 w-full sm:w-[130px] rounded-xl bg-muted/50 border-none">
-            <SelectValue placeholder="정렬" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="latest">최신순</SelectItem>
-            <SelectItem value="deadline">마감임박순</SelectItem>
-            <SelectItem value="view">인기순</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.06] px-3 text-xs font-bold text-primary sm:w-auto">
+        <Sparkles className="h-4 w-4" />
+        <span>프로필 맞춤 추천</span>
+        {recommendationTags.length > 0 ? (
+          <span className="max-w-[150px] truncate text-[11px] font-medium text-muted-foreground">
+            {recommendationTags.slice(0, 3).join(" · ")}
+          </span>
+        ) : null}
       </div>
     </div>
   );

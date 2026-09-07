@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.interview_recordings (
     mime_type TEXT,
     size_bytes BIGINT,
     recording_started_at TIMESTAMPTZ,
+    transcript JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(session_id)
 )
@@ -160,6 +161,7 @@ def init_db() -> None:
         )
         """,
         INTERVIEW_RECORDINGS_DDL,
+        "ALTER TABLE public.interview_recordings ADD COLUMN IF NOT EXISTS transcript JSONB",
         INTERVIEW_RECORDING_SIGNALS_DDL,
         """
         ALTER TABLE public.interview_turns

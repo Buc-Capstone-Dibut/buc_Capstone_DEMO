@@ -11,6 +11,7 @@ import { useSegmentSync } from "@/hooks/interview/use-segment-sync";
 import { buildAnswerDetails, type AnswerSegment, type AnswerFinding } from "@/lib/interview/report/answer-segments";
 import type { FaceSample } from "@/lib/interview/face/face-metrics";
 import { CollapsibleSection } from "@/components/features/resume/collapsible-section";
+import type { RecordingTranscript } from "@/lib/interview/recording/transcript";
 
 interface NonverbalSummary {
   overall?: string;
@@ -28,6 +29,8 @@ interface Props {
   nonverbalSummary?: NonverbalSummary | null;
   faceSamples?: FaceSample[];
   awaySegments?: Array<[number, number]>;
+  transcript?: RecordingTranscript | null;
+  onReload?: () => void;
 }
 
 // 시선이탈 비율을 정성 문구로 표현(점수·등급 아님).
@@ -97,18 +100,20 @@ export function InterviewRecordingSection({
   nonverbalSummary,
   faceSamples,
   awaySegments,
+  transcript,
+  onReload,
 }: Props) {
   const videoRef = useRef<SegmentVideoPlayerHandle | null>(null);
   const { activeId, currentTimeMs, durationMs, seekTo } = useSegmentSync(videoRef, segments);
   const details = buildAnswerDetails(segments, findingsByOrder);
   const samples = useMemo(() => faceSamples ?? [], [faceSamples]);
-  // 영상 위 분석 오버레이(얼굴 마스킹 + 시선 점 + 우상단 상태 점) 표시 토글 — 기본 켜짐.
-  const [showOverlay, setShowOverlay] = useState(true);
+  // 원본 영상을 기본으로 보여주고, 수집한 얼굴 신호가 있을 때만 오버레이를 제공한다.
+  const [showOverlay, setShowOverlay] = useState(false);
   const hasOverlayData = samples.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
           {hasOverlayData && (
             <div className="mb-2 flex justify-end">
@@ -131,7 +136,8 @@ export function InterviewRecordingSection({
             ref={videoRef}
             src={recordingUrl}
             samples={showOverlay && hasOverlayData ? samples : undefined}
-            faceMask={showOverlay}
+            faceMask={showOverlay && hasOverlayData}
+            onReload={onReload}
           />
           <SegmentTimelineBar
             segments={segments}
@@ -141,9 +147,6 @@ export function InterviewRecordingSection({
             onSeek={seekTo}
             awaySegments={awaySegments ?? nonverbalSummary?.awaySegments}
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            답변/타임라인을 클릭하면 영상이 해당 구간으로 이동합니다.
-          </p>
           <AnswerHighlights
             src={recordingUrl}
             segments={segments}
@@ -155,6 +158,8 @@ export function InterviewRecordingSection({
           activeId={activeId}
           feedbackByOrder={findingsByOrder}
           onSeek={seekTo}
+          transcript={transcript}
+          currentTimeMs={currentTimeMs}
         />
       </div>
 

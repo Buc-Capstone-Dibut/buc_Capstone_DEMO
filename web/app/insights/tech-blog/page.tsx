@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SearchBar } from "@/components/features/tech-blog/search-bar";
-import { ViewToggle } from "@/components/features/tech-blog/view-toggle";
 import { TagFilterBar } from "@/components/features/tech-blog/tag-filter-bar";
 import { TAG_FILTER_OPTIONS, type TagCategory } from "@/lib/tag-filters";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -129,24 +127,14 @@ export default function TechBlogPage() {
                             setSelectedBlog(value);
                             setPage(1);
                         }}
+                        searchValue={searchQuery}
+                        onSearchChange={(query) => {
+                            setSearchQuery(query);
+                            setPage(1);
+                        }}
+                        viewMode={viewMode}
+                        onViewModeChange={setViewMode}
                     />
-
-                    <div className="flex flex-col md:flex-row items-center justify-end gap-3">
-                        <div className="w-full md:w-[320px]">
-                            <SearchBar
-                                value={searchQuery}
-                                onChange={(query) => {
-                                    setSearchQuery(query);
-                                    setPage(1);
-                                }}
-                                placeholder="제목, 기업명 검색..."
-                            />
-                        </div>
-                        <ViewToggle
-                            viewMode={viewMode}
-                            onViewModeChange={setViewMode}
-                        />
-                    </div>
                 </div>
 
                 <div className="mb-8 space-y-4 lg:hidden">

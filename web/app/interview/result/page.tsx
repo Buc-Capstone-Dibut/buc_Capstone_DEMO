@@ -61,7 +61,8 @@ import {
   type RecommendedBlog,
 } from "@/lib/interview/report/blog-recommendations";
 import { supabase } from "@/lib/supabase/client";
-import { InterviewRecordingSection } from "@/components/features/interview/report/interview-recording-section";
+import { RecordingReportTab } from "@/components/features/interview/report/recording-report-tab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SessionDetail {
   analysis?: SessionAnalysisPayload;
@@ -1100,90 +1101,14 @@ export default function InterviewResultPage() {
   const resolvedSessionId = querySessionId || interviewSessionId || "";
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRetryingReport, setIsRetryingReport] = useState(false);
+  const [showPendingVideo, setShowPendingVideo] = useState(searchParams.get("tab") === "recording");
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
   const [recommendationTags, setRecommendationTags] = useState<string[]>([]);
   const [blogsLoading, setBlogsLoading] = useState(true);
-  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
-  const [recordingDurationMs, setRecordingDurationMs] = useState(0);
-  const [segments, setSegments] = useState<import("@/lib/interview/report/answer-segments").AnswerSegment[]>([]);
-  const [faceSamples, setFaceSamples] = useState<import("@/lib/interview/face/face-metrics").FaceSample[]>([]);
-  const [awaySegments, setAwaySegments] = useState<Array<[number, number]>>([]);
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!resolvedSessionId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}/recording`, {
-          cache: "no-store",
-        });
-        const json = await res.json();
-        if (!cancelled && json?.success && json.data?.url) {
-          setRecordingUrl(json.data.url as string);
-          setRecordingDurationMs(Number(json.data.durationMs) || 0);
-        }
-      } catch {
-        /* 녹화 없으면 무시 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedSessionId]);
-
-  useEffect(() => {
-    if (!resolvedSessionId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/interview/sessions/${resolvedSessionId}/signals`, {
-          cache: "no-store",
-        });
-        const json = await res.json();
-        if (!cancelled && json?.success && json.data) {
-          setFaceSamples(json.data.samples ?? []);
-          setAwaySegments(json.data.aggregates?.awaySegments ?? []);
-        }
-      } catch {
-        /* 시계열 신호 없으면 무시(카메라 미사용 등) */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedSessionId]);
-
-  useEffect(() => {
-    if (!resolvedSessionId || !recordingUrl) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const segRes = await fetch(`/api/interview/sessions/${resolvedSessionId}/segments`, { cache: "no-store" });
-        const segJson = await segRes.json();
-        if (cancelled || !segJson?.success || !segJson.data?.anchorIso) return;
-        const { buildAnswerSegments } = await import("@/lib/interview/report/answer-segments");
-        setSegments(buildAnswerSegments(segJson.data.turns, segJson.data.anchorIso, recordingDurationMs));
-      } catch {
-        /* 구간 없으면 통영상만 표시 */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [resolvedSessionId, recordingUrl, recordingDurationMs]);
-
-  // 녹화가 있을 때만 영상 섹션을 목차/스크롤스파이 멤버로 등록(타임라인 섹션 바로 앞).
-  const reportSections = useMemo(
-    () =>
-      recordingUrl
-        ? REPORT_SECTIONS.flatMap((s) =>
-            s.id === "timeline" ? [{ id: "recording", label: "면접 영상" }, s] : [s],
-          )
-        : REPORT_SECTIONS,
-    [recordingUrl],
-  );
   const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
   const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
 
@@ -1609,6 +1534,15 @@ export default function InterviewResultPage() {
     }
   }, [detailModel.timelineInsights.length, selectedTimelineIndex]);
 
+  if ((isAnalyzing || !reportModel) && sessionDetail && showPendingVideo) {
+    return <div className="min-h-screen bg-background"><GlobalHeader /><main className="mx-auto max-w-7xl px-6 py-6 md:px-10">
+      <Tabs value="recording" onValueChange={() => setShowPendingVideo(false)}>
+        <TabsList><TabsTrigger value="analysis">분석 리포트</TabsTrigger><TabsTrigger value="recording">면접 영상</TabsTrigger></TabsList>
+        <TabsContent value="recording"><RecordingReportTab sessionId={resolvedSessionId} /></TabsContent>
+      </Tabs>
+    </main></div>;
+  }
+
   if (isAnalyzing) {
     if (reportPendingTooLong) {
       return (
@@ -1623,6 +1557,7 @@ export default function InterviewResultPage() {
           <Button variant="outline" className="rounded-md px-6" onClick={() => window.location.reload()}>
             다시 불러오기
           </Button>
+          <Button variant="outline" onClick={() => setShowPendingVideo(true)}>면접 영상</Button>
         </ResultStatePanel>
       );
     }
@@ -1634,6 +1569,7 @@ export default function InterviewResultPage() {
         description="답변 흐름과 직무 연결성을 다시 읽어 상세 리포트를 생성하는 중입니다."
       >
         <div className="flex flex-col items-center gap-2">
+          <Button variant="outline" onClick={() => setShowPendingVideo(true)}>면접 영상</Button>
           <Button variant="outline" className="rounded-md px-6" onClick={handleBackgroundReport}>
             백그라운드에서 계속하기
           </Button>
@@ -1679,6 +1615,7 @@ export default function InterviewResultPage() {
         <Button className="rounded-md px-6" onClick={() => router.push("/interview")}>
           면접 메인으로 이동
         </Button>
+        {sessionDetail && <Button variant="outline" onClick={() => setShowPendingVideo(true)}>면접 영상</Button>}
         {isReportFailure && sessionDetail?.reportAttempts != null && sessionDetail?.reportMaxAttempts != null ? (
           <p className="w-full text-sm text-muted-foreground">
             재시도 횟수: {sessionDetail.reportAttempts}/{sessionDetail.reportMaxAttempts}
@@ -1703,7 +1640,18 @@ export default function InterviewResultPage() {
           interviewVisual={interviewVisual}
         />
 
-        <ReportTableOfContents sections={reportSections} />
+        <Tabs defaultValue={searchParams.get("tab") === "recording" ? "recording" : "analysis"}>
+          <div className="mx-auto max-w-7xl px-6 py-4 md:px-10">
+            <TabsList aria-label="면접 리포트 보기">
+              <TabsTrigger value="analysis">분석 리포트</TabsTrigger>
+              <TabsTrigger value="recording">면접 영상</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="recording" className="mx-auto max-w-7xl px-6 md:px-10">
+            <RecordingReportTab sessionId={resolvedSessionId} findingsByOrder={recordingFeedbackByOrder} nonverbalSummary={sessionDetail?.report_view?.nonverbalSummary} />
+          </TabsContent>
+          <TabsContent value="analysis">
+        <ReportTableOfContents sections={REPORT_SECTIONS} />
 
         <article className="mx-auto max-w-7xl px-6 md:px-10">
           <DocumentSection
@@ -1764,23 +1712,6 @@ export default function InterviewResultPage() {
               axisEvidence={reportModel.axisEvidence}
             />
           </DocumentSection>
-
-          {recordingUrl && (
-            <DocumentSection index="00" id="recording" title="면접 영상">
-              {segments.length > 0 ? (
-                <InterviewRecordingSection
-                  recordingUrl={recordingUrl}
-                  segments={segments}
-                  findingsByOrder={recordingFeedbackByOrder}
-                  nonverbalSummary={sessionDetail?.report_view?.nonverbalSummary}
-                  faceSamples={faceSamples}
-                  awaySegments={awaySegments}
-                />
-              ) : (
-                <video src={recordingUrl} controls playsInline className="w-full rounded-xl border bg-black" />
-              )}
-            </DocumentSection>
-          )}
 
           <DocumentSection
             id="timeline"
@@ -1846,6 +1777,8 @@ export default function InterviewResultPage() {
             onNavigate={(href) => router.push(href)}
           />
         </article>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

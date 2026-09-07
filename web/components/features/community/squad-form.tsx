@@ -5,13 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import dynamic from "next/dynamic";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -27,11 +20,6 @@ import {
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
-import {
-  normalizeTeamType,
-  TEAM_TYPE_OPTIONS,
-  type TeamType,
-} from "@/lib/team-types";
 
 // Dynamic import for Editor
 const MarkdownEditor = dynamic(
@@ -62,8 +50,6 @@ interface SquadFormProps {
   };
 }
 
-type PlaceType = NonNullable<SquadFormProps["initialData"]>["place_type"];
-
 export default function SquadForm({ initialData }: SquadFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,12 +59,6 @@ export default function SquadForm({ initialData }: SquadFormProps) {
 
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState(initialData?.content || "");
-  const [placeType, setPlaceType] = useState(
-    initialData?.place_type || "online",
-  );
-  const [teamType, setTeamType] = useState<TeamType>(
-    normalizeTeamType(initialData?.type),
-  );
   const [date, setDate] = useState<Date | undefined>(
     initialData?.recruitment_period ? new Date(initialData.recruitment_period) : undefined,
   );
@@ -114,14 +94,11 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       const formData = new FormData(formRef.current);
       const titleVal = formData.get("title");
       const capacityVal = formData.get("capacity");
-      const locationVal = formData.get("location");
 
       // Validation
       const missingFields = [];
       if (!titleVal) missingFields.push("제목");
       if (!content) missingFields.push("상세 내용");
-      if (placeType !== "online" && !locationVal)
-        missingFields.push("주 활동 지역");
 
       if (missingFields.length > 0) {
         toast.error(`다음 항목을 확인해주세요: ${missingFields.join(", ")}`);
@@ -144,11 +121,11 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       const payload = {
         title: titleVal,
         content,
-        type: teamType,
+        type: "project",
         capacity: capacityVal,
         tech_stack: noTechStack ? [] : tags,
-        place_type: placeType,
-        location: locationVal,
+        place_type: "online",
+        location: null,
         recruitment_period: date ? format(date, "yyyy-MM-dd") : null,
         activity_id: activityId,
         user_id: user.id,
@@ -209,26 +186,6 @@ export default function SquadForm({ initialData }: SquadFormProps) {
       {/* Basic Info Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div className="space-y-2">
-          <Label htmlFor="team_type">팀 유형</Label>
-          <Select
-            value={teamType}
-            onValueChange={(value: TeamType) => setTeamType(value)}
-            name="team_type"
-          >
-            <SelectTrigger id="team_type">
-              <SelectValue placeholder="팀 유형 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              {TEAM_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="recruitment_period">모집 기간</Label>
           <div className="flex flex-col gap-1.5">
             <Popover>
@@ -274,38 +231,6 @@ export default function SquadForm({ initialData }: SquadFormProps) {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="place_type">진행 방식</Label>
-          <Select
-            value={placeType}
-            onValueChange={(value) => setPlaceType(value as PlaceType)}
-            name="place_type"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="방식 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="online">온라인</SelectItem>
-              <SelectItem value="offline">오프라인</SelectItem>
-              <SelectItem value="hybrid">온/오프라인 혼합</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="location">
-            {placeType === "online" ? "참고 사항 (선택)" : "주 활동 지역"}
-          </Label>
-          <Input
-            name="location"
-            defaultValue={initialData?.location || ""}
-            placeholder={
-              placeType === "online"
-                ? "예: 디스코드, 게더타운"
-                : "예: 강남역, 판교 등"
-            }
-          />
-        </div>
       </div>
 
       {/* Tech Stack Tags */}
@@ -390,8 +315,8 @@ export default function SquadForm({ initialData }: SquadFormProps) {
             initialContent={
               initialData?.content ||
               `
-### 1. 프로젝트/스터디 소개
-어떤 주제로 무엇을 만들거나 공부하는지 알려주세요.
+### 1. 프로젝트 소개
+어떤 주제로 무엇을 만들지 알려주세요.
 
 ### 2. 모집 대상
 원하는 팀원의 역할이나 자격 요건을 적어주세요.
