@@ -32,12 +32,12 @@ export function InterviewReportScreen({
       {hero}
 
       <Tabs defaultValue={defaultTab} className="space-y-5">
-        <TabsList className="h-auto rounded-full bg-transparent p-0 text-foreground">
-          {tabs.map((tab, index) => (
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-x-5 gap-y-3 rounded-none bg-transparent p-0 text-foreground">
+          {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className={`rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 text-lg font-semibold text-muted-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none ${index > 0 ? "ml-8" : ""}`}
+              className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 text-sm font-semibold text-muted-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none sm:text-base"
             >
               {tab.label}
             </TabsTrigger>

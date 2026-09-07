@@ -84,13 +84,8 @@ const TeamChat = dynamic(
   () => loadTeamChatModule().then((mod) => mod.TeamChat),
   {
     ssr: false,
-    loading: () => (
-      <WorkspaceTabLoading
-        title="대화를 불러오고 있어요"
-        description="팀 채널과 최근 대화를 준비하는 중입니다."
-        skeletonDurationMs={120}
-      />
-    ),
+    // 채팅 번들을 불러오는 동안 공용 탭 스켈레톤을 표시하지 않는다.
+    loading: () => null,
   },
 );
 const WorkspaceMembersView = dynamic(

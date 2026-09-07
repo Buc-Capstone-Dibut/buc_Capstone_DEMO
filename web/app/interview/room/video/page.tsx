@@ -219,6 +219,9 @@ export default function InterviewVideoRoomPage() {
   const recording = useInterviewRecording();
   const recordingVideoStreamRef = useRef<MediaStream | null>(null);
   const [isSavingRecording, setIsSavingRecording] = useState(false);
+  const [recordingProgress, setRecordingProgress] = useState(0);
+  const [recordingFailure, setRecordingFailure] = useState<{ error: string; recoverable: boolean; durable: boolean } | null>(null);
+  const finishingRef = useRef(false);
   // 카메라 상태를 시작 effect 안에서 deps 없이 읽기 위한 미러(deps 추가 시 토글마다 재실행됨).
   const isCameraEnabledRef = useRef(isCameraEnabled);
   isCameraEnabledRef.current = isCameraEnabled;
@@ -571,6 +574,8 @@ export default function InterviewVideoRoomPage() {
     aiViseme,
   } = useOpenLLM({
     serverUrl: wsUrl,
+    onRecordingAudio: recording.audio,
+    onRecordingAnswerReset: recording.cancelAnswer,
     onTranscript: (text, role, meta) => {
       const clean = text.trim();
       if (!clean) return;
@@ -602,6 +607,7 @@ export default function InterviewVideoRoomPage() {
           setStreamingUserCaption((prev) => preferLongerCaption(prev, clean));
         }
       }
+      recording.text(role, turnId, clean);
       setTranscript((prev) => {
         if (turnId) {
           const existingIndex = prev.findLastIndex(
@@ -890,8 +896,6 @@ export default function InterviewVideoRoomPage() {
         return;
       }
 
-      await sendInterviewInit(nextSessionId);
-
       // 카메라가 켜져 있으면 공유 스트림 도착을 기다렸다가 녹화를 시작한다.
       // LocalCameraPreview 마운트와 이 effect 는 같은 커밋에서 발화하므로, 대기 없이는
       // getUserMedia(비동기)가 항상 져서 녹화가 오디오 전용(검은 화면)이 된다.
@@ -902,9 +906,12 @@ export default function InterviewVideoRoomPage() {
         if (!completionRedirectedRef.current) startedRef.current = false;
         return;
       }
-      void recording.start(videoStream, {
+      const recordingStarted = await recording.start(videoStream, {
         aiAudioStream: getInterviewPlaybackRecordingTap()?.stream ?? null,
       });
+      if (!recordingStarted) setStatusMessage("녹화를 시작하지 못했습니다. 이번 면접은 영상 없이 진행됩니다.");
+      if (cancelled || completionRedirectedRef.current) return;
+      await sendInterviewInit(nextSessionId);
 
       // 캘리브레이션 베이스라인이 있을 때만 얼굴 캡처 시작(건너뛰기/불가 → 캡처 없음, 면접 영향 없음).
       // 위에서 기다린 공유 스트림을 숨김 video 에 물려 MediaPipe 입력으로만 쓴다.
@@ -1197,38 +1204,43 @@ export default function InterviewVideoRoomPage() {
 
   const completeSession = useCallback(async ({
     status,
+    skipRecording = false,
   }: {
     interruptAudio?: boolean;
     status: string;
+    skipRecording?: boolean;
   }) => {
     if (!activeSessionId) {
       routeToSetup();
       return false;
     }
 
-    if (isFinishingSession) return false;
+    if (finishingRef.current) return false;
+    finishingRef.current = true;
 
     setIsFinishingSession(true);
     setStatusMessage(status);
     completionRedirectedRef.current = true;
     disconnect();
     // 영상 저장은 페이지 이동(언마운트) 전에 끝내야 한다 — 언마운트되면 스트림이 죽는다.
-    // 업로드가 지연되더라도 면접 종료가 막히지 않도록 하드 타임아웃을 건다.
+    // Keep the page and captured Blob until upload succeeds or the user chooses the report.
     const sid = activeSessionIdRef.current;
-    if (sid) {
+    const sig = face.stop();
+    if (sid && !skipRecording) {
+      setRecordingFailure(null);
+      setRecordingProgress(0);
       setIsSavingRecording(true);
-      const SAVE_TIMEOUT_MS = 30_000;
-      await Promise.race([
-        recording.stopAndUpload(sid),
-        new Promise<{ ok: boolean }>((resolve) =>
-          setTimeout(() => resolve({ ok: false }), SAVE_TIMEOUT_MS),
-        ),
-      ]).catch(() => undefined);
+      const saved = await recording.stopAndUpload(sid, setRecordingProgress);
       setIsSavingRecording(false);
+      if (!saved.ok) {
+        setRecordingFailure({ error: saved.error || "영상 저장에 실패했습니다.", recoverable: Boolean(saved.recoverable), durable: Boolean(saved.durable) });
+        setIsFinishingSession(false);
+        finishingRef.current = false;
+        return false;
+      }
     }
     // 얼굴 지표 시계열 업로드 — 캡처가 돌고 있었을 때만. 영상 저장과 동일하게 하드 타임아웃을
     // 걸어 면접 종료를 절대 막지 않는다(에러도 삼킨다). face.stop() 은 rAF 루프만 취소한다.
-    const sig = face.stop();
     if (sid && sig.samples.length > 0) {
       // 시간축 리베이스: 얼굴 캡처는 landmarker 로드 뒤에 시작되어 tMs=0 이 녹화 시작보다
       // 늦다. 영상·세그먼트 축(recording_started_at)에 맞춰 오프셋을 더해 저장한다.
@@ -1257,7 +1269,7 @@ export default function InterviewVideoRoomPage() {
     }).catch(() => {});
     router.push(buildResultPath(activeSessionId));
     return true;
-  }, [activeSessionId, buildResultPath, disconnect, face, isFinishingSession, recording, routeToSetup, router]);
+  }, [activeSessionId, buildResultPath, disconnect, face, recording, routeToSetup, router]);
 
   const handleFinish = async () => {
     await completeSession({
@@ -1314,16 +1326,11 @@ export default function InterviewVideoRoomPage() {
       return;
     }
 
-    completionRedirectedRef.current = true;
-    void (async () => {
-      const completed = await completeSession({
-        interruptAudio: true,
-        status: "면접 시간이 종료되어 결과를 정리하는 중...",
-      });
-      if (!completed) {
-        completionRedirectedRef.current = false;
-      }
-    })();
+    // completeSession keeps the completion guard set while a failed recording awaits retry.
+    void completeSession({
+      interruptAudio: true,
+      status: "면접 시간이 종료되어 결과를 정리하는 중...",
+    });
   }, [
     activeSessionId,
     completeSession,
@@ -1346,7 +1353,22 @@ export default function InterviewVideoRoomPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 text-white">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            <p className="text-sm">면접 영상 저장 중...</p>
+            <p className="text-sm" role="status">면접 영상 저장 중... {recordingProgress}%</p>
+            <progress className="h-2 w-56" value={recordingProgress} max={100} aria-label="영상 저장 진행률" />
+          </div>
+        </div>
+      )}
+
+      {recordingFailure && !isSavingRecording && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="recording-failure-title" className="w-full max-w-md space-y-4 rounded-lg border bg-background p-6 shadow-lg">
+            <h2 id="recording-failure-title" className="text-lg font-semibold">면접 영상 저장 확인</h2>
+            <p role="alert" className="text-sm">{recordingFailure.error}</p>
+            {recordingFailure.recoverable && <p className="text-sm text-muted-foreground">{recordingFailure.durable ? "원본이 이 브라우저에 임시 보관되어 있습니다. 리포트에서도 다시 저장할 수 있습니다." : "원본이 현재 탭에 남아 있습니다. 저장을 마칠 때까지 탭을 닫지 마세요."}</p>}
+            <div className="flex flex-wrap gap-2">
+              {recordingFailure.recoverable && <Button onClick={() => void completeSession({ status: "영상 저장 재시도 중..." })}>다시 저장</Button>}
+              <Button variant="outline" onClick={() => void completeSession({ status: "리포트로 이동 중...", skipRecording: true })}>리포트로 이동</Button>
+            </div>
           </div>
         </div>
       )}

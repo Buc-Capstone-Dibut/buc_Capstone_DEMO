@@ -23,6 +23,13 @@ export function isValidSessionId(id: unknown): id is string {
   return typeof id === "string" && id.length > 0 && id.length <= 128 && /^[\w-]+$/.test(id);
 }
 
+/** A recording may only address one file within its own session directory. */
+export function isValidRecordingPath(sessionId: string, value: unknown): value is string {
+  if (!isValidSessionId(sessionId) || typeof value !== "string" || !value.startsWith(`${sessionId}/`)) return false;
+  const filename = value.slice(sessionId.length + 1);
+  return filename !== "." && filename !== ".." && /^[\w.-]{1,255}$/.test(filename);
+}
+
 export interface ParseJobResult {
   title?: string;
   company?: string;

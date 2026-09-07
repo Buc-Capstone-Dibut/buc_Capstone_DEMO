@@ -11,6 +11,7 @@ import {
 } from "@/lib/interview/playback-audio";
 import { buildApproximateVisemeTimeline } from "@/lib/interview/avatar-visemes";
 import type { InterviewAvatarViseme } from "@/lib/interview/interviewer-avatar-config";
+import type { RecordingAudioSpan } from "@/lib/interview/recording/transcript";
 
 const AUDIO_UNLOCK_NOTICE_COOLDOWN_MS = 3000;
 const AUDIO_DRAIN_SETTLE_MS = 10;
@@ -39,6 +40,8 @@ interface UseOpenLLMProps {
     meta?: { turnId?: string; provider?: string },
   ) => void;
   onEvent?: (event: Record<string, unknown>) => void;
+  onRecordingAudio?: (span: RecordingAudioSpan) => void;
+  onRecordingAnswerReset?: (captureId: string) => void;
 }
 
 interface StartMicOptions {
@@ -122,6 +125,8 @@ export function useOpenLLM({
   serverUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client",
   onTranscript,
   onEvent,
+  onRecordingAudio,
+  onRecordingAnswerReset,
 }: UseOpenLLMProps = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [isMicOn, setIsMicOn] = useState(false);
@@ -161,6 +166,12 @@ export function useOpenLLM({
   const startMicRef = useRef<(options?: StartMicOptions) => Promise<void>>(async () => {});
   const onTranscriptRef = useRef(onTranscript);
   const onEventRef = useRef(onEvent);
+  const recordingAudioRef = useRef(onRecordingAudio);
+  const recordingResetRef = useRef(onRecordingAnswerReset);
+  const captureIdRef = useRef("");
+  const captureSequenceRef = useRef(0);
+  recordingAudioRef.current = onRecordingAudio;
+  recordingResetRef.current = onRecordingAnswerReset;
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -236,6 +247,8 @@ export function useOpenLLM({
    * - 마이크는 ON 상태 유지 — 사용자가 처음부터 다시 말할 수 있도록
    */
   const cancelTurn = useCallback(() => {
+    recordingResetRef.current?.(captureIdRef.current);
+    captureIdRef.current = `capture-${++captureSequenceRef.current}`;
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "reset-audio" }));
     }
@@ -457,6 +470,8 @@ export function useOpenLLM({
     }
 
     const startAt = nextStartTimeRef.current;
+    const playbackStartMs = performance.now() + (startAt - currentTime) * 1000;
+    recordingAudioRef.current?.({ role: "ai", turnId, startTimeMs: playbackStartMs, endTimeMs: playbackStartMs + buffer.duration * 1000 });
     queuedAudioSourcesRef.current += 1;
     source.start(startAt);
     const startDelayMs = Math.max(0, Math.round((startAt - currentTime) * 1000));
@@ -605,6 +620,7 @@ export function useOpenLLM({
         audioProcessorRef.current = null;
       }
 
+      captureIdRef.current = `capture-${++captureSequenceRef.current}`;
       audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
         if (!isMicStreamingRef.current) return;
 
@@ -614,6 +630,14 @@ export function useOpenLLM({
         }
         const rms = Math.sqrt(sum / data.length);
         setVolume(Math.min(rms * 10, 1));
+        if (rms >= 0.008) {
+          const endTimeMs = performance.now();
+          recordingAudioRef.current?.({
+            role: "user", turnId: captureIdRef.current,
+            startTimeMs: endTimeMs - data.length / sampleRate * 1000 - 120,
+            endTimeMs,
+          });
+        }
 
         if (socketRef.current?.readyState === WebSocket.OPEN) {
           socketRef.current.send(JSON.stringify({

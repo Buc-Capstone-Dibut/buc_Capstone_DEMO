@@ -74,7 +74,7 @@ export function SegmentTimelineBar({
               }`}
               style={{ left: `${pct(s.startMs)}%` }}
             >
-              Q{idx + 1} <span className="font-normal opacity-70">{fmt(s.startMs)}</span>
+              Q{s.answerOrder ?? idx + 1} <span className="font-normal opacity-70">{fmt(s.startMs)}</span>
             </span>
           );
         })}
@@ -92,7 +92,7 @@ export function SegmentTimelineBar({
                 e.stopPropagation();
                 onSeek(s.startMs);
               }}
-              title={`Q${idx + 1} 답변 구간 ${fmt(s.startMs)}~${fmt(s.endMs)}`}
+              title={`Q${s.answerOrder ?? idx + 1} 답변 구간 ${fmt(s.startMs)}~${fmt(s.endMs)}`}
               className="group absolute top-1/2 flex h-6 -translate-y-1/2 items-center"
               style={{ left: `${left}%`, width: `${width}%` }}
             >

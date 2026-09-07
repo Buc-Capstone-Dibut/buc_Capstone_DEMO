@@ -13,7 +13,7 @@ class InterviewRecordingsDdlTests(unittest.TestCase):
     def test_has_required_columns(self) -> None:
         for col in [
             "session_id", "bucket", "storage_path", "duration_ms",
-            "mime_type", "size_bytes", "recording_started_at",
+            "mime_type", "size_bytes", "recording_started_at", "transcript",
         ]:
             self.assertIn(col, INTERVIEW_RECORDINGS_DDL, f"missing column: {col}")
 
@@ -25,6 +25,9 @@ class InterviewRecordingsDdlTests(unittest.TestCase):
 
     def test_unique_session_for_upsert(self) -> None:
         self.assertIn("UNIQUE(session_id)", INTERVIEW_RECORDINGS_DDL)
+
+    def test_transcript_is_nullable_for_existing_recordings(self) -> None:
+        self.assertIn("transcript JSONB,", INTERVIEW_RECORDINGS_DDL)
 
 
 if __name__ == "__main__":

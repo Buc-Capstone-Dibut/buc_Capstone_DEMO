@@ -67,7 +67,7 @@ export function AnswerHighlights({ src, segments, samples }: Props) {
                   : "border-border bg-muted/40 text-foreground/80 hover:border-primary/50"
               }`}
             >
-              Q{idx + 1}
+              Q{seg.answerOrder ?? idx + 1}
               <span className="text-[10px] text-muted-foreground">{formatClock(seg.startMs)}</span>
               <ChevronDown
                 className={`h-3 w-3 transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`}
@@ -84,7 +84,7 @@ export function AnswerHighlights({ src, segments, samples }: Props) {
         return (
           <div key={seg.id} className="mt-3 rounded-2xl border border-primary/15 bg-card p-4">
             <p className="text-sm font-medium leading-relaxed text-foreground">
-              <span className="mr-2 font-semibold text-primary">Q{idx + 1}</span>
+              <span className="mr-2 font-semibold text-primary">Q{seg.answerOrder ?? idx + 1}</span>
               {seg.question || "질문"}
             </p>
 

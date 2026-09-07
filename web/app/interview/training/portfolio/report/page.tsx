@@ -20,6 +20,8 @@ import { DebutLoading } from "@/components/shared/dibut-loading";
 import { AxisEvidencePanel } from "@/components/features/interview/report/axis-evidence-panel";
 import { AxisProfileBoard } from "@/components/features/interview/report/axis-profile-board";
 import { InterviewReportScreen } from "@/components/features/interview/report/interview-report-screen";
+import { RecordingReportTab } from "@/components/features/interview/report/recording-report-tab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReportFooterActions } from "@/components/features/interview/report/report-footer-actions";
 import { ReportInsightListCard } from "@/components/features/interview/report/report-insight-list-card";
 import { SessionReportHero } from "@/components/features/interview/report/session-report-hero";
@@ -28,6 +30,7 @@ import { TechLogoChip } from "@/components/features/interview/tech-logo-chip";
 import { getPortfolioTopicLabel } from "@/lib/interview/portfolio-defense";
 import { getInterviewTypeVisual } from "@/lib/interview/interview-type-visuals";
 import { buildPortfolioDefenseReportModel } from "@/lib/interview/report/portfolio-defense-report-adapter";
+import type { AnswerFinding } from "@/lib/interview/report/answer-segments";
 
 interface RubricItem {
   raw?: number;
@@ -43,6 +46,7 @@ interface PortfolioTimelineEntry {
 }
 
 interface PortfolioReportView {
+  questionFindings?: Array<AnswerFinding & { question?: string; userAnswer?: string }>;
   repoUrl?: string;
   summary?: string;
   strengths?: string[];
@@ -99,6 +103,11 @@ export default function PortfolioDefenseReportPage() {
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const recordingFindings = useMemo(() => Object.fromEntries(
+    (detail?.report_view?.questionFindings ?? [])
+      .filter((finding) => String(finding.question || finding.userAnswer || "").trim())
+      .map((finding, index) => [index + 1, finding]),
+  ), [detail?.report_view?.questionFindings]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -522,6 +531,10 @@ export default function PortfolioDefenseReportPage() {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-foreground">
         <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-6 md:px-10">
+          <Tabs defaultValue={searchParams.get("tab") === "recording" ? "recording" : "analysis"}>
+            <TabsList><TabsTrigger value="analysis">분석 리포트</TabsTrigger><TabsTrigger value="recording">면접 영상</TabsTrigger></TabsList>
+            <TabsContent value="recording"><RecordingReportTab sessionId={sessionId} /></TabsContent>
+            <TabsContent value="analysis">
           <Card className="rounded-[30px] border border-[#e7ebf1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
             <CardContent className="space-y-4 p-8">
               <div className="space-y-2">
@@ -550,6 +563,8 @@ export default function PortfolioDefenseReportPage() {
               </div>
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </main>
       </div>
     );
@@ -558,6 +573,7 @@ export default function PortfolioDefenseReportPage() {
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-foreground">
       <InterviewReportScreen
+        defaultTab={searchParams.get("tab") === "recording" ? "recording" : "summary"}
         leading={(
           <>
             <Button variant="outline" className="rounded-full bg-white" onClick={() => router.push("/interview/training")}>
@@ -599,6 +615,7 @@ export default function PortfolioDefenseReportPage() {
           { value: "summary", label: "종합 리포트", content: summaryContent },
           { value: "detail", label: "세부 분석", content: detailContent },
           { value: "guide", label: "성장 가이드", content: guideContent },
+          { value: "recording", label: "면접 영상", content: <RecordingReportTab sessionId={sessionId} findingsByOrder={recordingFindings} /> },
         ]}
         footer={(
           <ReportFooterActions

@@ -4,16 +4,12 @@ import { getInterviewRouteUserId, unauthorizedInterviewResponse } from "@/lib/in
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { RECORDING_BUCKET, MAX_RECORDING_BYTES } from "@/lib/interview/recording/recording-metadata";
 import { getRecordingStorageMode } from "@/lib/interview/recording/storage-mode";
+import { isValidRecordingPath } from "@/lib/interview/validation";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
-// 경로는 반드시 `${sessionId}/<단일 안전 파일명>` 형태여야 한다.
-// `..` 세그먼트나 추가 슬래시로 세션 네임스페이스를 벗어나는 것을 차단.
-function isValidRecordingPath(sessionId: string, storagePath: string | undefined): boolean {
-  if (!storagePath || !storagePath.startsWith(`${sessionId}/`)) return false;
-  const remainder = storagePath.slice(sessionId.length + 1);
-  return /^[\w.-]+$/.test(remainder);
-}
+const uploadUrlSchema = z.object({ storagePath: z.string() });
 
 async function ensureBucket(admin: ReturnType<typeof createAdminSupabaseClient>) {
   const { data: buckets, error: listError } = await admin.storage.listBuckets();
@@ -33,9 +29,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const userId = await getInterviewRouteUserId();
   if (!userId) return unauthorizedInterviewResponse();
 
-  let body: { storagePath?: string };
+  let body: z.infer<typeof uploadUrlSchema>;
   try {
-    body = await req.json();
+    body = uploadUrlSchema.parse(await req.json());
   } catch {
     return NextResponse.json({ success: false, error: "invalid JSON body" }, { status: 400 });
   }
@@ -68,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { data, error } = await admin.storage
     .from(RECORDING_BUCKET)
-    .createSignedUploadUrl(body.storagePath!);
+    .createSignedUploadUrl(body.storagePath, { upsert: true });
 
   if (error || !data) {
     return NextResponse.json({ success: false, error: error?.message ?? "sign failed" }, { status: 500 });
@@ -76,6 +72,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({
     success: true,
-    data: { mode: "supabase", bucket: RECORDING_BUCKET, path: data.path, token: data.token },
+    data: { mode: "supabase", bucket: RECORDING_BUCKET, path: data.path, token: data.token, signedUrl: data.signedUrl },
   });
 }

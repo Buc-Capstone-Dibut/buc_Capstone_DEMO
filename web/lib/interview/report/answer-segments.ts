@@ -1,3 +1,5 @@
+import type { RecordingTranscript } from "../recording/transcript";
+
 export interface RawTurn {
   id: string;
   role: string;
@@ -10,16 +12,47 @@ export interface RawTurn {
 export interface AnswerSegment {
   id: string;
   exchangeIndex: number;
+  answerOrder?: number;
   question: string;
   answer: string;
   startMs: number;
   endMs: number;
 }
 
+export function buildRecordedAnswerSegments(
+  transcript: RecordingTranscript,
+): AnswerSegment[] {
+  let question = "";
+  let answerOrder = 0;
+  const segments: AnswerSegment[] = [];
+  for (const entry of transcript.entries) {
+    if (entry.role === "ai") {
+      question = entry.text;
+    } else {
+      answerOrder += 1;
+      if (entry.startMs === null || entry.endMs === null) continue;
+      segments.push({
+        id: entry.id,
+        exchangeIndex: answerOrder,
+        answerOrder,
+        question,
+        answer: entry.text,
+        startMs: entry.startMs,
+        endMs: entry.endMs,
+      });
+    }
+  }
+  return segments;
+}
+
 const MODEL_ROLES = new Set(["model", "ai", "assistant", "interviewer"]);
 
 export function isModelRole(role: string): boolean {
-  return MODEL_ROLES.has(String(role || "").trim().toLowerCase());
+  return MODEL_ROLES.has(
+    String(role || "")
+      .trim()
+      .toLowerCase(),
+  );
 }
 
 export function buildAnswerSegments(
@@ -64,7 +97,10 @@ export function buildAnswerSegments(
     .sort((a, b) => a.startMs - b.startMs);
 
   for (let i = 0; i < segs.length; i++) {
-    segs[i].endMs = i + 1 < segs.length ? segs[i + 1].startMs : Math.max(durationMs, segs[i].startMs);
+    segs[i].endMs =
+      i + 1 < segs.length
+        ? segs[i + 1].startMs
+        : Math.max(durationMs, segs[i].startMs);
   }
   return segs;
 }
@@ -86,5 +122,8 @@ export function buildAnswerDetails(
   segments: AnswerSegment[],
   findingsByOrder?: Record<number, AnswerFinding>,
 ): AnswerDetail[] {
-  return segments.map((segment, i) => ({ segment, finding: findingsByOrder?.[i + 1] }));
+  return segments.map((segment, i) => ({
+    segment,
+    finding: findingsByOrder?.[segment.answerOrder ?? i + 1],
+  }));
 }
