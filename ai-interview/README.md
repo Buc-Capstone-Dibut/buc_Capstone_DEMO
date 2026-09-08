@@ -50,6 +50,8 @@ sequenceDiagram
 | `GEMINI_TTS_MODEL` | 아니오 | 기본 `gemini-2.5-flash-preview-tts` |
 | `GEMINI_LIVE_TTS_MODEL` | 아니오 | TTS fallback용 Live 모델(기본 `gemini-2.5-flash-native-audio-latest`) |
 | `GEMINI_LIVE_TTS_VOICE` | 아니오 | 기본 `Kore` |
+| `VOICE_PARALLEL_STT_ENABLED` | 아니오 | 기본 `true`; Google Cloud STT로 지원자 발화를 실시간 자막 처리 |
+| `VOICE_LIVE_INPUT_STREAMING_ENABLED` | 아니오 | 기본 `false`; Vertex native-audio의 질문 선생성을 막고 답변은 전송 시 처리 |
 | `GITHUB_TOKEN` | 권장 | GitHub API rate limit 회피 및 공개 레포 분석 안정화 |
 | `CORS_ORIGINS` | 예 | 웹 도메인 목록(콤마 구분) |
 | `LIVEKIT_URL` | 선택 | 라이브킷 연동 시 |

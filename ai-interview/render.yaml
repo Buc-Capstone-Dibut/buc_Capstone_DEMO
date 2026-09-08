@@ -21,6 +21,12 @@ services:
         sync: false
       - key: GEMINI_VERTEX_LIVE_MODEL
         value: gemini-live-2.5-flash-native-audio
+      # Vertex native-audio 입력 스트림은 질문을 선생성할 수 있어 끄고,
+      # 지원자 실시간 자막은 독립적인 Cloud STT 스트림으로 처리한다.
+      - key: VOICE_LIVE_INPUT_STREAMING_ENABLED
+        value: false
+      - key: VOICE_PARALLEL_STT_ENABLED
+        value: true
       - key: GITHUB_TOKEN
         sync: false
       - key: CORS_ORIGINS
