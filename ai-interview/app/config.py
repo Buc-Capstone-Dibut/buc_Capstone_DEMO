@@ -107,14 +107,16 @@ class Settings(BaseSettings):
         alias="VOICE_RUNTIME_ARCHITECTURE",
     )
     voice_parallel_stt_enabled: bool = Field(
-        default=False,
+        # Vertex native-audio 입력 스트림을 끈 운영 모드에서도 지원자 발화를
+        # 말하는 동안 자막으로 보낼 수 있도록 Cloud STT를 기본 경로로 사용한다.
+        default=True,
         alias="VOICE_PARALLEL_STT_ENABLED",
     )
     # 사용자가 말하는 동안 Gemini Live 입력 스트림을 미리 열어 실시간 자막을 받는 기능.
     # Vertex native-audio 모델은 스트림이 열리면 사용자 답변 전에 다음 질문을 자동 생성해버려
     # (질문 연속 중복 + 답변 유실) False 로 끄고, 답변 전체를 buffered turn 으로 한 번에 보낸다.
     voice_live_input_streaming_enabled: bool = Field(
-        default=True,
+        default=False,
         alias="VOICE_LIVE_INPUT_STREAMING_ENABLED",
     )
 
