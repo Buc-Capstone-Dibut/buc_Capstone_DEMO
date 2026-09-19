@@ -1025,72 +1025,10 @@ const REPORT_SECTIONS = [
   { id: "actions", label: "다음 액션" },
 ] as const;
 
-// 긴 리포트(질문이 많을수록 길어짐)의 스크롤 부담을 줄이는 sticky 목차.
-// 스크롤 스파이로 현재 섹션을 강조하고, 클릭/해시로 섹션 딥링크를 지원한다.
-function ReportTableOfContents({ sections }: { sections: ReadonlyArray<{ id: string; label: string }> }) {
-  const [active, setActive] = useState<string>(sections[0].id);
-  const visibleRef = useRef<Record<string, boolean>>({});
+type ReportSectionId = (typeof REPORT_SECTIONS)[number]["id"];
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          visibleRef.current[entry.target.id] = entry.isIntersecting;
-        });
-        const current = sections.find((section) => visibleRef.current[section.id]);
-        if (current) setActive(current.id);
-      },
-      { rootMargin: "-160px 0px -60% 0px", threshold: 0 },
-    );
-    sections.forEach((section) => {
-      const el = document.getElementById(section.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [sections]);
-
-  // 진입 URL에 해시(#timeline 등)가 있으면 해당 섹션으로 이동(딥링크)
-  useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (hash && sections.some((section) => section.id === hash)) {
-      const el = document.getElementById(hash);
-      if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
-    }
-  }, [sections]);
-
-  const jump = (id: string) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    window.history.replaceState(null, "", `#${id}`);
-  };
-
-  return (
-    <nav
-      aria-label="리포트 섹션 바로가기"
-      className="sticky top-24 z-30 border-b border-[#dfe5ec] bg-[#f7f8fa]/95 backdrop-blur md:top-14"
-    >
-      <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6 py-3 md:px-10">
-        {sections.map((section, index) => (
-          <button
-            key={section.id}
-            type="button"
-            onClick={() => jump(section.id)}
-            aria-current={active === section.id ? "true" : undefined}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-              active === section.id
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-black/5 hover:text-foreground"
-            }`}
-          >
-            <span className="mr-1.5 text-xs font-bold opacity-60">{String(index + 1).padStart(2, "0")}</span>
-            {section.label}
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
+function isReportSectionId(value: string): value is ReportSectionId {
+  return REPORT_SECTIONS.some((section) => section.id === value);
 }
 
 export default function InterviewResultPage() {
@@ -1103,6 +1041,8 @@ export default function InterviewResultPage() {
   const [isRetryingReport, setIsRetryingReport] = useState(false);
   const [showPendingVideo, setShowPendingVideo] = useState(searchParams.get("tab") === "recording");
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
+  const [activeReportSection, setActiveReportSection] =
+    useState<ReportSectionId>("summary");
   const [selectedCoreResponseIndex, setSelectedCoreResponseIndex] = useState(0);
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
   const [recommendedBlogs, setRecommendedBlogs] = useState<RecommendedBlog[]>([]);
@@ -1111,6 +1051,21 @@ export default function InterviewResultPage() {
   const recoveryRequestedRef = useRef<Set<string>>(new Set());
   const startBackgroundJob = useBackgroundJobsStore((s) => s.startJob);
   const canStartMoreJobs = useBackgroundJobsStore((s) => s.canStartMore);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (isReportSectionId(hash)) setActiveReportSection(hash);
+  }, []);
+
+  const handleReportSectionChange = useCallback((value: string) => {
+    if (!isReportSectionId(value)) return;
+    setActiveReportSection(value);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}#${value}`,
+    );
+  }, []);
 
   /** 리포트 생성을 백그라운드 작업으로 등록하고 면접 기록으로 이동.
    *  실제 생성은 이미 서버(report job)에서 돌고 있으므로 polling 등록만 하면 된다. */
@@ -1651,9 +1606,31 @@ export default function InterviewResultPage() {
             <RecordingReportTab sessionId={resolvedSessionId} findingsByOrder={recordingFeedbackByOrder} nonverbalSummary={sessionDetail?.report_view?.nonverbalSummary} />
           </TabsContent>
           <TabsContent value="analysis">
-        <ReportTableOfContents sections={REPORT_SECTIONS} />
+        <Tabs value={activeReportSection} onValueChange={handleReportSectionChange}>
+          <nav
+            aria-label="리포트 분석 탭"
+            className="sticky top-24 z-30 border-y border-[#dfe5ec] bg-[#f7f8fa]/95 backdrop-blur md:top-14"
+          >
+            <div className="mx-auto max-w-7xl overflow-x-auto px-6 py-3 md:px-10">
+              <TabsList className="h-auto w-max min-w-full justify-start gap-1 rounded-none bg-transparent p-0">
+                {REPORT_SECTIONS.map((section, index) => (
+                  <TabsTrigger
+                    key={section.id}
+                    value={section.id}
+                    className="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold data-[state=active]:bg-foreground data-[state=active]:text-background"
+                  >
+                    <span className="mr-1.5 text-xs font-bold opacity-60">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    {section.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </nav>
 
         <article className="mx-auto max-w-7xl px-6 md:px-10">
+          <TabsContent value="summary" className="mt-0">
           <DocumentSection
             id="summary"
             index="01"
@@ -1695,7 +1672,9 @@ export default function InterviewResultPage() {
               </div>
             </div>
           </DocumentSection>
+          </TabsContent>
 
+          <TabsContent value="profile" className="mt-0">
           <DocumentSection
             id="profile"
             index="02"
@@ -1712,7 +1691,9 @@ export default function InterviewResultPage() {
               axisEvidence={reportModel.axisEvidence}
             />
           </DocumentSection>
+          </TabsContent>
 
+          <TabsContent value="timeline" className="mt-0">
           <DocumentSection
             id="timeline"
             index="03"
@@ -1726,7 +1707,9 @@ export default function InterviewResultPage() {
               activeItem={activeTimelineInsight}
             />
           </DocumentSection>
+          </TabsContent>
 
+          <TabsContent value="core" className="mt-0">
           <DocumentSection
             id="core"
             index="04"
@@ -1740,7 +1723,9 @@ export default function InterviewResultPage() {
               activeResponse={activeCoreResponse}
             />
           </DocumentSection>
+          </TabsContent>
 
+          <TabsContent value="growth" className="mt-0">
           <DocumentSection
             id="growth"
             index="05"
@@ -1749,7 +1734,9 @@ export default function InterviewResultPage() {
           >
             <GrowthGuideDocument guide={positioningGuide} typeName={reportModel.typeName} />
           </DocumentSection>
+          </TabsContent>
 
+          <TabsContent value="actions" className="mt-0">
           <DocumentSection
             id="actions"
             index="06"
@@ -1776,7 +1763,9 @@ export default function InterviewResultPage() {
             }
             onNavigate={(href) => router.push(href)}
           />
+          </TabsContent>
         </article>
+        </Tabs>
           </TabsContent>
         </Tabs>
       </main>

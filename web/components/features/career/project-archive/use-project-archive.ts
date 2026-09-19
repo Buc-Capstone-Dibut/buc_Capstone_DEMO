@@ -60,6 +60,25 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
   const sortedProjects = sortProjectsByPeriodDesc(projects);
 
   useEffect(() => {
+    const projectId = searchParams.get("projectId");
+    if (!projectId) return;
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return;
+
+    setSelectionMode(false);
+    setPortfolioMode(false);
+    setSelectedIds([]);
+    setActiveId(projectId);
+    setFormData(project);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("projectId");
+    router.replace(
+      params.toString() ? `/career/projects?${params.toString()}` : "/career/projects",
+    );
+  }, [projects, router, searchParams]);
+
+  useEffect(() => {
     const isSaved = searchParams.get("coverLetterSaved") === "1";
     if (!isSaved) return;
     setShowSavedModal(true);

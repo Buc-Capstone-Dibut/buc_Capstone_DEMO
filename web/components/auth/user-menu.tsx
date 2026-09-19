@@ -114,7 +114,7 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
         <DropdownMenuItem asChild>
           <Link href={myPageHref}>
             <User className="mr-2 h-4 w-4" />
-            <span>프로필</span>
+            <span>마이페이지</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

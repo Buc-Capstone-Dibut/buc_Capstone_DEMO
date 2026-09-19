@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
   Briefcase,
@@ -88,9 +88,15 @@ export default function CoverLettersClient({
   initialLetters: CoverLetterListItem[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [letters, setLetters] = useState<CoverLetterListItem[]>(initialLetters || []);
   const [selectedId, setSelectedId] = useState<string | null>(
-    letters.length > 0 ? letters[0].id : null,
+    () => {
+      const requestedId = searchParams.get("id");
+      return letters.some((letter) => letter.id === requestedId)
+        ? requestedId
+        : letters[0]?.id || null;
+    },
   );
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<CoverLetterInput>>({});

@@ -4,6 +4,7 @@ import {
   getAllEventTags,
   fetchClosingSoonEvents,
 } from "@/lib/server/dev-events";
+import type { DevEventSort } from "@/lib/server/dev-events";
 import { EventCard } from "@/components/features/career/event-card";
 import { ActivityFilter } from "@/components/features/career/activity-filter";
 import { RecruitSearchSort } from "@/components/features/career/recruit-search-sort";
@@ -39,6 +40,12 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     typeof resolvedSearchParams.page === "string"
       ? parseInt(resolvedSearchParams.page)
       : 1;
+  const requestedSort = typeof resolvedSearchParams.sort === "string"
+    ? resolvedSearchParams.sort
+    : "latest";
+  const sort: DevEventSort = ["latest", "oldest", "name", "deadline", "recommended"].includes(requestedSort)
+    ? requestedSort as DevEventSort
+    : "latest";
 
   const [recommendationTags, allTags, recentSquads, closingEvents] =
     await Promise.all([
@@ -53,6 +60,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     category,
     tags,
     recommendationTags,
+    sort,
     page,
     limit: 12,
   });

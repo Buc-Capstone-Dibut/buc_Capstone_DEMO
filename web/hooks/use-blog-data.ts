@@ -11,6 +11,8 @@ interface UseBlogDataParams {
   selectedSubTags?: string[];
   /** 분석 페이지 '더 보기'에서 넘어온 추천 태그 조합 — 하나라도 포함하면(OR) 노출 */
   recommendedTags?: string[];
+  /** 관심 기업이 있으면 해당 기업의 글만 노출 */
+  authors?: string[];
   page?: number;
 }
 
@@ -57,7 +59,15 @@ export function useBlogData(params: UseBlogDataParams) {
         // Blog Author (Company) Filter
         if (params.selectedBlog && params.selectedBlog !== "all") {
           query = query.eq("author", params.selectedBlog);
+        } else if (params.authors && params.authors.length > 0) {
+          query = query.in("author", params.authors);
         }
+
+        // 관심 기업 필터 여부와 관계없이 기술 글은 발행일 최신순으로 고정한다.
+        query = query.order("published_at", {
+          ascending: false,
+          nullsFirst: false,
+        });
 
         // Pagination
         const page = params.page || 1;
@@ -92,6 +102,7 @@ export function useBlogData(params: UseBlogDataParams) {
     params.tagCategory,
     params.selectedSubTags,
     params.recommendedTags,
+    params.authors,
     params.page,
   ]);
 

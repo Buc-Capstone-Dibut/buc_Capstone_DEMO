@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Briefcase,
@@ -20,9 +21,16 @@ import { saveWorkExperienceAction, deleteWorkExperienceAction, type WorkExperien
 import { seedCareerSampleDataAction } from "../sample-data/actions";
 
 export default function WorkExperienceClient({ initialExperiences }: { initialExperiences: WorkExperienceInput[] }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const requestedExperienceId = searchParams.get("experienceId");
+  const requestedExperience = initialExperiences.find(
+    (experience) => experience.id === requestedExperienceId,
+  );
+  const [activeId, setActiveId] = useState<string | null>(requestedExperience?.id || null);
   const [experiences, setExperiences] = useState<WorkExperienceInput[]>(initialExperiences || []);
-  const [formData, setFormData] = useState<Partial<WorkExperienceInput>>({});
+  const [formData, setFormData] = useState<Partial<WorkExperienceInput>>(
+    requestedExperience || {},
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isSeedingSample, setIsSeedingSample] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");

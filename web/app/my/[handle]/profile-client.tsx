@@ -39,7 +39,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
   ArrowRight,
+  BarChart3,
   Bookmark,
+  BriefcaseBusiness,
+  Building2,
   FileText,
   Github,
   LayoutDashboard,
@@ -73,6 +76,19 @@ const BookmarksTab = dynamic(() =>
 const WorkspaceActivityTab = dynamic(() =>
   import("./tabs/workspace-activity-tab").then(
     (module) => module.WorkspaceActivityTab,
+  ),
+);
+const CareerTab = dynamic(() =>
+  import("./tabs/career-tab").then((module) => module.CareerTab),
+);
+const InterviewReportsTab = dynamic(() =>
+  import("./tabs/interview-reports-tab").then(
+    (module) => module.InterviewReportsTab,
+  ),
+);
+const FavoriteCompaniesTab = dynamic(() =>
+  import("./tabs/favorite-companies-tab").then(
+    (module) => module.FavoriteCompaniesTab,
   ),
 );
 
@@ -227,6 +243,27 @@ const NAV_ITEMS: {
     label: "개요",
     description: "내 활동을 한눈에 보는 대시보드",
     icon: LayoutDashboard,
+  },
+  {
+    key: "career",
+    label: "커리어",
+    description: "커리어 자료와 제작 도구",
+    icon: BriefcaseBusiness,
+    ownerOnly: true,
+  },
+  {
+    key: "interviews",
+    label: "면접 리포트",
+    description: "완료한 면접과 분석 결과",
+    icon: BarChart3,
+    ownerOnly: true,
+  },
+  {
+    key: "companies",
+    label: "관심 기업",
+    description: "관심 기업과 기술 블로그 설정",
+    icon: Building2,
+    ownerOnly: true,
   },
   {
     key: "content",
@@ -703,14 +740,13 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               {NAV_ITEMS.filter((item) => !item.ownerOnly || isOwner).map(
                 ({ key, label, icon: Icon, href }) => {
                   const isActive = activeTab === key;
-                  const count =
-                    key === "overview"
-                      ? undefined
-                      : key === "content"
-                        ? contentCount
-                        : key === "bookmarks"
-                          ? displayStats.bookmarkCount
-                          : displayStats.workspaceCount;
+                  const count = key === "content"
+                    ? contentCount
+                    : key === "bookmarks"
+                      ? displayStats.bookmarkCount
+                      : key === "activity"
+                        ? displayStats.workspaceCount
+                        : undefined;
 
                   return (
                     <button
@@ -972,6 +1008,48 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                     </Card>
                   </div>
                 </>
+              )}
+
+              {activeTab === "career" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">커리어 관리</CardTitle>
+                    <CardDescription>
+                      내가 만든 프로젝트·경력·지원 자료의 최근 목록을 한 곳에서 확인합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CareerTab />
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === "interviews" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">면접 리포트</CardTitle>
+                    <CardDescription>
+                      최근 모의면접과 포트폴리오 디펜스 결과를 확인합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <InterviewReportsTab />
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === "companies" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">관심 기업</CardTitle>
+                    <CardDescription>
+                      관심 기업을 등록하고 해당 기업의 기술 블로그만 모아봅니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FavoriteCompaniesTab />
+                  </CardContent>
+                </Card>
               )}
 
             {activeTab === "content" && (

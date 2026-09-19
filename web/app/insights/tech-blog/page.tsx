@@ -24,6 +24,7 @@ export default function TechBlogPage() {
     const [popularBlogs, setPopularBlogs] = useState<Blog[]>([]);
     const [recommendedTags, setRecommendedTags] = useState<string[]>([]);
     const [showRecBanner, setShowRecBanner] = useState(false);
+    const [favoriteCompanies, setFavoriteCompanies] = useState<string[]>([]);
     const { tagCounts, loading: tagCountsLoading } = useTagCounts(tagCategory, selectedBlog);
 
     // 분석 페이지 '더 보기'로 진입 시 추천 태그 조합을 URL에서 읽어 필터 적용
@@ -43,11 +44,12 @@ export default function TechBlogPage() {
             const data = await fetchWeeklyPopularBlogs(
                 10,
                 selectedBlog === "all" ? undefined : selectedBlog,
+                selectedBlog === "all" ? favoriteCompanies : undefined,
             );
             setPopularBlogs(data);
         };
         loadPopular();
-    }, [selectedBlog]);
+    }, [favoriteCompanies, selectedBlog]);
 
     const { blogs, loading, totalCount, totalPages, currentPage } = useBlogData({
         selectedBlog,
@@ -55,6 +57,7 @@ export default function TechBlogPage() {
         tagCategory,
         selectedSubTags,
         recommendedTags,
+        authors: favoriteCompanies,
         page,
     });
 
@@ -134,6 +137,7 @@ export default function TechBlogPage() {
                         }}
                         viewMode={viewMode}
                         onViewModeChange={setViewMode}
+                        onFavoriteCompaniesChange={setFavoriteCompanies}
                     />
                 </div>
 
