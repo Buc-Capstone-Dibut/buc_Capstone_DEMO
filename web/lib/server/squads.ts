@@ -50,7 +50,19 @@ export async function fetchRecentSquads(limit = 9) {
   return squads;
 }
 
-export async function fetchSquads({ page = 1, limit = 9, type = "all", activityId }: { page?: number; limit?: number; type?: string; activityId?: string } = {}) {
+export async function fetchSquads({
+  page = 1,
+  limit = 9,
+  type = "all",
+  activityId,
+  search,
+}: {
+  page?: number;
+  limit?: number;
+  type?: string;
+  activityId?: string;
+  search?: string;
+} = {}) {
   const supabase = await createClient();
 
   const from = (page - 1) * limit;
@@ -72,6 +84,15 @@ export async function fetchSquads({ page = 1, limit = 9, type = "all", activityI
   }
   if (activityId) {
     query = query.eq("activity_id", activityId);
+  }
+  const normalizedSearch = search
+    ?.replace(/[^\p{L}\p{N}\s+#.\-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalizedSearch) {
+    query = query.or(
+      `title.ilike.%${normalizedSearch}%,content.ilike.%${normalizedSearch}%,tech_stack.cs.{"${normalizedSearch}"}`,
+    );
   }
 
   const { data: squads, count, error } = await query

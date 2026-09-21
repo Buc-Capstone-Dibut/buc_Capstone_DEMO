@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 import { Plus, X, Search } from "lucide-react";
 import { SquadCard } from "@/components/features/community/squad-card";
+import { CommunitySearch } from "@/components/features/community/community-search";
 import { Button } from "@/components/ui/button";
 import { fetchSquads } from "@/lib/server/squads";
 import { PaginationControl } from "@/components/ui/pagination-control";
@@ -10,7 +11,12 @@ import { TEAM_TYPE_OPTIONS } from "@/lib/team-types";
 export const revalidate = 30;
 
 interface PageProps {
-  searchParams: Promise<{ page?: string; type?: string; activityId?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    type?: string;
+    activityId?: string;
+    search?: string;
+  }>;
 }
 
 export default async function SquadListPage({ searchParams }: PageProps) {
@@ -21,12 +27,17 @@ export default async function SquadListPage({ searchParams }: PageProps) {
       : 1;
   const type = resolvedSearchParams.type || "all";
   const activityId = resolvedSearchParams.activityId || undefined;
+  const search =
+    typeof resolvedSearchParams.search === "string"
+      ? resolvedSearchParams.search.trim()
+      : "";
 
   const { squads, totalPages } = await fetchSquads({
     page,
     limit: 9,
     type,
     activityId,
+    search,
   });
   const squadItems = squads as ComponentProps<typeof SquadCard>["squad"][];
 
@@ -37,6 +48,22 @@ export default async function SquadListPage({ searchParams }: PageProps) {
       label: option.label,
     })),
   ];
+
+  const getTypeHref = (typeId: string) => {
+    const params = new URLSearchParams();
+    if (typeId !== "all") params.set("type", typeId);
+    if (activityId) params.set("activityId", activityId);
+    if (search) params.set("search", search);
+    const query = params.toString();
+    return query ? `/community/squad?${query}` : "/community/squad";
+  };
+  const clearActivityParams = new URLSearchParams();
+  if (type !== "all") clearActivityParams.set("type", type);
+  if (search) clearActivityParams.set("search", search);
+  const clearActivityQuery = clearActivityParams.toString();
+  const clearActivityHref = clearActivityQuery
+    ? `/community/squad?${clearActivityQuery}`
+    : "/community/squad";
 
   return (
     <div className="space-y-6">
@@ -57,7 +84,7 @@ export default async function SquadListPage({ searchParams }: PageProps) {
             </div>
           </div>
           <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs hover:bg-primary/10" asChild>
-            <Link href="/community/squad">
+            <Link href={clearActivityHref}>
               <X className="w-3.5 h-3.5" />
               필터 해제
             </Link>
@@ -66,7 +93,7 @@ export default async function SquadListPage({ searchParams }: PageProps) {
       )}
 
       {/* Filters & Actions (Board Style) */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {categories.map((cat) => (
             <Button
@@ -77,7 +104,7 @@ export default async function SquadListPage({ searchParams }: PageProps) {
               asChild
             >
               <Link
-                href={`/community/squad?type=${cat.id}${activityId ? `&activityId=${activityId}` : ""}`}
+                href={getTypeHref(cat.id)}
                 scroll={false}
               >
                 {cat.label}
@@ -86,7 +113,11 @@ export default async function SquadListPage({ searchParams }: PageProps) {
           ))}
         </div>
 
-        <Link href="/community/squad/write">
+        <div className="order-first w-full sm:order-none sm:ml-auto sm:w-[260px]">
+          <CommunitySearch placeholder="팀 검색..." />
+        </div>
+
+        <Link href="/community/squad/write" className="shrink-0">
           <Button className="w-full md:w-auto gap-2 shadow-lg">
             <Plus className="w-4 h-4" />
             팀 만들기
@@ -107,7 +138,19 @@ export default async function SquadListPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {squads.length === 0 && (!activityId && page !== 1) && (
+      {squads.length === 0 && search && (
+        <div className="flex flex-col items-center justify-center py-32 text-center border rounded-2xl border-dashed bg-muted/20">
+          <div className="text-6xl mb-6">🔍</div>
+          <h3 className="text-xl font-bold mb-2">
+            검색 결과가 없습니다.
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            다른 검색어 또는 팀 유형으로 다시 시도해보세요.
+          </p>
+        </div>
+      )}
+
+      {squads.length === 0 && !search && (!activityId && page !== 1) && (
         <div className="flex flex-col items-center justify-center py-32 text-center border rounded-2xl border-dashed bg-muted/20">
           <div className="text-6xl mb-6">👥</div>
           <h3 className="text-xl font-bold mb-2">
@@ -116,7 +159,7 @@ export default async function SquadListPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {squads.length === 0 && activityId && (
+      {squads.length === 0 && !search && activityId && (
         <div className="flex flex-col items-center justify-center py-32 text-center border rounded-2xl border-dashed bg-muted/20">
           <div className="text-6xl mb-6">🔍</div>
           <h3 className="text-xl font-bold mb-2">

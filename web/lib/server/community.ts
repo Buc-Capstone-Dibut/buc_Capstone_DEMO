@@ -1,13 +1,31 @@
 import prisma from "../prisma";
+import type { Prisma } from "@prisma/client";
 
 // Helper to simulate Supabase JSON serialization (Dates -> Strings)
 function serialize<T>(data: T): T {
   return JSON.parse(JSON.stringify(data));
 }
 
-export async function getPosts(category?: string, page = 1, limit = 15) {
+export async function getPosts(
+  category?: string,
+  page = 1,
+  limit = 15,
+  search?: string,
+) {
   try {
-    const where = category && category !== "all" ? { category } : {};
+    const normalizedSearch = search?.trim();
+    const where: Prisma.postsWhereInput = {
+      ...(category && category !== "all" ? { category } : {}),
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { content: { contains: normalizedSearch, mode: "insensitive" } },
+              { tags: { has: normalizedSearch } },
+            ],
+          }
+        : {}),
+    };
 
     // Pagination
     const pageNum = Math.max(1, page);
