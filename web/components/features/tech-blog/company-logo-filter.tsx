@@ -487,33 +487,35 @@ export function CompanyLogoFilter({
         )}
       </section>
 
-      <div className="flex flex-col items-stretch justify-end gap-3 md:flex-row md:items-center">
-        <div className="w-full md:w-[320px]">
-          <SearchBar
-            value={searchValue}
-            onChange={onSearchChange}
-            placeholder="제목, 기업명 검색..."
-          />
-        </div>
-
-        <Select value={value} onValueChange={onChange}>
-          <SelectTrigger
-            aria-label="기술 블로그 기업 선택"
-            className="h-10 w-full rounded-xl bg-muted/50 md:w-[210px]"
-          >
-            <SelectValue placeholder="기업 선택" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[360px]">
-            <SelectItem value="all">전체 기업</SelectItem>
-            {companies.map((company) => (
-              <SelectItem key={company.author} value={company.author}>
-                {company.author}{favoriteCompanySet.has(company.author) ? " ★" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+      <div className="flex flex-col items-stretch justify-between gap-3 md:flex-row md:items-center">
         <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
+
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+          <div className="w-full md:w-[320px]">
+            <SearchBar
+              value={searchValue}
+              onChange={onSearchChange}
+              placeholder="제목, 기업명 검색..."
+            />
+          </div>
+
+          <Select value={value} onValueChange={onChange}>
+            <SelectTrigger
+              aria-label="기술 블로그 기업 선택"
+              className="h-10 w-full rounded-xl bg-muted/50 md:w-[210px]"
+            >
+              <SelectValue placeholder="기업 선택" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[360px]">
+              <SelectItem value="all">전체 기업</SelectItem>
+              {companies.map((company) => (
+                <SelectItem key={company.author} value={company.author}>
+                  {company.author}{favoriteCompanySet.has(company.author) ? " ★" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );
