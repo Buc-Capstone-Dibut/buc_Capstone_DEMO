@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import {
@@ -9,7 +9,6 @@ import {
   Trash2,
   Loader2,
   Pencil,
-  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,6 +66,7 @@ interface Workspace {
 }
 
 type FetchError = Error & { status?: number };
+type WorkspaceStatusFilter = "all" | "in_progress" | "completed";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -115,6 +115,49 @@ export function ProjectList() {
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(
     null,
   );
+  const [statusFilter, setStatusFilter] =
+    useState<WorkspaceStatusFilter>("all");
+
+  const workspaceCounts = useMemo(() => {
+    const items = Array.isArray(workspaces) ? workspaces : [];
+    return {
+      all: items.length,
+      in_progress: items.filter(
+        (workspace) => workspace.lifecycle_status === "IN_PROGRESS",
+      ).length,
+      completed: items.filter(
+        (workspace) => workspace.lifecycle_status === "COMPLETED",
+      ).length,
+    };
+  }, [workspaces]);
+
+  const visibleWorkspaces = useMemo(() => {
+    const items = Array.isArray(workspaces) ? [...workspaces] : [];
+    const filtered = items.filter((workspace) => {
+      if (statusFilter === "in_progress") {
+        return workspace.lifecycle_status === "IN_PROGRESS";
+      }
+      if (statusFilter === "completed") {
+        return workspace.lifecycle_status === "COMPLETED";
+      }
+      return true;
+    });
+
+    return filtered.sort((left, right) => {
+      const leftRank = left.lifecycle_status === "IN_PROGRESS" ? 0 : 1;
+      const rightRank = right.lifecycle_status === "IN_PROGRESS" ? 0 : 1;
+      return leftRank - rightRank;
+    });
+  }, [statusFilter, workspaces]);
+
+  const statusFilters: {
+    value: WorkspaceStatusFilter;
+    label: string;
+  }[] = [
+    { value: "all", label: "전체" },
+    { value: "in_progress", label: "진행중" },
+    { value: "completed", label: "종료" },
+  ];
 
   const handleDelete = async () => {
     if (!workspaceToDelete) return;
@@ -167,31 +210,60 @@ export function ProjectList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="mb-8">
         <div>
           <h2 className="text-4xl font-black tracking-tighter">워크스페이스</h2>
           <p className="text-muted-foreground">참여 중인 팀 목록입니다.</p>
         </div>
-        <Button
-          asChild
-          className="h-11 px-6 rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all gap-2"
-        >
-          <Link href="/community/squad">
-            팀원 모집 보러가기
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {statusFilters.map((filter) => (
+          <Button
+            key={filter.value}
+            type="button"
+            variant={statusFilter === filter.value ? "default" : "outline"}
+            size="sm"
+            className="rounded-full px-4"
+            onClick={() => setStatusFilter(filter.value)}
+          >
+            {filter.label}
+            <span className="ml-1.5 text-xs opacity-70">
+              {workspaceCounts[filter.value]}
+            </span>
+          </Button>
+        ))}
+        <div className="ml-auto">
+          <CreateWorkspaceDialog>
+            <Button className="h-10 gap-2 rounded-xl px-5 shadow-sm">
+              <Plus className="h-4 w-4" />
+              새 워크스페이스 추가
+            </Button>
+          </CreateWorkspaceDialog>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {Array.isArray(workspaces) &&
-          workspaces.map((workspace) => (
-            <div key={workspace.id} className="relative group">
+        {visibleWorkspaces.map((workspace) => {
+          const isCompleted = workspace.lifecycle_status === "COMPLETED";
+          return (
+            <div
+              key={workspace.id}
+              className={`relative group transition-opacity ${
+                isCompleted ? "opacity-75 hover:opacity-90" : ""
+              }`}
+            >
               <Link
                 href={`/workspace/${workspace.id}`}
                 className="block h-full"
               >
-                <Card className="hover:border-primary/50 transition-all cursor-pointer h-full flex flex-col relative overflow-hidden bg-card group shadow-sm hover:shadow-md">
+                <Card
+                  className={`transition-all cursor-pointer h-full flex flex-col relative overflow-hidden group shadow-sm ${
+                    isCompleted
+                      ? "border-slate-300/70 bg-muted/30 saturate-50 hover:border-slate-400 hover:shadow-sm dark:border-slate-700"
+                      : "bg-card hover:border-primary/50 hover:shadow-md"
+                  }`}
+                >
                   <CardHeader
                     className={`pb-3 space-y-3 ${
                       workspace.my_role === "owner" ? "pr-12" : ""
@@ -200,7 +272,11 @@ export function ProjectList() {
                     <div className="flex justify-between items-center">
                       <Badge
                         variant="secondary"
-                        className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider"
+                        className={`rounded-md px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${
+                          isCompleted
+                            ? "bg-slate-200/70 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        }`}
                       >
                         {getTeamTypeLabel(workspace.category)}
                       </Badge>
@@ -215,7 +291,13 @@ export function ProjectList() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
+                      <CardTitle
+                        className={`text-xl font-bold leading-tight transition-colors ${
+                          isCompleted
+                            ? "text-muted-foreground"
+                            : "group-hover:text-primary"
+                        }`}
+                      >
                         {workspace.name}
                       </CardTitle>
                       <CardDescription className="line-clamp-2 text-sm text-muted-foreground h-10">
@@ -256,9 +338,15 @@ export function ProjectList() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium text-foreground/80">
-                          최근 활동
+                          {isCompleted ? "종료일" : "최근 활동"}
                         </span>
-                        <span>{formatWorkspaceDate(workspace.updated_at)}</span>
+                        <span>
+                          {formatWorkspaceDate(
+                            isCompleted
+                              ? workspace.completed_at
+                              : workspace.updated_at,
+                          )}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium text-foreground/80">
@@ -305,24 +393,30 @@ export function ProjectList() {
                 </div>
               )}
             </div>
-          ))}
+          );
+        })}
 
-        {/* New Team Space Placeholder */}
-        <CreateWorkspaceDialog>
-          <button className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-4 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-muted/30 transition-all h-full min-h-[250px]">
-            <div className="h-14 w-14 rounded-full bg-muted group-hover:bg-background flex items-center justify-center shadow-sm">
-              <Plus className="h-6 w-6" />
-            </div>
-            <div className="text-center">
-              <span className="font-semibold block text-lg">
-                새 팀 공간 만들기
-              </span>
-              <span className="text-sm opacity-70 mt-1 block">
-                팀원을 초대하고 협업을 시작하세요
-              </span>
-            </div>
-          </button>
-        </CreateWorkspaceDialog>
+        {visibleWorkspaces.length === 0 && (
+          <div className="col-span-full flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 text-center">
+            <p className="font-semibold">
+              {statusFilter === "completed"
+                ? "종료된 워크스페이스가 없습니다."
+                : statusFilter === "in_progress"
+                  ? "진행 중인 워크스페이스가 없습니다."
+                  : "참여 중인 워크스페이스가 없습니다."}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {statusFilter === "completed"
+                ? "종료한 팀 공간이 이곳에 표시됩니다."
+                : "새 팀 공간을 만들거나 팀에 참여해보세요."}
+            </p>
+            {workspaceCounts.all === 0 && statusFilter === "all" && (
+              <Button asChild variant="outline" size="sm" className="mt-5">
+                <Link href="/community/squad">팀원 모집 둘러보기</Link>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Delete Alert Dialog */}
