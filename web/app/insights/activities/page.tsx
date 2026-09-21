@@ -89,13 +89,14 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 max-w-7xl py-8">
-        {/* Filter and Search Bar Row */}
-        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex-1 w-full">
-            <ActivityFilter allTags={allTags} />
-          </div>
-          <div className="shrink-0 w-full md:w-auto">
-            <RecruitSearchSort recommendationTags={recommendationTags} />
+        <div className="mb-4 lg:hidden">
+          <ActivityFilter allTags={allTags} />
+        </div>
+
+        {/* Search and Sort Row */}
+        <div className="mb-8 flex justify-end">
+          <div className="w-full md:w-auto">
+            <RecruitSearchSort />
           </div>
         </div>
 
@@ -137,6 +138,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
           {/* Sidebar (3 Cols) */}
           <div className="col-span-12 lg:col-span-3">
             <Sidebar className="top-[130px] sticky">
+              <ActivityFilter allTags={allTags} />
               <RecruitingSquadsWidget squads={recentSquads} />
               <ClosingSoonWidget events={closingEvents} />
             </Sidebar>

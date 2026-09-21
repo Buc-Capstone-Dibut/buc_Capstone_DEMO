@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Search, Sparkles } from "lucide-react";
+import { Search } from "lucide-react";
 import { useDebounce } from "use-debounce";
 import {
   Select,
@@ -13,13 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface RecruitSearchSortProps {
-  recommendationTags?: string[];
-}
-
-export function RecruitSearchSort({
-  recommendationTags = [],
-}: RecruitSearchSortProps) {
+export function RecruitSearchSort() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -83,15 +77,6 @@ export function RecruitSearchSort({
         </SelectContent>
       </Select>
 
-      <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.06] px-3 text-xs font-bold text-primary sm:w-auto">
-        <Sparkles className="h-4 w-4" />
-        <span>프로필 맞춤 추천</span>
-        {recommendationTags.length > 0 ? (
-          <span className="max-w-[150px] truncate text-[11px] font-medium text-muted-foreground">
-            {recommendationTags.slice(0, 3).join(" · ")}
-          </span>
-        ) : null}
-      </div>
     </div>
   );
 }
