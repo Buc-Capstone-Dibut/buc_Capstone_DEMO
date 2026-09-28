@@ -46,7 +46,7 @@ type PortfoliosClientProps = {
   };
 };
 
-type TypeFilter = "all" | "site" | "slide" | "document" | "showcase";
+type TypeFilter = "all" | "slides" | "showcase";
 type VisibilityFilter = "all" | "public" | "private";
 type GenerationFilter = "all" | "ready" | "generating";
 type PortfolioSort = "recent" | "title";
@@ -54,7 +54,7 @@ type PortfolioSort = "recent" | "title";
 function matchesTypeFilter(item: UnifiedPortfolioItem, filter: TypeFilter) {
   if (filter === "all") return true;
   if (filter === "showcase") return item.kind === "showcase";
-  return item.kind === "legacy" && item.legacy?.format === filter;
+  return item.kind === "legacy";
 }
 
 function getUnifiedTypeLabel(item: UnifiedPortfolioItem) {
@@ -207,9 +207,14 @@ export default function PortfoliosClient({
     searchParams.get("sort") === "title" ? "title" : "recent",
   );
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(
-    initialType === "site" || initialType === "slide" || initialType === "document" || initialType === "showcase"
-      ? initialType
-      : "all",
+    initialType === "showcase"
+      ? "showcase"
+      : initialType === "slides" ||
+          initialType === "site" ||
+          initialType === "slide" ||
+          initialType === "document"
+        ? "slides"
+        : "all",
   );
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>(
     initialVisibility === "public" || initialVisibility === "private" ? initialVisibility : "all",
@@ -502,9 +507,7 @@ export default function PortfoliosClient({
           ariaLabel="포트폴리오 필터"
           quickFilters={([
             ["all", "전체"],
-            ["site", "슬라이드형"],
-            ["slide", "PPT 16:9"],
-            ["document", "A4 보고서"],
+            ["slides", "슬라이드형"],
             ["showcase", "웹사이트형"],
           ] as const).map(([value, label]) => ({
             id: value,
