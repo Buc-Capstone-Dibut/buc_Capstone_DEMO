@@ -36,6 +36,16 @@ export async function GET() {
     // Read from active user_resumes (individual resume document)
     let activeResume = await prisma.user_resumes.findFirst({
       where: { user_id: user.id, is_active: true },
+      include: {
+        target_posting: {
+          select: {
+            id: true,
+            company_name: true,
+            role_title: true,
+            status: true,
+          },
+        },
+      },
     });
 
     if (!activeResume) {
@@ -43,6 +53,16 @@ export async function GET() {
       activeResume = await prisma.user_resumes.findFirst({
         where: { user_id: user.id },
         orderBy: { updated_at: "desc" },
+        include: {
+          target_posting: {
+            select: {
+              id: true,
+              company_name: true,
+              role_title: true,
+              status: true,
+            },
+          },
+        },
       });
     }
 
@@ -60,6 +80,7 @@ export async function GET() {
       success: true,
       exists: true,
       data: {
+        id: activeResume.id,
         userId: activeResume.user_id,
         resumePayload: finalPayload,
         publicSummary: activeResume.public_summary,
@@ -67,6 +88,16 @@ export async function GET() {
         sourceFileName: null,
         updatedAt: activeResume.updated_at,
         title: activeResume.title,
+        targetJobPostingId: activeResume.target_job_posting_id,
+        targetMeta: activeResume.target_meta,
+        targetPosting: activeResume.target_posting
+          ? {
+              id: activeResume.target_posting.id,
+              companyName: activeResume.target_posting.company_name,
+              roleTitle: activeResume.target_posting.role_title,
+              status: activeResume.target_posting.status,
+            }
+          : null,
       },
     });
   } catch (error: unknown) {
@@ -110,6 +141,20 @@ export async function PUT(req: Request) {
 
     const publicSummary = buildResumePublicSummary(resumePayload, body.title);
 
+    let safeTargetPostingId: string | null | undefined;
+    if (body.targetJobPostingId === null) {
+      safeTargetPostingId = null;
+    } else if (
+      typeof body.targetJobPostingId === "string" &&
+      body.targetJobPostingId.length > 0
+    ) {
+      const ownedPosting = await prisma.user_job_postings.findFirst({
+        where: { id: body.targetJobPostingId, user_id: user.id },
+        select: { id: true },
+      });
+      safeTargetPostingId = ownedPosting?.id;
+    }
+
     // Only write to user_resumes — do NOT touch user_resume_profiles (master career data)
     let activeResume = await prisma.user_resumes.findFirst({
       where: { user_id: user.id, is_active: true },
@@ -122,6 +167,9 @@ export async function PUT(req: Request) {
           title: body.title || activeResume.title,
           resume_payload: resumePayload as any,
           public_summary: publicSummary as any,
+          target_job_posting_id: safeTargetPostingId,
+          target_meta:
+            body.targetMeta !== undefined ? (body.targetMeta as any) : undefined,
           updated_at: new Date(),
         },
       });

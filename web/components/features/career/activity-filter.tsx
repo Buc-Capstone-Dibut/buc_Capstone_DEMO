@@ -105,13 +105,11 @@ export function ActivityFilter({ allTags }: ActivityFilterProps) {
   };
 
   return (
-    <div className="w-full rounded-xl border border-border/50 p-4">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-foreground">카테고리 필터</h2>
-        <p className="text-xs text-muted-foreground">
-          태그 묶음 기준으로 활동 범위를 빠르게 좁힐 수 있습니다.
-        </p>
-      </div>
+    <div
+      className="w-full"
+      role="group"
+      aria-label="대외활동 카테고리 필터"
+    >
       <TagFilterBar
         value={category}
         options={ACTIVITY_FILTER_OPTIONS}

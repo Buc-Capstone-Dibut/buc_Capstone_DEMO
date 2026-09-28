@@ -33,6 +33,10 @@ import {
   ScaledKoreanResumeDocument,
 } from "@/components/features/resume/KoreanResumePreview";
 import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
+import {
+  ResumeApplicationTargetDialog,
+  type ResumeApplicationTargetValue,
+} from "@/components/features/resume/resume-application-target-dialog";
 import { cn } from "@/lib/utils";
 
 interface JobPostingOption {
@@ -75,6 +79,7 @@ export type ResumeListItem = {
     division: string;
     role: string;
     deadline: string;
+    jobDescription: string;
   } | null;
 };
 
@@ -93,6 +98,10 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
   const [postingsLoading, setPostingsLoading] = useState(false);
   const [postingsLoaded, setPostingsLoaded] = useState(false);
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalResumes(resumes);
+  }, [resumes]);
 
   const handleCreateNew = () => {
     setIsCreateDialogOpen(true);
@@ -193,7 +202,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
       if (!is_active) {
         await setActiveResumeAction(id);
       }
-      router.push("/resume");
+      router.push(`/resume?id=${id}`);
     } catch (err) {
       console.error(err);
       alert("이력서를 여는 중 오류가 발생했습니다.");
@@ -447,7 +456,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
                 event.preventDefault();
                 void handleOpenResume(resume.id, resume.is_active);
               }}
-              className="group relative grid min-h-[440px] cursor-pointer grid-cols-[1fr_180px] overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-800 dark:bg-slate-900/70"
+              className="group relative grid min-h-[440px] cursor-pointer grid-cols-[minmax(0,1fr)_190px] overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30 sm:grid-cols-[minmax(0,1fr)_220px] dark:border-slate-800 dark:bg-slate-900/70"
             >
               <button
                 onClick={(event) => handleDelete(event, resume.id)}
@@ -592,6 +601,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
           ))}
         </div>
       )}
+
     </div>
   );
 }
@@ -614,48 +624,47 @@ function ResumeTargetSection({
   onChanged: () => void;
 }) {
   const router = useRouter();
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [linkPostings, setLinkPostings] = useState<JobPostingOption[]>([]);
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [linking, setLinking] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const openLinkPicker = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setLinkOpen((prev) => !prev);
-    if (linkPostings.length > 0) return;
-    setLinkLoading(true);
-    try {
-      const res = await fetch("/api/my/job-postings?pageSize=50&sort=newest", {
-        cache: "no-store",
-      });
-      const json = await res.json();
-      if (json?.success) {
-        setLinkPostings((json.data?.items ?? []) as JobPostingOption[]);
-      }
-    } finally {
-      setLinkLoading(false);
-    }
+  const targetValue: ResumeApplicationTargetValue = {
+    jobPostingId: targetPosting?.id ?? null,
+    posting: targetPosting,
+    meta: targetMeta
+      ? { ...targetMeta, jobDescription: targetMeta.jobDescription || "" }
+      : targetPosting
+        ? {
+            company: targetPosting.companyName,
+            division: "",
+            role: targetPosting.roleTitle,
+            deadline: "",
+            jobDescription: "",
+          }
+        : null,
   };
 
-  const linkToPosting = async (postingId: string | null) => {
-    setLinking(true);
+  const applyTarget = async (nextTarget: ResumeApplicationTargetValue) => {
     try {
       const res = await fetch(`/api/my/resume/${resumeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetJobPostingId: postingId }),
+        body: JSON.stringify({
+          targetJobPostingId: nextTarget.jobPostingId,
+          targetMeta: nextTarget.meta,
+        }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "연결 실패");
-      setLinkOpen(false);
+      if (!json.success) throw new Error(json.error || "지원 대상 변경 실패");
       onChanged();
     } catch (err) {
       console.error(err);
-      alert("공고 연결에 실패했습니다.");
-    } finally {
-      setLinking(false);
+      alert("지원 대상을 변경하지 못했습니다.");
+      throw err;
     }
   };
+
+  const company = targetPosting?.companyName || targetMeta?.company || "";
+  const role = targetPosting?.roleTitle || targetMeta?.role || "";
+  const hasTarget = Boolean(company || role);
 
   return (
     <div className="mt-3 border-t border-dashed pt-3">
@@ -666,105 +675,84 @@ function ResumeTargetSection({
         </span>
         <button
           type="button"
-          onClick={openLinkPicker}
+          onClick={(event) => {
+            event.stopPropagation();
+            setDialogOpen(true);
+          }}
           className="text-[10px] font-semibold text-slate-400 transition-colors hover:text-primary"
         >
-          {targetPosting || targetMeta ? "변경" : "공고 연결"}
+          {hasTarget ? "변경" : "설정"}
         </button>
       </div>
 
-      {/* 표시: target_posting > target_meta > placeholder */}
-      {targetPosting ? (
+      {hasTarget ? (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            router.push(`/career/job-postings/${targetPosting.id}`);
+            if (targetPosting) {
+              router.push(`/career/job-postings/${targetPosting.id}`);
+            } else {
+              setDialogOpen(true);
+            }
           }}
-          className="flex w-full items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-primary/10"
-          title={`${targetPosting.companyName} · ${targetPosting.roleTitle}`}
-        >
-          <span className="truncate font-bold text-primary">
-            {targetPosting.companyName}
-          </span>
-          <span className="shrink-0 text-primary/60">·</span>
-          <span className="truncate text-primary/80">
-            {targetPosting.roleTitle}
-          </span>
-        </button>
-      ) : targetMeta && (targetMeta.company || targetMeta.role) ? (
-        <div
-          className="flex w-full items-center gap-1.5 rounded-md border border-dashed bg-slate-50 px-2 py-1.5 text-[11px]"
-          title="직접 입력된 정보. 공고에 연결하면 동기화됩니다."
-        >
-          <span className="truncate font-bold text-slate-600">
-            {targetMeta.company || "기업 미입력"}
-          </span>
-          {targetMeta.role && (
-            <>
-              <span className="shrink-0 text-slate-400">·</span>
-              <span className="truncate text-slate-500">{targetMeta.role}</span>
-            </>
+          className={cn(
+            "w-full rounded-lg border px-2.5 py-2.5 text-left transition-colors",
+            targetPosting
+              ? "border-primary/20 bg-primary/5 hover:bg-primary/10"
+              : "border-dashed bg-slate-50 hover:border-primary/30 dark:bg-slate-950/40",
           )}
-        </div>
+          title={[company, role].filter(Boolean).join(" · ")}
+        >
+          <span
+            className={cn(
+              "mb-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold",
+              targetPosting
+                ? "bg-primary/10 text-primary"
+                : "bg-slate-200/70 text-slate-500 dark:bg-slate-800",
+            )}
+          >
+            {targetPosting ? "공고 연결됨" : "직접 입력"}
+          </span>
+          <span className="line-clamp-2 block text-[12px] font-bold leading-snug text-slate-800 dark:text-slate-100">
+            {company || "기업 미입력"}
+          </span>
+          {role && (
+            <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-slate-500">
+              {role}
+            </span>
+          )}
+          {(targetMeta?.division || targetMeta?.deadline) && (
+            <span className="mt-2 flex flex-col gap-0.5 border-t border-current/10 pt-1.5 text-[10px] text-slate-400">
+              {targetMeta.division && <span>{targetMeta.division}</span>}
+              {targetMeta.deadline && (
+                <span className="flex items-center gap-1">
+                  <CalendarDays className="h-2.5 w-2.5" />
+                  마감 {targetMeta.deadline}
+                </span>
+              )}
+            </span>
+          )}
+        </button>
       ) : (
-        <p className="px-1 text-[11px] text-slate-400">
-          연결된 공고 없음
-        </p>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setDialogOpen(true);
+          }}
+          className="w-full rounded-lg border border-dashed px-2.5 py-3 text-left text-[11px] text-slate-400 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+        >
+          지원 대상을 설정해 이력서의 용도를 구분해보세요.
+        </button>
       )}
 
-      {/* 연결 picker (드롭다운) */}
-      {linkOpen && (
-        <div
-          className="mt-2 max-h-40 overflow-y-auto rounded-md border bg-white p-1 shadow-sm dark:bg-slate-900"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {linkLoading ? (
-            <div className="flex items-center gap-1.5 px-2 py-2 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> 불러오는 중…
-            </div>
-          ) : linkPostings.length === 0 ? (
-            <p className="px-2 py-2 text-[11px] text-muted-foreground">
-              등록된 공고가 없습니다.
-            </p>
-          ) : (
-            <>
-              {(targetPosting || targetMeta) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void linkToPosting(null);
-                  }}
-                  disabled={linking}
-                  className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-[11px] text-slate-500 transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  연결 해제
-                </button>
-              )}
-              {linkPostings.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void linkToPosting(p.id);
-                  }}
-                  disabled={linking || p.id === targetPosting?.id}
-                  className="flex w-full flex-col items-start gap-0 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <span className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {p.companyName}
-                  </span>
-                  <span className="truncate text-[12px] font-bold text-foreground">
-                    {p.roleTitle}
-                  </span>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      <ResumeApplicationTargetDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        value={targetValue}
+        onApply={applyTarget}
+      />
     </div>
   );
 }

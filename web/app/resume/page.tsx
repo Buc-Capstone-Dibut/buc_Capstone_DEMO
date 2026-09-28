@@ -5,12 +5,68 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ResumeEditor } from "../my/[handle]/tabs/resume-editor";
 import { ResumeAiAssistant } from "@/components/features/resume/ResumeAiAssistant";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Sparkles, Wand2 } from "lucide-react";
+import {
+    ArrowLeft,
+    Briefcase,
+    CalendarDays,
+    ExternalLink,
+    Loader2,
+    Pencil,
+    Sparkles,
+    Wand2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../my/[handle]/profile-types";
 import { EMPTY_RESUME, normalizeResumePayload } from "../my/[handle]/profile-utils";
 import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
+import {
+    ResumeApplicationTargetDialog,
+    type ResumeApplicationTargetMeta,
+    type ResumeApplicationTargetPosting,
+    type ResumeApplicationTargetValue,
+} from "@/components/features/resume/resume-application-target-dialog";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function asString(value: unknown) {
+    return typeof value === "string" ? value : "";
+}
+
+function getApplicationTarget(data: unknown): ResumeApplicationTargetValue {
+    const record = asRecord(data) ?? {};
+    const rawPosting = asRecord(record.targetPosting ?? record.target_posting);
+    const posting: ResumeApplicationTargetPosting | null = rawPosting
+        ? {
+            id: asString(rawPosting.id),
+            companyName: asString(rawPosting.companyName ?? rawPosting.company_name),
+            roleTitle: asString(rawPosting.roleTitle ?? rawPosting.role_title),
+            status: asString(rawPosting.status),
+        }
+        : null;
+    const rawMeta = asRecord(record.targetMeta ?? record.target_meta);
+    const meta: ResumeApplicationTargetMeta | null = rawMeta || posting
+        ? {
+            company: asString(rawMeta?.company) || posting?.companyName || "",
+            division: asString(rawMeta?.division),
+            role: asString(rawMeta?.role) || posting?.roleTitle || "",
+            deadline: asString(rawMeta?.deadline),
+            jobDescription: asString(rawMeta?.jobDescription),
+        }
+        : null;
+
+    return {
+        jobPostingId:
+            asString(record.targetJobPostingId ?? record.target_job_posting_id) ||
+            posting?.id ||
+            null,
+        meta,
+        posting,
+    };
+}
 
 export default function ResumePage() {
     const router = useRouter();
@@ -24,10 +80,8 @@ export default function ResumePage() {
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
     // 새 이력서 작성 시 1단계 입력 또는 선택한 공고를 저장 시점에 함께 DB로 보내기 위한 보관소
-    const [pendingTarget, setPendingTarget] = useState<{
-        jobPostingId: string | null;
-        meta: { company: string; division: string; role: string; deadline: string; jobDescription: string } | null;
-    } | null>(null);
+    const [pendingTarget, setPendingTarget] = useState<ResumeApplicationTargetValue | null>(null);
+    const [targetDialogOpen, setTargetDialogOpen] = useState(false);
     const tailoredGenerationStartedRef = useRef(false);
     const isWizardModeFromUrl = searchParams.get("mode") === "setup";
     const isNewModeFromUrl = searchParams.get("mode") === "new";
@@ -54,6 +108,9 @@ export default function ResumePage() {
                         const payload = json.data.resume_payload || json.data.resumePayload;
                         currentPayload = normalizeResumePayload(payload);
                         currentTitle = json.data.title || "";
+                        if (!isNewModeFromUrl && !isWizardModeFromUrl) {
+                            setPendingTarget(getApplicationTarget(json.data));
+                        }
                     }
                 }
             } catch (error) {
@@ -135,6 +192,7 @@ export default function ResumePage() {
                         const payload = json.data.resume_payload || json.data.resumePayload;
                         setResumePayload(normalizeResumePayload(payload));
                         setResumeTitle(json.data.title || "");
+                        setPendingTarget(getApplicationTarget(json.data));
                     }
                 }
             } catch (error) {
@@ -184,6 +242,7 @@ export default function ResumePage() {
                 meta: hasAnyMeta
                     ? { company, division, role, deadline, jobDescription }
                     : null,
+                posting: null,
             });
         } catch {
             // 무시
@@ -313,6 +372,15 @@ export default function ResumePage() {
         }
     };
 
+    const handleTargetApply = (nextTarget: ResumeApplicationTargetValue) => {
+        setPendingTarget(nextTarget);
+        setAiCurated(false);
+        toast({
+            title: nextTarget.meta ? "지원 대상을 변경했습니다." : "지원 대상을 해제했습니다.",
+            description: "상단의 저장 버튼을 누르면 이력서와 함께 저장됩니다.",
+        });
+    };
+
     const handleSave = async (silent = false) => {
         setSaving(true);
         try {
@@ -337,8 +405,8 @@ export default function ResumePage() {
                 sourceType: "manual",
                 sourceFileName: "AI 통합 에디터",
             };
-            // 새 이력서 POST 시점에만 target 정보를 함께 보냄 (수정 시점엔 별도 액션)
-            if (isNew && !resumeId && pendingTarget) {
+            // 신규·기존 이력서 모두 현재 화면의 지원 대상을 함께 저장한다.
+            if (pendingTarget) {
                 baseBody.targetJobPostingId = pendingTarget.jobPostingId;
                 baseBody.targetMeta = pendingTarget.meta;
             }
@@ -460,6 +528,94 @@ export default function ResumePage() {
                     </div>
                 </div>
             </header>
+
+            <section
+                data-no-print="true"
+                className="border-b bg-white/90"
+                aria-label="이력서 지원 대상"
+            >
+                <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Briefcase className="h-4 w-4" />
+                        </span>
+                        {pendingTarget?.meta ? (
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        지원 대상
+                                    </span>
+                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                        {pendingTarget.posting ? "공고 연결됨" : "직접 입력"}
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 break-words text-sm font-bold text-slate-900">
+                                    {pendingTarget.meta.company || "기업 미입력"}
+                                    {pendingTarget.meta.role && (
+                                        <span className="font-semibold text-slate-500">
+                                            {" "}· {pendingTarget.meta.role}
+                                        </span>
+                                    )}
+                                </p>
+                                {(pendingTarget.meta.division || pendingTarget.meta.deadline) && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                        {pendingTarget.meta.division && (
+                                            <span>{pendingTarget.meta.division}</span>
+                                        )}
+                                        {pendingTarget.meta.deadline && (
+                                            <span className="flex items-center gap-1">
+                                                <CalendarDays className="h-3 w-3" />
+                                                마감 {pendingTarget.meta.deadline}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="min-w-0">
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    지원 대상
+                                </p>
+                                <p className="mt-0.5 text-sm font-semibold text-slate-700">
+                                    이 이력서의 지원 대상이 설정되지 않았습니다.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2 pl-12 sm:pl-0">
+                        {pendingTarget?.posting && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => router.push(`/career/job-postings/${pendingTarget.posting?.id}`)}
+                                className="h-8 gap-1.5 text-xs text-muted-foreground"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                공고 보기
+                            </Button>
+                        )}
+                        <Button
+                            type="button"
+                            variant={pendingTarget?.meta ? "outline" : "default"}
+                            size="sm"
+                            onClick={() => setTargetDialogOpen(true)}
+                            className="h-8 gap-1.5 text-xs"
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {pendingTarget?.meta ? "변경" : "지원 대상 설정"}
+                        </Button>
+                    </div>
+                </div>
+            </section>
+
+            <ResumeApplicationTargetDialog
+                open={targetDialogOpen}
+                onOpenChange={setTargetDialogOpen}
+                value={pendingTarget}
+                onApply={handleTargetApply}
+            />
 
             <main className="max-w-[1800px] mx-auto p-4 lg:p-6 min-h-[calc(100vh-4rem)]">
                 <ResumeEditor
