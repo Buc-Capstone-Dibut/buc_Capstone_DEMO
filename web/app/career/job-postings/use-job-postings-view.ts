@@ -119,6 +119,33 @@ function loadFromUrl(): Partial<ViewState> {
     }
     const q = params.get("q");
     if (q !== null) out.query = q;
+    const status = params.get("status");
+    if (status) {
+      const validStatuses: JobPostingStatus[] = [
+        "active",
+        "applied",
+        "interviewing",
+        "closed",
+        "archived",
+      ];
+      out.statusFilters = status
+        .split(",")
+        .filter((value): value is JobPostingStatus =>
+          validStatuses.includes(value as JobPostingStatus),
+        );
+    }
+    const sort = params.get("sort");
+    if (["created_desc", "created_asc", "deadline_asc", "company_asc"].includes(sort || "")) {
+      out.sort = sort as Sort;
+    }
+    const favorites = params.get("favorites");
+    if (["off", "top", "only"].includes(favorites || "")) {
+      out.favoritesPolicy = favorites as FavoritesPolicy;
+    }
+    const attachFilter = params.get("attach");
+    if (["missing_resume", "missing_cover_letter", "ready"].includes(attachFilter || "")) {
+      out.attachFilter = attachFilter as AttachFilter;
+    }
     return out;
   } catch {
     return {};
@@ -133,6 +160,17 @@ function updateUrl(state: ViewState) {
     else params.delete("page");
     if (state.query) params.set("q", state.query);
     else params.delete("q");
+    if (state.statusFilters.length > 0) params.set("status", state.statusFilters.join(","));
+    else params.delete("status");
+    if (state.sort !== DEFAULT_STATE.sort) params.set("sort", state.sort);
+    else params.delete("sort");
+    if (state.favoritesPolicy !== DEFAULT_STATE.favoritesPolicy) {
+      params.set("favorites", state.favoritesPolicy);
+    } else {
+      params.delete("favorites");
+    }
+    if (state.attachFilter) params.set("attach", state.attachFilter);
+    else params.delete("attach");
     const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
     window.history.replaceState(null, "", next);
   } catch {

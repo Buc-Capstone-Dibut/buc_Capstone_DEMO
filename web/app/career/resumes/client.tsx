@@ -24,8 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { deleteResumeAction, setActiveResumeAction } from "./actions";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import {
@@ -38,6 +38,12 @@ import {
   type ResumeApplicationTargetValue,
 } from "@/components/features/resume/resume-application-target-dialog";
 import { cn } from "@/lib/utils";
+import {
+  CareerFilterChip,
+  CareerFilterSection,
+  CareerListToolbar,
+} from "@/components/features/career/career-list-toolbar";
+import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
 
 interface JobPostingOption {
   id: string;
@@ -83,8 +89,20 @@ export type ResumeListItem = {
   } | null;
 };
 
+type ResumeTargetFilter = "all" | "posting" | "manual" | "none";
+type ResumeUsageFilter = "all" | "attached" | "cover-letter";
+type ResumeSort = "recent" | "title" | "deadline";
+
+function getResumeDeadline(resume: ResumeListItem) {
+  const value = resume.targetMeta?.deadline;
+  if (!value) return Number.POSITIVE_INFINITY;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
 export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [localResumes, setLocalResumes] = useState(resumes);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createCompany, setCreateCompany] = useState("");
@@ -98,10 +116,103 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
   const [postingsLoading, setPostingsLoading] = useState(false);
   const [postingsLoaded, setPostingsLoaded] = useState(false);
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null);
+  const initialTarget = searchParams.get("target");
+  const initialUsage = searchParams.get("usage");
+  const initialSort = searchParams.get("sort");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [targetFilter, setTargetFilter] = useState<ResumeTargetFilter>(
+    initialTarget === "posting" || initialTarget === "manual" || initialTarget === "none"
+      ? initialTarget
+      : "all",
+  );
+  const [usageFilter, setUsageFilter] = useState<ResumeUsageFilter>(
+    initialUsage === "attached" || initialUsage === "cover-letter" ? initialUsage : "all",
+  );
+  const [defaultOnly, setDefaultOnly] = useState(searchParams.get("default") === "1");
+  const [selectedTech, setSelectedTech] = useState<string[]>(
+    () => searchParams.get("tech")?.split(",").filter(Boolean) || [],
+  );
+  const [sortOrder, setSortOrder] = useState<ResumeSort>(
+    initialSort === "title" || initialSort === "deadline" ? initialSort : "recent",
+  );
 
   useEffect(() => {
     setLocalResumes(resumes);
   }, [resumes]);
+
+  const availableTech = useMemo(
+    () =>
+      Array.from(new Set(localResumes.flatMap((resume) => resume.techStack))).sort((a, b) =>
+        a.localeCompare(b, "ko"),
+      ),
+    [localResumes],
+  );
+
+  const filteredResumes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const next = localResumes.filter((resume) => {
+      const hasPostingTarget = Boolean(resume.targetPosting);
+      const hasManualTarget = !hasPostingTarget && Boolean(
+        resume.targetMeta?.company || resume.targetMeta?.role,
+      );
+
+      if (targetFilter === "posting" && !hasPostingTarget) return false;
+      if (targetFilter === "manual" && !hasManualTarget) return false;
+      if (targetFilter === "none" && (hasPostingTarget || hasManualTarget)) return false;
+      if (defaultOnly && !resume.is_active) return false;
+      if (usageFilter === "attached" && resume.linkedPostings.length === 0) return false;
+      if (usageFilter === "cover-letter" && resume.derivedCoverLetters.length === 0) return false;
+      if (
+        selectedTech.length > 0 &&
+        !selectedTech.every((tech) => resume.techStack.includes(tech))
+      ) {
+        return false;
+      }
+
+      if (!query) return true;
+      return [
+        resume.title,
+        resume.targetPosting?.companyName,
+        resume.targetPosting?.roleTitle,
+        resume.targetMeta?.company,
+        resume.targetMeta?.division,
+        resume.targetMeta?.role,
+        ...resume.techStack,
+        ...resume.linkedPostings.flatMap((posting) => [posting.companyName, posting.roleTitle]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+
+    return [...next].sort((a, b) => {
+      if (sortOrder === "title") return a.title.localeCompare(b.title, "ko");
+      if (sortOrder === "deadline") return getResumeDeadline(a) - getResumeDeadline(b);
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [defaultOnly, localResumes, searchQuery, selectedTech, sortOrder, targetFilter, usageFilter]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setTargetFilter("all");
+    setUsageFilter("all");
+    setDefaultOnly(false);
+    setSelectedTech([]);
+    setSortOrder("recent");
+  };
+
+  const advancedFilterCount =
+    selectedTech.length + (usageFilter === "all" ? 0 : 1) + (defaultOnly ? 1 : 0);
+
+  useCareerFilterUrl({
+    q: searchQuery || null,
+    target: targetFilter === "all" ? null : targetFilter,
+    usage: usageFilter === "all" ? null : usageFilter,
+    default: defaultOnly ? 1 : null,
+    tech: selectedTech.length ? selectedTech.join(",") : null,
+    sort: sortOrder === "recent" ? null : sortOrder,
+  });
 
   const handleCreateNew = () => {
     setIsCreateDialogOpen(true);
@@ -437,15 +548,92 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
         </Button>
       </div>
 
+      {localResumes.length > 0 ? (
+        <CareerListToolbar
+          ariaLabel="이력서 필터"
+          quickFilters={[
+            { id: "all", label: "전체", active: targetFilter === "all", onClick: () => setTargetFilter("all") },
+            { id: "posting", label: "공고 연결", active: targetFilter === "posting", onClick: () => setTargetFilter("posting") },
+            { id: "manual", label: "직접 입력", active: targetFilter === "manual", onClick: () => setTargetFilter("manual") },
+            { id: "none", label: "대상 없음", active: targetFilter === "none", onClick: () => setTargetFilter("none") },
+          ]}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="이력서명·지원 기업·직무 검색"
+          sortValue={sortOrder}
+          onSortChange={(value) => setSortOrder(value as ResumeSort)}
+          sortOptions={[
+            { value: "recent", label: "최근 수정순" },
+            { value: "deadline", label: "마감 임박순" },
+            { value: "title", label: "제목순" },
+          ]}
+          advancedFilterCount={advancedFilterCount}
+          advancedFilters={
+            <>
+              <CareerFilterSection label="사용 상태">
+                <CareerFilterChip active={defaultOnly} onClick={() => setDefaultOnly((current) => !current)}>
+                  기본 이력서만
+                </CareerFilterChip>
+                <CareerFilterChip active={usageFilter === "attached"} onClick={() => setUsageFilter(usageFilter === "attached" ? "all" : "attached")}>
+                  채용공고에 첨부
+                </CareerFilterChip>
+                <CareerFilterChip active={usageFilter === "cover-letter"} onClick={() => setUsageFilter(usageFilter === "cover-letter" ? "all" : "cover-letter")}>
+                  자소서 작성에 사용
+                </CareerFilterChip>
+              </CareerFilterSection>
+              <CareerFilterSection label="기술 스택">
+                {availableTech.length > 0 ? availableTech.map((tech) => (
+                  <CareerFilterChip
+                    key={tech}
+                    active={selectedTech.includes(tech)}
+                    onClick={() => setSelectedTech((current) =>
+                      current.includes(tech)
+                        ? current.filter((item) => item !== tech)
+                        : [...current, tech]
+                    )}
+                  >
+                    {tech}
+                  </CareerFilterChip>
+                )) : <span className="text-xs text-slate-400">등록된 기술 스택이 없습니다.</span>}
+              </CareerFilterSection>
+            </>
+          }
+          activeFilters={[
+            ...(defaultOnly ? [{ id: "default", label: "기본 이력서", onRemove: () => setDefaultOnly(false) }] : []),
+            ...(usageFilter !== "all" ? [{
+              id: "usage",
+              label: usageFilter === "attached" ? "채용공고에 첨부" : "자소서 작성에 사용",
+              onRemove: () => setUsageFilter("all"),
+            }] : []),
+            ...selectedTech.map((tech) => ({
+              id: `tech-${tech}`,
+              label: tech,
+              onRemove: () => setSelectedTech((current) => current.filter((item) => item !== tech)),
+            })),
+          ]}
+          onReset={resetFilters}
+          resultCount={filteredResumes.length}
+          totalCount={localResumes.length}
+        />
+      ) : null}
+
       {localResumes.length === 0 ? (
         <div className="flex min-h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/60 px-6 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
           <FileBadge className="mb-4 h-11 w-11 text-slate-300" />
           <p className="font-semibold text-slate-600">저장된 이력서가 없습니다.</p>
           <p className="mt-1 text-sm text-slate-400">새 이력서를 작성해 캐비닛에 추가하세요.</p>
         </div>
+      ) : filteredResumes.length === 0 ? (
+        <div className="flex min-h-72 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/60 px-6 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
+          <FileBadge className="mb-4 h-11 w-11 text-slate-300" />
+          <p className="font-semibold text-slate-600">조건에 맞는 이력서가 없습니다.</p>
+          <button type="button" onClick={resetFilters} className="mt-3 text-sm font-bold text-primary hover:underline">
+            필터 초기화
+          </button>
+        </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
-          {localResumes.map((resume) => (
+          {filteredResumes.map((resume) => (
             <article
               key={resume.id}
               role="button"

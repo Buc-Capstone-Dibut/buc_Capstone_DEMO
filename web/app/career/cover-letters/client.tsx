@@ -10,7 +10,6 @@ import {
   Loader2,
   Plus,
   Save,
-  Search,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,16 @@ import {
   deleteCoverLetterAction,
   type CoverLetterInput,
 } from "./actions";
+import {
+  CareerFilterChip,
+  CareerFilterSection,
+  CareerListToolbar,
+} from "@/components/features/career/career-list-toolbar";
+import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
+
+type CoverLetterTargetFilter = "all" | "posting" | "manual" | "none";
+type CoverLetterCompletionFilter = "all" | "complete" | "draft";
+type CoverLetterSort = "recent" | "deadline" | "title";
 
 interface JobPostingOption {
   id: string;
@@ -100,8 +109,22 @@ export default function CoverLettersClient({
   );
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<CoverLetterInput>>({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortOrder, setSortOrder] = useState<"recent" | "deadline">("recent");
+  const initialTarget = searchParams.get("target");
+  const initialCompletion = searchParams.get("completion");
+  const initialSort = searchParams.get("sort");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [targetFilter, setTargetFilter] = useState<CoverLetterTargetFilter>(
+    initialTarget === "posting" || initialTarget === "manual" || initialTarget === "none"
+      ? initialTarget
+      : "all",
+  );
+  const [sourceResumeFilter, setSourceResumeFilter] = useState(searchParams.get("source") || "all");
+  const [completionFilter, setCompletionFilter] = useState<CoverLetterCompletionFilter>(
+    initialCompletion === "complete" || initialCompletion === "draft" ? initialCompletion : "all",
+  );
+  const [sortOrder, setSortOrder] = useState<CoverLetterSort>(
+    initialSort === "deadline" || initialSort === "title" ? initialSort : "recent",
+  );
   const previousSelectedIdRef = useRef<string | null>(null);
   const {
     bottomRef: detailBottomRef,
@@ -129,9 +152,31 @@ export default function CoverLettersClient({
     [editForm],
   );
 
+  const availableSourceResumes = useMemo(() => {
+    const unique = new Map<string, string>();
+    for (const letter of letters) {
+      if (letter.sourceResume) unique.set(letter.sourceResume.id, letter.sourceResume.title);
+    }
+    return Array.from(unique, ([id, title]) => ({ id, title }));
+  }, [letters]);
+
   const filteredLetters = useMemo(
     () => {
       const filtered = letters.filter((letter) => {
+        const hasPostingTarget = Boolean(letter.targetPosting);
+        const hasManualTarget = !hasPostingTarget && Boolean(
+          letter.targetMeta?.company || letter.company || letter.targetMeta?.role || letter.role,
+        );
+        if (targetFilter === "posting" && !hasPostingTarget) return false;
+        if (targetFilter === "manual" && !hasManualTarget) return false;
+        if (targetFilter === "none" && (hasPostingTarget || hasManualTarget)) return false;
+        if (sourceResumeFilter !== "all" && letter.sourceResume?.id !== sourceResumeFilter) return false;
+
+        const questions = letter.questions || [];
+        const isComplete = questions.length > 0 && questions.every((question) => (question.answer || "").trim());
+        if (completionFilter === "complete" && !isComplete) return false;
+        if (completionFilter === "draft" && isComplete) return false;
+
         const keyword = searchQuery.toLowerCase();
         return (
           letter.title.toLowerCase().includes(keyword) ||
@@ -151,14 +196,44 @@ export default function CoverLettersClient({
         });
       }
 
+      if (sortOrder === "title") {
+        return [...filtered].sort((a, b) => a.title.localeCompare(b.title, "ko"));
+      }
+
       return [...filtered].sort((a, b) => {
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bTime - aTime;
       });
     },
-    [letters, searchQuery, sortOrder],
+    [completionFilter, letters, searchQuery, sortOrder, sourceResumeFilter, targetFilter],
   );
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setTargetFilter("all");
+    setSourceResumeFilter("all");
+    setCompletionFilter("all");
+    setSortOrder("recent");
+  };
+
+  const advancedFilterCount =
+    (sourceResumeFilter === "all" ? 0 : 1) +
+    (completionFilter === "all" ? 0 : 1);
+
+  useCareerFilterUrl({
+    q: searchQuery || null,
+    target: targetFilter === "all" ? null : targetFilter,
+    source: sourceResumeFilter === "all" ? null : sourceResumeFilter,
+    completion: completionFilter === "all" ? null : completionFilter,
+    sort: sortOrder === "recent" ? null : sortOrder,
+  });
+
+  useEffect(() => {
+    if (filteredLetters.some((letter) => letter.id === selectedId)) return;
+    setSelectedId(filteredLetters[0]?.id || null);
+    setIsEditing(false);
+  }, [filteredLetters, selectedId]);
 
   const detailContentSignal = useMemo(() => {
     if (!selectedLetter) return "";
@@ -336,37 +411,79 @@ export default function CoverLettersClient({
         </Button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-16rem)] min-h-[620px]">
-        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col bg-slate-50/60 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-200 bg-white/70 space-y-3">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="자소서 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-[13px] outline-none focus:border-primary text-slate-700"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] font-medium text-slate-500">정렬</span>
-              <select
-                value={sortOrder}
-                onChange={(e) =>
-                  setSortOrder(e.target.value === "deadline" ? "deadline" : "recent")
-                }
-                className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-[12px] text-slate-700 outline-none focus:border-primary"
-              >
-                <option value="recent">최신 생성순</option>
-                <option value="deadline">마감일 임박순</option>
-              </select>
-            </div>
-          </div>
+      {letters.length > 0 ? (
+        <CareerListToolbar
+          ariaLabel="자기소개서 필터"
+          quickFilters={[
+            { id: "all", label: "전체", active: targetFilter === "all", onClick: () => setTargetFilter("all") },
+            { id: "posting", label: "공고 연결", active: targetFilter === "posting", onClick: () => setTargetFilter("posting") },
+            { id: "manual", label: "직접 입력", active: targetFilter === "manual", onClick: () => setTargetFilter("manual") },
+            { id: "none", label: "대상 없음", active: targetFilter === "none", onClick: () => setTargetFilter("none") },
+          ]}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="자소서명·기업·직무·내용 검색"
+          sortValue={sortOrder}
+          onSortChange={(value) => setSortOrder(value as CoverLetterSort)}
+          sortOptions={[
+            { value: "recent", label: "최신 생성순" },
+            { value: "deadline", label: "마감 임박순" },
+            { value: "title", label: "제목순" },
+          ]}
+          advancedFilterCount={advancedFilterCount}
+          advancedFilters={
+            <>
+              <CareerFilterSection label="작성 상태">
+                {([
+                  ["all", "전체"],
+                  ["complete", "작성 완료"],
+                  ["draft", "작성 중"],
+                ] as const).map(([value, label]) => (
+                  <CareerFilterChip key={value} active={completionFilter === value} onClick={() => setCompletionFilter(value)}>
+                    {label}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+              <CareerFilterSection label="기반 이력서">
+                <CareerFilterChip active={sourceResumeFilter === "all"} onClick={() => setSourceResumeFilter("all")}>
+                  전체
+                </CareerFilterChip>
+                {availableSourceResumes.map((resume) => (
+                  <CareerFilterChip key={resume.id} active={sourceResumeFilter === resume.id} onClick={() => setSourceResumeFilter(resume.id)}>
+                    {resume.title}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+            </>
+          }
+          activeFilters={[
+            ...(completionFilter !== "all" ? [{
+              id: "completion",
+              label: completionFilter === "complete" ? "작성 완료" : "작성 중",
+              onRemove: () => setCompletionFilter("all"),
+            }] : []),
+            ...(sourceResumeFilter !== "all" ? [{
+              id: "source",
+              label: `기반: ${availableSourceResumes.find((resume) => resume.id === sourceResumeFilter)?.title || "이력서"}`,
+              onRemove: () => setSourceResumeFilter("all"),
+            }] : []),
+          ]}
+          onReset={resetFilters}
+          resultCount={filteredLetters.length}
+          totalCount={letters.length}
+        />
+      ) : null}
 
+      <div className="flex min-h-[620px] flex-col gap-6 md:flex-row lg:h-[calc(100vh-20rem)]">
+        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col bg-slate-50/60 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
             {filteredLetters.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">검색 결과가 없습니다.</div>
+              <div className="p-8 text-center text-slate-400 text-sm">
+                <p>조건에 맞는 자소서가 없습니다.</p>
+                <button type="button" onClick={resetFilters} className="mt-2 font-bold text-primary hover:underline">
+                  필터 초기화
+                </button>
+              </div>
             ) : (
               filteredLetters.map((letter) => {
                 const isActive = selectedId === letter.id;

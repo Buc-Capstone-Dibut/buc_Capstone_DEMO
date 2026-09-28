@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Globe2, Loader2, Sparkles, X } from "lucide-react";
 import { CoverLetterWizardOverlay } from "@/components/features/career/cover-letter-wizard-overlay";
 import { cn } from "@/lib/utils";
@@ -15,16 +15,59 @@ import { ProjectGridCard } from "./project-grid-card";
 import { ProjectTimelineCard } from "./project-timeline-card";
 import { useProjectArchive, type PortfolioCreationFormat } from "./use-project-archive";
 import type { ProjectArchiveViewMode } from "./project-archive.types";
+import {
+  CareerFilterChip,
+  CareerFilterSection,
+  CareerListToolbar,
+} from "@/components/features/career/career-list-toolbar";
+import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
 
 interface ProjectArchiveScreenProps {
   initialProjects: ProjectInput[];
 }
 
+type ProjectStatusFilter = "all" | "ongoing" | "completed";
+type ProjectAssetFilter = "all" | "with-assets" | "without-assets";
+type ProjectSort = "recent" | "title";
+
+function isOngoingPeriod(period?: string) {
+  return /(?:현재|진행|진행중|present|now)/i.test(period || "");
+}
+
+function isCompletedPeriod(period?: string) {
+  const end = (period || "").split("~")[1]?.trim() || "";
+  return !isOngoingPeriod(period) && /\d{4}/.test(end);
+}
+
+function getProjectStartDate(period?: string) {
+  const match = (period || "").match(/(\d{4})[.:/-]?(\d{1,2})?/);
+  if (!match) return "0000.00";
+  return `${match[1]}.${(match[2] || "01").padStart(2, "0")}`;
+}
+
 export function ProjectArchiveScreen({
   initialProjects,
 }: ProjectArchiveScreenProps) {
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status");
+  const initialAssets = searchParams.get("assets");
+  const initialSort = searchParams.get("sort");
   const [viewMode, setViewMode] = useState<ProjectArchiveViewMode>("cards");
   const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>(
+    initialStatus === "ongoing" || initialStatus === "completed" ? initialStatus : "all",
+  );
+  const [assetFilter, setAssetFilter] = useState<ProjectAssetFilter>(
+    initialAssets === "with-assets" || initialAssets === "without-assets" ? initialAssets : "all",
+  );
+  const [selectedTech, setSelectedTech] = useState<string[]>(
+    () => searchParams.get("tech")?.split(",").filter(Boolean) || [],
+  );
+  const [selectedYear, setSelectedYear] = useState(searchParams.get("year") || "all");
+  const [sortOrder, setSortOrder] = useState<ProjectSort>(
+    initialSort === "title" ? "title" : "recent",
+  );
   const {
     activeId,
     formData,
@@ -56,10 +99,97 @@ export function ProjectArchiveScreen({
     closeWizard,
   } = useProjectArchive(initialProjects);
 
-  const activeProject = useMemo(
-    () => sortedProjects.find((project) => project.id === activeId),
-    [activeId, sortedProjects],
+  const availableTech = useMemo(
+    () =>
+      Array.from(
+        new Set(sortedProjects.flatMap((project) => project.techStack || [])),
+      ).sort((a, b) => a.localeCompare(b, "ko")),
+    [sortedProjects],
   );
+
+  const availableYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          sortedProjects
+            .map((project) => project.period?.match(/\d{4}/)?.[0])
+            .filter((year): year is string => Boolean(year)),
+        ),
+      ).sort((a, b) => b.localeCompare(a)),
+    [sortedProjects],
+  );
+
+  const filteredProjects = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const next = sortedProjects.filter((project) => {
+      const ongoing = isOngoingPeriod(project.period);
+      if (statusFilter === "ongoing" && !ongoing) return false;
+      if (statusFilter === "completed" && !isCompletedPeriod(project.period)) return false;
+
+      const hasAssets = Boolean(
+        project.representativeImage?.url || project.attachments?.length,
+      );
+      if (assetFilter === "with-assets" && !hasAssets) return false;
+      if (assetFilter === "without-assets" && hasAssets) return false;
+      if (selectedYear !== "all" && !project.period?.includes(selectedYear)) return false;
+      if (
+        selectedTech.length > 0 &&
+        !selectedTech.every((tech) => project.techStack?.includes(tech))
+      ) {
+        return false;
+      }
+
+      if (!query) return true;
+      const searchable = [
+        project.company,
+        project.position,
+        project.role,
+        project.description,
+        project.result,
+        ...(project.tags || []),
+        ...(project.techStack || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return searchable.includes(query);
+    });
+
+    return [...next].sort((a, b) => {
+      if (sortOrder === "title") {
+        return (a.company || "").localeCompare(b.company || "", "ko");
+      }
+      return getProjectStartDate(b.period).localeCompare(getProjectStartDate(a.period));
+    });
+  }, [assetFilter, searchQuery, selectedTech, selectedYear, sortOrder, sortedProjects, statusFilter]);
+
+  const activeProject = useMemo(
+    () => filteredProjects.find((project) => project.id === activeId),
+    [activeId, filteredProjects],
+  );
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setAssetFilter("all");
+    setSelectedTech([]);
+    setSelectedYear("all");
+    setSortOrder("recent");
+  };
+
+  const advancedFilterCount =
+    selectedTech.length +
+    (selectedYear === "all" ? 0 : 1) +
+    (assetFilter === "all" ? 0 : 1);
+
+  useCareerFilterUrl({
+    q: searchQuery || null,
+    status: statusFilter === "all" ? null : statusFilter,
+    tech: selectedTech.length ? selectedTech.join(",") : null,
+    year: selectedYear === "all" ? null : selectedYear,
+    assets: assetFilter === "all" ? null : assetFilter,
+    sort: sortOrder === "recent" ? null : sortOrder,
+  });
 
   const handlePortfolioGenerate = () => {
     setIsFormatDialogOpen(true);
@@ -97,6 +227,98 @@ export function ProjectArchiveScreen({
           onAddNew={handleAddNew}
         />
 
+        {sortedProjects.length > 0 ? (
+          <CareerListToolbar
+            ariaLabel="프로젝트 필터"
+            quickFilters={[
+              {
+                id: "all",
+                label: "전체",
+                active: statusFilter === "all",
+                onClick: () => setStatusFilter("all"),
+              },
+              {
+                id: "ongoing",
+                label: "진행 중",
+                active: statusFilter === "ongoing",
+                onClick: () => setStatusFilter("ongoing"),
+              },
+              {
+                id: "completed",
+                label: "완료",
+                active: statusFilter === "completed",
+                onClick: () => setStatusFilter("completed"),
+              },
+            ]}
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="프로젝트명·역할·기술 검색"
+            sortValue={sortOrder}
+            onSortChange={(value) => setSortOrder(value as ProjectSort)}
+            sortOptions={[
+              { value: "recent", label: "최근 프로젝트순" },
+              { value: "title", label: "제목순" },
+            ]}
+            advancedFilterCount={advancedFilterCount}
+            advancedFilters={
+              <>
+                <CareerFilterSection label="기술 스택">
+                  {availableTech.length > 0 ? availableTech.map((tech) => (
+                    <CareerFilterChip
+                      key={tech}
+                      active={selectedTech.includes(tech)}
+                      onClick={() =>
+                        setSelectedTech((current) =>
+                          current.includes(tech)
+                            ? current.filter((item) => item !== tech)
+                            : [...current, tech],
+                        )
+                      }
+                    >
+                      {tech}
+                    </CareerFilterChip>
+                  )) : <span className="text-xs text-slate-400">등록된 기술 스택이 없습니다.</span>}
+                </CareerFilterSection>
+                <CareerFilterSection label="진행 연도">
+                  <CareerFilterChip active={selectedYear === "all"} onClick={() => setSelectedYear("all")}>전체</CareerFilterChip>
+                  {availableYears.map((year) => (
+                    <CareerFilterChip key={year} active={selectedYear === year} onClick={() => setSelectedYear(year)}>
+                      {year}년
+                    </CareerFilterChip>
+                  ))}
+                </CareerFilterSection>
+                <CareerFilterSection label="보관 자료">
+                  {([
+                    ["all", "전체"],
+                    ["with-assets", "첨부자료 있음"],
+                    ["without-assets", "첨부자료 없음"],
+                  ] as const).map(([value, label]) => (
+                    <CareerFilterChip key={value} active={assetFilter === value} onClick={() => setAssetFilter(value)}>
+                      {label}
+                    </CareerFilterChip>
+                  ))}
+                </CareerFilterSection>
+              </>
+            }
+            activeFilters={[
+              ...selectedTech.map((tech) => ({
+                id: `tech-${tech}`,
+                label: tech,
+                onRemove: () => setSelectedTech((current) => current.filter((item) => item !== tech)),
+              })),
+              ...(selectedYear !== "all" ? [{ id: "year", label: `${selectedYear}년`, onRemove: () => setSelectedYear("all") }] : []),
+              ...(assetFilter !== "all" ? [{
+                id: "assets",
+                label: assetFilter === "with-assets" ? "첨부자료 있음" : "첨부자료 없음",
+                onRemove: () => setAssetFilter("all"),
+              }] : []),
+            ]}
+            onReset={resetFilters}
+            resultCount={filteredProjects.length}
+            totalCount={sortedProjects.length}
+          />
+        ) : null}
+
         {sortedProjects.length === 0 && (
           <ProjectArchiveEmptyState
             onAddNew={handleAddNew}
@@ -105,9 +327,18 @@ export function ProjectArchiveScreen({
           />
         )}
 
-        {sortedProjects.length > 0 && viewMode === "cards" && (
+        {sortedProjects.length > 0 && filteredProjects.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/50 px-6 text-center dark:border-slate-700 dark:bg-slate-900/50">
+            <p className="font-semibold text-slate-600 dark:text-slate-300">조건에 맞는 프로젝트가 없습니다.</p>
+            <button type="button" onClick={resetFilters} className="mt-3 text-sm font-bold text-primary hover:underline">
+              필터 초기화
+            </button>
+          </div>
+        ) : null}
+
+        {filteredProjects.length > 0 && viewMode === "cards" && (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {sortedProjects.map((project, index) => {
+            {filteredProjects.map((project, index) => {
               const isActive = activeId === project.id;
               const isSelected = selectedIds.includes(project.id!);
 
@@ -127,7 +358,7 @@ export function ProjectArchiveScreen({
           </div>
         )}
 
-        {sortedProjects.length > 0 && viewMode === "timeline" && (
+        {filteredProjects.length > 0 && viewMode === "timeline" && (
           <div
             className={cn(
               "relative w-full pb-20 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -139,7 +370,7 @@ export function ProjectArchiveScreen({
             <div className="absolute bottom-0 left-1/2 top-4 w-[2px] -translate-x-1/2 rounded-full bg-slate-200 dark:bg-slate-800/60" />
 
             <div className="relative z-10 flex flex-col gap-10">
-              {sortedProjects.map((project, index) => {
+              {filteredProjects.map((project, index) => {
                 const isActive = activeId === project.id;
                 const isSelected = selectedIds.includes(project.id!);
 

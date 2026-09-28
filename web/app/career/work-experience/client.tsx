@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,30 @@ import { cn } from "@/lib/utils";
 import { MonthRangePicker } from "@/components/features/resume/MonthRangePicker";
 import { saveWorkExperienceAction, deleteWorkExperienceAction, type WorkExperienceInput } from "./actions";
 import { seedCareerSampleDataAction } from "../sample-data/actions";
+import {
+  CareerFilterChip,
+  CareerFilterSection,
+  CareerListToolbar,
+} from "@/components/features/career/career-list-toolbar";
+import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
+
+type WorkStatusFilter = "all" | "current" | "ended";
+type WorkSort = "recent" | "company";
+
+function isCurrentPeriod(period?: string) {
+  return /(?:현재|진행|진행중|present|now)/i.test(period || "");
+}
+
+function isEndedPeriod(period?: string) {
+  const end = (period || "").split("~")[1]?.trim() || "";
+  return !isCurrentPeriod(period) && /\d{4}/.test(end);
+}
+
+function getStartDate(period?: string) {
+  const match = (period || "").match(/(\d{4})[.:/-]?(\d{1,2})?/);
+  if (!match) return "0000.00";
+  return `${match[1]}.${(match[2] || "01").padStart(2, "0")}`;
+}
 
 export default function WorkExperienceClient({ initialExperiences }: { initialExperiences: WorkExperienceInput[] }) {
   const searchParams = useSearchParams();
@@ -34,23 +58,66 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
   const [isSaving, setIsSaving] = useState(false);
   const [isSeedingSample, setIsSeedingSample] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
+  const initialStatus = searchParams.get("status");
+  const initialSort = searchParams.get("sort");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [statusFilter, setStatusFilter] = useState<WorkStatusFilter>(
+    initialStatus === "current" || initialStatus === "ended" ? initialStatus : "all",
+  );
+  const [selectedYear, setSelectedYear] = useState(searchParams.get("year") || "all");
+  const [sortOrder, setSortOrder] = useState<WorkSort>(
+    initialSort === "company" ? "company" : "recent",
+  );
 
-  // Default sorted experiences
-  const sortedExperiences = [...experiences].sort((a, b) => {
-    const getDateString = (periodStr?: string) => {
-      if (!periodStr) return "0000.00";
-      const startPart = periodStr.split("~")[0].trim();
-      const match = startPart.match(/(\d{4})[:./-](\d{1,2})/);
-      if (match) {
-        return `${match[1]}.${match[2].padStart(2, '0')}`;
+  const availableYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          experiences.flatMap((experience) => experience.period?.match(/\d{4}/g) || []),
+        ),
+      ).sort((a, b) => b.localeCompare(a)),
+    [experiences],
+  );
+
+  const filteredExperiences = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const next = experiences.filter((experience) => {
+      const current = isCurrentPeriod(experience.period);
+      if (statusFilter === "current" && !current) return false;
+      if (statusFilter === "ended" && !isEndedPeriod(experience.period)) return false;
+      if (selectedYear !== "all" && !experience.period?.includes(selectedYear)) return false;
+
+      if (!query) return true;
+      return [experience.company, experience.position, experience.description]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+
+    return [...next].sort((a, b) => {
+      if (sortOrder === "company") {
+        return (a.company || "").localeCompare(b.company || "", "ko");
       }
-      return "0000.00";
-    };
-    const dateA = getDateString(a.period);
-    const dateB = getDateString(b.period);
-    return dateB.localeCompare(dateA);
+      return getStartDate(b.period).localeCompare(getStartDate(a.period));
+    });
+  }, [experiences, searchQuery, selectedYear, sortOrder, statusFilter]);
+
+  const activeExperience = filteredExperiences.find((experience) => experience.id === activeId);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSelectedYear("all");
+    setSortOrder("recent");
+  };
+
+  useCareerFilterUrl({
+    q: searchQuery || null,
+    status: statusFilter === "all" ? null : statusFilter,
+    year: selectedYear === "all" ? null : selectedYear,
+    sort: sortOrder === "recent" ? null : sortOrder,
   });
-  const activeExperience = sortedExperiences.find((experience) => experience.id === activeId);
 
   const handleAddNew = () => {
     const newId = `new_${Date.now()}`;
@@ -141,7 +208,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
         <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 xl:flex-row xl:items-end">
           <div className="min-w-0">
             <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              {sortedExperiences.length}개 경력
+              {experiences.length}개 경력
             </div>
             <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               경력 보관함
@@ -192,7 +259,48 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           </div>
         </div>
 
-        {sortedExperiences.length === 0 && activeId === null && (
+        {experiences.length > 0 ? (
+          <CareerListToolbar
+            ariaLabel="경력 필터"
+            quickFilters={[
+              { id: "all", label: "전체", active: statusFilter === "all", onClick: () => setStatusFilter("all") },
+              { id: "current", label: "재직 중", active: statusFilter === "current", onClick: () => setStatusFilter("current") },
+              { id: "ended", label: "종료", active: statusFilter === "ended", onClick: () => setStatusFilter("ended") },
+            ]}
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="회사명·직무·업무 검색"
+            sortValue={sortOrder}
+            onSortChange={(value) => setSortOrder(value as WorkSort)}
+            sortOptions={[
+              { value: "recent", label: "최근 경력순" },
+              { value: "company", label: "회사명순" },
+            ]}
+            advancedFilterCount={selectedYear === "all" ? 0 : 1}
+            advancedFilters={
+              <CareerFilterSection label="재직 연도">
+                <CareerFilterChip active={selectedYear === "all"} onClick={() => setSelectedYear("all")}>
+                  전체
+                </CareerFilterChip>
+                {availableYears.map((year) => (
+                  <CareerFilterChip key={year} active={selectedYear === year} onClick={() => setSelectedYear(year)}>
+                    {year}년
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+            }
+            activeFilters={selectedYear !== "all" ? [{
+              id: "year",
+              label: `${selectedYear}년`,
+              onRemove: () => setSelectedYear("all"),
+            }] : []}
+            onReset={resetFilters}
+            resultCount={filteredExperiences.length}
+            totalCount={experiences.length}
+          />
+        ) : null}
+
+        {experiences.length === 0 && activeId === null && (
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/50 py-20 dark:border-slate-700 dark:bg-slate-900/50">
             <p className="mb-4 font-medium text-slate-500">아직 등록된 재직 경력이 없습니다.</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -211,6 +319,21 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           </div>
         )}
 
+        {experiences.length > 0 && filteredExperiences.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/50 px-6 text-center dark:border-slate-700 dark:bg-slate-900/50">
+            <p className="font-semibold text-slate-600 dark:text-slate-300">
+              조건에 맞는 경력이 없습니다.
+            </p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-3 text-sm font-bold text-primary hover:underline"
+            >
+              필터 초기화
+            </button>
+          </div>
+        ) : null}
+
         {activeId?.startsWith("new_") && (
           <div className="mb-8 max-w-2xl">
             <ExperienceFormCard
@@ -223,7 +346,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           </div>
         )}
 
-        {sortedExperiences.length > 0 && viewMode === "cards" && (() => {
+        {filteredExperiences.length > 0 && viewMode === "cards" && (() => {
           const hasOpenDetail = Boolean(activeExperience) && !activeId?.startsWith("new_");
           return (
             <div
@@ -243,7 +366,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
                     : "sm:grid-cols-2 xl:grid-cols-3",
                 )}
               >
-                {sortedExperiences.map((exp) => {
+                {filteredExperiences.map((exp) => {
                   const isActive = activeId === exp.id;
                   return (
                     <article
@@ -312,7 +435,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           );
         })()}
 
-        {sortedExperiences.length > 0 && viewMode === "timeline" && (
+        {filteredExperiences.length > 0 && viewMode === "timeline" && (
           <div
             className={cn(
               "relative w-full pb-20 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -321,7 +444,7 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
           >
             <div className="absolute bottom-0 left-1/2 top-4 w-[2px] -translate-x-1/2 rounded-full bg-slate-200 dark:bg-slate-800/60" />
             <div className="relative z-10 flex flex-col gap-10">
-              {sortedExperiences.map((exp) => {
+              {filteredExperiences.map((exp) => {
                 const isActive = activeId === exp.id;
                 return (
                   <div key={exp.id} className="group relative flex w-full items-start justify-center">
