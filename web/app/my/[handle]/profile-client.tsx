@@ -240,13 +240,38 @@ const NAV_ITEMS: {
 }[] = [
   {
     key: "overview",
-    label: "개요",
+    label: "홈",
     description: "내 활동을 한눈에 보는 대시보드",
     icon: LayoutDashboard,
   },
   {
+    key: "companies",
+    label: "관심 기업",
+    description: "관심 기업과 기술 블로그 설정",
+    icon: Building2,
+    ownerOnly: true,
+  },
+  {
+    key: "bookmarks",
+    label: "북마크",
+    description: "저장한 아티클 모아보기",
+    icon: Bookmark,
+  },
+  {
+    key: "content",
+    label: "커뮤니티 활동",
+    description: "작성한 글과 댓글 관리",
+    icon: FileText,
+  },
+  {
+    key: "activity",
+    label: "워크스페이스",
+    description: "팀 공간 활동 기록",
+    icon: Activity,
+  },
+  {
     key: "career",
-    label: "커리어",
+    label: "커리어 관리",
     description: "커리어 자료와 제작 도구",
     icon: BriefcaseBusiness,
     ownerOnly: true,
@@ -257,31 +282,6 @@ const NAV_ITEMS: {
     description: "완료한 면접과 분석 결과",
     icon: BarChart3,
     ownerOnly: true,
-  },
-  {
-    key: "companies",
-    label: "관심 기업",
-    description: "관심 기업과 기술 블로그 설정",
-    icon: Building2,
-    ownerOnly: true,
-  },
-  {
-    key: "content",
-    label: "콘텐츠",
-    description: "글과 댓글을 함께 관리",
-    icon: FileText,
-  },
-  {
-    key: "bookmarks",
-    label: "북마크",
-    description: "저장한 아티클 모아보기",
-    icon: Bookmark,
-  },
-  {
-    key: "activity",
-    label: "스페이스",
-    description: "팀 공간 활동 기록",
-    icon: Activity,
   },
 ];
 
@@ -487,7 +487,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(
-              json?.error || "스페이스 활동 기록을 불러오지 못했습니다.",
+              json?.error || "워크스페이스 활동 기록을 불러오지 못했습니다.",
             );
           }
           const nextItems = Array.isArray(json?.data?.items)
@@ -998,7 +998,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
                         <OverviewShortcutRow
                           icon={Activity}
-                          title="스페이스 활동"
+                          title="워크스페이스"
                           description="참여한 워크스페이스"
                           count={displayStats.workspaceCount}
                           actionLabel="열기"
@@ -1057,7 +1057,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 <CardHeader className="gap-4 pb-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <CardTitle className="text-xl">콘텐츠 활동</CardTitle>
+                      <CardTitle className="text-xl">커뮤니티 활동</CardTitle>
                       <CardDescription>
                         글과 댓글을 한 곳에서 오가며 확인할 수 있도록 묶었습니다.
                       </CardDescription>
@@ -1155,7 +1155,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             {activeTab === "activity" && (
               <Card>
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-xl">스페이스 활동</CardTitle>
+                  <CardTitle className="text-xl">워크스페이스</CardTitle>
                   <CardDescription>
                     참여한 팀 공간을 한 페이지에서 바로 확인합니다.
                   </CardDescription>
