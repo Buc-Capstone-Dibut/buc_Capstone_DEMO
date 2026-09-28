@@ -274,6 +274,7 @@ export default function PortfoliosClient({
   };
 
   const advancedFilterCount =
+    (typeFilter === "all" ? 0 : 1) +
     (visibilityFilter === "all" ? 0 : 1) +
     (generationFilter === "all" ? 0 : 1);
 
@@ -505,16 +506,6 @@ export default function PortfoliosClient({
       {portfolios.length > 0 ? (
         <CareerListToolbar
           ariaLabel="포트폴리오 필터"
-          quickFilters={([
-            ["all", "전체"],
-            ["slides", "슬라이드형"],
-            ["showcase", "웹사이트형"],
-          ] as const).map(([value, label]) => ({
-            id: value,
-            label,
-            active: typeFilter === value,
-            onClick: () => setTypeFilter(value),
-          }))}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="포트폴리오·기반 프로젝트 검색"
@@ -527,6 +518,17 @@ export default function PortfoliosClient({
           advancedFilterCount={advancedFilterCount}
           advancedFilters={
             <>
+              <CareerFilterSection label="포트폴리오 형식">
+                {([
+                  ["all", "전체"],
+                  ["slides", "슬라이드형"],
+                  ["showcase", "웹사이트형"],
+                ] as const).map(([value, label]) => (
+                  <CareerFilterChip key={value} active={typeFilter === value} onClick={() => setTypeFilter(value)}>
+                    {label}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
               <CareerFilterSection label="공개 상태">
                 {([
                   ["all", "전체"],
@@ -552,6 +554,11 @@ export default function PortfoliosClient({
             </>
           }
           activeFilters={[
+            ...(typeFilter !== "all" ? [{
+              id: "type",
+              label: typeFilter === "slides" ? "슬라이드형" : "웹사이트형",
+              onRemove: () => setTypeFilter("all"),
+            }] : []),
             ...(visibilityFilter !== "all" ? [{
               id: "visibility",
               label: visibilityFilter === "public" ? "공개" : "비공개",
@@ -564,8 +571,6 @@ export default function PortfoliosClient({
             }] : []),
           ]}
           onReset={resetFilters}
-          resultCount={filteredPortfolios.length}
-          totalCount={portfolios.length}
         />
       ) : null}
 

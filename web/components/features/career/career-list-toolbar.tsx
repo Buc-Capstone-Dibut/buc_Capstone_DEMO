@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Filter, RotateCcw, Search, X } from "lucide-react";
+import { Filter, RotateCcw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,14 +26,6 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export interface CareerQuickFilter {
-  id: string;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  activeClassName?: string;
-}
-
 export interface CareerSortOption {
   value: string;
   label: string;
@@ -47,7 +39,6 @@ export interface CareerActiveFilter {
 
 interface CareerListToolbarProps {
   ariaLabel: string;
-  quickFilters?: CareerQuickFilter[];
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
@@ -58,15 +49,12 @@ interface CareerListToolbarProps {
   advancedFilters?: ReactNode;
   activeFilters?: CareerActiveFilter[];
   onReset?: () => void;
-  resultCount?: number;
-  totalCount?: number;
   trailingAction?: ReactNode;
   className?: string;
 }
 
 export function CareerListToolbar({
   ariaLabel,
-  quickFilters = [],
   searchValue,
   onSearchChange,
   searchPlaceholder,
@@ -77,8 +65,6 @@ export function CareerListToolbar({
   advancedFilters,
   activeFilters = [],
   onReset,
-  resultCount,
-  totalCount,
   trailingAction,
   className,
 }: CareerListToolbarProps) {
@@ -154,86 +140,53 @@ export function CareerListToolbar({
         )
     : null;
 
-  const hasCount = typeof resultCount === "number";
-  const countLabel = hasCount
-    ? typeof totalCount === "number" && totalCount !== resultCount
-      ? `전체 ${totalCount.toLocaleString()}개 중 ${resultCount.toLocaleString()}개`
-      : `총 ${resultCount.toLocaleString()}개`
-    : null;
-
   return (
     <section
       className={cn("mb-7 space-y-3", className)}
       aria-label={ariaLabel}
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {quickFilters.length > 0 ? (
-          <div className="-mx-1 overflow-x-auto px-1 pb-1 no-scrollbar lg:min-w-0 lg:pb-0">
-            <div className="flex w-max items-center gap-2 lg:w-auto lg:flex-wrap">
-              {quickFilters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={filter.onClick}
-                  aria-pressed={filter.active}
-                  className={cn(
-                    "h-9 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition-colors",
-                    filter.active
-                      ? filter.activeClassName || "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-950"
-                      : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
-                  )}
-                >
-                  {filter.active ? <Check className="mr-1.5 inline h-3.5 w-3.5" /> : null}
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : <div />}
-
-        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-          <div className="relative min-w-[180px] flex-1 sm:min-w-[240px] lg:w-[280px] lg:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={searchValue}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              className="h-10 rounded-xl border-slate-200 bg-white pl-9 pr-9 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900"
-              aria-label={searchPlaceholder}
-            />
-            {searchValue ? (
-              <button
-                type="button"
-                onClick={() => onSearchChange("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="검색어 지우기"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-
-          {advancedControl}
-
-          <Select value={sortValue} onValueChange={onSortChange}>
-            <SelectTrigger className="h-10 w-[132px] shrink-0 rounded-xl border-slate-200 bg-white text-xs font-semibold shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {trailingAction}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        <div className="relative min-w-[180px] flex-1 sm:min-w-[240px] lg:w-[280px] lg:flex-none">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-10 rounded-xl border-slate-200 bg-white pl-9 pr-9 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            aria-label={searchPlaceholder}
+          />
+          {searchValue ? (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="검색어 지우기"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
+
+        {advancedControl}
+
+        <Select value={sortValue} onValueChange={onSortChange}>
+          <SelectTrigger className="h-10 w-[132px] shrink-0 rounded-xl border-slate-200 bg-white text-xs font-semibold shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {trailingAction}
       </div>
 
-      {(activeFilters.length > 0 || countLabel) ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+      {activeFilters.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {activeFilters.map((filter) => (
               <button
@@ -257,11 +210,6 @@ export function CareerListToolbar({
               </button>
             ) : null}
           </div>
-          {countLabel ? (
-            <span className="shrink-0 text-xs font-semibold text-slate-400">
-              {countLabel}
-            </span>
-          ) : null}
         </div>
       ) : null}
     </section>

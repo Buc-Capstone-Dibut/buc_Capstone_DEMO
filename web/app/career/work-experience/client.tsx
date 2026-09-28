@@ -207,9 +207,6 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
       <div className="mx-auto max-w-7xl px-4 sm:px-8">
         <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 xl:flex-row xl:items-end">
           <div className="min-w-0">
-            <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              {experiences.length}개 경력
-            </div>
             <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               경력 보관함
             </h1>
@@ -262,11 +259,6 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
         {experiences.length > 0 ? (
           <CareerListToolbar
             ariaLabel="경력 필터"
-            quickFilters={[
-              { id: "all", label: "전체", active: statusFilter === "all", onClick: () => setStatusFilter("all") },
-              { id: "current", label: "재직 중", active: statusFilter === "current", onClick: () => setStatusFilter("current") },
-              { id: "ended", label: "종료", active: statusFilter === "ended", onClick: () => setStatusFilter("ended") },
-            ]}
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="회사명·직무·업무 검색"
@@ -276,27 +268,48 @@ export default function WorkExperienceClient({ initialExperiences }: { initialEx
               { value: "recent", label: "최근 경력순" },
               { value: "company", label: "회사명순" },
             ]}
-            advancedFilterCount={selectedYear === "all" ? 0 : 1}
-            advancedFilters={
-              <CareerFilterSection label="재직 연도">
-                <CareerFilterChip active={selectedYear === "all"} onClick={() => setSelectedYear("all")}>
-                  전체
-                </CareerFilterChip>
-                {availableYears.map((year) => (
-                  <CareerFilterChip key={year} active={selectedYear === year} onClick={() => setSelectedYear(year)}>
-                    {year}년
-                  </CareerFilterChip>
-                ))}
-              </CareerFilterSection>
+            advancedFilterCount={
+              (statusFilter === "all" ? 0 : 1) +
+              (selectedYear === "all" ? 0 : 1)
             }
-            activeFilters={selectedYear !== "all" ? [{
-              id: "year",
-              label: `${selectedYear}년`,
-              onRemove: () => setSelectedYear("all"),
-            }] : []}
+            advancedFilters={
+              <>
+                <CareerFilterSection label="재직 상태">
+                  {([
+                    ["all", "전체"],
+                    ["current", "재직 중"],
+                    ["ended", "종료"],
+                  ] as const).map(([value, label]) => (
+                    <CareerFilterChip key={value} active={statusFilter === value} onClick={() => setStatusFilter(value)}>
+                      {label}
+                    </CareerFilterChip>
+                  ))}
+                </CareerFilterSection>
+                <CareerFilterSection label="재직 연도">
+                  <CareerFilterChip active={selectedYear === "all"} onClick={() => setSelectedYear("all")}>
+                    전체
+                  </CareerFilterChip>
+                  {availableYears.map((year) => (
+                    <CareerFilterChip key={year} active={selectedYear === year} onClick={() => setSelectedYear(year)}>
+                      {year}년
+                    </CareerFilterChip>
+                  ))}
+                </CareerFilterSection>
+              </>
+            }
+            activeFilters={[
+              ...(statusFilter !== "all" ? [{
+                id: "status",
+                label: statusFilter === "current" ? "재직 중" : "종료",
+                onRemove: () => setStatusFilter("all"),
+              }] : []),
+              ...(selectedYear !== "all" ? [{
+                id: "year",
+                label: `${selectedYear}년`,
+                onRemove: () => setSelectedYear("all"),
+              }] : []),
+            ]}
             onReset={resetFilters}
-            resultCount={filteredExperiences.length}
-            totalCount={experiences.length}
           />
         ) : null}
 

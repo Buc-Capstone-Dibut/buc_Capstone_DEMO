@@ -26,18 +26,8 @@ interface ProjectArchiveScreenProps {
   initialProjects: ProjectInput[];
 }
 
-type ProjectStatusFilter = "all" | "ongoing" | "completed";
 type ProjectAssetFilter = "all" | "with-assets" | "without-assets";
 type ProjectSort = "recent" | "title";
-
-function isOngoingPeriod(period?: string) {
-  return /(?:현재|진행|진행중|present|now)/i.test(period || "");
-}
-
-function isCompletedPeriod(period?: string) {
-  const end = (period || "").split("~")[1]?.trim() || "";
-  return !isOngoingPeriod(period) && /\d{4}/.test(end);
-}
 
 function getProjectStartDate(period?: string) {
   const match = (period || "").match(/(\d{4})[.:/-]?(\d{1,2})?/);
@@ -49,15 +39,11 @@ export function ProjectArchiveScreen({
   initialProjects,
 }: ProjectArchiveScreenProps) {
   const searchParams = useSearchParams();
-  const initialStatus = searchParams.get("status");
   const initialAssets = searchParams.get("assets");
   const initialSort = searchParams.get("sort");
   const [viewMode, setViewMode] = useState<ProjectArchiveViewMode>("cards");
   const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
-  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>(
-    initialStatus === "ongoing" || initialStatus === "completed" ? initialStatus : "all",
-  );
   const [assetFilter, setAssetFilter] = useState<ProjectAssetFilter>(
     initialAssets === "with-assets" || initialAssets === "without-assets" ? initialAssets : "all",
   );
@@ -122,10 +108,6 @@ export function ProjectArchiveScreen({
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const next = sortedProjects.filter((project) => {
-      const ongoing = isOngoingPeriod(project.period);
-      if (statusFilter === "ongoing" && !ongoing) return false;
-      if (statusFilter === "completed" && !isCompletedPeriod(project.period)) return false;
-
       const hasAssets = Boolean(
         project.representativeImage?.url || project.attachments?.length,
       );
@@ -161,7 +143,7 @@ export function ProjectArchiveScreen({
       }
       return getProjectStartDate(b.period).localeCompare(getProjectStartDate(a.period));
     });
-  }, [assetFilter, searchQuery, selectedTech, selectedYear, sortOrder, sortedProjects, statusFilter]);
+  }, [assetFilter, searchQuery, selectedTech, selectedYear, sortOrder, sortedProjects]);
 
   const activeProject = useMemo(
     () => filteredProjects.find((project) => project.id === activeId),
@@ -170,7 +152,6 @@ export function ProjectArchiveScreen({
 
   const resetFilters = () => {
     setSearchQuery("");
-    setStatusFilter("all");
     setAssetFilter("all");
     setSelectedTech([]);
     setSelectedYear("all");
@@ -184,7 +165,7 @@ export function ProjectArchiveScreen({
 
   useCareerFilterUrl({
     q: searchQuery || null,
-    status: statusFilter === "all" ? null : statusFilter,
+    status: null,
     tech: selectedTech.length ? selectedTech.join(",") : null,
     year: selectedYear === "all" ? null : selectedYear,
     assets: assetFilter === "all" ? null : assetFilter,
@@ -220,7 +201,6 @@ export function ProjectArchiveScreen({
           selectionMode={selectionMode}
           portfolioMode={portfolioMode}
           viewMode={viewMode}
-          projectCount={sortedProjects.length}
           onViewModeChange={setViewMode}
           onToggleSelectionMode={toggleSelectionMode}
           onTogglePortfolioMode={togglePortfolioMode}
@@ -230,26 +210,6 @@ export function ProjectArchiveScreen({
         {sortedProjects.length > 0 ? (
           <CareerListToolbar
             ariaLabel="프로젝트 필터"
-            quickFilters={[
-              {
-                id: "all",
-                label: "전체",
-                active: statusFilter === "all",
-                onClick: () => setStatusFilter("all"),
-              },
-              {
-                id: "ongoing",
-                label: "진행 중",
-                active: statusFilter === "ongoing",
-                onClick: () => setStatusFilter("ongoing"),
-              },
-              {
-                id: "completed",
-                label: "완료",
-                active: statusFilter === "completed",
-                onClick: () => setStatusFilter("completed"),
-              },
-            ]}
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
             searchPlaceholder="프로젝트명·역할·기술 검색"
@@ -314,8 +274,6 @@ export function ProjectArchiveScreen({
               }] : []),
             ]}
             onReset={resetFilters}
-            resultCount={filteredProjects.length}
-            totalCount={sortedProjects.length}
           />
         ) : null}
 

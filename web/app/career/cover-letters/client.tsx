@@ -27,7 +27,6 @@ import {
 } from "@/components/features/career/career-list-toolbar";
 import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
 
-type CoverLetterTargetFilter = "all" | "posting" | "manual" | "none";
 type CoverLetterCompletionFilter = "all" | "complete" | "draft";
 type CoverLetterSort = "recent" | "deadline" | "title";
 
@@ -109,15 +108,9 @@ export default function CoverLettersClient({
   );
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<CoverLetterInput>>({});
-  const initialTarget = searchParams.get("target");
   const initialCompletion = searchParams.get("completion");
   const initialSort = searchParams.get("sort");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
-  const [targetFilter, setTargetFilter] = useState<CoverLetterTargetFilter>(
-    initialTarget === "posting" || initialTarget === "manual" || initialTarget === "none"
-      ? initialTarget
-      : "all",
-  );
   const [sourceResumeFilter, setSourceResumeFilter] = useState(searchParams.get("source") || "all");
   const [completionFilter, setCompletionFilter] = useState<CoverLetterCompletionFilter>(
     initialCompletion === "complete" || initialCompletion === "draft" ? initialCompletion : "all",
@@ -163,13 +156,6 @@ export default function CoverLettersClient({
   const filteredLetters = useMemo(
     () => {
       const filtered = letters.filter((letter) => {
-        const hasPostingTarget = Boolean(letter.targetPosting);
-        const hasManualTarget = !hasPostingTarget && Boolean(
-          letter.targetMeta?.company || letter.company || letter.targetMeta?.role || letter.role,
-        );
-        if (targetFilter === "posting" && !hasPostingTarget) return false;
-        if (targetFilter === "manual" && !hasManualTarget) return false;
-        if (targetFilter === "none" && (hasPostingTarget || hasManualTarget)) return false;
         if (sourceResumeFilter !== "all" && letter.sourceResume?.id !== sourceResumeFilter) return false;
 
         const questions = letter.questions || [];
@@ -206,12 +192,11 @@ export default function CoverLettersClient({
         return bTime - aTime;
       });
     },
-    [completionFilter, letters, searchQuery, sortOrder, sourceResumeFilter, targetFilter],
+    [completionFilter, letters, searchQuery, sortOrder, sourceResumeFilter],
   );
 
   const resetFilters = () => {
     setSearchQuery("");
-    setTargetFilter("all");
     setSourceResumeFilter("all");
     setCompletionFilter("all");
     setSortOrder("recent");
@@ -223,7 +208,7 @@ export default function CoverLettersClient({
 
   useCareerFilterUrl({
     q: searchQuery || null,
-    target: targetFilter === "all" ? null : targetFilter,
+    target: null,
     source: sourceResumeFilter === "all" ? null : sourceResumeFilter,
     completion: completionFilter === "all" ? null : completionFilter,
     sort: sortOrder === "recent" ? null : sortOrder,
@@ -414,12 +399,6 @@ export default function CoverLettersClient({
       {letters.length > 0 ? (
         <CareerListToolbar
           ariaLabel="자기소개서 필터"
-          quickFilters={[
-            { id: "all", label: "전체", active: targetFilter === "all", onClick: () => setTargetFilter("all") },
-            { id: "posting", label: "공고 연결", active: targetFilter === "posting", onClick: () => setTargetFilter("posting") },
-            { id: "manual", label: "직접 입력", active: targetFilter === "manual", onClick: () => setTargetFilter("manual") },
-            { id: "none", label: "대상 없음", active: targetFilter === "none", onClick: () => setTargetFilter("none") },
-          ]}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="자소서명·기업·직무·내용 검색"
@@ -469,8 +448,6 @@ export default function CoverLettersClient({
             }] : []),
           ]}
           onReset={resetFilters}
-          resultCount={filteredLetters.length}
-          totalCount={letters.length}
         />
       ) : null}
 

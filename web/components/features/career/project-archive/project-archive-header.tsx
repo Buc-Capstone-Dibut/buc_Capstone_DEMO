@@ -9,7 +9,6 @@ interface ProjectArchiveHeaderProps {
   selectionMode: boolean;
   portfolioMode: boolean;
   viewMode: ProjectArchiveViewMode;
-  projectCount: number;
   onViewModeChange: (viewMode: ProjectArchiveViewMode) => void;
   onToggleSelectionMode: () => void;
   onTogglePortfolioMode: () => void;
@@ -20,7 +19,6 @@ export function ProjectArchiveHeader({
   selectionMode,
   portfolioMode,
   viewMode,
-  projectCount,
   onViewModeChange,
   onToggleSelectionMode,
   onTogglePortfolioMode,
@@ -29,9 +27,6 @@ export function ProjectArchiveHeader({
   return (
     <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 xl:flex-row xl:items-end">
       <div className="min-w-0">
-        <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          {projectCount}개 프로젝트
-        </div>
         <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
           프로젝트 보관함
         </h1>

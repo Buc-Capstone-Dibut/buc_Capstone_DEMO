@@ -89,7 +89,6 @@ export type ResumeListItem = {
   } | null;
 };
 
-type ResumeTargetFilter = "all" | "posting" | "manual" | "none";
 type ResumeUsageFilter = "all" | "attached" | "cover-letter";
 type ResumeSort = "recent" | "title" | "deadline";
 
@@ -116,15 +115,9 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
   const [postingsLoading, setPostingsLoading] = useState(false);
   const [postingsLoaded, setPostingsLoaded] = useState(false);
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(null);
-  const initialTarget = searchParams.get("target");
   const initialUsage = searchParams.get("usage");
   const initialSort = searchParams.get("sort");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
-  const [targetFilter, setTargetFilter] = useState<ResumeTargetFilter>(
-    initialTarget === "posting" || initialTarget === "manual" || initialTarget === "none"
-      ? initialTarget
-      : "all",
-  );
   const [usageFilter, setUsageFilter] = useState<ResumeUsageFilter>(
     initialUsage === "attached" || initialUsage === "cover-letter" ? initialUsage : "all",
   );
@@ -151,14 +144,6 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
   const filteredResumes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const next = localResumes.filter((resume) => {
-      const hasPostingTarget = Boolean(resume.targetPosting);
-      const hasManualTarget = !hasPostingTarget && Boolean(
-        resume.targetMeta?.company || resume.targetMeta?.role,
-      );
-
-      if (targetFilter === "posting" && !hasPostingTarget) return false;
-      if (targetFilter === "manual" && !hasManualTarget) return false;
-      if (targetFilter === "none" && (hasPostingTarget || hasManualTarget)) return false;
       if (defaultOnly && !resume.is_active) return false;
       if (usageFilter === "attached" && resume.linkedPostings.length === 0) return false;
       if (usageFilter === "cover-letter" && resume.derivedCoverLetters.length === 0) return false;
@@ -191,11 +176,10 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
       if (sortOrder === "deadline") return getResumeDeadline(a) - getResumeDeadline(b);
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
-  }, [defaultOnly, localResumes, searchQuery, selectedTech, sortOrder, targetFilter, usageFilter]);
+  }, [defaultOnly, localResumes, searchQuery, selectedTech, sortOrder, usageFilter]);
 
   const resetFilters = () => {
     setSearchQuery("");
-    setTargetFilter("all");
     setUsageFilter("all");
     setDefaultOnly(false);
     setSelectedTech([]);
@@ -207,7 +191,7 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
 
   useCareerFilterUrl({
     q: searchQuery || null,
-    target: targetFilter === "all" ? null : targetFilter,
+    target: null,
     usage: usageFilter === "all" ? null : usageFilter,
     default: defaultOnly ? 1 : null,
     tech: selectedTech.length ? selectedTech.join(",") : null,
@@ -529,9 +513,6 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
 
       <div className="mb-10 flex min-w-0 flex-col justify-between gap-6 lg:flex-row lg:items-end">
         <div className="min-w-0">
-          <div className="mb-3 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            {localResumes.length}개 이력서
-          </div>
           <h1 className="mb-2 whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             이력서 캐비닛
           </h1>
@@ -551,12 +532,6 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
       {localResumes.length > 0 ? (
         <CareerListToolbar
           ariaLabel="이력서 필터"
-          quickFilters={[
-            { id: "all", label: "전체", active: targetFilter === "all", onClick: () => setTargetFilter("all") },
-            { id: "posting", label: "공고 연결", active: targetFilter === "posting", onClick: () => setTargetFilter("posting") },
-            { id: "manual", label: "직접 입력", active: targetFilter === "manual", onClick: () => setTargetFilter("manual") },
-            { id: "none", label: "대상 없음", active: targetFilter === "none", onClick: () => setTargetFilter("none") },
-          ]}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="이력서명·지원 기업·직무 검색"
@@ -612,8 +587,6 @@ export default function ResumesClient({ resumes }: { resumes: ResumeListItem[] }
             })),
           ]}
           onReset={resetFilters}
-          resultCount={filteredResumes.length}
-          totalCount={localResumes.length}
         />
       ) : null}
 
