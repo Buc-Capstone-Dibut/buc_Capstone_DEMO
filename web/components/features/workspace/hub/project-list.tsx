@@ -9,6 +9,7 @@ import {
   Trash2,
   Loader2,
   Pencil,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +23,14 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -67,6 +76,7 @@ interface Workspace {
 
 type FetchError = Error & { status?: number };
 type WorkspaceStatusFilter = "all" | "in_progress" | "completed";
+type WorkspaceSort = "latest" | "oldest";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -117,6 +127,9 @@ export function ProjectList() {
   );
   const [statusFilter, setStatusFilter] =
     useState<WorkspaceStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [workspaceSort, setWorkspaceSort] =
+    useState<WorkspaceSort>("latest");
 
   const workspaceCounts = useMemo(() => {
     const items = Array.isArray(workspaces) ? workspaces : [];
@@ -133,22 +146,38 @@ export function ProjectList() {
 
   const visibleWorkspaces = useMemo(() => {
     const items = Array.isArray(workspaces) ? [...workspaces] : [];
+    const normalizedSearch = searchQuery.trim().toLocaleLowerCase("ko-KR");
     const filtered = items.filter((workspace) => {
       if (statusFilter === "in_progress") {
-        return workspace.lifecycle_status === "IN_PROGRESS";
+        if (workspace.lifecycle_status !== "IN_PROGRESS") return false;
       }
       if (statusFilter === "completed") {
-        return workspace.lifecycle_status === "COMPLETED";
+        if (workspace.lifecycle_status !== "COMPLETED") return false;
       }
-      return true;
+      if (!normalizedSearch) return true;
+
+      return [
+        workspace.name,
+        workspace.description,
+        getTeamTypeLabel(workspace.category),
+        workspace.my_team_role,
+      ].some((value) =>
+        value?.toLocaleLowerCase("ko-KR").includes(normalizedSearch),
+      );
     });
 
     return filtered.sort((left, right) => {
       const leftRank = left.lifecycle_status === "IN_PROGRESS" ? 0 : 1;
       const rightRank = right.lifecycle_status === "IN_PROGRESS" ? 0 : 1;
-      return leftRank - rightRank;
+      if (leftRank !== rightRank) return leftRank - rightRank;
+
+      const leftCreatedAt = Date.parse(left.created_at) || 0;
+      const rightCreatedAt = Date.parse(right.created_at) || 0;
+      return workspaceSort === "latest"
+        ? rightCreatedAt - leftCreatedAt
+        : leftCreatedAt - rightCreatedAt;
     });
-  }, [statusFilter, workspaces]);
+  }, [searchQuery, statusFilter, workspaceSort, workspaces]);
 
   const statusFilters: {
     value: WorkspaceStatusFilter;
@@ -233,9 +262,35 @@ export function ProjectList() {
             </span>
           </Button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-[240px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="워크스페이스 검색..."
+              aria-label="워크스페이스 검색"
+              className="h-10 rounded-xl bg-muted/50 pl-9"
+            />
+          </div>
+          <Select
+            value={workspaceSort}
+            onValueChange={(value) => setWorkspaceSort(value as WorkspaceSort)}
+          >
+            <SelectTrigger
+              aria-label="워크스페이스 정렬"
+              className="h-10 w-full rounded-xl bg-muted/50 sm:w-[130px]"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="latest">최신순</SelectItem>
+              <SelectItem value="oldest">오래된순</SelectItem>
+            </SelectContent>
+          </Select>
           <CreateWorkspaceDialog>
-            <Button className="h-10 gap-2 rounded-xl px-5 shadow-sm">
+            <Button className="h-10 w-full gap-2 rounded-xl px-5 shadow-sm sm:w-auto">
               <Plus className="h-4 w-4" />
               새 워크스페이스 추가
             </Button>
@@ -399,18 +454,24 @@ export function ProjectList() {
         {visibleWorkspaces.length === 0 && (
           <div className="col-span-full flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 text-center">
             <p className="font-semibold">
-              {statusFilter === "completed"
+              {searchQuery.trim()
+                ? "검색 결과가 없습니다."
+                : statusFilter === "completed"
                 ? "종료된 워크스페이스가 없습니다."
                 : statusFilter === "in_progress"
                   ? "진행 중인 워크스페이스가 없습니다."
                   : "참여 중인 워크스페이스가 없습니다."}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {statusFilter === "completed"
+              {searchQuery.trim()
+                ? "다른 검색어 또는 상태 필터로 다시 시도해보세요."
+                : statusFilter === "completed"
                 ? "종료한 팀 공간이 이곳에 표시됩니다."
                 : "새 팀 공간을 만들거나 팀에 참여해보세요."}
             </p>
-            {workspaceCounts.all === 0 && statusFilter === "all" && (
+            {workspaceCounts.all === 0 &&
+              !searchQuery.trim() &&
+              statusFilter === "all" && (
               <Button asChild variant="outline" size="sm" className="mt-5">
                 <Link href="/community/squad">팀원 모집 둘러보기</Link>
               </Button>
