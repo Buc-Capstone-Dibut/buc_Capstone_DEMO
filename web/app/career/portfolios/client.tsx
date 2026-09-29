@@ -11,6 +11,8 @@ import {
   FileImage,
   HelpCircle,
   Layers3,
+  Lock,
+  LockOpen,
   Loader2,
   Plus,
   Sparkles,
@@ -89,6 +91,25 @@ function PortfolioTypeBadge({ item }: { item: UnifiedPortfolioItem }) {
   return (
     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
       PPT 16:9
+    </span>
+  );
+}
+
+function PortfolioVisibilityBadge({ isPublic }: { isPublic: boolean }) {
+  const Icon = isPublic ? LockOpen : Lock;
+  const label = isPublic ? "공개" : "비공개";
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "inline-flex h-6 w-6 shrink-0 items-center justify-center",
+        isPublic ? "text-primary" : "text-slate-500",
+      )}
+    >
+      <Icon className="h-4 w-4" />
     </span>
   );
 }
@@ -440,6 +461,50 @@ export default function PortfoliosClient({
     }
   };
 
+  const handleToggleShowcasePublish = async (portfolio: UnifiedPortfolioItem) => {
+    const nextIsPublic = !portfolio.isPublic;
+    setBusyPublishId(portfolio.id);
+    try {
+      const response = await fetch(
+        `/api/career/portfolios/showcase/${portfolio.id}/publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPublic: nextIsPublic }),
+        },
+      );
+      const payload = (await readJsonResponse(response).catch(() => ({}))) as {
+        item?: {
+          published_at?: string | null;
+          updated_at?: string;
+        };
+        error?: string;
+        publicUrl?: string | null;
+      };
+      if (!response.ok || !payload.item) {
+        throw new Error(payload.error || "공개 상태 변경에 실패했습니다.");
+      }
+
+      setPortfolios((prev) =>
+        prev.map((item) =>
+          item.id === portfolio.id && item.kind === "showcase"
+            ? {
+                ...item,
+                isPublic: nextIsPublic,
+                publishedAt: payload.item?.published_at ?? null,
+                updatedAt: payload.item?.updated_at ?? item.updatedAt,
+                publicUrl: payload.publicUrl ?? null,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "공개 상태 변경에 실패했습니다.");
+    } finally {
+      setBusyPublishId(null);
+    }
+  };
+
   const handleCopyPublicUrl = async (portfolio: PortfolioListItem) => {
     const url = getShareUrl(portfolio);
     if (!url) return;
@@ -600,18 +665,20 @@ export default function PortfoliosClient({
                           : "기반 프로젝트 미지정";
                       })();
                 return (
-                  <button
+                  <div
                     key={portfolio.id}
-                    type="button"
-                    onClick={() => setSelectedId(portfolio.id)}
                     className={cn(
-                      "w-full rounded-xl border p-4 text-left transition-all",
+                      "relative w-full rounded-xl border transition-all",
                       isActive
                         ? "border-primary/30 bg-white shadow-sm ring-1 ring-primary/20"
                         : "border-transparent bg-transparent hover:bg-slate-100",
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(portfolio.id)}
+                      className="w-full p-4 pr-20 text-left"
+                    >
                       <h3
                         className={cn(
                           "line-clamp-2 text-[14px] font-semibold",
@@ -620,32 +687,48 @@ export default function PortfoliosClient({
                       >
                         {portfolio.title || "(제목 없음)"}
                       </h3>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {isGenerating ? (
-                          <Badge className="rounded-full border-amber-200 bg-amber-50 text-[10px] font-bold text-amber-700">
-                            <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
-                            생성 중
-                          </Badge>
-                        ) : null}
-                        <Badge
-                          variant={portfolio.isPublic ? "default" : "secondary"}
-                          className="rounded-full text-[10px]"
-                        >
-                          {portfolio.isPublic ? "공개" : "비공개"}
-                        </Badge>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <PortfolioTypeBadge item={portfolio} />
                       </div>
+                      <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-500">
+                        {subtitleText}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
+                        <span>{getUnifiedTypeLabel(portfolio)}</span>
+                        <span className="shrink-0">{formatDateLabel(portfolio.updatedAt)}</span>
+                      </div>
+                    </button>
+                    <div className="absolute right-3 top-3 flex items-center gap-1">
+                      {isGenerating ? (
+                        <Badge className="rounded-full border-amber-200 bg-amber-50 text-[10px] font-bold text-amber-700">
+                          <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
+                          생성 중
+                        </Badge>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={busyPublishId === portfolio.id || isGenerating}
+                        aria-label={portfolio.isPublic ? "비공개로 전환" : "공개로 전환"}
+                        title={portfolio.isPublic ? "비공개로 전환" : "공개로 전환"}
+                        className="rounded-md transition-colors hover:bg-slate-200/70 disabled:cursor-wait disabled:opacity-60"
+                        onClick={() => {
+                          if (portfolio.kind === "legacy" && portfolio.legacy) {
+                            void handleTogglePublish(portfolio.legacy);
+                            return;
+                          }
+                          void handleToggleShowcasePublish(portfolio);
+                        }}
+                      >
+                        {busyPublishId === portfolio.id ? (
+                          <span className="inline-flex h-6 w-6 items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          </span>
+                        ) : (
+                          <PortfolioVisibilityBadge isPublic={portfolio.isPublic} />
+                        )}
+                      </button>
                     </div>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <PortfolioTypeBadge item={portfolio} />
-                    </div>
-                    <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-500">
-                      {subtitleText}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
-                      <span>{getUnifiedTypeLabel(portfolio)}</span>
-                      <span className="shrink-0">{formatDateLabel(portfolio.updatedAt)}</span>
-                    </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -761,9 +844,7 @@ function ShowcaseDetail({
 
       <div className="border-b border-slate-100 px-8 pb-6 pt-6">
         <div className="flex max-w-3xl flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-            {item.isPublic ? "공개" : "비공개"}
-          </span>
+          <PortfolioVisibilityBadge isPublic={item.isPublic} />
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
             웹사이트형
           </span>
@@ -1036,7 +1117,8 @@ function PortfolioDetail({
 
       <div className="border-b border-slate-100 px-8 pb-6 pt-6">
         <div className="flex max-w-3xl flex-wrap items-center gap-2">
-          {[portfolio.isPublic ? "공개" : "비공개", getFormatLabel(portfolio), `${pageCount} ${pageUnit}`].map(
+          <PortfolioVisibilityBadge isPublic={portfolio.isPublic} />
+          {[getFormatLabel(portfolio), `${pageCount} ${pageUnit}`].map(
             (label) => (
               <span
                 key={label}
