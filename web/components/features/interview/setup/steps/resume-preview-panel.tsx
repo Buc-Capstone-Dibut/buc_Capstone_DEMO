@@ -1,5 +1,7 @@
 "use client";
 
+import { EDUCATION_STATUS_LABELS, formatEducationPeriod, getVisibleEducation } from "@/lib/resume/education";
+
 /**
  * 이력서 데이터(`resume_payload`)를 한국식 폼/표 톤으로 미리보기 렌더링한다.
  * 면접 셋업의 "내 이력서" 탭에서 선택된 항목을 표시하는 우측 패널.
@@ -17,6 +19,10 @@ type Education = {
   major?: string;
   period?: string;
   degree?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  included?: boolean;
 };
 type Experience = {
   company?: string;
@@ -52,12 +58,13 @@ export function ResumePreviewPanel({
   updatedAt?: string;
 }) {
   const pi = payload.personalInfo ?? {};
+  const education = getVisibleEducation(payload.education);
   const hasAny =
     !!pi.name ||
     !!pi.intro ||
     (payload.experience?.length ?? 0) > 0 ||
     (payload.projects?.length ?? 0) > 0 ||
-    (payload.education?.length ?? 0) > 0 ||
+    education.length > 0 ||
     (payload.skills?.length ?? 0) > 0;
 
   if (!hasAny) {
@@ -172,23 +179,20 @@ export function ResumePreviewPanel({
           </Section>
         ) : null}
 
-        {payload.education?.length ? (
+        {education.length ? (
           <Section title="학력">
             <ul className="space-y-1.5">
-              {payload.education.map((e, i) => (
+              {education.map((e, i) => (
                 <li
                   key={i}
                   className="flex items-baseline justify-between gap-2 text-xs"
                 >
                   <span className="truncate text-foreground">
                     {[e.school, e.major].filter(Boolean).join(" · ")}
-                    {e.degree && <span className="text-muted-foreground"> ({e.degree})</span>}
                   </span>
-                  {e.period && (
-                    <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                      {e.period}
-                    </span>
-                  )}
+                  <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                    {[formatEducationPeriod(e), EDUCATION_STATUS_LABELS[e.status]].filter(Boolean).join(" · ")}
+                  </span>
                 </li>
               ))}
             </ul>

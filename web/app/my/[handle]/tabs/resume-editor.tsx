@@ -33,6 +33,7 @@ import { CollapsibleSection } from "@/components/features/resume/collapsible-sec
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
 import { CategorizedSkillPicker } from "@/components/features/resume/categorized-skill-picker";
+import { ResumeEducationSection } from "@/components/features/resume/resume-education-section";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
@@ -71,6 +72,7 @@ interface ResumeEditorProps {
   aiCurated?: boolean;
   /** AI 큐레이션 단계. 'analyzing'=서버 분석 대기, 'writing'=결과를 폼에 작성 중. */
   aiCuratePhase?: "analyzing" | "writing" | null;
+  onA4OptionsChange?: (options: ResumeA4Options) => void;
 }
 
 // AI 다듬기 진행 중 미리보기 위에 덮이는 오버레이.
@@ -150,6 +152,7 @@ export function ResumeEditor({
   aiCurating = false,
   aiCurated = false,
   aiCuratePhase = null,
+  onA4OptionsChange,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -878,6 +881,10 @@ export function ResumeEditor({
               </div>
             ))}
           </div>
+          <ResumeEducationSection
+            value={payload.education}
+            onChange={(education) => onChange({ ...payload, education })}
+          />
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -1300,7 +1307,10 @@ export function ResumeEditor({
             payload={payload}
             title={title}
             options={a4Options}
-            onOptionsChange={setA4Options}
+            onOptionsChange={(options) => {
+              setA4Options(options);
+              onA4OptionsChange?.(options);
+            }}
             overlay={
               // 'analyzing'(서버 분석 대기) 동안만 오버레이를 띄운다.
               // 'writing'(작성) 단계로 넘어가면 오버레이를 닫아 타자기 효과가 실시간으로 보이게 한다.

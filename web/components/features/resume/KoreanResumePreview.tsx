@@ -8,10 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { groupSkillsByCategory } from "@/lib/interview/tech-categories";
 import { getTechLogo } from "@/lib/interview/tech-logos";
+import { EDUCATION_STATUS_LABELS, formatEducationPeriod, getVisibleEducation } from "@/lib/resume/education";
 
 export type ResumeA4SectionKey =
   | "summary"
   | "skills"
+  | "education"
   | "experience"
   | "projects"
   | "selfIntroduction"
@@ -22,6 +24,7 @@ export type ResumeA4Options = Record<ResumeA4SectionKey, boolean>;
 export const DEFAULT_RESUME_A4_OPTIONS: ResumeA4Options = {
   summary: true,
   skills: true,
+  education: true,
   experience: true,
   projects: true,
   selfIntroduction: true,
@@ -31,6 +34,7 @@ export const DEFAULT_RESUME_A4_OPTIONS: ResumeA4Options = {
 const SECTION_LABELS: Array<{ key: ResumeA4SectionKey; label: string; hint: string }> = [
   { key: "summary", label: "요약", hint: "한 줄 소개" },
   { key: "skills", label: "기술", hint: "스택/역량" },
+  { key: "education", label: "학력", hint: "학교/전공" },
   { key: "experience", label: "경력", hint: "회사/역할" },
   { key: "projects", label: "프로젝트", hint: "성과/기술" },
   { key: "selfIntroduction", label: "자기소개", hint: "본문" },
@@ -110,6 +114,7 @@ export function getResumeCompletionItems(payload: ResumePayload) {
   return [
     { label: "요약", ok: countWords(firstPresent(info.intro, payload.selfIntroduction)) >= 12 },
     { label: "기술", ok: payload.skills.length >= 4 },
+    { label: "학력", ok: getVisibleEducation(payload.education).length > 0 },
     { label: "경력", ok: payload.experience.some((item) => item.company.trim() || item.description.trim()) },
     { label: "프로젝트", ok: payload.projects.some((item) => item.name.trim() || item.description.trim()) },
   ];
@@ -219,7 +224,7 @@ function buildResumeBlocks(
    */
   logoUriByLabel?: Record<string, string>,
 ): ResumeBlock[] {
-  const sectionOptions = options || DEFAULT_RESUME_A4_OPTIONS;
+  const sectionOptions = { ...DEFAULT_RESUME_A4_OPTIONS, ...options };
   const coverLetters = payload.coverLetters ?? [];
   const blocks: ResumeBlock[] = [];
 
@@ -332,6 +337,37 @@ function buildResumeBlocks(
         });
       });
     }
+  }
+
+  // --- EDUCATION — 학교명·기간을 한 블록에 담아 페이지 경계에서도 함께 배치 ---
+  const education = getVisibleEducation(payload.education);
+  if (sectionOptions.education && education.length > 0) {
+    const sectionId = "education";
+    blocks.push({
+      key: "education-title",
+      sectionId,
+      isSectionTitle: true,
+      keepWithNext: true,
+      node: <SectionTitleBlock title="EDUCATION" />,
+    });
+    education.forEach((item) => {
+      blocks.push({
+        key: `education-${item.id}`,
+        sectionId,
+        node: (
+          <div className="flex items-start justify-between gap-6 py-1">
+            <div className="min-w-0">
+              <p className="text-[14px] font-black text-slate-950">{item.school}</p>
+              {item.major ? <p className="mt-1 text-[13px] font-medium text-slate-700">{item.major}</p> : null}
+            </div>
+            <div className="shrink-0 text-right text-[12px] font-semibold leading-[1.7] text-slate-600">
+              {formatEducationPeriod(item) ? <p>{formatEducationPeriod(item)}</p> : null}
+              <p>{EDUCATION_STATUS_LABELS[item.status]}</p>
+            </div>
+          </div>
+        ),
+      });
+    });
   }
 
   // --- WORK EXPERIENCE ---

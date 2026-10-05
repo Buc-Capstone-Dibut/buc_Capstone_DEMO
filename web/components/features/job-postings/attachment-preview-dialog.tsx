@@ -1,5 +1,7 @@
 "use client";
 
+import { EDUCATION_STATUS_LABELS, formatEducationPeriod, getVisibleEducation } from "@/lib/resume/education";
+
 import { useEffect, useState } from "react";
 import { Loader2, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -205,7 +207,7 @@ function ResumePreview({ data }: { data: any }) {
   const experiences: any[] =
     payload?.experience ?? payload?.experiences ?? [];
   const projects: any[] = payload?.projects ?? [];
-  const educations: any[] = payload?.education ?? payload?.educations ?? [];
+  const educations = getVisibleEducation(payload?.education ?? payload?.educations);
   const skills: any[] = payload?.skills ?? [];
   const certs: any[] =
     payload?.awards ?? payload?.certifications ?? [];
@@ -328,20 +330,15 @@ function ResumePreview({ data }: { data: any }) {
             {educations.map((e, i) => (
               <li key={i} className="flex items-baseline justify-between gap-2">
                 <span>
-                  {e?.school || "(학교)"}
-                  {e?.degree && (
+                  {e.school}
+                  {e.major && (
                     <span className="ml-2 text-muted-foreground">
-                      · {e.degree}
-                    </span>
-                  )}
-                  {e?.description && (
-                    <span className="ml-2 text-[12px] text-muted-foreground">
-                      · {e.description}
+                      · {e.major}
                     </span>
                   )}
                 </span>
                 <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                  {e?.period || ""}
+                  {[formatEducationPeriod(e), EDUCATION_STATUS_LABELS[e.status]].filter(Boolean).join(" · ")}
                 </span>
               </li>
             ))}

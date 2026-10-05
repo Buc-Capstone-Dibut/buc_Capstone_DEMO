@@ -1,4 +1,5 @@
 import type { ResumePayload } from "./profile-types";
+import { normalizeEducation } from "@/lib/resume/education";
 
 function asRecord(input: unknown): Record<string, unknown> {
   if (typeof input === "object" && input !== null) {
@@ -46,7 +47,7 @@ export function normalizeResumePayload(input: unknown): ResumePayload {
       intro: typeof personalInfo.intro === "string" ? personalInfo.intro : "",
       links: asRecord(personalInfo.links) as ResumePayload["personalInfo"]["links"],
     },
-    education: Array.isArray(rp.education) ? rp.education : [],
+    education: normalizeEducation(rp.education),
     experience: experienceRaw.map((item) => {
       const row = asRecord(item);
       return {

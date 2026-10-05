@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { ResumePayload } from "../my/[handle]/profile-types";
 import { EMPTY_RESUME, normalizeResumePayload } from "../my/[handle]/profile-utils";
 import { ResumePdfDownloadButton } from "@/components/features/resume/resume-pdf-download-button";
+import { DEFAULT_RESUME_A4_OPTIONS, type ResumeA4Options } from "@/components/features/resume/KoreanResumePreview";
+import { normalizeEducation } from "@/lib/resume/education";
 import {
     ResumeApplicationTargetDialog,
     type ResumeApplicationTargetMeta,
@@ -79,6 +81,7 @@ export default function ResumePage() {
     const [aiCurated, setAiCurated] = useState(false);
     const [resumePayload, setResumePayload] = useState<ResumePayload>(EMPTY_RESUME);
     const [resumeTitle, setResumeTitle] = useState("");
+    const [a4Options, setA4Options] = useState<ResumeA4Options>(DEFAULT_RESUME_A4_OPTIONS);
     // 새 이력서 작성 시 1단계 입력 또는 선택한 공고를 저장 시점에 함께 DB로 보내기 위한 보관소
     const [pendingTarget, setPendingTarget] = useState<ResumeApplicationTargetValue | null>(null);
     const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -104,7 +107,7 @@ export default function ResumePage() {
                 const res = await fetch(fetchUrl, { cache: "no-store", signal });
                 if (res.ok) {
                     const json = await res.json();
-                    if (json.success) {
+                    if (json.success && json.data) {
                         const payload = json.data.resume_payload || json.data.resumePayload;
                         currentPayload = normalizeResumePayload(payload);
                         currentTitle = json.data.title || "";
@@ -152,7 +155,7 @@ export default function ResumePage() {
             if ((isWizardModeFromUrl || isNewModeFromUrl) && !resumeId) {
                 let prefilled: ResumePayload = { ...EMPTY_RESUME };
                 try {
-                    const meRes = await fetch("/api/my/me", { cache: "no-store" });
+                    const meRes = await fetch("/api/my/me", { cache: "no-store", signal });
                     if (meRes.ok) {
                         const meJson = await meRes.json();
                         if (meJson?.success && meJson.data) {
@@ -172,8 +175,22 @@ export default function ResumePage() {
                         }
                     }
                 } catch (error) {
+                    if ((error as Error)?.name === "AbortError") return;
                     console.error("Failed to prefill from mypage profile:", error);
                 }
+                try {
+                    const educationRes = await fetch("/api/my/resume/education", { cache: "no-store", signal });
+                    if (educationRes.ok) {
+                        const educationJson = await educationRes.json();
+                        if (educationJson.success) {
+                            prefilled.education = normalizeEducation(educationJson.data?.education);
+                        }
+                    }
+                } catch (error) {
+                    if ((error as Error)?.name === "AbortError") return;
+                    console.error("Failed to prefill saved education:", error);
+                }
+                if (signal.aborted) return;
                 setResumePayload(prefilled);
                 setLoading(false);
                 return;
@@ -188,7 +205,7 @@ export default function ResumePage() {
                     setResumePayload(EMPTY_RESUME);
                 } else {
                     const json = await res.json();
-                    if (res.ok && json.success) {
+                    if (res.ok && json.success && json.data) {
                         const payload = json.data.resume_payload || json.data.resumePayload;
                         setResumePayload(normalizeResumePayload(payload));
                         setResumeTitle(json.data.title || "");
@@ -513,6 +530,7 @@ export default function ResumePage() {
                             대체했으므로 제거. PDF 다운로드(react-pdf 경로)는 별도 흐름이라 유지. */}
                         <ResumePdfDownloadButton
                             resumePayload={resumePayload}
+                            resumeOptions={a4Options}
                             title={resumeTitle}
                             fileName={resumeTitle || resumePayload.personalInfo?.name || "resume"}
                             variant="outline"
@@ -629,6 +647,7 @@ export default function ResumePage() {
                     previewToggleMode
                     applicationTarget={pendingTarget?.meta ?? null}
                     onAiCurate={handleAiCurate}
+                    onA4OptionsChange={setA4Options}
                     aiCurating={generatingTailoredResume}
                     aiCurated={aiCurated}
                     aiCuratePhase={aiCuratePhase}

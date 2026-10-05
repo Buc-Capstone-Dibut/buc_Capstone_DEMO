@@ -30,7 +30,8 @@ venv/
 .env.*.bak
 *.env.bak*
 
-ai-interview/debut-492601-2c2a8bf7446c.json
+# Google Cloud 서비스 계정 키 (로컬 전용)
+ai-interview/debut-*.json
 
 # Logs
 npm-debug.log*
