@@ -683,10 +683,10 @@ export function ResumeEditor({
         className={cn(
           "grid grid-cols-1 gap-6",
           // 우측 미리보기에 더 넓은 비중을 줘서 A4 본문이 시원하게 보이도록 비율 조정.
-          "xl:grid-cols-[minmax(320px,0.55fr)_minmax(640px,1.45fr)] 2xl:grid-cols-[minmax(360px,0.50fr)_minmax(780px,1.5fr)]",
+          "xl:h-full xl:min-h-0 xl:grid-cols-[minmax(320px,0.55fr)_minmax(640px,1.45fr)] xl:overflow-hidden 2xl:grid-cols-[minmax(360px,0.50fr)_minmax(780px,1.5fr)]",
         )}
       >
-        <div ref={editPanelRef} className="space-y-5">
+        <div ref={editPanelRef} className="space-y-5 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       {/* Top guide banner */}
       {applicationTarget && aiCurated ? (
         // ① AI 큐레이션 완료 후 — 완료 안내만 노출 (AI 버튼 사라짐)
@@ -1293,16 +1293,7 @@ export function ResumeEditor({
       </div>
         </div>
 
-        <div
-          ref={previewRef}
-          className={cn(
-            "min-w-0",
-            // 좌측 입력 폼이 길어져도 우측 미리보기가 항상 보이도록 sticky 처리.
-            // A4 한 장의 고정 높이를 유지해야 하므로 내부 스크롤은 두지 않는다 —
-            // 페이지가 길어져도 페이지 nav(이전/다음) 로 넘긴다.
-            "xl:sticky xl:top-24 xl:self-start",
-          )}
-        >
+        <div ref={previewRef} className="min-w-0 xl:h-full xl:min-h-0">
           <KoreanResumePreview
             payload={payload}
             title={title}

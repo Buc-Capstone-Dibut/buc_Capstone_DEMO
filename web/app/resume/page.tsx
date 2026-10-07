@@ -472,7 +472,7 @@ export default function ResumePage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50">
+        <div className="flex min-h-screen flex-col bg-slate-50/50 xl:h-[calc(100dvh-3.5rem)] xl:overflow-hidden">
             {/* Wizard Mode Overlay (for /resume?mode=setup, non-career flow) */}
             {isWizardMode && (
                 <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-xl animate-in fade-in duration-500 flex flex-col">
@@ -511,7 +511,7 @@ export default function ResumePage() {
 
             <header
                 data-no-print="true"
-                className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md"
+                className="sticky top-0 z-50 w-full shrink-0 border-b bg-white/80 backdrop-blur-md"
             >
                 <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -549,7 +549,7 @@ export default function ResumePage() {
 
             <section
                 data-no-print="true"
-                className="border-b bg-white/90"
+                className="shrink-0 border-b bg-white/90"
                 aria-label="이력서 지원 대상"
             >
                 <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -635,7 +635,7 @@ export default function ResumePage() {
                 onApply={handleTargetApply}
             />
 
-            <main className="max-w-[1800px] mx-auto p-4 lg:p-6 min-h-[calc(100vh-4rem)]">
+            <main className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 p-4 lg:p-6 xl:overflow-hidden">
                 <ResumeEditor
                     payload={resumePayload}
                     onChange={setResumePayload}

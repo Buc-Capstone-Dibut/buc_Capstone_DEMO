@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
+import { CheckCircle2, ChevronDown, Download, FileText, Minus, Plus } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -717,6 +717,15 @@ export function KoreanResumeDocument({
   );
 }
 
+const PREVIEW_ZOOM_MIN = 0.5;
+const PREVIEW_ZOOM_MAX = 1;
+const PREVIEW_ZOOM_STEP = 0.25;
+
+function clampPreviewZoom(value: number) {
+  const stepped = Math.round(value / PREVIEW_ZOOM_STEP) * PREVIEW_ZOOM_STEP;
+  return Math.min(PREVIEW_ZOOM_MAX, Math.max(PREVIEW_ZOOM_MIN, Number(stepped.toFixed(2))));
+}
+
 /**
  * leaf-block 단위 측정 기반 다중 페이지 이력서 뷰.
  *
@@ -726,7 +735,7 @@ export function KoreanResumeDocument({
  *   흘러간다.
  * - keepWithNext 블록은 단독으로 페이지를 마감하면 다음 블록과 분리되므로, 가능하면
  *   같은 페이지에 함께 둔다.
- * - 페이지 네비게이션 UI(이전/다음 + 페이지 표시) 가 포함되어 한 번에 한 페이지만 노출된다.
+ * - 화면에서는 Chrome PDF 뷰어처럼 A4 페이지를 세로로 쌓아 스크롤한다.
  */
 export function PagedResumeDocument({
   payload,
@@ -735,8 +744,7 @@ export function PagedResumeDocument({
   documentId,
   className = "",
   onPageInfoChange,
-  currentPageIndex,
-  onCurrentPageChange,
+  zoom = 1,
 }: {
   payload: ResumePayload;
   title?: string;
@@ -745,9 +753,8 @@ export function PagedResumeDocument({
   className?: string;
   /** 페이지 개수가 변할 때 호출 (외부에서 nav 컨트롤을 두려는 경우용) */
   onPageInfoChange?: (info: { totalPages: number }) => void;
-  /** 외부 페이지 인덱스 컨트롤. 비제어면 내부 state 사용. */
-  currentPageIndex?: number;
-  onCurrentPageChange?: (next: number) => void;
+  /** 1이면 미리보기 너비에 맞춘다. 커지면 가로 스크롤이 생긴다. */
+  zoom?: number;
 }) {
   const blocks = useMemo(() => buildResumeBlocks(payload, options), [payload, options]);
 
@@ -840,29 +847,10 @@ export function PagedResumeDocument({
     onPageInfoChange?.({ totalPages: pages.length });
   }, [pages.length, onPageInfoChange]);
 
-  // 비제어/제어 페이지 인덱스 처리
-  const [internalPageIndex, setInternalPageIndex] = useState(0);
-  const activeIndex = currentPageIndex ?? internalPageIndex;
-  const setActiveIndex = (next: number) => {
-    const clamped = Math.max(0, Math.min(pages.length - 1, next));
-    if (onCurrentPageChange) {
-      onCurrentPageChange(clamped);
-    } else {
-      setInternalPageIndex(clamped);
-    }
-  };
-
-  // 페이지 수가 줄어들었을 때 activeIndex 가 범위를 벗어나는 경우 클램프
-  useEffect(() => {
-    if (activeIndex > pages.length - 1) {
-      setActiveIndex(pages.length - 1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages.length]);
-
   return (
     <div
-      className={`mx-auto w-full max-w-[794px] [container-type:inline-size] ${className}`}
+      className={`mx-auto [container-type:inline-size] ${className}`}
+      style={{ width: `${zoom * 100}%` }}
     >
       {/* 측정용(보이지 않음). 모든 block 을 한 번씩 794px 폭으로 그려 height 를 잰다. */}
       <div
@@ -888,69 +876,18 @@ export function PagedResumeDocument({
         </div>
       </div>
 
-      {/* 페이지 네비게이션 — 위쪽 toolbar */}
-      <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActiveIndex(activeIndex - 1)}
-          disabled={activeIndex <= 0}
-          className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px] font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-          aria-label="이전 페이지"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          이전
-        </button>
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold tabular-nums text-slate-700">
-          <span>
-            {activeIndex + 1} / {pages.length}
-          </span>
-          {pages.length > 1 ? (
-            <div className="ml-1 flex items-center gap-0.5">
-              {pages.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveIndex(idx)}
-                  aria-label={`${idx + 1} 페이지로 이동`}
-                  className={
-                    idx === activeIndex
-                      ? "h-1.5 w-3 rounded-full bg-slate-900 transition-all"
-                      : "h-1.5 w-1.5 rounded-full bg-slate-300 transition-all hover:bg-slate-400"
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          onClick={() => setActiveIndex(activeIndex + 1)}
-          disabled={activeIndex >= pages.length - 1}
-          className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px] font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-          aria-label="다음 페이지"
-        >
-          다음
-          <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      {/* 표시용 — 현재 페이지 하나만 노출. A4(794×1123) 고정 박스. */}
-      <div
-        className="relative overflow-hidden bg-white shadow-sm"
-        style={{ height: `calc(1123px * (100cqw / 794px))` }}
-      >
-        {pages.map((group, pageIndex) => {
-          const visible = pageIndex === activeIndex;
-          return (
+      {/* 표시용 — A4 페이지를 세로로 쌓는다. 스크롤은 바깥 미리보기 영역이 담당한다. */}
+      <div className="flex flex-col gap-4">
+        {pages.map((group, pageIndex) => (
+          <div
+            key={pageIndex}
+            className="relative w-full bg-white shadow-md [container-type:inline-size]"
+            style={{ height: `calc(1123px * (100cqw / 794px))` }}
+          >
             <article
-              key={pageIndex}
               id={pageIndex === 0 ? documentId : undefined}
               className="korean-resume-a4-page print-resume absolute left-0 top-0 w-[794px] origin-top-left bg-white px-9 py-9 text-slate-950 [overflow-wrap:break-word]"
-              style={{
-                transform: `scale(calc(100cqw / 794px))`,
-                visibility: visible ? "visible" : "hidden",
-                pointerEvents: visible ? "auto" : "none",
-              }}
+              style={{ transform: `scale(calc(100cqw / 794px))` }}
             >
               {pageIndex === 0 && (
                 <KoreanResumeHeader payload={payload} title={title} />
@@ -964,16 +901,16 @@ export function PagedResumeDocument({
                   })}
               </div>
             </article>
-          );
-        })}
-        {pages.length > 1 && (
-          <span
-            data-print-helper
-            className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
-          >
-            {activeIndex + 1} / {pages.length}
-          </span>
-        )}
+            {pages.length > 1 && (
+              <span
+                data-print-helper
+                className="pointer-events-none absolute bottom-2 right-3 rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums"
+              >
+                {pageIndex + 1} / {pages.length}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1173,9 +1110,28 @@ export function KoreanResumePreview({
   overlay?: ReactNode;
 }) {
   const completionItems = getResumeCompletionItems(payload);
+  const [controlsOpen, setControlsOpen] = useState(true);
+  const [previewZoom, setPreviewZoom] = useState(PREVIEW_ZOOM_MIN);
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const pane = previewScrollRef.current;
+    if (!pane) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setPreviewZoom((current) =>
+        clampPreviewZoom(current + (event.deltaY < 0 ? PREVIEW_ZOOM_STEP : -PREVIEW_ZOOM_STEP)),
+      );
+    };
+
+    pane.addEventListener("wheel", onWheel, { passive: false });
+    return () => pane.removeEventListener("wheel", onWheel);
+  }, []);
 
   return (
-    <aside className="space-y-3">
+    <aside className="flex h-full min-h-0 flex-col gap-3">
       <style jsx global>{`
         @media print {
           @page {
@@ -1245,94 +1201,140 @@ export function KoreanResumePreview({
         }
       `}</style>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex items-start gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white">
-            <FileText className="h-4 w-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-black text-slate-950">한국식 A4 이력서</h2>
-              {onToggleForm ? (
+      {controlsOpen ? (
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white">
+              <FileText className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="min-w-0 flex-1 text-sm font-black text-slate-950">한국식 A4 이력서</h2>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-7 shrink-0 rounded-md px-2 text-[11px] font-black"
-                  onClick={onToggleForm}
+                  className="h-7 shrink-0 gap-1 rounded-md px-2 text-[11px] font-black"
+                  aria-expanded
+                  onClick={() => setControlsOpen(false)}
                 >
-                  {formOpen ? "입력폼 접기" : "입력폼 열기"}
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+                  접기
                 </Button>
+                {onToggleForm ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 shrink-0 rounded-md px-2 text-[11px] font-black"
+                    onClick={onToggleForm}
+                  >
+                    {formOpen ? "입력폼 접기" : "입력폼 열기"}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {completionItems.map((item) => (
+                  <span
+                    key={item.label}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black ${
+                      item.ok
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-slate-50 text-slate-400"
+                    }`}
+                  >
+                    {item.ok ? <CheckCircle2 className="h-3 w-3" /> : null}
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+              {activeEditorSectionLabel ? (
+                <p className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary">
+                  현재 편집 중: {activeEditorSectionLabel}
+                </p>
               ) : null}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {completionItems.map((item) => (
-                <span
-                  key={item.label}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black ${
-                    item.ok
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-slate-50 text-slate-400"
-                  }`}
-                >
-                  {item.ok ? <CheckCircle2 className="h-3 w-3" /> : null}
-                  {item.label}
-                </span>
-              ))}
-            </div>
-            {activeEditorSectionLabel ? (
-              <p className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-[11px] font-bold text-primary">
-                현재 편집 중: {activeEditorSectionLabel}
-              </p>
-            ) : null}
+          </div>
+
+          <div className="mt-3 flex gap-1.5">
+            {SECTION_LABELS.map((section) => (
+              <label
+                key={section.key}
+                className="flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1.5"
+              >
+                <Checkbox
+                  checked={options[section.key]}
+                  onCheckedChange={(checked) =>
+                    onOptionsChange({ ...options, [section.key]: checked === true })
+                  }
+                  className="h-3.5 w-3.5 shrink-0"
+                />
+                <span className="truncate text-xs font-black text-slate-800">{section.label}</span>
+              </label>
+            ))}
           </div>
         </div>
+      ) : null}
 
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
-          {SECTION_LABELS.map((section) => (
-            <label
-              key={section.key}
-              className="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5"
-            >
-              <Checkbox
-                checked={options[section.key]}
-                onCheckedChange={(checked) =>
-                  onOptionsChange({ ...options, [section.key]: checked === true })
-                }
-                className="h-3.5 w-3.5"
-              />
-              <span className="min-w-0">
-                <span className="block text-xs font-black text-slate-800">{section.label}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-
-        {/* PDF 다운로드는 페이지 상단 헤더의 'PDF 다운로드' 버튼으로 일원화. */}
-      </div>
-
-      {/* leaf-block 단위 측정 기반 페이지 분할 — 한 entry 안에서도 길어지면 자연스럽게
-          다음 페이지로 넘어가며, 페이지 네비게이션으로 한 번에 한 페이지만 보여준다.
-          좌측 입력 폼이 길어지면 우측 미리보기는 sticky 로 함께 스크롤된다.
-          A4 비율(794×1123) 을 유지하면서, max-width 를 가용 viewport height 기반으로
-          클램프해 항상 한 페이지(A4 1장) 가 화면 안에 들어오게 한다. 텍스트가 더 잘
-          보이도록 viewport 의 거의 모든 세로 공간을 사용하도록 클램프를 살짝 완화했다. */}
-      <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-2">
+      {/* 페이지를 A4로 나눠 세로로 쌓고, 이 영역이 미리보기 칸의 남은 높이를 채운 뒤 그 안에서 스크롤한다. */}
+      <div className="relative min-h-[70vh] flex-1 xl:min-h-0">
         <div
-          className="mx-auto w-full"
-          style={{
-            // viewport - 10rem(상단 nav + preview toolbar 등) 가 곧 A4 의 표시 높이.
-            // 794/1123 비율로 환산해서 그 높이를 채울 수 있는 폭을 사용.
-            maxWidth: "min(100%, calc((100vh - 10rem) * 794 / 1123))",
-          }}
+          ref={previewScrollRef}
+          className="h-full min-h-[70vh] overflow-auto overscroll-contain rounded-lg border border-slate-200 bg-slate-200 p-3 xl:absolute xl:inset-0 xl:min-h-0"
         >
           <PagedResumeDocument
             payload={payload}
             title={title}
             options={options}
             documentId="korean-resume-print"
+            zoom={previewZoom}
           />
+          {overlay}
         </div>
-        {overlay}
+        {!controlsOpen ? (
+          <div className="absolute right-3 top-3 z-20">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-7 gap-1 rounded-md bg-white px-2 text-[11px] font-black shadow-sm"
+              aria-expanded={false}
+              onClick={() => setControlsOpen(true)}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              펼치기
+            </Button>
+          </div>
+        ) : null}
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-slate-200 bg-white/95 px-1 py-1 shadow-md">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-7 w-7 rounded-full p-0"
+              aria-label="축소"
+              disabled={previewZoom <= PREVIEW_ZOOM_MIN}
+              onClick={() => setPreviewZoom((current) => clampPreviewZoom(current - PREVIEW_ZOOM_STEP))}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+            <button
+              type="button"
+              className="h-7 min-w-12 rounded-full px-1 text-[11px] font-black tabular-nums text-slate-700 hover:bg-slate-100"
+              aria-label="배율 100%로 되돌리기"
+              onClick={() => setPreviewZoom(1)}
+            >
+              {Math.round(previewZoom * 100)}%
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-7 w-7 rounded-full p-0"
+              aria-label="확대"
+              disabled={previewZoom >= PREVIEW_ZOOM_MAX}
+              onClick={() => setPreviewZoom((current) => clampPreviewZoom(current + PREVIEW_ZOOM_STEP))}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
       </div>
     </aside>
   );
