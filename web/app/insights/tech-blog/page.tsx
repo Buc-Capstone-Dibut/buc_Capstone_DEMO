@@ -71,8 +71,8 @@ export default function TechBlogPage() {
     return (
         <div className="w-full min-h-screen bg-background text-foreground">
             {/* Header Section */}
-            <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container mx-auto px-4 max-w-7xl py-12">
+            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="container mx-auto px-4 max-w-7xl pt-12 pb-3">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                         <div>
                             <h1 className="text-4xl font-black tracking-tighter mb-2">기술 블로그</h1>
@@ -88,7 +88,7 @@ export default function TechBlogPage() {
             </div>
 
             {/* Main Content */}
-            <div className="container mx-auto px-4 max-w-7xl py-8">
+            <div className="container mx-auto px-4 max-w-7xl pt-4 pb-8">
                 {/* 분석 페이지 추천 태그 진입 안내 배너 */}
                 {showRecBanner && recommendedTags.length > 0 && (
                     <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">

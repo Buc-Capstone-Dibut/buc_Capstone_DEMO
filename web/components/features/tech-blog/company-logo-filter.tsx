@@ -411,10 +411,10 @@ export function CompanyLogoFilter({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <section className="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-r from-primary/[0.04] via-muted/50 to-primary/[0.04] px-5 py-5">
+      <section className="relative overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-r from-primary/[0.04] via-muted/50 to-primary/[0.04] px-5 py-3">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-background/95 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-background/95 to-transparent" />
-        <div className="relative z-20 mb-4 flex flex-wrap items-center gap-2 text-sm font-bold text-foreground/80">
+        <div className="relative z-20 mb-2 flex flex-wrap items-center gap-2 text-sm font-bold text-foreground/80">
           <Sparkles className="h-4 w-4 text-primary" />
           다양한 테크 기업을 둘러보세요.
           {favoriteCompanies.length > 0 && (
