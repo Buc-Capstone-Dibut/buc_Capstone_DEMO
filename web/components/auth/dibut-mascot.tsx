@@ -32,7 +32,7 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
   // 팔 스타일 계산
   const armLeftStyle: CSSProperties = {
     transform: isCovering
-      ? "translate(-160px, -160px) rotate(-103deg)"
+      ? "translate(-187px, -118px) rotate(-113deg)"
       : "translate(0, 0) rotate(0deg)",
     transition: "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
     transformBox: "fill-box",
@@ -41,11 +41,18 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
 
   const armRightStyle: CSSProperties = {
     transform: isCovering
-      ? "translate(160px, -160px) rotate(103deg)"
+      ? "translate(196px, -118px) rotate(113deg)"
       : "translate(0, 0) rotate(0deg)",
     transition: "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
     transformBox: "fill-box",
     transformOrigin: "30% 8%",
+  };
+
+  const svgFrame = {
+    viewBox: "-6.1 -26.86 581.19 653.71",
+    width: "100%",
+    height: "100%",
+    preserveAspectRatio: "xMidYMid meet" as const,
   };
 
   return (
@@ -54,46 +61,64 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
         style={{
           width: 143,
           height: 143,
-          borderRadius: "50%",
-          overflow: "hidden",
-          background: "#FCD9B1",
+          position: "relative",
           flexShrink: 0,
         }}
       >
-        <svg
-          viewBox="-6.1 -26.86 581.19 653.71"
-          width="100%"
-          height="100%"
-          preserveAspectRatio="xMidYMid meet"
-          aria-label="디벗 마스코트"
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            overflow: "hidden",
+            background: "#FCD9B1",
+          }}
         >
-          {/* 귀 */}
-          <image href="/mascot/ear-left.svg" x="70" y="70" width="116.48" height="119" />
-          <image href="/mascot/ear-right.svg" x="380" y="65" width="104" height="109" />
-          {/* 몸통 */}
-          <image href="/mascot/body.svg" x="33" y="15" width="503" height="654" />
-          {/* 배 디테일 */}
-          <image href="/mascot/belly.svg" x="202" y="425" width="150" height="30.39" />
+          <svg {...svgFrame} aria-label="디벗 마스코트">
+            {/* 귀 */}
+            <image href="/mascot/ear-left.svg" x="70" y="70" width="116.48" height="119" />
+            <image href="/mascot/ear-right.svg" x="380" y="65" width="104" height="109" />
+            {/* 몸통 */}
+            <image href="/mascot/body.svg" x="33" y="15" width="503" height="654" />
+            {/* 배 디테일 */}
+            <image href="/mascot/belly.svg" x="210" y="428" width="150" height="30.39" />
 
-          {/* 눈 (인터랙티브) */}
-          <g style={eyeStyle}>
-            <image href="/mascot/eye-left.svg" x="164" y="175" width="36" height="43" />
-          </g>
-          <g style={eyeStyle}>
-            <image href="/mascot/eye-right.svg" x="361" y="175" width="36" height="43" />
-          </g>
+            {/* 눈 (인터랙티브) */}
+            <g style={eyeStyle}>
+              <image href="/mascot/eye-left.svg" x="167" y="187" width="36" height="43" />
+            </g>
+            <g style={eyeStyle}>
+              <image href="/mascot/eye-right.svg" x="373" y="187" width="36" height="43" />
+            </g>
 
-          {/* 입 */}
-          <image href="/mascot/mouth.svg" x="170" y="210" width="219.2" height="185.71" />
+            {/* 입 */}
+            <image href="/mascot/mouth.svg" x="175" y="215" width="219.2" height="185.71" />
+          </svg>
+        </div>
 
-          {/* 팔 (인터랙티브) */}
-          <g style={armLeftStyle}>
-            <image href="/mascot/arm-left.svg" x="53" y="403" width="231" height="231" />
-          </g>
-          <g style={armRightStyle}>
-            <image href="/mascot/arm-right.svg" x="278" y="403" width="231" height="231" />
-          </g>
-        </svg>
+        {/* 팔이 원 밖으로 나가도 손가락이 잘리지 않게 별도 레이어 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            overflow: isCovering ? "visible" : "hidden",
+            pointerEvents: "none",
+          }}
+        >
+          <svg
+            {...svgFrame}
+            aria-hidden
+            style={{ overflow: isCovering ? "visible" : "hidden" }}
+          >
+            <g style={armLeftStyle}>
+              <image href="/mascot/arm-left.svg" x="45.03" y="404.99" width="246.93" height="242.95" />
+            </g>
+            <g style={armRightStyle}>
+              <image href="/mascot/arm-right.svg" x="270.03" y="404.99" width="246.93" height="242.95" />
+            </g>
+          </svg>
+        </div>
       </div>
     </div>
   );
