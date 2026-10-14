@@ -52,54 +52,46 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
     <div className="flex justify-center mt-8 mb-4">
       <div
         style={{
-          width: 140,
-          height: 140,
+          width: 143,
+          height: 143,
           borderRadius: "50%",
           overflow: "hidden",
-          background: "#FFCC80",
-          // border: "3px solid #FFA726",
-          // boxShadow: "0 6px 20px rgba(255, 167, 38, 0.35)",
+          background: "#FCD9B1",
           flexShrink: 0,
         }}
       >
         <svg
-          viewBox="0 -20 569 640"
+          viewBox="-6.1 -26.86 581.19 653.71"
           width="100%"
           height="100%"
           preserveAspectRatio="xMidYMid meet"
           aria-label="디벗 마스코트"
         >
-          {/* 발  */}
-          <image href="/mascot/feet.svg" x="36" y="719" width="496" height="92" />
-          {/* 몸통 */}
-          <image href="/mascot/body.svg" x="0" y="0" width="569" height="749" />
           {/* 귀 */}
-          <image href="/mascot/ear-left.svg" x="102" y="39" width="76" height="80" />
-          <image href="/mascot/ear-right.svg" x="391" y="39" width="76" height="80" />
+          <image href="/mascot/ear-left.svg" x="70" y="70" width="116.48" height="119" />
+          <image href="/mascot/ear-right.svg" x="380" y="65" width="104" height="109" />
+          {/* 몸통 */}
+          <image href="/mascot/body.svg" x="33" y="15" width="503" height="654" />
           {/* 배 디테일 */}
-          <image href="/mascot/belly.svg" x="202" y="358" width="159" height="44" />
+          <image href="/mascot/belly.svg" x="202" y="425" width="150" height="30.39" />
 
           {/* 눈 (인터랙티브) */}
           <g style={eyeStyle}>
-            <image href="/mascot/eye-left.svg" x="164" y="124" width="41" height="41" />
+            <image href="/mascot/eye-left.svg" x="164" y="175" width="36" height="43" />
           </g>
           <g style={eyeStyle}>
-            <image href="/mascot/eye-right.svg" x="361" y="124" width="41" height="41" />
+            <image href="/mascot/eye-right.svg" x="361" y="175" width="36" height="43" />
           </g>
 
           {/* 입 */}
-          <image href="/mascot/mouth.svg" x="161" y="166" width="245" height="172" />
-          {/* 하체 */}
-          <image href="/mascot/lower-body.svg" x="107" y="635" width="349" height="107" />
-          {/* 안경 */}
-          <image href="/mascot/glasses.svg" x="91.5" y="75" width="387" height="134" />
+          <image href="/mascot/mouth.svg" x="170" y="210" width="219.2" height="185.71" />
 
           {/* 팔 (인터랙티브) */}
           <g style={armLeftStyle}>
-            <image href="/mascot/arm-left.svg" x="20" y="360" width="234" height="241" />
+            <image href="/mascot/arm-left.svg" x="53" y="403" width="231" height="231" />
           </g>
           <g style={armRightStyle}>
-            <image href="/mascot/arm-right.svg" x="316" y="360" width="234" height="241" />
+            <image href="/mascot/arm-right.svg" x="278" y="403" width="231" height="231" />
           </g>
         </svg>
       </div>
