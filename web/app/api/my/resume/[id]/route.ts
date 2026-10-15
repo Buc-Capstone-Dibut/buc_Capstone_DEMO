@@ -24,13 +24,38 @@ export async function GET(
                 id: params.id,
                 user_id: session.user.id
             },
+            include: {
+                target_posting: {
+                    select: {
+                        id: true,
+                        company_name: true,
+                        role_title: true,
+                        status: true,
+                    },
+                },
+            },
         });
 
         if (!resume) {
             return NextResponse.json({ success: false, error: "Resume not found" }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, data: resume });
+        return NextResponse.json({
+            success: true,
+            data: {
+                ...resume,
+                targetJobPostingId: resume.target_job_posting_id,
+                targetMeta: resume.target_meta,
+                targetPosting: resume.target_posting
+                    ? {
+                        id: resume.target_posting.id,
+                        companyName: resume.target_posting.company_name,
+                        roleTitle: resume.target_posting.role_title,
+                        status: resume.target_posting.status,
+                    }
+                    : null,
+            },
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

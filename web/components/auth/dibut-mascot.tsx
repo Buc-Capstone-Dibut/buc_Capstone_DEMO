@@ -32,7 +32,7 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
   // 팔 스타일 계산
   const armLeftStyle: CSSProperties = {
     transform: isCovering
-      ? "translate(-160px, -160px) rotate(-103deg)"
+      ? "translate(-187px, -118px) rotate(-113deg)"
       : "translate(0, 0) rotate(0deg)",
     transition: "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
     transformBox: "fill-box",
@@ -41,67 +41,84 @@ export function DebutMascot({ isEmailFocused, emailLength, isCovering }: DebutMa
 
   const armRightStyle: CSSProperties = {
     transform: isCovering
-      ? "translate(160px, -160px) rotate(103deg)"
+      ? "translate(196px, -118px) rotate(113deg)"
       : "translate(0, 0) rotate(0deg)",
     transition: "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
     transformBox: "fill-box",
     transformOrigin: "30% 8%",
   };
 
+  const svgFrame = {
+    viewBox: "-6.1 -26.86 581.19 653.71",
+    width: "100%",
+    height: "100%",
+    preserveAspectRatio: "xMidYMid meet" as const,
+  };
+
   return (
     <div className="flex justify-center mt-8 mb-4">
       <div
         style={{
-          width: 140,
-          height: 140,
-          borderRadius: "50%",
-          overflow: "hidden",
-          background: "#FFCC80",
-          // border: "3px solid #FFA726",
-          // boxShadow: "0 6px 20px rgba(255, 167, 38, 0.35)",
+          width: 143,
+          height: 143,
+          position: "relative",
           flexShrink: 0,
         }}
       >
-        <svg
-          viewBox="0 -20 569 640"
-          width="100%"
-          height="100%"
-          preserveAspectRatio="xMidYMid meet"
-          aria-label="디벗 마스코트"
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            overflow: "hidden",
+            background: "#FCD9B1",
+          }}
         >
-          {/* 발  */}
-          <image href="/mascot/feet.svg" x="36" y="719" width="496" height="92" />
-          {/* 몸통 */}
-          <image href="/mascot/body.svg" x="0" y="0" width="569" height="749" />
-          {/* 귀 */}
-          <image href="/mascot/ear-left.svg" x="102" y="39" width="76" height="80" />
-          <image href="/mascot/ear-right.svg" x="391" y="39" width="76" height="80" />
-          {/* 배 디테일 */}
-          <image href="/mascot/belly.svg" x="202" y="358" width="159" height="44" />
+          <svg {...svgFrame} aria-label="디벗 마스코트">
+            {/* 귀 */}
+            <image href="/mascot/ear-left.svg" x="70" y="70" width="116.48" height="119" />
+            <image href="/mascot/ear-right.svg" x="380" y="65" width="104" height="109" />
+            {/* 몸통 */}
+            <image href="/mascot/body.svg" x="33" y="15" width="503" height="654" />
+            {/* 배 디테일 */}
+            <image href="/mascot/belly.svg" x="210" y="428" width="150" height="30.39" />
 
-          {/* 눈 (인터랙티브) */}
-          <g style={eyeStyle}>
-            <image href="/mascot/eye-left.svg" x="164" y="124" width="41" height="41" />
-          </g>
-          <g style={eyeStyle}>
-            <image href="/mascot/eye-right.svg" x="361" y="124" width="41" height="41" />
-          </g>
+            {/* 눈 (인터랙티브) */}
+            <g style={eyeStyle}>
+              <image href="/mascot/eye-left.svg" x="167" y="187" width="36" height="43" />
+            </g>
+            <g style={eyeStyle}>
+              <image href="/mascot/eye-right.svg" x="373" y="187" width="36" height="43" />
+            </g>
 
-          {/* 입 */}
-          <image href="/mascot/mouth.svg" x="161" y="166" width="245" height="172" />
-          {/* 하체 */}
-          <image href="/mascot/lower-body.svg" x="107" y="635" width="349" height="107" />
-          {/* 안경 */}
-          <image href="/mascot/glasses.svg" x="91.5" y="75" width="387" height="134" />
+            {/* 입 */}
+            <image href="/mascot/mouth.svg" x="175" y="215" width="219.2" height="185.71" />
+          </svg>
+        </div>
 
-          {/* 팔 (인터랙티브) */}
-          <g style={armLeftStyle}>
-            <image href="/mascot/arm-left.svg" x="20" y="360" width="234" height="241" />
-          </g>
-          <g style={armRightStyle}>
-            <image href="/mascot/arm-right.svg" x="316" y="360" width="234" height="241" />
-          </g>
-        </svg>
+        {/* 팔이 원 밖으로 나가도 손가락이 잘리지 않게 별도 레이어 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            overflow: isCovering ? "visible" : "hidden",
+            pointerEvents: "none",
+          }}
+        >
+          <svg
+            {...svgFrame}
+            aria-hidden
+            style={{ overflow: isCovering ? "visible" : "hidden" }}
+          >
+            <g style={armLeftStyle}>
+              <image href="/mascot/arm-left.svg" x="45.03" y="404.99" width="246.93" height="242.95" />
+            </g>
+            <g style={armRightStyle}>
+              <image href="/mascot/arm-right.svg" x="270.03" y="404.99" width="246.93" height="242.95" />
+            </g>
+          </svg>
+        </div>
       </div>
     </div>
   );

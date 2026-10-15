@@ -6,6 +6,8 @@ let cachedEvents: DevEvent[] | null = null;
 let cachedEventsAt = 0;
 const DEV_EVENTS_CACHE_TTL_MS = 60_000;
 
+export type DevEventSort = "latest" | "oldest" | "name" | "deadline" | "recommended";
+
 const DEV_EVENT_COLUMNS =
   "id, title, link, host, date, start_date, end_date, tags, category, status, source, created_at, description, thumbnail, content, summary, target_audience, fee, schedule, benefits";
 
@@ -69,6 +71,49 @@ function recommendationScore(event: DevEvent, terms: string[]) {
   }, 0);
 }
 
+function eventTimestamp(event: DevEvent): number {
+  for (const value of [event.created_at, event.start_date, event.end_date]) {
+    if (!value) continue;
+    const timestamp = new Date(value).getTime();
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+  return 0;
+}
+
+function deadlineTimestamp(event: DevEvent): number {
+  for (const value of [event.end_date, event.start_date]) {
+    if (!value) continue;
+    const timestamp = new Date(value).getTime();
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+
+  const dateText = event.date || "";
+  const matches = [...dateText.matchAll(/(?:(\d{4})[.\-/]\s*)?(\d{1,2})[.\-/]\s*(\d{1,2})/g)];
+  const match = matches[matches.length - 1];
+  if (!match) return Number.POSITIVE_INFINITY;
+  const now = new Date();
+  const year = match[1] ? Number(match[1]) : now.getFullYear();
+  const parsed = new Date(year, Number(match[2]) - 1, Number(match[3])).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+export function sortDevEvents(events: DevEvent[], sort: DevEventSort): DevEvent[] {
+  const next = [...events];
+  if (sort === "name") {
+    return next.sort((left, right) => left.title.localeCompare(right.title, "ko-KR"));
+  }
+  if (sort === "deadline") {
+    return next.sort((left, right) => deadlineTimestamp(left) - deadlineTimestamp(right));
+  }
+  if (sort === "oldest") {
+    return next.sort((left, right) => eventTimestamp(left) - eventTimestamp(right));
+  }
+  if (sort === "latest") {
+    return next.sort((left, right) => eventTimestamp(right) - eventTimestamp(left));
+  }
+  return next;
+}
+
 export async function fetchCurrentProfileTechStack(): Promise<string[]> {
   try {
     const supabase = await createClient();
@@ -113,6 +158,7 @@ export async function fetchDevEvents({
   category,
   tags,
   recommendationTags,
+  sort = "latest",
   page = 1,
   limit = 12,
 }: {
@@ -120,6 +166,7 @@ export async function fetchDevEvents({
   category?: string;
   tags?: string[];
   recommendationTags?: string[];
+  sort?: DevEventSort;
   page?: number;
   limit?: number;
 } = {}) {
@@ -151,7 +198,7 @@ export async function fetchDevEvents({
       );
     }
 
-    if (recommendationTags && recommendationTags.length > 0) {
+    if (sort === "recommended" && recommendationTags && recommendationTags.length > 0) {
       const terms = recommendationTerms(recommendationTags);
       filteredEvents = filteredEvents
         .map((event, index) => ({
@@ -161,6 +208,8 @@ export async function fetchDevEvents({
         }))
         .sort((a, b) => b.score - a.score || a.index - b.index)
         .map(({ event }) => event);
+    } else {
+      filteredEvents = sortDevEvents(filteredEvents, sort);
     }
 
     // Pagination

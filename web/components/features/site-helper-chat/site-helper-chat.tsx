@@ -131,7 +131,6 @@ export function SiteHelperChat() {
   }, [activeJobsCount, open]);
   const [isStreaming, setIsStreaming] = useState(false);
   // 한 번 호버해서 링이 가득 차면 이후엔 다시 애니메이션이 돌지 않도록 잠금
-  const [ringFilledOnce, setRingFilledOnce] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -585,16 +584,8 @@ export function SiteHelperChat() {
               type="button"
               variant="ghost"
               size="icon"
-              className={cn(
-                "site-helper-chat-trigger group relative h-[95px] w-[95px] overflow-visible rounded-full bg-transparent p-0 text-[#3D5A22] shadow-none hover:bg-transparent focus-visible:ring-primary/40",
-                ringFilledOnce && "is-filled",
-              )}
+              className="site-helper-chat-trigger group relative h-[95px] w-[95px] overflow-visible rounded-full bg-transparent p-0 text-[#3D5A22] shadow-none hover:bg-transparent focus-visible:ring-primary/40"
               onClick={() => setOpen((value) => !value)}
-              onAnimationEnd={(event) => {
-                if (event.animationName === "site-helper-ring-fill") {
-                  setRingFilledOnce(true);
-                }
-              }}
               aria-label={open ? "Debut 사이트 도우미 닫기" : "Debut 사이트 도우미 열기"}
               aria-expanded={open}
             >

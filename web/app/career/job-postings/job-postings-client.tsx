@@ -274,7 +274,6 @@ export function JobPostingsClient() {
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
       <JobPostingsHeader
         state={state}
-        total={total}
         onQueryChange={setQuery}
         onToggleStatus={toggleStatus}
         onSetSort={setSort}

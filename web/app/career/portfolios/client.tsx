@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   Check,
@@ -9,12 +9,12 @@ import {
   Download,
   ExternalLink,
   FileImage,
-  FileText,
   HelpCircle,
   Layers3,
+  Lock,
+  LockOpen,
   Loader2,
   Plus,
-  Search,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -31,6 +31,12 @@ import { PortfolioPdfPrinter } from "@/components/features/career/portfolio-edit
 import { PortfolioLivePreview } from "@/components/features/career/portfolio-editor/portfolio-live-preview";
 import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 import { toast } from "sonner";
+import {
+  CareerFilterChip,
+  CareerFilterSection,
+  CareerListToolbar,
+} from "@/components/features/career/career-list-toolbar";
+import { useCareerFilterUrl } from "@/hooks/use-career-filter-url";
 
 type PortfoliosClientProps = {
   initialPortfolios: UnifiedPortfolioItem[];
@@ -42,12 +48,15 @@ type PortfoliosClientProps = {
   };
 };
 
-type TypeFilter = "all" | "site" | "slide" | "showcase";
+type TypeFilter = "all" | "slides" | "showcase";
+type VisibilityFilter = "all" | "public" | "private";
+type GenerationFilter = "all" | "ready" | "generating";
+type PortfolioSort = "recent" | "title";
 
 function matchesTypeFilter(item: UnifiedPortfolioItem, filter: TypeFilter) {
   if (filter === "all") return true;
   if (filter === "showcase") return item.kind === "showcase";
-  return item.kind === "legacy" && item.legacy?.format === filter;
+  return item.kind === "legacy";
 }
 
 function getUnifiedTypeLabel(item: UnifiedPortfolioItem) {
@@ -82,6 +91,25 @@ function PortfolioTypeBadge({ item }: { item: UnifiedPortfolioItem }) {
   return (
     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
       PPT 16:9
+    </span>
+  );
+}
+
+function PortfolioVisibilityBadge({ isPublic }: { isPublic: boolean }) {
+  const Icon = isPublic ? LockOpen : Lock;
+  const label = isPublic ? "공개" : "비공개";
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "inline-flex h-6 w-6 shrink-0 items-center justify-center",
+        isPublic ? "text-primary" : "text-slate-500",
+      )}
+    >
+      <Icon className="h-4 w-4" />
     </span>
   );
 }
@@ -184,6 +212,7 @@ export default function PortfoliosClient({
   sourceStats,
 }: PortfoliosClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState(initialPortfolios);
   // router.refresh() 후 서버에서 새 props 가 흘러오면 client state 동기화 — 안 그러면
   // useState 가 초기값에 갇혀서 "생성 중" 배지가 계속 보임.
@@ -191,9 +220,29 @@ export default function PortfoliosClient({
     setPortfolios(initialPortfolios);
   }, [initialPortfolios]);
   const [selectedId, setSelectedId] = useState(initialPortfolios[0]?.id || "");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortOrder, setSortOrder] = useState<"recent" | "title">("recent");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const initialType = searchParams.get("type");
+  const initialVisibility = searchParams.get("visibility");
+  const initialGeneration = searchParams.get("generation");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [sortOrder, setSortOrder] = useState<PortfolioSort>(
+    searchParams.get("sort") === "title" ? "title" : "recent",
+  );
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(
+    initialType === "showcase"
+      ? "showcase"
+      : initialType === "slides" ||
+          initialType === "site" ||
+          initialType === "slide" ||
+          initialType === "document"
+        ? "slides"
+        : "all",
+  );
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>(
+    initialVisibility === "public" || initialVisibility === "private" ? initialVisibility : "all",
+  );
+  const [generationFilter, setGenerationFilter] = useState<GenerationFilter>(
+    initialGeneration === "ready" || initialGeneration === "generating" ? initialGeneration : "all",
+  );
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [busyExportId, setBusyExportId] = useState<string | null>(null);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
@@ -211,6 +260,12 @@ export default function PortfoliosClient({
     const query = searchQuery.trim().toLowerCase();
     const next = portfolios.filter((portfolio) => {
       if (!matchesTypeFilter(portfolio, typeFilter)) return false;
+      if (visibilityFilter === "public" && !portfolio.isPublic) return false;
+      if (visibilityFilter === "private" && portfolio.isPublic) return false;
+      const generating =
+        portfolio.legacy?.generationStatus === "running" || activeJobIds.includes(portfolio.id);
+      if (generationFilter === "generating" && !generating) return false;
+      if (generationFilter === "ready" && generating) return false;
       if (!query) return true;
       if (portfolio.kind === "showcase") {
         return `${portfolio.title} ${portfolio.showcase?.templateLabel || ""}`
@@ -229,16 +284,38 @@ export default function PortfoliosClient({
       if (sortOrder === "title") return a.title.localeCompare(b.title, "ko");
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
-  }, [portfolios, searchQuery, sortOrder, typeFilter]);
+  }, [activeJobIds, generationFilter, portfolios, searchQuery, sortOrder, typeFilter, visibilityFilter]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setTypeFilter("all");
+    setVisibilityFilter("all");
+    setGenerationFilter("all");
+    setSortOrder("recent");
+  };
+
+  const advancedFilterCount =
+    (typeFilter === "all" ? 0 : 1) +
+    (visibilityFilter === "all" ? 0 : 1) +
+    (generationFilter === "all" ? 0 : 1);
+
+  useCareerFilterUrl({
+    q: searchQuery || null,
+    type: typeFilter === "all" ? null : typeFilter,
+    visibility: visibilityFilter === "all" ? null : visibilityFilter,
+    generation: generationFilter === "all" ? null : generationFilter,
+    sort: sortOrder === "recent" ? null : sortOrder,
+  });
 
   const selectedPortfolio =
-    portfolios.find((portfolio) => portfolio.id === selectedId) || filteredPortfolios[0] || null;
+    filteredPortfolios.find((portfolio) => portfolio.id === selectedId) ||
+    filteredPortfolios[0] ||
+    null;
 
   useEffect(() => {
-    if (!selectedPortfolio && filteredPortfolios[0]) {
-      setSelectedId(filteredPortfolios[0].id);
-    }
-  }, [filteredPortfolios, selectedPortfolio]);
+    if (filteredPortfolios.some((portfolio) => portfolio.id === selectedId)) return;
+    setSelectedId(filteredPortfolios[0]?.id || "");
+  }, [filteredPortfolios, selectedId]);
 
   const handleStartCreate = () => {
     router.push("/career/projects?portfolioMode=1");
@@ -384,6 +461,50 @@ export default function PortfoliosClient({
     }
   };
 
+  const handleToggleShowcasePublish = async (portfolio: UnifiedPortfolioItem) => {
+    const nextIsPublic = !portfolio.isPublic;
+    setBusyPublishId(portfolio.id);
+    try {
+      const response = await fetch(
+        `/api/career/portfolios/showcase/${portfolio.id}/publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPublic: nextIsPublic }),
+        },
+      );
+      const payload = (await readJsonResponse(response).catch(() => ({}))) as {
+        item?: {
+          published_at?: string | null;
+          updated_at?: string;
+        };
+        error?: string;
+        publicUrl?: string | null;
+      };
+      if (!response.ok || !payload.item) {
+        throw new Error(payload.error || "공개 상태 변경에 실패했습니다.");
+      }
+
+      setPortfolios((prev) =>
+        prev.map((item) =>
+          item.id === portfolio.id && item.kind === "showcase"
+            ? {
+                ...item,
+                isPublic: nextIsPublic,
+                publishedAt: payload.item?.published_at ?? null,
+                updatedAt: payload.item?.updated_at ?? item.updatedAt,
+                publicUrl: payload.publicUrl ?? null,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "공개 상태 변경에 실패했습니다.");
+    } finally {
+      setBusyPublishId(null);
+    }
+  };
+
   const handleCopyPublicUrl = async (portfolio: PortfolioListItem) => {
     const url = getShareUrl(portfolio);
     if (!url) return;
@@ -447,62 +568,86 @@ export default function PortfoliosClient({
         </Button>
       </div>
 
-      <div className="flex min-h-[640px] min-w-0 flex-col gap-6 lg:h-[calc(100vh-16rem)] lg:flex-row">
-        <aside className="flex max-h-[420px] w-full flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 shadow-sm lg:max-h-none lg:w-[360px]">
-          <div className="space-y-3 border-b border-slate-200 bg-white/70 p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="포트폴리오 검색..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-[13px] text-slate-700 outline-none focus:border-primary"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                [
+      {portfolios.length > 0 ? (
+        <CareerListToolbar
+          ariaLabel="포트폴리오 필터"
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="포트폴리오·기반 프로젝트 검색"
+          sortValue={sortOrder}
+          onSortChange={(value) => setSortOrder(value as PortfolioSort)}
+          sortOptions={[
+            { value: "recent", label: "최근 수정순" },
+            { value: "title", label: "제목순" },
+          ]}
+          advancedFilterCount={advancedFilterCount}
+          advancedFilters={
+            <>
+              <CareerFilterSection label="포트폴리오 형식">
+                {([
                   ["all", "전체"],
-                  ["site", "슬라이드형"],
-                  ["slide", "PPT 16:9"],
+                  ["slides", "슬라이드형"],
                   ["showcase", "웹사이트형"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTypeFilter(key)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-[11px] font-bold transition-colors",
-                    typeFilter === key
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] font-medium text-slate-500">정렬</span>
-              <select
-                value={sortOrder}
-                onChange={(event) =>
-                  setSortOrder(event.target.value === "title" ? "title" : "recent")
-                }
-                className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-[12px] text-slate-700 outline-none focus:border-primary"
-              >
-                <option value="recent">최근 수정순</option>
-                <option value="title">제목순</option>
-              </select>
-            </div>
-          </div>
+                ] as const).map(([value, label]) => (
+                  <CareerFilterChip key={value} active={typeFilter === value} onClick={() => setTypeFilter(value)}>
+                    {label}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+              <CareerFilterSection label="공개 상태">
+                {([
+                  ["all", "전체"],
+                  ["public", "공개"],
+                  ["private", "비공개"],
+                ] as const).map(([value, label]) => (
+                  <CareerFilterChip key={value} active={visibilityFilter === value} onClick={() => setVisibilityFilter(value)}>
+                    {label}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+              <CareerFilterSection label="생성 상태">
+                {([
+                  ["all", "전체"],
+                  ["ready", "생성 완료"],
+                  ["generating", "생성 중"],
+                ] as const).map(([value, label]) => (
+                  <CareerFilterChip key={value} active={generationFilter === value} onClick={() => setGenerationFilter(value)}>
+                    {label}
+                  </CareerFilterChip>
+                ))}
+              </CareerFilterSection>
+            </>
+          }
+          activeFilters={[
+            ...(typeFilter !== "all" ? [{
+              id: "type",
+              label: typeFilter === "slides" ? "슬라이드형" : "웹사이트형",
+              onRemove: () => setTypeFilter("all"),
+            }] : []),
+            ...(visibilityFilter !== "all" ? [{
+              id: "visibility",
+              label: visibilityFilter === "public" ? "공개" : "비공개",
+              onRemove: () => setVisibilityFilter("all"),
+            }] : []),
+            ...(generationFilter !== "all" ? [{
+              id: "generation",
+              label: generationFilter === "ready" ? "생성 완료" : "생성 중",
+              onRemove: () => setGenerationFilter("all"),
+            }] : []),
+          ]}
+          onReset={resetFilters}
+        />
+      ) : null}
 
+      <div className="flex min-h-[640px] min-w-0 flex-col gap-6 lg:h-[calc(100vh-20rem)] lg:flex-row">
+        <aside className="flex max-h-[420px] w-full flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 shadow-sm lg:max-h-none lg:w-[360px]">
           <div className="flex-1 space-y-2 overflow-y-auto p-3 no-scrollbar">
             {filteredPortfolios.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-400">
-                검색 결과가 없습니다.
+                <p>조건에 맞는 포트폴리오가 없습니다.</p>
+                <button type="button" onClick={resetFilters} className="mt-2 font-bold text-primary hover:underline">
+                  필터 초기화
+                </button>
               </div>
             ) : (
               filteredPortfolios.map((portfolio) => {
@@ -520,18 +665,20 @@ export default function PortfoliosClient({
                           : "기반 프로젝트 미지정";
                       })();
                 return (
-                  <button
+                  <div
                     key={portfolio.id}
-                    type="button"
-                    onClick={() => setSelectedId(portfolio.id)}
                     className={cn(
-                      "w-full rounded-xl border p-4 text-left transition-all",
+                      "relative w-full rounded-xl border transition-all",
                       isActive
                         ? "border-primary/30 bg-white shadow-sm ring-1 ring-primary/20"
                         : "border-transparent bg-transparent hover:bg-slate-100",
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(portfolio.id)}
+                      className="w-full p-4 pr-20 text-left"
+                    >
                       <h3
                         className={cn(
                           "line-clamp-2 text-[14px] font-semibold",
@@ -540,32 +687,48 @@ export default function PortfoliosClient({
                       >
                         {portfolio.title || "(제목 없음)"}
                       </h3>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {isGenerating ? (
-                          <Badge className="rounded-full border-amber-200 bg-amber-50 text-[10px] font-bold text-amber-700">
-                            <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
-                            생성 중
-                          </Badge>
-                        ) : null}
-                        <Badge
-                          variant={portfolio.isPublic ? "default" : "secondary"}
-                          className="rounded-full text-[10px]"
-                        >
-                          {portfolio.isPublic ? "공개" : "비공개"}
-                        </Badge>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <PortfolioTypeBadge item={portfolio} />
                       </div>
+                      <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-500">
+                        {subtitleText}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
+                        <span>{getUnifiedTypeLabel(portfolio)}</span>
+                        <span className="shrink-0">{formatDateLabel(portfolio.updatedAt)}</span>
+                      </div>
+                    </button>
+                    <div className="absolute right-3 top-3 flex items-center gap-1">
+                      {isGenerating ? (
+                        <Badge className="rounded-full border-amber-200 bg-amber-50 text-[10px] font-bold text-amber-700">
+                          <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
+                          생성 중
+                        </Badge>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={busyPublishId === portfolio.id || isGenerating}
+                        aria-label={portfolio.isPublic ? "비공개로 전환" : "공개로 전환"}
+                        title={portfolio.isPublic ? "비공개로 전환" : "공개로 전환"}
+                        className="rounded-md transition-colors hover:bg-slate-200/70 disabled:cursor-wait disabled:opacity-60"
+                        onClick={() => {
+                          if (portfolio.kind === "legacy" && portfolio.legacy) {
+                            void handleTogglePublish(portfolio.legacy);
+                            return;
+                          }
+                          void handleToggleShowcasePublish(portfolio);
+                        }}
+                      >
+                        {busyPublishId === portfolio.id ? (
+                          <span className="inline-flex h-6 w-6 items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          </span>
+                        ) : (
+                          <PortfolioVisibilityBadge isPublic={portfolio.isPublic} />
+                        )}
+                      </button>
                     </div>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <PortfolioTypeBadge item={portfolio} />
-                    </div>
-                    <p className="mt-1.5 line-clamp-1 text-[11px] text-slate-500">
-                      {subtitleText}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-slate-500">
-                      <span>{getUnifiedTypeLabel(portfolio)}</span>
-                      <span className="shrink-0">{formatDateLabel(portfolio.updatedAt)}</span>
-                    </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -681,9 +844,7 @@ function ShowcaseDetail({
 
       <div className="border-b border-slate-100 px-8 pb-6 pt-6">
         <div className="flex max-w-3xl flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-            {item.isPublic ? "공개" : "비공개"}
-          </span>
+          <PortfolioVisibilityBadge isPublic={item.isPublic} />
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
             웹사이트형
           </span>
@@ -956,7 +1117,8 @@ function PortfolioDetail({
 
       <div className="border-b border-slate-100 px-8 pb-6 pt-6">
         <div className="flex max-w-3xl flex-wrap items-center gap-2">
-          {[portfolio.isPublic ? "공개" : "비공개", getFormatLabel(portfolio), `${pageCount} ${pageUnit}`].map(
+          <PortfolioVisibilityBadge isPublic={portfolio.isPublic} />
+          {[getFormatLabel(portfolio), `${pageCount} ${pageUnit}`].map(
             (label) => (
               <span
                 key={label}
@@ -1106,6 +1268,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Kept for the legacy page-preview path that can be re-enabled by the editor.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PortfolioPagePreview({
   portfolio,
   page,

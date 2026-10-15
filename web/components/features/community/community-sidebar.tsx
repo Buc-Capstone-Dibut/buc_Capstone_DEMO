@@ -75,7 +75,7 @@ export function CommunitySidebar() {
       {/* 1. Write Button (Mobile prominent, but good to have here too or just info) */}
 
       {/* 2. Popular Tags / Topics */}
-      <Card className="shadow-sm">
+      <Card className="border-border/50 bg-transparent shadow-none">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
@@ -104,7 +104,7 @@ export function CommunitySidebar() {
       </Card>
 
       {/* 3. Recommended Squads */}
-      <Card className="shadow-sm">
+      <Card className="border-border/50 bg-transparent shadow-none">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

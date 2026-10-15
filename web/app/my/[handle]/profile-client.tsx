@@ -39,7 +39,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
   ArrowRight,
+  BarChart3,
   Bookmark,
+  BriefcaseBusiness,
+  Building2,
   FileText,
   Github,
   LayoutDashboard,
@@ -73,6 +76,19 @@ const BookmarksTab = dynamic(() =>
 const WorkspaceActivityTab = dynamic(() =>
   import("./tabs/workspace-activity-tab").then(
     (module) => module.WorkspaceActivityTab,
+  ),
+);
+const CareerTab = dynamic(() =>
+  import("./tabs/career-tab").then((module) => module.CareerTab),
+);
+const InterviewReportsTab = dynamic(() =>
+  import("./tabs/interview-reports-tab").then(
+    (module) => module.InterviewReportsTab,
+  ),
+);
+const FavoriteCompaniesTab = dynamic(() =>
+  import("./tabs/favorite-companies-tab").then(
+    (module) => module.FavoriteCompaniesTab,
   ),
 );
 
@@ -224,15 +240,16 @@ const NAV_ITEMS: {
 }[] = [
   {
     key: "overview",
-    label: "개요",
+    label: "홈",
     description: "내 활동을 한눈에 보는 대시보드",
     icon: LayoutDashboard,
   },
   {
-    key: "content",
-    label: "콘텐츠",
-    description: "글과 댓글을 함께 관리",
-    icon: FileText,
+    key: "companies",
+    label: "관심 기업",
+    description: "관심 기업과 기술 블로그 설정",
+    icon: Building2,
+    ownerOnly: true,
   },
   {
     key: "bookmarks",
@@ -241,10 +258,30 @@ const NAV_ITEMS: {
     icon: Bookmark,
   },
   {
+    key: "content",
+    label: "커뮤니티 활동",
+    description: "작성한 글과 댓글 관리",
+    icon: FileText,
+  },
+  {
     key: "activity",
-    label: "스페이스",
+    label: "워크스페이스",
     description: "팀 공간 활동 기록",
     icon: Activity,
+  },
+  {
+    key: "career",
+    label: "커리어 관리",
+    description: "커리어 자료와 제작 도구",
+    icon: BriefcaseBusiness,
+    ownerOnly: true,
+  },
+  {
+    key: "interviews",
+    label: "면접 리포트",
+    description: "완료한 면접과 분석 결과",
+    icon: BarChart3,
+    ownerOnly: true,
   },
 ];
 
@@ -450,7 +487,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
           const json = await res.json();
           if (!res.ok || !json?.success) {
             throw new Error(
-              json?.error || "스페이스 활동 기록을 불러오지 못했습니다.",
+              json?.error || "워크스페이스 활동 기록을 불러오지 못했습니다.",
             );
           }
           const nextItems = Array.isArray(json?.data?.items)
@@ -703,14 +740,13 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
               {NAV_ITEMS.filter((item) => !item.ownerOnly || isOwner).map(
                 ({ key, label, icon: Icon, href }) => {
                   const isActive = activeTab === key;
-                  const count =
-                    key === "overview"
-                      ? undefined
-                      : key === "content"
-                        ? contentCount
-                        : key === "bookmarks"
-                          ? displayStats.bookmarkCount
-                          : displayStats.workspaceCount;
+                  const count = key === "content"
+                    ? contentCount
+                    : key === "bookmarks"
+                      ? displayStats.bookmarkCount
+                      : key === "activity"
+                        ? displayStats.workspaceCount
+                        : undefined;
 
                   return (
                     <button
@@ -962,7 +998,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
 
                         <OverviewShortcutRow
                           icon={Activity}
-                          title="스페이스 활동"
+                          title="워크스페이스"
                           description="참여한 워크스페이스"
                           count={displayStats.workspaceCount}
                           actionLabel="열기"
@@ -974,12 +1010,54 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
                 </>
               )}
 
+              {activeTab === "career" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">커리어 관리</CardTitle>
+                    <CardDescription>
+                      내가 만든 프로젝트·경력·지원 자료의 최근 목록을 한 곳에서 확인합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CareerTab />
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === "interviews" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">면접 리포트</CardTitle>
+                    <CardDescription>
+                      최근 모의면접과 포트폴리오 디펜스 결과를 확인합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <InterviewReportsTab />
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === "companies" && isOwner && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl">관심 기업</CardTitle>
+                    <CardDescription>
+                      관심 기업을 등록하고 해당 기업의 기술 블로그만 모아봅니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FavoriteCompaniesTab />
+                  </CardContent>
+                </Card>
+              )}
+
             {activeTab === "content" && (
               <Card>
                 <CardHeader className="gap-4 pb-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <CardTitle className="text-xl">콘텐츠 활동</CardTitle>
+                      <CardTitle className="text-xl">커뮤니티 활동</CardTitle>
                       <CardDescription>
                         글과 댓글을 한 곳에서 오가며 확인할 수 있도록 묶었습니다.
                       </CardDescription>
@@ -1077,7 +1155,7 @@ export function ProfileClient({ initialData }: { initialData: InitialData }) {
             {activeTab === "activity" && (
               <Card>
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-xl">스페이스 활동</CardTitle>
+                  <CardTitle className="text-xl">워크스페이스</CardTitle>
                   <CardDescription>
                     참여한 팀 공간을 한 페이지에서 바로 확인합니다.
                   </CardDescription>

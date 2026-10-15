@@ -33,6 +33,7 @@ import { CollapsibleSection } from "@/components/features/resume/collapsible-sec
 import { TechStackCombobox } from "@/components/features/job-postings/tech-stack-combobox";
 import { AutoResizeTextarea } from "@/components/features/resume/auto-resize-textarea";
 import { CategorizedSkillPicker } from "@/components/features/resume/categorized-skill-picker";
+import { ResumeEducationSection } from "@/components/features/resume/resume-education-section";
 import {
   DEFAULT_RESUME_A4_OPTIONS,
   KoreanResumePreview,
@@ -71,6 +72,7 @@ interface ResumeEditorProps {
   aiCurated?: boolean;
   /** AI 큐레이션 단계. 'analyzing'=서버 분석 대기, 'writing'=결과를 폼에 작성 중. */
   aiCuratePhase?: "analyzing" | "writing" | null;
+  onA4OptionsChange?: (options: ResumeA4Options) => void;
 }
 
 // AI 다듬기 진행 중 미리보기 위에 덮이는 오버레이.
@@ -150,6 +152,7 @@ export function ResumeEditor({
   aiCurating = false,
   aiCurated = false,
   aiCuratePhase = null,
+  onA4OptionsChange,
 }: ResumeEditorProps) {
   const searchParams = useSearchParams();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -680,10 +683,10 @@ export function ResumeEditor({
         className={cn(
           "grid grid-cols-1 gap-6",
           // 우측 미리보기에 더 넓은 비중을 줘서 A4 본문이 시원하게 보이도록 비율 조정.
-          "xl:grid-cols-[minmax(320px,0.55fr)_minmax(640px,1.45fr)] 2xl:grid-cols-[minmax(360px,0.50fr)_minmax(780px,1.5fr)]",
+          "xl:h-full xl:min-h-0 xl:grid-cols-[minmax(320px,0.55fr)_minmax(640px,1.45fr)] xl:overflow-hidden 2xl:grid-cols-[minmax(360px,0.50fr)_minmax(780px,1.5fr)]",
         )}
       >
-        <div ref={editPanelRef} className="space-y-5">
+        <div ref={editPanelRef} className="space-y-5 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       {/* Top guide banner */}
       {applicationTarget && aiCurated ? (
         // ① AI 큐레이션 완료 후 — 완료 안내만 노출 (AI 버튼 사라짐)
@@ -878,6 +881,10 @@ export function ResumeEditor({
               </div>
             ))}
           </div>
+          <ResumeEducationSection
+            value={payload.education}
+            onChange={(education) => onChange({ ...payload, education })}
+          />
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -1286,21 +1293,15 @@ export function ResumeEditor({
       </div>
         </div>
 
-        <div
-          ref={previewRef}
-          className={cn(
-            "min-w-0",
-            // 좌측 입력 폼이 길어져도 우측 미리보기가 항상 보이도록 sticky 처리.
-            // A4 한 장의 고정 높이를 유지해야 하므로 내부 스크롤은 두지 않는다 —
-            // 페이지가 길어져도 페이지 nav(이전/다음) 로 넘긴다.
-            "xl:sticky xl:top-24 xl:self-start",
-          )}
-        >
+        <div ref={previewRef} className="min-w-0 xl:h-full xl:min-h-0">
           <KoreanResumePreview
             payload={payload}
             title={title}
             options={a4Options}
-            onOptionsChange={setA4Options}
+            onOptionsChange={(options) => {
+              setA4Options(options);
+              onA4OptionsChange?.(options);
+            }}
             overlay={
               // 'analyzing'(서버 분석 대기) 동안만 오버레이를 띄운다.
               // 'writing'(작성) 단계로 넘어가면 오버레이를 닫아 타자기 효과가 실시간으로 보이게 한다.

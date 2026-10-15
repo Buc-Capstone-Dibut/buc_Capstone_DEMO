@@ -125,6 +125,7 @@ export default async function CareerResumesPage() {
             division: typeof meta.division === "string" ? meta.division : "",
             role: typeof meta.role === "string" ? meta.role : "",
             deadline: typeof meta.deadline === "string" ? meta.deadline : "",
+            jobDescription: typeof meta.jobDescription === "string" ? meta.jobDescription : "",
           }
         : null,
     };

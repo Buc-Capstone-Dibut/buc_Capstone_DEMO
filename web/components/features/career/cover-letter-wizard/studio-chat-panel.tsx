@@ -436,7 +436,7 @@ export function CoverLetterWizardStudioChatPanel({
                 ))}
               </div>
             ) : null}
-            <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_18px_55px_rgba(15,23,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_18px_55px_rgba(15,23,42,0.16)] ring-1 ring-white/70 backdrop-blur-xl">
               <Textarea
                 ref={textareaRef}
                 value={chatInput}
@@ -446,7 +446,7 @@ export function CoverLetterWizardStudioChatPanel({
                     ? `'${selectedQuestion.title}' 문항 기준으로 원하는 방향을 입력하세요`
                     : "원하는 작성 방향을 입력하세요"
                 }
-                className="min-h-[74px] resize-none border-0 bg-transparent px-3 py-2 pr-28 text-sm leading-[1.55] shadow-none focus-visible:ring-0"
+                className="min-h-[82px] resize-none rounded-2xl border border-slate-200/80 bg-slate-50/40 px-3 py-3 text-sm leading-[1.55] shadow-none focus-visible:border-primary/40 focus-visible:ring-0 focus-visible:ring-offset-0"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -454,7 +454,7 @@ export function CoverLetterWizardStudioChatPanel({
                   }
                 }}
               />
-              <div className="flex items-center justify-between gap-3 px-2 pb-1">
+              <div className="mt-2 flex items-center justify-between gap-3 px-1 pb-0.5">
                 <span className="min-w-0 truncate text-[10px] text-slate-400">
                   {composerHint}
                 </span>
@@ -463,7 +463,7 @@ export function CoverLetterWizardStudioChatPanel({
                   aria-label="AI에 요청"
                   onClick={handleSubmit}
                   disabled={isStreaming}
-                  className={`h-8 w-8 shrink-0 rounded-full p-0 shadow-sm transition-all ${
+                  className={`h-9 w-9 shrink-0 rounded-full p-0 shadow-sm transition-all ${
                     hasChatInput
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-primary/20 text-primary/60 opacity-70 hover:bg-primary/25"

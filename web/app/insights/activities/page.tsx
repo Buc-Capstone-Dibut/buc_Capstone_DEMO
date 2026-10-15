@@ -4,6 +4,7 @@ import {
   getAllEventTags,
   fetchClosingSoonEvents,
 } from "@/lib/server/dev-events";
+import type { DevEventSort } from "@/lib/server/dev-events";
 import { EventCard } from "@/components/features/career/event-card";
 import { ActivityFilter } from "@/components/features/career/activity-filter";
 import { RecruitSearchSort } from "@/components/features/career/recruit-search-sort";
@@ -39,6 +40,12 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     typeof resolvedSearchParams.page === "string"
       ? parseInt(resolvedSearchParams.page)
       : 1;
+  const requestedSort = typeof resolvedSearchParams.sort === "string"
+    ? resolvedSearchParams.sort
+    : "latest";
+  const sort: DevEventSort = ["latest", "oldest", "name", "deadline", "recommended"].includes(requestedSort)
+    ? requestedSort as DevEventSort
+    : "latest";
 
   const [recommendationTags, allTags, recentSquads, closingEvents] =
     await Promise.all([
@@ -53,6 +60,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     category,
     tags,
     recommendationTags,
+    sort,
     page,
     limit: 12,
   });
@@ -81,13 +89,13 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 max-w-7xl py-8">
-        {/* Filter and Search Bar Row */}
-        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex-1 w-full">
+        {/* Category, Search and Sort Row */}
+        <div className="mb-8 flex flex-col items-stretch justify-between gap-3 lg:flex-row lg:items-center">
+          <div className="min-w-0">
             <ActivityFilter allTags={allTags} />
           </div>
-          <div className="shrink-0 w-full md:w-auto">
-            <RecruitSearchSort recommendationTags={recommendationTags} />
+          <div className="w-full lg:w-auto">
+            <RecruitSearchSort />
           </div>
         </div>
 

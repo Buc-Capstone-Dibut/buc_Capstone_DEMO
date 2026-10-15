@@ -1,4 +1,14 @@
-export type TabKey = "overview" | "content" | "bookmarks" | "activity" | "jobs";
+import type { ResumeEducation } from "@/lib/resume/education";
+
+export type TabKey =
+  | "overview"
+  | "career"
+  | "interviews"
+  | "companies"
+  | "content"
+  | "bookmarks"
+  | "activity"
+  | "jobs";
 
 export type ContentTabKey = "posts" | "comments";
 
@@ -70,7 +80,7 @@ export interface ResumePayload {
       [key: string]: string | undefined;
     };
   };
-  education: unknown[];
+  education: ResumeEducation[];
   experience: Array<{
     id?: string;
     company: string;

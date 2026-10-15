@@ -27,6 +27,10 @@ import {
   buildInterviewTypePayload,
   resolveInterviewTypeVisual,
 } from "@/lib/interview/interview-type-visuals";
+import {
+  buildInterviewConsoleRecommendation,
+  isLikelyInterviewQuestion,
+} from "@/lib/interview/console-coaching";
 
 type SessionType = "live_interview" | "portfolio_defense";
 
@@ -271,6 +275,7 @@ export default function InterviewVideoRoomPage() {
   const initRetryAttemptedRef = useRef(false);
   const isSessionReadyRef = useRef(false);
   const captionScrollRef = useRef<HTMLDivElement | null>(null);
+  const loggedInterviewCoachTurnsRef = useRef<Set<string>>(new Set());
 
   const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || "ws://localhost:8001/v1/interview/ws/client";
   const interviewJobData = useMemo(
@@ -379,6 +384,28 @@ export default function InterviewVideoRoomPage() {
       provider: provider || prev?.provider,
     }));
   }, []);
+
+  const logInterviewConsoleCoaching = useCallback((question: string, turnId: string = "") => {
+    const cleanQuestion = question.replace(/\s+/g, " ").trim();
+    if (!isLikelyInterviewQuestion(cleanQuestion)) return;
+
+    const dedupeKey = turnId.trim() || cleanQuestion.toLowerCase();
+    if (loggedInterviewCoachTurnsRef.current.has(dedupeKey)) return;
+    loggedInterviewCoachTurnsRef.current.add(dedupeKey);
+
+    const recommendation = buildInterviewConsoleRecommendation({
+      question: cleanQuestion,
+      sessionType,
+      jobData: runtimeJobData,
+      resumeData: resumeData?.parsedContent,
+    });
+
+    console.group("%c[Debut 면접 코치]", "color: #7c3aed; font-weight: 700;");
+    console.info("AI 질문:", cleanQuestion);
+    console.info("추천 답변:", recommendation);
+    console.info("안내: [ ] 부분은 본인의 실제 경험으로 바꿔 답변하세요.");
+    console.groupEnd();
+  }, [resumeData?.parsedContent, runtimeJobData, sessionType]);
 
   useEffect(() => {
     isSessionReadyRef.current = isSessionReady;
@@ -583,6 +610,7 @@ export default function InterviewVideoRoomPage() {
       const provider = (meta?.provider || "").trim();
       if (role === "ai") {
         snapshotCommittedAiCaption(clean, turnId, provider);
+        logInterviewConsoleCoaching(clean, turnId);
         setStreamingAiCaption((prev) => {
           if (turnId && streamingAiTurnId && turnId === streamingAiTurnId) {
             return preferLongerCaption(prev, clean);
@@ -658,6 +686,7 @@ export default function InterviewVideoRoomPage() {
         }
         if (!resumed) {
           setTranscript([]);
+          loggedInterviewCoachTurnsRef.current.clear();
         }
         setStreamingAiCaption("");
         setStreamingUserCaption("");

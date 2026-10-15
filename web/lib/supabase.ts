@@ -232,7 +232,7 @@ export async function incrementViews(id: number) {
 }
 
 // 주간 인기글 조회
-export async function fetchWeeklyPopularBlogs(limit = 10, author?: string) {
+export async function fetchWeeklyPopularBlogs(limit = 10, author?: string, authors?: string[]) {
   try {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -245,6 +245,8 @@ export async function fetchWeeklyPopularBlogs(limit = 10, author?: string) {
 
     if (author && author.trim()) {
       query = query.eq("author", author.trim());
+    } else if (authors && authors.length > 0) {
+      query = query.in("author", authors);
     }
 
     const { data, error } = await query.limit(limit);

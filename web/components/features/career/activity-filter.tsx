@@ -105,12 +105,17 @@ export function ActivityFilter({ allTags }: ActivityFilterProps) {
   };
 
   return (
-    <div className="w-full">
+    <div
+      className="w-full"
+      role="group"
+      aria-label="대외활동 카테고리 필터"
+    >
       <TagFilterBar
         value={category}
         options={ACTIVITY_FILTER_OPTIONS}
         selectedSubTags={selectedSubTags}
         availableTags={allTags}
+        showSubTags={false}
         onChange={handleCategoryChange}
         onSubTagChange={handleSubTagChange}
       />

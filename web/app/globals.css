@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes tech-company-marquee-forward {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.tech-company-marquee {
+  animation: tech-company-marquee-forward 90s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tech-company-marquee {
+    animation: none;
+    transform: none;
+  }
+}
+
 
 
 html {
@@ -220,17 +241,6 @@ body {
   initial-value: 0deg;
 }
 
-@keyframes site-helper-ring-fill {
-  0% {
-    --site-helper-ring-angle: 0deg;
-  }
-
-  72%,
-  100% {
-    --site-helper-ring-angle: 360deg;
-  }
-}
-
 .site-helper-chat-trigger {
   isolation: isolate;
 }
@@ -253,7 +263,7 @@ body {
     0 0 0 1px hsl(var(--primary) / 0.18),
     0 16px 38px hsl(90 43% 51% / 0.28);
   transform: scaleX(-1);
-  animation: none;
+  transition: --site-helper-ring-angle 0.7s linear;
   -webkit-mask: radial-gradient(
     farthest-side,
     transparent calc(100% - 5px),
@@ -267,16 +277,7 @@ body {
 }
 
 .site-helper-chat-trigger:hover::before {
-  animation: site-helper-ring-fill 0.7s linear 1 forwards;
-}
-
-/* 한 번 채워진 뒤에는 링을 가득 찬 상태로 고정하고 더 이상 애니메이션이 돌지 않도록 */
-.site-helper-chat-trigger.is-filled::before {
   --site-helper-ring-angle: 360deg;
-  animation: none;
-}
-.site-helper-chat-trigger.is-filled:hover::before {
-  animation: none;
 }
 
 .site-helper-chat-mascot {
@@ -319,6 +320,7 @@ body {
   .animate-ping-subtle,
   .site-helper-chat-trigger::before {
     animation: none;
+    transition: none;
   }
 }
 
