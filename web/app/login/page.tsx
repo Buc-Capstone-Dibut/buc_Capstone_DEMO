@@ -28,7 +28,12 @@ export default function LoginPage() {
     setOpen(nextOpen);
     if (!nextOpen) {
       const { data: { session } } = await supabase.auth.getSession();
-      router.replace(session ? nextPath : "/");
+      if (session) {
+        // 라우터 캐시에 남은 "비로그인 → /login" 리다이렉트를 재사용하지 않도록 전체 이동한다.
+        window.location.replace(nextPath);
+        return;
+      }
+      router.replace("/");
     }
   };
 
