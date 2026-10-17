@@ -353,7 +353,7 @@ export default function WorkspaceDetailPage() {
 
     const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
     const url = configuredUrl || window.location.origin;
-    // addTrailingSlash가 꺼져 있으므로 직접 연결 시 "/socket.io/"처럼 슬래시까지 명시해야 한다.
+    // 직접 연결은 Socket.IO 서버가 받는 "/socket.io/" 경로를 유지한다.
     const socketPath = configuredUrl
       ? "/socket.io/"
       : "/workspace-realtime/connect";

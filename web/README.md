@@ -86,6 +86,10 @@ npm install
 npm run dev
 ```
 
+`npm run dev`와 `npm run build`는 실행 전에 현재 스키마로 Prisma Client를
+자동 생성합니다. 스키마 변경을 가져온 뒤 이미 실행 중인 개발 서버는 다시
+시작해야 서버 메모리에 남은 이전 Prisma Client도 교체됩니다.
+
 ## 배포
 
 ### Vercel 권장
