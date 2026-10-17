@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import { useDebounce } from "use-debounce";
+import { useDebouncedCallback } from "use-debounce";
 import {
   Select,
   SelectContent,
@@ -17,29 +17,28 @@ export function RecruitSearchSort() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Initial States
-  const [searchTerm, setSearchTerm] = useState(
-    searchParams.get("search") || ""
-  );
+  const urlSearch = searchParams.get("search") || "";
+  const [searchTerm, setSearchTerm] = useState(urlSearch);
   const sort = searchParams.get("sort") || "latest";
 
-  // Debounce search input
-  const [debouncedSearch] = useDebounce(searchTerm, 300);
-
-  // Update URL on change
-  useEffect(() => {
+  const updateSearch = useDebouncedCallback((value: string) => {
+    if (value === (searchParams.get("search") || "")) return;
     const params = new URLSearchParams(searchParams.toString());
 
-    if (debouncedSearch) {
-      params.set("search", debouncedSearch);
+    if (value) {
+      params.set("search", value);
     } else {
       params.delete("search");
     }
 
     params.delete("page");
-
     router.push(`?${params.toString()}`);
-  }, [debouncedSearch, router, searchParams]);
+  }, 300);
+
+  useEffect(() => {
+    setSearchTerm(urlSearch);
+    return () => updateSearch.cancel();
+  }, [urlSearch, updateSearch]);
 
   const handleSortChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -60,7 +59,10 @@ export function RecruitSearchSort() {
           placeholder="활동명, 주최기관 검색..."
           className="pl-9 h-10 rounded-xl bg-muted/50 border-none focus-visible:ring-1"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            updateSearch(e.target.value);
+          }}
         />
       </div>
 
