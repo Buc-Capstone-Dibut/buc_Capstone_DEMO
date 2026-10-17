@@ -20,9 +20,9 @@ def retryable(error):
     return any(code in text for code in ("429", "500", "502", "503", "504", "timeout", "timed out", "resource_exhausted"))
 
 
-def scrape_url_content(url: str, *, metadata: dict | None = None):
+def scrape_url_content(url: str, *, metadata: dict | None = None, force_render: bool = False):
     client = get_firecrawl_client()
-    wait_for_content = False
+    wait_for_content = force_render
     for attempt in range(3):
         try:
             options = {"formats": ["markdown"], "timeout": 45000, "only_main_content": not wait_for_content}
@@ -47,6 +47,18 @@ def scrape_url_content(url: str, *, metadata: dict | None = None):
     return None
 
 
+def relevant_markdown(title: str, markdown: str, budget: int = 24000):
+    if len(markdown) <= budget:
+        return markdown
+    position = markdown.casefold().find(title.casefold()) if len(title.strip()) >= 4 else -1
+    if position > budget // 2:
+        # 긴 공통 메뉴 뒤에 있는 실제 공고 제목과 본문을 보존한다.
+        start = max(0, position - 2000)
+        return markdown[start:start + budget]
+    # 제목을 찾지 못해도 앞부분만 보내 본문 전체를 누락하지 않는다.
+    return markdown[:budget // 2] + "\n\n" + markdown[-(budget // 2 - 2):]
+
+
 def process_content_with_gemini(title: str, raw_markdown: str):
     client = get_genai_client()
     if client is None:
@@ -54,7 +66,7 @@ def process_content_with_gemini(title: str, raw_markdown: str):
     prompt = f"""당신은 개발자 대외활동 큐레이터입니다. 아래 원문에서 확인한 사실만 한국어 JSON으로 정리하세요.
 활동 제목: {title}
 원문:
-{raw_markdown[:24000]}
+{relevant_markdown(title, raw_markdown)}
 
 필드:
 - title_ko: 활동 이름을 보존한 한국어 제목
@@ -102,7 +114,13 @@ def deep_crawl_event(event):
         return None
     result = process_content_with_gemini(event.source_title or event.title, raw)
     if not result or not result.get("summary"):
-        logger.warning(f"행사 정보를 확인할 수 없어 요약을 보류함: {event.link}")
+        # 상세 모달이 main 밖에 있거나 늦게 로딩되는 페이지도 재확인한다.
+        rendered = scrape_url_content(event.link, metadata=metadata, force_render=True)
+        if rendered and rendered != raw:
+            raw = rendered
+            result = process_content_with_gemini(event.source_title or event.title, raw)
+        if not result or not result.get("summary"):
+            logger.warning(f"행사 정보를 확인할 수 없어 요약을 보류함: {event.link}")
     if result and isinstance(result.get("description"), str) and result["description"].strip():
         result["content"] = result["description"]
     # AI 실패 시에도 원문은 보존하며 summary는 비워 두어 다음 실행에서 다시 시도한다.
