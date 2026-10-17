@@ -128,11 +128,21 @@ class ServiceTest(unittest.TestCase):
 class ProcessorTest(unittest.TestCase):
     @patch.object(processor, "get_firecrawl_client")
     def test_thumbnail_is_taken_from_the_same_scrape_without_a_second_request(self, get_client):
-        get_client.return_value.scrape.return_value = {"markdown": "원문", "metadata": {"ogImage": "https://example.com/image.png"}}
+        markdown = "충분한 본문 " * 50
+        get_client.return_value.scrape.return_value = {"markdown": markdown, "metadata": {"ogImage": "https://example.com/image.png"}}
         metadata = {}
-        self.assertEqual(processor.scrape_url_content("https://example.com", metadata=metadata), "원문")
+        self.assertEqual(processor.scrape_url_content("https://example.com", metadata=metadata), markdown.strip())
         self.assertEqual(metadata, {"thumbnail": "https://example.com/image.png"})
         self.assertEqual(get_client.return_value.scrape.call_count, 1)
+
+    @patch.object(processor, "get_firecrawl_client")
+    def test_short_javascript_shell_retries_with_render_wait_and_full_content(self, get_client):
+        get_client.return_value.scrape.side_effect = [{"markdown": "본문 바로가기"}, {"markdown": "실제 행사 내용 " * 100}]
+        self.assertIn("실제 행사 내용", processor.scrape_url_content("https://example.com"))
+        options = get_client.return_value.scrape.call_args.kwargs
+        self.assertEqual(options["wait_for"], 5000)
+        self.assertFalse(options["only_main_content"])
+        self.assertEqual(get_client.return_value.scrape.call_count, 2)
 
     @patch.object(processor.time, "sleep")
     @patch.object(processor, "get_genai_client")
