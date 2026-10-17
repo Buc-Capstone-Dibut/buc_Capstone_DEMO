@@ -126,6 +126,14 @@ class ServiceTest(unittest.TestCase):
 
 
 class ProcessorTest(unittest.TestCase):
+    @patch.object(processor, "get_firecrawl_client")
+    def test_thumbnail_is_taken_from_the_same_scrape_without_a_second_request(self, get_client):
+        get_client.return_value.scrape.return_value = {"markdown": "원문", "metadata": {"ogImage": "https://example.com/image.png"}}
+        metadata = {}
+        self.assertEqual(processor.scrape_url_content("https://example.com", metadata=metadata), "원문")
+        self.assertEqual(metadata, {"thumbnail": "https://example.com/image.png"})
+        self.assertEqual(get_client.return_value.scrape.call_count, 1)
+
     @patch.object(processor.time, "sleep")
     @patch.object(processor, "get_genai_client")
     def test_transient_error_retries_without_disabling_later_events(self, get_client, sleep):

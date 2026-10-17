@@ -20,12 +20,16 @@ def retryable(error):
     return any(code in text for code in ("429", "500", "502", "503", "504", "timeout", "timed out", "resource_exhausted"))
 
 
-def scrape_url_content(url: str):
+def scrape_url_content(url: str, *, metadata: dict | None = None):
     client = get_firecrawl_client()
     for attempt in range(3):
         try:
             result = client.scrape(url, formats=["markdown"], timeout=45000, only_main_content=True)
             markdown = result.get("markdown") if isinstance(result, dict) else getattr(result, "markdown", None)
+            page_metadata = result.get("metadata") if isinstance(result, dict) else getattr(result, "metadata", None)
+            image = (page_metadata.get("ogImage") or page_metadata.get("og_image")) if isinstance(page_metadata, dict) else getattr(page_metadata, "og_image", None)
+            if metadata is not None and isinstance(image, str) and image.startswith(("https://", "http://")):
+                metadata["thumbnail"] = image
             return markdown.strip() if isinstance(markdown, str) else None
         except Exception as error:
             if attempt == 2 or not retryable(error):
@@ -84,11 +88,15 @@ JSON 객체 하나만 반환하세요."""
 
 def deep_crawl_event(event):
     logger.info(f"상세 수집: {event.title} ({event.link})")
-    raw = scrape_url_content(event.link)
+    metadata = {}
+    raw = scrape_url_content(event.link, metadata=metadata)
     if not raw:
         return None
     result = process_content_with_gemini(event.source_title or event.title, raw)
     if result and isinstance(result.get("description"), str) and result["description"].strip():
         result["content"] = result["description"]
     # AI 실패 시에도 원문은 보존하며 summary는 비워 두어 다음 실행에서 다시 시도한다.
-    return result if result and result.get("content") else {"content": raw}
+    details = result if result and result.get("content") else {"content": raw}
+    if metadata.get("thumbnail") and not event.thumbnail:
+        details["thumbnail"] = metadata["thumbnail"]
+    return details
