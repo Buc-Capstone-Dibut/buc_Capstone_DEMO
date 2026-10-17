@@ -25,7 +25,7 @@ create table if not exists public.dev_events (
   last_seen_at timestamp with time zone null,
   updated_at timestamp with time zone null,
   constraint dev_events_pkey primary key (id),
-  constraint dev_events_link_key unique (link),
+  constraint dev_events_source_link_key unique (source, link),
   constraint dev_events_source_key_key unique (source_key)
 );
 
@@ -64,3 +64,21 @@ create policy "Allow public read access"
   using (true);
 
 -- Allow service role to do everything (implicit, but good to know)
+
+-- Legacy duplicates must first be reconciled with src.apps.dev_event.reconcile.
+-- The reconciliation command also creates this index and the alias schema below.
+create unique index if not exists dev_events_source_link_unique
+  on public.dev_events (source, link);
+
+create table if not exists public.dev_event_aliases (
+  alias_id uuid primary key,
+  event_id uuid not null references public.dev_events(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  check (alias_id <> event_id)
+);
+alter table public.dev_event_aliases enable row level security;
+drop policy if exists dev_event_aliases_public_read on public.dev_event_aliases;
+create policy dev_event_aliases_public_read on public.dev_event_aliases
+  for select to public using (true);
+grant select on public.dev_event_aliases to anon, authenticated;
+grant all on public.dev_event_aliases to service_role;

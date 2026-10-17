@@ -1,86 +1,76 @@
 import re
-from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
 from src.apps.dev_event.models import DevEvent
 
-def parse_dev_events(markdown: str) -> List[DevEvent]:
-    """Parse raw markdown content into DevEvent objects."""
-    lines = markdown.split("\n")
-    events: List[DevEvent] = []
 
-    current_event: Optional[dict] = None
-    
-    # Regex patterns
-    # Matches: - __[Title](Link)__
-    event_regex = re.compile(r'^- __\[(.*?)\]\((.*?)\)__')
-    # Matches:   - Key: Value
-    meta_regex = re.compile(r'^  - (.*?): (.*)')
-    # Matches headers: ## Section
-    header_regex = re.compile(r'^## (.*)')
+def parse_event_dates(value: str, year: int, section_month: int = 0) -> tuple[date | None, date | None]:
+    text = re.sub(r"\([^)]*\)", "", value)
+    matches = list(re.finditer(r"(?:(\d{4})[./-]\s*)?(\d{1,2})[./-]\s*(\d{1,2})(?!\d)", text))
+    if not matches:
+        return None, None
+    first, last = matches[0], matches[-1]
+    start_year = int(first[1]) if first[1] else year
+    end_year = int(last[1]) if last[1] else start_year
+    if len(matches) > 1 and not last[1] and int(first[2]) > int(last[2]):
+        if not first[1] and section_month == int(last[2]):
+            start_year -= 1
+        else:
+            end_year += 1
+    try:
+        return date(start_year, int(first[2]), int(first[3])), date(end_year, int(last[2]), int(last[3]))
+    except ValueError:
+        return None, None
 
-    for line in lines:
-        line = line.rstrip()
-        
-        # Check for Section Header (Optional: use section for context)
-        header_match = header_regex.match(line)
-        if header_match:
-            # section = header_match.group(1).strip()
+
+def parse_dev_events(markdown: str, *, today: date | None = None) -> list[DevEvent]:
+    today = today or datetime.now(ZoneInfo("Asia/Seoul")).date()
+    year, month = today.year, 0
+    current: dict | None = None
+    events: list[DevEvent] = []
+
+    def finish() -> None:
+        if not current:
+            return
+        start, end = parse_event_dates(current.get("date", ""), current["year"], current["month"])
+        status = "closed" if end and end < today else "upcoming" if start and start > today else "recruiting"
+        events.append(DevEvent(**{key: value for key, value in current.items() if key not in ("year", "month", "has_registration")}, start_date=start, end_date=end, status=status))
+
+    for line in markdown.splitlines():
+        header = re.match(r"^##\s+.*?(\d{2,4})년\s*(\d{1,2})월", line)
+        if header:
+            finish()
+            current = None
+            year = int(header[1])
+            if year < 100:
+                year += 2000
+            month = int(header[2])
             continue
-
-        # Check for Event Title
-        event_match = event_regex.match(line)
-        if event_match:
-            # Save previous event
-            if current_event and is_valid_event(current_event):
-                events.append(DevEvent(**current_event))
-            
-            # Start new event
-            current_event = {
-                "title": event_match.group(1).strip(),
-                "link": event_match.group(2).strip(),
-                "status": "recruiting",
-                "tags": [],
-                "source": "github"
-            }
+        event = re.match(r"^- __\[(.*?)\]\((.*?)\)__", line.rstrip())
+        if event:
+            finish()
+            current = {"title": event[1].strip(), "source_title": event[1].strip(), "link": event[2].strip(), "date": "일정 미정", "tags": [], "source": "github", "year": year, "month": month}
             continue
-
-        # Check for Meta Data
-        meta_match = meta_regex.match(line)
-        if meta_match and current_event:
-            key = meta_match.group(1).strip()
-            value = meta_match.group(2).strip()
-
-            if key == "분류":
-                # Parse tags
-                dry_value = value.replace('`', '')
-                tags = [t.strip() for t in dry_value.split(',')]
-                current_event["tags"] = tags
-                
-                # Determine Category based on tags
-                current_event["category"] = determine_category(tags)
-                
-            elif key == "주최":
-                current_event["host"] = value
-            elif key == "접수" or key == "일시":
-                current_event["date"] = value
-                # Optional: Parse start/end date here if needed
-
-    # Push last event
-    if current_event and is_valid_event(current_event):
-        events.append(DevEvent(**current_event))
-
+        meta = re.match(r"^  - (.*?): (.*)", line.rstrip())
+        if not meta or current is None:
+            continue
+        key, value = meta[1].strip(), meta[2].strip()
+        if key == "분류":
+            tags = [tag.strip() for tag in value.replace("`", "").split(",") if tag.strip()]
+            current.update(tags=tags, category=determine_category(tags))
+        elif key == "주최":
+            current["host"] = value
+        elif key == "접수":
+            current.update(date=value, has_registration=True)
+        elif key == "일시" and not current.get("has_registration"):
+            current["date"] = value
+    finish()
     return events
 
-def is_valid_event(event: dict) -> bool:
-    return bool(event.get("title") and event.get("link"))
 
-def determine_category(tags: List[str]) -> str:
-    if any(t in tags for t in ["대회", "해커톤", "공모전"]):
-        return "Competition"
-    elif any(t in tags for t in ["교육", "부트캠프", "강의"]):
-        return "Education"
-    elif any(t in tags for t in ["컨퍼런스", "세미나"]):
-        return "Conference"
-    elif any(t in tags for t in ["모임", "커뮤니티"]):
-        return "Community"
+def determine_category(tags: list[str]) -> str:
+    for category, terms in (("Competition", ("대회", "해커톤", "공모전")), ("Education", ("교육", "부트캠프", "강의")), ("Conference", ("컨퍼런스", "세미나")), ("Community", ("모임", "커뮤니티"))):
+        if any(term in tags for term in terms):
+            return category
     return "Other"

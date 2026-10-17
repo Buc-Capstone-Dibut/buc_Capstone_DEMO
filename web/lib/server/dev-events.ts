@@ -73,12 +73,12 @@ function recommendationScore(event: DevEvent, terms: string[]) {
 }
 
 function eventTimestamp(event: DevEvent): number {
-  for (const value of [event.created_at, event.start_date, event.end_date]) {
+  for (const value of [event.start_date, event.end_date]) {
     if (!value) continue;
     const timestamp = new Date(value).getTime();
     if (Number.isFinite(timestamp)) return timestamp;
   }
-  return 0;
+  return parseDevEventEndDate(event.date?.split("~")[0])?.getTime() ?? 0;
 }
 
 function deadlineTimestamp(event: DevEvent): number {
@@ -101,16 +101,16 @@ function deadlineTimestamp(event: DevEvent): number {
 export function sortDevEvents(events: DevEvent[], sort: DevEventSort): DevEvent[] {
   const next = [...events];
   if (sort === "name") {
-    return next.sort((left, right) => left.title.localeCompare(right.title, "ko-KR"));
+    return next.sort((left, right) => left.title.localeCompare(right.title, "ko-KR") || left.id.localeCompare(right.id));
   }
   if (sort === "deadline") {
-    return next.sort((left, right) => deadlineTimestamp(left) - deadlineTimestamp(right));
+    return next.sort((left, right) => deadlineTimestamp(left) - deadlineTimestamp(right) || left.id.localeCompare(right.id));
   }
   if (sort === "oldest") {
-    return next.sort((left, right) => eventTimestamp(left) - eventTimestamp(right));
+    return next.sort((left, right) => eventTimestamp(left) - eventTimestamp(right) || deadlineTimestamp(left) - deadlineTimestamp(right) || left.id.localeCompare(right.id));
   }
   if (sort === "latest") {
-    return next.sort((left, right) => eventTimestamp(right) - eventTimestamp(left));
+    return next.sort((left, right) => eventTimestamp(right) - eventTimestamp(left) || deadlineTimestamp(right) - deadlineTimestamp(left) || left.id.localeCompare(right.id));
   }
   return next;
 }
@@ -256,7 +256,17 @@ export async function getAllEventTags(category?: string) {
 export async function fetchDevEventById(id: string) {
   // 단건 조회는 페이지네이션(12개)에 의존하면 안 됨 — 전체 목록에서 찾는다.
   const all = await loadDevEvents();
-  return all.find((e) => e.id === id) || null;
+  const event = all.find((e) => e.id === id);
+  if (event) return event;
+  if (!/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(id)) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("dev_event_aliases")
+    .select("event_id").eq("alias_id", id).maybeSingle<{ event_id: string }>();
+  if (error) {
+    console.warn("대외활동 이전 ID 조회 실패:", error.code);
+    return null;
+  }
+  return data ? all.find((e) => e.id === data.event_id) || null : null;
 }
 // 마감 임박 행사 조회 (7일 이내)
 export async function fetchClosingSoonEvents(days = 7) {
