@@ -1,194 +1,94 @@
-import time
 import json
 import re
+import time
+
 from firecrawl import FirecrawlApp
 from loguru import logger
+
 from src.common.config.settings import FIRECRAWL_API_KEY
 from src.common.genai_client import get_genai_client
 
 
 def get_firecrawl_client():
     if not FIRECRAWL_API_KEY:
-        logger.warning("⚠️ FIRECRAWL_API_KEY is missing.")
-        return None
+        raise RuntimeError("FIRECRAWL_API_KEY is required for event details")
     return FirecrawlApp(api_key=FIRECRAWL_API_KEY)
+
+
+def retryable(error):
+    text = str(error).lower()
+    return any(code in text for code in ("429", "500", "502", "503", "504", "timeout", "timed out", "resource_exhausted"))
+
 
 def scrape_url_content(url: str):
     client = get_firecrawl_client()
-    if not client:
-        return None
+    for attempt in range(3):
+        try:
+            result = client.scrape(url, formats=["markdown"], timeout=45000, only_main_content=True)
+            markdown = result.get("markdown") if isinstance(result, dict) else getattr(result, "markdown", None)
+            return markdown.strip() if isinstance(markdown, str) else None
+        except Exception as error:
+            if attempt == 2 or not retryable(error):
+                logger.warning(f"Firecrawl 수집 실패 {url}: {error}")
+                return None
+            time.sleep(10 * (attempt + 1))
+    return None
 
-    try:
-        # Scrape only proper content
-        # Firecrawl v1/v2 uses .scrape()
-        scrape_result = client.scrape(url, formats=['markdown'])
-        
-        # Handle object or dict response
-        if isinstance(scrape_result, dict):
-            return scrape_result.get('markdown', '')
-        elif hasattr(scrape_result, 'markdown'):
-            return scrape_result.markdown
-        else:
-            logger.warning(f"⚠️ Unexpected Firecrawl response format for {url}")
-            return str(scrape_result)
-
-    except Exception as e:
-        logger.error(f"❌ Firecrawl failed for {url}: {e}")
-        return None
-
-# Global flag to circuit break AI calls if quota is exceeded
-AI_AVAILABLE = True
 
 def process_content_with_gemini(title: str, raw_markdown: str):
-    global AI_AVAILABLE
-
     client = get_genai_client()
     if client is None:
-        logger.warning("⚠️ Gemini 백엔드 없음 (Vertex/AI Studio 모두 미설정) — 콘텐츠 생성 건너뜀.")
-        return None
+        raise RuntimeError("Gemini credentials are required for event summaries")
+    prompt = f"""당신은 개발자 대외활동 큐레이터입니다. 아래 원문에서 확인한 사실만 한국어 JSON으로 정리하세요.
+활동 제목: {title}
+원문:
+{raw_markdown[:24000]}
 
-    if not AI_AVAILABLE:
-        # Fail fast if we already know quota is exceeded
-        return {
-            "title_ko": title,
-            "content_markdown": f"""
-## 💡 행사 소개 (Overview)
-*AI 할당량 초과로 원문 데이터를 표시합니다.*
-
-{raw_markdown}
-            """.strip()
-        }
-
-    # Limit chars to avoid token limits
-    truncated_md = raw_markdown[:15000]
-
-    prompt = f"""
-    You are an expert tech event curator. Analyze the following event information and extract structured data.
-    
-    Event Title: {title}
-    
-    Raw Content:
-    {truncated_md}
-    
-    Task:
-    Extract the following fields into a pure JSON object (Language: Korean):
-    1. **title_ko**: Translated Korean title.
-    2. **summary**: A 2-3 sentence engaging summary of the event.
-    3. **target_audience**: List of target audience (e.g. "Junior Developers", "Students").
-    4. **fee**: Cost of entry (e.g. "Free", "10,000 KRW").
-    5. **schedule**: List of schedule items (e.g. "14:00 Registration", "14:30 Keynote").
-    6. **benefits**: List of benefits (e.g. "Swag", "Networking", "Dinner provided").
-    7. **description**: A cleaned, well-structured Markdown version of the event details.
-       - **CRITICAL**: Remove ALL "YouTube/Video player" text.
-       - Remove navigation menus, footers, sidebars, and "Related Links" sections.
-       - Remove text that functions as buttons like "Go to Apply", "Read More", "Shortcut", "바로가기".
-       - **Remove the Event Title, Date, Time, and Location** from the top if they are just metadata (since we show them in the header).
-       - Keep valuable details like **Introduction, Speaker Bios, Session Descriptions, and detailed FAQ**.
-       - Use H2/H3 headers for sections.
-    
-    IMPORTANT: You MUST generate the 'description' field. Do not leave it empty.
-    If the content is short, just clean it up.
-
-    Output JSON Format:
-    {{
-        "title_ko": "...",
-        "summary": "...",
-        "target_audience": ["..."],
-        "fee": "...",
-        "schedule": ["..."],
-        "benefits": ["..."],
-        "description": "Markdown string..."
-    }}
-    """
-
-    max_retries = 3 # Increased retries
-    retry_delay = 5
-
-    for attempt in range(max_retries):
+필드:
+- title_ko: 활동 이름을 보존한 한국어 제목
+- summary: 핵심 내용 2~3문장
+- target_audience: 지원/참여 대상 문자열 배열
+- fee: 참가 비용. 원문에 없으면 null
+- schedule: 원문에서 확인되는 일정 문자열 배열
+- benefits: 혜택 문자열 배열
+- description: 소개, 참여 조건, 프로그램, 지원 방법, FAQ 등 실질적인 내용을 담은 Markdown
+원문에 없는 대상/비용/일정/혜택은 추측하지 말고 null 또는 빈 배열로 두세요.
+메뉴, 푸터, 플레이어, 관련 글, 바로가기 버튼 문구는 제외하세요.
+summary와 description은 반드시 포함하되, 원문이 오류/차단/로그인 화면이거나 행사 정보를 확인할 수 없으면 둘 다 null로 반환하세요.
+JSON 객체 하나만 반환하세요."""
+    for attempt in range(3):
         try:
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
-                config={"response_mime_type": "application/json"},
+                config={"response_mime_type": "application/json", "thinking_config": {"thinking_budget": 0}, "http_options": {"timeout": 60000}},
             )
-            text = (response.text or "").strip()
-            
-            # Basic cleanup
-            if text.startswith("```"):
-                text = text.replace("```json", "").replace("```", "").strip()
-
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (response.text or "").strip())
             try:
                 result = json.loads(text)
             except json.JSONDecodeError:
-                # description(마크다운)에 '\(' 같은 잘못된 escape가 섞이면 파싱이 깨진다.
-                # JSON에서 유효하지 않은 백슬래시만 이스케이프해 한 번 더 시도한다.
-                # (정상 JSON은 위에서 이미 통과하므로 여기선 깨진 경우만 보정)
-                repaired = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)
-                result = json.loads(repaired)
-            
-            # Handle list response
-            if isinstance(result, list):
-                if len(result) > 0 and isinstance(result[0], dict):
-                    result = result[0]
-                else:
-                    return None
-            
-            logger.info(f"✨ Gemini keys: {list(result.keys())}") 
+                result = json.loads(re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text))
+            if isinstance(result, list) and result:
+                result = result[0]
+            if not isinstance(result, dict):
+                raise ValueError("Expected an event JSON object")
             return result
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "quota" in error_str.lower() or "resource_exhausted" in error_str.lower():
-                logger.error(f"❌ Gemini Quota Exceeded: {e}")
-                logger.warning("🚫 Disabling AI for subsequent events to speed up crawling.")
-                AI_AVAILABLE = False # Trip the circuit breaker
-                break 
-            elif "404" in error_str and "not found" in error_str:
-                 logger.error(f"❌ Gemini Model Not Found: {e}")
-                 # Try to switch? For now just disable
-                 AI_AVAILABLE = False
-                 break
-            else:
-                logger.error(f"❌ Gemini failed: {e}")
-                break
-    
-    # FALLBACK: Return raw content if AI fails
-    logger.warning("⚠️ Using raw content fallback due to AI failure.")
-    return {
-        "title_ko": title, # Keep original title
-        "content": f"""
-## 💡 행사 소개 (Overview)
-*AI 요약 실패로 원문 데이터를 표시합니다.*
+        except Exception as error:
+            # JSON 형식 오류와 일시적인 서버/할당량 오류만 제한적으로 재시도한다.
+            if attempt == 2 or not (retryable(error) or isinstance(error, (ValueError, json.JSONDecodeError))):
+                logger.warning(f"Gemini 요약 실패: {error}")
+                return None
+            time.sleep(5 * (attempt + 1))
+    return None
 
-{raw_markdown}
-        """.strip()
-    }
 
 def deep_crawl_event(event):
-    """
-    Orchestrates scraping and processing for a single event.
-    Returns (title_ko, content_markdown) or None.
-    """
-    logger.info(f"🕵️ Deep Crawling: {event.title} ({event.link})")
-    
-    # 1. Scrape
-    raw_md = scrape_url_content(event.link)
-    if not raw_md:
+    logger.info(f"상세 수집: {event.title} ({event.link})")
+    raw = scrape_url_content(event.link)
+    if not raw:
         return None
-    
-    # Proactive rate limiting
-    logger.info("⏳ Rate limiting: Waiting 20s to be polite...")
-    time.sleep(20) 
-
-    # 2. Process with Gemini
-    result = process_content_with_gemini(event.title, raw_md)
-    
-    # Inject Content logic
-    if result:
-        # If AI provided a cleaned description, use it as the main content
-        if result.get('description'):
-            result['content'] = result.get('description')
-        else:
-            # Fallback to raw if logic missing
-            result['content'] = raw_md
-    
-    return result
+    result = process_content_with_gemini(event.source_title or event.title, raw)
+    if result and isinstance(result.get("description"), str) and result["description"].strip():
+        result["content"] = result["description"]
+    # AI 실패 시에도 원문은 보존하며 summary는 비워 두어 다음 실행에서 다시 시도한다.
+    return result if result and result.get("content") else {"content": raw}
