@@ -3,6 +3,8 @@ import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 
+const AUTH_RETRY_LIMIT = 3;
+
 const WORKSPACE_SERVER_UNSTABLE_MESSAGE =
   "워크스페이스 서버가 불안정합니다. 잠시 후 다시 시도해주세요.";
 
@@ -155,7 +157,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
   messages: [],
   activeChannelId: null,
 
-  connectSocket: (url, userId, projectId, path = "/socket.io") => {
+  connectSocket: (url, userId, projectId, path = "/socket.io/") => {
     if (get().socket) {
       return;
     }
@@ -165,15 +167,16 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       connectionState: "connecting",
     });
 
+    // Render 무료 플랜은 잠들었다 깨는 데 1분 가까이 걸리므로 그동안 포기하지 않도록 넉넉히 잡는다.
     const socket = io(url, {
       path,
       addTrailingSlash: false,
       transports: ["polling", "websocket"],
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 3_000,
-      timeout: 10_000,
+      reconnectionAttempts: 20,
+      reconnectionDelay: 1_000,
+      reconnectionDelayMax: 5_000,
+      timeout: 20_000,
       auth: (callback) => {
         void supabase.auth
           .getSession()
@@ -189,17 +192,36 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
       },
     });
 
+    let authRetryCount = 0;
+
     socket.on("connect", () => {
+      authRetryCount = 0;
       set({ isConnected: true, connectionState: "connected" });
       get().fetchChannels(projectId, socket); // Pass socket instance
     });
 
     socket.on("connect_error", (err) => {
       console.error("[Socket] Connection Error:", err);
+      // 서버 미들웨어(인증) 거절은 Socket.IO가 자동 재시도하지 않는다.
+      // 서버가 막 깨어나 인증 조회가 늦은 경우를 위해 몇 번만 직접 다시 시도한다.
+      if (!socket.active && authRetryCount < AUTH_RETRY_LIMIT) {
+        authRetryCount += 1;
+        set({ isConnected: false, connectionState: "reconnecting" });
+        window.setTimeout(() => {
+          if (get().socket === socket && !socket.connected) {
+            socket.connect();
+          }
+        }, authRetryCount * 2_000);
+        return;
+      }
+
       set(() => ({
         isConnected: false,
         connectionState: socket.active ? "reconnecting" : "error",
       }));
+      if (!socket.active) {
+        notifyWorkspaceServerUnstable();
+      }
     });
 
     socket.on("disconnect", (reason) => {
@@ -363,7 +385,24 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
           const channels = res.data.map(normalizeChannel);
           set({ channels });
           const state = get();
-          if (channels.length > 0 && !state.activeChannelId) {
+          const activeChannelId = state.activeChannelId;
+          if (
+            activeChannelId &&
+            channels.some((channel) => channel.id === activeChannelId)
+          ) {
+            // 재연결된 소켓은 서버에서 채널 방 정보가 사라지므로 보던 채널에 다시 들어간다.
+            socket.emit("chat:join", { channelId: activeChannelId });
+            socket.emit(
+              "chat:get_messages",
+              { channelId: activeChannelId },
+              (messagesRes: MessagesAck) => {
+                if (messagesRes.success) {
+                  set({ messages: messagesRes.data });
+                }
+              },
+            );
+          } else if (channels.length > 0) {
+            set({ activeChannelId: null });
             state.joinChannel(channels[0].id);
           }
         } else {
