@@ -126,6 +126,15 @@ class ServiceTest(unittest.TestCase):
 
 
 class ProcessorTest(unittest.TestCase):
+    def test_long_navigation_cannot_truncate_the_actual_event_body(self):
+        raw = "사이트 메뉴\n" * 5000 + "공공 웹사이트 공모전\n실제 지원 조건과 프로그램"
+        selected = processor.relevant_markdown("공공 웹사이트 공모전", raw)
+        self.assertIn("실제 지원 조건과 프로그램", selected)
+        self.assertLessEqual(len(selected), 24000)
+        balanced = processor.relevant_markdown("다른 이름", "앞부분" + "x" * 30000 + "끝 본문")
+        self.assertTrue(balanced.startswith("앞부분") and balanced.endswith("끝 본문"))
+        self.assertLessEqual(len(balanced), 24000)
+
     @patch.object(processor, "get_firecrawl_client")
     def test_thumbnail_is_taken_from_the_same_scrape_without_a_second_request(self, get_client):
         markdown = "충분한 본문 " * 50
@@ -166,6 +175,14 @@ class ProcessorTest(unittest.TestCase):
     def test_ai_failure_preserves_raw_content_and_remains_retryable(self, scrape, process):
         event = DevEvent(title="활동", link="https://example.com", date="")
         self.assertEqual(processor.deep_crawl_event(event), {"content": "실제 원문"})
+
+    @patch.object(processor, "process_content_with_gemini", side_effect=[{"summary": None}, {"summary": "확인한 행사 요약", "description": "행사 본문"}])
+    @patch.object(processor, "scrape_url_content", side_effect=["행사 목록", "본문이 로딩된 행사 상세"])
+    def test_rejected_listing_retries_rendered_detail_before_giving_up(self, scrape, process):
+        event = DevEvent(title="활동", link="https://example.com", date="")
+        result = processor.deep_crawl_event(event)
+        self.assertEqual((result["summary"], result["content"]), ("확인한 행사 요약", "행사 본문"))
+        self.assertTrue(scrape.call_args.kwargs["force_render"])
 
 
 if __name__ == "__main__":
