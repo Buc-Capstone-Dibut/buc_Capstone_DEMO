@@ -22,14 +22,22 @@ def retryable(error):
 
 def scrape_url_content(url: str, *, metadata: dict | None = None):
     client = get_firecrawl_client()
+    wait_for_content = False
     for attempt in range(3):
         try:
-            result = client.scrape(url, formats=["markdown"], timeout=45000, only_main_content=True)
+            options = {"formats": ["markdown"], "timeout": 45000, "only_main_content": not wait_for_content}
+            if wait_for_content:
+                options["wait_for"] = 5000
+            result = client.scrape(url, **options)
             markdown = result.get("markdown") if isinstance(result, dict) else getattr(result, "markdown", None)
             page_metadata = result.get("metadata") if isinstance(result, dict) else getattr(result, "metadata", None)
             image = (page_metadata.get("ogImage") or page_metadata.get("og_image")) if isinstance(page_metadata, dict) else getattr(page_metadata, "og_image", None)
             if metadata is not None and isinstance(image, str) and image.startswith(("https://", "http://")):
                 metadata["thumbnail"] = image
+            if isinstance(markdown, str) and len(markdown.strip()) < 200 and not wait_for_content and attempt < 2:
+                logger.info(f"본문이 짧아 동적 로딩 대기 후 다시 수집: {url}")
+                wait_for_content = True
+                continue
             return markdown.strip() if isinstance(markdown, str) else None
         except Exception as error:
             if attempt == 2 or not retryable(error):
@@ -93,6 +101,8 @@ def deep_crawl_event(event):
     if not raw:
         return None
     result = process_content_with_gemini(event.source_title or event.title, raw)
+    if not result or not result.get("summary"):
+        logger.warning(f"행사 정보를 확인할 수 없어 요약을 보류함: {event.link}")
     if result and isinstance(result.get("description"), str) and result["description"].strip():
         result["content"] = result["description"]
     # AI 실패 시에도 원문은 보존하며 summary는 비워 두어 다음 실행에서 다시 시도한다.
