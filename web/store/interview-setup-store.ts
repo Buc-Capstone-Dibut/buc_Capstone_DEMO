@@ -21,6 +21,11 @@ export interface JobData {
   interviewLevel?: InterviewLevel;
   interviewTrack?: InterviewTrack;
   sourceUrl?: string;
+  supportingMaterials?: {
+    portfolioIds: string[];
+    projects: ProjectPrefill[];
+    coverLetter: { title: string; body: string } | null;
+  };
 
   // Enhanced Fields
   companyDescription: string; // 기업/서비스 소개
