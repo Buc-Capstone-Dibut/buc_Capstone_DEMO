@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ export function AuthModal({
     password: "",
   });
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -84,6 +86,8 @@ export function AuthModal({
           description: "환영합니다!",
         });
         onOpenChange(false);
+        // 비로그인 때 캐시된 보호 페이지 응답(→ /login 리다이렉트)을 버린다.
+        router.refresh();
       }
     } catch (error: any) {
       console.error("인증 오류:", error);
