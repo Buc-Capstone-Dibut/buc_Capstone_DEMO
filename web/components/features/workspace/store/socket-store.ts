@@ -170,7 +170,7 @@ export const useSocketStore = create<SocketStore>((set, get) => ({
     // Render 무료 플랜은 잠들었다 깨는 데 1분 가까이 걸리므로 그동안 포기하지 않도록 넉넉히 잡는다.
     const socket = io(url, {
       path,
-      addTrailingSlash: false,
+      addTrailingSlash: path.endsWith("/"),
       transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: 20,
