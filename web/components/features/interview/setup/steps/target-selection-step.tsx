@@ -131,6 +131,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
         setJobData({
           role: d.jobData.role ?? "",
           company: d.jobData.company ?? "",
+          supportingMaterials: d.jobData.supportingMaterials,
           interviewLevel: "auto",
           interviewTrack: "posting",
           sourceUrl: d.targetUrl ?? "",
@@ -157,7 +158,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
       }
       setRolePrepData(null);
       setPickerOpen(false);
-      // 면접에는 JD + 이력서만 쓰인다. 공고에 이력서까지 매핑돼 있으면 중간 확인
+      // 공고에 이력서까지 매핑돼 있으면 중간 확인
       // 단계(공고확인·이력서입력·이력서확인)를 건너뛰고 바로 최종 점검으로 보낸다.
       // (final-check 가 JD/이력서 둘 다 검토·수정 가능한 통합 화면이라 안전)
       setStep(d.jobData && hasResume ? "final-check" : "jd-check");
