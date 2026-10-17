@@ -1,9 +1,5 @@
 import { fetchDevEventById } from "@/lib/server/dev-events";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ActivityDetailHeader } from "@/components/features/career/activity-detail-header";
 import { ActivityDetailContent } from "@/components/features/career/activity-detail-content";
 import { fetchSquadsByActivityId } from "@/lib/server/squads";
@@ -23,7 +19,7 @@ export default async function ActivityDetailPage({
   }
 
   // Fetch related squads (limited to 4 for sidebar)
-  const relatedSquads = await fetchSquadsByActivityId(id, 4);
+  const relatedSquads = await fetchSquadsByActivityId(event.id, 4);
 
   return (
     <div className="min-h-screen bg-white dark:bg-black">

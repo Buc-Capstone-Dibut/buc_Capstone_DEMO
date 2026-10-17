@@ -13,6 +13,7 @@ class DevEvent(BaseModel):
     category: Optional[str] = None # Competition, Education, Conference, etc.
     status: str = "recruiting" # recruiting, closed, upcoming
     source: str = "github"
+    source_title: Optional[str] = None
     description: Optional[str] = None
     thumbnail: Optional[str] = None
     content: Optional[str] = None

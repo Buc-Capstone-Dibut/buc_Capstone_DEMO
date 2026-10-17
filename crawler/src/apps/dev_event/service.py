@@ -1,106 +1,77 @@
-import time
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 
 from src.apps.dev_event.fetcher import fetch_dev_event_readme
+from src.apps.dev_event.identity import DETAIL_FIELDS
 from src.apps.dev_event.parser import parse_dev_events
 from src.apps.dev_event.processor import deep_crawl_event
 from src.apps.dev_event.repository import DevEventRepository
-from src.shared.database import fetch_thumbnail_from_web
 
 
-def load_existing_events(repository: DevEventRepository):
-    return repository.load_existing_by_link()
+def apply_details(event, details):
+    """부분 실패/빈 배열은 이미 저장된 상세 정보를 지우지 않는다."""
+    for field in DETAIL_FIELDS:
+        value = details.get(field)
+        if not value or not isinstance(value, (str, list)):
+            continue
+        if field in ("target_audience", "schedule", "benefits"):
+            value = [str(item).strip() for item in (value if isinstance(value, list) else [value]) if str(item).strip()]
+        elif not isinstance(value, str):
+            continue
+        setattr(event, field, value)
+    if details.get("title_ko") and isinstance(details["title_ko"], str):
+        event.title = details["title_ko"]
 
 
 def run_dev_event_crawler(limit: int = 0, repository: DevEventRepository | None = None):
-    # limit <= 0 이면 무제한 — 상세가 없는 이벤트를 한 번에 모두 크롤한다.
-    # (이미 채워진 이벤트는 needs_crawl=False 라 재실행 비용은 거의 0)
-    unlimited = limit <= 0
+    if limit < 0:
+        raise ValueError("limit must be zero (unlimited) or positive")
     repository = repository or DevEventRepository()
-    logger.info(
-        f"🚀 Starting Dev-Event Crawler (Deep Crawl Limit: {'무제한' if unlimited else limit})..."
-    )
-
-    existing_map = load_existing_events(repository)
-    logger.info(f"Loaded {len(existing_map)} existing events.")
-
+    existing_map = repository.load_existing_by_link()
     content = fetch_dev_event_readme()
     if not content:
-        logger.error("Failed to fetch content. Aborting.")
-        return
+        raise RuntimeError("Failed to fetch the event source; no data was changed")
 
-    events = parse_dev_events(content)
-    logger.info(f"Parsed {len(events)} events from README.")
+    # 원문 여러 섹션에 같은 링크가 있어도 한 번만 처리한다.
+    events = list({event.link: event for event in parse_dev_events(content)}.values())
     if not events:
-        raise RuntimeError("Parsed no events; refusing to modify the Supabase snapshot.")
-
-    processed_count = 0
+        raise RuntimeError("Parsed no events; refusing to modify the Supabase snapshot")
+    previous_active = sum(row.get("status") != "closed" for row in existing_map.values())
+    if len(events) < previous_active / 2:
+        raise RuntimeError("Source unexpectedly shrank by over half; inspect the parser before saving")
 
     for event in events:
-        existing = existing_map.get(event.link)
+        existing = existing_map.get(event.link, {})
+        apply_details(event, existing)
+        if existing.get("summary") and existing.get("title"):
+            event.title = existing["title"]
 
-        if existing:
-            if existing.get("thumbnail"):
-                event.thumbnail = existing.get("thumbnail")
-            if existing.get("content"):
-                event.content = existing.get("content")
-            if existing.get("description"):
-                event.description = existing.get("description")
-
-            if existing.get("summary"):
-                event.summary = existing.get("summary")
-                event.target_audience = existing.get("target_audience", [])
-                event.fee = existing.get("fee")
-                event.schedule = existing.get("schedule", [])
-                event.benefits = existing.get("benefits", [])
-
-        if not event.thumbnail:
-            try:
-                time.sleep(0.5)
-                thumb = fetch_thumbnail_from_web(event.link, "DevEvent")
-                if thumb:
-                    event.thumbnail = thumb
-            except Exception as e:
-                logger.warning(f"Failed to fetch thumbnail for {event.title}: {e}")
-
-        needs_crawl = not event.content or not event.summary
-        if needs_crawl and (unlimited or processed_count < limit):
-            # limit 은 "시도 횟수" 기준 — deep_crawl 1회 = Firecrawl 1크레딧 + 대기.
-            # 성공(if result)에서만 세면 실패(404/스크랩 실패)가 limit 을 안 깎아
-            # 모든 이벤트를 다 처리해 버리는 버그가 있었다.
-            processed_count += 1
-            try:
-                logger.info(f"🧠 Generating content for: {event.title}")
-                result = deep_crawl_event(event)
-                if result:
-                    if result.get("title_ko"):
-                        event.title = result.get("title_ko")
-
-                    def ensure_list(val):
-                        if isinstance(val, list):
-                            return val
-                        if isinstance(val, str) and val:
-                            return [val]
-                        return []
-
-                    event.content = result.get("content")
-                    event.description = result.get("description")
-                    event.summary = result.get("summary")
-                    event.target_audience = ensure_list(result.get("target_audience"))
-                    event.fee = result.get("fee")
-                    event.schedule = ensure_list(result.get("schedule"))
-                    event.benefits = ensure_list(result.get("benefits"))
-            except Exception as e:
-                logger.error(f"Deep crawl failed for {event.title}: {e}")
-
-    save_events_to_database(events, repository)
-
-
-def save_events_to_database(events, repository: DevEventRepository):
-    data = [event.model_dump(mode="json") for event in events]
-    saved_count = repository.upsert_all(data)
-    active_links = {event.link for event in events if event.link}
-    deleted_count = repository.delete_missing(active_links)
-    logger.info(f"✅ Saved {saved_count} events to Supabase")
-    logger.info(f"🧹 Removed {deleted_count} events missing from the source")
+    # 제한과 무관하게 목록/날짜는 먼저 저장한다. 상세는 성공할 때마다 체크포인트한다.
+    repository.upsert_all([event.model_dump(mode="json") for event in events])
+    closed_count = repository.close_missing({event.link for event in events})
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    pending = sorted(
+        (event for event in events if not event.summary or not event.content),
+        key=lambda event: (event.end_date is not None and event.end_date < today, -(event.start_date or date.min).toordinal(), event.link),
+    )
+    selected = pending[:limit] if limit else pending
+    logger.info(f"목록 {len(events)}건 저장, 원문에서 제외된 {closed_count}건 마감. 상세 누락 {len(pending)}건 중 {len(selected)}건 수집")
+    completed = 0
+    for index, event in enumerate(selected, 1):
+        try:
+            result = deep_crawl_event(event)
+        except Exception as error:
+            logger.error(f"상세 수집 실패 ({index}/{len(selected)}) {event.link}: {error}")
+            continue
+        if result:
+            apply_details(event, result)
+            # 저장 실패는 즉시 중단한다. 결과를 잃은 채 계속 API 비용을 쓰지 않는다.
+            repository.upsert_all([event.model_dump(mode="json")])
+            if event.summary and event.content:
+                completed += 1
+        logger.info(f"상세 진행 {index}/{len(selected)}, 요약 완료 {completed}건: {event.link}")
+    remaining = len(pending) - completed
+    logger.info(f"완료: 상세 {completed}건 추가, 요약 누락 {remaining}건 (다시 실행하면 누락분 재시도)")
+    return {"events": len(events), "attempted": len(selected), "completed": completed, "remaining": remaining}
