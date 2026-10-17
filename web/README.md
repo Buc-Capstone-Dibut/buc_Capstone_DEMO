@@ -107,3 +107,21 @@ npm run build
 npm run start
 npm run lint
 ```
+
+## 면접 콘솔 모범답변
+
+면접 화면에서 개발자 도구(F12)의 Console에 입력합니다. 새로고침·화면 이동 후에는 다시 켜야 합니다.
+
+```js
+interviewCoach.start()   // 현재 질문과 이후 질문에 자동으로 모범답변 출력
+interviewCoach.answer()  // 현재 질문만 요청 (자동 출력은 켜지 않음)
+interviewCoach.stop()    // 자동 출력 중지 및 진행 중 요청 취소
+```
+
+공고 면접은 해당 세션의 공고·이력서와 공고에 연결한 자소서·프로젝트·포트폴리오를, 직무 면접은 선택 직무를, 디펜스는 저장된 GitHub 분석 자료를 반영합니다. 연결 자료는 공고에서 면접을 새로 시작할 때 세션에 전달됩니다. 답변은 한국어 2~4문장, 최대 360자이며 대화·평가 기록에 저장되지 않습니다.
+
+`POST /api/interview/sessions/[id]/model-answer`는 `{ question: string }`을 받아 본인 소유 세션과 자료를 조회하고 `{ success: true, data: { answer } }`를 반환합니다. 생성에는 Gemini 2.5 Flash(추론 끄기)를 사용하고, 생성 대기는 20초로 제한합니다.
+
+```bash
+npx tsx --test lib/interview/console-coaching.test.ts lib/interview/model-answer*.test.ts
+```

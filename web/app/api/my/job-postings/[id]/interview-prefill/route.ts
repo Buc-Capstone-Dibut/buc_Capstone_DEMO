@@ -2,27 +2,33 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
+import type { ProjectPrefill } from "@/store/interview-setup-store";
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
 
 function dereferenceProjects(
   attachments: { attachment_type: string; project_id: string | null; project_label: string | null }[],
-  resumePayload: any,
-): { id: string; name: string; period: string; techStack: string[]; description: string }[] {
+  resumePayload: unknown,
+): ProjectPrefill[] {
   const projectAttachments = attachments.filter(
     (a) => a.attachment_type === "project" && a.project_id,
   );
   if (!projectAttachments.length) return [];
 
-  const projects: any[] = Array.isArray(resumePayload?.projects) ? resumePayload.projects : [];
+  const payload = asRecord(resumePayload);
+  const projects = Array.isArray(payload.projects) ? payload.projects.map(asRecord) : [];
   return projectAttachments
-    .map((att) => {
-      const found = projects.find((p: any) => p.id === att.project_id);
+    .map((att): ProjectPrefill | null => {
+      const found = projects.find((p) => p.id === att.project_id);
       if (found) {
         return {
-          id: found.id ?? att.project_id!,
-          name: found.name ?? found.title ?? att.project_label ?? "",
-          period: found.period ?? "",
-          techStack: Array.isArray(found.techStack) ? found.techStack : [],
-          description: found.description ?? "",
+          id: typeof found.id === "string" ? found.id : att.project_id!,
+          name: typeof found.name === "string" ? found.name : typeof found.title === "string" ? found.title : att.project_label ?? "",
+          period: typeof found.period === "string" ? found.period : "",
+          techStack: Array.isArray(found.techStack) ? found.techStack.filter((item): item is string => typeof item === "string") : [],
+          description: typeof found.description === "string" ? found.description : "",
         };
       }
       if (att.project_label) {
@@ -30,7 +36,7 @@ function dereferenceProjects(
       }
       return null;
     })
-    .filter(Boolean) as any[];
+    .filter((item): item is ProjectPrefill => item !== null);
 }
 
 export async function GET(_: Request, ctx: { params: { id: string } }) {
@@ -81,7 +87,7 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
     );
     if (coverAttachment) {
       if (coverAttachment.cover_letter_id != null) {
-        const cl = await (prisma as any).user_cover_letters.findFirst({
+        const cl = await prisma.user_cover_letters.findFirst({
           where: { id: coverAttachment.cover_letter_id, user_id: session.user.id },
         });
         if (cl) {
@@ -100,10 +106,10 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
         const r = await prisma.user_resumes.findFirst({
           where: { id: coverAttachment.resume_id, user_id: session.user.id },
         });
-        const payload = r?.resume_payload as any;
+        const payload = asRecord(r?.resume_payload);
         const cls = Array.isArray(payload?.coverLetters) ? payload.coverLetters : [];
-        const picked = cls[coverAttachment.cover_letter_index];
-        if (picked) {
+        const picked = asRecord(cls[coverAttachment.cover_letter_index]);
+        if (Object.keys(picked).length) {
           suggestedCoverLetter = {
             title:
               typeof picked.title === "string"
@@ -133,9 +139,9 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
     const masterProfile = await prisma.user_resume_profiles.findUnique({
       where: { user_id: session.user.id },
     });
-    const profilePayload = (masterProfile as any)?.resume_payload ?? (resume?.resume_payload as any);
+    const profilePayload = masterProfile?.resume_payload ?? resume?.resume_payload;
     const attachedProjects = dereferenceProjects(
-      posting.attachments as any[],
+      posting.attachments,
       profilePayload,
     );
 
@@ -152,6 +158,11 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
           preferred: posting.preferred ?? [],
           companyDescription: posting.company_description ?? "",
           teamCulture: posting.team_culture ?? [],
+          supportingMaterials: {
+            portfolioIds: attachedPortfolios.map((portfolio) => portfolio.id),
+            projects: attachedProjects,
+            coverLetter: suggestedCoverLetter,
+          },
         },
         resumeData,
         resumePrefillSource,
@@ -160,9 +171,9 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
         attachedProjects,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error?.message ?? "Internal error" },
+      { success: false, error: error instanceof Error ? error.message : "Internal error" },
       { status: 500 },
     );
   }

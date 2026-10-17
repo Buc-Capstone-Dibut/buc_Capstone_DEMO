@@ -50,6 +50,8 @@ export async function generateGeminiText({
   topP,
   maxRetries = 1,
   disableThinking = false,
+  maxOutputTokens,
+  abortSignal,
 }: {
   model: string;
   prompt: string;
@@ -59,6 +61,8 @@ export async function generateGeminiText({
   /** Gemini 2.5 계열의 thinking(내부 추론) 모드를 꺼서 지연을 줄인다.
    *  단순 문장 재작성/구조화처럼 깊은 추론이 불필요한 작업에 사용. */
   disableThinking?: boolean;
+  maxOutputTokens?: number;
+  abortSignal?: AbortSignal;
 }): Promise<string> {
   const resolved = resolveModel(model);
   if (!resolved) throw new GeminiTextUnavailableError();
@@ -68,6 +72,8 @@ export async function generateGeminiText({
     ...(temperature !== undefined ? { temperature } : {}),
     ...(topP !== undefined ? { topP } : {}),
     maxRetries,
+    maxOutputTokens,
+    abortSignal,
     ...(disableThinking
       ? { providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } } }
       : {}),

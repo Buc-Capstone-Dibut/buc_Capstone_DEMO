@@ -74,6 +74,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
             setJobData({
               role: d.jobData.role ?? "",
               company: d.jobData.company ?? "",
+              supportingMaterials: d.jobData.supportingMaterials,
               techStack: Array.isArray(d.jobData.techStack) ? d.jobData.techStack : [],
               responsibilities: Array.isArray(d.jobData.responsibilities)
                 ? d.jobData.responsibilities
@@ -101,7 +102,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
             setAttachedProjects(d.attachedProjects);
           }
           // 공고에 이력서까지 매핑돼 있으면 중간 확인 단계를 건너뛰고 최종 점검으로.
-          // (면접엔 JD + 이력서만 쓰이고 final-check 가 둘 다 검토 가능한 통합 화면)
+          // final-check 에서 검토하고, 연결 자료 정보도 세션에 함께 전달한다.
           setStep(d.jobData && hasResume ? "final-check" : "jd-check");
           toast({
             title: "채용공고 자동 채움 완료",
