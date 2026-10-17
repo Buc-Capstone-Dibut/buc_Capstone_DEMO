@@ -339,8 +339,10 @@ export default function WorkspaceDetailPage() {
     }
   }, [searchParams, setActiveTaskId]);
 
+  const userId = user?.id;
+
   useEffect(() => {
-    if (!projectId || !user || !hasWorkspaceMeta) {
+    if (!projectId || !userId || !hasWorkspaceMeta) {
       return;
     }
 
@@ -351,10 +353,11 @@ export default function WorkspaceDetailPage() {
 
     const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
     const url = configuredUrl || window.location.origin;
+    // addTrailingSlash가 꺼져 있으므로 직접 연결 시 "/socket.io/"처럼 슬래시까지 명시해야 한다.
     const socketPath = configuredUrl
-      ? "/socket.io"
+      ? "/socket.io/"
       : "/workspace-realtime/connect";
-    connectSocket(url, user.id, projectId, socketPath);
+    connectSocket(url, userId, projectId, socketPath);
 
     return () => {
       disconnectSocket();
@@ -364,7 +367,8 @@ export default function WorkspaceDetailPage() {
     disconnectSocket,
     isReadOnly,
     projectId,
-    user,
+    // user 객체는 탭 복귀·토큰 갱신마다 새 참조가 되므로 id에만 반응해 불필요한 재연결을 막는다.
+    userId,
     hasWorkspaceMeta,
   ]);
 
