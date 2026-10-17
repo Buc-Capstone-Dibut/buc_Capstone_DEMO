@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Timer, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { differenceInDays } from "date-fns";
 import { DevEvent } from "@/lib/types/dev-event";
+import { formatDevEventDDay } from "@/lib/dev-event-dates";
 import { Button } from "@/components/ui/button";
 
 interface ClosingSoonWidgetProps {
@@ -21,60 +21,6 @@ export function ClosingSoonWidget({ events }: ClosingSoonWidgetProps) {
 
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentEvents = events.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  const getDDay = (dateStr: string | null) => {
-    if (!dateStr) return "";
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize today to start of day
-
-      // 1. Handle Ranges ("~")
-      const parts = dateStr.split("~");
-      const endDateStr = parts.length > 1 ? parts[1] : parts[0];
-
-      // 2. Clean up ("(Mon)", etc.)
-      const cleaned = endDateStr.trim().replace(/\(.\)/g, "").trim();
-
-      let endDate: Date | null = null;
-
-      // 3. Try YYYY.MM.DD
-      const ymdMatch = cleaned.match(/^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})$/);
-      if (ymdMatch) {
-        endDate = new Date(
-          parseInt(ymdMatch[1]),
-          parseInt(ymdMatch[2]) - 1,
-          parseInt(ymdMatch[3]),
-        );
-      } else {
-        // 4. Try MM.DD (Infer Year)
-        const mdMatch = cleaned.match(/^(\d{1,2})\.\s*(\d{1,2})$/);
-        if (mdMatch) {
-          const month = parseInt(mdMatch[1]);
-          const day = parseInt(mdMatch[2]);
-          const currentYear = new Date().getFullYear();
-          endDate = new Date(currentYear, month - 1, day);
-
-          // Simple year inference: if currently Dec and event is Jan, it's next year
-          const nowMonth = new Date().getMonth() + 1;
-          if (nowMonth >= 11 && month <= 2) {
-            endDate.setFullYear(currentYear + 1);
-          }
-        }
-      }
-
-      if (!endDate || isNaN(endDate.getTime())) return "D-?";
-
-      // Calculate diff
-      endDate.setHours(0, 0, 0, 0); // Normalize end date
-      const diff = differenceInDays(endDate, today);
-
-      if (diff === 0) return "D-Day";
-      if (diff < 0) return "마감";
-      return `D-${diff}`;
-    } catch {
-      return "";
-    }
-  };
 
   return (
     <Card className="border-border/50 shadow-sm bg-background/50 backdrop-blur-sm">
@@ -106,7 +52,7 @@ export function ClosingSoonWidget({ events }: ClosingSoonWidgetProps) {
                   variant="destructive"
                   className="shrink-0 text-[10px] px-1.5 h-5 font-normal"
                 >
-                  {getDDay(e.end_date || e.date)}
+                  {formatDevEventDDay(e.end_date || e.date)}
                 </Badge>
               </div>
             </Link>
