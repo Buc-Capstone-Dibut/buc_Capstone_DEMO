@@ -49,13 +49,13 @@ export function RecruitingSquadsWidget({
           더보기 <ChevronRight className="h-3 w-3" />
         </Link>
       </CardHeader>
-      <CardContent className="grid gap-2">
+      <CardContent className="grid min-w-0 grid-cols-1 gap-2">
         {currentSquads.length > 0 ? (
           currentSquads.map((squad) => (
             <Link
               key={squad.id}
               href={`/community/squad/${squad.id}`}
-              className="group block"
+              className="group block min-w-0"
             >
               <div className="flex flex-col gap-1 min-w-0">
                 <div className="flex items-center justify-between mb-1 gap-2">
