@@ -90,7 +90,20 @@ function buildServerChain(): UpstreamServer[] {
   return chain;
 }
 
-async function streamWith429Backoff({
+class EmptyModelResponseError extends Error {
+  constructor() {
+    super("Model returned an empty response");
+    this.name = "EmptyModelResponseError";
+  }
+}
+
+/**
+ * streamText 는 (AI SDK v5+) 동기로 반환되고 업스트림 에러를 throw 하지 않는다.
+ * 에러는 스트림 안의 error 파트로만 나오고 toTextStreamResponse() 는 이를 삼켜
+ * "200 + 빈 본문" 이 된다. 그래서 첫 텍스트 조각이 올 때까지 fullStream 을 읽어
+ * 그 전에 나온 에러/빈 응답은 throw 해서 재시도·폴백이 동작하게 한다.
+ */
+async function startTextStream({
   model,
   system,
   messages,
@@ -98,17 +111,68 @@ async function streamWith429Backoff({
   model: LanguageModel;
   system: string;
   messages: unknown[];
+}): Promise<ReadableStream<Uint8Array>> {
+  const result = streamText({
+    model,
+    system,
+    messages: messages as never,
+    temperature: 0.45,
+    maxRetries: 0,
+    // 에러는 아래에서 fullStream 의 error 파트로 처리한다.
+    onError: () => {},
+  });
+  const iterator = result.fullStream[Symbol.asyncIterator]();
+
+  let firstText = "";
+  while (!firstText) {
+    const { done, value } = await iterator.next();
+    if (done) throw new EmptyModelResponseError();
+    if (value.type === "error") throw value.error;
+    if (value.type === "text-delta" && value.text) firstText = value.text;
+  }
+
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(firstText));
+    },
+    async pull(controller) {
+      try {
+        while (true) {
+          const { done, value } = await iterator.next();
+          if (done) {
+            controller.close();
+            return;
+          }
+          if (value.type === "error") {
+            console.error("[cover-letter-generate] stream error after first chunk", value.error);
+            controller.close();
+            return;
+          }
+          if (value.type === "text-delta" && value.text) {
+            controller.enqueue(encoder.encode(value.text));
+            return;
+          }
+        }
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+}
+
+async function streamWith429Backoff(params: {
+  model: LanguageModel;
+  system: string;
+  messages: unknown[];
 }) {
   let attempt = 0;
   while (true) {
     try {
-      return await streamText({
-        model,
-        system,
-        messages: messages as never,
-        temperature: 0.45,
-        maxRetries: 0,
-      });
+      return await startTextStream(params);
     } catch (error) {
       if (!isTransientModelError(error) || attempt >= MODEL_RETRY_COUNT) {
         throw error;
@@ -343,18 +407,22 @@ ready=no
     let lastError: unknown = null;
     for (const attempt of attempts) {
       try {
-        const result = await streamWith429Backoff({
+        const stream = await streamWith429Backoff({
           model: attempt.model,
           system: systemPrompt,
           messages,
         });
-        return result.toTextStreamResponse();
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        });
       } catch (error) {
         lastError = error;
+        // 인증/권한/모델 설정 오류여도 다음 백엔드(Vertex → AI Studio)로 폴백한다.
         console.warn(`[cover-letter-generate] ${attempt.id} failed`, error);
-        if (!isTransientModelError(error)) {
-          break;
-        }
       }
     }
 
