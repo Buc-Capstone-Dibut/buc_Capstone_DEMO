@@ -260,7 +260,10 @@ export default function CoverLettersClient({
   const handleEditClick = () => {
     if (!selectedLetter) return;
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("wizard_cover_letter_seed", JSON.stringify(selectedLetter));
+      sessionStorage.setItem("wizard_cover_letter_seed", JSON.stringify({
+        ...selectedLetter,
+        targetJobPostingId: selectedLetter.targetPosting?.id ?? selectedLetter.targetJobPostingId ?? null,
+      }));
       if (Array.isArray(selectedLetter.sourceExperienceSnapshot)) {
         sessionStorage.setItem(
           "wizard_experience_snapshot",

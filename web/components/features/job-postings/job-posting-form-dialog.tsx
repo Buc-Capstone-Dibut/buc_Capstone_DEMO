@@ -166,7 +166,7 @@ export function JobPostingFormDialog({
       const res = await fetch("/api/interview/parse-job", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({ url: trimmed, source: "career" }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json) {

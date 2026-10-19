@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import { streamText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { buildCareerDemoReply } from "@/lib/career/demo/cover-letter";
+import { createCareerDemoStream } from "@/lib/career/demo/stream";
+import { getCareerDemoProjects } from "@/lib/server/career-demo";
 
 const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL_ID = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
@@ -190,7 +194,6 @@ async function streamWith429Backoff(params: {
 
 export async function POST(req: Request) {
   try {
-    const serverChain = buildServerChain();
     const supabase = createRouteHandlerClient({ cookies });
     const {
       data: { session },
@@ -199,18 +202,6 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const vertexEnabled = isVertexEnabled();
-    if (serverChain.length === 0 && !vertexEnabled) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "AI 서버 키가 설정되지 않았습니다. GEMINI_API_KEY 또는 GEMINI_SERVER_KEYS를 확인해주세요.",
-        },
-        { status: 500 },
-      );
     }
 
     const body = await req.json();
@@ -230,6 +221,31 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { success: false, error: "Invalid messages array" },
         { status: 400 },
+      );
+    }
+
+    if (isCareerDemoEnabled()) {
+      const projects = await getCareerDemoProjects(userId, body.targetJobPostingId, body.experienceIds);
+      if (projects) {
+        if (projects.length === 0) {
+          return NextResponse.json(
+            { success: false, error: "헬로프렌즈·티니타이거·블레이버스 중 사용할 프로젝트를 선택해 주세요." },
+            { status: 400 },
+          );
+        }
+        return createCareerDemoStream(buildCareerDemoReply(body, projects), req.signal);
+      }
+    }
+
+    const serverChain = buildServerChain();
+    const vertexEnabled = isVertexEnabled();
+    if (serverChain.length === 0 && !vertexEnabled) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI 서버 키가 설정되지 않았습니다. GEMINI_API_KEY 또는 GEMINI_SERVER_KEYS를 확인해주세요.",
+        },
+        { status: 500 },
       );
     }
 

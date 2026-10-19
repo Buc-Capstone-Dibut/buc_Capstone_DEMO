@@ -169,6 +169,7 @@ export interface ResumePayload {
       lesson?: string;
     }>;
     applicationTarget?: string;
+    targetJobPostingId?: string | null;
     company?: string;
     division?: string;
     role?: string;

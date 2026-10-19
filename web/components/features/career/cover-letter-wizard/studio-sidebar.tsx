@@ -58,7 +58,7 @@ export function CoverLetterWizardStudioSidebar({
         </div>
         <div className="grid grid-cols-[84px_1fr] items-center text-xs">
           <span className="text-slate-500">마감일</span>
-          <span className="font-medium text-slate-800">{form.deadline || "미입력"}</span>
+          <span className="font-medium text-slate-800">{form.deadline || "미지정"}</span>
         </div>
         <div className="grid grid-cols-[84px_1fr] items-center text-xs">
           <span className="text-slate-500">최근 수정일</span>

@@ -404,6 +404,7 @@ export function useProjectArchive(initialProjects: ProjectInput[]) {
       sourceExperienceIds: wizardExperienceIds,
       sourceExperienceSnapshot,
       applicationTarget: `${draft.company} ${draft.role}`.trim(),
+      targetJobPostingId: draft.targetJobPostingId ?? null,
       company: draft.company,
       division: draft.division || undefined,
       role: draft.role,

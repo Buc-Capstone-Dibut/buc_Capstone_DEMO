@@ -258,6 +258,19 @@ function parseProtocolSection(section: string) {
   ) as Record<string, string>;
 }
 
+export function getVisibleAssistantContent(rawContent: string): string {
+  const protocolStart = rawContent.search(/<dibut_(?:state|answer)/i);
+  if (protocolStart >= 0) return rawContent.slice(0, protocolStart).trimEnd();
+  const partialStart = rawContent.lastIndexOf("<");
+  if (partialStart >= 0) {
+    const suffix = rawContent.slice(partialStart).toLowerCase();
+    if (["<dibut_state>", "<dibut_answer>"].some((tag) => tag.startsWith(suffix))) {
+      return rawContent.slice(0, partialStart).trimEnd();
+    }
+  }
+  return rawContent;
+}
+
 export function parseAssistantProtocol(rawContent: string) {
   const stateMatch = rawContent.match(/<dibut_state>([\s\S]*?)<\/dibut_state>/i);
   const answerMatch = rawContent.match(/<dibut_answer>([\s\S]*?)<\/dibut_answer>/i);
