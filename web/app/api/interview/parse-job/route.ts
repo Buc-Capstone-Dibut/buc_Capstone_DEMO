@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { getCareerDemoJobPosting, isCareerDemoEnabled, isCareerDemoJobUrl } from "@/lib/career/demo/job-posting";
+import { waitForDemo } from "@/lib/career/demo/stream";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
 // FastAPI 가 URL fetch(≈30s) + LLM 재시도까지 하므로 여유를 두고 60초.
@@ -21,6 +23,13 @@ async function getUserIdFromSession(): Promise<string | null> {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    if (body.source === "career" && isCareerDemoEnabled() && isCareerDemoJobUrl(body.url)) {
+      await waitForDemo(1500, req.signal);
+      return NextResponse.json(
+        { success: true, data: getCareerDemoJobPosting() },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const userId = await getUserIdFromSession();
 
     const controller = new AbortController();
@@ -54,8 +63,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error: any) {
-    if (error?.name === "AbortError") {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "AbortError") {
       return NextResponse.json(
         {
           success: false,
@@ -67,7 +76,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to parse job posting",
+        error: error instanceof Error ? error.message : "Failed to parse job posting",
       },
       { status: 500 },
     );

@@ -13,6 +13,7 @@ export interface ProjectArchiveQuestionDraft {
 }
 
 export interface ProjectArchiveWizardDraft {
+  targetJobPostingId?: string | null;
   company: string;
   division: string;
   role: string;
@@ -47,6 +48,7 @@ export interface ProjectArchiveSeedQuestion {
 }
 
 export interface ProjectArchiveSeed {
+  targetJobPostingId?: string | null;
   id: string;
   title: string;
   content: string;
