@@ -13,6 +13,7 @@ import {
   createDefaultRequirementStatus,
   createDefaultWorkflowState,
   createQuestion,
+  getVisibleAssistantContent,
   type CoverLetterQuestion,
   type CoverLetterQuestionPreset,
   type ExperienceSnapshot,
@@ -172,12 +173,15 @@ export function useCoverLetterWizard({
   const router = useRouter();
   const { toast } = useToast();
   const introRequestedQuestionIdsRef = useRef<Set<string>>(new Set());
+  const activeAiRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => activeAiRequestRef.current?.abort(), []);
   const [resumePayload] = useState<ResumePayload>(EMPTY_RESUME);
   const [phase, setPhase] = useState<Phase>("intake");
   const [intakeStep, setIntakeStep] = useState<IntakeStep>(1);
   const [coverLetterId, setCoverLetterId] = useState<string>("");
   const [backgroundContext, setBackgroundContext] = useState<string | undefined>();
   const [experienceSnapshot, setExperienceSnapshot] = useState<ExperienceSnapshot[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const [questionMessages, setQuestionMessages] = useState<QuestionMessageMap>({});
   const [questionWorkflowMap, setQuestionWorkflowMap] = useState<QuestionWorkflowMap>({});
@@ -215,6 +219,7 @@ export function useCoverLetterWizard({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setIsInitialized(true);
     const contextData = sessionStorage.getItem(WIZARD_CONTEXT_KEY);
     if (contextData) {
       setBackgroundContext(contextData);
@@ -264,6 +269,7 @@ export function useCoverLetterWizard({
             deadline: seed.deadline || "",
             workspaceName: seed.workspaceName || seed.title || "",
             colorTag: seed.colorTag || COLOR_TAGS[0],
+            targetJobPostingId: seed.targetJobPostingId ?? null,
             questions: nextQuestions,
           });
           if (
@@ -295,7 +301,8 @@ export function useCoverLetterWizard({
             Object.entries(seed.perQuestionChatHistory).forEach(([questionId, entries]) => {
               if (!Array.isArray(entries)) return;
               nextQuestionMessages[questionId] = entries
-                .filter((entry) => entry && typeof entry.content === "string")
+                .filter((entry) => entry && typeof entry.content === "string" &&
+                  !(entry.role === "assistant" && INTRO_THINKING_STEPS.some((step) => step.message === entry.content)))
                 .map((entry) =>
                   normalizeWizardMessage({
                     role: entry.role === "user" ? "user" : "assistant",
@@ -311,7 +318,9 @@ export function useCoverLetterWizard({
             Array.isArray(seed.chatHistory) &&
             seed.chatHistory.length > 0
           ) {
-            nextQuestionMessages[seededQuestionId] = seed.chatHistory.map((entry) =>
+            nextQuestionMessages[seededQuestionId] = seed.chatHistory
+              .filter((entry) => !(entry.role === "assistant" && INTRO_THINKING_STEPS.some((step) => step.message === entry.content)))
+              .map((entry) =>
               normalizeWizardMessage({
                 role: entry.role === "user" ? "user" : "assistant",
                 content: entry.content || "",
@@ -460,7 +469,9 @@ export function useCoverLetterWizard({
   };
 
   useEffect(() => {
-    if (form.questions.length === 0) return;
+    // Seed hydration and this effect run in the same commit. The first render's
+    // placeholder question must not discard the restored questions' workflows.
+    if (!isInitialized || form.questions.length === 0) return;
     setQuestionWorkflowMap((prev) => {
       const next: QuestionWorkflowMap = { ...prev };
       let changed = false;
@@ -503,10 +514,10 @@ export function useCoverLetterWizard({
 
       return changed ? next : prev;
     });
-  }, [form.questions]);
+  }, [form.questions, isInitialized]);
 
   const persistCoverLetter = async (manual = false) => {
-    if (isSaving) return;
+    if (isSaving || isStreaming) return;
     if (phase !== "studio") return;
     setIsSaving(true);
     setSaveState("saving");
@@ -517,7 +528,7 @@ export function useCoverLetterWizard({
       > = Object.fromEntries(
         Object.entries(questionMessages).map(([questionId, entries]) => [
           questionId,
-          (entries || []).map((entry) => {
+          (entries || []).filter((entry) => entry.status !== "thinking" && entry.status !== "streaming").map((entry) => {
             const normalizedEntry = normalizeWizardMessage({
               ...entry,
               createdAt: entry.createdAt || new Date().toISOString(),
@@ -566,9 +577,12 @@ export function useCoverLetterWizard({
         title: workspaceTitle,
         content: combinedContent || generatedContent || "문항 작성 중",
         createdAt: new Date().toISOString(),
-        sourceExperienceIds: experienceIds,
+        sourceExperienceIds: experienceSnapshot.length
+          ? experienceSnapshot.map((experience) => experience.id)
+          : experienceIds,
         sourceExperienceSnapshot: experienceSnapshot,
         applicationTarget,
+        targetJobPostingId: form.targetJobPostingId ?? null,
         company: form.company.trim(),
         division: form.division.trim() || undefined,
         role: form.role.trim(),
@@ -652,11 +666,12 @@ export function useCoverLetterWizard({
   }, 900);
 
   useEffect(() => {
-    if (phase !== "studio") return;
+    if (phase !== "studio" || isStreaming) return;
     debouncedAutosave();
     return () => debouncedAutosave.cancel();
   }, [
     phase,
+    isStreaming,
     form.questions,
     form.company,
     form.division,
@@ -689,7 +704,7 @@ export function useCoverLetterWizard({
       toast({ title: "직무를 입력해주세요.", variant: "destructive" });
       return false;
     }
-    if (!form.deadline.trim()) {
+    if (!form.deadline.trim() && !form.targetJobPostingId) {
       toast({ title: "마감일정을 입력해주세요.", variant: "destructive" });
       return false;
     }
@@ -899,9 +914,11 @@ export function useCoverLetterWizard({
       });
     }, 900);
     let timeoutId: number | null = null;
+    let flushTimer: number | null = null;
 
     try {
       const controller = new AbortController();
+      activeAiRequestRef.current = controller;
       timeoutId = window.setTimeout(() => controller.abort(), 25000);
       const response = await fetch("/api/career/cover-letters/generate", {
         method: "POST",
@@ -913,6 +930,8 @@ export function useCoverLetterWizard({
             content: msg.content,
           })),
           targetRole: applicationTarget,
+          targetJobPostingId: form.targetJobPostingId,
+          experienceIds: experienceSnapshot.map((experience) => experience.id),
           strengths: "문항별 완성도를 높이는 답안을 작성",
           backgroundContext: mergedBackgroundContext,
           personalInfo: resumePayload,
@@ -948,7 +967,7 @@ export function useCoverLetterWizard({
       let receivedText = "";
       let renderedText = "";
       let pendingText = "";
-      const flushTimer = window.setInterval(() => {
+      flushTimer = window.setInterval(() => {
         if (!pendingText) return;
         const chunkSize = Math.max(1, Math.ceil(pendingText.length * 0.3));
         renderedText += pendingText.slice(0, chunkSize);
@@ -958,7 +977,7 @@ export function useCoverLetterWizard({
           if (next.length === 0) return next;
           next[next.length - 1] = {
             role: "assistant",
-            content: renderedText,
+            content: getVisibleAssistantContent(renderedText),
             createdAt: now,
             status: "streaming",
           };
@@ -1094,6 +1113,8 @@ export function useCoverLetterWizard({
       if (timeoutId !== null) {
         window.clearTimeout(timeoutId);
       }
+      if (flushTimer !== null) window.clearInterval(flushTimer);
+      activeAiRequestRef.current = null;
       window.clearInterval(phaseTimer);
       setIsStreaming(false);
       if (!hasRequestError) {
@@ -1194,8 +1215,10 @@ export function useCoverLetterWizard({
 
     void (async () => {
       let timeoutId: number | null = null;
+    let flushTimer: number | null = null;
       try {
         const controller = new AbortController();
+        activeAiRequestRef.current = controller;
         timeoutId = window.setTimeout(() => controller.abort(), 25000);
         const response = await fetch("/api/career/cover-letters/generate", {
           method: "POST",
@@ -1204,6 +1227,8 @@ export function useCoverLetterWizard({
           body: JSON.stringify({
             messages: [{ role: "user", content: introPrompt }],
             targetRole: applicationTarget,
+            targetJobPostingId: form.targetJobPostingId,
+            experienceIds: experienceSnapshot.map((experience) => experience.id),
             strengths: "",
             backgroundContext: mergedBackgroundContext,
             personalInfo: resumePayload,
@@ -1244,7 +1269,7 @@ export function useCoverLetterWizard({
         let receivedText = "";
         let renderedText = "";
         let pendingText = "";
-        const flushTimer = window.setInterval(() => {
+        flushTimer = window.setInterval(() => {
           if (!pendingText) return;
           const chunkSize = Math.max(1, Math.ceil(pendingText.length * 0.25));
           renderedText += pendingText.slice(0, chunkSize);
@@ -1254,7 +1279,7 @@ export function useCoverLetterWizard({
             if (next.length === 0) return next;
             next[next.length - 1] = {
               role: "assistant",
-              content: renderedText,
+              content: getVisibleAssistantContent(renderedText),
               createdAt: now,
               status: "streaming",
             };
@@ -1332,6 +1357,8 @@ export function useCoverLetterWizard({
         if (timeoutId !== null) {
           window.clearTimeout(timeoutId);
         }
+        if (flushTimer !== null) window.clearInterval(flushTimer);
+        activeAiRequestRef.current = null;
         window.clearInterval(phaseTimer);
         setIsStreaming(false);
         setStreamPhaseLabel("");
@@ -1346,6 +1373,7 @@ export function useCoverLetterWizard({
     form.questions,
     form.company,
     form.role,
+    form.targetJobPostingId,
     applicationTarget,
     mergedBackgroundContext,
     resumePayload,

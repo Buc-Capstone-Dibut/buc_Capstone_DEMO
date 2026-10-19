@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import { streamText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { buildCareerDemoReply } from "@/lib/career/demo/cover-letter";
+import { createCareerDemoStream } from "@/lib/career/demo/stream";
+import { getCareerDemoProjects } from "@/lib/server/career-demo";
 
 const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL_ID = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
@@ -90,7 +94,20 @@ function buildServerChain(): UpstreamServer[] {
   return chain;
 }
 
-async function streamWith429Backoff({
+class EmptyModelResponseError extends Error {
+  constructor() {
+    super("Model returned an empty response");
+    this.name = "EmptyModelResponseError";
+  }
+}
+
+/**
+ * streamText 는 (AI SDK v5+) 동기로 반환되고 업스트림 에러를 throw 하지 않는다.
+ * 에러는 스트림 안의 error 파트로만 나오고 toTextStreamResponse() 는 이를 삼켜
+ * "200 + 빈 본문" 이 된다. 그래서 첫 텍스트 조각이 올 때까지 fullStream 을 읽어
+ * 그 전에 나온 에러/빈 응답은 throw 해서 재시도·폴백이 동작하게 한다.
+ */
+async function startTextStream({
   model,
   system,
   messages,
@@ -98,17 +115,68 @@ async function streamWith429Backoff({
   model: LanguageModel;
   system: string;
   messages: unknown[];
+}): Promise<ReadableStream<Uint8Array>> {
+  const result = streamText({
+    model,
+    system,
+    messages: messages as never,
+    temperature: 0.45,
+    maxRetries: 0,
+    // 에러는 아래에서 fullStream 의 error 파트로 처리한다.
+    onError: () => {},
+  });
+  const iterator = result.fullStream[Symbol.asyncIterator]();
+
+  let firstText = "";
+  while (!firstText) {
+    const { done, value } = await iterator.next();
+    if (done) throw new EmptyModelResponseError();
+    if (value.type === "error") throw value.error;
+    if (value.type === "text-delta" && value.text) firstText = value.text;
+  }
+
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(firstText));
+    },
+    async pull(controller) {
+      try {
+        while (true) {
+          const { done, value } = await iterator.next();
+          if (done) {
+            controller.close();
+            return;
+          }
+          if (value.type === "error") {
+            console.error("[cover-letter-generate] stream error after first chunk", value.error);
+            controller.close();
+            return;
+          }
+          if (value.type === "text-delta" && value.text) {
+            controller.enqueue(encoder.encode(value.text));
+            return;
+          }
+        }
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+}
+
+async function streamWith429Backoff(params: {
+  model: LanguageModel;
+  system: string;
+  messages: unknown[];
 }) {
   let attempt = 0;
   while (true) {
     try {
-      return await streamText({
-        model,
-        system,
-        messages: messages as never,
-        temperature: 0.45,
-        maxRetries: 0,
-      });
+      return await startTextStream(params);
     } catch (error) {
       if (!isTransientModelError(error) || attempt >= MODEL_RETRY_COUNT) {
         throw error;
@@ -126,7 +194,6 @@ async function streamWith429Backoff({
 
 export async function POST(req: Request) {
   try {
-    const serverChain = buildServerChain();
     const supabase = createRouteHandlerClient({ cookies });
     const {
       data: { session },
@@ -135,18 +202,6 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const vertexEnabled = isVertexEnabled();
-    if (serverChain.length === 0 && !vertexEnabled) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "AI 서버 키가 설정되지 않았습니다. GEMINI_API_KEY 또는 GEMINI_SERVER_KEYS를 확인해주세요.",
-        },
-        { status: 500 },
-      );
     }
 
     const body = await req.json();
@@ -166,6 +221,31 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { success: false, error: "Invalid messages array" },
         { status: 400 },
+      );
+    }
+
+    if (isCareerDemoEnabled()) {
+      const projects = await getCareerDemoProjects(userId, body.targetJobPostingId, body.experienceIds);
+      if (projects) {
+        if (projects.length === 0) {
+          return NextResponse.json(
+            { success: false, error: "헬로프렌즈·티니타이거·블레이버스 중 사용할 프로젝트를 선택해 주세요." },
+            { status: 400 },
+          );
+        }
+        return createCareerDemoStream(buildCareerDemoReply(body, projects), req.signal);
+      }
+    }
+
+    const serverChain = buildServerChain();
+    const vertexEnabled = isVertexEnabled();
+    if (serverChain.length === 0 && !vertexEnabled) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI 서버 키가 설정되지 않았습니다. GEMINI_API_KEY 또는 GEMINI_SERVER_KEYS를 확인해주세요.",
+        },
+        { status: 500 },
       );
     }
 
@@ -343,18 +423,22 @@ ready=no
     let lastError: unknown = null;
     for (const attempt of attempts) {
       try {
-        const result = await streamWith429Backoff({
+        const stream = await streamWith429Backoff({
           model: attempt.model,
           system: systemPrompt,
           messages,
         });
-        return result.toTextStreamResponse();
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        });
       } catch (error) {
         lastError = error;
+        // 인증/권한/모델 설정 오류여도 다음 백엔드(Vertex → AI Studio)로 폴백한다.
         console.warn(`[cover-letter-generate] ${attempt.id} failed`, error);
-        if (!isTransientModelError(error)) {
-          break;
-        }
       }
     }
 

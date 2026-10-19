@@ -105,7 +105,7 @@ export function CoverLetterWizardIntakeDialog({
     const deadlineEvent = (p.schedules ?? []).find(
       (s) => s.kind === "deadline" || s.kind === "document_due",
     );
-    let nextDeadline = form.deadline;
+    let nextDeadline = "";
     if (deadlineEvent?.startAt) {
       const d = new Date(deadlineEvent.startAt);
       if (!Number.isNaN(d.getTime())) nextDeadline = d.toISOString().slice(0, 10);
@@ -236,13 +236,16 @@ export function CoverLetterWizardIntakeDialog({
                     />
                   </div>
                   <div>
-                    <Label>마감일정*</Label>
+                    <Label>마감일정{form.targetJobPostingId ? " (선택)" : "*"}</Label>
                     <Input
                       className="mt-2 h-11"
                       type="date"
                       value={toDateInputValue(form.deadline)}
                       onChange={(e) => onFormChange({ deadline: e.target.value })}
                     />
+                    {form.targetJobPostingId && !form.deadline && (
+                      <p className="mt-2 text-xs text-muted-foreground">공고에 마감일이 없다면 비워 두고 진행할 수 있습니다.</p>
+                    )}
                   </div>
                 </div>
               </div>
