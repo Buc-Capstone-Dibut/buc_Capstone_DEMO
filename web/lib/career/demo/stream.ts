@@ -44,8 +44,8 @@ export function createCareerDemoStream(
           offset += Math.max(1, timing.chunkSize);
           controller.enqueue(encoder.encode(next));
         } else {
-          // Keep the UI protocol separate from the simulated typing text.
-          controller.enqueue(encoder.encode(`\n\n${reply.protocol}`));
+          // Keep the UI protocol separate from the simulated typing text; plain replies have none.
+          if (reply.protocol) controller.enqueue(encoder.encode(`\n\n${reply.protocol}`));
           controller.close();
           cleanup();
         }

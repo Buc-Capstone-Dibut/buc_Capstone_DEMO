@@ -1,4 +1,6 @@
-type ProjectKind = "hello" | "tiny" | "blavers";
+import { CAREER_DEMO_FULL_COVER_LETTER, identifyCareerDemoProjectText, type CareerDemoProjectKind } from "./persona";
+
+type ProjectKind = CareerDemoProjectKind;
 type Stage = "direction" | "draft" | "refine" | "confirm";
 type Evidence = {
   kind: ProjectKind;
@@ -6,45 +8,104 @@ type Evidence = {
   focus: string;
   problem: string;
   action: string;
+  /** A concrete technical judgment behind the action. */
+  detail: string;
   result: string;
   lesson: string;
+  /** Noun phrase ending in "경험" for one-line references. */
+  summary: string;
+  /** Self-contained two-sentence brief (context + outcome) for intro/strength answers. */
+  highlight: string;
+  /** One sentence on aligning the team, used as supporting evidence in teamwork answers. */
+  teamwork: string;
+  /** One sentence on how the experience maps onto the Acanet posting. */
+  fit: string;
 };
 
-// Prepared, qualitative wording for the agreed projects. Match against the owner's
-// selected records; never ship private resume snapshots, attachments or account IDs.
+// Prepared wording for the persona's three projects, framed for the Acanet Java web posting.
+// Never ship private resume snapshots, attachments or account IDs here.
 const EVIDENCE: Record<ProjectKind, Evidence> = {
   hello: {
-    kind: "hello", name: "헬로프렌즈", focus: "근거를 추적할 수 있는 데이터 처리",
-    problem: "헬로프렌즈의 외국인 행정·비자 플랫폼에서는 안내 문서가 흩어져 같은 문의가 반복되는 문제가 있었습니다.",
-    action: "저는 비자·행정 문서를 수집하고 정제한 뒤, Python과 LangChain으로 문서 검색부터 근거를 활용한 답변까지 이어지는 RAG 파이프라인을 구현했습니다.",
-    result: "답변에 문서 출처를 함께 제공해 사용자가 안내의 근거를 확인할 수 있도록 했습니다.",
-    lesson: "이 과정에서 모델의 선택만큼 데이터 전처리와 검색 설계가 서비스 품질을 좌우한다는 점을 배웠습니다.",
+    kind: "hello",
+    name: "헬로프렌즈",
+    focus: "데이터 정합성과 근거 검증",
+    problem:
+      "㈜헬로프렌즈의 외국인 행정·비자 플랫폼 Vizabridge에서는 비자 안내문·법령·FAQ가 스캔 PDF와 표, 여러 언어로 흩어져 있어 같은 문의가 반복되고 있었습니다.",
+    action:
+      "저는 문서 약 1,200건을 정제해 의미 단위로 나누고 pgvector에 적재한 뒤, 상담 로그에서 뽑은 질문 150개로 평가셋을 만들어 오답 원인을 추적했습니다. 개정 전 문서가 근거로 쓰이는 문제를 확인하고, 시행일 메타데이터로 최신 문서를 우선 검색하도록 바꿨습니다.",
+    detail:
+      "유사도가 임계값보다 낮으면 답을 지어내지 않고 담당자에게 넘기도록 설계했는데, 행정 서비스에서는 틀린 답보다 모른다고 말하는 편이 더 안전하다고 판단했기 때문입니다.",
+    result:
+      "그 결과 근거 일치율을 약 87%(150문항 중 131문항)까지 끌어올리고, 평균 응답 시간도 3초 이내로 유지했습니다.",
+    lesson:
+      "모델보다 데이터의 정합성과 검증 기준이 서비스 품질을 결정한다는 것을 배웠고, SQLD를 준비하며 익힌 정규화·트랜잭션 개념이 실제 판단 기준이 됐습니다.",
+    summary:
+      "헬로프렌즈 Vizabridge에서 행정 문서 약 1,200건을 정제하고 근거 일치율을 약 87%까지 끌어올린 경험",
+    highlight:
+      "청년미래일경험으로 참여한 ㈜헬로프렌즈 Vizabridge 프로젝트에서 행정 문서 약 1,200건을 정제하고, 상담 로그 기반 평가셋 150문항으로 오답 원인을 추적했습니다. 개정 전 문서가 근거로 쓰이던 문제를 시행일 기준 검색으로 바로잡아 근거 일치율을 약 87%까지 끌어올리고, 평균 응답도 3초 이내로 유지했습니다.",
+    teamwork:
+      "헬로프렌즈 프로젝트에서도 상담 담당자와 함께 정답 근거를 표시하며 평가 기준부터 맞췄습니다.",
+    fit: "대학 행정 데이터를 정확하게 다뤄야 하는 아카넷의 업무와 맞닿아 있습니다.",
   },
   tiny: {
-    kind: "tiny", name: "티니타이거", focus: "API 연동과 데이터 정합성",
-    problem: "티니타이거 프로젝트에서는 팀의 업무 현황과 산출물이 여러 도구에 흩어져 진행 상황을 파악하기 어려웠습니다.",
-    action: "저는 워크스페이스 정보 구조와 칸반 보드, 멤버 권한을 담당하며 서버 API와 클라이언트 상태를 연결했습니다.",
-    result: "작업 보드와 문서 접근 경로를 통합해 팀이 회의 전에 진행 상황을 확인하는 시간을 줄였습니다.",
-    lesson: "권한별 접근 범위와 실시간 갱신 시점의 정합성 문제를 겪으며, 같은 데이터를 일관되게 보여주는 설계의 중요성을 배웠습니다.",
+    kind: "tiny",
+    name: "티니타이거",
+    focus: "실시간 데이터 정합성",
+    problem:
+      "청년미래일경험으로 참여한 ㈜에쉬 티니타이거 쇼핑몰 리뉴얼 프로젝트에서 문서·칸반·메시지를 한곳에서 관리하는 협업 워크스페이스를 만들었는데, 두 사람이 같은 카드를 동시에 옮기면 화면마다 결과가 달라지는 문제가 있었습니다.",
+    action:
+      "클라이언트 상태만 맞추는 대신 서버에 기준을 두기로 하고, 카드에 버전 값을 둬 서버가 확정한 순서만 브로드캐스트하도록 구조를 바꿨습니다. 충돌한 요청은 최신 상태를 다시 받아 화면을 맞추게 했습니다.",
+    detail:
+      "카드 이동은 충돌이 드물고 짧게 자주 일어나는 작업이라, 매번 잠그는 비관적 락 대신 버전을 비교하는 낙관적 방식을 선택했습니다.",
+    result:
+      "멤버 권한별 접근 범위까지 정리하면서, 팀이 회의 전에 진행 상황을 확인하는 시간이 눈에 띄게 줄었습니다.",
+    lesson:
+      "같은 데이터를 모든 사용자에게 같은 모습으로 보여주려면 화면보다 서버의 기준과 데이터 흐름을 먼저 설계해야 한다는 것을 배웠습니다.",
+    summary:
+      "티니타이거 협업 워크스페이스에서 버전 기반 낙관적 업데이트로 칸반 데이터의 실시간 정합성을 지킨 경험",
+    highlight:
+      "㈜에쉬 티니타이거 쇼핑몰 리뉴얼 프로젝트에서는 두 사람이 같은 칸반 카드를 동시에 옮기면 화면마다 결과가 달라지는 문제를 맡았습니다. 카드에 버전 값을 두고 서버가 확정한 순서만 브로드캐스트하도록 바꿔, 모든 팀원이 같은 화면을 보게 만들었습니다.",
+    teamwork:
+      "티니타이거 프로젝트에서도 권한별 접근 범위와 갱신 시점을 팀과 먼저 합의해 모두가 같은 화면을 보도록 만들었습니다.",
+    fit: "수천 명이 같은 순간에 접속하는 학사시스템 개발에 그대로 이어질 수 있다고 생각합니다.",
   },
   blavers: {
-    kind: "blavers", name: "블레이버스", focus: "데이터 모델·인증 설계와 협업",
-    problem: "블레이버스 MVP 개발 해커톤에서는 멘토와 멘티의 학습 관리가 여러 도구에 흩어지는 문제를 해결해야 했습니다.",
-    action: "팀장으로서 PM·디자이너와 기능 우선순위를 조율하고, Next.js와 Supabase를 활용해 역할별 화면과 데이터 모델·인증을 구현했습니다.",
-    result: "멘토와 멘티의 핵심 흐름이 동작하는 학습 관리 플랫폼 MVP를 배포하고 본선에 진출했습니다.",
-    lesson: "제한된 일정에는 핵심 흐름을 먼저 완성하고, 직군이 다른 팀원들과 구현 범위를 합의하는 것이 중요하다는 점을 배웠습니다.",
+    kind: "blavers",
+    name: "블레이버스",
+    focus: "우선순위 합의와 팀 리딩",
+    problem:
+      "제4회 블레이버스 MVP 개발 해커톤에서는 PM·디자이너·개발자로 구성된 팀의 팀장을 맡아, 10일 안에 멘티와 멘토 두 사용자군의 학습 관리 흐름을 모두 완성해야 했습니다.",
+    action:
+      "데모 효과가 큰 손글씨 피드백 기능은 다음 단계로 미루고, '계획 → 학습 → 피드백' 핵심 흐름부터 완성하도록 팀과 범위를 합의했습니다. 저는 Next.js와 Supabase로 역할별 화면과 데이터 모델을 직접 구현했습니다.",
+    detail:
+      "멘티·멘토 화면은 route group으로 나누고 알림·피드백·북마크 스키마를 먼저 확정해, 팀원들이 서로를 기다리지 않고 병렬로 작업할 수 있게 했습니다.",
+    result: "그 결과 멘토링 플랫폼 '몽구리' MVP를 Vercel에 배포하고 본선에 진출했습니다.",
+    lesson:
+      "일정이 촉박할수록 범위와 우선순위를 먼저 합의하는 것이 팀 전체의 속도를 높인다는 것을 배웠습니다.",
+    summary: "블레이버스 해커톤에서 팀장으로 범위를 합의하고 10일 만에 MVP를 배포해 본선에 진출한 경험",
+    highlight:
+      "제4회 블레이버스 MVP 개발 해커톤에서는 팀장을 맡아, 데모 효과가 큰 기능보다 '계획 → 학습 → 피드백' 핵심 흐름을 먼저 완성하도록 범위를 합의했습니다. 그 결과 10일 만에 멘토링 플랫폼 '몽구리' MVP를 배포하고 본선에 진출했습니다.",
+    teamwork:
+      "블레이버스 해커톤에서도 직군이 다른 팀원들과 구현 범위를 먼저 합의해 10일 안에 MVP를 완성했습니다.",
+    fit: "고객 요구가 자주 바뀌는 대학 SI 현장에서 큰 힘이 될 것이라 생각합니다.",
   },
 };
+
+const ALL_KINDS: ProjectKind[] = ["hello", "tiny", "blavers"];
+
+/** All three prepared evidence entries, used when the selection cannot be matched. */
+export function getAllCareerDemoEvidence(): Evidence[] {
+  return ALL_KINDS.map((kind) => EVIDENCE[kind]);
+}
 
 export function identifyCareerDemoProject(value: unknown): ProjectKind | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  const title = typeof record.company === "string" ? record.company : record.title;
-  if (typeof title !== "string") return null;
-  if (/헬로프렌즈|vizabridge/i.test(title)) return "hello";
-  if (/티니타이거/i.test(title)) return "tiny";
-  if (/블레이버스|몽구리|monguri/i.test(title)) return "blavers";
-  return null;
+  return (
+    identifyCareerDemoProjectText(record.company) ??
+    identifyCareerDemoProjectText(record.title) ??
+    identifyCareerDemoProjectText(record.name)
+  );
 }
 
 export function selectCareerDemoProjects(timeline: unknown, ids: unknown): Evidence[] {
@@ -67,6 +128,24 @@ type DemoRequest = {
   operation?: unknown;
   workflowStage?: unknown;
 };
+
+/**
+ * The resume AI assistant posts without a question, operation or workflow stage and renders the
+ * raw stream, so it gets the plain full letter instead of the wizard protocol.
+ */
+export function isCareerDemoPlainCoverLetterRequest(body: DemoRequest): boolean {
+  return body.operation === undefined && body.workflowStage === undefined && !body.selectedQuestion;
+}
+
+export function buildCareerDemoFullCoverLetter() {
+  return { content: CAREER_DEMO_FULL_COVER_LETTER, protocol: "" };
+}
+
+/** A two-paragraph project story (STADRI builder) for whichever project the memo mentions. */
+export function buildCareerDemoProjectStory(text: unknown): string {
+  const evidence = EVIDENCE[identifyCareerDemoProjectText(text) ?? "hello"];
+  return `${evidence.problem} ${evidence.action}\n\n${evidence.result} ${evidence.lesson} 이 경험은 ${evidence.fit}`;
+}
 
 function latestUserMessage(messages: unknown): string {
   if (!Array.isArray(messages)) return "";
@@ -92,63 +171,75 @@ function classifyQuestion(title: string) {
   return "competency";
 }
 
+function namedProject(projects: Evidence[], text: string): Evidence | undefined {
+  return projects.find((project) => text.includes(project.name))
+    ?? projects.find((project) => identifyCareerDemoProjectText(text) === project.kind);
+}
+
 function chooseEvidence(projects: Evidence[], question: string, prompt: string): Evidence {
-  const named = projects.find((project) => prompt.includes(project.name));
+  const named = namedProject(projects, prompt);
   if (named) return named;
   const preferred: ProjectKind[] =
-    ["collaboration", "conflict", "project", "motivation", "strength"].includes(question)
+    question === "collaboration" || question === "conflict"
       ? ["blavers", "tiny", "hello"]
-      : question === "competency"
+      : question === "project" || question === "challenge"
         ? ["tiny", "hello", "blavers"]
         : ["hello", "tiny", "blavers"];
   return preferred.map((kind) => projects.find((project) => project.kind === kind)).find(Boolean)!;
 }
 
-/** Keep complete sentences and the form's character ceiling, including line breaks. */
+/** Keep complete sentences, paragraph breaks and the form's character ceiling. */
 export function fitCareerDemoAnswer(text: string, maxChars: number): string {
-  const normalized = text.trim().replace(/[ \t]+/g, " ");
+  const normalized = text.trim().replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n");
   if (normalized.length <= maxChars) return normalized;
-  const sentences = normalized.split(/(?<=[.!?。])\s+|\n+/u).filter(Boolean);
+  const paragraphs = normalized
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.split(/(?<=[.!?。])\s+|\n+/u).map((sentence) => sentence.trim()).filter(Boolean));
   let result = "";
-  for (const sentence of sentences) {
-    const next = result ? `${result} ${sentence}` : sentence;
-    if (next.length <= maxChars) result = next;
+  for (const sentences of paragraphs) {
+    let paragraphStarted = false;
+    for (const sentence of sentences) {
+      const separator = !result ? "" : paragraphStarted ? " " : "\n\n";
+      const next = `${result}${separator}${sentence}`;
+      if (next.length <= maxChars) {
+        result = next;
+        paragraphStarted = true;
+      }
+    }
   }
   if (result) return result;
-  const short = "데이터의 정확성을 중시하며 사용자 문제를 해결하는 개발자입니다.";
-  return short.length <= maxChars ? short : "사용자 문제를 해결하는 개발자입니다.";
+  const short = "데이터의 근거를 끝까지 확인하는 개발자입니다.";
+  return short.length <= maxChars ? short : "근거를 확인하는 개발자입니다.";
 }
 
 function buildDraft(question: string, evidence: Evidence, projects: Evidence[], refined: boolean): string {
-  const domain = "클래스101의 결제·주문·정산 시스템";
   const opening = refined
-    ? "제가 개발 과정에서 가장 중요하게 생각하는 기준은 데이터의 정확성과 사용자가 체감하는 안정성입니다."
-    : "저는 사용자의 문제를 데이터와 서비스 구조로 풀어내는 개발자입니다.";
-  const experience = [evidence.problem, evidence.action, evidence.result, evidence.lesson].join(" ");
-  const contribution = `이 경험을 바탕으로 ${domain}에서도 요구사항과 데이터 흐름을 정확히 이해하고, 동료들과 설계를 검토하며 신뢰할 수 있는 기능을 만들겠습니다.`;
+    ? "제가 개발에서 가장 중요하게 여기는 기준은 데이터가 정확한지, 그리고 그 근거를 설명할 수 있는지입니다."
+    : "저는 데이터의 근거를 끝까지 확인하는 습관으로 문제를 풀어 온 개발자입니다.";
+  const story = [evidence.problem, evidence.action, evidence.result].join(" ");
   const secondary = projects.find((project) => project.kind !== evidence.kind);
 
   switch (question) {
     case "motivation":
-      return `배움을 통해 사람의 선택지를 넓히는 클래스101에서, 크리에이터와 수강생이 안심하고 이용할 수 있는 서비스 기반을 만들고 싶어 지원했습니다. 특히 결제부터 정산까지 데이터의 정확성을 책임지는 백엔드 업무에 관심이 있습니다.\n\n${experience}\n\n${contribution}`;
+      return `수강신청 날마다 장바구니에 담아 둔 과목이 시간표에서 겹친다는 사실을 신청 직전에야 알게 되곤 했습니다. 그때마다 이 검사를 장바구니 단계에서 미리 해 줄 수는 없을까 생각했습니다. 학생 수천 명이 같은 순간에 같은 화면을 쓰는 학사시스템은, 작은 불편 하나도 수천 번 반복된다는 점에서 가장 영향력 큰 서비스라고 생각합니다.\n\n아카넷은 대학 통합정보시스템(URP/CRP)과 자체 프레임워크 aXis Platform으로 학사·학생·취업 데이터를 하나의 흐름으로 연결하고 있습니다. ${evidence.summary}은 ${evidence.fit} 특히 SQLD와 정보처리산업기사를 준비하며 익힌 정규화·트랜잭션 개념을, 학사 데이터를 직접 다루는 현장에서 제대로 써 보고 싶습니다.\n\n사용자로 느꼈던 불편을 개발자로 직접 고치는 첫 회사가 아카넷이기를 바랍니다.`;
     case "goal":
-      return `입사 후에는 ${domain}의 업무 규칙과 데이터 흐름을 먼저 익히겠습니다. 기능의 정상 동작뿐 아니라 예외 상황에서 데이터가 어떻게 유지되어야 하는지 동료들과 확인하고, 변경의 영향을 검토하는 습관을 갖추겠습니다.\n\n${evidence.action} ${evidence.lesson}\n\n장기적으로는 운영에서 발견한 문제를 재현하고 원인을 설명할 수 있는 백엔드 엔지니어로 성장하겠습니다. 작은 변경부터 검증하며 서비스의 정확성과 안정성을 높이겠습니다.`;
+      return `입사 전부터 전자정부 표준프레임워크로 수강신청 예제를 직접 구현하며 서비스 계층 트랜잭션과 MyBatis 매퍼 구조를 공부하고 있습니다. 수습 3개월 동안에는 aXis Platform의 구조와 대학 업무 흐름을 빠르게 익히고, 기존 대학 사이트 유지보수 업무에서 장애 원인을 문서로 남기는 습관부터 들이겠습니다. 1년 안에는 학사 업무 한 모듈을 요구사항 분석부터 화면·DB 설계, 테스트까지 책임지는 개발자가 되겠습니다.\n\n${evidence.summary}을 살려, 문제를 데이터로 확인하고 근거를 기록으로 남기는 방식을 아카넷에서도 지키겠습니다.\n\n3년 뒤에는 수강신청 장바구니 단계의 시간표 충돌·선수과목 사전 검사처럼, 학생으로서 겪었던 불편을 데이터로 증명하고 고치는 개선안을 먼저 제안하는 개발자가 되겠습니다. 그 개선이 학생 수천 명의 시간을 아끼는 일이라는 것을 누구보다 잘 알기 때문입니다.`;
     case "collaboration":
-      return `협업에서 중요하게 생각하는 것은 팀원들이 같은 목표와 구현 범위를 이해하도록 만드는 일입니다. ${evidence.problem}\n\n${evidence.action} ${evidence.result}\n\n${evidence.lesson} 의견을 조율할 때도 개인의 선호보다 사용자에게 필요한 핵심 흐름과 일정의 제약을 기준으로 논의하겠습니다. 클래스101에서도 기획·디자인·개발의 관점을 연결하며 문제를 끝까지 해결하겠습니다.`;
+      return `협업에서 가장 중요하게 생각하는 것은 모든 팀원이 같은 기준과 같은 화면을 보게 만드는 일입니다. ${evidence.problem}\n\n${evidence.action} ${evidence.result}\n\n${evidence.lesson}${secondary ? ` ${secondary.teamwork}` : ""} 요구가 자주 바뀌는 SI 현장에서도 범위와 우선순위를 먼저 합의하고, 합의한 내용을 문서로 남기는 팀원이 되겠습니다.`;
     case "conflict":
-      return `직군마다 중요하게 보는 요구사항이 다를 때는 사용자에게 필요한 핵심 흐름과 일정의 제약을 함께 놓고 논의하려고 합니다. ${evidence.problem}\n\n${evidence.action} ${evidence.result}\n\n${evidence.lesson} 이 경험을 바탕으로 의견 차이를 개인 간의 문제로 다루기보다 공통의 목표와 구현 범위를 확인하는 대화로 풀어가겠습니다. 클래스101에서도 결정의 근거를 공유하며 협업하겠습니다.`;
+      return `의견이 부딪힐 때는 각자의 선호보다 사용자에게 꼭 필요한 흐름과 일정의 제약을 함께 놓고 이야기하려고 합니다. ${evidence.problem}\n\n${evidence.action} ${evidence.result}\n\n${evidence.lesson}${secondary ? ` ${secondary.teamwork}` : ""} 아카넷에서도 결정의 근거를 공유하고, 고객(대학) 현업의 언어로 문제를 다시 정의하며 협업하겠습니다.`;
     case "strength":
-      return `저의 강점은 사용자 문제를 핵심 기능으로 구체화하고 구현까지 연결하는 실행력입니다. ${evidence.action} ${evidence.result}\n\n한편 구현 범위와 완성도의 균형은 계속 발전시켜야 할 과제입니다. ${evidence.lesson} 앞으로도 핵심 요구사항과 검증 기준을 먼저 정리하고, 진행 상황을 팀과 공유하며 개발하겠습니다.`;
+      return `저의 강점은 데이터의 근거를 끝까지 확인하는 습관입니다. ${evidence.highlight}\n\n반면 처음부터 완벽한 구조를 만들려다 일정이 빠듯해진 적이 있습니다. 그래서 지금은 핵심 요구사항과 검증 기준을 먼저 정리하고, 진행 상황을 팀과 짧은 주기로 공유하며 개발합니다.\n\n${evidence.lesson} 아카넷에서도 근거를 확인하는 꼼꼼함과 일정을 지키는 균형을 함께 갖춘 개발자가 되겠습니다.`;
     case "growth":
-      return `프로젝트를 경험하며 좋은 개발의 기준이 기능의 개수에서 사용자와 팀이 신뢰할 수 있는 구조로 바뀌었습니다. ${experience}\n\n이 경험은 기술을 선택하기 전에 해결할 문제와 데이터의 흐름부터 이해하는 태도로 이어졌습니다. 클래스101에서도 구현의 이유를 설명하고 동료의 피드백을 반영하는 개발자로 성장하겠습니다.`;
+      return `학과 수업에서 JSP·Servlet으로 게시판을 만들 때만 해도 좋은 개발의 기준은 '동작하는 기능'이었습니다. 실무 프로젝트를 거치며 그 기준은 '사용자와 팀이 믿을 수 있는 데이터'로 바뀌었습니다.\n\n${story}\n\n이후 기술을 고르기 전에 해결할 문제와 데이터의 흐름부터 확인하는 태도가 생겼습니다. 아카넷에서도 구현의 이유를 설명하고 동료의 피드백을 반영하며 성장하겠습니다.`;
     case "challenge":
-      return `어려운 문제를 만났을 때는 결과에 영향을 주는 데이터와 처리 흐름부터 살펴봅니다. ${experience}\n\n이 경험을 통해 기술을 적용하는 것에서 멈추지 않고, 입력과 처리 과정이 결과에 미치는 영향을 확인하는 태도를 배웠습니다. ${contribution}`;
+      return `어려운 문제를 만나면 결과에 영향을 주는 데이터와 처리 흐름부터 확인합니다. ${evidence.problem}\n\n${evidence.action} ${evidence.detail} ${evidence.result}\n\n${evidence.lesson} 아카넷에서도 운영 이슈가 생기면 원인을 재현하고 근거를 남기며 끝까지 해결하겠습니다.`;
     case "project":
-      return `${evidence.problem}\n\n${evidence.action} ${evidence.result}\n\n${evidence.lesson} ${contribution}`;
+      return `${evidence.problem}\n\n${evidence.action} ${evidence.detail} ${evidence.result}\n\n${evidence.lesson} 이 경험은 ${evidence.fit}`;
     case "introduction":
-      return `${opening} ${evidence.action} ${evidence.result}${secondary ? ` 또한 ${secondary.name} 프로젝트에서는 ${secondary.focus}의 중요성을 경험했습니다.` : ""}\n\n${evidence.lesson} ${contribution}`;
+      return `데이터의 근거를 끝까지 확인하는 개발자 김정환입니다. 부천대학교 컴퓨터소프트웨어과 졸업을 앞두고 있으며, SQLD와 정보처리산업기사를 취득했습니다.\n\n${evidence.highlight}${secondary ? ` 또한 ${secondary.summary}도 있습니다.` : ""}\n\n학생으로서 매일 쓰던 학사시스템을 이제는 만드는 쪽에서, 아카넷의 대학 통합정보시스템에 기여하고 싶습니다.`;
     default:
-      return `${opening} ${experience}${secondary ? ` ${secondary.name} 프로젝트를 통해서는 ${secondary.focus} 경험도 쌓았습니다.` : ""}\n\n${contribution}`;
+      return `${opening} ${evidence.problem}\n\n${evidence.action} ${evidence.detail} ${evidence.result}\n\n${evidence.lesson}${secondary ? ` ${secondary.name} 프로젝트에서는 ${secondary.focus} 경험도 쌓았습니다.` : ""} 아카넷에서도 학사 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.`;
   }
 }
 
@@ -158,13 +249,16 @@ function protocol(stage: Stage, answer = "", ready = false): string {
 }
 
 export function buildCareerDemoReply(body: DemoRequest, projects: Evidence[]) {
-  if (!projects.length) throw new Error("Select a supported career demo project");
-  const title = typeof body.selectedQuestion?.title === "string"
+  if (!projects.length) projects = getAllCareerDemoEvidence();
+  const title = typeof body.selectedQuestion?.title === "string" && body.selectedQuestion.title.trim()
     ? body.selectedQuestion.title.trim().slice(0, 200) : "직무 역량";
   const prompt = latestUserMessage(body.messages);
   const question = classifyQuestion(title);
   const currentAnswer = typeof body.currentAnswer === "string" ? body.currentAnswer.trim().slice(0, 10000) : "";
-  const evidence = chooseEvidence(projects, question, projects.some((project) => prompt.includes(project.name)) ? prompt : currentAnswer || prompt);
+  const isIntro = body.operation === "intro";
+  // The intro prompt lists every selected project, so it must not pick the evidence.
+  const requestsProjectSwitch = !isIntro && Boolean(namedProject(projects, prompt));
+  const evidence = chooseEvidence(projects, question, isIntro ? "" : requestsProjectSwitch ? prompt : currentAnswer || prompt);
   const projectNames = projects.map((project) => project.name).join("·");
   const rawLimit = body.selectedQuestion?.maxChars;
   const fieldLimit = typeof rawLimit === "number" && Number.isFinite(rawLimit)
@@ -173,9 +267,9 @@ export function buildCareerDemoReply(body: DemoRequest, projects: Evidence[]) {
   const concise = /짧게|간결|줄여|줄이|요약/.test(prompt);
   const maxChars = Math.min(fieldLimit, requestedLimit ? Math.max(40, Number(requestedLimit)) : concise ? 350 : fieldLimit);
 
-  if (body.operation === "intro") {
+  if (isIntro) {
     return {
-      content: `안녕하세요, 디벗 AI 자소서 컨설팅입니다. 클래스101 백엔드 엔지니어 공고와 ${projectNames} 프로젝트를 바탕으로 ‘${title}’ 문항을 함께 작성하겠습니다.\n\n이 공고에서는 데이터의 정확성, API·데이터 모델 설계, 주도적인 협업이 핵심입니다. 이번 문항은 ${evidence.name}의 ${evidence.focus} 경험을 중심으로 풀어내면 좋겠습니다.\n\n이 경험을 중심으로 작성할까요? 더 강조하고 싶은 프로젝트나 역량이 있으면 말씀해 주세요. 바로 초안을 요청하셔도 됩니다.`,
+      content: `안녕하세요, 디벗 AI 자소서 컨설팅입니다. ㈜아카넷 웹개발자(Java) 신입 공고와 ${projectNames} 프로젝트를 바탕으로 ‘${title}’ 문항을 함께 작성하겠습니다.\n\n이 공고는 대학 통합정보시스템(URP/CRP)을 Java·전자정부 표준프레임워크로 개발하는 포지션으로, 데이터 정합성과 SQL 활용 능력, 요구사항 분석이 핵심이고 SQLD 보유자를 우대합니다. 이번 문항은 ${evidence.name}의 ${evidence.focus} 경험을 중심으로 풀어내면 공고와 가장 잘 맞습니다.\n\n이 경험을 중심으로 작성할까요? 더 강조하고 싶은 프로젝트나 역량이 있으면 말씀해 주세요. 바로 초안을 요청하셔도 됩니다.`,
       protocol: protocol("direction"),
     };
   }
@@ -183,7 +277,7 @@ export function buildCareerDemoReply(body: DemoRequest, projects: Evidence[]) {
   const explicitlyDraft = /초안|작성해|써\s*줘|써주세요|만들어|바로\s*작성/.test(prompt);
   if (body.workflowStage === "direction" && !explicitlyDraft && !currentAnswer && body.operation !== "tone" && body.operation !== "fit-length") {
     return {
-      content: `‘${title}’ 문항은 ${evidence.name} 경험을 중심으로 구성하겠습니다.\n\n${evidence.problem} ${evidence.action}\n\n여기서 ${evidence.focus} 역량을 강조하고, 결과와 배운 점을 클래스101이 요구하는 데이터 정확성·안정성과 연결하겠습니다. 과장된 수치보다 직접 맡은 작업과 판단을 드러내는 담백한 문체가 적합합니다.\n\n이 방향을 바탕으로 ${maxChars}자 이내의 초안을 작성해 드릴까요?`,
+      content: `‘${title}’ 문항은 ${evidence.name} 경험을 중심으로 구성하겠습니다.\n\n${evidence.problem} ${evidence.action}\n\n여기서 ${evidence.focus} 역량을 강조하고, 결과와 배운 점을 아카넷 공고의 핵심인 학사 데이터 처리·요구사항 분석 역량과 연결하겠습니다. 수치는 측정 방법까지 설명할 수 있는 것만 담고, 직접 맡은 작업과 판단이 드러나는 담백한 문체로 쓰겠습니다.\n\n이 방향으로 ${maxChars}자 이내의 초안을 작성해 드릴까요?`,
       protocol: protocol("draft"),
     };
   }
@@ -194,21 +288,20 @@ export function buildCareerDemoReply(body: DemoRequest, projects: Evidence[]) {
   let draft = buildDraft(question, evidence, projects, refine);
   // Preserve the user's applied/edited answer when refining it. Project-switch requests
   // intentionally rebuild from the named, selected evidence instead.
-  const requestsProjectSwitch = projects.some((project) => prompt.includes(project.name));
   if (currentAnswer && (refine || fitLength || confirm) && !requestsProjectSwitch) {
     draft = currentAnswer
       .replace(/(?:정말|매우|굉장히)\s+/g, "")
       .replace(/했어요\./g, "했습니다.")
       .replace(/배웠어요\./g, "배웠습니다.")
       .replace(/\n{3,}/g, "\n\n");
-    if (refine && !fitLength && !confirm && !draft.includes("클래스101")) {
-      draft += " 클래스101에서도 데이터의 정확성과 안정성을 기준으로 기능을 구현하겠습니다.";
+    if (refine && !fitLength && !confirm && !draft.includes("아카넷")) {
+      draft += " 아카넷에서도 데이터의 정합성을 먼저 확인하며 신뢰할 수 있는 기능을 만들겠습니다.";
     }
   }
   if (/첫\s*문장|도입부/.test(prompt)) {
     const opening = question === "motivation"
-      ? "사용자가 안심하고 배우는 경험을 정확한 데이터와 안정적인 백엔드로 뒷받침하고 싶습니다."
-      : "저는 구현의 이유를 설명하고, 사용자와 팀이 신뢰할 수 있는 서비스를 만드는 개발자입니다.";
+      ? "매일 쓰던 학사시스템을, 이제는 만드는 쪽에서 더 낫게 만들고 싶습니다."
+      : "저는 데이터의 근거를 끝까지 확인하고, 그 이유를 설명할 수 있는 개발자입니다.";
     draft = opening + " " + draft.replace(/^[\s\S]*?[.!?。](?:\s+|$)/u, "");
   }
   const answer = fitCareerDemoAnswer(draft, maxChars);
@@ -216,9 +309,9 @@ export function buildCareerDemoReply(body: DemoRequest, projects: Evidence[]) {
   const description = confirm
     ? "공고와의 연결, 경험 근거, 문장 흐름과 분량을 최종 점검했습니다."
     : fitLength
-      ? `핵심 경험을 유지하면서 ${maxChars}자 이내로 정리했습니다.`
+      ? `핵심 경험과 수치는 유지하면서 ${maxChars}자 이내로 정리했습니다.`
       : refine
-        ? "직접 수행한 작업과 배운 점이 드러나도록 문장을 정리했습니다."
+        ? "직접 수행한 작업과 판단, 아카넷 공고와의 연결이 더 잘 드러나도록 문장을 다듬었습니다."
         : `${evidence.name} 경험을 중심으로 ‘${title}’ 초안을 작성했습니다.`;
   return {
     content: `${description}\n\n${answer}\n\n현재 ${answer.length}자입니다. ‘적용하기’를 누르면 이 문항의 답안으로 반영됩니다.`,

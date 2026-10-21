@@ -10,6 +10,8 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { syncResumeToProfile } from "@/lib/my-profile";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { waitForDemo } from "@/lib/career/demo/stream";
 import {
   getWorkspaceCareerImportCandidate,
   getWorkspaceCareerImportCandidates,
@@ -145,6 +147,12 @@ async function buildWorkspaceDraftWithAi(
   candidate: WorkspaceCareerImportCandidate,
 ): Promise<{ draft: Partial<ExperienceInput>; usedAi: boolean }> {
   const fallback = buildWorkspaceDraftFallback(candidate);
+
+  if (isCareerDemoEnabled()) {
+    // Presentation demo: the deterministic draft, presented as the AI result after a short wait.
+    await waitForDemo(2000);
+    return { draft: fallback, usedAi: true };
+  }
 
   if (!google) {
     return { draft: fallback, usedAi: false };
