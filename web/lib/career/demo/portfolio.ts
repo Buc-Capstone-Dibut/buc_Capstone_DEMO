@@ -132,21 +132,45 @@ export function buildCareerDemoPortfolioEdit(input: {
   }
 
   const isProjectPage = PROJECT_PAGE_TYPES.has(page.type);
+  const tone: Tone = /부드럽|친근|따뜻|편안/.test(message) ? "soft" : /자신감|강하게|임팩트|힘\s*있|단호/.test(message) ? "bold" : "fit";
   const subtitle =
     (isProjectPage && kind ? PROJECT_SUBTITLES[kind] : PAGE_SUBTITLES[page.type]) ??
     "요구사항 분석부터 검증까지, 근거로 설명하는 프로젝트";
-  const fields: Record<string, unknown> = { subtitle };
-  if (page.narrative?.trim()) {
-    const tightened = firstSentences(page.narrative, 2);
-    fields.narrative = isProjectPage
-      ? `${tightened} 이 경험은 학사 데이터를 정확하게 다뤄야 하는 대학 통합정보시스템 개발과 맞닿아 있습니다.`
-      : tightened;
+  const base = page.narrative?.trim() ?? "";
+  // 화면에 보이는 설명 문단이 반드시 바뀌어야 시연에서 "AI가 고쳤다"가 보인다.
+  let narrative: string;
+  if (page.type === "cover" || page.type === "profile") {
+    narrative = COVER_NARRATIVES[tone];
+  } else {
+    const tightened = firstSentences(base, 2) || base;
+    const metric = PROJECT_METRICS[kind ?? "default"];
+    narrative =
+      tone === "soft"
+        ? `${tightened} 함께 일하는 사람이 믿고 쓸 수 있는 결과를 만드는 데 가장 마음을 썼습니다.`
+        : tone === "bold"
+          ? `${metric.label} ${metric.value}. ${tightened}`
+          : `${tightened} 이 경험은 학사 데이터를 정확하게 다뤄야 하는 대학 통합정보시스템 개발과 맞닿아 있습니다.`;
   }
+  const fields: Record<string, unknown> = { subtitle, narrative };
   return {
-    reply: `‘${page.title}’ 페이지의 부제와 설명을 ㈜아카넷 웹개발자 공고에 맞춰 더 간결하게 다듬었어요. 데이터 정합성과 근거 검증 경험이 먼저 보이도록 정리했습니다.`,
+    reply: TONE_REPLIES[tone](page.title),
     patches: [{ op: "patch_page", pageId: page.id, fields }],
   };
 }
+
+type Tone = "soft" | "bold" | "fit";
+
+const COVER_NARRATIVES: Record<Tone, string> = {
+  fit: "데이터의 근거를 끝까지 확인하는 Java 웹 개발자입니다. 행정 문서 약 1,200건을 정제해 근거 일치율 87%를 만든 경험으로, 대학 통합정보시스템의 데이터를 정확하게 다루겠습니다.",
+  soft: "사용자가 겪는 작은 불편을 데이터로 확인하고, 함께 일하는 사람이 믿고 쓸 수 있는 서비스를 만드는 개발자입니다. 기획부터 검증까지 차근차근 근거를 쌓아 가며 일합니다.",
+  bold: "행정 문서 1,200건을 근거 일치율 87%의 답변으로 바꾼 개발자입니다. 10일 만에 MVP를 배포한 실행력으로, 기획부터 검증까지 숫자로 증명합니다.",
+};
+
+const TONE_REPLIES: Record<Tone, (title: string) => string> = {
+  fit: (title) => `‘${title}’ 페이지의 부제와 설명을 ㈜아카넷 웹개발자 공고에 맞춰 다듬었어요. 데이터 정합성과 근거 검증 경험이 먼저 보이도록 정리했습니다.`,
+  soft: (title) => `‘${title}’ 페이지 문장을 더 부드럽고 편안한 톤으로 바꿨어요. 딱딱한 표현은 줄이고, 함께 일하는 사람을 생각하는 태도가 드러나게 했습니다.`,
+  bold: (title) => `‘${title}’ 페이지를 더 자신감 있는 톤으로 바꿨어요. 성과 숫자가 문장 맨 앞에 오도록 정리했습니다.`,
+};
 
 /** Canned copy for the "Neon Editorial" showcase, in the shape `mergeIntoContent` expects. */
 export function getCareerDemoShowcaseFill() {

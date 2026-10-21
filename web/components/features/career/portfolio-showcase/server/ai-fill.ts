@@ -3,6 +3,7 @@ import "server-only";
 import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
 import { getCareerDemoShowcaseFill } from "@/lib/career/demo/portfolio";
+import { CAREER_DEMO_PERSONA } from "@/lib/career/demo/persona";
 import { waitForDemo } from "@/lib/career/demo/stream";
 import type { NeonEditorialContent } from "../templates/neon-editorial/types";
 import type { ProjectSnapshot } from "../shared/project-snapshot-types";
@@ -38,8 +39,17 @@ export async function aiFillNeonEditorialContent(input: {
 }): Promise<NeonEditorialContent> {
   if (isCareerDemoEnabled()) {
     // Presentation demo: prepared persona copy through the same merge path, after a realistic wait.
-    await waitForDemo(6000);
-    return mergeIntoContent(input.content, getCareerDemoShowcaseFill());
+    // 시연에서 "백그라운드에서 계속하기" → 챗봇 작업 현황까지 보여줄 수 있게 20초 정도 걸리게 한다.
+    await waitForDemo(20000);
+    const filled = mergeIntoContent(input.content, getCareerDemoShowcaseFill());
+    return {
+      ...filled,
+      hero: {
+        ...filled.hero,
+        jobTitle: "JAVA WEB DEVELOPER",
+        headlineLines: [CAREER_DEMO_PERSONA.name, "PORTFOLIO."],
+      },
+    };
   }
   if (!hasGeminiTextBackend()) return input.content;
 
