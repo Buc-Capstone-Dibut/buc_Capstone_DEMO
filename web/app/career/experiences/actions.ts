@@ -12,6 +12,7 @@ import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { syncResumeToProfile } from "@/lib/my-profile";
 import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
 import { waitForDemo } from "@/lib/career/demo/stream";
+import { buildCareerDemoWorkspaceDraft } from "@/lib/career/demo/workspace-draft";
 import {
   getWorkspaceCareerImportCandidate,
   getWorkspaceCareerImportCandidates,
@@ -151,7 +152,7 @@ async function buildWorkspaceDraftWithAi(
   if (isCareerDemoEnabled()) {
     // Presentation demo: the deterministic draft, presented as the AI result after a short wait.
     await waitForDemo(2000);
-    return { draft: fallback, usedAi: true };
+    return { draft: buildCareerDemoWorkspaceDraft(candidate, fallback), usedAi: true };
   }
 
   if (!google) {
