@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Any, Callable
 
+from app.interview.domain.demo_script import build_demo_report, is_demo_script_session
 from app.schemas.interview import AnalysisReport
 from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService
@@ -162,13 +163,17 @@ class ReportAgent:
     def _process_job(self, job: dict[str, Any]) -> None:
         session_id = job["session_id"]
         session_type = job.get("session_type", "live_interview")
-        gemini = self._gemini_factory()
 
         session = self._service.get_session(session_id)
         if not session:
             raise RuntimeError(f"Session not found: {session_id}")
 
         turns = self._service.get_turns(session_id)
+        if is_demo_script_session(session.get("job_payload"), session_type):
+            self._save_demo_script_report(session_id=session_id, turns=turns)
+            return
+
+        gemini = self._gemini_factory()
         chat_history = [
             {
                 "role": "model" if turn.get("role") in {"model", "ai"} else "user",
@@ -211,12 +216,25 @@ class ReportAgent:
 
         self._service.save_report(session_id, report)
 
+    def _save_demo_script_report(self, *, session_id: str, turns: list[dict[str, Any]]) -> None:
+        """시연 고정 대본 세션 — Gemini 분석 없이 미리 정한 리포트를 저장한다(타임라인은 실제 턴 기준)."""
+        report = build_demo_report()
+        # 비언어(실제 카메라 신호)는 그대로 붙인다. _attach_nonverbal 은 모든 예외를 삼키고,
+        # Gemini 를 못 만들어도 기본 코멘트로 진행하므로 시연 리포트 저장을 막지 않는다.
+        try:
+            gemini = self._gemini_factory()
+        except Exception:
+            logger.warning("gemini factory failed for demo script nonverbal; continuing", exc_info=True)
+            gemini = None
+        self._attach_nonverbal(session_id=session_id, turns=turns, gemini=gemini, report=report)
+        self._service.save_report(session_id, report)
+
     def _attach_nonverbal(
         self,
         *,
         session_id: str,
         turns: list[dict[str, Any]],
-        gemini: GeminiService,
+        gemini: GeminiService | None,
         report: dict[str, Any],
     ) -> None:
         """recording_signals 샘플을 집계해 NO-SCORE 비언어 코멘트를 report 에 주입한다.

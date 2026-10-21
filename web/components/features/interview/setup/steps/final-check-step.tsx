@@ -18,6 +18,13 @@ import {
 
 type SetupTrack = "posting" | "role";
 
+// 시연용 고정 대본 면접(㈜아카넷 공고) — FastAPI domain/demo_script.py 의 DEMO_SCRIPT_ID 와 같아야 한다.
+const DEMO_SCRIPT_ID = "acanet-2026-web";
+const DEMO_SCRIPT_DURATION_MIN = 15;
+const DEFAULT_DURATION_MIN = 10;
+const isDemoScriptCompany = (company: unknown) =>
+  typeof company === "string" && /아카넷|acanet/i.test(company);
+
 interface FinalCheckStepProps {
   track?: SetupTrack;
 }
@@ -44,7 +51,15 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     if (isStartingInterview) return;
     setIsStartingInterview(true);
     try {
-      const baseJobData = jobData ? { ...jobData, interviewTrack: "posting" as const } : jobData;
+      const isDemoScript = isDemoScriptCompany(jobData?.company);
+      const durationMin = isDemoScript ? DEMO_SCRIPT_DURATION_MIN : DEFAULT_DURATION_MIN;
+      const baseJobData = jobData
+        ? {
+            ...jobData,
+            interviewTrack: "posting" as const,
+            ...(isDemoScript ? { demoScript: DEMO_SCRIPT_ID } : {}),
+          }
+        : jobData;
       const interviewTypePayload = baseJobData
         ? buildInterviewTypePayload(resolveInterviewTypeVisual({
             sessionType: "live_interview",
@@ -69,12 +84,12 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
             ? { ...baseJobData, ...interviewTypePayload }
             : baseJobData,
           resumeData,
-          targetDurationSec: 10 * 60,
+          targetDurationSec: durationMin * 60,
           closingThresholdSec: 60,
         },
       });
       setInterviewSessionId(sessionId);
-      router.push(`/interview/room/video?duration=10&track=${track}&sessionId=${encodeURIComponent(sessionId)}`);
+      router.push(`/interview/room/video?duration=${durationMin}&track=${track}&sessionId=${encodeURIComponent(sessionId)}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "면접 시작 준비에 실패했습니다.");
     } finally {

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from typing import Awaitable, Callable
 
+from app.interview.domain.demo_script import is_demo_script_session
 from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
 from app.interview.domain.interview_memory import (
     extract_memory_keywords,
@@ -15,6 +18,15 @@ from app.interview.domain.question_bank import infer_interview_track, interview_
 from app.interview.runtime.state import PreparedTtsAudio, VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 from app.services.voice_pipeline import float_samples_to_pcm16le_bytes, wav_bytes_to_float_samples
+
+logger = logging.getLogger("dibut.ws")
+
+# 시연 고정 대본: 라이브 모델이 대사를 그대로 읽었는지 출력 전사로 검증한다.
+# 영문 기술명·숫자는 한글 음차로 전사되기도 하므로 한글 음절만 비교한다.
+SCRIPTED_SPEECH_ATTEMPTS = 3
+SCRIPTED_SPEECH_MIN_COVERAGE = 0.8
+SCRIPTED_SPEECH_FALLBACK_COVERAGE = 0.6
+SCRIPTED_SPEECH_MAX_LENGTH_RATIO = 1.5
 
 
 def _normalize_audio_text_signature(text: str) -> str:
@@ -89,6 +101,18 @@ def build_portfolio_session_instruction(state: VoiceWsState) -> str:
     )
 
 
+def build_scripted_session_instruction() -> str:
+    return (
+        "당신은 한국어 면접을 진행하는 면접관의 목소리입니다. 소프트웨어 회사 개발팀장의 차분하고 정중한 톤으로 말합니다.\n"
+        "절대 규칙:\n"
+        "1) 매 턴 전달되는 면접관 대사를 처음부터 끝까지 글자 그대로 소리 내어 읽는다.\n"
+        "2) 대사를 추가·생략·요약·의역하지 않는다. 질문이 여러 개여도 모두 그대로 읽는다.\n"
+        "3) 지원자 역할을 하거나 답변을 대신하지 않는다.\n"
+        "4) 대사 외의 인사, 설명, 메타 발화, 영어 문장을 덧붙이지 않는다.\n"
+        "출력은 자연스러운 한국어 음성으로만 생성한다."
+    )
+
+
 def build_live_session_instruction(
     state: VoiceWsState,
     *,
@@ -96,6 +120,8 @@ def build_live_session_instruction(
 ) -> str:
     if (state.session_type or "").strip() == "portfolio_defense":
         return build_portfolio_session_instruction(state)
+    if is_demo_script_session(state.job_data, state.session_type):
+        return build_scripted_session_instruction()
     personality = (state.personality or "professional").strip()
     # raw JSON 을 900자에서 통째로 자르면 공고 요구사항/이력서 상세가 잘려 모델이 못 본다.
     # 핵심 항목을 추려 더 넉넉히 주입한다.
@@ -218,6 +244,104 @@ def build_exact_speech_prompt() -> str:
     )
 
 
+def build_scripted_speech_prompt() -> str:
+    return (
+        "아래 면접관 대사를 한 글자도 바꾸지 말고 처음부터 끝까지 그대로 소리 내어 읽으세요. "
+        "문장을 추가하거나 생략하거나 의역하지 말고, 질문이 여러 개면 모두 그대로 읽은 뒤 멈추세요. "
+        "대사 외에는 아무 말도 하지 마세요."
+    )
+
+
+def _hangul_signature(text: str) -> str:
+    return "".join(re.findall(r"[가-힣]", text or ""))
+
+
+def scripted_speech_coverage(intended: str, spoken: str) -> float:
+    """대본(intended) 대비 실제 발화 전사(spoken)의 일치도 0~1. 덧붙인 발화(역할극 등)가 길면 0."""
+    expected = _hangul_signature(intended)
+    actual = _hangul_signature(spoken)
+    if not expected or not actual:
+        return 0.0
+    if len(actual) > len(expected) * SCRIPTED_SPEECH_MAX_LENGTH_RATIO:
+        return 0.0
+    matcher = SequenceMatcher(None, expected, actual, autojunk=False)
+    matched = sum(block.size for block in matcher.get_matching_blocks())
+    return matched / len(expected)
+
+
+async def request_live_scripted_speech_turn(
+    state: VoiceWsState,
+    *,
+    text: str,
+    deps: "LiveClientDeps",
+    attempts: int = SCRIPTED_SPEECH_ATTEMPTS,
+) -> tuple[str, PreparedTtsAudio | None, str]:
+    """시연 고정 대본 한 줄을 라이브 음성으로 '그대로' 읽힌다.
+
+    반환 텍스트는 항상 대본 원문이다(자막·저장 텍스트 = 대본). 출력 전사가 대본과 어긋나면
+    세션 문맥을 비우고 같은 대사로 다시 읽힌다 — 의역 복구(request_live_text_turn)는 쓰지 않는다.
+    끝내 기준을 못 넘으면 가장 근접한 음성을 하한 이상일 때만 쓰고, 아니면 음성 없음(None)을 돌려준다.
+    """
+    payload_text = " ".join((text or "").split()).strip()
+    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if not live.enabled or not payload_text:
+        return payload_text, None, ""
+
+    provider = ""
+    best_audio: PreparedTtsAudio | None = None
+    best_coverage = 0.0
+    for attempt in range(1, max(1, attempts) + 1):
+        result = await live.request_text_turn(
+            session_instruction=deps.build_session_instruction(state),
+            turn_prompt=build_scripted_speech_prompt(),
+            text=payload_text,
+        )
+        provider = result.provider or provider
+        prepared = deps.to_prepared_tts_audio_from_pcm(
+            result.audio_pcm_bytes,
+            sample_rate=result.sample_rate,
+            provider=result.provider,
+        )
+        spoken_text = (result.ai_text or "").strip()
+        if prepared is not None:
+            if not spoken_text:
+                # 출력 전사가 없으면 검증할 수 없다 — 대사 길이에 비해 너무 짧은 음성만 거른다.
+                if prepared.duration_sec >= max(1.0, len(_hangul_signature(payload_text)) * 0.04):
+                    return payload_text, prepared, provider
+            else:
+                coverage = scripted_speech_coverage(payload_text, spoken_text)
+                if coverage >= SCRIPTED_SPEECH_MIN_COVERAGE:
+                    return payload_text, prepared, provider
+                if coverage > best_coverage:
+                    best_coverage = coverage
+                    best_audio = prepared
+                logger.warning(
+                    "scripted speech diverged (session=%s, attempt=%s, coverage=%.2f, spoken=%s)",
+                    state.session_id,
+                    attempt,
+                    coverage,
+                    spoken_text,
+                )
+        else:
+            logger.warning(
+                "scripted speech produced no audio (session=%s, attempt=%s)",
+                state.session_id,
+                attempt,
+            )
+        if attempt < attempts:
+            # 어긋난 턴이 문맥에 남아 다음 시도를 오염시키지 않도록 라이브 세션을 새로 연다.
+            await live.close()
+
+    if best_audio is not None and best_coverage >= SCRIPTED_SPEECH_FALLBACK_COVERAGE:
+        logger.warning(
+            "scripted speech using closest attempt (session=%s, coverage=%.2f)",
+            state.session_id,
+            best_coverage,
+        )
+        return payload_text, best_audio, provider
+    return payload_text, None, provider
+
+
 def get_or_create_live_interview(
     state: VoiceWsState,
     *,
@@ -275,6 +399,8 @@ async def request_live_spoken_text_turn(
     text: str,
     deps: LiveClientDeps,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
+    if is_demo_script_session(state.job_data, state.session_type):
+        return await request_live_scripted_speech_turn(state, text=text, deps=deps)
     live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
     payload_text = (text or "").strip()
     if not live.enabled or not payload_text:

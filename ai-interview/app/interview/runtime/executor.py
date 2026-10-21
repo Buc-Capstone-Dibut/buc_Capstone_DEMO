@@ -14,6 +14,7 @@ from app.interview.runtime.live_turns import (
     LiveUserRequestSpec,
     OpeningTurnSpec,
     ResumeTurnSpec,
+    is_demo_script_state,
 )
 from app.interview.runtime.orchestration import build_runtime_meta_payload, build_voice_model_turn_payload
 from app.interview.runtime.state import AiDeliveryPlan, VoiceWsState
@@ -589,7 +590,8 @@ async def execute_opening_live_turn(
             )
             return False
 
-        ai_text = " ".join((spoken_text or ai_text).split()).strip()
+        if not is_demo_script_state(state):
+            ai_text = " ".join((spoken_text or ai_text).split()).strip()
         delivery_plan = await deps.build_ai_delivery_plan(
             ws,
             text=ai_text,
@@ -730,11 +732,13 @@ async def execute_resume_live_turn(
     ai_text = " ".join((spec.prompt or "").split()).strip()
     if not ai_text:
         return False
+    # 시연 고정 대본에서 재연결 시점이 마지막 답변 직후면 복구 턴이 곧 종료 턴이다.
+    is_completion = bool(spec.completion_reason)
     spoken_text, prepared_live_audio, spoken_provider = await deps.request_live_spoken_text_turn(
         state,
         text=ai_text,
     )
-    if prepared_live_audio is None:
+    if prepared_live_audio is None and not is_completion:
         logger.warning(
             "resume turn produced no audio (session=%s, turn=%s, ai_text=%s)",
             state.session_id,
@@ -751,7 +755,8 @@ async def execute_resume_live_turn(
         )
         return False
 
-    ai_text = " ".join((spoken_text or ai_text).split()).strip()
+    if not is_demo_script_state(state):
+        ai_text = " ".join((spoken_text or ai_text).split()).strip()
     if spec.should_announce_closing:
         await deps.set_closing_announced(state.session_id)
         state.closing_announced = True
@@ -762,8 +767,12 @@ async def execute_resume_live_turn(
         turn_id=spec.turn_id,
         preferred_full_audio=prepared_live_audio,
     )
-    state.runtime_status = "model_speaking"
-    await deps.set_runtime_status(state.session_id, "model_speaking", state.current_phase)
+    if is_completion:
+        await deps.update_session_status(state.session_id, "completed", "closing")
+        deps.mark_session_status(state, "completed", phase="closing")
+    else:
+        state.runtime_status = "model_speaking"
+        await deps.set_runtime_status(state.session_id, "model_speaking", state.current_phase)
     payload = build_voice_model_turn_payload(
         phase=state.current_phase,
         question_index=spec.question_index,
@@ -785,6 +794,7 @@ async def execute_resume_live_turn(
         question_type=spec.question_type,
         answer_quality_hint=spec.answer_quality_hint,
         repair_applied=False,
+        completion_reason=spec.completion_reason,
         extra={"resume_generated": True},
     )
     _persist_turn_background(
@@ -797,7 +807,8 @@ async def execute_resume_live_turn(
     )
     deps.record_question_type(state, spec.question_type)
     deps.remember_model_turn(state, ai_text, question_type=spec.question_type)
-    deps.mark_session_status(state, "in_progress", phase=state.current_phase)
+    if not is_completion:
+        deps.mark_session_status(state, "in_progress", phase=state.current_phase)
     deps.log_runtime_event(
         "resume-live-turn",
         state,
@@ -832,8 +843,8 @@ async def execute_resume_live_turn(
             estimated_total_questions=spec.estimated_total_questions,
             question_count=state.model_turn_count,
             is_closing_phase=state.current_phase == "closing",
-            interview_complete=False,
-            finish_reason="",
+            interview_complete=is_completion,
+            finish_reason=spec.completion_reason,
             session_paused=state.runtime_status == "reconnecting",
             reconnect_remaining_sec=deps.reconnect_remaining_sec(state),
             runtime_status=state.runtime_status,
@@ -849,7 +860,8 @@ async def execute_resume_live_turn(
     if not await deps.send_json(ws, {"type": "full-text", "text": ai_text, "turnId": spec.turn_id}):
         return False
 
-    _activate_question_turn(state, turn_id=spec.turn_id)
+    if not is_completion:
+        _activate_question_turn(state, turn_id=spec.turn_id)
     has_audio = await deps.stream_prepared_ai_delivery(
         ws,
         state,
@@ -857,6 +869,10 @@ async def execute_resume_live_turn(
         turn_id=spec.turn_id,
         emit_delta=delivery_plan.mode != "text-only",
     )
+    if is_completion:
+        if has_audio:
+            await _send_audio_turn_end(ws, session_id=state.session_id, turn_id=spec.turn_id, deps=deps)
+        return True
     if not has_audio:
         await deps.send_json(
             ws,
@@ -958,15 +974,18 @@ async def execute_live_user_followup_turn(
                     "turnId": turn_id,
                 },
             )
+    # 시연 고정 대본: 자막·저장 텍스트는 대본 그대로, 음성 복구도 의역(request_live_text_turn) 없이
+    # 같은 대사 재낭독(request_live_spoken_text_turn 내부 재시도)만 허용한다.
+    scripted = is_demo_script_state(state)
     if prepared_audio is None and ai_text and not audio_already_streamed:
         spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
             state,
             text=ai_text,
         )
         provider_name = spoken_provider or provider_name
-        if prepared_audio is not None and spoken_text:
+        if prepared_audio is not None and spoken_text and not scripted:
             ai_text = " ".join(spoken_text.split()).strip()
-        if prepared_audio is None:
+        if prepared_audio is None and not scripted:
             recovered_text, recovered_audio = await _recover_live_audio_for_ai_text(
                 state,
                 ai_text=ai_text,

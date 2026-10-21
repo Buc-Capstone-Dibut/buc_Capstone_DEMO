@@ -6,7 +6,11 @@ from fastapi import WebSocket
 
 from app.interview.domain.interview_memory import select_opening_question_type
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_opening_live_turn, execute_resume_live_turn
-from app.interview.runtime.live_turns import prepare_opening_turn, prepare_resume_turn
+from app.interview.runtime.live_turns import (
+    prepare_opening_turn,
+    prepare_resume_turn,
+    rollback_demo_script_cursor,
+)
 from app.interview.runtime.prepared_opening_store import PreparedOpeningArtifact
 from app.interview.runtime.session_engine import (
     SessionEngineDeps,
@@ -91,12 +95,22 @@ async def generate_and_send_resume_live_turn(
         select_next_question_type=select_next_question_type,
         runtime_timing=runtime_timing,
     )
-    return await execute_resume_live_turn(
-        ws,
-        state,
-        spec=resume_spec,
-        deps=runtime_executor_deps(),
-    )
+    claimed_script_line_index = resume_spec.script_line_index
+    if claimed_script_line_index >= 0:
+        state.demo_script_cursor = claimed_script_line_index + 1
+    try:
+        delivered = await execute_resume_live_turn(
+            ws,
+            state,
+            spec=resume_spec,
+            deps=runtime_executor_deps(),
+        )
+    except Exception:
+        rollback_demo_script_cursor(state, claimed_line_index=claimed_script_line_index, turn_id=resume_spec.turn_id)
+        raise
+    if not delivered:
+        rollback_demo_script_cursor(state, claimed_line_index=claimed_script_line_index, turn_id=resume_spec.turn_id)
+    return delivered
 
 
 async def process_user_utterance(

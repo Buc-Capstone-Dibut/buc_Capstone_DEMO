@@ -3,9 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.interview.domain.demo_script import (
+    DEMO_SCRIPT_COMPLETION_REASON,
+    OPENING as DEMO_SCRIPT_OPENING,
+    QUESTIONS as DEMO_SCRIPT_QUESTIONS,
+    demo_script_line,
+    demo_script_question_index,
+    is_demo_script_session,
+    is_last_demo_script_question,
+)
 from app.interview.domain.interview_memory import can_repeat_followup_question_type
 from app.interview.domain.turn_text import build_opening_turn_text, compose_ai_question_text
-from app.interview.domain.turn_policy import plan_next_question, resolve_completion_decision, runtime_question_count
+from app.interview.domain.turn_policy import (
+    phase_for_question_index,
+    plan_next_question,
+    resolve_completion_decision,
+    runtime_question_count,
+)
 from app.interview.runtime.orchestration import build_resume_live_prompt
 from app.interview.runtime.state import VoiceWsState
 
@@ -39,6 +53,8 @@ class ResumeTurnSpec:
     elapsed_sec: int
     remaining_sec: int
     estimated_total_questions: int
+    completion_reason: str = ""
+    script_line_index: int = -1
 
 
 @dataclass(frozen=True)
@@ -64,6 +80,24 @@ class LiveUserFollowupSpec:
     should_announce_closing: bool
     phase: str
     response_question_index: int
+    script_line_index: int = -1
+
+
+def is_demo_script_state(state: VoiceWsState) -> bool:
+    return is_demo_script_session(state.job_data, state.session_type)
+
+
+def rollback_demo_script_cursor(state: VoiceWsState, *, claimed_line_index: int, turn_id: str) -> None:
+    """대본 줄이 지원자에게 전달되지 못했으면 커서를 되돌려 다음 답변에서 같은 줄을 다시 시도한다.
+
+    executor 는 줄을 저장한 뒤(질문 턴 활성화 후)에도 음성 실패 등으로 False 를 돌려줄 수 있다.
+    그 줄은 이미 자막·기록에 남았으므로 되돌리지 않는다 — 되돌리면 같은 줄이 두 번 나간다.
+    """
+    if claimed_line_index < 0 or state.demo_script_cursor != claimed_line_index + 1:
+        return
+    if turn_id and state.active_question_turn_id == turn_id:
+        return
+    state.demo_script_cursor = claimed_line_index
 
 
 def prepare_opening_turn(
@@ -78,7 +112,7 @@ def prepare_opening_turn(
     job_data = state.job_data if isinstance(state.job_data, dict) else {}
     return OpeningTurnSpec(
         turn_id=next_turn_id,
-        prompt=build_opening_turn_text(
+        prompt=DEMO_SCRIPT_OPENING if is_demo_script_state(state) else build_opening_turn_text(
             session_type=state.session_type,
             company=str(job_data.get("company") or "").strip(),
             role=str(job_data.get("role") or "").strip(),
@@ -110,6 +144,29 @@ def prepare_resume_turn(
     runtime_timing: Callable[[VoiceWsState], tuple[int, int]],
 ) -> ResumeTurnSpec:
     elapsed_sec, remaining_sec = runtime_timing(state)
+    if is_demo_script_state(state):
+        # 재연결 복구도 대본 커서 위치의 줄을 그대로 이어간다(마지막 줄 이후면 종료 턴).
+        line_index = state.demo_script_cursor
+        script_text, is_completion = demo_script_line(line_index)
+        question_index = demo_script_question_index(line_index)
+        is_last = is_last_demo_script_question(line_index)
+        return ResumeTurnSpec(
+            turn_id=next_turn_id,
+            latest_user_text=latest_user_text,
+            answer_quality_hint=answer_quality_hint,
+            question_type="",
+            question_index=question_index,
+            should_announce_closing=is_last,
+            phase=phase_for_question_index(question_index, is_closing=is_last or is_completion),
+            prompt=script_text,
+            target_duration_sec=state.target_duration_sec,
+            closing_threshold_sec=state.closing_threshold_sec,
+            elapsed_sec=elapsed_sec,
+            remaining_sec=remaining_sec,
+            estimated_total_questions=state.estimated_total_questions,
+            completion_reason=DEMO_SCRIPT_COMPLETION_REASON if is_completion else "",
+            script_line_index=line_index,
+        )
     turn_plan = plan_next_question(
         model_turn_count=state.model_turn_count,
         remaining_sec=remaining_sec,
@@ -193,7 +250,11 @@ def prepare_live_user_request(
     strategy = "transition"
     should_bias_closing = followup_spec.should_announce_closing or state.current_phase == "closing"
 
-    if followup_spec.completion_reason:
+    if followup_spec.script_line_index >= 0:
+        # 시연 고정 대본 — 답변 내용과 무관하게 커서 위치의 대사(종료 턴이면 CLOSING_TEXT)를 그대로 쓴다.
+        strategy = "scripted"
+        planned_question_text, _ = demo_script_line(followup_spec.script_line_index)
+    elif followup_spec.completion_reason:
         extra_instruction = (
             "이번 턴은 질문 없이 면접을 종료하는 턴입니다. "
             "지원자의 방금 답변을 짧게 받아주고, 추가 질문 없이 종료 멘트만 말하세요. "
@@ -264,6 +325,26 @@ def prepare_live_user_followup(
     runtime_timing: Callable[[VoiceWsState], tuple[int, int]],
 ) -> LiveUserFollowupSpec:
     elapsed_sec, remaining_sec = runtime_timing(state)
+    if is_demo_script_state(state):
+        # 시연 고정 대본은 시간/질문 상한이 아니라 대본 커서로만 종료를 결정한다.
+        line_index = state.demo_script_cursor
+        _, is_completion = demo_script_line(line_index)
+        question_index = demo_script_question_index(line_index)
+        is_last = is_last_demo_script_question(line_index)
+        return LiveUserFollowupSpec(
+            model_count=state.model_turn_count,
+            target_duration_sec=state.target_duration_sec,
+            closing_threshold_sec=state.closing_threshold_sec,
+            elapsed_sec=elapsed_sec,
+            remaining_sec=remaining_sec,
+            estimated_total_questions=state.estimated_total_questions,
+            completion_reason=DEMO_SCRIPT_COMPLETION_REASON if is_completion else "",
+            question_index=0 if is_completion else question_index,
+            should_announce_closing=is_last,
+            phase=phase_for_question_index(question_index, is_closing=is_last or is_completion),
+            response_question_index=1 + len(DEMO_SCRIPT_QUESTIONS) if is_completion else question_index,
+            script_line_index=line_index,
+        )
     completion = resolve_completion_decision(
         closing_announced=state.closing_announced,
         elapsed_sec=elapsed_sec,
