@@ -9,6 +9,7 @@ import {
   Trash2,
   Loader2,
   Pencil,
+  RotateCcw,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -122,6 +123,7 @@ export function ProjectList() {
     focusThrottleInterval: 300_000,
   });
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(
     null,
   );
@@ -209,6 +211,31 @@ export function ProjectList() {
     } finally {
       setDeletingId(null);
       setWorkspaceToDelete(null);
+    }
+  };
+
+  const handleReopen = async (workspace: Workspace) => {
+    try {
+      setReopeningId(workspace.id);
+      const response = await fetch(`/api/workspaces/${workspace.id}/reopen`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("팀 공간 되살리기 실패");
+      }
+      toast.success("팀 공간을 다시 진행 중으로 되돌렸습니다.");
+      mutate(
+        workspaces?.map((w) =>
+          w.id === workspace.id
+            ? { ...w, lifecycle_status: "IN_PROGRESS" as const, completed_at: null }
+            : w,
+        ),
+      );
+    } catch (error) {
+      toast.error("되살리는 중 오류가 발생했습니다.");
+      console.error(error);
+    } finally {
+      setReopeningId(null);
     }
   };
 
@@ -435,6 +462,16 @@ export function ProjectList() {
                           정보 수정
                         </DropdownMenuItem>
                       </EditWorkspaceDialog>
+
+                      {isCompleted && (
+                        <DropdownMenuItem
+                          disabled={reopeningId === workspace.id}
+                          onClick={() => void handleReopen(workspace)}
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          되살리기
+                        </DropdownMenuItem>
+                      )}
 
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-600 focus:bg-red-50"
