@@ -4,6 +4,9 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { generateGeminiText } from "@/lib/ai/gemini-text";
 import { isValidSessionId } from "@/lib/interview/validation";
 import { buildInterviewAnswerPrompt, getSupportingPortfolioIds, normalizeInterviewAnswer } from "@/lib/interview/model-answer";
+import { findDemoScriptAnswer, isDemoScriptJobPayload } from "@/lib/interview/demo-script";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { waitForDemo } from "@/lib/career/demo/stream";
 
 export const maxDuration = 30;
 
@@ -22,6 +25,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .select("session_type, job_payload, resume_payload").eq("id", params.id).eq("user_id", userId).maybeSingle();
     if (error) throw error;
     if (!session) return NextResponse.json({ success: false, error: "Session not found" }, { status: 404 });
+
+    // 아카넷 시연 면접: 대본의 지원자 답변을 그대로 모범답변으로 준다(AI 호출 없음).
+    if (isCareerDemoEnabled() && isDemoScriptJobPayload(session.job_payload)) {
+      const scripted = findDemoScriptAnswer(question);
+      if (scripted) {
+        await waitForDemo(1200, req.signal);
+        return NextResponse.json({ success: true, data: { answer: scripted } }, { headers: { "Cache-Control": "no-store" } });
+      }
+    }
 
     const portfolioIds = getSupportingPortfolioIds(session.job_payload);
     const [sourceResult, portfoliosResult] = await Promise.all([

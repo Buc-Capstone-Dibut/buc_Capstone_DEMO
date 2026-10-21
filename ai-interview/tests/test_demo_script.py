@@ -64,11 +64,15 @@ try:
         DEMO_SCRIPT_ID,
         OPENING,
         QUESTIONS,
-        build_demo_report,
         demo_script_line,
         is_demo_script_session,
     )
     from app.interview.reporting.agent import ReportAgent
+    from app.interview.reporting.demo_report import (
+        build_demo_nonverbal_summary,
+        build_demo_report,
+        build_demo_report_document,
+    )
     from app.interview.reporting.document import build_report_document
     from app.interview.runtime.executor import RuntimeExecutorDeps
     from app.interview.runtime.live_client import (
@@ -571,9 +575,21 @@ class DemoScriptSpeechTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("글자 그대로", instruction)
         self.assertIn("그대로 소리 내어 읽으세요", turn_prompt)
 
-    async def test_scripted_speech_gives_up_without_audio_when_never_on_script(self) -> None:
+    async def test_scripted_speech_uses_closest_attempt_after_retries(self) -> None:
         state = _demo_state()
-        state.live_interview = _FakeLiveTextSession(["전혀 다른 이야기입니다."] * 3)
+        line = QUESTIONS[2]
+        state.live_interview = _FakeLiveTextSession(["근거 일치율 얘기로 가 볼게요.", "전혀 다른 이야기입니다."])
+
+        text, audio, _provider = await request_live_spoken_text_turn(state, text=line, deps=_live_client_deps(state))
+
+        # 2회 모두 기준(0.8) 미달이지만 대본과 겹치는 음성이 있으면 침묵 대신 가장 가까운 음성을 쓴다.
+        self.assertEqual(text, line)
+        self.assertIn("근거 일치율", audio.chunks[0])
+        self.assertEqual(len(state.live_interview.prompts), 2)
+
+    async def test_scripted_speech_gives_up_without_audio_when_nothing_overlaps(self) -> None:
+        state = _demo_state()
+        state.live_interview = _FakeLiveTextSession([QUESTIONS[5] + " " + CANDIDATE_ANSWERS[7]] * 2)
 
         text, audio, _provider = await request_live_spoken_text_turn(
             state,
@@ -584,16 +600,30 @@ class DemoScriptSpeechTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(text, QUESTIONS[5])
         self.assertIsNone(audio)
 
+    async def test_scripted_opening_never_fails_when_audio_exists(self) -> None:
+        state = _demo_state()
+        state.live_interview = _FakeLiveTextSession([OPENING + " " + CANDIDATE_ANSWERS[0]] * 2)
+
+        text, audio, _provider = await request_live_spoken_text_turn(state, text=OPENING, deps=_live_client_deps(state))
+
+        self.assertEqual(text, OPENING)
+        self.assertIsNotNone(audio)
+
 
 class _FakeReportService:
-    def __init__(self) -> None:
-        self.saved_report: dict | None = None
-        self.turns = [
-            {"role": "model", "content": OPENING},
-            {"role": "user", "content": CANDIDATE_ANSWERS[0]},
-            {"role": "model", "content": QUESTIONS[0]},
-            {"role": "user", "content": CANDIDATE_ANSWERS[1]},
-        ]
+    """ReportAgent 가 쓰는 InterviewService 메서드만 흉내 낸다. save_report 는 실제처럼 문서를 조립한다."""
+
+    def __init__(self, *, answered: int, samples: list[dict] | None = None) -> None:
+        self.saved_reports: list[dict] = []
+        self.report_completed_at = None
+        self.job: dict | None = None
+        self.completed_job_ids: list[str] = []
+        self.samples = samples or []
+        self.turns: list[dict] = [{"role": "model", "content": OPENING}]
+        for index in range(answered):
+            self.turns.append({"role": "user", "content": CANDIDATE_ANSWERS[index]})
+            if index < len(QUESTIONS):
+                self.turns.append({"role": "model", "content": QUESTIONS[index]})
 
     def get_session(self, session_id: str):
         return {
@@ -603,6 +633,7 @@ class _FakeReportService:
             "resume_payload": {},
             "personality": "professional",
             "target_duration_sec": 900,
+            "report_completed_at": self.report_completed_at,
         }
 
     def get_turns(self, session_id: str):
@@ -611,47 +642,132 @@ class _FakeReportService:
 
     def get_recording_signals(self, session_id: str):
         del session_id
-        return None
+        return {"samples": self.samples} if self.samples else None
+
+    def save_eval_signals(self, session_id: str, signals: list[dict]) -> None:
+        del session_id, signals
+
+    def save_recording_aggregates(self, session_id: str, aggregates: dict) -> None:
+        del session_id, aggregates
 
     def save_report(self, session_id: str, report_payload: dict) -> None:
-        self.saved_report = {"session_id": session_id, "payload": report_payload}
+        document = build_report_document(
+            session=self.get_session(session_id),
+            turns=self.get_turns(session_id),
+            compat_analysis=report_payload,
+        )
+        self.saved_reports.append(document)
+        self.report_completed_at = "now"
+
+    def enqueue_report_job(self, *, session_id: str, session_type: str) -> dict:
+        del session_type
+        if self.job is None:
+            self.job = {"id": "job-1", "session_id": session_id, "status": "pending"}
+        return dict(self.job)
+
+    def complete_report_job(self, job_id: str) -> None:
+        self.completed_job_ids.append(job_id)
+        if self.job and self.job["id"] == job_id:
+            self.job["status"] = "done"
 
 
-class _ExplodingGemini:
-    def analyze_interview(self, **kwargs):
-        raise AssertionError("demo script report must not call Gemini analysis")
+def _camera_samples(*, away_every: int) -> list[dict]:
+    return [
+        {"tMs": index * 200, "away": index % away_every == 0, "smile": index % 10 == 0, "yaw": (index % 5) * 1.5, "pitch": 1.0}
+        for index in range(60)
+    ]
+
+
+class _NoGeminiFactory:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        raise AssertionError("demo script report must not construct Gemini")
 
 
 class DemoScriptReportTests(unittest.TestCase):
-    def test_demo_report_validates_and_builds_full_report_view(self) -> None:
+    def test_full_report_has_thirteen_findings_in_answer_order(self) -> None:
         report = build_demo_report()
         AnalysisReport.model_validate(report)
+        findings = report["questionFindings"]
+        self.assertEqual([item["question"] for item in findings], [OPENING, *QUESTIONS])
+        self.assertEqual([item["userAnswer"] for item in findings], list(CANDIDATE_ANSWERS))
+        for index, finding in enumerate(findings):
+            self.assertTrue(finding["strengths"] and finding["improvements"] and finding["refinedAnswer"])
+            for quote in finding["evidence"]:
+                self.assertIn(quote, CANDIDATE_ANSWERS[index])  # 근거는 지원자 대본의 실제 구절
         for value in report["evaluation"].values():
             self.assertIsInstance(value, int)
-        self.assertEqual(
-            [finding["userAnswer"] for finding in report["questionFindings"]],
-            [CANDIDATE_ANSWERS[index] for index in (1, 3, 5, 7, 9, 10, 11)],
-        )
+        self.assertTrue(report["summary"] and report["fitSummary"])
+        self.assertEqual(len(report["nextActions"]), 3)
+        # 렌더러가 '...' 로 감싸는 습관 표현에는 따옴표가 없어야 한다.
+        self.assertFalse(any("'" in habit["habit"] for habit in report["habits"]))
 
-        service = _FakeReportService()
-        document = build_report_document(
-            session=service.get_session("demo"),
-            turns=service.get_turns("demo"),
-            compat_analysis=report,
-        )
-        self.assertEqual(document["reportView"]["analysisMode"], "full")
-        self.assertTrue(document["reportView"]["summary"])
-        self.assertEqual(len(document["reportView"]["nextActions"]), 3)
-        self.assertEqual(document["timeline"][0]["prompt"], OPENING)
+    def test_report_document_uses_polished_axis_evidence(self) -> None:
+        service = _FakeReportService(answered=3)
+        document = build_demo_report_document(build_demo_report())
+        service.save_report("demo", document)
+        saved = service.saved_reports[-1]
 
-    def test_report_agent_saves_canned_report_without_gemini_analysis(self) -> None:
-        service = _FakeReportService()
-        agent = ReportAgent(interview_service=service, gemini_factory=lambda: _ExplodingGemini())
+        view = saved["reportView"]
+        self.assertEqual(view["analysisMode"], "full")
+        self.assertEqual(view["profile"]["typeCode"], "AAAA")
+        for axis in view["profile"]["axisEvidence"]:
+            self.assertNotIn("장면이 보여", axis["description"])
+            self.assertNotIn(CANDIDATE_ANSWERS[0], axis["description"])
+        self.assertEqual(len(view["questionFindings"]), 13)
+        self.assertEqual(saved["compatAnalysis"]["fitSummary"], build_demo_report()["fitSummary"])
+        # 타임라인은 실제로 진행된 턴 기준이다.
+        self.assertEqual([entry["prompt"] for entry in saved["timeline"]], [OPENING, QUESTIONS[0], QUESTIONS[1]])
+
+    def test_report_is_complete_regardless_of_how_many_lines_were_answered(self) -> None:
+        payloads = []
+        for answered in (3, 4, 13):
+            service = _FakeReportService(answered=answered)
+            agent = ReportAgent(interview_service=service, gemini_factory=_NoGeminiFactory())
+            agent._process_job({"session_id": f"demo-{answered}", "session_type": "live_interview"})
+            payloads.append(service.saved_reports[-1]["compatAnalysis"])
+        self.assertEqual(payloads[0], payloads[1])
+        self.assertEqual(payloads[0], payloads[2])
+        self.assertEqual(len(payloads[0]["questionFindings"]), 13)
+
+    def test_nonverbal_uses_real_aggregates_without_gemini(self) -> None:
+        factory = _NoGeminiFactory()
+        service = _FakeReportService(answered=4, samples=_camera_samples(away_every=2))
+        agent = ReportAgent(interview_service=service, gemini_factory=factory)
 
         agent._process_job({"session_id": "demo-session", "session_type": "live_interview"})
 
-        self.assertIsNotNone(service.saved_report)
-        self.assertEqual(service.saved_report["payload"]["overallScore"], build_demo_report()["overallScore"])
+        self.assertEqual(factory.calls, 0)
+        nonverbal = service.saved_reports[-1]["reportView"]["nonverbalSummary"]
+        self.assertAlmostEqual(nonverbal["awayRatio"], 0.5)
+        self.assertIn("시선이 화면 밖으로 향하는 구간이 잦았습니다", nonverbal["overall"])
+        # 답변별 코멘트는 실제로 녹화된 답변 수(4개)만큼 — 녹화 탭 Q1..Q4 와 맞물린다.
+        self.assertEqual([item["index"] for item in nonverbal["perAnswer"]], [1, 2, 3, 4])
+
+    def test_nonverbal_wording_follows_gaze_band(self) -> None:
+        steady = build_demo_nonverbal_summary(
+            {"awayRatio": 0.05, "smileRatio": 0.2, "headMovement": {"level": "낮음"}},
+            answer_count=2,
+        )
+        self.assertIn("정면 응시가 안정적으로 유지", steady["overall"])
+        self.assertEqual(len(steady["perAnswer"]), 2)
+
+    def test_inline_save_completes_job_and_worker_does_not_resave(self) -> None:
+        service = _FakeReportService(answered=3)
+        agent = ReportAgent(interview_service=service, gemini_factory=_NoGeminiFactory())
+
+        job = agent.save_demo_report_now("demo-session", "live_interview")
+        self.assertEqual(job["status"], "done")
+        self.assertEqual(service.completed_job_ids, ["job-1"])
+        self.assertEqual(len(service.saved_reports), 1)
+
+        # 같은 세션의 /complete 재호출과 워커 처리 모두 다시 저장하지 않는다(멱등).
+        agent.save_demo_report_now("demo-session", "live_interview")
+        agent._process_job({"session_id": "demo-session", "session_type": "live_interview"})
+        self.assertEqual(len(service.saved_reports), 1)
 
 
 if __name__ == "__main__":

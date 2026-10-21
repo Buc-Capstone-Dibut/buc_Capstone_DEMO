@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Awaitable, Callable
 
-from app.interview.domain.demo_script import is_demo_script_session
+from app.interview.domain.demo_script import OPENING as DEMO_SCRIPT_OPENING, is_demo_script_session
 from app.interview.domain.interview_level import interview_level_label, resolve_interview_level
 from app.interview.domain.interview_memory import (
     extract_memory_keywords,
@@ -23,9 +23,9 @@ logger = logging.getLogger("dibut.ws")
 
 # 시연 고정 대본: 라이브 모델이 대사를 그대로 읽었는지 출력 전사로 검증한다.
 # 영문 기술명·숫자는 한글 음차로 전사되기도 하므로 한글 음절만 비교한다.
-SCRIPTED_SPEECH_ATTEMPTS = 3
+# 재시도는 2회까지만 — 시연 중 침묵이 길어지지 않게 한다.
+SCRIPTED_SPEECH_ATTEMPTS = 2
 SCRIPTED_SPEECH_MIN_COVERAGE = 0.8
-SCRIPTED_SPEECH_FALLBACK_COVERAGE = 0.6
 SCRIPTED_SPEECH_MAX_LENGTH_RATIO = 1.5
 
 
@@ -280,7 +280,8 @@ async def request_live_scripted_speech_turn(
 
     반환 텍스트는 항상 대본 원문이다(자막·저장 텍스트 = 대본). 출력 전사가 대본과 어긋나면
     세션 문맥을 비우고 같은 대사로 다시 읽힌다 — 의역 복구(request_live_text_turn)는 쓰지 않는다.
-    끝내 기준을 못 넘으면 가장 근접한 음성을 하한 이상일 때만 쓰고, 아니면 음성 없음(None)을 돌려준다.
+    끝내 기준을 못 넘으면 대본과 조금이라도 겹치는(coverage > 0) 가장 근접한 음성을 쓴다.
+    오프닝은 첫 화면이 멈추지 않도록 음성이 하나라도 있으면 그대로 쓴다. 그 외에는 음성 없음(None).
     """
     payload_text = " ".join((text or "").split()).strip()
     live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
@@ -290,6 +291,7 @@ async def request_live_scripted_speech_turn(
     provider = ""
     best_audio: PreparedTtsAudio | None = None
     best_coverage = 0.0
+    first_audio: PreparedTtsAudio | None = None
     for attempt in range(1, max(1, attempts) + 1):
         result = await live.request_text_turn(
             session_instruction=deps.build_session_instruction(state),
@@ -304,6 +306,7 @@ async def request_live_scripted_speech_turn(
         )
         spoken_text = (result.ai_text or "").strip()
         if prepared is not None:
+            first_audio = first_audio or prepared
             if not spoken_text:
                 # 출력 전사가 없으면 검증할 수 없다 — 대사 길이에 비해 너무 짧은 음성만 거른다.
                 if prepared.duration_sec >= max(1.0, len(_hangul_signature(payload_text)) * 0.04):
@@ -332,13 +335,16 @@ async def request_live_scripted_speech_turn(
             # 어긋난 턴이 문맥에 남아 다음 시도를 오염시키지 않도록 라이브 세션을 새로 연다.
             await live.close()
 
-    if best_audio is not None and best_coverage >= SCRIPTED_SPEECH_FALLBACK_COVERAGE:
+    if best_audio is not None and best_coverage > 0:
         logger.warning(
             "scripted speech using closest attempt (session=%s, coverage=%.2f)",
             state.session_id,
             best_coverage,
         )
         return payload_text, best_audio, provider
+    if first_audio is not None and payload_text == DEMO_SCRIPT_OPENING:
+        logger.warning("scripted opening using unverified audio (session=%s)", state.session_id)
+        return payload_text, first_audio, provider
     return payload_text, None, provider
 
 

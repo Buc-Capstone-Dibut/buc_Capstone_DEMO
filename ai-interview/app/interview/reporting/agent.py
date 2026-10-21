@@ -5,7 +5,12 @@ import threading
 import time
 from typing import Any, Callable
 
-from app.interview.domain.demo_script import build_demo_report, is_demo_script_session
+from app.interview.domain.demo_script import is_demo_script_session
+from app.interview.reporting.demo_report import (
+    build_demo_nonverbal_summary,
+    build_demo_report,
+    build_demo_report_document,
+)
 from app.schemas.interview import AnalysisReport
 from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService
@@ -170,7 +175,9 @@ class ReportAgent:
 
         turns = self._service.get_turns(session_id)
         if is_demo_script_session(session.get("job_payload"), session_type):
-            self._save_demo_script_report(session_id=session_id, turns=turns)
+            # /complete 가 이미 즉시 저장했으면(report_completed_at) 다시 쓰지 않는다 — 워커 경로는 멱등.
+            if not session.get("report_completed_at"):
+                self._save_demo_script_report(session_id=session_id, turns=turns)
             return
 
         gemini = self._gemini_factory()
@@ -216,18 +223,37 @@ class ReportAgent:
 
         self._service.save_report(session_id, report)
 
+    def save_demo_report_now(self, session_id: str, session_type: str) -> dict[str, Any]:
+        """시연 고정 대본 세션의 /complete — 워커 대기 없이 리포트를 바로 저장하고 잡을 done 으로 남긴다.
+
+        이미 저장된 세션(report_completed_at)은 다시 쓰지 않는다. 저장과 잡 완료 사이에 워커가 잡을
+        가져가도 _process_job 의 같은 검사로 건너뛰므로 중복 저장되지 않는다.
+        """
+        session = self._service.get_session(session_id)
+        if not session:
+            raise RuntimeError(f"Session not found: {session_id}")
+        if not session.get("report_completed_at"):
+            self._save_demo_script_report(session_id=session_id, turns=self._service.get_turns(session_id))
+        job = self._service.enqueue_report_job(session_id=session_id, session_type=session_type)
+        if str(job.get("status") or "") != "done":
+            self._service.complete_report_job(job["id"])
+            job = {**job, "status": "done"}
+        return job
+
     def _save_demo_script_report(self, *, session_id: str, turns: list[dict[str, Any]]) -> None:
-        """시연 고정 대본 세션 — Gemini 분석 없이 미리 정한 리포트를 저장한다(타임라인은 실제 턴 기준)."""
+        """시연 고정 대본 세션 — Gemini 없이 완성본 리포트를 저장한다(타임라인·비언어 수치는 실제 기록 기준)."""
         report = build_demo_report()
-        # 비언어(실제 카메라 신호)는 그대로 붙인다. _attach_nonverbal 은 모든 예외를 삼키고,
-        # Gemini 를 못 만들어도 기본 코멘트로 진행하므로 시연 리포트 저장을 막지 않는다.
-        try:
-            gemini = self._gemini_factory()
-        except Exception:
-            logger.warning("gemini factory failed for demo script nonverbal; continuing", exc_info=True)
-            gemini = None
-        self._attach_nonverbal(session_id=session_id, turns=turns, gemini=gemini, report=report)
-        self._service.save_report(session_id, report)
+        self._attach_nonverbal(
+            session_id=session_id,
+            turns=turns,
+            gemini=None,
+            report=report,
+            summarize=lambda answers_text, aggregates: build_demo_nonverbal_summary(
+                aggregates,
+                answer_count=len(answers_text),
+            ),
+        )
+        self._service.save_report(session_id, build_demo_report_document(report))
 
     def _attach_nonverbal(
         self,
@@ -236,6 +262,7 @@ class ReportAgent:
         turns: list[dict[str, Any]],
         gemini: GeminiService | None,
         report: dict[str, Any],
+        summarize: Callable[[list[str], dict[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         """recording_signals 샘플을 집계해 NO-SCORE 비언어 코멘트를 report 에 주입한다.
 
@@ -290,7 +317,12 @@ class ReportAgent:
                 for turn in turns
                 if _normalize_turn_role(turn.get("role")) == "user" and (turn.get("content") or "").strip()
             ]
-            summary = gemini.analyze_nonverbal(answers_text, aggregates) if gemini else {"overall": "", "perAnswer": []}
+            if summarize is not None:
+                summary = summarize(answers_text, aggregates)
+            elif gemini:
+                summary = gemini.analyze_nonverbal(answers_text, aggregates)
+            else:
+                summary = {"overall": "", "perAnswer": []}
 
             self._service.save_recording_aggregates(session_id, aggregates)
 

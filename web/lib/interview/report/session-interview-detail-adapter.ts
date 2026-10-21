@@ -148,7 +148,8 @@ function buildAggregatedFeedback(
 
   if (findingSource.length > 0) {
     return {
-      coreResponses: findingSource.slice(0, 10).map((item, index) => {
+      // 서버 질문 상한(MAX_DYNAMIC_QUESTIONS=14)까지 — 시연 고정 대본 면접은 13문항 분석을 모두 보여준다.
+      coreResponses: findingSource.slice(0, 14).map((item, index) => {
         const timelineMatch = findTimelineMatch(timeline, {
           question: String(item.question || ""),
           answer: String(item.userAnswer || ""),
