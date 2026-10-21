@@ -48,6 +48,8 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     jobData,
     rolePrepData,
     setRolePrepData,
+    setAttachedPortfolios,
+    setAttachedProjects,
   } = useInterviewSetupStore();
   const [urlInput, setUrlInput] = useState(targetUrl);
   const [isLoading, setIsLoading] = useState(false);
@@ -156,6 +158,9 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
         setResumeData(d.resumeData);
         setResumePrefillSource(d.resumePrefillSource ?? null);
       }
+      // 공고에 연결된 포트폴리오·프로젝트도 URL import 경로와 동일하게 셋업에 반영.
+      setAttachedPortfolios(Array.isArray(d.attachedPortfolios) ? d.attachedPortfolios : []);
+      setAttachedProjects(Array.isArray(d.attachedProjects) ? d.attachedProjects : []);
       setRolePrepData(null);
       setPickerOpen(false);
       // 공고에 이력서까지 매핑돼 있으면 중간 확인

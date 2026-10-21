@@ -350,9 +350,8 @@ export default function PortfoliosClient({
   };
 
   /**
-   * PDF 다운로드 — 현재 페이지에서 인쇄 대화상자 직접 띄움.
-   * 새 탭 안 열고 PortfolioPdfPrinter 가 화면 밖에 마운트되어 native print 트리거.
-   * 사용자는 그 대화상자에서 "PDF로 저장" 선택.
+   * PDF 다운로드 — 새 탭 안 열고 PortfolioPdfPrinter 가 화면 밖에서 슬라이드를
+   * 캡쳐해 PDF 파일로 바로 다운로드한다.
    * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
    */
   const [pdfPortfolioId, setPdfPortfolioId] = useState<string | null>(null);

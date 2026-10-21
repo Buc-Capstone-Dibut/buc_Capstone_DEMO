@@ -164,7 +164,13 @@ export function AuthModal({
               emailLength={formData.email.length}
               isCovering={focusedField === "password"}
             />
-            <div className="space-y-4">
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleEmailAuth(false);
+              }}
+            >
               <div className="space-y-2">
                 <Label htmlFor="login-email">이메일</Label>
                 <div className="relative">
@@ -214,15 +220,11 @@ export function AuthModal({
                 </div>
               </div>
 
-              <Button
-                onClick={() => handleEmailAuth(false)}
-                disabled={loading}
-                className="w-full"
-              >
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 로그인
               </Button>
-            </div>
+            </form>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

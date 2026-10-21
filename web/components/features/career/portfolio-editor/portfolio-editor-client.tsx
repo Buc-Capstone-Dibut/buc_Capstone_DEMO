@@ -902,8 +902,8 @@ export function PortfolioEditorClient({
   };
 
   /**
-   * PDF 다운로드 — 저장 후 현재 페이지에서 native print 대화상자 띄움.
-   * PortfolioPdfPrinter 가 화면 밖에 마운트되어 자동으로 window.print() 호출.
+   * PDF 다운로드 — 저장 후 PortfolioPdfPrinter 가 화면 밖에서 슬라이드를 캡쳐해
+   * PDF 파일로 바로 다운로드한다.
    * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
    */
   const [pdfPrinting, setPdfPrinting] = useState(false);
@@ -952,6 +952,7 @@ export function PortfolioEditorClient({
             <span className="rounded-full border border-[#d8e4d0] bg-white/75 px-3 py-1 text-xs font-bold text-slate-600">
               {isPublic ? "공개 중" : "비공개"}
             </span>
+            <AutoSaveIndicator state={autoSaveState} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <RendererPicker
@@ -971,7 +972,16 @@ export function PortfolioEditorClient({
                 공개 보기
               </Button>
             ) : null}
-            <AutoSaveIndicator state={autoSaveState} />
+            <Button
+              variant="outline"
+              className="h-9 gap-2 rounded-lg border-[#d8e4d0] bg-white/75 text-slate-700 hover:bg-white"
+              onClick={() => void handleExportPdf()}
+              disabled={isSaving || isExporting || generation.active}
+              title="PDF 다운로드"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              PDF
+            </Button>
             <Button
               className="h-9 gap-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
               onClick={() => void handlePublish(!isPublic)}
@@ -1022,7 +1032,7 @@ export function PortfolioEditorClient({
           canUndo={canUndoAi}
           disabled={generation.active}
         />
-        {/* PDF 출력 — PDF 버튼 클릭 시 마운트되어 native print 대화상자 띄움 */}
+        {/* PDF 출력 — PDF 버튼 클릭 시 마운트되어 PDF 파일 다운로드 */}
         {pdfPrinting ? (
           <PortfolioPdfPrinter portfolioId={portfolio.id} onDone={handlePdfDone} />
         ) : null}
@@ -1077,7 +1087,7 @@ export function PortfolioEditorClient({
             className="h-9 gap-2 rounded-xl border-[#d8e4d0] bg-white/72 text-slate-700 hover:bg-white"
             onClick={() => void handleExportPdf()}
             disabled={isSaving || isExporting || generation.active}
-            title="PDF 다운로드 (브라우저 인쇄 → PDF로 저장)"
+            title="PDF 다운로드"
           >
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             PDF

@@ -32,6 +32,8 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     updateResumeData,
     setInterviewSessionId,
     setStep,
+    attachedPortfolios,
+    attachedProjects,
   } = useInterviewSetupStore();
 
   if (track === "role") {
@@ -82,6 +84,21 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
   const hasResumeData = Boolean(resumeData);
   const isResumeRequired = track === "posting";
 
+  // 채용공고에서 불러온 연결 자료 — 면접 질문 생성에 함께 쓰이므로 최종 점검에서 보여준다.
+  const coverLetter = jobData?.supportingMaterials?.coverLetter ?? null;
+  const projects = attachedProjects.length
+    ? attachedProjects
+    : jobData?.supportingMaterials?.projects ?? [];
+  const linkedMaterials = [
+    resumeData?.fileName ? { kind: "이력서", names: [resumeData.fileName] } : null,
+    coverLetter ? { kind: "자기소개서", names: [coverLetter.title || "제목 없음"] } : null,
+    attachedPortfolios.length
+      ? { kind: "포트폴리오", names: attachedPortfolios.map((p) => p.title || "제목 없음") }
+      : null,
+    projects.length ? { kind: "프로젝트", names: projects.map((p) => p.name || "이름 없음") } : null,
+  ].filter((item): item is { kind: string; names: string[] } => item !== null);
+  const showLinkedMaterials = Boolean(jobData?.supportingMaterials);
+
   if (!jobData || (isResumeRequired && !hasResumeData)) {
     return (
       <div className="p-8 text-center">
@@ -101,6 +118,26 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
           </p>
         </div>
       </div>
+
+      {showLinkedMaterials && (
+        <section className="mb-6 rounded-lg border bg-card px-5 py-4">
+          <h2 className="mb-3 text-sm font-semibold">채용공고 연결 자료</h2>
+          {linkedMaterials.length > 0 ? (
+            <dl className="space-y-1.5 text-sm">
+              {linkedMaterials.map((item) => (
+                <div key={item.kind} className="grid grid-cols-[5.5rem_1fr] gap-3">
+                  <dt className="text-muted-foreground">{item.kind}</dt>
+                  <dd className="text-foreground/90">{item.names.join(", ")}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              이 공고에 연결된 자료가 없습니다. 채용공고 상세에서 이력서·자기소개서·포트폴리오를 연결할 수 있어요.
+            </p>
+          )}
+        </section>
+      )}
 
       <Tabs defaultValue={hasResumeData ? "resume" : "jd"} className="w-full">
         <TabsList className={`grid w-full mb-4 ${hasResumeData ? "grid-cols-2" : "grid-cols-1"}`}>

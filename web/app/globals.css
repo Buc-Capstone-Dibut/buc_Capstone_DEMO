@@ -872,6 +872,33 @@ body {
   }
 }
 
+/* 슬라이드형 PDF 다운로드(PortfolioPdfPrinter) — 화면 밖에서 슬라이드를 1120×630 으로 캡쳐 */
+.portfolio-pdf-snapshot-host {
+  position: fixed;
+  top: 0;
+  left: -99999px;
+  width: 1120px;
+  pointer-events: none;
+}
+.portfolio-pdf-snapshot-host .portfolio-renderer-shell,
+.portfolio-pdf-snapshot-host .portfolio-renderer-shell > div {
+  min-height: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+}
+.portfolio-pdf-snapshot-host .portfolio-renderer-canvas {
+  padding: 0 !important;
+}
+.portfolio-pdf-snapshot-host .portfolio-renderer-canvas > * {
+  width: 1120px !important;
+  min-width: 1120px !important;
+  max-width: 1120px !important;
+  flex: 0 0 auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
 @page {
   size: 297mm 167mm; /* 16:9 — A4 가로 폭에 맞춰 자른 형태 */
   margin: 0;
