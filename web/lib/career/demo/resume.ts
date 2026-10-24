@@ -3,10 +3,10 @@ import { CAREER_DEMO_COMPANY, getCareerDemoJobPosting } from "./job-posting";
 import { CAREER_DEMO_FULL_COVER_LETTER, CAREER_DEMO_PERSONA, identifyCareerDemoProjectText, type CareerDemoProjectKind } from "./persona";
 
 const INTRO =
-  "데이터의 근거를 끝까지 확인하는 신입 Java 웹 개발자입니다. 행정 문서 약 1,200건을 정제해 근거 일치율을 87%까지 끌어올린 경험과 SQLD·정보처리산업기사로 다진 데이터 역량을 대학 통합정보시스템 개발에 쏟겠습니다.";
+  "데이터의 근거를 끝까지 확인하는 신입 백엔드 개발자입니다. 행정 문서 약 1,200건을 정제해 근거 일치율을 87%까지 끌어올린 경험과 SQLD·정보처리산업기사로 다진 데이터 역량으로, 금액이 틀리지 않는 거래 인프라를 만들겠습니다.";
 
 // Must stay ≤ 50 chars: longer self-introductions are copied into the cover-letter pool on save.
-const SELF_INTRODUCTION = "학생으로 쓰던 학사시스템을, 만드는 쪽에서 더 낫게 바꾸겠습니다.";
+const SELF_INTRODUCTION = "숫자 하나도 틀리지 않는 거래 인프라를, 보이지 않게 지키겠습니다.";
 
 // Experience lines render as bullets, so no bullet characters here.
 const EXPERIENCE_COPY: Record<CareerDemoProjectKind, string> = {
@@ -63,11 +63,12 @@ const SKILLS: ResumePayload["skills"] = [
   { name: "Python", level: "Advanced", category: "language" },
   { name: "TypeScript", level: "Intermediate", category: "language" },
   { name: "Spring MVC", level: "Beginner", category: "backend" },
+  { name: "Spring Boot", level: "Beginner", category: "backend" },
+  { name: "JPA", level: "Beginner", category: "backend" },
   { name: "JSP", level: "Intermediate", category: "backend" },
   { name: "FastAPI", level: "Intermediate", category: "backend" },
   { name: "PostgreSQL", level: "Advanced", category: "database" },
-  { name: "Oracle", level: "Beginner", category: "database" },
-  { name: "MyBatis", level: "Beginner", category: "database" },
+  { name: "MySQL", level: "Intermediate", category: "database" },
   { name: "pgvector", level: "Intermediate", category: "database" },
   { name: "React", level: "Intermediate", category: "frontend" },
   { name: "Next.js", level: "Intermediate", category: "frontend" },
@@ -76,10 +77,10 @@ const SKILLS: ResumePayload["skills"] = [
 ];
 
 const FIT_SUMMARY = [
-  "SQLD·정보처리산업기사 보유 — 공고 우대사항(SQLD·정보처리 계열 자격증)과 직접 일치",
-  "Vizabridge RAG: 행정 문서 약 1,200건 정제, 근거 일치율 약 87% — 대학 행정 데이터를 정확하게 다루는 역량",
-  "티니타이거 워크스페이스: 버전 기반 낙관적 업데이트로 실시간 정합성 확보 — 동시 접속이 몰리는 학사시스템에 적용 가능",
-  "블레이버스 해커톤 팀장: 10일 만에 MVP 배포·본선 진출 — 요구 변경이 잦은 SI 현장의 범위·우선순위 합의 경험",
+  "SQLD·정보처리산업기사 보유 — 공고 우대사항(SQLD 등 데이터베이스 자격증)과 직접 일치",
+  "Vizabridge RAG: 행정 문서 약 1,200건 정제, 근거 일치율 약 87% — 금액·거래 데이터를 근거로 검증하는 습관",
+  "티니타이거 워크스페이스: 버전 기반 낙관적 업데이트로 동시 요청 정합성 확보 — 가상계좌 입금·펌뱅킹 이체의 중복 처리 방지로 연결",
+  "블레이버스 해커톤 팀장: 10일 만에 MVP 배포·본선 진출 — 범위·우선순위를 합의하고 끝까지 완성한 팀 프로젝트 경험",
 ];
 
 /**
@@ -122,7 +123,7 @@ export function buildCareerDemoResumeResult(current: ResumePayload, jobDescripti
   const polished = polishCareerDemoResumeText(current);
   const posting = getCareerDemoJobPosting();
   return {
-    title: `${CAREER_DEMO_PERSONA.name} - ${CAREER_DEMO_COMPANY} 웹개발자(Java) 맞춤 이력서`,
+    title: `${CAREER_DEMO_PERSONA.name} - ${CAREER_DEMO_COMPANY} 백엔드 개발자(신입) 맞춤 이력서`,
     resumePayload: {
       ...polished,
       personalInfo: { ...polished.personalInfo, name: CAREER_DEMO_PERSONA.name },
@@ -132,7 +133,7 @@ export function buildCareerDemoResumeResult(current: ResumePayload, jobDescripti
     } satisfies ResumePayload,
     applicationTarget: {
       company: CAREER_DEMO_COMPANY,
-      role: "웹개발자(Java) 신입",
+      role: "백엔드 개발자(개발본부) 신입",
       jobDescription: jobDescription.trim() || posting.responsibilities.join("\n"),
     },
     fitSummary: [...FIT_SUMMARY],
@@ -143,30 +144,30 @@ export function buildCareerDemoResumeResult(current: ResumePayload, jobDescripti
 export function getCareerDemoStrengthSuggestions(): string[] {
   return [
     "근거로 증명하는 데이터 역량 — 행정 문서 약 1,200건을 정제하고 평가셋 150문항으로 검증해 근거 일치율 약 87%를 달성했습니다.",
-    "실시간 정합성 설계 — 칸반 카드에 버전 값을 둬 서버가 확정한 순서만 반영하는 낙관적 업데이트를 구현했습니다.",
+    "동시 요청 정합성 설계 — 칸반 카드에 버전 값을 둬 서버가 확정한 순서만 반영하는 낙관적 업데이트를 구현했습니다.",
     "범위를 합의하는 리더십 — 해커톤 팀장으로 핵심 흐름을 먼저 완성해 10일 만에 MVP를 배포하고 본선에 진출했습니다.",
     "검증된 DB 기본기 — SQLD·정보처리산업기사로 다진 정규화·트랜잭션 개념을 실제 설계 판단에 적용합니다.",
   ];
 }
 
-const CONCISE_COVER_LETTER = `매일 쓰던 학사시스템을, 이제는 만드는 쪽에서 더 낫게 만들고 싶어 아카넷에 지원했습니다. 학생 수천 명이 같은 순간에 쓰는 대학 통합정보시스템은 작은 불편도 수천 번 반복되기에, 데이터의 정확성이 곧 서비스의 품질이라고 생각합니다.
+const CONCISE_COVER_LETTER = `결제와 정산은 숫자 하나가 틀리는 순간 신뢰가 무너지는 영역입니다. 고객이 거래 인프라를 의식하지 않고 본업에 집중할 수 있도록, 보이지 않는 곳에서 한 번도 틀리지 않는 시스템을 만들고 싶어 더즌에 지원했습니다.
 
 ㈜헬로프렌즈 Vizabridge에서 행정 문서 약 1,200건을 정제해 RAG 상담 어시스턴트를 만들었습니다. 상담 로그로 만든 평가셋 150문항에서 오답 원인이 개정 전 문서라는 것을 찾아내 시행일 기준 검색으로 바꿨고, 근거 일치율 약 87%와 평균 응답 3초 이내를 달성했습니다.
 
-티니타이거 협업 워크스페이스에서는 카드 버전 값으로 실시간 정합성 문제를 해결했고, 블레이버스 해커톤에서는 팀장으로 범위를 합의해 10일 만에 MVP를 배포하고 본선에 진출했습니다.
+티니타이거 협업 워크스페이스에서는 카드 버전 값으로 동시 요청 정합성 문제를 해결했고, 블레이버스 해커톤에서는 팀장으로 범위를 합의해 10일 만에 MVP를 끝까지 완성하고 본선에 진출했습니다.
 
-입사 후에는 수습 기간 동안 Java·전자정부 표준프레임워크와 aXis Platform을 빠르게 익히고, 1년 안에 학사 업무 한 모듈을 요구사항 분석부터 테스트까지 책임지는 개발자가 되겠습니다.`;
+입사 후에는 수습 기간 동안 펌뱅킹·가상계좌 구조와 금융기관 연동 방식을 빠르게 익히고, 1년 안에 신규 기관 연동이나 배치 하나를 개발부터 운영까지 책임지는 개발자가 되겠습니다.`;
 
-/** Full letter refined toward the posting: stronger opening and the Java learning plan. */
+/** Full letter refined toward the posting: stronger opening and the Java·Spring learning plan. */
 function focusedCoverLetter() {
   return CAREER_DEMO_FULL_COVER_LETTER
     .replace(
-      "수강신청 날마다 장바구니에 담아 둔 과목이 시간표에서 겹친다는 사실을 신청 직전에야 알게 되곤 했습니다.",
-      "수강신청 날마다 장바구니에 담아 둔 과목이 시간표에서 겹친다는 사실을, 저는 늘 신청 버튼을 누르기 직전에야 알게 됐습니다.",
+      "결제와 정산은 숫자 하나가 틀리는 순간 신뢰가 무너지는 영역입니다.",
+      "결제와 정산은 숫자 하나가 틀리는 순간 고객의 신뢰가 한 번에 무너지는 영역입니다.",
     )
     .replace(
-      "아카넷에서도 학사 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
-      "지금은 전자정부 표준프레임워크로 수강신청 예제를 직접 구현하며, 서비스 계층 트랜잭션과 MyBatis 매퍼 구조를 익히고 있습니다. 아카넷에서도 학사 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
+      "더즌에서도 금액과 거래 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
+      "지금은 Spring Boot와 JPA로 송금 API를 직접 구현하며, 서비스 계층 트랜잭션과 롤백 테스트를 익히고 있습니다. 더즌에서도 금액과 거래 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
     );
 }
 

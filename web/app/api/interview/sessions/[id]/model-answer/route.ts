@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (error) throw error;
     if (!session) return NextResponse.json({ success: false, error: "Session not found" }, { status: 404 });
 
-    // 아카넷 시연 면접: 대본의 지원자 답변을 그대로 모범답변으로 준다(AI 호출 없음).
+    // 더즌 시연 면접: 대본의 지원자 답변을 그대로 모범답변으로 준다(AI 호출 없음).
     if (isCareerDemoEnabled() && isDemoScriptJobPayload(session.job_payload)) {
       const scripted = findDemoScriptAnswer(question);
       if (scripted) {

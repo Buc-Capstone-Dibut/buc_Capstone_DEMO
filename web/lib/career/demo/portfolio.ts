@@ -17,17 +17,17 @@ const METRIC_PAGE_TYPES = new Set(["cover", "profile", "case-study", "project-de
 
 const PROJECT_SUBTITLES: Record<CareerDemoProjectKind, string> = {
   hello: "행정 문서 약 1,200건을 근거 일치율 87%의 답변으로 연결",
-  tiny: "버전 기반 낙관적 업데이트로 지켜 낸 실시간 칸반 정합성",
+  tiny: "버전 기반 낙관적 업데이트로 지켜 낸 동시 요청 정합성",
   blavers: "팀장으로 범위를 합의해 10일 만에 MVP 배포 · 본선 진출",
 };
 
 const PAGE_SUBTITLES: Record<string, string> = {
-  cover: "데이터의 근거를 끝까지 확인하는 Java 웹 개발자",
-  profile: "SQLD·정보처리산업기사 · 학사 데이터의 정합성을 먼저 확인하는 신입 개발자",
-  skills: "Java·SQL 기반 웹 개발과 데이터 모델링 역량",
+  cover: "데이터의 근거를 끝까지 확인하는 백엔드 개발자",
+  profile: "SQLD·정보처리산업기사 · 금액과 거래 데이터의 정합성을 먼저 확인하는 신입 개발자",
+  skills: "Java·Spring·SQL 기반 백엔드 개발과 데이터 모델링 역량",
   "project-index": "데이터 정합성으로 이어지는 대표 프로젝트",
-  retrospective: "다음 목표: 학사 데이터를 정확하게 다루는 Java 웹 개발자",
-  contact: "학생으로 쓰던 학사시스템을, 만드는 쪽에서 더 낫게",
+  retrospective: "다음 목표: 금액이 틀리지 않는 거래 인프라를 만드는 백엔드 개발자",
+  contact: "숫자 하나도 틀리지 않는 거래 인프라를, 보이지 않게",
 };
 
 const PROJECT_METRICS: Record<CareerDemoProjectKind | "default", { label: string; value: string; caption: string }> = {
@@ -149,7 +149,7 @@ export function buildCareerDemoPortfolioEdit(input: {
         ? `${tightened} 함께 일하는 사람이 믿고 쓸 수 있는 결과를 만드는 데 가장 마음을 썼습니다.`
         : tone === "bold"
           ? `${metric.label} ${metric.value}. ${tightened}`
-          : `${tightened} 이 경험은 학사 데이터를 정확하게 다뤄야 하는 대학 통합정보시스템 개발과 맞닿아 있습니다.`;
+          : `${tightened} 이 경험은 금액과 거래 데이터를 정확하게 다뤄야 하는 더즌의 펌뱅킹·가상계좌 개발과 맞닿아 있습니다.`;
   }
   const fields: Record<string, unknown> = { subtitle, narrative };
   return {
@@ -161,13 +161,13 @@ export function buildCareerDemoPortfolioEdit(input: {
 type Tone = "soft" | "bold" | "fit";
 
 const COVER_NARRATIVES: Record<Tone, string> = {
-  fit: "데이터의 근거를 끝까지 확인하는 Java 웹 개발자입니다. 행정 문서 약 1,200건을 정제해 근거 일치율 87%를 만든 경험으로, 대학 통합정보시스템의 데이터를 정확하게 다루겠습니다.",
+  fit: "데이터의 근거를 끝까지 확인하는 백엔드 개발자입니다. 행정 문서 약 1,200건을 정제해 근거 일치율 87%를 만든 경험으로, 금액이 틀리지 않는 거래 인프라를 만들겠습니다.",
   soft: "사용자가 겪는 작은 불편을 데이터로 확인하고, 함께 일하는 사람이 믿고 쓸 수 있는 서비스를 만드는 개발자입니다. 기획부터 검증까지 차근차근 근거를 쌓아 가며 일합니다.",
   bold: "행정 문서 1,200건을 근거 일치율 87%의 답변으로 바꾼 개발자입니다. 10일 만에 MVP를 배포한 실행력으로, 기획부터 검증까지 숫자로 증명합니다.",
 };
 
 const TONE_REPLIES: Record<Tone, (title: string) => string> = {
-  fit: (title) => `‘${title}’ 페이지의 부제와 설명을 ㈜아카넷 웹개발자 공고에 맞춰 다듬었어요. 데이터 정합성과 근거 검증 경험이 먼저 보이도록 정리했습니다.`,
+  fit: (title) => `‘${title}’ 페이지의 부제와 설명을 더즌(dozn) 백엔드 개발자 공고에 맞춰 다듬었어요. 데이터 정합성과 근거 검증 경험이 먼저 보이도록 정리했습니다.`,
   soft: (title) => `‘${title}’ 페이지 문장을 더 부드럽고 편안한 톤으로 바꿨어요. 딱딱한 표현은 줄이고, 함께 일하는 사람을 생각하는 태도가 드러나게 했습니다.`,
   bold: (title) => `‘${title}’ 페이지를 더 자신감 있는 톤으로 바꿨어요. 성과 숫자가 문장 맨 앞에 오도록 정리했습니다.`,
 };
@@ -175,17 +175,17 @@ const TONE_REPLIES: Record<Tone, (title: string) => string> = {
 /** Canned copy for the "Neon Editorial" showcase, in the shape `mergeIntoContent` expects. */
 export function getCareerDemoShowcaseFill() {
   return {
-    bio: "데이터의 근거를 끝까지 확인하는 신입 Java 웹 개발자, 김정환입니다.",
+    bio: "데이터의 근거를 끝까지 확인하는 신입 백엔드 개발자, 김디벗입니다.",
     aboutQuote: "틀린 답을 내놓기보다, 모른다고 말하는 시스템이 더 안전하다.",
     aboutParagraphs: [
-      "부천대학교 컴퓨터소프트웨어과 졸업을 앞둔 신입 웹 개발자입니다. SQLD와 정보처리산업기사로 다진 정규화·트랜잭션 개념을 설계 판단에 적용하며, 데이터가 정확한지와 그 근거를 설명할 수 있는지를 가장 먼저 확인합니다.",
-      "청년미래일경험으로 헬로프렌즈 Vizabridge의 RAG 상담 어시스턴트를 만들며 행정 문서 약 1,200건을 정제해 근거 일치율을 87%까지 끌어올렸습니다. 티니타이거 워크스페이스에서는 실시간 정합성을, 블레이버스 해커톤에서는 팀장으로 10일 MVP를 완성했습니다.",
+      "부천대학교 컴퓨터소프트웨어과 졸업을 앞둔 신입 백엔드 개발자입니다. SQLD와 정보처리산업기사로 다진 정규화·트랜잭션 개념을 설계 판단에 적용하며, 데이터가 정확한지와 그 근거를 설명할 수 있는지를 가장 먼저 확인합니다.",
+      "청년미래일경험으로 헬로프렌즈 Vizabridge의 RAG 상담 어시스턴트를 만들며 행정 문서 약 1,200건을 정제해 근거 일치율을 87%까지 끌어올렸습니다. 티니타이거 워크스페이스에서는 동시 요청 정합성을, 블레이버스 해커톤에서는 팀장으로 10일 MVP를 끝까지 완성했습니다.",
     ],
     strengths: [
       { num: "01", title: "EVIDENCE FIRST", body: "평가셋 150문항을 직접 만들어 검증하고, 근거 없는 답은 내보내지 않도록 설계합니다." },
-      { num: "02", title: "DATA INTEGRITY", body: "버전 기반 낙관적 업데이트로 여러 사용자가 같은 데이터를 봐도 어긋나지 않게 만듭니다." },
+      { num: "02", title: "DATA INTEGRITY", body: "버전 기반 낙관적 업데이트로 동시 요청 속에서도 데이터가 어긋나지 않게 만듭니다." },
       { num: "03", title: "SCOPE & PRIORITY", body: "팀장으로 핵심 흐름부터 합의해 10일 만에 MVP를 배포하고 본선에 진출했습니다." },
-      { num: "04", title: "SQL FOUNDATION", body: "SQLD·정보처리산업기사로 다진 모델링·트랜잭션 기본기를 화면과 DB 설계에 녹입니다." },
+      { num: "04", title: "SQL FOUNDATION", body: "SQLD·정보처리산업기사로 다진 모델링·트랜잭션 기본기를 API와 DB 설계에 녹입니다." },
     ],
     // The template lays KPIs out in three columns (and the merge keeps three).
     kpis: [
@@ -193,7 +193,7 @@ export function getCareerDemoShowcaseFill() {
       { num: 87, suffix: "%", label: "근거 일치율 (131/150)" },
       { num: 10, suffix: "일", label: "해커톤 MVP 배포" },
     ],
-    marqueeKeywords: ["JAVA", "SPRING", "SQL", "POSTGRESQL", "RAG", "PGVECTOR", "NEXT.JS", "DATA INTEGRITY"],
+    marqueeKeywords: ["JAVA", "SPRING BOOT", "JPA", "SQL", "MYSQL", "TRANSACTION", "RAG", "DATA INTEGRITY"],
     experience: [
       {
         date: "2026.04 — 2026.06",
@@ -216,7 +216,7 @@ export function getCareerDemoShowcaseFill() {
         org: "㈜에쉬 티니타이거 · 청년미래일경험",
         bullets: [
           "쇼핑몰 리뉴얼 팀의 문서·칸반·메시지 협업 워크스페이스 개발",
-          "버전 기반 낙관적 업데이트로 실시간 칸반 정합성 확보",
+          "버전 기반 낙관적 업데이트로 동시 요청 정합성 확보",
         ],
       },
     ],

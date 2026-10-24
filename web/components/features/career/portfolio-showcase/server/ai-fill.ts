@@ -46,7 +46,7 @@ export async function aiFillNeonEditorialContent(input: {
       ...filled,
       hero: {
         ...filled.hero,
-        jobTitle: "JAVA WEB DEVELOPER",
+        jobTitle: "BACKEND DEVELOPER",
         headlineLines: [CAREER_DEMO_PERSONA.name, "PORTFOLIO."],
       },
     };

@@ -18,12 +18,12 @@ import {
 
 type SetupTrack = "posting" | "role";
 
-// 시연용 고정 대본 면접(㈜아카넷 공고) — FastAPI domain/demo_script.py 의 DEMO_SCRIPT_ID 와 같아야 한다.
-const DEMO_SCRIPT_ID = "acanet-2026-web";
+// 시연용 고정 대본 면접(더즌 공고) — FastAPI domain/demo_script.py 의 DEMO_SCRIPT_ID 와 같아야 한다.
+const DEMO_SCRIPT_ID = "dozn-2026-backend";
 const DEMO_SCRIPT_DURATION_MIN = 15;
 const DEFAULT_DURATION_MIN = 10;
 const isDemoScriptCompany = (company: unknown) =>
-  typeof company === "string" && /아카넷|acanet/i.test(company);
+  typeof company === "string" && /더즌|dozn/i.test(company);
 
 interface FinalCheckStepProps {
   track?: SetupTrack;

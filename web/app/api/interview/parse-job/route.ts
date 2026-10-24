@@ -23,7 +23,7 @@ async function getUserIdFromSession(): Promise<string | null> {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    // Demo: every caller (career dialog, interview setup, parser test) gets the Acanet posting.
+    // Demo: every caller (career dialog, interview setup, parser test) gets the dozn posting.
     if (isCareerDemoEnabled()) {
       await waitForDemo(1500, req.signal);
       return NextResponse.json(

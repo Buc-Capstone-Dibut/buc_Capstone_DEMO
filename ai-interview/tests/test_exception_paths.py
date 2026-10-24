@@ -202,7 +202,7 @@ class CompleteDemoScriptInlineReportTests(unittest.TestCase):
             "id": "sess-demo",
             "status": "completed",
             "session_type": "live_interview",
-            "job_payload": {"company": "㈜아카넷", "role": "웹개발자", "demoScript": "acanet-2026-web"},
+            "job_payload": {"company": "더즌(dozn)", "role": "백엔드 개발자", "demoScript": "dozn-2026-backend"},
             "target_duration_sec": 900,
             "report_completed_at": None,
         }

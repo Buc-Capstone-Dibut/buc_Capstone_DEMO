@@ -1,6 +1,6 @@
 import { CAREER_DEMO_FULL_COVER_LETTER, identifyCareerDemoProjectText, type CareerDemoProjectKind } from "./persona";
 
-// Deterministic cover-letter coach for the presentation persona (김정환 → ㈜아카넷 웹개발자 Java 신입).
+// Deterministic cover-letter coach for the presentation persona (김디벗 → 더즌(dozn) 개발본부 백엔드 개발자 신입).
 // Every draft is assembled from tagged sentences so that edits ("숫자 강조", "첫 문장", "줄여줘") can
 // insert, swap or drop whole sentences without leaving a dangling "그때마다" behind.
 
@@ -133,7 +133,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     result: "그 결과 근거 일치율을 약 87%(150문항 중 131문항)까지 끌어올리고, 평균 응답 시간도 3초 이내로 유지했습니다.",
     lesson: "이 경험으로 모델보다 데이터의 정합성과 검증 기준이 서비스 품질을 결정한다는 것을 배웠습니다.",
     certLine: "SQLD를 준비하며 익힌 정규화·트랜잭션 개념은 이 과정에서 실제 판단 기준이 되었습니다.",
-    fitLine: "흩어진 행정 문서를 정확한 근거로 바꿔 본 경험은, 대학 행정 데이터를 다루는 아카넷의 업무와 그대로 맞닿아 있습니다.",
+    fitLine: "흩어진 문서를 정확한 근거로 바꿔 본 경험은, 금액과 거래 데이터를 한 건도 틀리지 않게 다뤄야 하는 더즌의 업무와 그대로 맞닿아 있습니다.",
     brief: "헬로프렌즈 Vizabridge에서는 행정 문서 약 1,200건을 정제해 AI 상담의 근거 일치율을 약 87%까지 끌어올렸습니다.",
     teamwork: "헬로프렌즈 프로젝트에서도 상담 담당자와 함께 정답 근거를 표시하며 평가 기준부터 맞췄습니다.",
     numbersLead: "150문항 중 131문항, 근거 일치율 약 87%는 제가 행정 AI 상담 어시스턴트에서 직접 만들어 낸 숫자입니다.",
@@ -144,7 +144,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     motive: [
       "청년미래일경험으로 참여한 헬로프렌즈 Vizabridge에서 저는 스캔 PDF와 표로 흩어진 행정 문서 약 1,200건을 정제해 AI 상담의 근거로 연결했습니다.",
       "개정 전 문서가 답변 근거로 쓰이는 문제를 시행일 기준 검색으로 바로잡으며, 행정 데이터는 최신이고 정확해야 비로소 신뢰를 얻는다는 것을 배웠습니다.",
-      "이 경험을 학적과 성적처럼 한 건의 오류도 허용되지 않는 학사 데이터에서 제대로 써 보고 싶어 아카넷에 지원하게 되었습니다.",
+      "근거를 끝까지 확인하는 이 습관을, 금액이 오가는 결제·정산 데이터에서 제대로 써 보고 싶어 더즌에 지원하게 되었습니다.",
     ],
     growth: [
       "헬로프렌즈 Vizabridge의 AI 상담은 겉보기에는 문제없이 답을 내놓았지만, 평가셋으로 확인해 보니 상당수가 개정 전 문서를 근거로 삼고 있었습니다.",
@@ -204,7 +204,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     lesson: "이 경험으로 같은 데이터를 모두에게 같은 모습으로 보여 주려면, 화면보다 서버의 기준과 데이터 흐름을 먼저 설계해야 한다는 것을 배웠습니다.",
     certLine: "정보처리산업기사를 준비하며 공부한 트랜잭션과 동시성 제어 개념이, 버전 비교 방식을 고르는 근거가 되었습니다.",
     fitLine:
-      "수천 명이 같은 순간에 접속하는 수강신청처럼, 동시 요청 속에서도 데이터를 하나로 지켜 본 경험은 아카넷의 학사시스템 개발로 그대로 이어질 수 있습니다.",
+      "같은 입금 통지가 두 번 들어오거나 한 계좌에 요청이 몰리는 펌뱅킹·가상계좌처럼, 동시 요청 속에서도 데이터를 하나로 지켜 본 경험은 더즌의 거래 인프라 개발로 그대로 이어질 수 있습니다.",
     brief:
       "티니타이거 협업 워크스페이스에서는 카드 버전 기반의 낙관적 업데이트로, 여러 사람이 동시에 칸반을 움직여도 모든 화면이 같은 결과를 보게 만들었습니다.",
     teamwork: "티니타이거 프로젝트에서도 권한별 접근 범위와 갱신 시점을 팀과 먼저 합의해 모두가 같은 화면을 보도록 만들었습니다.",
@@ -216,7 +216,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     motive: [
       "청년미래일경험으로 참여한 티니타이거 쇼핑몰 리뉴얼 프로젝트에서 저는, 여러 사람이 같은 칸반 카드를 동시에 옮겨도 모든 화면이 같은 결과를 보도록 서버 기준의 동기화 구조를 만들었습니다.",
       "카드에 버전 값을 두고 서버가 확정한 순서만 내보내며, 요청이 한꺼번에 몰려도 데이터는 하나의 기준으로 지켜져야 한다는 것을 배웠습니다.",
-      "동시 요청 속에서 데이터를 하나로 지켜 본 경험을, 수강신청처럼 수천 명이 한순간에 몰리는 아카넷의 학사시스템에서 제대로 써 보고 싶어 지원하게 되었습니다.",
+      "동시 요청 속에서 데이터를 하나로 지켜 본 경험을, 같은 거래가 두 번 처리되면 곧바로 금액 사고가 되는 더즌의 펌뱅킹·가상계좌 현장에서 제대로 써 보고 싶어 지원하게 되었습니다.",
     ],
     growth: [
       "티니타이거 협업 워크스페이스는 제 화면에서는 완벽하게 동작했지만, 두 사람이 같은 카드를 동시에 옮기자 화면마다 다른 결과가 나타났습니다.",
@@ -238,7 +238,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
       "이 경험으로 좋은 결론은 한쪽의 고집이 아니라, 함께 확인한 근거에서 나온다는 것을 배웠습니다.",
     ],
     goalLink:
-      "티니타이거에서 동시 편집 충돌을 서버 기준으로 풀었던 것처럼, 수강신청처럼 요청이 몰리는 기능에서도 데이터가 하나로 유지되는 구조를 먼저 설계하겠습니다.",
+      "티니타이거에서 동시 편집 충돌을 서버 기준으로 풀었던 것처럼, 가상계좌 입금처럼 요청이 겹칠 수 있는 기능에서도 같은 거래가 두 번 처리되지 않는 구조를 먼저 설계하겠습니다.",
     strength: [
       "티니타이거 협업 워크스페이스에서 화면마다 칸반 결과가 달라지는 문제가 생겼을 때, 저는 화면을 고치기 전에 이벤트가 도착하는 순서부터 기록해 원인을 좁혔습니다.",
       "그 결과 카드에 버전 값을 두고 서버가 확정한 순서만 내보내는 구조로 바꿔, 모든 팀원이 같은 보드를 보게 만들었습니다.",
@@ -274,7 +274,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     result: "그 결과 멘토링 플랫폼 '몽구리' MVP를 Vercel에 배포하고 본선에 진출했습니다.",
     lesson: "이 경험으로 일정이 촉박할수록 범위와 우선순위를 먼저 합의하는 것이 팀 전체의 속도를 높인다는 것을 배웠습니다.",
     certLine: "정보처리산업기사를 준비하며 익힌 요구사항 분석과 데이터 모델링 기초가, 짧은 일정 안에 스키마를 먼저 확정하는 데 도움이 되었습니다.",
-    fitLine: "범위와 우선순위를 먼저 합의하는 습관은, 고객 요구가 자주 바뀌는 대학 SI 현장에서 큰 힘이 될 것이라 생각합니다.",
+    fitLine: "범위와 우선순위를 먼저 합의하고 끝까지 완성하는 습관은, 신규 기관·서비스 연동처럼 일정과 품질을 함께 지켜야 하는 업무에서 큰 힘이 될 것이라 생각합니다.",
     brief: "블레이버스 해커톤에서는 팀장으로 핵심 흐름부터 범위를 합의해, 10일 만에 MVP를 배포하고 본선에 진출했습니다.",
     teamwork: "블레이버스 해커톤에서도 직군이 다른 팀원들과 구현 범위를 먼저 합의해 10일 안에 MVP를 완성했습니다.",
     numbersLead: "10일 만의 MVP 배포와 본선 진출은, 제가 팀장으로 범위를 먼저 합의해 만든 결과입니다.",
@@ -285,7 +285,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
     motive: [
       "블레이버스 해커톤에서는 팀장으로서 멘토와 멘티, 두 사용자군이 각자 필요한 흐름을 끝까지 쓸 수 있도록 범위를 합의해 10일 만에 MVP를 배포했습니다.",
       "기능을 늘리기보다 사용자가 실제로 끝까지 쓰는 흐름을 먼저 완성해야 한다는 것을 그때 배웠습니다.",
-      "학생과 교직원처럼 요구가 다른 사용자들의 업무를 하나의 시스템으로 잇는 아카넷에서, 핵심 흐름부터 합의하는 제 방식을 제대로 써 보고 싶어 지원하게 되었습니다.",
+      "고객을 위해, 서로를 배려하며, 끝까지 해내는 사람들과 함께하겠다는 더즌에서, 핵심 흐름부터 합의하고 끝까지 완성하는 제 방식을 제대로 써 보고 싶어 지원하게 되었습니다.",
     ],
     growth: [
       "블레이버스 해커톤에서 팀장을 맡았을 때, 기능 목록은 길었지만 10일 안에 끝까지 동작하는 흐름은 하나도 없을 수 있다는 위기를 느꼈습니다.",
@@ -307,7 +307,7 @@ const EVIDENCE: Record<ProjectKind, Evidence> = {
       "이 경험으로 갈등은 누가 옳은지를 가리는 일이 아니라, 모두가 동의할 수 있는 기준을 함께 찾는 일이라는 것을 배웠습니다.",
     ],
     goalLink:
-      "블레이버스 해커톤에서 핵심 흐름부터 범위를 합의했던 것처럼, 대학 현업의 요구도 우선순위부터 정리해 일정 안에 끝까지 완성하겠습니다.",
+      "블레이버스 해커톤에서 핵심 흐름부터 범위를 합의했던 것처럼, 현업과 제휴기관의 요구도 우선순위부터 정리해 일정 안에 끝까지 완성하겠습니다.",
     strength: [
       "블레이버스 해커톤에서 팀장을 맡았을 때, 저는 기능 목록을 늘리기 전에 사용자가 끝까지 쓰는 흐름이 동작하는지부터 확인하자고 팀을 설득했습니다.",
       "그 결과 10일 만에 MVP를 배포하고 본선에 진출했습니다.",
@@ -386,9 +386,9 @@ export function buildCareerDemoProjectStory(text: unknown): string {
 // ---------------------------------------------------------------------------------------------
 
 const CATEGORY_RULES: Array<[Category, RegExp]> = [
-  ["company", /아카넷에\s*대해|회사.{0,6}(아는|이해|소개)|기업.{0,6}(아는|이해|분석)/],
+  ["company", /더즌에\s*대해|dozn에\s*대해|회사.{0,6}(아는|이해|소개)|기업.{0,6}(아는|이해|분석)/],
   ["introduction", /자기\s*소개|self[\s-]*intro|about\s*yourself/i],
-  ["motivation", /지원.{0,4}(동기|이유)|왜.*(지원|아카넷)|\bwhy\b|\bjoin\b|motivation/i],
+  ["motivation", /지원.{0,4}(동기|이유)|왜.*(지원|더즌|dozn)|\bwhy\b|\bjoin\b|motivation/i],
   ["goal", /포부|입사\s*후|비전|계획|\d+\s*년\s*(후|뒤)|하고\s*싶은|커리어|career-goal/i],
   ["failure", /실패|좌절|실수|아쉬/],
   ["conflict", /갈등|conflict|의견\s*(차이|충돌|대립)/i],
@@ -525,64 +525,64 @@ function assignEvidence(title: string, categories: Category[], projects: Evidenc
 type Template = Line[][];
 
 const KEYWORD_LINES = [
-  "SQLD로 다진 SQL 역량과 Java·전자정부 표준프레임워크로 수강신청 예제를 구현하며 익힌 계층 구조는, 아카넷의 대학 통합정보시스템 개발에 바로 쓸 수 있는 기본기입니다.",
-  "Java·Spring과 전자정부 표준프레임워크로 화면과 서버를 만들고, SQLD로 다진 SQL 역량으로 대학 통합정보시스템의 학사 데이터를 정확하게 다루는 것이 제가 아카넷에서 해내고 싶은 일입니다.",
-  "대학 통합정보시스템의 학사 데이터는 한 번의 오류가 수천 명에게 번지는 만큼, Java와 전자정부 표준프레임워크로 기능을 만들 때도 SQLD를 준비하며 익힌 정규화·트랜잭션 원칙부터 지키겠습니다.",
+  "SQLD로 다진 SQL 역량과 Java·Spring Boot로 송금 API를 구현하며 익힌 트랜잭션 처리는, 더즌의 펌뱅킹·가상계좌 개발에 바로 쓸 수 있는 기본기입니다.",
+  "Java·Spring으로 금융기관 연동과 배치를 만들고, SQLD로 다진 SQL 역량으로 펌뱅킹·가상계좌의 거래 데이터를 정확하게 다루는 것이 제가 더즌에서 해내고 싶은 일입니다.",
+  "펌뱅킹·가상계좌의 거래 데이터는 한 번의 오류가 곧 금액 사고로 이어지는 만큼, Java와 Spring으로 기능을 만들 때도 SQLD를 준비하며 익힌 정규화·트랜잭션 원칙부터 지키겠습니다.",
 ];
 
 /** Closing lines and the alternative a "자연스럽게 다듬어줘" request swaps in. */
 const CLOSES: Record<Category, [string, string]> = {
   introduction: [
-    "데이터의 정합성이 곧 서비스의 신뢰가 되는 대학 통합정보시스템에서, 아카넷의 학사 데이터를 정확하게 다루는 개발자로 성장하겠습니다.",
-    "근거를 확인하는 습관만큼은 누구보다 단단한 신입으로, 아카넷의 대학 통합정보시스템을 더 믿을 수 있게 만드는 데 기여하겠습니다.",
+    "금액과 거래 데이터의 정합성이 곧 신뢰가 되는 결제·정산 영역에서, 더즌의 거래 인프라를 정확하게 지키는 백엔드 개발자로 성장하겠습니다.",
+    "근거를 확인하는 습관만큼은 누구보다 단단한 신입으로, 더즌의 거래 인프라를 더 믿을 수 있게 만드는 데 기여하겠습니다.",
   ],
   motivation: [
-    "사용자로 느꼈던 불편을 개발자로 직접 고치는 첫 회사가 아카넷이기를 바랍니다.",
-    "학생으로 느꼈던 불편을 개발자로 직접 고치는 일, 그 첫걸음을 아카넷에서 내딛고 싶습니다.",
+    "고객이 거래 인프라를 의식하지 않고 본업에 집중할 수 있도록, 보이지 않는 곳에서 끝까지 정확한 시스템을 만드는 일을 더즌에서 시작하고 싶습니다.",
+    "숫자 하나도 틀리지 않는 거래 인프라를 보이지 않게 지키는 일, 그 첫걸음을 더즌에서 내딛고 싶습니다.",
   ],
   company: [
-    "대학 구성원 모두가 매일 쓰는 시스템을 만든다는 책임감을 이해하고, 그 일에 함께하고 싶습니다.",
-    "아카넷이 대학과 함께 쌓아 온 신뢰를, 정확한 데이터를 다루는 개발자로서 이어 가고 싶습니다.",
+    "고객이 본업에 집중하도록 거래 인프라를 뒤에서 지킨다는 책임감을 이해하고, 그 일에 함께하고 싶습니다.",
+    "더즌이 고객과 함께 쌓아 온 신뢰를, 금액을 정확하게 다루는 개발자로서 이어 가고 싶습니다.",
   ],
   goal: [
-    "아카넷의 대학 통합정보시스템을 믿고 쓰는 학생과 교직원이 늘어나는 데, 제가 맡은 모듈이 보탬이 되도록 꾸준히 성장하겠습니다.",
-    "학생과 교직원이 믿고 쓰는 시스템 뒤에서 묵묵히 데이터를 지키는 개발자로, 아카넷과 함께 성장하겠습니다.",
+    "더즌의 거래 인프라를 믿고 쓰는 고객이 늘어나는 데, 제가 맡은 연동과 배치가 보탬이 되도록 꾸준히 성장하겠습니다.",
+    "고객이 믿고 쓰는 거래 인프라 뒤에서 묵묵히 금액을 지키는 개발자로, 더즌과 함께 성장하겠습니다.",
   ],
   strength: [
-    "아카넷에서도 근거를 확인하는 꼼꼼함과 일정을 지키는 균형을 함께 갖춘 개발자가 되겠습니다.",
-    "근거를 확인하는 꼼꼼함에 일정 감각을 더해, 아카넷에서 믿고 맡길 수 있는 개발자가 되겠습니다.",
+    "더즌에서도 근거를 확인하는 꼼꼼함과 일정을 지키는 균형을 함께 갖춘 개발자가 되겠습니다.",
+    "근거를 확인하는 꼼꼼함에 일정 감각을 더해, 더즌에서 믿고 맡길 수 있는 개발자가 되겠습니다.",
   ],
   growth: [
-    "아카넷에서도 구현의 이유를 설명할 수 있는 개발자로, 동료의 피드백을 반영하며 계속 성장하겠습니다.",
-    "‘왜 이 결과가 맞는가’를 묻는 습관을 잃지 않고, 아카넷에서 동료와 함께 배우며 성장하겠습니다.",
+    "더즌에서도 구현의 이유를 설명할 수 있는 개발자로, 동료의 피드백을 반영하며 계속 성장하겠습니다.",
+    "‘왜 이 결과가 맞는가’를 묻는 습관을 잃지 않고, 더즌에서 동료와 함께 배우며 성장하겠습니다.",
   ],
   failure: [
-    "아카넷에서도 운영 이슈를 마주하면 감이 아니라 재현과 근거로 원인을 찾고, 그 과정을 기록으로 남기겠습니다.",
-    "실패에서 배운 검증 습관으로, 아카넷의 운영 이슈도 재현과 근거로 끝까지 해결하겠습니다.",
+    "더즌에서도 운영 이슈를 마주하면 감이 아니라 재현과 근거로 원인을 찾고, 그 과정을 기록으로 남기겠습니다.",
+    "실패에서 배운 검증 습관으로, 더즌의 운영 이슈도 재현과 근거로 끝까지 해결하겠습니다.",
   ],
   conflict: [
-    "아카넷에서도 대학 현업과 의견이 다를 때, 요구의 이유를 먼저 묻고 근거와 절충안으로 합의를 이끌겠습니다.",
-    "아카넷에서도 의견이 갈릴 때 상대의 걱정을 먼저 듣고, 모두가 납득할 수 있는 기준으로 합의를 만들겠습니다.",
+    "더즌에서도 현업이나 제휴기관과 의견이 다를 때, 요구의 이유를 먼저 묻고 근거와 절충안으로 합의를 이끌겠습니다.",
+    "더즌에서도 의견이 갈릴 때 상대의 걱정을 먼저 듣고, 모두가 납득할 수 있는 기준으로 합의를 만들겠습니다.",
   ],
   challenge: [
-    "아카넷에서도 운영 이슈가 생기면 원인을 재현하고 근거를 남기며 끝까지 해결하겠습니다.",
-    "어떤 문제든 원인을 재현하고 근거를 남기는 방식으로, 아카넷의 운영 이슈를 끝까지 책임지겠습니다.",
+    "더즌에서도 운영 이슈가 생기면 원인을 재현하고 근거를 남기며 끝까지 해결하겠습니다.",
+    "어떤 문제든 원인을 재현하고 근거를 남기는 방식으로, 더즌의 운영 이슈를 끝까지 책임지겠습니다.",
   ],
   collaboration: [
-    "요구가 자주 바뀌는 대학 SI 현장에서도 합의한 기준을 문서로 남기고, 그 기준으로 팀과 소통하는 개발자가 되겠습니다.",
-    "아카넷에서도 대학 현업과 개발팀이 같은 기준을 보도록, 합의한 내용을 문서로 남기며 소통하겠습니다.",
+    "여러 금융기관·제휴기관과 함께 일하는 현장에서도 합의한 기준을 문서로 남기고, 그 기준으로 팀과 소통하는 개발자가 되겠습니다.",
+    "더즌에서도 현업과 개발팀이 같은 기준을 보도록, 합의한 내용을 문서로 남기며 서로를 배려해 소통하겠습니다.",
   ],
   project: [
-    "이 프로젝트에서 세운 판단 기준을, 아카넷의 대학 통합정보시스템 개발에서도 그대로 지키겠습니다.",
-    "이 프로젝트에서 얻은 설계 감각을 살려, 아카넷의 학사 데이터를 정확하게 다루는 기능을 만들겠습니다.",
+    "이 프로젝트에서 세운 판단 기준을, 더즌의 펌뱅킹·가상계좌 개발에서도 그대로 지키겠습니다.",
+    "이 프로젝트에서 얻은 설계 감각을 살려, 더즌의 거래 데이터를 정확하게 다루는 기능을 만들겠습니다.",
   ],
   competency: [
-    "아카넷에서도 학사 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
-    "공고가 요구하는 데이터 정합성과 SQL 역량을 실무로 증명해 본 신입으로서, 아카넷의 학사 데이터를 책임지겠습니다.",
+    "더즌에서도 금액과 거래 데이터의 정합성을 먼저 확인하는 개발자가 되겠습니다.",
+    "공고가 우대하는 트랜잭션 이해와 데이터베이스 기본기를 실제 프로젝트로 증명해 본 신입으로서, 더즌의 거래 데이터를 책임지겠습니다.",
   ],
   general: [
-    "이 습관으로 아카넷의 대학 통합정보시스템에서도 믿을 수 있는 기능을 만들겠습니다.",
-    "근거를 끝까지 확인하는 이 태도로, 아카넷의 학사 데이터를 정확하게 다루는 개발자가 되겠습니다.",
+    "이 습관으로 더즌의 거래 인프라에서도 믿을 수 있는 기능을 만들겠습니다.",
+    "근거를 끝까지 확인하는 이 태도로, 더즌의 거래 데이터를 정확하게 다루는 개발자가 되겠습니다.",
   ],
 };
 
@@ -591,25 +591,25 @@ function hooksFor(category: Category, evidence: Evidence): string[] {
   switch (category) {
     case "introduction":
       return [
-        "‘모른다’고 답할 줄 아는 AI를 만들어 본 개발자, 김정환입니다.",
-        "숫자보다 그 숫자의 근거를 먼저 묻는 신입 개발자, 김정환입니다.",
-        "틀린 답보다 근거 있는 답을 고집해 온 개발자, 김정환입니다.",
+        "‘모른다’고 답할 줄 아는 AI를 만들어 본 개발자, 김디벗입니다.",
+        "숫자보다 그 숫자의 근거를 먼저 묻는 신입 개발자, 김디벗입니다.",
+        "틀린 답보다 근거 있는 답을 고집해 온 개발자, 김디벗입니다.",
       ];
     case "motivation":
       return [
-        "매일 쓰던 학사시스템을, 이제는 만드는 쪽에서 더 낫게 만들고 싶습니다.",
-        "수천 명이 같은 순간에 누르는 ‘신청’ 버튼 뒤의 데이터를 책임지는 개발자가 되고 싶습니다.",
-        "학생으로 겪은 학사시스템의 불편이, 제가 개발자로 풀고 싶은 첫 번째 문제입니다.",
+        "거래 인프라는 보이지 않게, 그러나 한 번도 틀리지 않고 돌아가야 한다고 믿습니다.",
+        "고객이 의식조차 하지 않는 이체 한 건 뒤의 데이터를 책임지는 개발자가 되고 싶습니다.",
+        "숫자 하나가 틀리면 신뢰가 무너지는 곳, 그래서 저는 결제·정산을 만드는 개발자가 되고 싶습니다.",
       ];
     case "company":
       return [
-        "아카넷은 대학 구성원 모두가 매일 쓰는 시스템을 만드는 회사라는 점에서, 제가 가장 일하고 싶은 곳입니다.",
-        "제가 이해한 아카넷은 ‘대학의 데이터를 하나로 잇는 회사’입니다.",
+        "더즌은 고객이 거래 인프라를 의식하지 않고 본업에 집중하게 만드는 회사라는 점에서, 제가 가장 일하고 싶은 곳입니다.",
+        "제가 이해한 더즌은 ‘거래와 정산을 보이지 않게 연결하는 회사’입니다.",
       ];
     case "goal":
       return [
-        "3개월, 1년, 3년, 단계마다 아카넷에서 해낼 일을 구체적으로 정해 두었습니다.",
-        "아카넷에서 제 첫 목표는 ‘믿고 맡길 수 있는 학사 모듈 담당자’가 되는 것입니다.",
+        "3개월, 1년, 3년, 단계마다 더즌에서 해낼 일을 구체적으로 정해 두었습니다.",
+        "더즌에서 제 첫 목표는 ‘믿고 맡길 수 있는 연동·배치 담당자’가 되는 것입니다.",
       ];
     case "strength":
       return [
@@ -645,7 +645,7 @@ function hooksFor(category: Category, evidence: Evidence): string[] {
       return [evidence.projectHook, "제 대표 프로젝트는 기능보다 데이터의 기준을 먼저 세워 문제를 푼 경험입니다."];
     default:
       return [
-        "아카넷 웹개발자에게 가장 필요한 역량은 학사 데이터를 정확하게 다루는 힘이고, 저는 그 힘을 실무 프로젝트에서 길러 왔습니다.",
+        "더즌 백엔드 개발자에게 가장 필요한 역량은 금액과 거래 데이터를 정확하게 다루는 힘이고, 저는 그 힘을 실무 프로젝트에서 길러 왔습니다.",
         "제 역량을 한 문장으로 말하면, 데이터가 맞는지 끝까지 확인하고 그 근거를 설명할 수 있다는 것입니다.",
       ];
   }
@@ -730,7 +730,7 @@ function rawTemplate(category: Category, evidence: Evidence, projects: Evidence[
     case "introduction":
       return [
         [
-          line("데이터의 근거를 끝까지 확인하는 개발자, 김정환입니다.", A, false, "thesis"),
+          line("데이터의 근거를 끝까지 확인하는 개발자, 김디벗입니다.", A, false, "thesis"),
           line("부천대학교 컴퓨터소프트웨어과를 2027년 2월 졸업할 예정이며, SQLD와 정보처리산업기사를 취득했습니다.", C),
           line("‘일단 동작하는 코드’보다 ‘왜 이 결과가 맞는지 설명할 수 있는 코드’를 목표로 개발해 왔습니다.", O),
         ],
@@ -740,26 +740,23 @@ function rawTemplate(category: Category, evidence: Evidence, projects: Evidence[
           ...(others.length ? [line("어떤 프로젝트에서든 화면보다 데이터의 기준을 먼저 세웠을 때 문제가 풀렸습니다.", O)] : []),
         ],
         [
-          line("지금은 Java·Spring과 전자정부 표준프레임워크를 익히며, 아카넷 공고가 요구하는 웹 개발 기본기를 채우고 있습니다.", S),
+          line("지금은 Spring Boot와 JPA로 송금 API를 직접 만들며, 더즌 공고가 요구하는 Java·Spring 기본기를 채우고 있습니다.", S),
           closeLine(category),
         ],
       ];
     case "motivation":
       return [
         [
-          line("수강신청 날마다 장바구니에 담아 둔 과목이 시간표에서 겹친다는 사실을 신청 직전에야 알게 되곤 했습니다.", A, false, "story"),
-          line("그때마다 이 검사를 장바구니 단계에서 미리 해 줄 수는 없을까 생각했습니다.", S, true),
+          line("결제와 정산은 숫자 하나가 틀리는 순간 신뢰가 무너지는 영역입니다.", A, false, "story"),
+          line("사용자는 이체가 잘될 때는 그 뒤의 시스템을 떠올리지 않지만, 한 번 틀린 순간은 오래 기억합니다.", C),
+          line("그래서 저는 거래 인프라가 보이지 않게, 그러나 한 번도 틀리지 않고 돌아가야 한다고 생각합니다.", S, true),
+          // "Why 더즌" is the point of the answer (the posting requires it), so it is dropped only as a last resort.
           line(
-            "학생 수천 명이 같은 순간에 같은 화면을 쓰는 학사시스템은, 작은 불편 하나도 수천 번 반복된다는 점에서 개발자가 만들 수 있는 가장 영향력 큰 서비스라고 생각합니다.",
-            C,
-          ),
-          // "Why Acanet" is the point of the answer, so it is dropped only as a last resort.
-          line(
-            "아카넷은 대학 통합정보시스템(URP/CRP)과 자체 프레임워크 aXis Platform으로 학사·학생·취업 데이터를 하나의 흐름으로 연결하는 회사입니다.",
+            "더즌은 결제·인증·메시징과 생활밀착 플랫폼 기능을 하나로 연결해, 고객이 거래 인프라를 신경 쓰지 않고 본업에 집중하도록 돕는 회사입니다.",
             A,
           ),
           line(
-            "학생 이력·역량 관리와 취업통계 서비스까지 직접 만든다는 점에서, 학생의 입학부터 졸업 이후까지를 데이터로 잇는 일을 가장 가까이에서 배울 수 있다고 보았습니다.",
+            "무인 환전·해외 비즈니스·스테이블코인까지 차세대 결제·정산으로 영역을 넓히고 있어, 거래 인프라가 어떻게 연결되고 확장되는지를 가장 가까이에서 배울 수 있다고 보았습니다.",
             O,
             true,
           ),
@@ -768,27 +765,27 @@ function rawTemplate(category: Category, evidence: Evidence, projects: Evidence[
           line(evidence.motive[0], C),
           line(evidence.motive[1], S, true),
           line(evidence.motive[2], C),
-          line("특히 SQLD와 정보처리산업기사를 준비하며 익힌 정규화·트랜잭션 개념을, 학사 데이터를 직접 다루는 현장에서 제대로 써 보고 싶습니다.", O),
+          line("특히 SQLD와 정보처리산업기사를 준비하며 익힌 정규화·트랜잭션 개념은, 펌뱅킹·가상계좌 현장에서 매일 쓰이는 판단 기준이라고 생각합니다.", O),
         ],
         [closeLine(category)],
       ];
     case "company":
       return [
         [
-          line("아카넷은 2009년 설립된 대전 본사의 소프트웨어 기업으로, 대학 통합정보시스템(URP/CRP) 구축을 주력으로 하고 있습니다.", A, false, "story"),
+          line("더즌은 기업의 거래·정산·연결·확장을 설계하는 디지털 거래 인프라 기업입니다.", A, false, "story"),
           line(
-            "자체 개발 프레임워크 aXis Platform을 바탕으로 학사·학생·교무 행정은 물론 NCS 교육과정 운영, 학생 이력·역량 관리, 취업통계·분석 서비스까지 대학의 데이터를 하나의 흐름으로 연결합니다.",
+            "결제·인증·메시징과 생활밀착 플랫폼 기능을 하나로 연결해, 고객이 거래 인프라를 신경 쓰지 않고 본업에 집중할 수 있도록 돕습니다.",
             C,
           ),
-          line("대학·공공·교육 분야 SI와 ISP/BPR·EA·BI 컨설팅까지 수행해, 시스템을 만드는 일과 업무를 설계하는 일을 함께 한다는 점이 인상 깊었습니다.", O),
+          line("최근에는 무인 환전·해외 비즈니스·스테이블코인 등 차세대 결제·정산으로 영역을 넓히며, 이미 만든 인프라 위에 새로운 거래를 연결하고 있다는 점이 인상 깊었습니다.", O),
         ],
         [
           line(
-            "제가 이해한 아카넷 웹개발자의 일은 Java·Spring과 전자정부 표준프레임워크로 학사 업무 화면과 서버 기능을 만들고, 요구사항 분석부터 화면·DB 설계, 단위 테스트까지 책임지는 것입니다.",
+            "제가 이해한 더즌 백엔드 개발자의 일은 펌뱅킹·가상계좌와 금융기관·제휴기관 연동을 개발하고, 관리자 페이지와 배치 스케줄러를 운영하며 기존 시스템을 개선·자동화하는 것입니다.",
             C,
           ),
-          line("공고가 SQLD 보유자를 우대하는 것도, 학사 데이터의 정합성이 곧 서비스의 신뢰이기 때문이라고 생각합니다.", S),
-          line("고객(대학) 현업의 언어로 문제를 정의하고 산출물과 작업 기록을 꼼꼼히 남기는 문화 역시, 제가 일해 온 방식과 닮아 있습니다.", O),
+          line("공고가 트랜잭션·동시성에 대한 이해와 SQLD 같은 데이터베이스 자격을 우대하는 것도, 거래 데이터의 정합성이 곧 서비스의 신뢰이기 때문이라고 생각합니다.", S),
+          line("‘고객을 위해, 서로를 배려하며, 끝까지 해내는 사람들과 함께’라는 핵심가치 역시, 맡은 일을 끝까지 검증해 온 제 방식과 닮아 있습니다.", O),
         ],
         [line(evidence.fitLine, C), closeLine(category)],
       ];
@@ -796,27 +793,27 @@ function rawTemplate(category: Category, evidence: Evidence, projects: Evidence[
       return [
         [
           line(
-            "입사 전부터 전자정부 표준프레임워크로 수강신청 예제를 직접 구현하며, 서비스 계층의 트랜잭션 처리와 MyBatis 매퍼 구조를 익히고 있습니다.",
+            "입사 전부터 Spring Boot와 JPA로 송금 API를 직접 구현하며, 서비스 계층의 트랜잭션 처리와 롤백 테스트를 익히고 있습니다.",
             A,
             false,
             "story",
           ),
           line(
-            "수습 3개월 동안에는 aXis Platform의 구조와 대학 학사 업무의 흐름을 빠르게 익히고, 기존 대학 사이트 유지보수에서 장애 원인과 해결 과정을 문서로 남기는 습관부터 들이겠습니다.",
+            "수습 3개월 동안에는 펌뱅킹·가상계좌의 구조와 금융기관 연동 방식을 빠르게 익히고, 관리자 페이지와 배치 운영 업무에서 장애 원인과 조치를 문서로 남기는 습관부터 들이겠습니다.",
             C,
           ),
         ],
         [
-          line("1년 안에는 학사 업무 한 모듈을 요구사항 분석부터 화면·DB 설계, 단위 테스트까지 책임지는 개발자가 되겠습니다.", C),
+          line("1년 안에는 신규 기관·서비스 등록이나 배치 하나를 요구사항 분석부터 개발, 테스트, 운영까지 책임지는 개발자가 되겠습니다.", C),
           line(evidence.goalLink, S),
-          line("SQLD로 다진 SQL 역량을 살려, 화면 기능뿐 아니라 쿼리 성능과 데이터 정합성까지 함께 책임지겠습니다.", O),
+          line("SQLD로 다진 SQL 역량을 살려, 기능 구현뿐 아니라 쿼리 성능과 거래 데이터의 정합성까지 함께 책임지겠습니다.", O),
         ],
         [
           line(
-            "3년 뒤에는 수강신청 장바구니 단계의 시간표 충돌·선수과목 사전 검사처럼, 학생으로서 겪었던 불편을 데이터로 증명하고 고치는 개선안을 먼저 제안하는 개발자가 되겠습니다.",
+            "3년 뒤에는 반복되는 대사·정산 확인 업무를 자동화하고, 무인 환전·해외 비즈니스처럼 새로 열리는 결제·정산 영역에서도 금액이 틀리지 않는 구조를 먼저 제안하는 개발자가 되겠습니다.",
             C,
           ),
-          line("그 개선이 학생 수천 명의 시간을 아끼는 일이라는 것을 누구보다 잘 알기 때문입니다.", O, true),
+          line("그 자동화가 고객이 본업에 집중하는 시간을 늘리는 일이라는 것을 누구보다 잘 알기 때문입니다.", O, true),
           closeLine(category),
         ],
       ];
@@ -905,7 +902,7 @@ function rawTemplate(category: Category, evidence: Evidence, projects: Evidence[
       const thesis =
         category === "competency"
           ? "제가 가진 가장 큰 직무 역량은 데이터의 근거를 끝까지 확인하는 습관입니다."
-          : "제가 아카넷에 가장 자신 있게 보여 드릴 수 있는 것은, 데이터의 근거를 끝까지 확인하는 습관입니다.";
+          : "제가 더즌에 가장 자신 있게 보여 드릴 수 있는 것은, 데이터의 근거를 끝까지 확인하는 습관입니다.";
       return [
         [line(thesis, A, false, "thesis"), line(evidence.context, C), line(evidence.problem, S, evidence.problemDep)],
         [
@@ -926,7 +923,7 @@ function textsOf(paragraphs: Template): Set<string> {
 }
 
 const INTRO_TEAM_LINE =
-  "팀 프로젝트에서는 합의한 기준과 진행 상황을 문서로 남기는 역할을 자주 맡았는데, 산출물과 작업 기록을 꼼꼼히 남기는 아카넷의 문화와도 잘 맞는다고 생각합니다.";
+  "팀 프로젝트에서는 합의한 기준과 진행 상황을 문서로 남기는 역할을 자주 맡았는데, 서로를 배려하며 끝까지 해내는 더즌의 문화와도 잘 맞는다고 생각합니다.";
 const KEYWORD_CATEGORIES = new Set<Category>(["motivation", "competency", "general", "project", "challenge", "failure"]);
 /** Answers where one more project, introduced with "이 밖에도", reads as extra evidence rather than a detour. */
 const BRIEF_CATEGORIES = new Set<Category>(["competency", "general", "project", "challenge", "failure", "motivation"]);
@@ -936,13 +933,13 @@ const DETAIL_CATEGORIES = new Set<Category>(["competency", "general", "project",
 const CERT_CATEGORIES = new Set<Category>(["project", "challenge", "failure"]);
 
 const GOAL_EXTRA = [
-  "사내 코드 리뷰와 산출물 작성 기준도 빠르게 익혀, 제 작업 기록이 다음 담당자에게도 도움이 되게 하겠습니다.",
+  "사내 코드 리뷰와 운영 문서 작성 기준도 빠르게 익혀, 제 작업 기록이 다음 담당자에게도 도움이 되게 하겠습니다.",
   "2년 차에는 운영 중 반복되는 문의와 장애를 데이터로 분류해, 같은 문제가 다시 생기지 않도록 개선 과제로 정리하겠습니다.",
-  "업무 외 시간에는 Spring과 Oracle 쿼리 튜닝을 꾸준히 공부해, 수강신청처럼 요청이 몰리는 시기에도 안정적인 기능을 만들겠습니다.",
+  "업무 외 시간에는 Spring Batch와 MySQL 쿼리 튜닝을 꾸준히 공부해, 정산이 몰리는 월말에도 안정적으로 도는 배치를 만들겠습니다.",
 ];
 const COMPANY_EXTRA = [
-  "대전 본사와 서울·부산 지사를 두고 대학·공공·교육 분야 고객을 직접 지원하는 구조라는 점에서, 고객 가까이에서 배우며 성장할 수 있는 회사라고 생각했습니다.",
-  "장기근속 포상처럼 오래 함께 성장하는 문화를 갖추고 있다는 점도, 한 분야를 깊이 파고들고 싶은 제게 큰 의미로 다가왔습니다.",
+  "개발본부가 금융기관·제휴기관과 직접 연동하며 일하는 구조라는 점에서, 거래 인프라의 처음과 끝을 함께 배울 수 있는 회사라고 생각했습니다.",
+  "몰입해서 일하고 충분히 쉬는 리듬을 중요하게 여기는 문화도, 한 분야를 오래 깊이 파고들고 싶은 제게 큰 의미로 다가왔습니다.",
 ];
 
 function bindLine(item: Line, anchor: string): Line {
@@ -1041,7 +1038,7 @@ function withExpansion(paragraphs: Template, category: Category, evidence: Evide
     const briefs = briefOthers.map((project, index) => line(index === 0 ? `이 밖에도 ${project.brief}` : project.brief, X));
     last.splice(beforeCloseIndex(), 0, ...briefs);
   }
-  if (KEYWORD_CATEGORIES.has(category) && ![...used].some((text) => /전자정부/.test(text))) {
+  if (KEYWORD_CATEGORIES.has(category) && ![...used].some((text) => /Spring/.test(text))) {
     last.splice(beforeCloseIndex(), 0, line(KEYWORD_LINES[0], X));
   }
   return rebindStory(body, category, evidence);
@@ -1120,12 +1117,12 @@ function ensureRegistry() {
   }
   KEYWORD_LINES.forEach((text) => line(text, X));
   line(HELLO_SUPPORT_LINE, S);
-  line(ACANET_TIE_LINE, S);
+  line(COMPANY_TIE_LINE, S);
 }
 
 const HELLO_SUPPORT_LINE =
   "헬로프렌즈 Vizabridge에서는 평가셋 150문항 중 131문항의 근거를 맞혀, 근거 일치율 약 87%라는 수치로 결과를 증명하기도 했습니다.";
-const ACANET_TIE_LINE = "아카넷에서도 데이터의 정합성을 먼저 확인하며 신뢰할 수 있는 기능을 만들겠습니다.";
+const COMPANY_TIE_LINE = "더즌에서도 데이터의 정합성을 먼저 확인하며 신뢰할 수 있는 기능을 만들겠습니다.";
 
 // ---------------------------------------------------------------------------------------------
 // Sentence-level fitting
@@ -1508,7 +1505,7 @@ function parseIntents(prompt: string): Intents {
     // "성과" only as its own word: "정확성과" must not read as a request for numbers.
     numbers: /숫자|수치|정량|지표|(^|[^가-힣])성과/.test(text),
     keywords:
-      /공고|키워드|JD|우대\s*(사항|조건)|자격증|전자정부|자바|java|sql|(아카넷|직무|회사)(에|과|와|랑|이랑)?\s*(더\s*)?(맞|연결|어울|적합|관련)/i.test(text),
+      /공고|키워드|JD|우대\s*(사항|조건)|자격증|스프링|spring|자바|java|sql|(더즌|dozn|직무|회사)(에|과|와|랑|이랑)?\s*(더\s*)?(맞|연결|어울|적합|관련)/i.test(text),
     rotate: /다른\s*(프로젝트|경험|사례|소재|이야기)|(프로젝트|경험|사례|소재)\s*(를|을)?\s*(바꿔|변경|교체)/.test(text),
     expand: /늘려|늘리|길게|분량\s*(을|를)?\s*(채워|늘려|맞춰)|더\s*풍부|보충|채워\s*(줘|주세요)/.test(text),
     shorten: /줄여|줄이|짧게|압축|요약|간결|덜어|핵심만/.test(text),
@@ -1725,10 +1722,10 @@ function applyNatural(doc: Doc, ctx: EditContext) {
     return sentence.replace(/^그 결과 /, "덕분에 ");
   });
   const swapped = swapClose(doc, ctx.category);
-  if (!/아카넷/.test(renderDoc(doc))) {
-    doc[doc.length - 1].push(ACANET_TIE_LINE);
-    ctx.protect.add(ACANET_TIE_LINE);
-    ctx.notes.push("직접 수행한 작업과 판단이 드러나도록 문장을 다듬고, 아카넷 공고와 이어지는 마무리 문장을 더했습니다.");
+  if (!/더즌/.test(renderDoc(doc))) {
+    doc[doc.length - 1].push(COMPANY_TIE_LINE);
+    ctx.protect.add(COMPANY_TIE_LINE);
+    ctx.notes.push("직접 수행한 작업과 판단이 드러나도록 문장을 다듬고, 더즌 공고와 이어지는 마무리 문장을 더했습니다.");
     return;
   }
   if (renderDoc(doc) === before) {
@@ -1802,9 +1799,9 @@ function applyNumbers(doc: Doc, ctx: EditContext) {
 
 const POSTING_KEYWORDS: Array<[string, RegExp]> = [
   ["Java", /java|자바/i],
-  ["전자정부 표준프레임워크", /전자정부/],
+  ["Spring", /spring|스프링/i],
   ["SQL·SQLD", /SQL/],
-  ["대학 통합정보시스템", /통합정보시스템/],
+  ["펌뱅킹·가상계좌", /펌뱅킹|가상계좌/],
 ];
 
 function applyKeywords(doc: Doc, ctx: EditContext) {
@@ -1817,7 +1814,7 @@ function applyKeywords(doc: Doc, ctx: EditContext) {
   ctx.notes.push(
     missing.length
       ? `공고 핵심 키워드 중 빠져 있던 ${missing.map((label) => `‘${label}’`).join("·")}${withObject(missing[missing.length - 1]).slice(-1)} 경험과 연결해 마무리 앞에 넣었습니다.`
-      : "공고 핵심 키워드(Java·전자정부 표준프레임워크·SQL·대학 통합정보시스템)를 한 문장으로 묶어 아카넷 업무와 더 직접 연결했습니다.",
+      : "공고 핵심 키워드(Java·Spring·SQL·펌뱅킹·가상계좌)를 한 문장으로 묶어 더즌 업무와 더 직접 연결했습니다.",
   );
 }
 
@@ -1911,10 +1908,10 @@ function planSentence(ctx: ReplyContext): string {
     return `자기소개는 ‘데이터의 근거를 끝까지 확인하는 개발자’라는 한 문장을 축으로, ${names} 경험을 짧은 증거로 엮으면 공고와 가장 잘 맞습니다.`;
   }
   if (category === "motivation") {
-    return `지원동기는 학사시스템을 쓰던 학생으로서 느낀 불편에서 출발해, ${evidence.name}의 ${evidence.focus} 경험을 중심으로 아카넷의 대학 통합정보시스템과 연결하면 가장 설득력 있습니다.`;
+    return `지원동기는 ‘숫자 하나가 틀리면 신뢰가 무너지는 결제·정산’이라는 문제의식에서 출발해, ${evidence.name}의 ${evidence.focus} 경험을 중심으로 더즌의 거래 인프라와 연결하면 가장 설득력 있습니다. 공고가 지원 사유를 반드시 적도록 요구하는 만큼 ‘왜 더즌인가’를 분명히 쓰겠습니다.`;
   }
   if (category === "company") {
-    return `아카넷의 사업 구조와 공고의 요구 역량을 정리한 뒤, ${evidence.name} 경험을 중심으로 제가 그 일에 맞는 이유를 덧붙이면 좋습니다.`;
+    return `더즌의 사업 구조와 공고의 요구 역량을 정리한 뒤, ${evidence.name} 경험을 중심으로 제가 그 일에 맞는 이유를 덧붙이면 좋습니다.`;
   }
   return `이번 문항은 ${evidence.name}의 ${evidence.focus} 경험을 중심으로 풀어내면 공고와 가장 잘 맞습니다.`;
 }
@@ -1922,7 +1919,7 @@ function planSentence(ctx: ReplyContext): string {
 function introReply(ctx: ReplyContext) {
   const projectNames = ctx.projects.map((project) => project.name).join("·");
   return {
-    content: `안녕하세요, 디벗 AI 자소서 컨설팅입니다. ㈜아카넷 웹개발자(Java) 신입 공고와 ${projectNames} 프로젝트를 바탕으로 ‘${ctx.shown}’ 문항을 함께 작성하겠습니다.\n\n이 공고는 대학 통합정보시스템(URP/CRP)을 Java·전자정부 표준프레임워크로 개발하는 포지션으로, 데이터 정합성과 SQL 활용 능력, 요구사항 분석이 핵심이고 SQLD 보유자를 우대합니다. ${planSentence(ctx)}\n\n이 방향으로 작성할까요? 더 강조하고 싶은 프로젝트나 역량이 있으면 말씀해 주세요. 바로 완성본을 요청하셔도 됩니다.`,
+    content: `안녕하세요, 디벗 AI 자소서 컨설팅입니다. 더즌(dozn) 개발본부 백엔드 개발자(신입) 공고와 ${projectNames} 프로젝트를 바탕으로 ‘${ctx.shown}’ 문항을 함께 작성하겠습니다.\n\n이 공고는 펌뱅킹·가상계좌, 금융기관·제휴기관 연동, 관리자 페이지와 배치 스케줄러를 Java·Spring으로 개발·운영하는 신입 포지션으로, 데이터 정합성과 트랜잭션 이해, SQL 기본기가 핵심이고 결제·정산 도메인에 대한 관심과 SQLD를 우대합니다. ${planSentence(ctx)}\n\n이 방향으로 작성할까요? 더 강조하고 싶은 프로젝트나 역량이 있으면 말씀해 주세요. 바로 완성본을 요청하셔도 됩니다.`,
     protocol: protocol("direction"),
   };
 }
@@ -1933,7 +1930,8 @@ const EMPHASIS: Array<[RegExp, string]> = [
   [/리더|주도|팀장/, "리더십"],
   [/문제\s*해결|해결/, "문제 해결"],
   [/성장|배움|학습/, "성장"],
-  [/java|자바|스프링|spring|전자정부/i, "Java·전자정부 표준프레임워크"],
+  [/java|자바|스프링|spring/i, "Java·Spring"],
+  [/결제|정산|금융|펌뱅킹|가상계좌/, "결제·정산 도메인"],
 ];
 
 function directionReply(ctx: ReplyContext, prompt: string, requested: boolean) {
@@ -1947,7 +1945,7 @@ function directionReply(ctx: ReplyContext, prompt: string, requested: boolean) {
   const summary = introduction
     ? `${evidence.intro} ${projects.filter((project) => project.kind !== evidence.kind).map((project) => project.intro).join(" ")}`.trim()
     : category === "motivation"
-      ? `학사시스템을 쓰며 겪은 불편으로 문을 열고, 그 불편을 직접 고치고 싶은 이유를 ${evidence.name} 경험으로 증명하겠습니다. ${evidence.motive[0]}`
+      ? `결제·정산은 숫자 하나가 틀리면 신뢰가 무너지는 영역이라는 문제의식으로 문을 열고, 그 일을 더즌에서 하고 싶은 이유를 ${evidence.name} 경험으로 증명하겠습니다. ${evidence.motive[0]}`
       : `${evidence.context} ${evidence.problem}`;
   const alternatives = projects.filter((project) => project.kind !== evidence.kind);
   const switchHint =
@@ -1956,14 +1954,14 @@ function directionReply(ctx: ReplyContext, prompt: string, requested: boolean) {
     ? `‘${ctx.shown}’ 문항은 ${projects.map((project) => project.name).join("·")} 경험을 짧은 증거로 엮어 구성하겠습니다.`
     : `‘${ctx.shown}’ 문항은 ${evidence.name} 경험을 중심으로 구성하겠습니다.${requested ? " 요청하신 대로 소재를 맞췄습니다." : ""}`;
   return {
-    content: `${headline}\n\n${summary}\n\n${echo}여기서 ${evidence.focus} 역량을 강조하고, 결과와 배운 점을 아카넷 공고의 핵심인 학사 데이터 처리·요구사항 분석 역량과 연결하겠습니다. 수치는 측정 방법까지 설명할 수 있는 것만 담고, 직접 맡은 작업과 판단이 드러나는 담백한 문체로 쓰겠습니다.\n\n이 방향으로 ${ctx.maxChars}자 이내의 초안을 작성해 드릴까요? 바로 완성본을 원하시면 ‘완성본 보내줘’라고 말씀해 주세요.${switchHint}`,
+    content: `${headline}\n\n${summary}\n\n${echo}여기서 ${evidence.focus} 역량을 강조하고, 결과와 배운 점을 더즌 공고의 핵심인 거래 데이터 정합성·트랜잭션 역량과 연결하겠습니다. 수치는 측정 방법까지 설명할 수 있는 것만 담고, 직접 맡은 작업과 판단이 드러나는 담백한 문체로 쓰겠습니다.\n\n이 방향으로 ${ctx.maxChars}자 이내의 초안을 작성해 드릴까요? 바로 완성본을 원하시면 ‘완성본 보내줘’라고 말씀해 주세요.${switchHint}`,
     protocol: protocol("draft"),
   };
 }
 
 const INTERVIEWER_FOCUS: Record<Category, string> = {
   introduction: "자기소개에서 면접관은 지원자가 어떤 사람인지 한 문장으로 기억에 남는지, 그리고 그 주장을 뒷받침하는 경험이 있는지를 봅니다.",
-  motivation: "지원동기에서 면접관은 ‘왜 하필 아카넷인가’와 ‘이 사람이 우리 업무를 정확히 이해하고 있는가’를 봅니다.",
+  motivation: "지원동기에서 면접관은 ‘왜 하필 더즌인가’와 ‘이 사람이 우리 업무를 정확히 이해하고 있는가’를 봅니다. 이 공고는 지원 사유를 반드시 적도록 요구하므로 특히 중요한 문항입니다.",
   company: "기업 이해 문항은 사업과 직무를 정확히 알고, 그 안에서 본인이 할 일을 그릴 수 있는지를 봅니다.",
   goal: "입사 후 포부에서는 회사의 업무를 구체적으로 이해하고, 현실적인 단계로 성장 계획을 세웠는지를 봅니다.",
   strength: "장단점 문항은 강점의 근거가 구체적인지, 그리고 단점을 인식하고 실제로 보완하고 있는지를 봅니다.",
@@ -1979,9 +1977,9 @@ const INTERVIEWER_FOCUS: Record<Category, string> = {
 
 const CORE_MESSAGE: Record<Category, string> = {
   introduction: "데이터의 근거를 끝까지 확인하는 개발자",
-  motivation: "학사시스템을 쓰던 사람에서, 만드는 사람으로",
-  company: "대학의 데이터를 하나로 잇는 회사, 그 정확성을 지키는 개발자",
-  goal: "3개월·1년·3년 단계로 학사 모듈을 책임지는 개발자",
+  motivation: "숫자 하나도 틀리지 않는 거래 인프라를, 보이지 않게 지키는 사람",
+  company: "거래·정산을 보이지 않게 연결하는 회사, 그 정확성을 지키는 개발자",
+  goal: "3개월·1년·3년 단계로 연동과 배치를 책임지는 개발자",
   strength: "근거를 끝까지 확인하는 집요함, 그리고 일정과의 균형",
   growth: "‘동작하는 기능’에서 ‘믿을 수 있는 데이터’로",
   failure: "검증 기준 없이 만든 실수를 평가셋으로 바로잡은 경험",
@@ -1989,7 +1987,7 @@ const CORE_MESSAGE: Record<Category, string> = {
   challenge: "결과를 고치기 전에 데이터와 흐름부터 확인한다",
   collaboration: "모두가 같은 기준과 같은 화면을 보게 만든다",
   project: "직접 맡은 범위와 기술적 판단의 이유",
-  competency: "학사 데이터를 정확하게 다루는 힘",
+  competency: "금액과 거래 데이터를 정확하게 다루는 힘",
   general: "데이터의 근거를 끝까지 확인하는 습관",
 };
 
@@ -2000,18 +1998,18 @@ function adviceReply(kind: AdviceKind, ctx: ReplyContext, stage: Stage, prompt: 
   switch (kind) {
     case "interviewer":
       return keep(
-        `${INTERVIEWER_FOCUS[category]}\n\n아카넷 공고 기준으로는 Java 웹 구조에 대한 이해, SQL 활용과 데이터 정합성, 요구사항 분석이 핵심이고 SQLD 보유자를 우대합니다. 그래서 ‘${shown}’ 문항에서는 ${evidence.name} 경험의 ${withObject(evidence.focus)} 앞세우고, ‘${evidence.keyFact}’처럼 측정하거나 확인할 수 있는 근거로 뒷받침하는 것이 좋습니다.\n\n반대로 ‘열심히 했다’, ‘많이 배웠다’ 같은 표현만 있고 본인이 내린 판단이 보이지 않으면 감점 요인이 됩니다. 답안에 바로 반영하시려면 ‘완성본 보내줘’ 또는 ‘숫자 강조해줘’라고 말씀해 주세요.`,
+        `${INTERVIEWER_FOCUS[category]}\n\n더즌 공고 기준으로는 Java·Spring 기본기, SQL과 트랜잭션·데이터 정합성에 대한 이해가 핵심이고 결제·정산 도메인에 대한 관심과 SQLD를 우대합니다. 그래서 ‘${shown}’ 문항에서는 ${evidence.name} 경험의 ${withObject(evidence.focus)} 앞세우고, ‘${evidence.keyFact}’처럼 측정하거나 확인할 수 있는 근거로 뒷받침하는 것이 좋습니다.\n\n반대로 ‘열심히 했다’, ‘많이 배웠다’ 같은 표현만 있고 본인이 내린 판단이 보이지 않으면 감점 요인이 됩니다. 답안에 바로 반영하시려면 ‘완성본 보내줘’ 또는 ‘숫자 강조해줘’라고 말씀해 주세요.`,
       );
     case "outline":
       return keep(
-        `‘${shown}’ 문항의 핵심 메시지는 “${CORE_MESSAGE[category]}”입니다.\n\n1) 도입 — “${CORE_MESSAGE[category]}”라는 한 문장으로 시작\n2) 근거 — ${evidence.name}: ${evidence.keyFact}\n3) 연결 — 아카넷 공고의 학사 데이터·SQL·요구사항 분석 역량과 연결\n4) 마무리 — 아카넷에서 이 습관으로 해낼 일을 한 문장으로 약속\n\n이 흐름 그대로 ${ctx.maxChars}자 안의 완성본을 써 드릴까요?`,
+        `‘${shown}’ 문항의 핵심 메시지는 “${CORE_MESSAGE[category]}”입니다.\n\n1) 도입 — “${CORE_MESSAGE[category]}”라는 한 문장으로 시작\n2) 근거 — ${evidence.name}: ${evidence.keyFact}\n3) 연결 — 더즌 공고의 거래 데이터 정합성·트랜잭션·SQL 역량과 연결\n4) 마무리 — 더즌에서 이 습관으로 해낼 일을 한 문장으로 약속\n\n이 흐름 그대로 ${ctx.maxChars}자 안의 완성본을 써 드릴까요?`,
       );
     case "questions": {
       const categoryQuestion =
         category === "motivation"
-          ? "아카넷의 사업 중 학사·학생 이력 관리·취업통계 가운데 가장 관심 있는 분야는 어디인가요?"
+          ? "더즌의 사업 중 펌뱅킹·가상계좌, 금융기관 연동, 차세대 결제·정산(무인 환전·스테이블코인) 가운데 가장 관심 있는 분야는 어디인가요?"
           : category === "goal"
-            ? "입사 후 가장 먼저 맡아 보고 싶은 업무 모듈이 있나요?"
+            ? "입사 후 가장 먼저 맡아 보고 싶은 업무(기관 연동·관리자 페이지·배치)가 있나요?"
             : "이 문항에서 꼭 들어가야 하는 본인만의 표현이나 키워드가 있나요?";
       return keep(
         `더 설득력 있는 답안을 위해 몇 가지만 여쭤볼게요.\n\n1) ${evidence.question}\n2) ${categoryQuestion}\n3) 글의 톤은 담백한 쪽과 자신감 있는 쪽 중 어느 쪽이 좋으신가요?\n\n답하기 어려우시면 지금 정보만으로 ‘완성본 보내줘’라고 하셔도 됩니다.`,
@@ -2020,8 +2018,8 @@ function adviceReply(kind: AdviceKind, ctx: ReplyContext, stage: Stage, prompt: 
     case "competencies": {
       const ranked =
         category === "collaboration" || category === "conflict"
-          ? ["협업과 합의 — 직군이 다른 팀원과 범위·기준을 먼저 맞추는 능력", "데이터 정합성 — 같은 데이터를 모두가 같게 보게 만드는 설계", "요구사항 분석 — 대학 현업의 요구를 우선순위로 정리하는 힘"]
-          : ["데이터 정합성 — 학사 데이터는 오류 하나가 수천 명에게 번지기 때문에 공고의 핵심입니다", "SQL 활용 능력 — SQLD 우대 조건과 바로 연결됩니다", "요구사항 분석 — 고객(대학) 현업의 언어로 문제를 정의하는 문화와 맞닿아 있습니다"];
+          ? ["협업과 합의 — 직군이 다른 팀원과 범위·기준을 먼저 맞추는 능력", "데이터 정합성 — 같은 데이터를 모두가 같게 보게 만드는 설계", "요구사항 분석 — 현업과 제휴기관의 요구를 우선순위로 정리하는 힘"]
+          : ["데이터 정합성 — 금액·거래 데이터는 오류 하나가 곧 금액 사고로 이어지기 때문에 공고의 핵심입니다", "트랜잭션·동시성 이해 — 공고 우대사항과 바로 연결됩니다", "SQL 기본기 — SQLD 등 데이터베이스 자격증 우대 조건과 맞닿아 있습니다"];
       return keep(
         `‘${shown}’ 문항에서 강조하면 좋은 역량은 세 가지입니다.\n\n1) ${ranked[0]}\n2) ${ranked[1]}\n3) ${ranked[2]}\n\n이 중 첫 번째를 중심으로 ${evidence.name} 경험(${evidence.keyFact})을 엮겠습니다. 바로 완성본을 원하시면 말씀해 주세요.`,
       );
@@ -2030,7 +2028,7 @@ function adviceReply(kind: AdviceKind, ctx: ReplyContext, stage: Stage, prompt: 
       const rest = projects.filter((project) => project.kind !== evidence.kind);
       const restLines = rest.map((project) => `· ${project.name} — ${project.focus}을 보여 줄 때 좋습니다 (${project.keyFact})`).join("\n");
       return {
-        content: `‘${shown}’ 문항에는 ${evidence.name} 경험을 중심으로 쓰는 것을 추천합니다. ${evidence.keyFact}처럼 확인 가능한 근거가 있고, ${evidence.focus}은 아카넷 공고의 핵심 역량과 바로 연결됩니다.${restLines ? `\n\n${restLines}` : ""}\n\n이 경험으로 진행할까요? 다른 프로젝트를 원하시면 이름만 말씀해 주세요.`,
+        content: `‘${shown}’ 문항에는 ${evidence.name} 경험을 중심으로 쓰는 것을 추천합니다. ${evidence.keyFact}처럼 확인 가능한 근거가 있고, ${evidence.focus}은 더즌 공고의 핵심 역량과 바로 연결됩니다.${restLines ? `\n\n${restLines}` : ""}\n\n이 경험으로 진행할까요? 다른 프로젝트를 원하시면 이름만 말씀해 주세요.`,
         protocol: protocol(stage === "direction" ? "draft" : stage, "", false, false),
       };
     }
@@ -2049,7 +2047,7 @@ function confirmReply(ctx: ReplyContext, base: Base, currentAnswer: string) {
   const keywords = POSTING_KEYWORDS.filter(([, pattern]) => pattern.test(answer)).map(([label]) => label);
   const ratio = Math.round((answer.length / ctx.maxChars) * 100);
   const checks = [
-    /아카넷/.test(answer) ? "아카넷과의 연결" : "",
+    /더즌/.test(answer) ? "더즌과의 연결" : "",
     /\d/.test(answer) ? "확인 가능한 수치 근거" : "",
     keywords.length ? `공고 키워드 ${keywords.length}개(${keywords.join("·")})` : "",
   ].filter(Boolean);

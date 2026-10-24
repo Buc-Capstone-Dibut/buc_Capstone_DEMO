@@ -120,9 +120,9 @@ def tearDownModule() -> None:
 
 CLOSING_SENTENCE = "수고하셨습니다. 이것으로 모든 면접을 마치겠습니다."
 DEMO_JOB_DATA = {
-    "company": "㈜아카넷",
-    "role": "웹개발자 (Java 웹프로그래머) - 신입",
-    "title": "2026년 하반기 Acanet 웹개발자 채용 [서울] - 신입",
+    "company": "더즌(dozn)",
+    "role": "백엔드 개발자 (개발본부) - 신입",
+    "title": "백엔드 개발자 (개발본부) - 신입",
     "demoScript": DEMO_SCRIPT_ID,
 }
 AUDIO = PreparedTtsAudio(chunks=["chunk"], sample_rate=24000, provider="gemini-live", duration_sec=4.0)
@@ -277,11 +277,11 @@ async def _answer(state: VoiceWsState, deps: SessionEngineDeps) -> None:
 class DemoScriptDomainTests(unittest.TestCase):
     def test_detects_demo_session_by_flag_or_company(self) -> None:
         self.assertTrue(is_demo_script_session({"demoScript": DEMO_SCRIPT_ID}))
-        self.assertTrue(is_demo_script_session({"company": "㈜아카넷"}))
-        self.assertTrue(is_demo_script_session({"company": "Acanet Inc."}))
+        self.assertTrue(is_demo_script_session({"company": "더즌"}))
+        self.assertTrue(is_demo_script_session({"company": "DOZN Inc."}))
         self.assertFalse(is_demo_script_session({"company": "네이버"}))
         self.assertFalse(is_demo_script_session(None))
-        self.assertFalse(is_demo_script_session({"company": "㈜아카넷"}, "portfolio_defense"))
+        self.assertFalse(is_demo_script_session({"company": "더즌(dozn)"}, "portfolio_defense"))
 
     def test_script_shape_matches_candidate_answers(self) -> None:
         # 오프닝 + 대본 줄마다 지원자 답변이 정확히 하나씩 있다.

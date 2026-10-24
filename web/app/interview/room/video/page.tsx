@@ -279,11 +279,11 @@ export default function InterviewVideoRoomPage() {
     () => (jobData && typeof jobData === "object" ? jobData : {}) as Record<string, unknown>,
     [jobData],
   );
-  // 시연 고정 대본 면접(㈜아카넷 공고). 시계가 세션 생성 시점부터 돌아 준비 시간까지 포함되므로
+  // 시연 고정 대본 면접(더즌 공고). 시계가 세션 생성 시점부터 돌아 준비 시간까지 포함되므로
   // 남은 시간이 0이 돼도 자동 종료하지 않는다(서버도 이 세션은 시간으로 끝내지 않는다).
   const isDemoScriptSession = sessionType === "live_interview"
-    && (interviewJobData.demoScript === "acanet-2026-web"
-      || /아카넷|acanet/i.test(String(interviewJobData.company ?? "")));
+    && (interviewJobData.demoScript === "dozn-2026-backend"
+      || /더즌|dozn/i.test(String(interviewJobData.company ?? "")));
   const portfolioJobData = useMemo(
     () => ({
       repoUrl: requestedRepoUrl,

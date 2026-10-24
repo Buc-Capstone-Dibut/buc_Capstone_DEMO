@@ -52,20 +52,22 @@ test("demo mode is the default and only CAREER_AI_MODE=live disables it", () => 
   assert.equal(isCareerDemoEnabled(" LIVE "), false);
 });
 
-test("Acanet posting fixture satisfies the parse-job contract for every caller", () => {
+test("dozn posting fixture satisfies the parse-job contract for every caller", () => {
   const data = getCareerDemoJobPosting();
   const interpreted = interpretParseJobResponse({ success: true, data });
   assert.equal(interpreted.failed, false);
-  assert.equal(data.company, "㈜아카넷");
+  assert.equal(data.company, "더즌(dozn)");
   // Both the career dialog and the interview setup map `title` to the role field.
-  assert.equal(data.title, "웹개발자 (Java 웹프로그래머) - 신입");
+  assert.equal(data.title, "백엔드 개발자 (개발본부) - 신입");
   assert.equal(data.url, CAREER_DEMO_JOB_URL);
-  assert.match(CAREER_DEMO_JOB_URL, /Gno=50016735$/);
+  assert.equal(CAREER_DEMO_JOB_URL, "https://www.wanted.co.kr/wd/392217");
   assert.ok(data.responsibilities.length && data.requirements.length && data.preferred.length);
-  assert.ok(data.techStack.includes("Java") && data.culture.length);
+  assert.ok(data.techStack.includes("Java") && data.techStack.includes("Spring Boot") && data.culture.length);
   assert.ok(data.preferred.some((item) => item.includes("SQLD")));
-  assert.deepEqual(data.schedules, [{ kind: "deadline", title: "서류 접수 마감", startAt: "2026-11-06" }]);
-  assert.doesNotMatch(JSON.stringify(data), /클래스101|Class101|2026\.10\.18/);
+  assert.ok(data.responsibilities.some((item) => item.includes("펌뱅킹")) && data.description.includes("지원한 사유"));
+  assert.deepEqual(data.schedules, [{ kind: "deadline", title: "서류 접수 마감", startAt: "2026-11-30" }]);
+  // A new-grad posting: no experience requirement anywhere, and nothing left from the previous target.
+  assert.doesNotMatch(JSON.stringify(data), /경력|아카넷|Acanet|클래스101|Class101/);
   data.techStack.push("mutation");
   assert.equal(getCareerDemoJobPosting().techStack.includes("mutation"), false);
 });
@@ -90,7 +92,7 @@ test("intro and direction return different workflow stages without an apply cand
   assert.equal(parsedIntro.stage, "direction");
   assert.equal(parsedIntro.ready, false);
   assert.equal(parsedIntro.answer, "");
-  assert.match(intro.content, /^안녕하세요, 디벗 AI 자소서 컨설팅입니다\. ㈜아카넷/);
+  assert.match(intro.content, /^안녕하세요, 디벗 AI 자소서 컨설팅입니다\. 더즌\(dozn\)/);
   const direction = buildCareerDemoReply({ workflowStage: "direction", selectedQuestion: question, messages: [{ role: "user", content: "데이터 정확성과 협업을 강조하고 싶어요" }] }, projects);
   assert.equal(parseAssistantProtocol(direction.protocol).stage, "draft");
   assert.equal(parseAssistantProtocol(direction.protocol).answer, "");
@@ -110,12 +112,12 @@ test("explicit draft requests work from the first direction stage", () => {
   const parsed = parseAssistantProtocol(reply.content + "\n" + reply.protocol);
   assert.equal(parsed.stage, "refine");
   assert.match(parsed.answer, /헬로프렌즈/);
-  assert.match(parsed.answer, /아카넷/);
+  assert.match(parsed.answer, /더즌/);
   assert.equal(parsed.ready, false);
   assert.ok(parsed.answer.length <= 700);
 });
 
-test("question-specific drafts fit the form, stay on the Acanet target and keep the shared numbers", () => {
+test("question-specific drafts fit the form, stay on the dozn target and keep the shared numbers", () => {
   const titles = ["자기소개", "지원동기", "입사 후 포부", "장점과 단점", "성장 과정", "협업 경험", "도전 경험", "갈등 경험", "직무 역량", "대표 프로젝트", "자유 문항"];
   const answers = titles.map((title) => {
     const reply = buildCareerDemoReply({ workflowStage: "draft", selectedQuestion: { title, maxChars: 600 } }, projects);
@@ -123,7 +125,7 @@ test("question-specific drafts fit the form, stay on the Acanet target and keep 
     assert.ok(parsed.answer.length > 300 && parsed.answer.length <= 600, `${title}: ${parsed.answer.length}`);
     assert.equal(parsed.competency, true);
     assert.equal(parsed.ready, false);
-    assert.doesNotMatch(parsed.answer, /클래스101|결제|정산|어린 시절/);
+    assert.doesNotMatch(parsed.answer, /아카넷|학사|수강신청|클래스101|어린 시절|경력/);
     return parsed.answer;
   });
   assert.equal(new Set(answers).size, titles.length); // An unknown title still gets its own direct answer.
@@ -138,13 +140,13 @@ test("a requested project switches the evidence only when it was selected", () =
   assert.doesNotMatch(parseAssistantProtocol(onlyHello.protocol).answer, /티니타이거|블레이버스/);
 });
 
-test("refinement preserves the user's edited content and ties it to Acanet", () => {
+test("refinement preserves the user's edited content and ties it to dozn", () => {
   const currentAnswer = "저는 문서 구조를 먼저 확인했습니다. 사용자가 근거를 찾을 수 있게 했어요.";
   const reply = buildCareerDemoReply({ operation: "tone", workflowStage: "refine", selectedQuestion: question, currentAnswer }, projects);
   const answer = parseAssistantProtocol(reply.protocol).answer;
   assert.match(answer, /문서 구조를 먼저 확인했습니다/);
   assert.match(answer, /찾을 수 있게 했습니다/);
-  assert.match(answer, /아카넷에서도/);
+  assert.match(answer, /더즌에서도/);
   assert.doesNotMatch(answer, /해커톤/);
 });
 
@@ -164,7 +166,7 @@ test("the suggested stronger-opening action changes the opening and preserves ex
   const currentAnswer = "저는 개발자입니다. 헬로프렌즈에서 문서 검색과 근거 제시를 구현했습니다.";
   const reply = buildCareerDemoReply({ workflowStage: "refine", operation: "tone", selectedQuestion: question, currentAnswer, messages: [{ role: "user", content: "첫 문장을 더 강하게 바꿔줘" }] }, projects);
   const answer = parseAssistantProtocol(reply.protocol).answer;
-  assert.ok(answer.startsWith("매일 쓰던 학사시스템을"));
+  assert.ok(answer.startsWith("거래 인프라는 보이지 않게"));
   assert.ok(answer.includes("헬로프렌즈에서 문서 검색과 근거 제시를 구현했습니다."));
   assert.ok(!answer.includes("저는 개발자입니다."));
 });
@@ -252,8 +254,8 @@ test("question titles map to the right answer type, including custom and combine
     ["자기소개", ["introduction"]],
     ["Tell us about yourself", ["introduction"]],
     ["지원동기", ["motivation"]],
-    ["왜 아카넷에 지원했나요?", ["motivation"]],
-    ["아카넷에 지원한 이유", ["motivation"]],
+    ["왜 더즌에 지원했나요?", ["motivation"]],
+    ["더즌에 지원한 이유", ["motivation"]],
     ["입사 후 포부", ["goal"]],
     ["10년 후 나의 모습", ["goal"]],
     ["목표를 세우고 달성한 경험", ["challenge"]],
@@ -265,7 +267,7 @@ test("question titles map to the right answer type, including custom and combine
     ["팀 프로젝트 경험", ["collaboration"]],
     ["팀 내 갈등을 해결한 경험", ["conflict"]],
     ["본인의 가치관", ["growth"]],
-    ["아카넷에 대해 아는 것을 쓰시오", ["company"]],
+    ["더즌에 대해 아는 것을 쓰시오", ["company"]],
     ["지원동기 및 입사 후 포부", ["motivation", "goal"]],
     ["성장과정 및 장단점", ["growth", "strength"]],
     ["문제 해결·협업 경험", ["challenge", "collaboration"]],
@@ -280,10 +282,10 @@ test("custom titles get an on-topic answer, never another category's template", 
     parseAssistantProtocol(buildCareerDemoReply({ workflowStage: "draft", selectedQuestion: { title, maxChars: 700 } }, projects).protocol).answer;
   assert.match(answer("실패를 극복한 경험"), /첫 성적표|기대에 못 미쳤습니다/);
   assert.match(answer("실패를 극복한 경험"), /150문항/);
-  assert.match(answer("아카넷에 대해 아는 것"), /2009년|aXis Platform/);
+  assert.match(answer("더즌에 대해 아는 것"), /거래 인프라|스테이블코인/);
   assert.match(answer("목표를 세우고 달성한 경험"), /^어려운 문제/);
   const combined = answer("지원동기 및 입사 후 포부");
-  assert.match(combined, /수강신청/);
+  assert.match(combined, /결제와 정산/);
   assert.match(combined, /1년 안에는|3년 뒤에는/);
   assert.ok(combined.length <= 700);
 });
@@ -301,12 +303,12 @@ test("the presenter's '자소서 완성본 보내줘' right after the intro retu
   }
   const intro = conversation("자기소개", 500).send("자소서 완성본 보내줘");
   assert.match(intro.description, /완성본을 작성했습니다/);
-  for (const fact of ["김정환", "부천대학교", "컴퓨터소프트웨어과", "2027년 2월", "SQLD", "정보처리산업기사", "데이터의 근거를 끝까지 확인", "아카넷"]) {
+  for (const fact of ["김디벗", "부천대학교", "컴퓨터소프트웨어과", "2027년 2월", "SQLD", "정보처리산업기사", "데이터의 근거를 끝까지 확인", "더즌"]) {
     assert.ok(intro.answer.includes(fact), fact);
   }
   assert.ok(["헬로프렌즈", "티니타이거", "블레이버스"].filter((name) => intro.answer.includes(name)).length >= 2);
   const motivation = conversation("지원동기", 700).send("자소서 완성본 보내줘");
-  for (const fact of ["수강신청", "학사시스템", "URP/CRP", "aXis Platform", "Vizabridge", "1,200건", "아카넷"]) {
+  for (const fact of ["결제와 정산", "보이지 않게", "본업에 집중", "Vizabridge", "1,200건", "더즌에 지원"]) {
     assert.ok(motivation.answer.includes(fact), fact);
   }
   // Both answers are shown side by side: no repeated sentence, no long copied phrase.
@@ -360,7 +362,7 @@ test("after 적용하기 every edit request visibly changes the answer and never
     ["더 구체적으로 써줘", (before, after) => assert.ok(sentencesOf(after).some((sentence) => !before.includes(sentence)))],
     ["근거를 보강해줘", (before, after) => assert.ok(sentencesOf(after).some((sentence) => !before.includes(sentence)))],
     ["숫자 강조해줘", (_, after) => assert.match(sentencesOf(after)[0], /87%|131/)],
-    ["공고 키워드 넣어줘", (_, after) => assert.ok(/전자정부/.test(after) && /SQL/.test(after) && /Java/.test(after) && /통합정보시스템/.test(after))],
+    ["공고 키워드 넣어줘", (_, after) => assert.ok(/Spring/.test(after) && /SQL/.test(after) && /Java/.test(after) && /펌뱅킹|가상계좌/.test(after))],
     ["다른 프로젝트로 바꿔줘", (before, after) => assert.notEqual(mainProjectName(after), mainProjectName(before))],
     ["1000자로 늘려줘", (before, after) => assert.ok(after.length > before.length && after.length <= 1000)],
     // Already at the requested size: the answer still changes (a sharper sentence replaces a weaker one).
@@ -458,7 +460,7 @@ test("갈등 해결 tells a real conflict and its compromise; sibling questions 
     const shared = sentencesOf(draft(a)).filter((sentence) => sentencesOf(draft(b)).includes(sentence));
     assert.deepEqual(shared, [], `${a} / ${b}`);
   }
-  const context = "[기업] ㈜아카넷\n[직무] 웹개발자\n\n[문항 정보]\n1. 지원동기 (700자)\n2. 직무 역량 (800자)\n3. 도전 경험 (700자)\n4. 문제 해결·협업 경험 (700자)";
+  const context = "[기업] 더즌(dozn)\n[직무] 백엔드 개발자\n\n[문항 정보]\n1. 지원동기 (700자)\n2. 직무 역량 (800자)\n3. 도전 경험 (700자)\n4. 문제 해결·협업 경험 (700자)";
   const main = (title: string) => mainProjectName(draft(title, context));
   assert.equal(main("직무 역량"), "헬로프렌즈");
   assert.notEqual(main("도전 경험"), "헬로프렌즈");
@@ -480,11 +482,11 @@ test("drafts fill 80-90% of the form at common limits and stay within long ones"
 });
 
 test("fitting drops a leaning sentence together with the sentence it leans on, and keeps the conclusion", () => {
-  const text = "도입 문장입니다. 수강신청 날마다 시간표가 겹친다는 사실을 신청 직전에야 알게 되곤 했습니다. 그때마다 미리 검사할 수 없을까 생각했습니다. 결론 문장입니다.";
+  const text = "도입 문장입니다. 정산 마감 날마다 금액이 맞지 않는다는 사실을 마감 직전에야 알게 되곤 했습니다. 그때마다 미리 검사할 수 없을까 생각했습니다. 결론 문장입니다.";
   const fitted = fitCareerDemoAnswer(text, 40);
   assert.ok(fitted.length <= 40);
   assert.ok(fitted.endsWith("결론 문장입니다."));
-  assert.ok(!fitted.includes("그때마다") || fitted.includes("수강신청 날마다"));
+  assert.ok(!fitted.includes("그때마다") || fitted.includes("정산 마감 날마다"));
 });
 
 test("long question titles are shortened in the assistant's prose", () => {
@@ -560,12 +562,12 @@ test("tailored resume keeps the user's items and order while rewriting matched c
   });
   const result = buildCareerDemoResumeResult(current, "");
   const next = result.resumePayload;
-  assert.equal(result.title, "김정환 - ㈜아카넷 웹개발자(Java) 맞춤 이력서");
-  assert.deepEqual(result.applicationTarget.company, "㈜아카넷");
-  assert.equal(result.applicationTarget.role, "웹개발자(Java) 신입");
-  assert.ok(result.applicationTarget.jobDescription.includes("aXis Platform"));
+  assert.equal(result.title, "김디벗 - 더즌(dozn) 백엔드 개발자(신입) 맞춤 이력서");
+  assert.deepEqual(result.applicationTarget.company, "더즌(dozn)");
+  assert.equal(result.applicationTarget.role, "백엔드 개발자(개발본부) 신입");
+  assert.ok(result.applicationTarget.jobDescription.includes("펌뱅킹·가상계좌"));
   assert.ok(result.fitSummary.length >= 3 && result.fitSummary.length <= 4);
-  assert.equal(next.personalInfo.name, "김정환");
+  assert.equal(next.personalInfo.name, "김디벗");
   assert.equal(next.personalInfo.email, "dibut2026@dibut.kr");
   assert.ok(next.selfIntroduction.length <= 50); // longer text would be copied into the cover-letter pool
   assert.deepEqual(next.experience.map((item) => item.id), ["exp-tiny", "exp-other"]);
@@ -585,14 +587,14 @@ test("resume coach demo keeps raw fields and answers by request type", () => {
   assert.deepEqual(polished.timeline, [{ id: "t1" }]);
   assert.equal(polished.selfIntroduction, "유지");
   assert.ok(buildCareerDemoCoachRefinement("더 짧게 줄여줘").length < 900);
-  assert.match(buildCareerDemoCoachRefinement("아카넷에 더 맞춰줘"), /전자정부 표준프레임워크로 수강신청 예제/);
+  assert.match(buildCareerDemoCoachRefinement("더즌에 더 맞춰줘"), /Spring Boot와 JPA로 송금 API/);
   assert.equal(getCareerDemoStrengthSuggestions().length, 4);
   assert.match(buildCareerDemoProjectStory("칸반 실시간 동기화 - 티니타이거"), /버전 값/);
   assert.match(buildCareerDemoProjectStory(""), /Vizabridge/);
 });
 
 const pages = [
-  { id: "p-cover", type: "cover", title: "김정환 포트폴리오", subtitle: "", narrative: "", emphasis: ["Java", "RAG"], blocks: [{ id: "b-m", type: "metric" }] },
+  { id: "p-cover", type: "cover", title: "김디벗 포트폴리오", subtitle: "", narrative: "", emphasis: ["Java", "RAG"], blocks: [{ id: "b-m", type: "metric" }] },
   {
     id: "p-hello",
     type: "project-detail",
@@ -611,7 +613,7 @@ const ALLOWED_FIELDS = ["title", "subtitle", "eyebrow", "intent", "narrative", "
 
 test("portfolio AI edit demo builds safe patches from the real pages", () => {
   const ids = new Set(pages.map((page) => page.id));
-  const tone = buildCareerDemoPortfolioEdit({ pages, activePageId: "p-hello", message: "아카넷 공고에 맞게 다듬어줘" });
+  const tone = buildCareerDemoPortfolioEdit({ pages, activePageId: "p-hello", message: "더즌 공고에 맞게 다듬어줘" });
   assert.equal(tone.patches.length, 1);
   const patch = tone.patches[0] as { op: string; pageId: string; fields: Record<string, string> };
   assert.equal(patch.op, "patch_page");
@@ -619,7 +621,7 @@ test("portfolio AI edit demo builds safe patches from the real pages", () => {
   assert.ok(Object.keys(patch.fields).every((key) => ALLOWED_FIELDS.includes(key)));
   assert.match(patch.fields.subtitle, /1,200건/);
   assert.match(patch.fields.narrative, /^첫 문장입니다\. 둘째 문장입니다\. 이 경험은/);
-  assert.match(tone.reply, /㈜아카넷/);
+  assert.match(tone.reply, /더즌\(dozn\)/);
 
   const cover = buildCareerDemoPortfolioEdit({ pages, activePageId: "p-hello", message: "표지 톤 부드럽게" });
   assert.equal(cover.patches[0].pageId, "p-cover");

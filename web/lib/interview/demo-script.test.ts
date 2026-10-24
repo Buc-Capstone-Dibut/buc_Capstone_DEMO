@@ -27,9 +27,10 @@ test("finds the scripted answer from the shown question, tolerating STT-style dr
   assert.equal(findDemoScriptAnswer("오늘 점심 메뉴는 무엇인가요"), null);
 });
 
-test("only Acanet sessions use the script", () => {
-  assert.equal(isDemoScriptJobPayload({ company: "㈜아카넷" }), true);
-  assert.equal(isDemoScriptJobPayload({ demoScript: "acanet-2026-web" }), true);
+test("only dozn sessions use the script", () => {
+  assert.equal(isDemoScriptJobPayload({ company: "더즌(dozn)" }), true);
+  assert.equal(isDemoScriptJobPayload({ company: "DOZN" }), true);
+  assert.equal(isDemoScriptJobPayload({ demoScript: "dozn-2026-backend" }), true);
   assert.equal(isDemoScriptJobPayload({ company: "클래스101" }), false);
   assert.equal(isDemoScriptJobPayload(null), false);
 });
