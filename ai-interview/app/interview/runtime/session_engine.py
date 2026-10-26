@@ -12,7 +12,12 @@ from fastapi import WebSocket
 
 from app.interview.domain.turn_text import sanitize_user_turn_text, score_user_transcript_text
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
-from app.interview.runtime.live_turns import prepare_live_user_followup, prepare_live_user_request
+from app.interview.runtime.live_turns import (
+    is_demo_script_state,
+    prepare_live_user_followup,
+    prepare_live_user_request,
+    rollback_demo_script_cursor,
+)
 from app.interview.runtime.orchestration import (
     build_voice_model_turn_payload,
     build_voice_user_turn_payload,
@@ -747,6 +752,8 @@ async def process_user_utterance(
     user_turn_started_at = time.monotonic()
     utterance_duration_ms = deps.estimate_wav_duration_ms(wav_bytes)
     effective_vad_meta = dict(vad_meta or state.last_vad_event or {})
+    claimed_script_line_index = -1
+    claimed_script_turn_id = ""
 
     try:
         if state.active_question_turn_id:
@@ -759,7 +766,8 @@ async def process_user_utterance(
         await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
         await deps.send_runtime_meta_snapshot(ws, state)
 
-        architecture = _runtime_architecture(deps)
+        # 시연 고정 대본은 대사를 서버가 정하므로 live-only(라이브 모델이 질문 생성) 경로를 쓰지 않는다.
+        architecture = "hybrid" if is_demo_script_state(state) else _runtime_architecture(deps)
         optimistic_user_turn_id = (
             (state.live_input_turn_id or "").strip()
             or deps.next_ai_turn_id(state.session_id)
@@ -959,6 +967,11 @@ async def process_user_utterance(
             await deps.resume_listening(ws, state)
             return
 
+        if user_followup_spec.script_line_index >= 0:
+            # 답변이 수락된 시점에 대본 커서를 동기적으로 1칸 전진한다(재요청/에코/무음 턴은 여기 오지 않음).
+            claimed_script_line_index = user_followup_spec.script_line_index
+            claimed_script_turn_id = next_turn_id
+            state.demo_script_cursor = claimed_script_line_index + 1
         state.last_answer_quality_hint = (
             "" if transcription_missing else deps.build_answer_quality_hint(user_text)
         )
@@ -1068,6 +1081,11 @@ async def process_user_utterance(
         )
         _clear_live_input_stream_state(state)
         if not followup_generated:
+            rollback_demo_script_cursor(
+                state,
+                claimed_line_index=claimed_script_line_index,
+                turn_id=claimed_script_turn_id,
+            )
             logger.warning(
                 "followup generation finished without deliverable turn; reopening listening state (session=%s)",
                 state.session_id,
@@ -1081,6 +1099,11 @@ async def process_user_utterance(
             )
             await deps.resume_listening(ws, state)
     except Exception as exc:
+        rollback_demo_script_cursor(
+            state,
+            claimed_line_index=claimed_script_line_index,
+            turn_id=claimed_script_turn_id,
+        )
         logger.exception("voice turn processing error", extra={"session_id": state.session_id})
         sent = await deps.send_json(
             ws,

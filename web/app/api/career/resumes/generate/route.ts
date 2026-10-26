@@ -5,6 +5,9 @@ import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
 import type { ResumePayload } from "@/app/my/[handle]/profile-types";
 import { normalizeResumePayload } from "@/app/my/[handle]/profile-utils";
 import { getPortfolioSourceData } from "@/lib/server/career-portfolios";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { buildCareerDemoResumeResult } from "@/lib/career/demo/resume";
+import { waitForDemo } from "@/lib/career/demo/stream";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -109,19 +112,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!hasGeminiTextBackend()) {
-      return NextResponse.json(
-        { success: false, error: "AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다." },
-        { status: 500 },
-      );
-    }
-
     const body = await req.json();
     const currentPayload = normalizeResumePayload(body.currentPayload);
     const targetCompany = String(body.targetCompany || "").trim();
     const targetRole = String(body.targetRole || "").trim();
     const jobDescription = String(body.jobDescription || "").trim();
     const strengths = String(body.strengths || "").trim();
+
+    if (isCareerDemoEnabled()) {
+      await waitForDemo(4000, req.signal);
+      return NextResponse.json({
+        success: true,
+        data: buildCareerDemoResumeResult(currentPayload, jobDescription),
+      });
+    }
+
+    if (!hasGeminiTextBackend()) {
+      return NextResponse.json(
+        { success: false, error: "AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다." },
+        { status: 500 },
+      );
+    }
 
     if (!targetCompany && !targetRole) {
       return NextResponse.json(

@@ -1197,6 +1197,16 @@ export default function InterviewResultPage() {
           reportJobNotEnqueuedYet(nextDetail)
         ) {
           nextDetail = await recoverInterruptedSession(nextDetail);
+          // /complete 가 리포트를 즉시 저장해 끝낸 경우(시연 고정 대본 세션: status=done)엔
+          // 5초 폴링을 기다리지 않고 바로 다시 불러와 리포트를 보여준다.
+          if (String(nextDetail.reportStatus || "") === "done" && !hasOfficialInterviewReport(nextDetail)) {
+            const refreshed = await fetch(`/api/interview/sessions/${resolvedSessionId}`, { cache: "no-store" })
+              .then((response) => response.json())
+              .catch(() => null);
+            if (refreshed?.success && refreshed?.data) {
+              nextDetail = refreshed.data as SessionDetail;
+            }
+          }
         }
 
         if (cancelled) return;

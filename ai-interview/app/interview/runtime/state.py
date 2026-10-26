@@ -131,6 +131,9 @@ class VoiceWsState:
     estimated_total_questions: int = estimated_total_questions(DEFAULT_TARGET_DURATION_SEC)
     closing_announced: bool = False
     model_turn_count: int = 0
+    # 시연 고정 대본(domain/demo_script) 세션 전용 — 다음에 보낼 대본 줄 인덱스.
+    # 수락된 지원자 답변마다 동기적으로 1칸 전진한다(턴 전달 실패 시 되돌림).
+    demo_script_cursor: int = 0
     llm_stream_mode: str = "delta"
     tts_mode: str = "server"
     runtime_mode: str = "live-single"

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from app.interview.domain.demo_script import demo_script_cursor_from_model_turns
 from app.interview.runtime.state import VoiceWsState
 
 logger = logging.getLogger("dibut.hydrate")
@@ -110,6 +111,8 @@ def hydrate_state_from_turns(
             turn_index=turn.get("turn_index"),
             created_at=turn.get("created_at"),
         )
+
+    state.demo_script_cursor = demo_script_cursor_from_model_turns(state.model_turn_count)
 
     for turn in state.turn_history:
         payload = turn.get("payload") if isinstance(turn.get("payload"), dict) else {}

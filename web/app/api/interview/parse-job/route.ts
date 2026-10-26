@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { getCareerDemoJobPosting, isCareerDemoEnabled, isCareerDemoJobUrl } from "@/lib/career/demo/job-posting";
+import { getCareerDemoJobPosting, isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
 import { waitForDemo } from "@/lib/career/demo/stream";
 
 const AI_BASE_URL = process.env.AI_INTERVIEW_BASE_URL || "http://localhost:8001";
@@ -23,7 +23,8 @@ async function getUserIdFromSession(): Promise<string | null> {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    if (body.source === "career" && isCareerDemoEnabled() && isCareerDemoJobUrl(body.url)) {
+    // Demo: every caller (career dialog, interview setup, parser test) gets the dozn posting.
+    if (isCareerDemoEnabled()) {
       await waitForDemo(1500, req.signal);
       return NextResponse.json(
         { success: true, data: getCareerDemoJobPosting() },

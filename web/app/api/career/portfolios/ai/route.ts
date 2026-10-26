@@ -18,6 +18,8 @@ import {
   type PortfolioSourceData,
   type PortfolioTemplateId,
 } from "@/lib/career-portfolios";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { waitForDemo } from "@/lib/career/demo/stream";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +103,11 @@ function preserveGeneratedMedia(
 }
 
 async function generateText(prompt: string) {
+  // 시연 모드: Gemini 를 호출하지 않는다. 빈 JSON 이라 각 action 의 기존 폴백(기본 문서·원문 유지)이 쓰인다.
+  if (isCareerDemoEnabled()) {
+    await waitForDemo(1500);
+    return "{}";
+  }
   // Vertex(GCP 크레딧) 우선, 없으면 AI Studio 키로 폴백 (gemini-text 어댑터)
   return generateGeminiText({ model: "gemini-2.5-flash", prompt });
 }

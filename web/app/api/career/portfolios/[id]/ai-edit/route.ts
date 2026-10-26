@@ -14,6 +14,9 @@ import {
   portfolioDelegate,
   type PortfolioRow,
 } from "@/lib/server/career-portfolios";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { buildCareerDemoPortfolioEdit } from "@/lib/career/demo/portfolio";
+import { waitForDemo } from "@/lib/career/demo/stream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,7 +149,8 @@ export async function POST(
   const message = (body.message || "").trim();
   if (!message) return NextResponse.json({ error: "메시지가 비어 있습니다." }, { status: 400 });
 
-  if (!hasGeminiTextBackend()) {
+  const demo = isCareerDemoEnabled();
+  if (!demo && !hasGeminiTextBackend()) {
     return NextResponse.json(
       { error: "AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다." },
       { status: 503 },
@@ -303,12 +307,17 @@ JSON 하나만 반환:
 
   try {
     // 블록 단위 ops 는 구조적 작업 — temperature 낮춰 결정적으로. Vertex 우선.
-    const responseText = await generateGeminiText({
-      model: "gemini-2.5-flash",
-      prompt,
-      temperature: 0.3,
-      topP: 0.85,
-    });
+    // 시연 모드: 실제 페이지 id 로 만든 준비된 편집안을 같은 sanitizer 에 통과시킨다.
+    const responseText = demo
+      ? await waitForDemo(2500, request.signal).then(() =>
+          JSON.stringify(buildCareerDemoPortfolioEdit({ pages: allPages, activePageId: body.activePageId, message })),
+        )
+      : await generateGeminiText({
+          model: "gemini-2.5-flash",
+          prompt,
+          temperature: 0.3,
+          topP: 0.85,
+        });
     const parsed = extractJsonObject(responseText);
     if (!parsed) {
       return NextResponse.json(

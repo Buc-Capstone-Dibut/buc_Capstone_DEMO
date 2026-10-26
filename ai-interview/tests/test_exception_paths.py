@@ -186,6 +186,49 @@ class CompleteEnqueueFailurePathTests(unittest.TestCase):
         self.assertEqual(result["data"]["reportStatus"], "pending")
 
 
+class CompleteDemoScriptInlineReportTests(unittest.TestCase):
+    """시연 고정 대본 세션은 /complete 안에서 리포트를 바로 저장하고 잡을 done 으로 돌려준다."""
+
+    def setUp(self) -> None:
+        import app.api.interview as interview_api
+
+        self.interview_api = interview_api
+
+    def test_demo_session_report_is_saved_before_complete_returns(self) -> None:
+        import asyncio
+        from unittest.mock import MagicMock
+
+        session = {
+            "id": "sess-demo",
+            "status": "completed",
+            "session_type": "live_interview",
+            "job_payload": {"company": "더즌(dozn)", "role": "백엔드 개발자", "demoScript": "dozn-2026-backend"},
+            "target_duration_sec": 900,
+            "report_completed_at": None,
+        }
+        turns = [{"role": "model", "content": "질문"}, {"role": "user", "content": "답변"}]
+        service = self.interview_api.service
+        save_report = MagicMock()
+        complete_job = MagicMock()
+        with patch.object(service, "get_session", return_value=session), patch.object(
+            service, "get_turns", return_value=turns
+        ), patch.object(service, "get_report_job", return_value=None), patch.object(
+            service, "get_recording_signals", return_value=None
+        ), patch.object(service, "save_report", save_report), patch.object(
+            service, "enqueue_report_job", return_value={"id": "job-demo", "status": "pending"}
+        ), patch.object(service, "complete_report_job", complete_job), patch.object(
+            self.interview_api, "get_gemini_service", side_effect=AssertionError("no Gemini for demo")
+        ):
+            result = asyncio.run(self.interview_api.complete_session("sess-demo", x_user_id="user-1"))
+
+        self.assertEqual(result["data"]["reportStatus"], "done")
+        save_report.assert_called_once()
+        document = save_report.call_args.args[1]
+        self.assertIn("schemaVersion", document)
+        self.assertEqual(len(document["compatAnalysis"]["questionFindings"]), 13)
+        complete_job.assert_called_once_with("job-demo")
+
+
 class PreparedOpeningLiveExceptionTests(unittest.IsolatedAsyncioTestCase):
     """prepared_opening 내부 Live 예외가 500 대신 None(→ prepared:false) 으로 우아하게 처리되는지."""
 

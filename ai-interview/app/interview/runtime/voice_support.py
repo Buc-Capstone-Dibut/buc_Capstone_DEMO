@@ -206,6 +206,7 @@ def reset_voice_runtime_state(
     state.estimated_total_questions = estimated_total_questions(default_target_duration_sec)
     state.closing_announced = False
     state.model_turn_count = 0
+    state.demo_script_cursor = 0
     state.llm_stream_mode = llm_stream_mode
     state.tts_mode = tts_mode
     if state.pending_user_segment_task and not state.pending_user_segment_task.done():

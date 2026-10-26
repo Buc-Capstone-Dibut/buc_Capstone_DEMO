@@ -22,6 +22,7 @@ from app.schemas.interview import (
 )
 from app.services.interview_service import InterviewService
 from app.services.llm_gemini import GeminiService, RepoAnalysisError
+from app.interview.domain.demo_script import is_demo_script_session
 from app.interview.reporting import ReportAgent
 from app.interview.runtime.prepared_opening import prepare_opening_artifact_from_session
 from app.interview.runtime.prepared_opening_store import (
@@ -367,12 +368,26 @@ async def complete_session(
 
     report_enqueued = True
     report_job = await asyncio.to_thread(service.get_report_job, session_id)
+    session_type = str(session.get("session_type") or "live_interview")
+    report_done = str((report_job or {}).get("status") or "") == "done"
+    if is_demo_script_session(session.get("job_payload"), session_type) and not report_done:
+        # 시연 고정 대본 세션은 리포트가 미리 정해져 있으므로 워커 대기(최대 10초 백오프 + 5초 폴링) 없이
+        # 여기서 바로 저장해 결과 페이지가 처음 열릴 때 리포트가 보이게 한다. 실패하면 아래 일반 enqueue 로 넘어간다.
+        try:
+            report_job = await asyncio.to_thread(report_agent.save_demo_report_now, session_id, session_type)
+        except Exception:
+            logger.error(
+                "demo script inline report failed; falling back to report job (session=%s)",
+                session_id,
+                exc_info=True,
+            )
+            report_job = await asyncio.to_thread(service.get_report_job, session_id)
     if not report_job or str(report_job.get("status") or "") == "failed":
         try:
             report_job = await asyncio.to_thread(
                 service.enqueue_report_job,
                 session_id=session_id,
-                session_type=str(session.get("session_type") or "live_interview"),
+                session_type=session_type,
             )
         except Exception:
             # 세션 completed 는 유지하고 enqueue 실패만 흡수한다 —

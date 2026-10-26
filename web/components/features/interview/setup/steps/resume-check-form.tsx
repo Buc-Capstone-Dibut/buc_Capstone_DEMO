@@ -217,7 +217,7 @@ export function ResumeCheckForm({
             label="이름"
             value={safePersonalInfo.name}
             onChange={(v) => updatePersonal({ name: v })}
-            placeholder="예: 김정환"
+            placeholder="예: 김디벗"
           />
           <InlineRow
             label="이메일"
