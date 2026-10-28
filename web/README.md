@@ -122,6 +122,22 @@ npm run start
 npm run lint
 ```
 
+## 워크스페이스 콘솔 재개
+
+소유자 계정으로 종료한 워크스페이스의 상세 화면을 열고, 개발자 도구(F12)의 Console에 입력합니다.
+
+```js
+await workspaceControl.reopen()
+```
+
+현재 공간의 상태를 `IN_PROGRESS`로 바꾸고 `completed_at`을 비운 뒤 자동으로 새로고침합니다. 문서·보드·채팅·멤버·결과 정보와 기존 커리어 가져오기 후보·알림·평판 기록은 유지합니다. 이미 진행 중이면 DB를 변경하지 않고 화면만 새로고침합니다.
+
+명령은 소유자의 상세 화면에서만 등록됩니다. `POST /api/workspaces/[id]/reopen`도 서버에서 인증과 소유권을 확인하며, 삭제한 공간은 복구하지 않습니다. 응답은 `{ success: true, reopened: boolean, workspace: { id, lifecycle_status, completed_at } }`입니다. 별도 환경변수나 Render 서버 변경은 필요하지 않습니다.
+
+```bash
+npm run test:workspace
+```
+
 ## 면접 콘솔 모범답변
 
 면접 화면에서 개발자 도구(F12)의 Console에 입력합니다. 새로고침·화면 이동 후에는 다시 켜야 합니다.

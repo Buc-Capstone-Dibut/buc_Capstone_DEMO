@@ -182,7 +182,7 @@ export function NeonEditorialTemplate({
           opacity: 0,
           duration: 1.0,
           ease: "power3.out",
-          scrollTrigger: { trigger: el, start: "top 85%" },
+          scrollTrigger: { trigger: el, start: "clamp(top 85%)" },
         });
         scopedTriggers.push(t.scrollTrigger);
         scopedTriggers.push(t);
@@ -197,7 +197,7 @@ export function NeonEditorialTemplate({
             opacity: 0,
             duration: 0.8,
             ease: "power3.out",
-            scrollTrigger: { trigger: el, start: "top 88%" },
+            scrollTrigger: { trigger: el, start: "clamp(top 88%)" },
           });
           scopedTriggers.push(t.scrollTrigger);
           scopedTriggers.push(t);
@@ -212,7 +212,7 @@ export function NeonEditorialTemplate({
           duration: 0.8,
           stagger: 0.1,
           ease: "power3.out",
-          scrollTrigger: { trigger: strength, start: "top 85%" },
+          scrollTrigger: { trigger: strength, start: "clamp(top 85%)" },
         });
         scopedTriggers.push(t.scrollTrigger);
         scopedTriggers.push(t);
@@ -227,7 +227,7 @@ export function NeonEditorialTemplate({
           duration: 0.7,
           stagger: 0.07,
           ease: "power3.out",
-          scrollTrigger: { trigger: works, start: "top 85%" },
+          scrollTrigger: { trigger: works, start: "clamp(top 85%)" },
         });
         scopedTriggers.push(t.scrollTrigger);
         scopedTriggers.push(t);
@@ -240,19 +240,23 @@ export function NeonEditorialTemplate({
           opacity: 0,
           duration: 0.7,
           ease: "power3.out",
-          scrollTrigger: { trigger: el, start: "top 88%" },
+          scrollTrigger: { trigger: el, start: "clamp(top 88%)" },
         });
         scopedTriggers.push(t.scrollTrigger);
         scopedTriggers.push(t);
       });
 
       // -------- KPI count-up --------
+      // SSR 은 실제 값을 그려 두고(애니메이션 실패 시에도 숫자 노출), 여기서 0 으로 리셋 후 카운트업.
       root.querySelectorAll<HTMLElement>(".kpi-num").forEach((el) => {
-        const target = parseInt(el.dataset.count || "0", 10);
+        const target = Number(el.dataset.count);
+        if (!Number.isFinite(target)) return;
+        const decimals = (el.dataset.count?.split(".")[1] ?? "").length;
         const obj = { v: 0 };
+        el.textContent = (0).toFixed(decimals);
         const t = ScrollTrigger.create({
           trigger: el,
-          start: "top 85%",
+          start: "clamp(top 85%)",
           once: true,
           onEnter: () =>
             gsap.to(obj, {
@@ -260,7 +264,7 @@ export function NeonEditorialTemplate({
               duration: 2,
               ease: "power2.out",
               onUpdate: () => {
-                el.textContent = String(Math.round(obj.v));
+                el.textContent = obj.v.toFixed(decimals);
               },
             }),
         });
@@ -271,7 +275,7 @@ export function NeonEditorialTemplate({
       gsap.set(root.querySelectorAll(".contact-display .line > span"), { yPercent: 110 });
       const ct = ScrollTrigger.create({
         trigger: root.querySelector(".contact-display"),
-        start: "top 80%",
+        start: "clamp(top 80%)",
         once: true,
         onEnter: () =>
           gsap.to(root.querySelectorAll(".contact-display .line > span"), {
@@ -306,6 +310,21 @@ export function NeonEditorialTemplate({
       }
 
       ScrollTrigger.refresh();
+
+      // 폰트·이미지 로드로 레이아웃이 밀리면 trigger 위치가 어긋나 일부 요소가 opacity 0 에
+      // 머문다(공개 링크에서 글자/숫자가 군데군데 안 뜨던 원인). 크기 변화마다 위치 재계산.
+      let refreshRaf = 0;
+      const ro = new ResizeObserver(() => {
+        cancelAnimationFrame(refreshRaf);
+        refreshRaf = requestAnimationFrame(() => ScrollTrigger.refresh());
+      });
+      ro.observe(root);
+      scopedTriggers.push({
+        kill: () => {
+          cancelAnimationFrame(refreshRaf);
+          ro.disconnect();
+        },
+      });
     });
 
     return () => {
@@ -524,7 +543,7 @@ export function NeonEditorialTemplate({
                 <div className="kpi" key={i}>
                   <div className="kpi-num-wrap">
                     <span className="kpi-num" data-count={k.num}>
-                      0
+                      {k.num}
                     </span>
                     <span className="kpi-suffix">{k.suffix}</span>
                   </div>

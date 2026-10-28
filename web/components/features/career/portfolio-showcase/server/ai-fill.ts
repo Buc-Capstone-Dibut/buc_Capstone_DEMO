@@ -1,6 +1,10 @@
 import "server-only";
 
 import { generateGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { getCareerDemoShowcaseFill } from "@/lib/career/demo/portfolio";
+import { CAREER_DEMO_PERSONA } from "@/lib/career/demo/persona";
+import { waitForDemo } from "@/lib/career/demo/stream";
 import type { NeonEditorialContent } from "../templates/neon-editorial/types";
 import type { ProjectSnapshot } from "../shared/project-snapshot-types";
 
@@ -33,6 +37,20 @@ export async function aiFillNeonEditorialContent(input: {
   source: SeedSource;
   snapshots: ProjectSnapshot[];
 }): Promise<NeonEditorialContent> {
+  if (isCareerDemoEnabled()) {
+    // Presentation demo: prepared persona copy through the same merge path, after a realistic wait.
+    // 시연에서 "백그라운드에서 계속하기" → 챗봇 작업 현황까지 보여줄 수 있게 20초 정도 걸리게 한다.
+    await waitForDemo(20000);
+    const filled = mergeIntoContent(input.content, getCareerDemoShowcaseFill());
+    return {
+      ...filled,
+      hero: {
+        ...filled.hero,
+        jobTitle: "BACKEND DEVELOPER",
+        headlineLines: [CAREER_DEMO_PERSONA.name, "PORTFOLIO."],
+      },
+    };
+  }
   if (!hasGeminiTextBackend()) return input.content;
 
   // If the user has no projects selected, the LLM has nothing to work with
@@ -192,20 +210,25 @@ function mergeIntoContent(
       .slice(0, 8);
     if (arr.length) next.marqueeKeywords = arr;
   }
-  if (Array.isArray(ai.experience)) {
-    const arr = ai.experience
-      .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
-      .map((r) => ({
-        date: String(r.date ?? "").trim(),
-        title: String(r.title ?? "").trim(),
-        org: String(r.org ?? "").trim(),
-        bullets: Array.isArray(r.bullets)
-          ? r.bullets.filter((b): b is string => typeof b === "string" && b.trim().length > 0)
-          : [],
-      }))
-      .filter((r) => r.title || r.org);
-    if (arr.length) next.experience = arr;
-  }
+  const experience = toTimelineRows(ai.experience);
+  if (experience.length) next.experience = experience;
+  const education = toTimelineRows(ai.education);
+  if (education.length) next.education = education;
 
   return next;
+}
+
+function toTimelineRows(value: unknown): NeonEditorialContent["experience"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+    .map((r) => ({
+      date: String(r.date ?? "").trim(),
+      title: String(r.title ?? "").trim(),
+      org: String(r.org ?? "").trim(),
+      bullets: Array.isArray(r.bullets)
+        ? r.bullets.filter((b): b is string => typeof b === "string" && b.trim().length > 0)
+        : [],
+    }))
+    .filter((r) => r.title || r.org);
 }

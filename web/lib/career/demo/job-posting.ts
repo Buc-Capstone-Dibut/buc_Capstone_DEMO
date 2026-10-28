@@ -1,63 +1,49 @@
-// Public job snapshot for the agreed career demo. No account-specific data belongs here.
-export const CAREER_DEMO_JOB_URL = "https://www.wanted.co.kr/wd/387806";
+// Public job snapshot for the presentation demo. No account-specific data belongs here.
+export const CAREER_DEMO_JOB_URL = "https://www.wanted.co.kr/wd/392217";
 
+/** Demo is the default; `CAREER_AI_MODE=live` restores the real AI paths. */
 export function isCareerDemoEnabled(mode = process.env.CAREER_AI_MODE): boolean {
   return mode?.trim().toLowerCase() !== "live";
 }
 
-export function isCareerDemoJobUrl(value: unknown): boolean {
-  if (typeof value !== "string") return false;
-  try {
-    const url = new URL(value.trim());
-    return (
-      ["https:", "http:"].includes(url.protocol) &&
-      ["www.wanted.co.kr", "wanted.co.kr"].includes(url.hostname) &&
-      url.pathname.replace(/\/+$/, "") === "/wd/387806"
-    );
-  } catch {
-    return false;
-  }
-}
+export const CAREER_DEMO_COMPANY = "더즌(dozn)";
+export const CAREER_DEMO_ROLE = "백엔드 개발자 (개발본부) - 신입";
 
 export function getCareerDemoJobPosting() {
   return {
-    company: "클래스101(Class101)",
-    title: "백엔드 엔지니어 (Backend Engineer)",
+    company: CAREER_DEMO_COMPANY,
+    // Both consumers map `title` to the role field, so it carries the role, not the ad headline.
+    title: CAREER_DEMO_ROLE,
     description:
-      "클래스101은 크리에이터와 수강생을 연결하는 배움 플랫폼입니다. Payments & Payouts 팀은 결제·주문부터 크리에이터 정산·출금까지의 흐름을 개발하고 운영합니다. 상시채용 포지션입니다.",
-    techStack: [
-      "Java", "Kotlin", "Node.js", "Spring Boot", "AWS", "Kubernetes",
-      "Docker", "MongoDB", "MySQL", "React", "TypeScript", "Next.js", "GraphQL",
-    ],
+      "기업의 거래·정산·연결·확장을 설계하는 디지털 거래 인프라 기업입니다. 결제·인증·메시징과 생활밀착 플랫폼 기능을 하나로 연결해 고객이 본업에 집중할 수 있도록 돕고, 무인 환전·해외 비즈니스·스테이블코인 등 차세대 결제·정산 영역으로 사업을 넓히고 있습니다. 「개발본부 백엔드 개발자 (신입)」 공고로, 서울 서초구 강남대로 465 강남교보타워 22층에서 정규직으로 근무하며 수습 기간 3개월 동안에도 급여는 100% 지급됩니다. 지원 서류에는 더즌에 지원한 사유를 반드시 포함해 주세요.",
+    techStack: ["Java", "Spring Framework", "Spring Boot", "JPA", "MySQL", "REST API", "Batch(스케줄러)", "Git"],
     responsibilities: [
-      "클래스101의 결제·주문·정산·출금 시스템을 설계하고 개발합니다.",
-      "정기결제, 프로모션·쿠폰, 캐시 등 다양한 결제 정책을 안정적으로 구현합니다.",
-      "상품·배송 정보와 결제·주문 데이터가 일관되게 연결되도록 시스템을 개선합니다.",
-      "세금·공제, 환율·다중화폐 등 다양한 조건을 반영한 정산 시스템을 개발하고 운영합니다.",
-      "확장 가능한 데이터 모델과 API를 설계하고 운영 이슈의 원인을 분석합니다.",
+      "펌뱅킹·가상계좌 서비스를 개발하고 유지보수합니다.",
+      "금융기관·제휴기관 연동을 개발하고, 신규 기관과 서비스를 등록합니다.",
+      "관리자 페이지(admin)를 개발하고 유지보수합니다.",
+      "배치 스케줄러를 개발하고 운영합니다.",
+      "기존 시스템을 개선하고 반복 업무를 자동화합니다.",
     ],
     requirements: [
-      "백엔드 개발 경력 3년 이상 또는 그에 준하는 역량을 갖추신 분",
-      "비즈니스 요구사항을 이해하고 데이터 모델과 API를 설계할 수 있는 분",
-      "정확성과 일관성이 중요한 시스템을 안정적으로 개발·운영할 수 있는 분",
-      "문제의 특성에 맞는 기술을 선택하고 동료들과 설계·코드를 논의할 수 있는 분",
-      "담당 영역의 문제를 주도적으로 발견하고 끝까지 해결할 수 있는 분",
+      "컴퓨터공학 또는 관련 학과를 전공하신 분(졸업 예정자 포함)",
+      "Java 기본 지식과 Spring Framework 사용 경험이 있으신 분",
+      "객체지향 프로그래밍(OOP)을 이해하고 계신 분",
+      "Git 등 버전 관리 도구를 사용해 보신 분",
+      "SQL 등 데이터베이스 기본 지식을 갖추신 분",
     ],
     preferred: [
-      "결제·주문·정산·출금 시스템 또는 커머스 서비스 개발·운영 경험",
-      "PG·VAN 연동, 정기결제·환불 등 다양한 결제 흐름을 다룬 경험",
-      "금액·세금·공제 등 높은 데이터 정확성이 요구되는 도메인 경험",
-      "글로벌 서비스의 환율·다중화폐 처리 경험",
-      "대용량 데이터·트래픽 처리 및 마이크로서비스 아키텍처 경험",
-      "AWS·GCP 인프라 운영 또는 Redis를 활용한 서버 설계 경험",
+      "결제·정산·금융 도메인에 관심이 있으신 분",
+      "SQLD 등 데이터베이스 관련 자격증을 보유하신 분",
+      "트랜잭션·동시성 처리에 대한 이해가 있으신 분",
+      "배치·스케줄러를 개발하거나 운영해 보신 분",
+      "팀 프로젝트로 서비스를 끝까지 완성해 보신 분",
     ],
     culture: [
-      "스스로 사랑하는 일을 하며 높은 생산성과 효율성을 추구합니다.",
-      "DRI를 가진 사람이 주도적으로 결정하고 실행합니다.",
-      "모든 정보를 투명하게 공유하고 타운홀 미팅으로 주요 현안을 나눕니다.",
-      "근무 장소와 시간을 자율적으로 선택합니다.",
+      "고객을 위해, 서로를 배려하며, 끝까지 해내는 사람들과 함께합니다.",
+      "일할 때는 깊이 몰입하고, 쉴 때는 충분히 쉬는 리듬을 중요하게 여깁니다.",
+      "고객이 본업에 집중할 수 있도록 거래 인프라를 보이지 않게, 안정적으로 운영합니다.",
     ],
-    // The source says rolling recruitment. Do not reuse the stale deadline in saved copies.
-    schedules: [],
+    schedules: [{ kind: "deadline", title: "서류 접수 마감", startAt: "2026-11-30" }],
+    url: CAREER_DEMO_JOB_URL,
   };
 }

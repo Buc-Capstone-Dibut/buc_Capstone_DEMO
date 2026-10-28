@@ -34,6 +34,7 @@ import {
   registerJob,
   unregisterJob,
 } from "@/lib/server/portfolio-generation-jobs";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,7 +140,8 @@ async function generatePortfolioEvidenceBrief(input: {
   plan: PortfolioGenerationPlan;
 }): Promise<PortfolioEvidenceBrief> {
   const fallback = createFallbackPortfolioEvidenceBrief(input.source, input.plan);
-  if (!hasGeminiTextBackend()) return fallback;
+  // Demo mode uses the deterministic builders (driven by the selected projects) instead of Gemini.
+  if (isCareerDemoEnabled() || !hasGeminiTextBackend()) return fallback;
 
   const prompt = `너는 개발자 채용 포트폴리오를 만들기 전에 프로젝트를 면접용 케이스스터디로 해부하는 커리어 분석가다.
 목표는 빈약한 입력을 가능한 선에서 풍부하게 보강하되, 사용자가 제공하지 않은 사실/수치/성과/기술은 절대 만들지 않는 것이다.
@@ -200,7 +202,7 @@ async function generatePortfolioDraft(input: {
   plan: PortfolioGenerationPlan;
   evidenceBrief: PortfolioEvidenceBrief;
 }) {
-  if (!hasGeminiTextBackend()) return input.baseDocument;
+  if (isCareerDemoEnabled() || !hasGeminiTextBackend()) return input.baseDocument;
 
   const formatLabel =
     input.baseDocument.format === "document"
@@ -276,7 +278,7 @@ async function generatePortfolioSiteDraft(input: {
   plan: PortfolioGenerationPlan;
   evidenceBrief: PortfolioEvidenceBrief;
 }) {
-  if (!hasGeminiTextBackend()) return input.baseDocument;
+  if (isCareerDemoEnabled() || !hasGeminiTextBackend()) return input.baseDocument;
 
   // 템플릿별 가이드 — 같은 데이터라도 템플릿이 바뀌면 슬라이드 톤/구도가 달라야 한다.
   const templateGuide =
@@ -434,7 +436,7 @@ async function generatePortfolioPlan(input: {
   generationPreset: PortfolioDocument["generationPreset"];
 }): Promise<PortfolioGenerationPlan> {
   const fallbackPlan = createFallbackPortfolioGenerationPlan(input.source);
-  if (!hasGeminiTextBackend()) return fallbackPlan;
+  if (isCareerDemoEnabled() || !hasGeminiTextBackend()) return fallbackPlan;
 
   const template = getPortfolioTemplate(input.templateId);
   const formatLabel =
@@ -649,6 +651,9 @@ export async function GET(
       .catch(() => undefined);
   };
 
+  // Demo mode skips Gemini, so pace the stages (~9s total) to keep the progress UI meaningful.
+  const demoPause = (ms: number) => (isCareerDemoEnabled() ? sleep(ms) : Promise.resolve());
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -705,6 +710,7 @@ export async function GET(
 
         send("stage", { label: "프로젝트 데이터 분석 중", progress: 12 });
         persistStage("프로젝트 데이터 분석 중", 12, format, pageSize);
+        await demoPause(1800);
         const plan = await generatePortfolioPlan({
           source,
           templateId,
@@ -717,12 +723,14 @@ export async function GET(
 
         send("stage", { label: "프로젝트 근거 보강 중", progress: 28 });
         persistStage("프로젝트 근거 보강 중", 28, format, pageSize);
+        await demoPause(1800);
         const evidenceBrief = await generatePortfolioEvidenceBrief({ source, plan });
         send("evidence", { evidenceBrief });
         throwIfCancelled();
 
         send("stage", { label: "핵심 경험 정리 중", progress: 42 });
         persistStage("핵심 경험 정리 중", 42, format, pageSize);
+        await demoPause(1400);
         const baseDocument = polishPortfolioDocument(
           withPortfolioSampleImages(
             createDefaultPortfolioDocument(templateId, source, {
@@ -739,9 +747,11 @@ export async function GET(
 
         send("stage", { label: "대표 이미지 선택 중", progress: 52 });
         persistStage("대표 이미지 선택 중", 52, format, pageSize);
+        await demoPause(1000);
         const stage64Label = format === "site" ? "웹 슬라이드 페이지 구성 중" : "슬라이드 구성 설계 중";
         send("stage", { label: stage64Label, progress: 64 });
         persistStage(stage64Label, 64, format, pageSize);
+        await demoPause(2000);
         const generatedDocument =
           format === "site"
             ? await generatePortfolioSiteDraft({
@@ -764,8 +774,10 @@ export async function GET(
         const stage82Label = format === "site" ? "HTML 렌더링 블록 정돈 중" : "인포그래픽 배치 중";
         send("stage", { label: stage82Label, progress: 82 });
         persistStage(stage82Label, 82, format, pageSize);
+        await demoPause(900);
         send("stage", { label: "디자인 자동 정돈 중", progress: 90 });
         persistStage("디자인 자동 정돈 중", 90, format, pageSize);
+        await demoPause(700);
         if (polishedDocument.format !== "site") {
           for (const [index, section] of polishedDocument.sections.entries()) {
             // send 실패해도 (client disconnect) work 자체는 진행. break 안 함.

@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { streamGeminiText, hasGeminiTextBackend } from "@/lib/ai/gemini-text";
+import type { ResumePayload } from "@/app/my/[handle]/profile-types";
+import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
+import { buildCareerDemoProjectStory } from "@/lib/career/demo/cover-letter";
+import {
+    buildCareerDemoCoachRefinement,
+    getCareerDemoStrengthSuggestions,
+    polishCareerDemoResumeText,
+} from "@/lib/career/demo/resume";
+import { createCareerDemoStream, waitForDemo } from "@/lib/career/demo/stream";
 
 const AI_COACH_MODEL = "gemini-2.5-pro";
 
@@ -17,6 +26,33 @@ export async function POST(req: Request) {
 
         const body = await req.json();
         const { action, payload, message, backgroundContext } = body;
+
+        if (isCareerDemoEnabled()) {
+            if (action === "stadri-structure" || action === "chat-refine") {
+                const content = action === "chat-refine"
+                    ? buildCareerDemoCoachRefinement(message)
+                    : buildCareerDemoProjectStory(
+                        [JSON.stringify(payload ?? {}), typeof backgroundContext === "string" ? backgroundContext : ""].join("\n"),
+                    );
+                return createCareerDemoStream({ content, protocol: "" }, req.signal, {
+                    initialDelayMs: 1600,
+                    chunkDelayMs: 40,
+                    chunkSize: 14,
+                });
+            }
+            await waitForDemo(2500, req.signal);
+            if (action === "highlight") {
+                return NextResponse.json({ success: true, data: { suggestions: getCareerDemoStrengthSuggestions() } });
+            }
+            if (action === "refine" || action === "draft") {
+                return NextResponse.json({
+                    success: true,
+                    // Not normalized: the client replaces its whole payload, so timeline/attachments must survive.
+                    data: { updatedPayload: polishCareerDemoResumeText(payload as ResumePayload) },
+                });
+            }
+            return NextResponse.json({ success: true, data: { message: "Action not supported via stream in this route." } });
+        }
 
         if (!hasGeminiTextBackend()) {
             throw new Error("AI 백엔드(Vertex 또는 GEMINI_API_KEY)가 설정되지 않았습니다.");

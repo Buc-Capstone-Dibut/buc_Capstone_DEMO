@@ -55,6 +55,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { normalizeTeamType, TEAM_TYPE_OPTIONS } from "@/lib/team-types";
+import { DEMO_WORKSPACE_ID } from "@/lib/demo/workspace-demo";
 
 const formSchema = z.object({
   name: z.string().min(2, "팀 공간 이름은 2글자 이상이어야 합니다.").max(50),
@@ -105,6 +106,7 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverRemoving, setCoverRemoving] = useState(false);
+  const [demoResetting, setDemoResetting] = useState(false);
   const { data, isLoading } = useSWR(`/api/workspaces/${projectId}`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
@@ -311,6 +313,29 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
       );
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDemoReset = async () => {
+    try {
+      setDemoResetting(true);
+      const response = await fetch("/api/demo/workspace-reset", { method: "POST" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "시연 데이터 초기화에 실패했습니다.");
+      }
+      toast.success("시연 데이터를 처음 상태로 되돌렸습니다.");
+      void globalMutate(
+        (key) => typeof key === "string" && key.startsWith(`/api/workspaces/${projectId}`),
+      );
+      router.push(`/workspace/${projectId}`);
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "시연 데이터 초기화 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setDemoResetting(false);
     }
   };
 
@@ -610,6 +635,29 @@ export function WorkspaceSettingsView({ projectId }: { projectId: string }) {
               삭제
             </Button>
           </div>
+
+          {projectId === DEMO_WORKSPACE_ID && (
+            <>
+              <Separator />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-medium">시연 데이터 초기화</h4>
+                  <p className="text-sm text-muted-foreground leading-snug">
+                    칸반·문서·채팅을 시연 시작 상태로 되돌립니다.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="shrink-0 h-9"
+                  disabled={demoResetting}
+                  onClick={handleDemoReset}
+                >
+                  {demoResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  초기화
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

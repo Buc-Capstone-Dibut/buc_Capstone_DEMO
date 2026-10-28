@@ -5,7 +5,11 @@ import { streamText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getVertex, isVertexEnabled } from "@/lib/ai/vertex";
 import { isCareerDemoEnabled } from "@/lib/career/demo/job-posting";
-import { buildCareerDemoReply } from "@/lib/career/demo/cover-letter";
+import {
+  buildCareerDemoFullCoverLetter,
+  buildCareerDemoReply,
+  isCareerDemoPlainCoverLetterRequest,
+} from "@/lib/career/demo/cover-letter";
 import { createCareerDemoStream } from "@/lib/career/demo/stream";
 import { getCareerDemoProjects } from "@/lib/server/career-demo";
 
@@ -225,16 +229,15 @@ export async function POST(req: Request) {
     }
 
     if (isCareerDemoEnabled()) {
-      const projects = await getCareerDemoProjects(userId, body.targetJobPostingId, body.experienceIds);
-      if (projects) {
-        if (projects.length === 0) {
-          return NextResponse.json(
-            { success: false, error: "헬로프렌즈·티니타이거·블레이버스 중 사용할 프로젝트를 선택해 주세요." },
-            { status: 400 },
-          );
-        }
-        return createCareerDemoStream(buildCareerDemoReply(body, projects), req.signal);
+      if (isCareerDemoPlainCoverLetterRequest(body)) {
+        return createCareerDemoStream(buildCareerDemoFullCoverLetter(), req.signal, {
+          initialDelayMs: 1900,
+          chunkDelayMs: 40,
+          chunkSize: 14,
+        });
       }
+      const projects = await getCareerDemoProjects(userId, body.experienceIds);
+      return createCareerDemoStream(buildCareerDemoReply(body, projects), req.signal);
     }
 
     const serverChain = buildServerChain();

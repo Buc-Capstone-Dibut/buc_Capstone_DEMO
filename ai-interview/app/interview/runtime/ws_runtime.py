@@ -85,7 +85,7 @@ from app.interview.runtime.turn_entrypoints import (
     process_user_utterance as runtime_entrypoint_process_user_utterance,
     send_prepared_opening_live_turn as runtime_send_prepared_opening_live_turn,
 )
-from app.interview.runtime.live_turns import prepare_live_user_followup
+from app.interview.runtime.live_turns import is_demo_script_state, prepare_live_user_followup
 from app.interview.runtime.prepared_opening_store import consume_prepared_opening
 from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
 from app.interview.runtime.turn_ids import next_ai_turn_id
@@ -1270,6 +1270,9 @@ def _prefer_parallel_user_stream_text(previous: str, candidate: str) -> str:
 
 async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
     if not state.session_id:
+        return False
+    # 시연 고정 대본 세션은 라이브 모델이 답변 중에 질문을 선생성하지 않도록 입력 스트림을 열지 않는다.
+    if is_demo_script_state(state):
         return False
     if state.live_input_turn_active:
         return True
