@@ -9,12 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Briefcase,
+  Check,
   FolderKanban,
   Inbox,
   Loader2,
@@ -623,27 +623,28 @@ function ImportTwoPanel<T>({
               <li key={key}>
                 <button
                   type="button"
-                  onClick={() => onPreview(key)}
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    onPreview(key);
+                    onToggle(key);
+                  }}
                   className={cn(
-                    "w-full text-left flex items-start gap-2.5 rounded-lg p-2.5 transition-colors",
+                    "w-full text-left flex items-start gap-2.5 rounded-lg p-2.5 transition-colors cursor-pointer",
                     isPreviewed
                       ? "bg-primary/10 ring-1 ring-primary/30"
                       : "hover:bg-slate-100",
                   )}
                 >
                   <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggle(key);
-                    }}
-                    className="mt-0.5"
-                    role="presentation"
+                    className={cn(
+                      "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-transparent",
+                    )}
+                    aria-hidden
                   >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggle(key)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                    {isSelected ? <Check className="h-3 w-3" /> : null}
                   </span>
                   {renderListLabel(item)}
                 </button>
