@@ -56,6 +56,7 @@ import { RendererPicker } from "./renderer-picker";
 import { PortfolioSitePagesSidebar } from "./portfolio-site-pages-sidebar";
 import { PortfolioSiteAiChat, type AiPatch } from "./portfolio-site-ai-chat";
 import { PortfolioPdfPrinter } from "./portfolio-pdf-printer";
+import { PdfExportWaitModal } from "./pdf-export-wait-modal";
 import { toast } from "sonner";
 import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 
@@ -907,8 +908,10 @@ export function PortfolioEditorClient({
    * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
    */
   const [pdfPrinting, setPdfPrinting] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
   const handleExportPdf = async () => {
     setIsExporting(true);
+    setPdfProgress(8);
     let saved = false;
     try {
       saved = await handleSave();
@@ -925,6 +928,7 @@ export function PortfolioEditorClient({
   const handlePdfDone = () => {
     setPdfPrinting(false);
     setIsExporting(false);
+    setPdfProgress(0);
   };
 
   if (document.format === "site") {
@@ -979,7 +983,7 @@ export function PortfolioEditorClient({
               disabled={isSaving || isExporting || generation.active}
               title="PDF 다운로드"
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <Download className="h-4 w-4" />
               PDF
             </Button>
             <Button
@@ -1033,8 +1037,13 @@ export function PortfolioEditorClient({
           disabled={generation.active}
         />
         {/* PDF 출력 — PDF 버튼 클릭 시 마운트되어 PDF 파일 다운로드 */}
+        {isExporting ? <PdfExportWaitModal progress={pdfProgress} /> : null}
         {pdfPrinting ? (
-          <PortfolioPdfPrinter portfolioId={portfolio.id} onDone={handlePdfDone} />
+          <PortfolioPdfPrinter
+            portfolioId={portfolio.id}
+            onDone={handlePdfDone}
+            onProgress={setPdfProgress}
+          />
         ) : null}
       </div>
     );
@@ -1089,7 +1098,7 @@ export function PortfolioEditorClient({
             disabled={isSaving || isExporting || generation.active}
             title="PDF 다운로드"
           >
-            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <Download className="h-4 w-4" />
             PDF
           </Button>
           <Button
@@ -1162,6 +1171,14 @@ export function PortfolioEditorClient({
         </main>
 
       </div>
+      {isExporting ? <PdfExportWaitModal progress={pdfProgress} /> : null}
+      {pdfPrinting ? (
+        <PortfolioPdfPrinter
+          portfolioId={portfolio.id}
+          onDone={handlePdfDone}
+          onProgress={setPdfProgress}
+        />
+      ) : null}
     </div>
   );
 }

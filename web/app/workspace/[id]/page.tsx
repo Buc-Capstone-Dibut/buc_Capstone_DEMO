@@ -167,6 +167,7 @@ import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/
 import { useWorkspaceStore } from "@/components/features/workspace/store/mock-data";
 import { useSocketStore } from "@/components/features/workspace/store/socket-store";
 import { useAuth } from "@/hooks/use-auth";
+import { useWorkspaceConsole } from "@/hooks/use-workspace-console";
 import { runDocsBeforeLeaveHandler } from "@/lib/docs-before-leave";
 
 const ALLOWED_TABS = new Set([
@@ -212,6 +213,7 @@ const safeLocalStorageSet = (key: string, value: string) => {
 };
 
 type WorkspaceMeta = {
+  my_role?: string;
   read_only?: boolean;
   lifecycle_status?: "IN_PROGRESS" | "COMPLETED";
   result_type?: string | null;
@@ -257,6 +259,8 @@ export default function WorkspaceDetailPage() {
   );
   const isCompleted = workspaceMeta?.lifecycle_status === "COMPLETED";
   const hasWorkspaceMeta = Boolean(workspaceMeta);
+
+  useWorkspaceConsole(projectId, workspaceMeta?.my_role);
 
   useEffect(() => {
     // Preserve the split bundle while using the quiet moment after the shell

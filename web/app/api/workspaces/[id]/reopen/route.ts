@@ -1,46 +1,97 @@
 import { workspace_lifecycle_status } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { createRouteHandlerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
-// 종료된 팀 공간을 다시 진행 중으로 되돌린다. owner만 가능.
+const WORKSPACE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: workspaceId } = await params;
-  const supabase = createRouteHandlerClient({ cookies });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) {
+      return json({ error: "허용되지 않은 요청입니다." }, 403);
+    }
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return json({ error: "로그인이 필요합니다." }, 401);
+    }
+
+    const { id: workspaceId } = await params;
+    if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+      return json({ error: "워크스페이스 ID가 올바르지 않습니다." }, 400);
+    }
+
+    const membership = await prisma.workspace_members.findUnique({
+      where: {
+        workspace_id_user_id: {
+          workspace_id: workspaceId,
+          user_id: user.id,
+        },
+      },
+      select: { role: true },
+    });
+    if (membership?.role !== "owner") {
+      return json({ error: "워크스페이스 소유자만 재개할 수 있습니다." }, 403);
+    }
+
+    const workspace = await prisma.workspaces.findUnique({
+      where: { id: workspaceId },
+      select: { id: true, lifecycle_status: true, completed_at: true },
+    });
+    if (!workspace) {
+      return json({ error: "워크스페이스를 찾을 수 없습니다." }, 404);
+    }
+    if (workspace.lifecycle_status === workspace_lifecycle_status.IN_PROGRESS) {
+      return json({ success: true, reopened: false, workspace });
+    }
+
+    // Recheck ownership and completion in the write itself so stale or duplicate
+    // requests cannot change a workspace after its owner/state has changed.
+    const updated = await prisma.workspaces.updateMany({
+      where: {
+        id: workspaceId,
+        lifecycle_status: workspace_lifecycle_status.COMPLETED,
+        members: { some: { user_id: user.id, role: "owner" } },
+      },
+      data: {
+        lifecycle_status: workspace_lifecycle_status.IN_PROGRESS,
+        completed_at: null,
+      },
+    });
+    if (updated.count === 0) {
+      return json(
+        { error: "워크스페이스 상태 또는 권한이 변경되었습니다. 새로고침 후 다시 시도해 주세요." },
+        409,
+      );
+    }
+
+    return json({
+      success: true,
+      reopened: true,
+      workspace: {
+        id: workspaceId,
+        lifecycle_status: workspace_lifecycle_status.IN_PROGRESS,
+        completed_at: null,
+      },
+    });
+  } catch (error) {
+    console.error("API: Reopen Workspace Error", error);
+    return json({ error: "워크스페이스를 재개하지 못했습니다." }, 500);
   }
-
-  const membership = await prisma.workspace_members.findUnique({
-    where: {
-      workspace_id_user_id: { workspace_id: workspaceId, user_id: session.user.id },
-    },
-    select: { role: true },
-  });
-
-  if (!membership || membership.role !== "owner") {
-    return NextResponse.json(
-      { error: "Only the workspace owner can reopen it." },
-      { status: 403 },
-    );
-  }
-
-  const workspace = await prisma.workspaces.update({
-    where: { id: workspaceId },
-    data: {
-      lifecycle_status: workspace_lifecycle_status.IN_PROGRESS,
-      completed_at: null,
-    },
-    select: { id: true, lifecycle_status: true },
-  });
-
-  return NextResponse.json({ success: true, data: workspace });
 }
