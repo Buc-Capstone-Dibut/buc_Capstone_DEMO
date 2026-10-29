@@ -28,6 +28,7 @@ import { PortfolioSiteRenderer } from "@/components/features/career/portfolio-si
 type Props = {
   portfolioId: string;
   onDone: () => void;
+  onProgress?: (percent: number) => void;
 };
 
 const SLIDE_W_PX = 1120;
@@ -39,18 +40,25 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[\/\\?%*:|"<>]/g, "").trim();
 }
 
-export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
+export function PortfolioPdfPrinter({ portfolioId, onDone, onProgress }: Props) {
   const [document, setDocument] = useState<PortfolioDocument | null>(null);
   const [title, setTitle] = useState("portfolio");
   const [error, setError] = useState<string | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
-  // 부모 리렌더마다 onDone 이 새로 만들어져도 fetch/캡쳐가 재시작되지 않게 ref 로 보관.
+  // 부모 리렌더마다 콜백이 새로 만들어져도 fetch/캡쳐가 재시작되지 않게 ref 로 보관.
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
+  const reportProgress = (percent: number) => {
+    onProgressRef.current?.(Math.max(0, Math.min(99, Math.round(percent))));
+  };
 
   // 1) 문서 fetch
   useEffect(() => {
     let cancelled = false;
+    reportProgress(10);
     (async () => {
       try {
         const response = await fetch(`/api/career/portfolios/${portfolioId}`, {
@@ -67,6 +75,7 @@ export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
         if (cancelled) return;
         if (!payload.document) throw new Error("응답에 document 가 없어요");
         if (payload.item?.title) setTitle(payload.item.title);
+        reportProgress(16);
         setDocument(payload.document);
       } catch (e) {
         if (cancelled) return;
@@ -120,6 +129,7 @@ export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
           host.querySelectorAll<HTMLElement>(".portfolio-renderer-canvas > *"),
         );
         if (slides.length === 0) throw new Error("캡쳐할 슬라이드가 없어요");
+        reportProgress(20);
 
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
           import("html2canvas-pro"),
@@ -152,7 +162,9 @@ export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
             undefined,
             "FAST",
           );
+          reportProgress(20 + ((i + 1) / slides.length) * 76);
         }
+        reportProgress(98);
         pdf.setProperties({ title });
 
         const url = URL.createObjectURL(pdf.output("blob"));
@@ -200,12 +212,6 @@ export function PortfolioPdfPrinter({ portfolioId, onDone }: Props) {
 
   return (
     <>
-      <div
-        className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-[#d8e4d0] bg-white px-4 py-1.5 text-[12px] font-semibold text-slate-600 shadow-lg"
-        aria-live="polite"
-      >
-        PDF 준비 중…
-      </div>
       {/* 3) 화면 밖 캡쳐용 — 슬라이드마다 1120×630 고정 크기로 렌더 */}
       {document ? (
         <div ref={hostRef} className="portfolio-pdf-snapshot-host" aria-hidden>

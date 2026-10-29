@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { seedCareerSampleDataAction } from "../sample-data/actions";
 import type { UnifiedPortfolioItem } from "./types";
 import { PortfolioPdfPrinter } from "@/components/features/career/portfolio-editor/portfolio-pdf-printer";
+import { PdfExportWaitModal } from "@/components/features/career/portfolio-editor/pdf-export-wait-modal";
 import { PortfolioLivePreview } from "@/components/features/career/portfolio-editor/portfolio-live-preview";
 import { useBackgroundJobsStore } from "@/components/features/career/background-jobs/use-background-jobs-store";
 import { toast } from "sonner";
@@ -355,13 +356,16 @@ export default function PortfoliosClient({
    * (이전 PPTX 다운로드는 실용성 부족으로 PDF 로 교체)
    */
   const [pdfPortfolioId, setPdfPortfolioId] = useState<string | null>(null);
+  const [pdfProgress, setPdfProgress] = useState(0);
   const handleExportPdf = (portfolio: PortfolioListItem) => {
     setBusyExportId(portfolio.id);
+    setPdfProgress(8);
     setPdfPortfolioId(portfolio.id);
   };
   const handlePdfDone = () => {
     setPdfPortfolioId(null);
     setBusyExportId(null);
+    setPdfProgress(0);
   };
 
   const handleDelete = async (portfolio: PortfolioListItem) => {
@@ -547,7 +551,14 @@ export default function PortfoliosClient({
     <div className="mx-auto max-w-7xl px-4 pb-24 pt-10 sm:px-8 md:pt-16">
       {/* PDF 출력 — 클릭 시 마운트되어 native print 대화상자 띄움. 끝나면 unmount */}
       {pdfPortfolioId ? (
-        <PortfolioPdfPrinter portfolioId={pdfPortfolioId} onDone={handlePdfDone} />
+        <>
+          <PdfExportWaitModal progress={pdfProgress} />
+          <PortfolioPdfPrinter
+            portfolioId={pdfPortfolioId}
+            onDone={handlePdfDone}
+            onProgress={setPdfProgress}
+          />
+        </>
       ) : null}
       <div className="mb-8 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -1091,11 +1102,7 @@ function PortfolioDetail({
           aria-label="PDF 다운로드"
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
         >
-          {busyExportId === portfolio.id ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="h-3.5 w-3.5" />
-          )}
+          <Download className="h-3.5 w-3.5" />
           <span className="hidden md:inline">PDF</span>
         </button>
         <button
