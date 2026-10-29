@@ -156,6 +156,7 @@ interface InterviewSetupState {
     | "active_resume"
     | "user_resume"
     | "job_posting_attachment"
+    | "job_posting_target"
     | null;
 
   // JD Data
@@ -191,6 +192,7 @@ interface InterviewSetupState {
       | "active_resume"
       | "user_resume"
       | "job_posting_attachment"
+      | "job_posting_target"
       | null,
   ) => void;
   completeSetup: () => void;

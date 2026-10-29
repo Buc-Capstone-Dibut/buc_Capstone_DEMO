@@ -57,27 +57,41 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
       return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     }
 
-    // 우선순위: 첨부된 이력서 > 활성 이력서
+    // 우선순위: 첨부된 이력서 > 이 공고를 지원 대상으로 만든 이력서 > 활성 이력서
     let resumeData: { fileName: string; parsedContent: unknown } | null = null;
-    let resumePrefillSource: "job_posting_attachment" | "active_resume" | null = null;
+    let resumePrefillSource: "job_posting_attachment" | "job_posting_target" | "active_resume" | null = null;
 
     const attachedResumeId =
       posting.attachments.find((a) => a.attachment_type === "resume")?.resume_id ?? null;
 
-    const resume = attachedResumeId
+    const attachedResume = attachedResumeId
       ? await prisma.user_resumes.findFirst({
           where: { id: attachedResumeId, user_id: session.user.id },
         })
+      : null;
+    const targetResume = attachedResume
+      ? null
       : await prisma.user_resumes.findFirst({
-          where: { user_id: session.user.id, is_active: true },
+          where: { user_id: session.user.id, target_job_posting_id: posting.id },
+          orderBy: { updated_at: "desc" },
         });
+    const resume =
+      attachedResume ??
+      targetResume ??
+      (await prisma.user_resumes.findFirst({
+        where: { user_id: session.user.id, is_active: true },
+      }));
 
     if (resume) {
       resumeData = {
         fileName: resume.source_file_name || resume.title || "마이페이지 이력서",
         parsedContent: resume.resume_payload,
       };
-      resumePrefillSource = attachedResumeId ? "job_posting_attachment" : "active_resume";
+      resumePrefillSource = attachedResume
+        ? "job_posting_attachment"
+        : targetResume
+          ? "job_posting_target"
+          : "active_resume";
     }
 
     // 자소서: 신규 방식 (user_cover_letters 테이블) 우선, 없으면 legacy (resume_payload.coverLetters[index])
@@ -118,6 +132,19 @@ export async function GET(_: Request, ctx: { params: { id: string } }) {
             body: typeof picked.body === "string" ? picked.body : "",
           };
         }
+      }
+    }
+    // 첨부가 없으면 이 공고를 지원 대상으로 작성한 자소서 중 가장 최근 것
+    if (!suggestedCoverLetter && !coverAttachment) {
+      const targetCoverLetter = await prisma.user_cover_letters.findFirst({
+        where: { user_id: session.user.id, target_job_posting_id: posting.id, body: { not: "" } },
+        orderBy: { updated_at: "desc" },
+      });
+      if (targetCoverLetter) {
+        suggestedCoverLetter = {
+          title: targetCoverLetter.title ?? "",
+          body: targetCoverLetter.body ?? "",
+        };
       }
     }
 

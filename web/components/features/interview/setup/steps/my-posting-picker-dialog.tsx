@@ -304,7 +304,7 @@ export function MyPostingPickerDialog({
 }
 
 function PostingPreview({ posting }: { posting: JobPostingRecord }) {
-  const attachmentSummary = summarizeAttachments(posting.attachments);
+  const attachmentSummary = summarizeLinkedMaterials(posting);
   return (
     <article className="space-y-4">
       <header>
@@ -356,7 +356,7 @@ function PostingPreview({ posting }: { posting: JobPostingRecord }) {
       )}
 
       <Field label="연결 자료">
-        {posting.attachments && posting.attachments.length > 0 ? (
+        {attachmentSummary.length > 0 ? (
           <ul className="space-y-1 text-xs">
             {attachmentSummary.map((line, i) => (
               <li key={i} className="flex items-center gap-1.5">
@@ -386,16 +386,23 @@ function PostingPreview({ posting }: { posting: JobPostingRecord }) {
   );
 }
 
-function summarizeAttachments(
-  attachments: AttachmentRecord[] | undefined,
-): string[] {
-  if (!attachments) return [];
+// 면접 prefill 과 같은 규칙: 직접 첨부가 우선, 없으면 이 공고를 지원 대상으로 만든 가장 최근 이력서·자소서.
+function summarizeLinkedMaterials(posting: JobPostingRecord): string[] {
+  const attachments: AttachmentRecord[] = posting.attachments ?? [];
   const lines: string[] = [];
   for (const a of attachments) {
     if (a.attachmentType === "resume") lines.push("이력서");
     else if (a.attachmentType === "cover_letter")
       lines.push(`자기소개서${a.coverLetterLabel ? ` · ${a.coverLetterLabel}` : ""}`);
     else lines.push("포트폴리오");
+  }
+  const targetResume = posting.derivedResumes?.[0];
+  if (targetResume && !attachments.some((a) => a.attachmentType === "resume")) {
+    lines.push(`이력서 · ${targetResume.title || "제목 없음"}`);
+  }
+  const targetCoverLetter = posting.derivedCoverLetters?.[0];
+  if (targetCoverLetter && !attachments.some((a) => a.attachmentType === "cover_letter")) {
+    lines.push(`자기소개서 · ${targetCoverLetter.title || "제목 없음"}`);
   }
   return lines;
 }
