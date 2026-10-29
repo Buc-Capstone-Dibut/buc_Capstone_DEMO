@@ -275,6 +275,7 @@ async def request_live_scripted_speech_turn(
     text: str,
     deps: "LiveClientDeps",
     attempts: int = SCRIPTED_SPEECH_ATTEMPTS,
+    live: GeminiLiveInterviewSession | None = None,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
     """시연 고정 대본 한 줄을 라이브 음성으로 '그대로' 읽힌다.
 
@@ -282,9 +283,11 @@ async def request_live_scripted_speech_turn(
     세션 문맥을 비우고 같은 대사로 다시 읽힌다 — 의역 복구(request_live_text_turn)는 쓰지 않는다.
     끝내 기준을 못 넘으면 대본과 조금이라도 겹치는(coverage > 0) 가장 근접한 음성을 쓴다.
     오프닝은 첫 화면이 멈추지 않도록 음성이 하나라도 있으면 그대로 쓴다. 그 외에는 음성 없음(None).
+    live 를 주면 그 세션으로 읽힌다(다음 줄 선생성 전용 세션 — 본 세션 문맥·close 와 분리).
     """
     payload_text = " ".join((text or "").split()).strip()
-    live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
+    if live is None:
+        live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
     if not live.enabled or not payload_text:
         return payload_text, None, ""
 
@@ -404,9 +407,16 @@ async def request_live_spoken_text_turn(
     *,
     text: str,
     deps: LiveClientDeps,
+    attempts: int | None = None,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
+    # attempts 는 시연 고정 대본 낭독 시도 횟수다(None = 기본 SCRIPTED_SPEECH_ATTEMPTS, 일반 세션은 무시).
     if is_demo_script_session(state.job_data, state.session_type):
-        return await request_live_scripted_speech_turn(state, text=text, deps=deps)
+        return await request_live_scripted_speech_turn(
+            state,
+            text=text,
+            deps=deps,
+            attempts=SCRIPTED_SPEECH_ATTEMPTS if attempts is None else attempts,
+        )
     live = get_or_create_live_interview(state, create_live_interview_session=deps.create_live_interview_session)
     payload_text = (text or "").strip()
     if not live.enabled or not payload_text:

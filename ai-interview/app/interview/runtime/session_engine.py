@@ -11,6 +11,11 @@ from typing import Any, Awaitable, Callable
 from fastapi import WebSocket
 
 from app.interview.domain.turn_text import sanitize_user_turn_text, score_user_transcript_text
+from app.interview.runtime.demo_script_prefetch import (
+    clear_demo_script_prefetch,
+    schedule_demo_script_prefetch,
+    take_demo_script_prefetched_audio,
+)
 from app.interview.runtime.executor import RuntimeExecutorDeps, execute_live_user_followup_turn
 from app.interview.runtime.live_turns import (
     is_demo_script_state,
@@ -45,6 +50,9 @@ COMPLETE_ANSWER_ENDINGS = (
     "어요",
     "아요",
 )
+# 시연 고정 대본: 실시간 전사가 비었어도 이 길이 이상이면 실제 답변으로 보고 일괄 STT 를 기다리지 않는다.
+# 더 짧으면 소음·오조작일 수 있어 기존처럼 일괄 STT 로 확인한다(짧은 음성이라 빠르다).
+SCRIPTED_UNTRANSCRIBED_ANSWER_MIN_MS = 3000.0
 
 
 def _should_accept_missing_user_transcript(
@@ -310,6 +318,86 @@ async def _transcribe_user_audio(
     return await transcribe_fn(wav_bytes)
 
 
+async def _resolve_scripted_user_text(
+    deps: SessionEngineDeps,
+    state: VoiceWsState,
+    *,
+    wav_bytes: bytes,
+    utterance_duration_ms: float,
+) -> tuple[str, str, bool]:
+    """시연 고정 대본 — 전송 직후 전체 답변 일괄 STT(12~16초)를 기다리지 않는다.
+
+    다음 대사는 답변 내용과 무관하므로, 지원자가 말하는 동안 돌던 실시간 Cloud STT 전사를 그대로 쓴다.
+    반환: (user_text, provider, deferred) — deferred 면 전사 없이 진행하고 일괄 STT 는 백그라운드에서 기록만 고친다.
+    """
+    if deps.finalize_parallel_stt_stream is not None:
+        await deps.finalize_parallel_stt_stream(state)
+    realtime_text = _select_best_user_text(
+        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        realtime_user_text=state.realtime_user_transcript,
+        fallback_user_text="",
+        utterance_duration_ms=utterance_duration_ms,
+    )
+    if realtime_text:
+        return realtime_text, (state.parallel_stt_provider or "google-cloud-stt").strip(), False
+    if utterance_duration_ms >= SCRIPTED_UNTRANSCRIBED_ANSWER_MIN_MS:
+        return "", "", True
+    user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)
+    return sanitize_user_turn_text(user_text), (user_provider_name or "").strip(), False
+
+
+def _schedule_deferred_user_transcript_fix(
+    deps: SessionEngineDeps,
+    ws: WebSocket,
+    state: VoiceWsState,
+    *,
+    persist_task: asyncio.Task[Any | None],
+    wav_bytes: bytes,
+    user_turn_id: str,
+) -> None:
+    """전사 없이 진행한 시연 답변을 일괄 STT 로 뒤늦게 전사해 저장 턴·자막을 고친다."""
+    update_turn_content = getattr(deps, "update_turn_content", None)
+    if update_turn_content is None or not wav_bytes:
+        return
+
+    async def runner() -> None:
+        try:
+            user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)
+            user_text = sanitize_user_turn_text(user_text)
+            if not user_text:
+                return
+            persisted_turn = await persist_task
+            persisted_turn_id = str((persisted_turn or {}).get("id") or "").strip()
+            if not persisted_turn_id:
+                return
+            await update_turn_content(
+                state,
+                turn_id=persisted_turn_id,
+                content=user_text,
+                payload_patch={
+                    "transcription_missing": False,
+                    "deferred_stt": True,
+                    "deferred_stt_provider": (user_provider_name or "").strip(),
+                },
+            )
+            await deps.send_transcript(
+                ws,
+                state.session_id,
+                "user",
+                user_text,
+                turn_id=user_turn_id,
+                provider=((user_provider_name or "").strip() or None),
+            )
+        except Exception:
+            logger.warning(
+                "background deferred user transcription failed (session=%s)",
+                state.session_id,
+                exc_info=True,
+            )
+
+    asyncio.create_task(runner())
+
+
 def _persist_turn_background(
     deps: SessionEngineDeps,
     state: VoiceWsState,
@@ -545,6 +633,8 @@ class SessionEngineDeps:
     request_live_generated_question_turn: Callable[..., Awaitable[tuple[str, PreparedTtsAudio | None, str]]] | None = None
     update_turn_content: Callable[..., Awaitable[Any]] | None = None
     parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None
+    # 시연 고정 대본 다음 줄 음성 선생성(전용 라이브 세션). None 이면 선생성 없이 기존 경로만 쓴다.
+    prefetch_scripted_line_audio: Callable[[VoiceWsState, str], Awaitable[PreparedTtsAudio | None]] | None = None
 
 
 def build_session_init_request(
@@ -575,6 +665,7 @@ async def handle_session_init(
 ) -> None:
     request = build_session_init_request(data, deps=deps)
 
+    await clear_demo_script_prefetch(state)
     if state.live_interview is not None:
         await state.live_interview.close()
     state.live_interview = deps.create_live_interview_session()
@@ -642,6 +733,11 @@ async def handle_session_init(
             turns=existing_turns,
         )
         if resumed:
+            schedule_demo_script_prefetch(
+                state,
+                line_index=state.demo_script_cursor,
+                speak=getattr(deps, "prefetch_scripted_line_audio", None),
+            )
             return
 
     connected_session = await asyncio.to_thread(
@@ -733,6 +829,12 @@ async def handle_session_init(
                 },
             )
             return
+    # 오프닝이 나가는 동안 첫 대본 줄 음성을 미리 만든다(시연 고정 대본 세션만).
+    schedule_demo_script_prefetch(
+        state,
+        line_index=state.demo_script_cursor,
+        speak=getattr(deps, "prefetch_scripted_line_audio", None),
+    )
 
 
 async def process_user_utterance(
@@ -767,12 +869,14 @@ async def process_user_utterance(
         await deps.send_runtime_meta_snapshot(ws, state)
 
         # 시연 고정 대본은 대사를 서버가 정하므로 live-only(라이브 모델이 질문 생성) 경로를 쓰지 않는다.
-        architecture = "hybrid" if is_demo_script_state(state) else _runtime_architecture(deps)
+        scripted = is_demo_script_state(state)
+        architecture = "hybrid" if scripted else _runtime_architecture(deps)
         optimistic_user_turn_id = (
             (state.live_input_turn_id or "").strip()
             or deps.next_ai_turn_id(state.session_id)
         )
         optimistic_user_text_sent = ""
+        deferred_user_stt = False
         if architecture == "live-only":
             if deps.finalize_parallel_stt_stream is not None:
                 await deps.finalize_parallel_stt_stream(state)
@@ -921,6 +1025,13 @@ async def process_user_utterance(
                     utterance_duration_ms=utterance_duration_ms,
                 )
                 user_provider_name = (followup_provider_name or live.provider or "").strip()
+        elif scripted:
+            user_text, user_provider_name, deferred_user_stt = await _resolve_scripted_user_text(
+                deps,
+                state,
+                wav_bytes=wav_bytes,
+                utterance_duration_ms=utterance_duration_ms,
+            )
         else:
             user_text, user_provider_name = await _transcribe_user_audio(deps, wav_bytes)
             user_text = sanitize_user_turn_text(user_text)
@@ -1028,16 +1139,26 @@ async def process_user_utterance(
                 provider=(user_provider_name or None),
             ):
                 return
-        _schedule_parallel_user_transcript_refinement(
-            deps,
-            ws,
-            state,
-            persist_task=persist_task,
-            wav_bytes=wav_bytes,
-            current_user_text=user_text,
-            utterance_duration_ms=utterance_duration_ms,
-            user_turn_id=user_turn_id,
-        )
+        if deferred_user_stt:
+            _schedule_deferred_user_transcript_fix(
+                deps,
+                ws,
+                state,
+                persist_task=persist_task,
+                wav_bytes=wav_bytes,
+                user_turn_id=user_turn_id,
+            )
+        else:
+            _schedule_parallel_user_transcript_refinement(
+                deps,
+                ws,
+                state,
+                persist_task=persist_task,
+                wav_bytes=wav_bytes,
+                current_user_text=user_text,
+                utterance_duration_ms=utterance_duration_ms,
+                user_turn_id=user_turn_id,
+            )
 
         deps.reset_realtime_user_transcript(state)
         deps.log_runtime_event(
@@ -1059,6 +1180,15 @@ async def process_user_utterance(
             utterance_duration_ms=utterance_duration_ms,
             short_answer=is_short_answer,
         )
+
+        if user_followup_spec.script_line_index >= 0 and prepared_live_audio is None:
+            # 선생성해 둔 대본 줄 음성이 있으면 라이브 낭독 없이 바로 전달한다(없으면 executor 가 1회 낭독).
+            prepared_live_audio = await take_demo_script_prefetched_audio(
+                state,
+                user_followup_spec.script_line_index,
+            )
+            if prepared_live_audio is not None:
+                followup_provider_name = prepared_live_audio.provider or followup_provider_name
 
         followup_generated = await execute_live_user_followup_turn(
             ws,
@@ -1098,6 +1228,16 @@ async def process_user_utterance(
                 },
             )
             await deps.resume_listening(ws, state)
+        if scripted:
+            if state.session_status == "completed":
+                await clear_demo_script_prefetch(state)
+            else:
+                # 방금 줄이 나갔으면 다음 줄, 되돌렸으면 같은 줄(이미 캐시돼 있으면 그대로 둔다)을 미리 만든다.
+                schedule_demo_script_prefetch(
+                    state,
+                    line_index=state.demo_script_cursor,
+                    speak=getattr(deps, "prefetch_scripted_line_audio", None),
+                )
     except Exception as exc:
         rollback_demo_script_cursor(
             state,

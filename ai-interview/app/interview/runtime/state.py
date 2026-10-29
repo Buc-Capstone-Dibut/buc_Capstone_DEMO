@@ -134,6 +134,11 @@ class VoiceWsState:
     # 시연 고정 대본(domain/demo_script) 세션 전용 — 다음에 보낼 대본 줄 인덱스.
     # 수락된 지원자 답변마다 동기적으로 1칸 전진한다(턴 전달 실패 시 되돌림).
     demo_script_cursor: int = 0
+    # 시연 고정 대본 전용 — 대본 줄 인덱스별 음성 선생성 태스크(결과 PreparedTtsAudio | None)와
+    # 선생성만 쓰는 전용 라이브 세션·직렬화 잠금(runtime/demo_script_prefetch.py).
+    demo_script_prefetch_tasks: dict[int, asyncio.Task[PreparedTtsAudio | None]] = field(default_factory=dict)
+    demo_script_prefetch_live: GeminiLiveInterviewSession | None = None
+    demo_script_prefetch_lock: asyncio.Lock | None = None
     llm_stream_mode: str = "delta"
     tts_mode: str = "server"
     runtime_mode: str = "live-single"

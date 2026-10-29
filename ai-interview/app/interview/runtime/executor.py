@@ -978,10 +978,19 @@ async def execute_live_user_followup_turn(
     # 같은 대사 재낭독(request_live_spoken_text_turn 내부 재시도)만 허용한다.
     scripted = is_demo_script_state(state)
     if prepared_audio is None and ai_text and not audio_already_streamed:
-        spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
-            state,
-            text=ai_text,
-        )
+        if scripted:
+            # 선생성 음성을 놓친 대본 줄 — 지원자 대기 시간을 줄이려 낭독은 1회만 시도한다
+            # (재시도는 백그라운드 선생성에서만 한다).
+            spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+                state,
+                text=ai_text,
+                attempts=1,
+            )
+        else:
+            spoken_text, prepared_audio, spoken_provider = await deps.request_live_spoken_text_turn(
+                state,
+                text=ai_text,
+            )
         provider_name = spoken_provider or provider_name
         if prepared_audio is not None and spoken_text and not scripted:
             ai_text = " ".join(spoken_text.split()).strip()

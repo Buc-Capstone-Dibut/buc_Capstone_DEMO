@@ -74,10 +74,15 @@ try:
         build_demo_report_document,
     )
     from app.interview.reporting.document import build_report_document
+    from app.interview.runtime.demo_script_prefetch import (
+        clear_demo_script_prefetch,
+        schedule_demo_script_prefetch,
+    )
     from app.interview.runtime.executor import RuntimeExecutorDeps
     from app.interview.runtime.live_client import (
         LiveClientDeps,
         build_live_session_instruction,
+        request_live_scripted_speech_turn,
         request_live_spoken_text_turn,
         scripted_speech_coverage,
     )
@@ -151,12 +156,15 @@ class _Recorder:
 
     def __init__(self) -> None:
         self.ai_transcripts: list[str] = []
+        self.user_transcripts: list[str] = []
         self.persisted_model_turns: list[str] = []
         self.meta_events: list[dict] = []
 
     async def send_transcript(self, _ws, _session_id, role, text, **_kwargs) -> bool:
         if role == "ai":
             self.ai_transcripts.append(text)
+        elif role == "user":
+            self.user_transcripts.append(text)
         return True
 
     async def send_json(self, _ws, payload) -> bool:
@@ -175,7 +183,7 @@ def _executor_deps(recorder: _Recorder, *, spoken=None, rephrase=None) -> Runtim
     return RuntimeExecutorDeps(
         request_live_spoken_text_turn=spoken
         # 라이브 모델의 출력 전사가 대본과 조금 달라도 자막/저장은 대본이어야 한다.
-        or AsyncMock(side_effect=lambda _state, text: (f"{text} 덧붙인 말", AUDIO, "gemini-live")),
+        or AsyncMock(side_effect=lambda _state, text, **_kwargs: (f"{text} 덧붙인 말", AUDIO, "gemini-live")),
         request_live_text_turn=rephrase or AsyncMock(return_value=("의역된 질문인가요?", AUDIO)),
         repair_ai_turn_if_truncated=AsyncMock(return_value=("", None)),
         looks_like_complete_ai_question=lambda text: True,
@@ -209,6 +217,8 @@ def _engine_deps(
     is_echo: bool = False,
     runtime_architecture: str = "hybrid",
     request_live_generated_question_turn=None,
+    prefetch_scripted_line_audio=None,
+    transcribe_user_audio=None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=lambda: _DummyLiveSession(model="gemini-live"),
@@ -237,7 +247,7 @@ def _engine_deps(
         request_live_audio_turn=AsyncMock(return_value=("", "", None, "gemini-live")),
         request_live_generated_question_turn=request_live_generated_question_turn,
         fallback_transcribe_user_audio=None,
-        transcribe_user_audio=AsyncMock(return_value=(stt_text, "stt")),
+        transcribe_user_audio=transcribe_user_audio or AsyncMock(return_value=(stt_text, "stt")),
         emit_realtime_user_delta=AsyncMock(return_value=None),
         is_probable_ai_echo=lambda *_args, **_kwargs: is_echo,
         reset_realtime_user_transcript=lambda state: setattr(state, "realtime_user_transcript", ""),
@@ -260,6 +270,7 @@ def _engine_deps(
         finalize_parallel_stt_stream=AsyncMock(return_value=True),
         runtime_architecture=runtime_architecture,
         update_turn_content=AsyncMock(return_value={"id": "turn-user"}),
+        prefetch_scripted_line_audio=prefetch_scripted_line_audio,
     )
 
 
@@ -608,6 +619,230 @@ class DemoScriptSpeechTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(text, OPENING)
         self.assertIsNotNone(audio)
+
+
+def _prefetched(text: str) -> PreparedTtsAudio:
+    return PreparedTtsAudio(chunks=[f"prefetched:{text}"], sample_rate=24000, provider="gemini-live", duration_sec=5.0)
+
+
+class DemoScriptLatencyTests(unittest.IsolatedAsyncioTestCase):
+    """전송 → 다음 면접관 대사까지의 임계 경로: 일괄 STT·라이브 낭독을 기다리지 않는다."""
+
+    async def test_scripted_answer_uses_realtime_stt_and_never_awaits_batch_stt(self) -> None:
+        recorder = _Recorder()
+        deps = _engine_deps(recorder, _executor_deps(recorder), duration_ms=25000.0)
+        state = _demo_state(
+            demo_script_cursor=1,
+            parallel_stt_final_text="서비스 메서드에 트랜잭션을 걸었습니다.",
+            parallel_stt_provider="google-cloud-stt",
+        )
+
+        await _answer(state, deps)
+
+        deps.finalize_parallel_stt_stream.assert_awaited_once()
+        deps.transcribe_user_audio.assert_not_awaited()
+        self.assertIn("서비스 메서드에 트랜잭션을 걸었습니다.", recorder.user_transcripts)
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[1])
+        self.assertEqual(state.demo_script_cursor, 2)
+        # 실시간 전사 상태는 턴이 끝나면 비워 다음 답변에 섞이지 않는다.
+        self.assertEqual(state.parallel_stt_final_text, "")
+
+    async def test_long_answer_without_realtime_text_defers_batch_stt_to_background(self) -> None:
+        recorder = _Recorder()
+        release = asyncio.Event()
+
+        async def slow_batch_stt(_wav_bytes):
+            await release.wait()
+            return "뒤늦게 전사된 답변입니다.", "gemini-live-stt"
+
+        deps = _engine_deps(
+            recorder,
+            _executor_deps(recorder),
+            duration_ms=25000.0,
+            transcribe_user_audio=AsyncMock(side_effect=slow_batch_stt),
+        )
+        state = _demo_state(demo_script_cursor=2)
+
+        await asyncio.wait_for(_answer(state, deps), timeout=1.0)
+
+        # 일괄 STT 가 끝나기 전에 다음 대사가 이미 나갔다.
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[2])
+        self.assertEqual(state.demo_script_cursor, 3)
+        deps.update_turn_content.assert_not_awaited()
+
+        release.set()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        deps.update_turn_content.assert_awaited_once()
+        fix = deps.update_turn_content.await_args.kwargs
+        self.assertEqual(fix["content"], "뒤늦게 전사된 답변입니다.")
+        self.assertFalse(fix["payload_patch"]["transcription_missing"])
+        self.assertEqual(recorder.user_transcripts[-1], "뒤늦게 전사된 답변입니다.")
+
+    async def test_prefetched_lines_skip_live_speech_on_critical_path(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(recorder)
+        speaker = AsyncMock(side_effect=lambda _state, text: _prefetched(text))
+        deps = _engine_deps(recorder, executor_deps, prefetch_scripted_line_audio=speaker)
+        state = _demo_state()
+        schedule_demo_script_prefetch(state, line_index=0, speak=speaker)  # 오프닝 직후와 같다
+
+        for _ in range(len(QUESTIONS) + 1):
+            await _answer(state, deps)
+
+        script = [*QUESTIONS, CLOSING_TEXT]
+        executor_deps.request_live_spoken_text_turn.assert_not_awaited()
+        delivered = [call.kwargs["preferred_full_audio"] for call in executor_deps.build_ai_delivery_plan.await_args_list]
+        self.assertEqual([audio.chunks[0] for audio in delivered], [f"prefetched:{text}" for text in script])
+        self.assertEqual([call.args[1] for call in speaker.await_args_list], script)
+        self.assertEqual(recorder.ai_transcripts, script)
+        # 면접이 끝나면 선생성 캐시를 비운다.
+        self.assertEqual(state.demo_script_prefetch_tasks, {})
+
+    async def test_in_flight_prefetch_is_awaited_instead_of_restarting_speech(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(recorder)
+        release = asyncio.Event()
+
+        async def slow_speaker(_state, text):
+            await release.wait()
+            return _prefetched(text)
+
+        speaker = AsyncMock(side_effect=slow_speaker)
+        deps = _engine_deps(recorder, executor_deps, prefetch_scripted_line_audio=speaker)
+        state = _demo_state(demo_script_cursor=4)
+        schedule_demo_script_prefetch(state, line_index=4, speak=speaker)
+
+        answer = asyncio.create_task(_answer(state, deps))
+        for _ in range(5):
+            await asyncio.sleep(0)
+        self.assertFalse(answer.done())
+        release.set()
+        await asyncio.wait_for(answer, timeout=1.0)
+
+        executor_deps.request_live_spoken_text_turn.assert_not_awaited()
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[4])
+        await clear_demo_script_prefetch(state)
+
+    async def test_cache_miss_falls_back_to_single_reading_attempt(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(recorder)
+        failed_speaker = AsyncMock(return_value=None)  # 선생성 실패
+        deps = _engine_deps(recorder, executor_deps, prefetch_scripted_line_audio=failed_speaker)
+        state = _demo_state(demo_script_cursor=2)
+        schedule_demo_script_prefetch(state, line_index=2, speak=failed_speaker)
+
+        await _answer(state, deps)
+
+        executor_deps.request_live_spoken_text_turn.assert_awaited_once()
+        self.assertEqual(
+            executor_deps.request_live_spoken_text_turn.await_args.kwargs,
+            {"text": QUESTIONS[2], "attempts": 1},
+        )
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[2])
+        await clear_demo_script_prefetch(state)
+
+    async def test_rolled_back_line_reuses_same_prefetched_audio(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(recorder)
+        executor_deps.set_runtime_status.side_effect = RuntimeError("db down")
+        speaker = AsyncMock(side_effect=lambda _state, text: _prefetched(text))
+        deps = _engine_deps(recorder, executor_deps, prefetch_scripted_line_audio=speaker)
+        state = _demo_state(demo_script_cursor=3)
+        schedule_demo_script_prefetch(state, line_index=3, speak=speaker)
+
+        await _answer(state, deps)
+        self.assertEqual(state.demo_script_cursor, 3)
+
+        executor_deps.set_runtime_status.side_effect = None
+        await _answer(state, deps)
+
+        self.assertEqual(state.demo_script_cursor, 4)
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[3])
+        self.assertEqual([call.args[1] for call in speaker.await_args_list].count(QUESTIONS[3]), 1)
+        executor_deps.request_live_spoken_text_turn.assert_not_awaited()
+        await clear_demo_script_prefetch(state)
+
+    async def test_non_demo_hybrid_session_is_unchanged(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(
+            recorder,
+            spoken=AsyncMock(return_value=("다음 질문입니다?", AUDIO, "gemini-live")),
+        )
+        speaker = AsyncMock(return_value=AUDIO)
+        deps = _engine_deps(recorder, executor_deps, prefetch_scripted_line_audio=speaker)
+        state = VoiceWsState(
+            session_id="normal-session",
+            session_type="live_interview",
+            job_data={"company": "네이버", "role": "백엔드 개발자"},
+        )
+        state.live_interview = _DummyLiveSession(model="gemini-live")
+        state.parallel_stt_final_text = "실시간 전사 답변입니다."
+
+        await _answer(state, deps)
+
+        deps.transcribe_user_audio.assert_awaited_once()
+        deps.finalize_parallel_stt_stream.assert_not_awaited()
+        executor_deps.request_live_spoken_text_turn.assert_awaited()
+        for call in executor_deps.request_live_spoken_text_turn.await_args_list:
+            self.assertNotIn("attempts", call.kwargs)
+        speaker.assert_not_awaited()
+        self.assertEqual(state.demo_script_prefetch_tasks, {})
+
+    async def test_scripted_speech_single_attempt_does_not_retry(self) -> None:
+        state = _demo_state()
+        line = QUESTIONS[2]
+        state.live_interview = _FakeLiveTextSession([CANDIDATE_ANSWERS[3], line])
+
+        text, audio, _provider = await request_live_spoken_text_turn(
+            state,
+            text=line,
+            deps=_live_client_deps(state),
+            attempts=1,
+        )
+
+        self.assertEqual(text, line)
+        self.assertIsNone(audio)
+        self.assertEqual(len(state.live_interview.prompts), 1)
+        self.assertEqual(state.live_interview.close_count, 0)
+
+    async def test_scripted_speech_can_run_on_dedicated_prefetch_session(self) -> None:
+        state = _demo_state()
+        main_live = _FakeLiveTextSession([])
+        prefetch_live = _FakeLiveTextSession([QUESTIONS[0]])
+        state.live_interview = main_live
+
+        text, audio, _provider = await request_live_scripted_speech_turn(
+            state,
+            text=QUESTIONS[0],
+            deps=_live_client_deps(state),
+            live=prefetch_live,
+        )
+
+        self.assertEqual(text, QUESTIONS[0])
+        self.assertIsNotNone(audio)
+        self.assertEqual(main_live.prompts, [])
+        self.assertEqual(len(prefetch_live.prompts), 1)
+
+    async def test_clear_cancels_pending_prefetch_and_closes_dedicated_session(self) -> None:
+        state = _demo_state()
+        prefetch_live = _FakeLiveTextSession([])
+        state.demo_script_prefetch_live = prefetch_live
+        never = asyncio.Event()
+
+        async def hang(_state, _text):
+            await never.wait()
+
+        schedule_demo_script_prefetch(state, line_index=0, speak=hang)
+        task = state.demo_script_prefetch_tasks[0]
+        await asyncio.sleep(0)
+
+        await clear_demo_script_prefetch(state)
+
+        self.assertTrue(task.cancelled())
+        self.assertEqual(state.demo_script_prefetch_tasks, {})
+        self.assertIsNone(state.demo_script_prefetch_live)
+        self.assertEqual(prefetch_live.close_count, 1)
 
 
 class _FakeReportService:

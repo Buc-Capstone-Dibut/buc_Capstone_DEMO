@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
+from app.interview.runtime.demo_script_prefetch import clear_demo_script_prefetch
 from app.interview.runtime.state import VoiceWsState
 from app.services.gemini_live_voice_service import GeminiLiveInterviewSession
 
@@ -78,5 +79,6 @@ async def cleanup_connection(
                 exc_info=True,
             )
 
+    await clear_demo_script_prefetch(state)
     if state.live_interview is not None:
         await state.live_interview.close()

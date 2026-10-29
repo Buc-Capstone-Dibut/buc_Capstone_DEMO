@@ -108,6 +108,7 @@ from app.interview.runtime.live_client import (
     repair_ai_turn_if_truncated as runtime_repair_ai_turn_if_truncated,
     request_live_audio_turn as runtime_request_live_audio_turn,
     request_live_generated_question_turn as runtime_request_live_generated_question_turn,
+    request_live_scripted_speech_turn as runtime_request_live_scripted_speech_turn,
     request_live_spoken_text_turn as runtime_request_live_spoken_text_turn,
     request_live_text_turn as runtime_request_live_text_turn,
     stream_live_audio_turn as runtime_stream_live_audio_turn,
@@ -375,6 +376,7 @@ def _session_engine_deps():
         commit_live_input_stream=_commit_live_input_stream,
         finalize_parallel_stt_stream=_finalize_parallel_stt_stream,
         parallel_refine_user_audio=_parallel_refine_user_audio,
+        prefetch_scripted_line_audio=_prefetch_scripted_line_audio,
     )
 
 def _client_message_router_deps():
@@ -965,12 +967,27 @@ async def _request_live_spoken_text_turn(
     state: VoiceWsState,
     *,
     text: str,
+    attempts: int | None = None,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
     return await runtime_request_live_spoken_text_turn(
         state,
         text=text,
         deps=_live_client_deps(),
+        attempts=attempts,
     )
+
+
+async def _prefetch_scripted_line_audio(state: VoiceWsState, text: str) -> PreparedTtsAudio | None:
+    # 시연 대본 다음 줄 선생성 — 본 세션(state.live_interview)과 문맥·close 를 공유하지 않는 전용 세션에서 읽힌다.
+    if state.demo_script_prefetch_live is None:
+        state.demo_script_prefetch_live = runtime_create_live_interview_session()
+    _, prepared, _ = await runtime_request_live_scripted_speech_turn(
+        state,
+        text=text,
+        deps=_live_client_deps(),
+        live=state.demo_script_prefetch_live,
+    )
+    return prepared
 
 
 async def _request_live_audio_turn(
