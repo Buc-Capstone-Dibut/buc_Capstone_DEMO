@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
+import { Pcm16StreamEncoder } from "@/lib/interview/pcm16-stream-encoder";
 import {
   getInterviewPlaybackAudioContext,
   getInterviewPlaybackRecordingTap,
@@ -138,6 +139,8 @@ export function useOpenLLM({
 
   const socketRef = useRef<WebSocket | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
+  // 마이크 소리를 16kHz 16bit·100ms 묶음으로 줄여 보낸다(lib/interview/pcm16-stream-encoder).
+  const pcm16EncoderRef = useRef<Pcm16StreamEncoder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const nextStartTimeRef = useRef(0);
   const isMicStreamingRef = useRef(false);
@@ -201,6 +204,13 @@ export function useOpenLLM({
     });
   }, []);
 
+  const sendPendingMicAudio = useCallback(() => {
+    const tail = pcm16EncoderRef.current?.flush();
+    if (tail && socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "raw-audio-data", ...tail }));
+    }
+  }, []);
+
   const pauseMic = useCallback((flush: boolean = true) => {
     // audioProcessor 도 stop + null — 그래야 다음 startMic 가 새로 시작.
     // (예전엔 살려뒀는데, startMic 의 early return 때문에 audio chunk 가 다시 안 흘러
@@ -213,9 +223,13 @@ export function useOpenLLM({
     setVolume(0);
 
     if (flush && socketRef.current?.readyState === WebSocket.OPEN) {
+      // 100ms 가 안 찬 마지막 소리를 먼저 보내야 답변 끝 음절이 잘리지 않는다.
+      sendPendingMicAudio();
       socketRef.current.send(JSON.stringify({ type: "flush-audio" }));
+    } else {
+      pcm16EncoderRef.current?.reset();
     }
-  }, []);
+  }, [sendPendingMicAudio]);
 
   const stopMic = useCallback((flush: boolean = true) => {
     audioProcessorRef.current?.stop();
@@ -226,9 +240,12 @@ export function useOpenLLM({
     setVolume(0);
 
     if (flush && socketRef.current?.readyState === WebSocket.OPEN) {
+      sendPendingMicAudio();
       socketRef.current.send(JSON.stringify({ type: "flush-audio" }));
+    } else {
+      pcm16EncoderRef.current?.reset();
     }
-  }, []);
+  }, [sendPendingMicAudio]);
 
   /**
    * 수동 턴 제어 — 사용자가 "전송" 버튼 클릭 시 호출.
@@ -249,6 +266,7 @@ export function useOpenLLM({
   const cancelTurn = useCallback(() => {
     recordingResetRef.current?.(captureIdRef.current);
     captureIdRef.current = `capture-${++captureSequenceRef.current}`;
+    pcm16EncoderRef.current?.reset();
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "reset-audio" }));
     }
@@ -621,6 +639,8 @@ export function useOpenLLM({
       }
 
       captureIdRef.current = `capture-${++captureSequenceRef.current}`;
+      const encoder = new Pcm16StreamEncoder();
+      pcm16EncoderRef.current = encoder;
       audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
         if (!isMicStreamingRef.current) return;
 
@@ -639,12 +659,11 @@ export function useOpenLLM({
           });
         }
 
+        const frames = encoder.push(data, sampleRate);
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(JSON.stringify({
-            type: "raw-audio-data",
-            audio: Array.from(data),
-            sampleRate,
-          }));
+          for (const frame of frames) {
+            socketRef.current.send(JSON.stringify({ type: "raw-audio-data", ...frame }));
+          }
         }
       });
 
