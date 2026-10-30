@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 
@@ -88,7 +89,8 @@ def shutdown_event() -> None:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    # Render 가 넣어 주는 배포 커밋 — 배포가 끝났는지 확인하는 용도.
+    return {"status": "ok", "commit": os.getenv("RENDER_GIT_COMMIT", "")[:7]}
 
 
 app.include_router(interview_router)

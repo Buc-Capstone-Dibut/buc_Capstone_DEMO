@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import WebSocket
 
 from app.interview.runtime.state import VoiceWsState
+from app.interview.runtime.voice_support import decode_pcm16_audio_chunk
 
 VALID_AVATAR_STATES = {"idle", "thinking", "listening", "speaking"}
 AUDIO_DATA_MESSAGE_TYPES = {"mic-audio-data", "raw-audio-data"}
@@ -78,7 +79,11 @@ async def handle_client_message(
             await deps.send_json(ws, {"type": "error", "message": "session is not initialized"})
             return
 
-        audio_chunk = deps.coerce_audio_chunk(data.get("audio"))
+        # 16kHz 16bit PCM(base64, "pcm16")이 기본 형식이고, float 배열("audio")은 이전 클라이언트 호환용이다.
+        if data.get("pcm16") is not None:
+            audio_chunk = decode_pcm16_audio_chunk(data.get("pcm16"))
+        else:
+            audio_chunk = deps.coerce_audio_chunk(data.get("audio"))
         if not audio_chunk:
             return
         sample_rate = data.get("sampleRate")
