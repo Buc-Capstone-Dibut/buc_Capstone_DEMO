@@ -27,6 +27,10 @@ from app.api.resume import router as resume_router
 from app.api.ws import router as ws_router
 from app.config import settings
 from app.db.database import init_db
+from app.interview.runtime.demo_script_opening_cache import (
+    shutdown_demo_script_opening_cache,
+    start_demo_script_opening_warmup,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,9 +86,21 @@ def startup_event() -> None:
     interview_report_agent.start()
 
 
+@app.on_event("startup")
+async def demo_script_warmup_event() -> None:
+    # 시연 대본 오프닝 음성 워밍업 — 기동을 막지 않게 태스크만 띄운다. 실패는 로그만 남기고 다음 요청 때 다시 만든다.
+    if settings.voice_demo_script_warmup_enabled:
+        start_demo_script_opening_warmup()
+
+
 @app.on_event("shutdown")
 def shutdown_event() -> None:
     interview_report_agent.stop()
+
+
+@app.on_event("shutdown")
+async def demo_script_shutdown_event() -> None:
+    await shutdown_demo_script_opening_cache()
 
 
 @app.get("/health")

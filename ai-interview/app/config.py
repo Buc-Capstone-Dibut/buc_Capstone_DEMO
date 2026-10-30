@@ -151,6 +151,12 @@ class Settings(BaseSettings):
         default=True,
         alias="VOICE_ENABLE_AI_AUDIO_RECOVERY",
     )
+    # 기동 직후 시연 대본 오프닝 음성을 백그라운드로 미리 만들어 둔다(runtime/demo_script_opening_cache.py).
+    # 배포·콜드스타트 뒤 첫 리허설의 '면접 준비 중' 대기를 없앤다. 끄면 첫 prepare-opening 때 만든다.
+    voice_demo_script_warmup_enabled: bool = Field(
+        default=True,
+        alias="VOICE_DEMO_SCRIPT_WARMUP_ENABLED",
+    )
 
     @field_validator(
         "database_url",
