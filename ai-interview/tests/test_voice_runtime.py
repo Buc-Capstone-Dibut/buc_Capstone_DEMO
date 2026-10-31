@@ -1990,6 +1990,46 @@ class SessionEngineUserTurnTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.pending_segment_resume_ms, 0.0)
         self.assertTrue(pending_task.cancelled())
 
+    async def test_pcm16_audio_message_feeds_realtime_stt_at_its_sample_rate(self) -> None:
+        import base64
+        import struct
+
+        state = VoiceWsState(session_id="session-5")
+        push_parallel = AsyncMock(return_value=True)
+        deps = ClientMessageRouterDeps(
+            send_json=AsyncMock(return_value=True),
+            send_avatar_state=AsyncMock(return_value=True),
+            handle_session_init=AsyncMock(return_value=None),
+            coerce_audio_chunk=Mock(side_effect=AssertionError("float path must not run for pcm16")),
+            enqueue_user_segment=AsyncMock(return_value=None),
+            reset_realtime_user_transcript=lambda current_state: None,
+            resume_listening=AsyncMock(return_value=None),
+            cancel_playback_resume_task=lambda current_state: None,
+            runtime_architecture="live-only",
+            push_parallel_stt_audio_chunk=push_parallel,
+        )
+        pcm16 = base64.b64encode(struct.pack("<4h", 0, 16384, -16384, 32767)).decode()
+
+        await handle_client_message(
+            object(),
+            state,
+            {"type": "raw-audio-data", "pcm16": pcm16, "sampleRate": 16000},
+            deps=deps,
+        )
+        await handle_client_message(
+            object(),
+            state,
+            {"type": "raw-audio-data", "pcm16": "not base64!", "sampleRate": 16000},
+            deps=deps,
+        )
+
+        self.assertEqual(state.vad.sample_rate, 16000)
+        push_parallel.assert_awaited_once()
+        _, _, samples, sample_rate = push_parallel.await_args.args
+        self.assertEqual(sample_rate, 16000)
+        self.assertEqual(samples[:3], [0.0, 0.5, -0.5])
+        self.assertAlmostEqual(samples[3], 32767 / 32768.0)
+
 
 class LiveFollowupGroundingTests(unittest.IsolatedAsyncioTestCase):
     async def test_execute_live_user_followup_turn_keeps_live_question_without_extra_regeneration(self) -> None:

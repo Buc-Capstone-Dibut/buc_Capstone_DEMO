@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Camera, CameraOff, Captions, Clock3, Loader2, Mic, MicOff, PhoneOff, RotateCcw, Send, WifiOff } from "lucide-react";
 import { LocalCameraPreview } from "@/components/features/interview/local-camera-preview";
 import { InterviewDeviceCheck } from "@/components/features/interview/interview-device-check";
-import { SemiRealisticInterviewerAvatar } from "@/components/features/interview/avatar/semi-realistic-interviewer-avatar";
+import { EntryInterviewerAvatar } from "@/components/features/interview/avatar/entry-interviewer-avatar";
 import {
   buildInterviewResultPath,
   shouldRouteToSetupOnReconnectTimeout,
@@ -562,7 +562,6 @@ export default function InterviewVideoRoomPage() {
     isAISpeaking,
     volume,
     aiAudioLevel,
-    aiViseme,
   } = useOpenLLM({
     serverUrl: wsUrl,
     onRecordingAudio: recording.audio,
@@ -1416,10 +1415,9 @@ export default function InterviewVideoRoomPage() {
           <div
             className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#edf3f7]"
           >
-            <SemiRealisticInterviewerAvatar
+            <EntryInterviewerAvatar
               state={avatarState}
               audioLevel={aiAudioLevel}
-              viseme={aiViseme}
               className="relative z-10 h-full min-h-[420px] w-full"
             />
           </div>

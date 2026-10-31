@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
+const PENDING_RENDER_TIMEOUT_MS = 5000;
 
 /**
  * 이미 DOM 에 그려진 A4 페이지 노드들을 받아 PDF Blob 으로 만든다.
@@ -100,6 +101,14 @@ export async function snapshotReactTreeToPdf(
         requestAnimationFrame(() => resolve());
       });
     });
+
+    // 문서가 페이지 나누기 같은 후속 렌더를 `[data-pdf-pending]` 으로 알리면 끝날 때까지 기다린다.
+    // 두 frame 만으로는 부족할 때가 있어(긴 이력서·느린 기기) 본문 없는 첫 렌더가 캡쳐되곤 했다.
+    const pendingDeadline = performance.now() + PENDING_RENDER_TIMEOUT_MS;
+    while (host.querySelector("[data-pdf-pending]") && performance.now() < pendingDeadline) {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
 
     // 폰트 로딩이 끝날 때까지 추가 대기 (한글 폰트가 늦게 들어오면 캡쳐가 비어 보임)
     if (typeof document !== "undefined" && (document as Document).fonts) {

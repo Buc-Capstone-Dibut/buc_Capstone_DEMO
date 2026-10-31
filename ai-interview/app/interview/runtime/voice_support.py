@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import array
 import base64
+import binascii
 import re
+import sys
 from typing import Any, Callable
 
 from app.config import settings
@@ -121,6 +124,24 @@ def coerce_audio_chunk(payload: Any, max_len: int = 16000) -> list[float]:
             numeric = -1.0
         chunk.append(numeric)
     return chunk
+
+
+def decode_pcm16_audio_chunk(payload: Any, max_len: int = 16000) -> list[float]:
+    """브라우저가 보낸 base64 16bit PCM(little-endian, mono)을 [-1, 1] float 샘플로 푼다."""
+    if not isinstance(payload, str) or not payload:
+        return []
+    try:
+        pcm_bytes = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        return []
+    usable = min(len(pcm_bytes) - (len(pcm_bytes) % 2), max_len * 2)
+    if usable <= 0:
+        return []
+    samples = array.array("h")
+    samples.frombytes(pcm_bytes[:usable])
+    if sys.byteorder != "little":
+        samples.byteswap()
+    return [value / 32768.0 for value in samples]
 
 
 def normalize_llm_stream_mode(mode: Any) -> str:

@@ -5,6 +5,8 @@ import itertools
 import sys
 import types
 import unittest
+import unittest.mock
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -74,6 +76,8 @@ try:
         build_demo_report_document,
     )
     from app.interview.reporting.document import build_report_document
+    import app.interview.runtime.demo_script_opening_cache as opening_cache
+    import app.interview.runtime.prepared_opening as prepared_opening
     from app.interview.runtime.demo_script_prefetch import (
         clear_demo_script_prefetch,
         schedule_demo_script_prefetch,
@@ -91,7 +95,7 @@ try:
         prepare_live_user_request,
         prepare_opening_turn,
     )
-    from app.interview.runtime.session_engine import SessionEngineDeps, process_user_utterance
+    from app.interview.runtime.session_engine import SessionEngineDeps, handle_session_init, process_user_utterance
     from app.interview.runtime.state import AiDeliveryPlan, PreparedDeliverySegment, PreparedTtsAudio, VoiceWsState
     from app.interview.runtime.turn_entrypoints import generate_and_send_resume_live_turn
     from app.interview.transcript.runtime_cache import hydrate_state_from_turns
@@ -843,6 +847,198 @@ class DemoScriptLatencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.demo_script_prefetch_tasks, {})
         self.assertIsNone(state.demo_script_prefetch_live)
         self.assertEqual(prefetch_live.close_count, 1)
+
+
+def _opening_audio(text: str = OPENING) -> PreparedTtsAudio:
+    return PreparedTtsAudio(chunks=[f"shared:{text}"], sample_rate=24000, provider="gemini-live", duration_sec=13.0)
+
+
+def _demo_session_row(session_id: str) -> dict:
+    return {
+        "id": session_id,
+        "session_type": "live_interview",
+        "status": "created",
+        "job_payload": dict(DEMO_JOB_DATA),
+        "target_duration_sec": 420,
+        "closing_threshold_sec": 60,
+    }
+
+
+class DemoScriptOpeningCacheTests(unittest.IsolatedAsyncioTestCase):
+    """시연 오프닝 음성 프로세스 공용 캐시 — 버튼 대기(prepare-opening)와 방 오프닝이 같은 음성을 재사용한다."""
+
+    def setUp(self) -> None:
+        opening_cache.reset_demo_script_opening_cache()
+
+    async def asyncTearDown(self) -> None:
+        await opening_cache.shutdown_demo_script_opening_cache()
+        opening_cache.reset_demo_script_opening_cache()
+
+    async def _room_opening(self, state: VoiceWsState, deps: SessionEngineDeps) -> None:
+        await handle_session_init(object(), state, {"sessionId": state.session_id}, deps=deps)
+
+    def _room_deps(self, recorder: _Recorder, *, wait_sec: float = 1.0) -> SessionEngineDeps:
+        deps = _engine_deps(recorder, _executor_deps(recorder))
+        return replace(
+            deps,
+            get_session=lambda session_id: _demo_session_row(session_id),
+            take_demo_script_opening=lambda state: prepared_opening.build_demo_script_opening_artifact(
+                state,
+                next_turn_id=f"{state.session_id}:opening",
+                runtime_timing=lambda _state: (0, 420),
+                wait_sec=wait_sec,
+                start=False,
+            ),
+        )
+
+    async def test_opening_is_generated_once_and_shared_across_sessions(self) -> None:
+        generate = AsyncMock(side_effect=lambda text: _opening_audio(text))
+        first, second = await asyncio.gather(
+            opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate),
+            opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate),
+        )
+        third = await opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate)
+
+        generate.assert_awaited_once_with(OPENING)
+        self.assertEqual([audio.chunks for audio in (first, second, third)], [[f"shared:{OPENING}"]] * 3)
+        # 세션마다 복사본을 받는다 — 한 세션이 목록을 건드려도 캐시·다른 세션은 그대로다.
+        first.chunks.clear()
+        self.assertIsNot(second.chunks, third.chunks)
+        cached = await opening_cache.get_demo_script_opening_audio(wait_sec=0, start=False)
+        self.assertEqual(cached.chunks, [f"shared:{OPENING}"])
+
+    async def test_warm_prepare_opening_returns_artifact_without_live_speech(self) -> None:
+        await opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=AsyncMock(return_value=_opening_audio()))
+        live_speech = AsyncMock(return_value=("", None, ""))
+
+        with unittest.mock.patch.object(prepared_opening, "request_live_spoken_text_turn", live_speech):
+            artifacts = [
+                await asyncio.wait_for(prepared_opening.prepare_opening_artifact_from_session(_demo_session_row(sid)), 0.5)
+                for sid in ("demo-a", "demo-b")
+            ]
+
+        live_speech.assert_not_awaited()
+        for artifact in artifacts:
+            self.assertIsNotNone(artifact)
+            self.assertEqual(artifact.spec.prompt, OPENING)
+            segment = artifact.delivery_plan.segments[0]
+            self.assertEqual((segment.text, segment.prepared_audio.chunks), (OPENING, [f"shared:{OPENING}"]))
+        self.assertNotEqual(artifacts[0].spec.turn_id, artifacts[1].spec.turn_id)
+
+    async def test_cold_prepare_opening_returns_quickly_and_room_awaits_same_generation(self) -> None:
+        release = asyncio.Event()
+
+        async def slow_generate(text):
+            await release.wait()
+            return _opening_audio(text)
+
+        generate = AsyncMock(side_effect=slow_generate)
+        recorder = _Recorder()
+        deps = self._room_deps(recorder)
+        state = _demo_state()
+        with unittest.mock.patch.object(opening_cache, "generate_demo_script_opening_audio", generate), \
+                unittest.mock.patch.object(prepared_opening, "DEMO_SCRIPT_PREPARE_OPENING_WAIT_SEC", 0.05):
+            artifact = await asyncio.wait_for(
+                prepared_opening.prepare_opening_artifact_from_session(_demo_session_row(state.session_id)),
+                timeout=0.5,
+            )
+            self.assertIsNone(artifact)  # → prepared:false, 버튼은 바로 풀린다
+
+            room = asyncio.create_task(self._room_opening(state, deps))
+            for _ in range(5):
+                await asyncio.sleep(0)
+            self.assertFalse(room.done())
+            release.set()
+            await asyncio.wait_for(room, timeout=1.0)
+
+        generate.assert_awaited_once_with(OPENING)
+        deps.generate_and_send_opening_live_turn.assert_not_awaited()
+        deps.send_prepared_opening_live_turn.assert_awaited_once()
+        sent = deps.send_prepared_opening_live_turn.await_args.kwargs["artifact"]
+        self.assertEqual(sent.delivery_plan.segments[0].prepared_audio.chunks, [f"shared:{OPENING}"])
+
+    async def test_room_without_cache_or_generation_keeps_existing_opening_path(self) -> None:
+        recorder = _Recorder()
+        deps = self._room_deps(recorder)
+        generate = AsyncMock(return_value=_opening_audio())
+
+        with unittest.mock.patch.object(opening_cache, "generate_demo_script_opening_audio", generate):
+            await asyncio.wait_for(self._room_opening(_demo_state(), deps), timeout=0.5)
+
+        generate.assert_not_awaited()  # 방은 공용 생성을 새로 시작하지 않는다
+        deps.send_prepared_opening_live_turn.assert_not_awaited()
+        deps.generate_and_send_opening_live_turn.assert_awaited_once()
+
+    async def test_room_stops_waiting_at_bound_and_falls_back(self) -> None:
+        never = asyncio.Event()
+
+        async def hang(_text):
+            await never.wait()
+
+        recorder = _Recorder()
+        deps = self._room_deps(recorder, wait_sec=0.05)
+        # 공용 생성이 멈춘 채 진행 중이다(prepare-opening 이 걸어 두고 시간 초과로 돌아간 상태).
+        self.assertIsNone(await opening_cache.get_demo_script_opening_audio(wait_sec=0, generate=hang))
+
+        await asyncio.wait_for(self._room_opening(_demo_state(), deps), timeout=0.5)
+
+        deps.generate_and_send_opening_live_turn.assert_awaited_once()
+
+    async def test_failed_generation_is_not_cached(self) -> None:
+        generate = AsyncMock(side_effect=[None, RuntimeError("quota"), _opening_audio()])
+
+        self.assertIsNone(await opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate))
+        self.assertIsNone(await opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate))
+        audio = await opening_cache.get_demo_script_opening_audio(wait_sec=None, generate=generate)
+
+        self.assertEqual(generate.await_count, 3)
+        self.assertEqual(audio.chunks, [f"shared:{OPENING}"])
+
+    async def test_warm_up_generates_only_opening_and_swallows_errors(self) -> None:
+        failing = AsyncMock(side_effect=RuntimeError("no credentials"))
+        await opening_cache.warm_up_demo_script_opening(generate=failing)
+        failing.assert_awaited_once_with(OPENING)
+        self.assertIsNone(await opening_cache.get_demo_script_opening_audio(wait_sec=0, start=False))
+
+        generate = AsyncMock(side_effect=lambda text: _opening_audio(text))
+        await opening_cache.warm_up_demo_script_opening(generate=generate)
+        generate.assert_awaited_once_with(OPENING)
+        cached = await opening_cache.get_demo_script_opening_audio(wait_sec=0, start=False)
+        self.assertEqual(cached.chunks, [f"shared:{OPENING}"])
+
+    async def test_shared_generation_runs_on_dedicated_session_and_rejects_unverified_audio(self) -> None:
+        roleplay = _FakeLiveTextSession([OPENING + " " + CANDIDATE_ANSWERS[0]] * 2)
+        verified = _FakeLiveTextSession([OPENING])
+        sessions = iter([roleplay, verified])
+        with unittest.mock.patch.object(opening_cache, "create_live_interview_session", lambda: next(sessions)), \
+                unittest.mock.patch.object(opening_cache, "_LIVE_CLIENT_DEPS", _live_client_deps(_demo_state())):
+            # 어긋난 낭독(지원자 역할극)은 공용 캐시에 넣지 않는다 — 세션별 오프닝과 달리 미검증 음성을 쓰지 않는다.
+            self.assertIsNone(await opening_cache.generate_demo_script_opening_audio(OPENING))
+            audio = await opening_cache.generate_demo_script_opening_audio(OPENING)
+
+        self.assertEqual(len(roleplay.prompts), 2)
+        self.assertIn("글자 그대로", roleplay.prompts[0][0])  # 실제 시연 세션과 같은 대본 낭독 지시문
+        self.assertEqual(audio.chunks, [f"pcm:{OPENING}"])
+        self.assertGreaterEqual(verified.close_count, 1)  # 다 읽힌 뒤 쉬는 세션은 닫는다
+
+    async def test_non_demo_prepare_opening_is_unchanged(self) -> None:
+        generate = AsyncMock(return_value=_opening_audio())
+        live_speech = AsyncMock(return_value=("네이버 백엔드 면접 시작하겠습니다.", AUDIO, "gemini-live"))
+        session = {
+            "id": "normal-session",
+            "session_type": "live_interview",
+            "status": "created",
+            "job_payload": {"company": "네이버", "role": "백엔드 개발자"},
+            "target_duration_sec": 420,
+            "closing_threshold_sec": 60,
+        }
+        with unittest.mock.patch.object(opening_cache, "generate_demo_script_opening_audio", generate), \
+                unittest.mock.patch.object(prepared_opening, "request_live_spoken_text_turn", live_speech):
+            artifact = await prepared_opening.prepare_opening_artifact_from_session(session)
+
+        live_speech.assert_awaited_once()
+        generate.assert_not_awaited()
+        self.assertEqual(artifact.spec.prompt, "네이버 백엔드 면접 시작하겠습니다.")
 
 
 class _FakeReportService:

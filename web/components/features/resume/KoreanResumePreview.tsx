@@ -992,12 +992,27 @@ export function KoreanResumeSnapshotDocument({
     setPages(next);
   }, [blocks]);
 
+  // 첫 렌더는 본문 없는 빈 1페이지다. 폰트까지 반영해 페이지를 나눈 뒤에야 pending 을 내려,
+  // snapshotReactTreeToPdf 가 그 전에 캡쳐해 머리글만 찍히는 일이 없게 한다.
+  const [paginated, setPaginated] = useState(false);
   useEffect(() => {
+    let cancelled = false;
     computePages();
+    const fontsReady = typeof document !== "undefined" && document.fonts ? document.fonts.ready : Promise.resolve();
+    fontsReady
+      .catch(() => undefined)
+      .then(() => {
+        if (cancelled) return;
+        computePages();
+        setPaginated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [computePages]);
 
   return (
-    <div className="bg-white">
+    <div className="bg-white" data-pdf-pending={paginated ? undefined : ""}>
       {/* 측정용 — 모든 block 을 794px 폭에서 한 번 그려 height 잰다. */}
       <div
         aria-hidden

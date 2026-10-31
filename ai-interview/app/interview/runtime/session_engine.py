@@ -635,6 +635,8 @@ class SessionEngineDeps:
     parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None
     # 시연 고정 대본 다음 줄 음성 선생성(전용 라이브 세션). None 이면 선생성 없이 기존 경로만 쓴다.
     prefetch_scripted_line_audio: Callable[[VoiceWsState, str], Awaitable[PreparedTtsAudio | None]] | None = None
+    # 시연 고정 대본 오프닝 — 프로세스 공용 오프닝 음성(캐시 또는 진행 중인 생성)으로 조립한 오프닝. None 이면 기존 경로만.
+    take_demo_script_opening: Callable[[VoiceWsState], Awaitable[PreparedOpeningArtifact | None]] | None = None
 
 
 def build_session_init_request(
@@ -795,6 +797,13 @@ async def handle_session_init(
         if deps.consume_prepared_opening is not None
         else None
     )
+    if (
+        prepared_opening is None
+        and deps.take_demo_script_opening is not None
+        and is_demo_script_state(state)
+    ):
+        # 시연 대본: prepare-opening 이 시간 안에 못 받아 간 공용 오프닝 생성을 이어 기다린다(같은 대사를 새로 읽히지 않는다).
+        prepared_opening = await deps.take_demo_script_opening(state)
     if prepared_opening is not None and deps.send_prepared_opening_live_turn is not None:
         generated = await deps.send_prepared_opening_live_turn(
             ws,

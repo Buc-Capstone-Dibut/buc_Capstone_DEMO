@@ -163,6 +163,7 @@ def build_session_engine_deps(
     update_turn_content: Callable[..., Awaitable[Any]] | None = None,
     parallel_refine_user_audio: Callable[[VoiceWsState, bytes], Awaitable[tuple[str, str]]] | None = None,
     prefetch_scripted_line_audio: Callable[[VoiceWsState, str], Awaitable[PreparedTtsAudio | None]] | None = None,
+    take_demo_script_opening: Callable[[VoiceWsState], Awaitable[PreparedOpeningArtifact | None]] | None = None,
 ) -> SessionEngineDeps:
     return SessionEngineDeps(
         create_live_interview_session=create_live_interview_session,
@@ -217,6 +218,7 @@ def build_session_engine_deps(
         runtime_architecture=runtime_architecture,
         parallel_refine_user_audio=parallel_refine_user_audio,
         prefetch_scripted_line_audio=prefetch_scripted_line_audio,
+        take_demo_script_opening=take_demo_script_opening,
     )
 
 

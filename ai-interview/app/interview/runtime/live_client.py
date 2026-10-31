@@ -276,6 +276,7 @@ async def request_live_scripted_speech_turn(
     deps: "LiveClientDeps",
     attempts: int = SCRIPTED_SPEECH_ATTEMPTS,
     live: GeminiLiveInterviewSession | None = None,
+    accept_unverified: bool = True,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
     """시연 고정 대본 한 줄을 라이브 음성으로 '그대로' 읽힌다.
 
@@ -284,6 +285,8 @@ async def request_live_scripted_speech_turn(
     끝내 기준을 못 넘으면 대본과 조금이라도 겹치는(coverage > 0) 가장 근접한 음성을 쓴다.
     오프닝은 첫 화면이 멈추지 않도록 음성이 하나라도 있으면 그대로 쓴다. 그 외에는 음성 없음(None).
     live 를 주면 그 세션으로 읽힌다(다음 줄 선생성 전용 세션 — 본 세션 문맥·close 와 분리).
+    accept_unverified=False 면 기준 미달 음성(가장 근접한 시도·미검증 오프닝)을 쓰지 않고 None 을 준다
+    — 모든 시연 세션이 재사용하는 공용 캐시(demo_script_audio_cache)에 어긋난 음성이 박히지 않게 한다.
     """
     payload_text = " ".join((text or "").split()).strip()
     if live is None:
@@ -338,6 +341,8 @@ async def request_live_scripted_speech_turn(
             # 어긋난 턴이 문맥에 남아 다음 시도를 오염시키지 않도록 라이브 세션을 새로 연다.
             await live.close()
 
+    if not accept_unverified:
+        return payload_text, None, provider
     if best_audio is not None and best_coverage > 0:
         logger.warning(
             "scripted speech using closest attempt (session=%s, coverage=%.2f)",

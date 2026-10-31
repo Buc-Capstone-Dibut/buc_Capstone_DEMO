@@ -86,6 +86,10 @@ from app.interview.runtime.turn_entrypoints import (
     send_prepared_opening_live_turn as runtime_send_prepared_opening_live_turn,
 )
 from app.interview.runtime.live_turns import is_demo_script_state, prepare_live_user_followup
+from app.interview.runtime.prepared_opening import (
+    DEMO_SCRIPT_ROOM_OPENING_WAIT_SEC,
+    build_demo_script_opening_artifact,
+)
 from app.interview.runtime.prepared_opening_store import consume_prepared_opening
 from app.interview.runtime.session_resume import SessionResumeDeps, resume_existing_session
 from app.interview.runtime.turn_ids import next_ai_turn_id
@@ -377,6 +381,7 @@ def _session_engine_deps():
         finalize_parallel_stt_stream=_finalize_parallel_stt_stream,
         parallel_refine_user_audio=_parallel_refine_user_audio,
         prefetch_scripted_line_audio=_prefetch_scripted_line_audio,
+        take_demo_script_opening=_take_demo_script_opening,
     )
 
 def _client_message_router_deps():
@@ -1483,6 +1488,17 @@ async def _generate_and_send_opening_live_turn(ws: WebSocket, state: VoiceWsStat
         live_opening_prompt=LIVE_OPENING_PROMPT,
         runtime_timing=transcript_runtime_timing,
         runtime_executor_deps=_runtime_executor_deps,
+    )
+
+
+async def _take_demo_script_opening(state: VoiceWsState):
+    # 진행 중인 공용 오프닝 생성만 기다린다(start=False). 캐시도 생성도 없으면 None → 기존 오프닝 낭독 경로.
+    return await build_demo_script_opening_artifact(
+        state,
+        next_turn_id=_next_ai_turn_id(state.session_id),
+        runtime_timing=transcript_runtime_timing,
+        wait_sec=DEMO_SCRIPT_ROOM_OPENING_WAIT_SEC,
+        start=False,
     )
 
 
