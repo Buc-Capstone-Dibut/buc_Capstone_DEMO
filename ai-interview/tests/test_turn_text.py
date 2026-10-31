@@ -6,6 +6,15 @@ from app.interview.domain.turn_text import sanitize_user_turn_text
 
 
 class TurnTextUserTranscriptTests(unittest.TestCase):
+    def test_formats_demo_technical_terms_without_rewriting_the_answer(self) -> None:
+        raw = "실무 경험은 없지만 수업에서 스프링으로 crud를 만들어 봤고, 지금은 스프링 부트로 송금 api를 만들고 있습니다."
+        expected = "실무 경험은 없지만 수업에서 스프링으로 CRUD를 만들어 봤고, 지금은 Spring Boot로 송금 API를 만들고 있습니다."
+        self.assertEqual(sanitize_user_turn_text(raw), expected)
+        self.assertEqual(sanitize_user_turn_text(expected), expected)
+        for untouched in ("김리버입니다.", "SpringBootApplication", "crudRepository", "RapidAPI", "스프링 부트캠프"):
+            with self.subTest(untouched=untouched):
+                self.assertEqual(sanitize_user_turn_text(untouched), untouched)
+
     def test_preserves_decimal_values_versions_and_dotted_technical_names(self) -> None:
         for text in (
             "오류율을 0.15%로 줄였습니다.",

@@ -15,6 +15,8 @@ from typing import Any
 DEMO_SCRIPT_ID = "dozn-2026-backend"
 DEMO_SCRIPT_COMPLETION_REASON = "closing_answer_submitted"
 _COMPANY_MARKERS = ("더즌", "dozn")
+DEMO_CANDIDATE_NAME = "김디벗"
+DEMO_STT_PHRASE_HINTS = (DEMO_CANDIDATE_NAME, f"{DEMO_CANDIDATE_NAME}입니다", f"개발자 {DEMO_CANDIDATE_NAME}", "더즌", "Spring Boot", "CRUD", "송금 API")
 
 OPENING = (
     "안녕하세요, 김디벗 지원자님. 더즌 개발본부 백엔드 신입 면접 시작하겠습니다. 보내주신 이력서랑 자소서, 포트폴리오는 미리 읽어 봤어요. "
@@ -131,6 +133,8 @@ __all__ = [
     "CLOSING_TEXT",
     "DEMO_SCRIPT_COMPLETION_REASON",
     "DEMO_SCRIPT_ID",
+    "DEMO_CANDIDATE_NAME",
+    "DEMO_STT_PHRASE_HINTS",
     "OPENING",
     "QUESTIONS",
     "demo_script_cursor_from_model_turns",

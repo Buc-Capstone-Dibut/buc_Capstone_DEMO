@@ -106,6 +106,7 @@ try:
         VoiceWsState,
     )
     from app.interview.runtime.ws_runtime import (
+        _build_parallel_stt_phrase_hints,
         _handle_parallel_stt_realtime_result,
         _push_parallel_stt_audio_chunk,
         _should_emit_gemini_user_delta,
@@ -407,6 +408,26 @@ class QuestionTypeTests(unittest.TestCase):
 
         self.assertEqual(strategy, "followup")
         self.assertEqual(question_type, "implementation_detail")
+
+
+class ParallelSttPhraseHintTests(unittest.TestCase):
+    def test_personal_info_name_is_prioritized_before_large_job_vocabulary(self) -> None:
+        state = VoiceWsState(
+            resume_data={"personalInfo": {"name": "박하나"}},
+            job_data={"company": "테스트 회사", "skills": [f"기술{i}" for i in range(100)]},
+        )
+        hints = _build_parallel_stt_phrase_hints(state)
+        self.assertIn("박하나", hints[:2])
+        self.assertIn("박하나입니다", hints[:2])
+        self.assertNotIn("김디벗", hints)
+        self.assertLessEqual(len(hints), 64)
+
+    def test_demo_hints_include_name_and_terms_without_whole_script_answers(self) -> None:
+        state = VoiceWsState(job_data={"company": "더즌"})
+        hints = _build_parallel_stt_phrase_hints(state)
+        for term in ("김디벗", "김디벗입니다", "Spring Boot", "CRUD", "송금 API"):
+            self.assertIn(term, hints)
+        self.assertTrue(all(len(hint.split()) <= 6 for hint in hints))
 
 
 class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):

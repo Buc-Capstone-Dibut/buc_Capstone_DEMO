@@ -9,6 +9,8 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.config import settings
+from app.interview.domain.demo_script import DEMO_CANDIDATE_NAME, DEMO_STT_PHRASE_HINTS
+from app.interview.domain.stt_entities import normalize_self_introduction_name
 from app.interview.domain.interview_memory import (
     build_memory_snapshot as domain_build_memory_snapshot,
     compact_context_text as domain_compact_context_text,
@@ -186,10 +188,33 @@ def _to_string_list(value: Any) -> list[str]:
     return []
 
 
+def _candidate_stt_names(state: VoiceWsState) -> list[str]:
+    if is_demo_script_state(state):
+        return [DEMO_CANDIDATE_NAME]
+    resume_data = state.resume_data if isinstance(state.resume_data, dict) else {}
+    names = []
+    for source in (resume_data, resume_data.get("personalInfo"), resume_data.get("profile")):
+        if isinstance(source, dict):
+            for key in ("name", "fullName"):
+                names.extend(_to_string_list(source.get(key)))
+    return names
+
+
+def _normalize_parallel_user_text(state: VoiceWsState, text: str) -> str:
+    return normalize_self_introduction_name(domain_sanitize_user_turn_text(text), _candidate_stt_names(state))
+
+
 def _iter_session_stt_hint_candidates(state: VoiceWsState) -> list[str]:
     job_data = state.job_data if isinstance(state.job_data, dict) else {}
     resume_data = state.resume_data if isinstance(state.resume_data, dict) else {}
     candidates: list[str] = []
+
+    # Names were absent from the previous hint extraction, including the
+    # personalInfo.name shape sent by the interview setup form.
+    for name in _candidate_stt_names(state):
+        candidates.extend((name, f"{name}입니다"))
+    if is_demo_script_state(state):
+        candidates.extend(DEMO_STT_PHRASE_HINTS)
 
     for key in ("company", "role", "position"):
         candidates.extend(_to_string_list(job_data.get(key)))
@@ -711,7 +736,7 @@ async def _parallel_refine_user_audio(state: VoiceWsState, wav_bytes: bytes) -> 
     except Exception:
         logger.warning("parallel STT refinement failed", exc_info=True)
         return "", ""
-    return (result.text or "").strip(), (result.provider or "").strip()
+    return _normalize_parallel_user_text(state, result.text or ""), (result.provider or "").strip()
 
 
 def _parallel_stt_realtime_enabled() -> bool:
@@ -835,7 +860,7 @@ async def _handle_parallel_stt_realtime_result(
 ) -> None:
     if not _parallel_stt_realtime_enabled():
         return
-    normalized = domain_sanitize_user_turn_text(text)
+    normalized = _normalize_parallel_user_text(state, text)
     if not normalized:
         return
     if turn_id != (state.parallel_stt_turn_id or "").strip():

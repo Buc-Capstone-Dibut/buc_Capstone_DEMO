@@ -3,6 +3,18 @@ import test from "node:test";
 
 import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
 
+test("user captions standardize spoken technical terms while preserving answer content", () => {
+  const raw = "실무 경험은 없지만 수업에서 스프링으로 crud를 만들어 봤고, 지금은 스프링 부트로 송금 api를 만들고 있습니다.";
+  const expected = "실무 경험은 없지만 수업에서 스프링으로 CRUD를 만들어 봤고, 지금은 Spring Boot로 송금 API를 만들고 있습니다.";
+  for (const format of [formatTranscriptForDisplay, formatStreamingTranscriptForDisplay]) {
+    assert.equal(format(raw, "user"), expected);
+    assert.equal(format(expected, "user"), expected);
+    for (const untouched of ["김리버입니다.", "SpringBootApplication", "crudRepository", "RapidAPI", "스프링 부트캠프"]) {
+      assert.equal(format(untouched, "user"), untouched);
+    }
+  }
+});
+
 test("transcript punctuation preserves numbers, versions, and dotted technical names", () => {
   const cases = [
     ["오류율을 0.15%로 줄였습니다.", ["0.15"]],

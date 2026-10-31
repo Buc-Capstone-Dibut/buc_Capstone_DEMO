@@ -78,6 +78,10 @@ const BOUNDARY_REPLACEMENTS: Array<[RegExp, string]> = [
   [/(하는|되는|했던|하면서|했고|하고|하며)(?=[가-힣A-Za-z0-9]{2,})/gu, "$1 "],
 ];
 const USER_TECHNICAL_RECOVERIES: Array<[RegExp, string]> = [
+  [/(?<![A-Za-z0-9])api(?![A-Za-z0-9])/giu, "API"],
+  [/(?<![A-Za-z0-9])crud(?![A-Za-z0-9])/giu, "CRUD"],
+  [/(?<![A-Za-z0-9])spring\s*boot(?![A-Za-z0-9])/giu, "Spring Boot"],
+  [/스프링\s*부트(?=$|[\s,.!?]|을|를|은|는|이|가|와|과|로|도|만|에서|으로)/gu, "Spring Boot"],
   [/웹\s*소켓/giu, "웹소켓"],
   [/실\s*시간/gu, "실시간"],
   [/백\s*엔드/gu, "백엔드"],

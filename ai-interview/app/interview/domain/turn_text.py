@@ -341,6 +341,10 @@ KOREAN_BOUNDARY_PATTERNS = (
     ),
 )
 USER_TECHNICAL_RECOVERY_PATTERNS = (
+    (re.compile(r"(?<![A-Za-z0-9])api(?![A-Za-z0-9])", re.IGNORECASE), "API"),
+    (re.compile(r"(?<![A-Za-z0-9])crud(?![A-Za-z0-9])", re.IGNORECASE), "CRUD"),
+    (re.compile(r"(?<![A-Za-z0-9])spring\s*boot(?![A-Za-z0-9])", re.IGNORECASE), "Spring Boot"),
+    (re.compile(r"스프링\s*부트(?=$|[\s,.!?]|을|를|은|는|이|가|와|과|로|도|만|에서|으로)"), "Spring Boot"),
     (re.compile(r"웹\s*소켓", re.IGNORECASE), "웹소켓"),
     (re.compile(r"실\s*시간"), "실시간"),
     (re.compile(r"백\s*엔드"), "백엔드"),

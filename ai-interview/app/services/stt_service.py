@@ -40,6 +40,8 @@ GENERIC_TECHNICAL_STT_HINTS = (
     "프론트엔드",
     "API",
     "REST API",
+    "Spring Boot",
+    "CRUD",
     "세션 상태",
     "동시 요청",
     "이벤트 처리",
