@@ -1,0 +1,109 @@
+{
+  "scriptId": "dozn-2026-backend",
+  "voice": "Charon",
+  "lines": {
+    "3d68fdfd5702c40fdd82c80abeb5ec86ba36daa68301487e44f0378b8c553c48": {
+      "label": "opening",
+      "text": "안녕하세요, 김디벗 지원자님. 더즌 개발본부 백엔드 신입 면접 시작하겠습니다. 보내주신 이력서랑 자소서, 포트폴리오는 미리 읽어 봤어요. 먼저 1분 정도 자기소개 부탁드립니다.",
+      "sampleRate": 24000,
+      "pcmSha256": "2b126aa1cf332f58997b0f14a581fdc1b8332dc4d0c64433adf327804634a482",
+      "durationMs": 14192
+    },
+    "e101e5a423a9ab205acf36edd4f8fb1aff1eeff33e2dabd99f34f79f3b729867": {
+      "label": "question-1",
+      "text": "네. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. 저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "844a575b98c5e57ba68229c7ef840182b6588bcdcfc026a897014fe2f1657770",
+      "durationMs": 14352,
+      "initialAcknowledgementEdit": {
+        "sourceEndMs": 1600,
+        "tempo": 3.2,
+        "crossfadeMs": 10
+      }
+    },
+    "dbf36d69ff63de485ac8619ce25b98444bb95d6baba16ebeda4827c1789dd30c": {
+      "label": "question-2",
+      "text": "송금 API를 만들고 계시다니 바로 확인해 볼게요. 출금이랑 입금 반영, 트랜잭션은 어디에 거셨어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "8960d01beaa3a02e69bb5d8834f1dc432bd5ceac8deb4c137217956b021e8948",
+      "durationMs": 7832
+    },
+    "2711e5217e63535c12f69ed127aaa3ddf5fde1297c86de71a0248d220cdfabd1": {
+      "label": "question-3",
+      "text": "좋습니다. 포트폴리오에 근거 일치율 87%가 크게 적혀 있던데요. 그 87%, 정확히 어떻게 측정하신 거예요?",
+      "sampleRate": 24000,
+      "pcmSha256": "45dc4c273885c3ebedaa9f437e176dc82a06fc8bf4c64c9d6f8ccb41b3e8e574",
+      "durationMs": 8912
+    },
+    "9b3de67dfaf7b00331457909d38f39ed8101f7365a1a0c78a7c6c5733bc6e312": {
+      "label": "question-4",
+      "text": "그럼 틀린 19개는요? 어떤 유형이었고, 그냥 두진 않으셨을 것 같은데요.",
+      "sampleRate": 24000,
+      "pcmSha256": "45685ee1c7a1112f384a708c5600578c96a6242bbdd1cd033e61dc4dc6fa758f",
+      "durationMs": 5672
+    },
+    "b88a95d6cb451949eeaf03c98d903543275fbd3e370e4827e0b926f2fbb140c3": {
+      "label": "question-5",
+      "text": "자소서에 칸반 카드를 동시에 옮기면 화면마다 결과가 달랐다고 쓰셨죠. 저희 일도 동시 요청 정합성이 핵심인데, 그 문제 어떻게 푸셨어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "1303851c8a1eabd207c611ad11f3fa7fc6b572a604fcedd81a1ef66cb8e4e643",
+      "durationMs": 10752
+    },
+    "70caef123789caa62f4eb90691a29edaa8a61c23355398d26b2c8536b7897c3e": {
+      "label": "question-6",
+      "text": "버전으로 막으셨으면 낙관적 락이네요. 비관적 락은 왜 안 쓰셨어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "ab5979fdc66e7742617fa8252eb5fb4b55fa483765b19c669917425197eb5b67",
+      "durationMs": 5552
+    },
+    "29d642925fa99b3898b0319c468850edaaca1f8631da674e74c993c104134368": {
+      "label": "question-7",
+      "text": "방금 금액 얘기를 하셨으니 저희 업무로 가 볼게요. 은행에서 가상계좌 입금 통지가 같은 건으로 두 번 들어오면, 입금이 두 번 처리되지 않게 어떻게 막으시겠어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "067c231c1040635ef050a579a6b9a962379edd98f276aeb0f95eabb7c56f4bf2",
+      "durationMs": 11592
+    },
+    "6a8f8155ec647ad9fc19e0270c477a07a297797a2a61b99c24d2764667fcc64b": {
+      "label": "question-8",
+      "text": "반대로 저희가 보낸 펌뱅킹 이체 요청에 금융기관 응답이 타임아웃으로 안 오면요? 성공했는지 실패했는지 모르는 상황인데요.",
+      "sampleRate": 24000,
+      "pcmSha256": "d1e645776382fec67c61b9d07072be3eae02a62fdd9140157e8356d78e3c604e",
+      "durationMs": 9232
+    },
+    "8d16132bf36433c1e5a52e8c043d4dd7840691a5f4c51849a49ee8e3dd7bee23": {
+      "label": "question-9",
+      "text": "이력서에 해커톤 팀장, 10일 만에 MVP라고 있던데요. 분명 잘라낸 기능이 있었을 텐데, 가장 아까웠던 것 하나와 자른 이유를 말씀해 주세요.",
+      "sampleRate": 24000,
+      "pcmSha256": "24171a254ee2b5639704a883596820618583a0cb84139b19f1353bc4c079923d",
+      "durationMs": 10792
+    },
+    "30840d2b206bc12b4b8efaba1144b2966f66fde1d0108b37331c80fcf8c8b2ab": {
+      "label": "question-10",
+      "text": "저희는 정산 배치가 새벽에 돕니다. 새벽 3시에 정산 배치가 중간에 실패했다면, 출근해서 어떻게 하시겠어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "184dca850d9d826df872d7735b1f644c2a01dd8cabc61567813fb32a3a03a3df",
+      "durationMs": 7512
+    },
+    "058ec0ceeb902facd6936dcc8742d3a675ddadc6fce84ee43cfcd16a1b8e13f3": {
+      "label": "question-11",
+      "text": "마지막 질문입니다. 자소서 지원동기에 거래 인프라는 보이지 않게 잘 돌아가야 한다고 쓰셨던데, 백엔드 개발자에게 그게 구체적으로 어떤 의미라고 보세요?",
+      "sampleRate": 24000,
+      "pcmSha256": "bbb21bff37f096517044fd99b9d4ecba2a0a2e2cf571b926a322b05a7de38c0f",
+      "durationMs": 10632
+    },
+    "96d5af2a269e9d94d73a0ee95a8a5acd67fed6ad99142a5f6a97f350348c83e0": {
+      "label": "question-12",
+      "text": "네, 87% 측정 방법이나 중복 입금 처리를 근거로 차분하게 설명하신 점이 인상적이었고, Java·Spring 실무와 금융기관 연동은 입사 후 빠르게 채워야 할 부분으로 보입니다. 마지막으로 궁금한 점 있으세요?",
+      "sampleRate": 24000,
+      "pcmSha256": "ee5017032d32fbc081c421ce1bdb4a261a046e402ddb41c80076136c74f9e6df",
+      "durationMs": 14032
+    },
+    "ec8140aec78c1561e7fa81296660d472c1f597fb128ed779809355ff6b2546d4": {
+      "label": "closing",
+      "text": "처음 3개월 수습 기간에는 펌뱅킹·가상계좌 구조 교육을 받으면서, 선배와 함께 관리자 페이지와 배치 운영 업무를 맡게 됩니다. 입사 전에는 트랜잭션과 배치 쪽을 한 번 더 봐 두시면 좋겠습니다. 오늘 면접은 여기까지입니다. 수고 많으셨습니다.",
+      "sampleRate": 24000,
+      "pcmSha256": "86d68c9747d1396e283295e8610fa97135d932ae9aa3aee03b2ca751d94e6186",
+      "durationMs": 17512
+    }
+  }
+}

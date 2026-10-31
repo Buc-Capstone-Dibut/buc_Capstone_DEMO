@@ -27,13 +27,16 @@ def demo_audio_key(text: str) -> str:
 def _load(text: str, voice: str) -> PreparedTtsAudio | None:
     key = demo_audio_key(text)
     try:
-        manifest = json.loads((AUDIO_DIRECTORY / "manifest.json").read_text())
+        directory = AUDIO_DIRECTORY / voice
+        if not (directory / "manifest.json").is_file():
+            directory = AUDIO_DIRECTORY
+        manifest = json.loads((directory / "manifest.json").read_text())
         if manifest.get("scriptId") != DEMO_SCRIPT_ID or manifest.get("voice") != voice:
             return None
         entry = manifest.get("lines", {}).get(key)
         if not entry or entry.get("text") != " ".join(text.split()):
             return None
-        pcm = gzip.decompress((AUDIO_DIRECTORY / f"{key}.pcm.gz").read_bytes())
+        pcm = gzip.decompress((directory / f"{key}.pcm.gz").read_bytes())
         sample_rate = int(entry["sampleRate"])
         if not pcm or len(pcm) % 2 or not 8000 <= sample_rate <= 48000:
             return None

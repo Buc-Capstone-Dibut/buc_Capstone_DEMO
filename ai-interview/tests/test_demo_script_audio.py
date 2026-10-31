@@ -49,12 +49,28 @@ class BundledDemoAudioTests(unittest.TestCase):
         self.write_manifest()
         self.assertIsNone(audio.load_demo_script_audio(self.text))
 
+    def test_voice_specific_audio_does_not_reuse_another_voice(self):
+        import copy
+        voice_directory = self.root / "Charon"
+        voice_directory.mkdir()
+        manifest = copy.deepcopy(self.manifest)
+        manifest["voice"] = "Charon"
+        pcm = b"\x02\x00" * 6400
+        manifest["lines"][self.key]["pcmSha256"] = hashlib.sha256(pcm).hexdigest()
+        (voice_directory / "manifest.json").write_text(json.dumps(manifest))
+        (voice_directory / f"{self.key}.pcm.gz").write_bytes(gzip.compress(pcm))
+        with patch.object(audio.settings, "gemini_live_tts_voice", "Charon"):
+            self.assertAlmostEqual(audio.load_demo_script_audio(self.text).duration_sec, 0.4)
+        self.assertAlmostEqual(audio.load_demo_script_audio(self.text).duration_sec, 0.2)
+
 
 class ShippedDemoAudioTests(unittest.TestCase):
     def test_every_script_line_has_valid_bundled_audio(self):
         audio._load.cache_clear()
-        for text in [OPENING, *QUESTIONS, CLOSING_TEXT]:
-            with self.subTest(text=text):
-                prepared = audio.load_demo_script_audio(text)
-                self.assertTrue(prepared is not None, "missing or stale bundled line")
-                self.assertGreater(prepared.duration_sec, 1)
+        for voice in ("Kore", "Charon"):
+            with patch.object(audio.settings, "gemini_live_tts_voice", voice):
+                for text in [OPENING, *QUESTIONS, CLOSING_TEXT]:
+                    with self.subTest(voice=voice, text=text):
+                        prepared = audio.load_demo_script_audio(text)
+                        self.assertTrue(prepared is not None, "missing or stale bundled line")
+                        self.assertGreater(prepared.duration_sec, 1)

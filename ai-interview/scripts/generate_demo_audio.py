@@ -32,6 +32,8 @@ async def main(args: argparse.Namespace) -> None:
     assert manifest["voice"] == (settings.gemini_live_tts_voice or "Kore")
     lines = [("opening", OPENING), *[(f"question-{i + 1}", t) for i, t in enumerate(QUESTIONS)], ("closing", CLOSING_TEXT)]
     for label, text in lines:
+        if args.only and label not in args.only:
+            continue
         key = demo_audio_key(text)
         target = args.output / f"{key}.pcm.gz"
         if not args.force and key in manifest["lines"] and target.exists():
@@ -50,12 +52,12 @@ async def main(args: argparse.Namespace) -> None:
         edit = None
         if label == "question-1" and args.ack_end_ms:
             boundary = args.ack_end_ms / 1000
-            filters = (f"[0:a]asplit=2[h][t];[h]atrim=end={boundary},asetpts=PTS-STARTPTS,atempo=1.6[s];"
+            filters = (f"[0:a]asplit=2[h][t];[h]atrim=end={boundary},asetpts=PTS-STARTPTS,atempo={args.ack_tempo}[s];"
                        f"[t]atrim=start={boundary},asetpts=PTS-STARTPTS[r];[s][r]acrossfade=d=0.01")
             pcm = subprocess.run([args.ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "s16le", "-ar", str(rate),
                 "-ac", "1", "-i", "pipe:0", "-filter_complex", filters, "-f", "s16le", "pipe:1"],
                 input=pcm, stdout=subprocess.PIPE, check=True).stdout
-            edit = {"sourceEndMs": args.ack_end_ms, "tempo": 1.6, "crossfadeMs": 10}
+            edit = {"sourceEndMs": args.ack_end_ms, "tempo": args.ack_tempo, "crossfadeMs": 10}
         target.write_bytes(gzip.compress(pcm, mtime=0))
         entry = {"label": label, "text": " ".join(text.split()), "sampleRate": rate,
                  "pcmSha256": hashlib.sha256(pcm).hexdigest(), "durationMs": round(len(pcm) / (rate * 2) * 1000)}
@@ -72,7 +74,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=AUDIO_DIRECTORY)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--only", nargs="+")
     parser.add_argument("--first-question-source", type=Path)
     parser.add_argument("--ack-end-ms", type=int)
+    parser.add_argument("--ack-tempo", type=float, default=1.6)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     asyncio.run(main(parser.parse_args()))
