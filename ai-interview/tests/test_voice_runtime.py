@@ -107,6 +107,8 @@ try:
     )
     from app.interview.runtime.ws_runtime import (
         _build_parallel_stt_phrase_hints,
+        _prefetch_scripted_line_audio,
+        _request_live_spoken_text_turn,
         _handle_parallel_stt_realtime_result,
         _push_parallel_stt_audio_chunk,
         _should_emit_gemini_user_delta,
@@ -461,6 +463,20 @@ class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.send.await_count, 2)
         self.assertEqual(self.state.realtime_user_transcript, latest)
 
+    async def test_demo_caption_corrects_supplied_name_and_terms_in_the_same_update(self) -> None:
+        self.state.job_data = {"company": "더즌"}
+        raw = ("안녕하세요 데이터의 근거를 끝까지 확인하는 개발자 김리버입니다. "
+               "실무 경험은 없지만 수업에서 스프링으로 crud를 만들어 봤고, "
+               "지금은 스프링 부트로 송금 api를 만들고 있습니다.")
+        with patch("app.interview.runtime.ws_runtime._parallel_refine_user_audio", new_callable=AsyncMock) as refine:
+            await self.emit(raw)
+        refine.assert_not_awaited()
+        sent = self.send.await_args.args[4]
+        self.assertIn("개발자 김디벗입니다.", sent)
+        self.assertIn("스프링으로 CRUD를", sent)
+        self.assertIn("Spring Boot로 송금 API를", sent)
+        self.assertEqual(self.send.await_count, 1)
+
     async def test_submitting_keeps_latest_interim_after_an_earlier_final(self) -> None:
         await self.emit("통신을 설계했습니다.", final=True)
         latest = "통신을 설계했습니다. 캐시도 적용했습니다"
@@ -473,6 +489,21 @@ class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
         await self.emit("통신을 설계했습니다.", final=True)
         self.assertEqual(self.send.await_count, 1)
         self.assertEqual(self.state.parallel_stt_final_text, "통신을 설계했습니다.")
+
+    async def test_demo_bundled_audio_does_not_create_live_session_or_generate(self) -> None:
+        from app.interview.domain.demo_script import QUESTIONS
+        self.state.job_data = {"company": "더즌"}
+        with patch("app.interview.runtime.ws_runtime.runtime_create_live_interview_session") as factory, patch(
+            "app.interview.runtime.ws_runtime.runtime_request_live_spoken_text_turn", new_callable=AsyncMock,
+        ) as generate:
+            prefetched = await _prefetch_scripted_line_audio(self.state, QUESTIONS[0])
+            text, played, provider = await _request_live_spoken_text_turn(self.state, text=QUESTIONS[0])
+        factory.assert_not_called()
+        generate.assert_not_awaited()
+        self.assertEqual(text, QUESTIONS[0])
+        self.assertEqual(provider, "gemini-live-bundled")
+        self.assertTrue(prefetched.chunks)
+        self.assertEqual(played.duration_sec, prefetched.duration_sec)
 
     async def test_result_for_an_old_turn_does_not_replace_current_caption(self) -> None:
         await _handle_parallel_stt_realtime_result(

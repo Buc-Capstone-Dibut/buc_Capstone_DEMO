@@ -867,6 +867,7 @@ async def process_user_utterance(
     claimed_script_turn_id = ""
 
     try:
+        scripted = is_demo_script_state(state)
         if state.active_question_turn_id:
             state.active_question_heard_audio = True
         if not await deps.send_json(ws, {"type": "control", "text": "mic-audio-end"}):
@@ -874,11 +875,14 @@ async def process_user_utterance(
         if not await deps.send_avatar_state(ws, "thinking", state.session_id):
             return
         state.runtime_status = "model_thinking"
-        await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
+        # Fixed demo lines have no question-generation step. Publish the UI
+        # transition immediately and persist model_speaking in the executor,
+        # without an extra DB round trip for this short-lived thinking state.
+        if not scripted:
+            await deps.set_runtime_status(state.session_id, "model_thinking", state.current_phase)
         await deps.send_runtime_meta_snapshot(ws, state)
 
         # 시연 고정 대본은 대사를 서버가 정하므로 live-only(라이브 모델이 질문 생성) 경로를 쓰지 않는다.
-        scripted = is_demo_script_state(state)
         architecture = "hybrid" if scripted else _runtime_architecture(deps)
         optimistic_user_turn_id = (
             (state.live_input_turn_id or "").strip()

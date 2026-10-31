@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from app.config import settings
 from app.interview.domain.demo_script import DEMO_CANDIDATE_NAME, DEMO_STT_PHRASE_HINTS
 from app.interview.domain.stt_entities import normalize_self_introduction_name
+from app.interview.runtime.demo_script_audio import load_demo_script_audio
 from app.interview.domain.interview_memory import (
     build_memory_snapshot as domain_build_memory_snapshot,
     compact_context_text as domain_compact_context_text,
@@ -1042,6 +1043,10 @@ async def _request_live_spoken_text_turn(
     text: str,
     attempts: int | None = None,
 ) -> tuple[str, PreparedTtsAudio | None, str]:
+    if is_demo_script_state(state):
+        bundled = load_demo_script_audio(text)
+        if bundled is not None:
+            return text, bundled, bundled.provider
     return await runtime_request_live_spoken_text_turn(
         state,
         text=text,
@@ -1051,6 +1056,9 @@ async def _request_live_spoken_text_turn(
 
 
 async def _prefetch_scripted_line_audio(state: VoiceWsState, text: str) -> PreparedTtsAudio | None:
+    bundled = load_demo_script_audio(text)
+    if bundled is not None:
+        return bundled
     # 시연 대본 다음 줄 선생성 — 본 세션(state.live_interview)과 문맥·close 를 공유하지 않는 전용 세션에서 읽힌다.
     if state.demo_script_prefetch_live is None:
         state.demo_script_prefetch_live = runtime_create_live_interview_session()

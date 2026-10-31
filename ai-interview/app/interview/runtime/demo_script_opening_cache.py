@@ -26,6 +26,7 @@ from app.interview.domain.demo_script import DEMO_SCRIPT_ID, OPENING
 from app.interview.domain.interview_memory import compact_context_text
 from app.interview.domain.turn_text import looks_like_complete_ai_question, sanitize_ai_turn_text
 from app.interview.runtime.delivery import to_prepared_tts_audio_from_pcm
+from app.interview.runtime.demo_script_audio import load_demo_script_audio
 from app.interview.runtime.live_client import (
     LiveClientDeps,
     build_live_session_instruction,
@@ -149,6 +150,10 @@ async def get_demo_script_opening_audio(
     시간 초과·실패면 None — 호출부가 기존 경로로 폴백한다. 기다림을 그만둬도 공용 생성은 계속된다.
     """
     key = _opening_key()
+    if generate is None:
+        bundled = load_demo_script_audio(key)
+        if bundled is not None:
+            return bundled
     cached = _audio.get(key)
     if cached is not None:
         return _copy(cached)
@@ -181,8 +186,9 @@ async def warm_up_demo_script_opening(*, generate: OpeningAudioGenerator | None 
     except Exception:
         logger.warning("demo script opening warm-up failed", exc_info=True)
     logger.info(
-        "demo script opening warm-up finished (ready=%s, elapsed=%.1fs)",
+        "demo script opening warm-up finished (ready=%s, provider=%s, elapsed=%.1fs)",
         audio is not None,
+        audio.provider if audio is not None else "",
         monotonic() - started_at,
     )
 

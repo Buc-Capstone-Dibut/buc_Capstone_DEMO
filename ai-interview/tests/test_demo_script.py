@@ -475,6 +475,16 @@ class DemoScriptSessionEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.demo_script_cursor, 4)
         self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[3])
 
+    async def test_demo_does_not_wait_for_transient_thinking_db_write(self) -> None:
+        recorder = _Recorder()
+        executor_deps = _executor_deps(recorder)
+        deps = _engine_deps(recorder, executor_deps)
+        deps.set_runtime_status.side_effect = AssertionError("transient DB write delayed playback")
+        await _answer(_demo_state(), deps)
+        self.assertEqual(recorder.ai_transcripts[-1], QUESTIONS[0])
+        deps.set_runtime_status.assert_not_awaited()
+        executor_deps.set_runtime_status.assert_awaited()
+
 
 class DemoScriptResumeTests(unittest.IsolatedAsyncioTestCase):
     async def _resume(self, state: VoiceWsState, executor_deps: RuntimeExecutorDeps) -> bool:
@@ -869,6 +879,18 @@ class DemoScriptOpeningCacheTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self) -> None:
         opening_cache.reset_demo_script_opening_cache()
+        # These cases exercise fallback generation with no matching bundled file.
+        patcher = unittest.mock.patch.object(opening_cache, "load_demo_script_audio", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    async def test_bundled_opening_bypasses_cold_generation(self) -> None:
+        generate = AsyncMock(side_effect=AssertionError("live generation should not run"))
+        with unittest.mock.patch.object(opening_cache, "load_demo_script_audio", return_value=_opening_audio()), \
+                unittest.mock.patch.object(opening_cache, "generate_demo_script_opening_audio", generate):
+            audio = await opening_cache.get_demo_script_opening_audio(wait_sec=0, start=False)
+        self.assertEqual(audio.chunks, [f"shared:{OPENING}"])
+        generate.assert_not_awaited()
 
     async def asyncTearDown(self) -> None:
         await opening_cache.shutdown_demo_script_opening_cache()

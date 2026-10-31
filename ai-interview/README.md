@@ -94,6 +94,12 @@ curl http://localhost:8001/health
 
 ## 개발 메모
 
+### 시연 질문 음성
+
+`app/demo_audio/`에는 오프닝·고정 질문·종료 대사의 음성을 압축 PCM으로 포함합니다. 현재 대사의 SHA-256, PCM 체크섬, 목소리가 manifest와 맞을 때만 사용하고, 없거나 대사가 바뀌면 기존 Live 낭독/선생성 경로로 폴백합니다. 일반 AI 면접에는 적용하지 않습니다. 시연 전송 시 짧은 `model_thinking` 상태는 WebSocket으로 즉시 알리고 중간 DB 쓰기를 생략하며, `model_speaking` 상태는 기존대로 저장합니다.
+
+음성을 갱신하려면 `ai-interview`에서 `PYTHONPATH=. .venv/bin/python scripts/generate_demo_audio.py --force`를 실행합니다. Google API를 호출하며, 생성에 실패한 음성은 저장하지 않습니다. 생성 결과의 텍스트 일치와 실제 발음을 확인한 뒤 manifest 및 PCM을 함께 반영합니다. 첫 질문의 맞장구 편집에는 원본 WAV의 실제 음절 경계를 확인하고 `--first-question-source`, `--ack-end-ms`, `--ffmpeg`를 사용합니다. ffmpeg는 제작 시에만 필요하고 서버 실행 의존성이 아닙니다.
+
 ### 자막 지연 진단
 
 Cloud STT의 전사 후보는 Google의 인식 순서를 유지하며, 길이·문장 완결성 점수로 다른 후보를 선택하지 않습니다. 숫자·기술 용어가 짧은 후보로 바뀌는 것을 막기 위함입니다. 서버와 화면의 띄어쓰기 정리도 소수점, 버전 및 `Next.js` 같은 이름 내부의 마침표와 숫자의 쉼표·콜론을 유지합니다.
