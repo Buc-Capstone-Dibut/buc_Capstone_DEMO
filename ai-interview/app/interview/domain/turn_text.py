@@ -374,6 +374,25 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def _space_transcript_punctuation(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        punctuation = match.group()
+        previous = text[match.start() - 1] if match.start() else ""
+        following = text[match.end()]
+        # Preserve decimals/versions/dotted names and numeric separators.
+        if (
+            punctuation == "."
+            and previous.isascii() and previous.isalnum()
+            and following.isascii() and following.isalnum()
+        ):
+            return punctuation
+        if punctuation in ",:" and previous.isdigit() and following.isdigit():
+            return punctuation
+        return punctuation + " "
+
+    return re.sub(r"[,.:!?](?=\S)", replace, text)
+
+
 def _collapse_fragmented_transcript_tokens(text: str) -> str:
     normalized = _normalize_whitespace(text)
     if not normalized:
@@ -444,7 +463,7 @@ def _apply_korean_spacing_heuristic(text: str) -> str:
     if not formatted:
         return ""
 
-    formatted = re.sub(r"([,.:!?])(?=\S)", r"\1 ", formatted)
+    formatted = _space_transcript_punctuation(formatted)
     formatted = re.sub(r"([A-Za-z0-9]+)([가-힣])", r"\1 \2", formatted)
     formatted = re.sub(r"([가-힣])([A-Za-z0-9]+)", r"\1 \2", formatted)
     formatted = re.sub(
@@ -530,7 +549,7 @@ def _apply_user_transcript_cleanup(text: str) -> str:
     if not formatted:
         return ""
 
-    formatted = re.sub(r"([,.:!?])(?=\S)", r"\1 ", formatted)
+    formatted = _space_transcript_punctuation(formatted)
     formatted = re.sub(r"([A-Za-z0-9]+)([가-힣])", r"\1 \2", formatted)
     formatted = re.sub(r"([가-힣])([A-Za-z0-9]+)", r"\1 \2", formatted)
     formatted = re.sub(r"\b([A-Za-z])\s+([A-Za-z])\b", r"\1\2", formatted)

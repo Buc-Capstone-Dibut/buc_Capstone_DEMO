@@ -106,6 +106,20 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function spaceTranscriptPunctuation(text: string): string {
+  return text.replace(/[,.:!?](?=\S)/gu, (punctuation: string, offset: number) => {
+    const previous = text[offset - 1] || "";
+    const following = text[offset + 1];
+    if (punctuation === "." && /[A-Za-z0-9]/u.test(previous) && /[A-Za-z0-9]/u.test(following)) {
+      return punctuation;
+    }
+    if ((punctuation === "," || punctuation === ":") && /[0-9]/u.test(previous) && /[0-9]/u.test(following)) {
+      return punctuation;
+    }
+    return `${punctuation} `;
+  });
+}
+
 function collapseFragmentedTranscriptTokens(text: string): string {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return "";
@@ -151,7 +165,7 @@ function shouldRecompactFragmentedTokens(text: string): boolean {
 
 function applyCommonReplacements(text: string): string {
   let formatted = collapseFragmentedTranscriptTokens(text);
-  formatted = formatted.replace(/([,.:!?])(?=\S)/gu, "$1 ");
+  formatted = spaceTranscriptPunctuation(formatted);
   formatted = formatted.replace(/([A-Za-z0-9]+)([가-힣])/gu, "$1 $2");
   formatted = formatted.replace(/([가-힣])([A-Za-z0-9]+)/gu, "$1 $2");
   formatted = formatted.replace(
@@ -179,7 +193,7 @@ function applyCommonReplacements(text: string): string {
 function formatUserTranscriptConservatively(text: string): string {
   let formatted = collapseFragmentedTranscriptTokens(text);
   if (!formatted) return formatted;
-  formatted = formatted.replace(/([,.:!?])(?=\S)/gu, "$1 ");
+  formatted = spaceTranscriptPunctuation(formatted);
   formatted = formatted.replace(/([A-Za-z0-9]+)([가-힣])/gu, "$1 $2");
   formatted = formatted.replace(/([가-힣])([A-Za-z0-9]+)/gu, "$1 $2");
   formatted = formatted.replace(/\b([A-Za-z])\s+([A-Za-z])\b/gu, "$1$2");

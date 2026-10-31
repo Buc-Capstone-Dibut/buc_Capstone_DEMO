@@ -53,7 +53,7 @@ class GoogleCloudSttServiceTests(unittest.TestCase):
             _runtime_disabled_reason=None, _client=Mock(),
         )
         service._client.recognize.return_value = _response(
-            _result("웹소켓 통신을 담당했습니다."),
+            _result("웹소켓 통신을 담당했습니다.", alternatives=("통신을 담당했습니다.",)),
             _result("캐시로 응답 시간을 줄였습니다."),
         )
         self.assertEqual(
@@ -61,17 +61,15 @@ class GoogleCloudSttServiceTests(unittest.TestCase):
             "웹소켓 통신을 담당했습니다. 캐시로 응답 시간을 줄였습니다.",
         )
 
-    def test_pick_best_stt_alternative_prefers_cleaner_transcript(self) -> None:
-        chosen = pick_best_stt_alternative_text(
-            [
-                "실시간 AI 면접 서비스를 개발 하며 웹소켓 기반 통신과 백엔드 PI 설계해다수 사용 자의동시 요청을 안정적으로 처리한경험이 있습니다.",
-                "실시간 AI 면접 서비스를 개발하며 웹소켓 기반 통신과 백엔드 API 설계를 담당했습니다.",
-            ]
-        )
-        self.assertEqual(
-            chosen,
-            "실시간 AI 면접 서비스를 개발하며 웹소켓 기반 통신과 백엔드 API 설계를 담당했습니다.",
-        )
+    def test_pick_best_stt_alternative_preserves_provider_rank_and_spoken_facts(self) -> None:
+        for first, alternative, expected in (
+            ("오류율을 15% 줄였습니다.", "오류율을 5% 줄였습니다.", "오류율을 15% 줄였습니다."),
+            ("백엔드 API를 구현했습니다.", "백엔드 앱을 구현했습니다.", "백엔드 API를 구현했습니다."),
+            ("Redis 캐시 TTL을 조정했습니다.", "캐시를 조정했습니다.", "Redis 캐시 TTL을 조정했습니다."),
+            ("HTTP/2를 사용했고", "HTTP를 사용했습니다.", "HTTP/2를 사용했고"),
+        ):
+            with self.subTest(first=first):
+                self.assertEqual(pick_best_stt_alternative_text([first, alternative]), expected)
 
     def test_pick_best_stt_alternative_ignores_empty_candidates(self) -> None:
         chosen = pick_best_stt_alternative_text(["", "   ", "웹소켓 기반 통신 구조를 설계했습니다."])
@@ -97,6 +95,13 @@ class GoogleCloudSttServiceTests(unittest.TestCase):
 
 
 class GoogleCloudStreamingSttTests(unittest.TestCase):
+    def test_streaming_final_keeps_top_ranked_technical_terms(self) -> None:
+        events = _stream_events(_response(_result(
+            "Redis 캐시 TTL을 조정했습니다.", final=True,
+            alternatives=("캐시를 조정했습니다.",),
+        )))
+        self.assertEqual(events[-1].text, "Redis 캐시 TTL을 조정했습니다.")
+
     def test_combines_consecutive_interim_results_before_emitting(self) -> None:
         events = _stream_events(_response(_result("웹소켓 통신을"), _result("담당했습니다.")))
         self.assertEqual([event.text for event in events], ["웹소켓 통신을 담당했습니다."])

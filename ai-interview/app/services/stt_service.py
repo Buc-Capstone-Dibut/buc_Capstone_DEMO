@@ -12,11 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from app.interview.domain.turn_text import (
-    looks_like_degraded_user_transcript,
-    score_user_transcript_text,
-    sanitize_user_turn_text,
-)
+from app.interview.domain.turn_text import sanitize_user_turn_text
 
 try:  # pragma: no cover - optional dependency guard
     from google import auth as google_auth
@@ -161,28 +157,13 @@ class OpenAISttService:
 
 
 def pick_best_stt_alternative_text(candidates: Iterable[str]) -> str:
-    normalized_candidates: list[str] = []
+    # Google orders alternatives by recognition likelihood. Text length, spacing,
+    # and sentence endings cannot tell which words/numbers were actually spoken.
     for candidate in candidates:
         normalized = sanitize_user_turn_text(candidate)
-        if normalized and normalized not in normalized_candidates:
-            normalized_candidates.append(normalized)
-    if not normalized_candidates:
-        return ""
-    return max(
-        normalized_candidates,
-        key=lambda candidate: (
-            0 if looks_like_degraded_user_transcript(candidate) else 1,
-            int(
-                round(
-                    score_user_transcript_text(candidate)
-                    / max(1, len(re.findall(r"[0-9A-Za-z가-힣]", candidate)))
-                    * 100
-                )
-            ),
-            score_user_transcript_text(candidate),
-            len(candidate),
-        ),
-    )
+        if normalized:
+            return normalized
+    return ""
 
 
 def _to_string_list(value: Any) -> list[str]:

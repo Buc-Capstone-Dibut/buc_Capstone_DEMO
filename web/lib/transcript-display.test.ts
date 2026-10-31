@@ -1,7 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatTranscriptForDisplay } from "@/lib/transcript-display";
+import { formatStreamingTranscriptForDisplay, formatTranscriptForDisplay } from "@/lib/transcript-display";
+
+test("transcript punctuation preserves numbers, versions, and dotted technical names", () => {
+  const cases = [
+    ["오류율을 0.15%로 줄였습니다.", ["0.15"]],
+    ["Next.js와 Node.js를 사용했습니다.", ["Next.js", "Node.js"]],
+    ["Python 3.11과 OAuth 2.0을 사용했습니다.", ["3.11", "2.0"]],
+    ["12:30에 월 1,000건을 처리했습니다.", ["12:30", "1,000"]],
+  ] as const;
+  for (const format of [formatTranscriptForDisplay, formatStreamingTranscriptForDisplay]) {
+    for (const role of ["user", "ai"] as const) {
+      for (const [text, tokens] of cases) {
+        const formatted = format(text, role);
+        assert.equal(formatted.replace(/\s/gu, ""), text.replace(/\s/gu, ""));
+        for (const token of tokens) assert.ok(formatted.includes(token), formatted);
+        assert.equal(format(formatted, role), formatted);
+      }
+    }
+  }
+});
+
+test("transcript punctuation still separates Korean sentences and lists", () => {
+  assert.equal(
+    formatTranscriptForDisplay("안녕하세요.반갑습니다!저는 백엔드,프론트엔드를 담당했습니다.", "user"),
+    "안녕하세요. 반갑습니다! 저는 백엔드, 프론트엔드를 담당했습니다.",
+  );
+});
 
 test("formatTranscriptForDisplay collapses fragmented user transcript tokens", () => {
   assert.equal(

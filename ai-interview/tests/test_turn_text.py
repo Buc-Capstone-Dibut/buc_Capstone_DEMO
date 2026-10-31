@@ -6,6 +6,28 @@ from app.interview.domain.turn_text import sanitize_user_turn_text
 
 
 class TurnTextUserTranscriptTests(unittest.TestCase):
+    def test_preserves_decimal_values_versions_and_dotted_technical_names(self) -> None:
+        for text in (
+            "오류율을 0.15%로 줄였습니다.",
+            "Next.js와 Node.js를 사용했습니다.",
+            "Python 3.11과 OAuth 2.0을 사용했습니다.",
+            "12:30에 월 1,000건을 처리했습니다.",
+        ):
+            with self.subTest(text=text):
+                cleaned = sanitize_user_turn_text(text)
+                # Korean spacing may change, but lexical/numeric content cannot.
+                self.assertEqual(cleaned.replace(" ", ""), text.replace(" ", ""))
+                for token in ("0.15", "Next.js", "Node.js", "3.11", "2.0", "12:30", "1,000"):
+                    if token in text:
+                        self.assertIn(token, cleaned)
+                self.assertEqual(sanitize_user_turn_text(cleaned), cleaned)
+
+    def test_still_separates_sentences_and_list_punctuation(self) -> None:
+        self.assertEqual(
+            sanitize_user_turn_text("안녕하세요.반갑습니다!저는 백엔드,프론트엔드를 담당했습니다."),
+            "안녕하세요. 반갑습니다! 저는 백엔드, 프론트엔드를 담당했습니다.",
+        )
+
     def test_sanitize_user_turn_text_recovers_common_technical_terms(self) -> None:
         text = (
             "실시간 AI 면접서 비스 를개발하며웹소켓기반통신과백엔드 PI 구조설계해 "
