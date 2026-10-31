@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import threading
+import types
 import unittest
+from functools import lru_cache
 from unittest.mock import patch
 
 from app.interview.runtime import session_support
@@ -54,6 +57,45 @@ class CreateLiveInterviewSessionTests(unittest.TestCase):
             voice=session_support.settings.gemini_live_tts_voice,
             timeout_sec=30.0,
         )
+
+
+class ParallelSttWarmupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_first_audio_reuses_client_initialized_outside_event_loop(self) -> None:
+        initialization_threads: list[int] = []
+        service = types.SimpleNamespace(enabled=True)
+
+        @lru_cache(maxsize=1)
+        def factory():
+            initialization_threads.append(threading.get_ident())
+            return service
+
+        with (
+            patch.object(session_support.settings, "voice_parallel_stt_enabled", True),
+            patch.object(session_support, "get_parallel_stt_service", factory),
+        ):
+            await session_support.warm_up_parallel_stt_service()
+            self.assertIs(session_support.get_parallel_stt_service(), service)
+
+        self.assertEqual(len(initialization_threads), 1)
+        self.assertNotEqual(initialization_threads[0], threading.get_ident())
+        self.assertEqual(factory.cache_info().hits, 1)
+
+    async def test_disabled_stt_does_not_initialize_client(self) -> None:
+        with (
+            patch.object(session_support.settings, "voice_parallel_stt_enabled", False),
+            patch.object(session_support, "get_parallel_stt_service") as factory,
+        ):
+            await session_support.warm_up_parallel_stt_service()
+        factory.assert_not_called()
+
+    async def test_warmup_failure_does_not_prevent_api_startup(self) -> None:
+        with (
+            patch.object(session_support.settings, "voice_parallel_stt_enabled", True),
+            patch.object(session_support, "get_parallel_stt_service", side_effect=RuntimeError("unavailable")),
+            patch.object(session_support.logger, "exception") as log,
+        ):
+            await session_support.warm_up_parallel_stt_service()
+        log.assert_called_once()
 
 
 if __name__ == "__main__":

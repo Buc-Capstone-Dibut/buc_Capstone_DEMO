@@ -31,6 +31,7 @@ from app.interview.runtime.demo_script_opening_cache import (
     shutdown_demo_script_opening_cache,
     start_demo_script_opening_warmup,
 )
+from app.interview.runtime.session_support import warm_up_parallel_stt_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +85,13 @@ def startup_event() -> None:
     )
     init_db()
     interview_report_agent.start()
+
+
+@app.on_event("startup")
+async def parallel_stt_warmup_event() -> None:
+    # Await readiness: a background task could race the first audio frame and
+    # leave the expensive lazy import/client initialization on the WS loop.
+    await warm_up_parallel_stt_service()
 
 
 @app.on_event("startup")

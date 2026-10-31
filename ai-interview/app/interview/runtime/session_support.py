@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -189,6 +191,24 @@ def get_parallel_stt_service() -> GoogleCloudSttService:
     )
 
 
+async def warm_up_parallel_stt_service() -> None:
+    if not settings.voice_parallel_stt_enabled:
+        return
+    started_at = time.monotonic()
+    try:
+        # Importing the Speech SDK and creating its client took 5.3 s on Render.
+        # Populate the same process cache before accepting microphone frames.
+        service = await asyncio.to_thread(get_parallel_stt_service)
+    except Exception:
+        logger.exception("parallel STT startup warmup failed")
+        return
+    logger.info(
+        "parallel STT startup warmup finished enabled=%s duration_ms=%s",
+        service.enabled,
+        round((time.monotonic() - started_at) * 1000),
+    )
+
+
 def build_parallel_stt_phrase_hints(job_data: dict[str, Any] | None, resume_data: Any) -> list[str]:
     from app.services.stt_service import build_session_stt_phrase_hints
 
@@ -217,6 +237,7 @@ __all__ = [
     "get_fallback_stt_service",
     "get_fallback_tts_service",
     "get_parallel_stt_service",
+    "warm_up_parallel_stt_service",
     "build_parallel_stt_phrase_hints",
     "latest_user_answer",
 ]
