@@ -459,6 +459,24 @@ class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.send.assert_not_awaited()
 
+    async def test_debug_events_contain_timings_without_transcript_content(self) -> None:
+        self.state.stt_trace_enabled = True
+        self.state.stt_trace = {"first_audio_at": 100.0, "first_speech_at": 100.2, "audio_ms": 900.0}
+        trace_send = AsyncMock(return_value=True)
+        with patch("app.interview.runtime.ws_runtime._send_json", trace_send), patch(
+            "app.interview.runtime.ws_runtime.time.monotonic", return_value=101.1,
+        ):
+            await _handle_parallel_stt_realtime_result(
+                None, self.state, turn_id="session-caption:1", text="비공개 답변 내용입니다.",
+                is_final=False, received_at=101.0,
+            )
+        payload = trace_send.await_args.args[1]
+        self.assertEqual(payload["stage"], "stt.first-result")
+        self.assertEqual(payload["fromSpeechMs"], 800)
+        self.assertEqual(payload["eventLoopDelayMs"], 100)
+        self.assertNotIn("비공개", str(payload))
+        self.assertEqual(self.send.await_count, 1)
+
     async def test_replacement_stream_keeps_the_existing_answer_prefix(self) -> None:
         await self.emit("통신을 설계했습니다.", final=True)
         self.state.parallel_stt_stream = types.SimpleNamespace(

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AudioProcessor } from "@/lib/audio-utils";
 import { Pcm16StreamEncoder } from "@/lib/interview/pcm16-stream-encoder";
+import { isSttTraceEnabled, logSttTrace, rememberSttTracePreference } from "@/lib/interview/stt-trace";
 import {
   getInterviewPlaybackAudioContext,
   getInterviewPlaybackRecordingTap,
@@ -31,6 +32,7 @@ export interface WsInterviewInitPayload {
   resumeData?: Record<string, unknown>;
   jd?: string;
   resume?: string;
+  sttDebug?: boolean;
 }
 
 interface UseOpenLLMProps {
@@ -173,6 +175,7 @@ export function useOpenLLM({
   const recordingResetRef = useRef(onRecordingAnswerReset);
   const captureIdRef = useRef("");
   const captureSequenceRef = useRef(0);
+  const sttTraceRef = useRef({ startedAt: 0, firstSpeechAt: 0, firstFrameAt: 0, firstCaptionAt: 0, lastCaptureAt: 0 });
   recordingAudioRef.current = onRecordingAudio;
   recordingResetRef.current = onRecordingAnswerReset;
 
@@ -212,6 +215,7 @@ export function useOpenLLM({
   }, []);
 
   const pauseMic = useCallback((flush: boolean = true) => {
+    if (isMicStreamingRef.current) logSttTrace("mic.paused", { captureId: captureIdRef.current, flush });
     // audioProcessor 도 stop + null — 그래야 다음 startMic 가 새로 시작.
     // (예전엔 살려뒀는데, startMic 의 early return 때문에 audio chunk 가 다시 안 흘러
     //  마이크 초록색이지만 volume=0 / 자막 없는 상태가 됐음)
@@ -232,6 +236,7 @@ export function useOpenLLM({
   }, [sendPendingMicAudio]);
 
   const stopMic = useCallback((flush: boolean = true) => {
+    if (isMicStreamingRef.current) logSttTrace("mic.stopped", { captureId: captureIdRef.current, flush });
     audioProcessorRef.current?.stop();
     audioProcessorRef.current = null;
     isMicStreamingRef.current = false;
@@ -592,12 +597,15 @@ export function useOpenLLM({
   }, [clearAiAudioLevelTimers, clearAiVisemeTimers, clearPendingMicRestart, clearPendingPlaybackDrainCheck, clearReconnectTimer, unlockAudioContext]);
 
   const initInterviewSession = useCallback((payload: WsInterviewInitPayload = {}) => {
+    rememberSttTracePreference();
     lastInitPayloadRef.current = {
       ...payload,
       ttsMode: payload.ttsMode || "server",
+      sttDebug: isSttTraceEnabled(),
     };
     return sendJson({
       type: "init-interview-session",
+      sttDebug: isSttTraceEnabled(),
       sessionId: payload.sessionId,
       sessionType: payload.sessionType || "live_interview",
       style: payload.style || "professional",
@@ -639,10 +647,18 @@ export function useOpenLLM({
       }
 
       captureIdRef.current = `capture-${++captureSequenceRef.current}`;
+      const captureId = captureIdRef.current;
+      const trace = { startedAt: performance.now(), firstSpeechAt: 0, firstFrameAt: 0, firstCaptionAt: 0, lastCaptureAt: 0 };
+      sttTraceRef.current = trace;
+      logSttTrace("mic.start-requested", { captureId });
       const encoder = new Pcm16StreamEncoder();
       pcm16EncoderRef.current = encoder;
       audioProcessorRef.current = new AudioProcessor((data, sampleRate) => {
         if (!isMicStreamingRef.current) return;
+        const now = performance.now();
+        if (!trace.lastCaptureAt) logSttTrace("mic.first-capture", { captureId, sampleRate, elapsedMs: Math.round(now - trace.startedAt) });
+        else if (now - trace.lastCaptureAt > 500) logSttTrace("mic.capture-gap", { captureId, gapMs: Math.round(now - trace.lastCaptureAt) });
+        trace.lastCaptureAt = now;
 
         let sum = 0;
         for (let i = 0; i < data.length; i += 1) {
@@ -651,6 +667,10 @@ export function useOpenLLM({
         const rms = Math.sqrt(sum / data.length);
         setVolume(Math.min(rms * 10, 1));
         if (rms >= 0.008) {
+          if (!trace.firstSpeechAt) {
+            trace.firstSpeechAt = now;
+            logSttTrace("mic.first-speech", { captureId, elapsedMs: Math.round(now - trace.startedAt), rms });
+          }
           const endTimeMs = performance.now();
           recordingAudioRef.current?.({
             role: "user", turnId: captureIdRef.current,
@@ -663,9 +683,13 @@ export function useOpenLLM({
         if (socketRef.current?.readyState === WebSocket.OPEN) {
           for (const frame of frames) {
             socketRef.current.send(JSON.stringify({ type: "raw-audio-data", ...frame }));
+            if (!trace.firstFrameAt) {
+              trace.firstFrameAt = now;
+              logSttTrace("mic.first-frame-sent", { captureId, sampleRate: frame.sampleRate, elapsedMs: Math.round(now - trace.startedAt), bufferedBytes: socketRef.current.bufferedAmount });
+            }
           }
         }
-      });
+      }, (stage, details) => logSttTrace(stage, { captureId, elapsedMs: Math.round(performance.now() - trace.startedAt), ...details }));
 
       await audioProcessorRef.current.start();
       isMicStreamingRef.current = true;
@@ -767,6 +791,11 @@ export function useOpenLLM({
     const event = data as Record<string, unknown>;
     const eventType = typeof event.type === "string" ? event.type : "";
 
+    if (eventType === "stt.trace") {
+      logSttTrace("server", event);
+      return;
+    }
+
     onEventRef.current?.(event);
 
     if (eventType === "interview-session-created") {
@@ -864,6 +893,16 @@ export function useOpenLLM({
       }
       // user 의 실시간 partial transcript (parallel STT) — 자막에 표시되도록 forward
       if (event.role === "user") {
+        const trace = sttTraceRef.current;
+        if (!trace.firstCaptionAt) {
+          trace.firstCaptionAt = performance.now();
+          logSttTrace("caption.first-received", {
+            captureId: captureIdRef.current, provider: event.provider, turnId: event.turnId,
+            fromMicStartMs: trace.startedAt ? Math.round(trace.firstCaptionAt - trace.startedAt) : null,
+            fromSpeechMs: trace.firstSpeechAt ? Math.round(trace.firstCaptionAt - trace.firstSpeechAt) : null,
+            fromFirstSendMs: trace.firstFrameAt ? Math.round(trace.firstCaptionAt - trace.firstFrameAt) : null,
+          });
+        }
         const accumulated =
           typeof event.accumulatedText === "string" && event.accumulatedText
             ? event.accumulatedText

@@ -526,6 +526,11 @@ class GoogleCloudStreamingSttSession:
         self._on_result = on_result
         self._on_error = on_error
         self._audio_queue: "queue.Queue[bytes | None]" = queue.Queue()
+        self._created_at = time.monotonic()
+        self._pushed_audio_bytes = 0
+        self._requested_audio_bytes = 0
+        self._first_request_at = 0.0
+        self._last_request_at = 0.0
         self._closed = threading.Event()
         self._failed = threading.Event()
         self._thread = threading.Thread(target=self._run, name="google-streaming-stt", daemon=True)
@@ -534,7 +539,18 @@ class GoogleCloudStreamingSttSession:
     def push_pcm(self, pcm_bytes: bytes) -> None:
         if self._closed.is_set() or not pcm_bytes:
             return
+        self._pushed_audio_bytes += len(pcm_bytes)
         self._audio_queue.put(bytes(pcm_bytes))
+
+    def debug_snapshot(self) -> dict[str, Any]:
+        now = time.monotonic()
+        return {
+            "model": self.model, "language": self.language_code,
+            "maxAlternatives": self.max_alternatives, "phraseHintCount": len(self.phrase_hints),
+            "queuedAudioMs": round(max(0, self._pushed_audio_bytes - self._requested_audio_bytes) / (self.sample_rate * 2) * 1000, 1),
+            "firstRequestDelayMs": round((self._first_request_at - self._created_at) * 1000, 1) if self._first_request_at else -1,
+            "requestIdleMs": round((now - self._last_request_at) * 1000, 1) if self._last_request_at else -1,
+        }
 
     def close(self, wait_timeout: float = 0.0) -> None:
         if self._closed.is_set():
@@ -587,6 +603,10 @@ class GoogleCloudStreamingSttSession:
             for offset in range(0, len(chunk), 3200):
                 part = chunk[offset : offset + 3200]
                 if part:
+                    self._last_request_at = time.monotonic()
+                    if not self._first_request_at:
+                        self._first_request_at = self._last_request_at
+                    self._requested_audio_bytes += len(part)
                     yield speech.StreamingRecognizeRequest(audio_content=part)
 
     def _emit(self, text: str, *, is_final: bool, stability: float = 0.0) -> None:

@@ -29,6 +29,7 @@ import {
 } from "@/lib/interview/interview-type-visuals";
 import { useInterviewConsoleCoach } from "@/hooks/interview/use-interview-console-coach";
 import { isGoogleTranscriptProvider, preferLongerCaption, selectUserCaptionText } from "@/lib/interview/caption-text";
+import { logSttTrace } from "@/lib/interview/stt-trace";
 
 type SessionType = "live_interview" | "portfolio_defense";
 
@@ -207,6 +208,7 @@ export default function InterviewVideoRoomPage() {
   const [recordingProgress, setRecordingProgress] = useState(0);
   const [recordingFailure, setRecordingFailure] = useState<{ error: string; recoverable: boolean; durable: boolean } | null>(null);
   const finishingRef = useRef(false);
+  const tracedCaptionTurnRef = useRef("");
   // 카메라 상태를 시작 effect 안에서 deps 없이 읽기 위한 미러(deps 추가 시 토글마다 재실행됨).
   const isCameraEnabledRef = useRef(isCameraEnabled);
   isCameraEnabledRef.current = isCameraEnabled;
@@ -1132,6 +1134,12 @@ export default function InterviewVideoRoomPage() {
     if (!node) return;
     node.scrollTop = node.scrollHeight;
   }, [activeAiCaption, activeUserCaption, resolvedCaptionText, secondaryCaption?.text, transcript.length]);
+
+  useEffect(() => {
+    if (!activeUserCaption || !streamingUserTurnId || tracedCaptionTurnRef.current === streamingUserTurnId) return;
+    tracedCaptionTurnRef.current = streamingUserTurnId;
+    logSttTrace("caption.first-rendered", { turnId: streamingUserTurnId, chars: activeUserCaption.length });
+  }, [activeUserCaption, streamingUserTurnId]);
 
   const handleMicToggle = async () => {
     if (isReconnecting) return;

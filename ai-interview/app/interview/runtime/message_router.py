@@ -64,6 +64,7 @@ async def handle_client_message(
         return
 
     if msg_type == "init-interview-session":
+        state.stt_trace_enabled = data.get("sttDebug") is True
         await deps.handle_session_init(ws, state, data)
         return
 

@@ -9,9 +9,14 @@ export class AudioProcessor {
   private processor: AudioWorkletNode | null = null;
   private silentGain: GainNode | null = null;
   private onAudioData: (data: Float32Array, sampleRate: number) => void;
+  private onCaptureState?: (stage: string, details?: Record<string, unknown>) => void;
 
-  constructor(onAudioData: (data: Float32Array, sampleRate: number) => void) {
+  constructor(
+    onAudioData: (data: Float32Array, sampleRate: number) => void,
+    onCaptureState?: (stage: string, details?: Record<string, unknown>) => void,
+  ) {
     this.onAudioData = onAudioData;
+    this.onCaptureState = onCaptureState;
   }
 
   async start() {
@@ -20,6 +25,12 @@ export class AudioProcessor {
       // 일부 Mac 환경에서 mic 가 무음만 보내는 케이스가 있어 audio: true 로 단순화.
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
+      });
+      const settings = this.mediaStream.getAudioTracks()[0]?.getSettings();
+      this.onCaptureState?.("mic.media-ready", {
+        sampleRate: settings?.sampleRate, channelCount: settings?.channelCount,
+        echoCancellation: settings?.echoCancellation, noiseSuppression: settings?.noiseSuppression,
+        autoGainControl: settings?.autoGainControl,
       });
 
       const AudioContextClass =
@@ -34,12 +45,17 @@ export class AudioProcessor {
       this.audioContext = new AudioContextClass({
         latencyHint: "interactive",
       });
+      this.onCaptureState?.("mic.context-created", { state: this.audioContext.state, sampleRate: this.audioContext.sampleRate });
+      this.audioContext.onstatechange = () => {
+        this.onCaptureState?.("mic.context-state", { state: this.audioContext?.state });
+      };
 
       if (!this.audioContext.audioWorklet) {
         throw new Error("AudioWorklet is not supported in this browser.");
       }
 
       await this.audioContext.audioWorklet.addModule(MIC_CAPTURE_WORKLET_URL);
+      this.onCaptureState?.("mic.worklet-ready");
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
       this.processor = new AudioWorkletNode(this.audioContext, "mic-capture-processor", {
         channelCount: 1,

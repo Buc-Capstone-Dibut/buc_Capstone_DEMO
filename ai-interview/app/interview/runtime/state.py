@@ -180,6 +180,8 @@ class VoiceWsState:
     parallel_stt_last_requested_sample_count: int = 0
     parallel_stt_task: asyncio.Task[None] | None = None
     parallel_stt_stream: Any | None = None
+    stt_trace_enabled: bool = False
+    stt_trace: dict[str, float] = field(default_factory=dict)
     last_ai_tts_text: str = ""
     last_ai_audio_guard_until: float = 0.0
     waiting_playback_turn_id: str = ""

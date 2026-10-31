@@ -1,4 +1,5 @@
 import { prepareInterviewPlaybackAudio } from "@/lib/interview/playback-audio";
+import { rememberSttTracePreference } from "@/lib/interview/stt-trace";
 
 interface SessionStartResult {
   success?: boolean;
@@ -25,6 +26,7 @@ export async function startInterviewPreflight({
   sessionStartEndpoint,
   sessionStartBody,
 }: StartInterviewPreflightOptions): Promise<{ sessionId: string; openingPrepared: boolean }> {
+  rememberSttTracePreference();
   const [audioReady, sessionResponse] = await Promise.all([
     prepareInterviewPlaybackAudio(),
     fetch(sessionStartEndpoint, {

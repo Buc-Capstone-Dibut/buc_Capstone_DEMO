@@ -9,14 +9,17 @@ sequenceDiagram
     participant Web as web (Next.js)
     participant API as ai-interview (FastAPI)
     participant LLM as Gemini
-    participant VOICE as Gemini Live STT/TTS
+    participant STT as Google Cloud STT
+    participant VOICE as Gemini Live
     participant DB as Supabase
 
     Web->>API: POST /v1/interview/session/start
     API->>LLM: 질문 생성
     API->>DB: 세션/턴 저장
     Web->>API: WS /v1/interview/ws/client
-    API->>VOICE: STT/TTS 처리
+    API->>STT: 지원자 음성 스트리밍
+    STT-->>API: 중간/확정 전사
+    API->>VOICE: 면접관 질문/음성 생성
     API-->>Web: transcript/audio events
 ```
 
@@ -28,7 +31,7 @@ sequenceDiagram
 - 파싱: `POST /parse-job` · `POST /parse-resume` — 웹 BFF가 공고/이력서 등록 시 프록시로 호출
 - 세션: `POST /session/start` · `POST /sessions/{id}/prepare-opening` · `POST /sessions/{id}/complete` · `GET /sessions` · `GET /sessions/{id}`
 - 리포트: `GET /sessions/{id}/report-status`(폴링) · `POST /sessions/{id}/retry-report`
-- 음성: `WS /v1/interview/ws/client` (Gemini Live STT/TTS, `ws_runtime`)
+- 음성: `WS /v1/interview/ws/client` (지원자 자막: Google Cloud STT, 면접관 음성: Gemini Live, `ws_runtime`)
 - 화상: `POST /livekit/token`
 - 포트폴리오 디펜스: `POST /portfolio/analyze-public-repo` · `POST /portfolio/session/start` · `POST /portfolio/chat`
 - 기타: `POST /chat` · `POST /analyze` · `GET /health`
@@ -90,6 +93,14 @@ curl http://localhost:8001/health
 - `https://<service>.onrender.com/docs`
 
 ## 개발 메모
+
+### 자막 지연 진단
+
+배포 환경에서는 면접 설정 URL에 `?debugStt=1`을 붙여 시작하면 같은 탭의 면접방까지 시간 기록이 유지됩니다. 개발 환경은 기본 활성화입니다. 브라우저 콘솔의 `[Debut STT]`에서 마이크 준비/음성 감지, 첫 전송, 서버 첫 수신, STT 첫 결과, 자막 수신/표시 시각을 비교합니다. 음성 입력 공백과 STT 결과 공백도 기록합니다.
+
+`stt.first-result`의 `fromSpeechMs`는 서버가 음성을 감지한 뒤 첫 전사까지의 시간이고, `eventLoopDelayMs`는 STT 작업 스레드 결과가 서버 이벤트 루프에서 처리될 때까지의 시간입니다. `queuedAudioMs`는 아직 Google SDK 요청 반복자가 소비하지 않은 앱 내부 음성량입니다. Google 서버의 수신 시점을 뜻하지는 않습니다.
+
+진단은 시간/카운터/모델 설정만 출력하며 음성 데이터와 답변 원문은 출력하지 않습니다. 배포 환경에서 설정 URL의 `?debugStt=0`으로 같은 탭의 진단을 해제할 수 있습니다. 자막 인식/보정 동작에는 관여하지 않습니다.
 
 - 루트 `/`는 라우트가 없어 404가 정상입니다.
 - 음성 면접을 운영하려면 `GEMINI_API_KEY`를 반드시 넣어야 합니다.

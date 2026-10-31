@@ -787,6 +787,16 @@ def _clear_parallel_stt_realtime_state(
     state.parallel_stt_has_emitted = False
     state.parallel_stt_stream_started_at = 0.0
     state.parallel_stt_last_requested_sample_count = 0
+    state.stt_trace = {}
+
+
+async def _send_stt_trace(ws: WebSocket, state: VoiceWsState, stage: str, **fields: Any) -> None:
+    if not state.stt_trace_enabled:
+        return
+    await _send_json(ws, {
+        "type": "stt.trace", "stage": stage, "turnId": state.parallel_stt_turn_id,
+        "serverTimeMs": round(time.time() * 1000), **fields,
+    })
 
 
 async def _finalize_parallel_stt_stream(
@@ -821,6 +831,7 @@ async def _handle_parallel_stt_realtime_result(
     turn_id: str,
     text: str,
     is_final: bool,
+    received_at: float | None = None,
 ) -> None:
     if not _parallel_stt_realtime_enabled():
         return
@@ -829,6 +840,24 @@ async def _handle_parallel_stt_realtime_result(
         return
     if turn_id != (state.parallel_stt_turn_id or "").strip():
         return
+
+    if state.stt_trace_enabled:
+        now = time.monotonic()
+        arrived = received_at or now
+        trace = state.stt_trace
+        previous_result_at = trace.get("last_result_at", 0.0)
+        trace["last_result_at"] = arrived
+        if not previous_result_at or arrived - previous_result_at > 1.5:
+            stream_debug = getattr(state.parallel_stt_stream, "debug_snapshot", None)
+            await _send_stt_trace(ws, state, "stt.first-result" if not previous_result_at else "stt.result-gap",
+                fromFirstAudioMs=round((arrived - trace.get("first_audio_at", arrived)) * 1000),
+                fromSpeechMs=round((arrived - trace["first_speech_at"]) * 1000) if trace.get("first_speech_at") else None,
+                eventLoopDelayMs=round((now - arrived) * 1000),
+                receivedAudioMs=round(trace.get("audio_ms", 0)),
+                resultGapMs=round((arrived - previous_result_at) * 1000) if previous_result_at else None,
+                chars=len(normalized), changed=normalized != state.realtime_user_transcript, isFinal=is_final,
+                **(stream_debug() if callable(stream_debug) else {}),
+            )
 
     state.parallel_stt_has_emitted = True
     # The adapter supplies the whole answer: finalized prefix + latest interim
@@ -864,6 +893,7 @@ async def _push_parallel_stt_audio_chunk(
     audio_chunk: list[float],
     sample_rate: int,
 ) -> bool:
+    entered_at = time.monotonic()
     if not _parallel_stt_realtime_enabled():
         return False
     if not audio_chunk:
@@ -883,6 +913,25 @@ async def _push_parallel_stt_audio_chunk(
         state.parallel_stt_has_emitted = False
         state.parallel_stt_stream_started_at = 0.0
         state.parallel_stt_last_requested_sample_count = 0
+
+    if state.stt_trace_enabled:
+        trace = state.stt_trace
+        first_audio = not trace
+        previous_audio_at = trace.get("last_audio_at", entered_at)
+        trace.setdefault("first_audio_at", entered_at)
+        trace["last_audio_at"] = entered_at
+        trace["audio_ms"] = trace.get("audio_ms", 0) + len(audio_chunk) / max(1, sample_rate) * 1000
+        if first_audio or entered_at - previous_audio_at > 0.5:
+            await _send_stt_trace(ws, state, "audio.first-received" if first_audio else "audio.input-gap",
+                serviceInitMs=round((time.monotonic() - entered_at) * 1000),
+                gapMs=round((entered_at - previous_audio_at) * 1000), sampleRate=sample_rate,
+                receivedAudioMs=round(trace["audio_ms"]),
+            )
+        rms = (sum(sample * sample for sample in audio_chunk) / len(audio_chunk)) ** 0.5
+        if rms >= 0.008 and not trace.get("first_speech_at"):
+            trace["first_speech_at"] = entered_at
+            await _send_stt_trace(ws, state, "audio.first-speech", rms=round(rms, 5),
+                fromFirstAudioMs=round((entered_at - trace["first_audio_at"]) * 1000))
 
     if state.parallel_stt_stream is not None and not _parallel_stt_stream_is_active(state):
         try:
@@ -906,6 +955,7 @@ async def _push_parallel_stt_audio_chunk(
         loop = asyncio.get_running_loop()
 
         def on_result(event: Any) -> None:
+            received_at = time.monotonic()
             loop.call_soon_threadsafe(
                 asyncio.create_task,
                 _handle_parallel_stt_realtime_result(
@@ -914,6 +964,7 @@ async def _push_parallel_stt_audio_chunk(
                     turn_id=turn_id,
                     text=" ".join(part for part in (transcript_prefix, getattr(event, "text", "") or "") if part),
                     is_final=bool(getattr(event, "is_final", False)),
+                    received_at=received_at,
                 ),
             )
 
