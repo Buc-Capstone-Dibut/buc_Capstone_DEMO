@@ -92,6 +92,7 @@ try:
     from app.interview.runtime.session_interaction import is_probable_ai_echo
     from app.interview.runtime.session_engine import (
         SessionEngineDeps,
+        _capture_live_input_stream_state,
         enqueue_user_segment,
         handle_session_init,
         process_user_utterance,
@@ -104,7 +105,11 @@ try:
         PreparedTtsAudio,
         VoiceWsState,
     )
-    from app.interview.runtime.ws_runtime import _should_emit_gemini_user_delta
+    from app.interview.runtime.ws_runtime import (
+        _handle_parallel_stt_realtime_result,
+        _push_parallel_stt_audio_chunk,
+        _should_emit_gemini_user_delta,
+    )
     from app.interview.runtime.vad_policy import retune_vad_for_next_turn
     from app.interview.transcript.session_state import (
         hydrate_state_from_session_row,
@@ -402,6 +407,73 @@ class QuestionTypeTests(unittest.TestCase):
 
         self.assertEqual(strategy, "followup")
         self.assertEqual(question_type, "implementation_detail")
+
+
+class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.state = VoiceWsState(session_id="session-caption", parallel_stt_turn_id="session-caption:1")
+        self.send = AsyncMock(return_value=True)
+        for patcher in (
+            patch("app.interview.runtime.ws_runtime._parallel_stt_realtime_enabled", return_value=True),
+            patch("app.interview.runtime.ws_runtime._send_transcript_delta", self.send),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    async def emit(self, text: str, *, final: bool = False) -> None:
+        await _handle_parallel_stt_realtime_result(
+            None, self.state, turn_id="session-caption:1", text=text, is_final=final,
+        )
+
+    async def test_latest_shorter_revision_reaches_the_caption(self) -> None:
+        await self.emit("웹소켓을 적용했습니다.")
+        await self.emit("웹소켓을")
+        self.assertEqual(self.send.await_count, 2)
+        self.assertEqual(self.send.await_args.args[4], "웹소켓을")
+        self.assertEqual(self.state.parallel_stt_best_text, "웹소켓을")
+        self.assertEqual(self.state.live_input_streamed_user_text, "웹소켓을")
+
+    async def test_complete_sentence_bonus_does_not_delay_a_new_interim_tail(self) -> None:
+        await self.emit("실시간 면접 서비스를 개발하면서.")
+        latest = "실시간 면접 서비스를 개발하면서 웹소켓을"
+        await self.emit(latest)
+        self.assertEqual(self.send.await_count, 2)
+        self.assertEqual(self.state.realtime_user_transcript, latest)
+
+    async def test_submitting_keeps_latest_interim_after_an_earlier_final(self) -> None:
+        await self.emit("통신을 설계했습니다.", final=True)
+        latest = "통신을 설계했습니다. 캐시도 적용했습니다"
+        await self.emit(latest)
+        self.assertEqual(self.state.parallel_stt_final_text, "통신을 설계했습니다.")
+        self.assertEqual(_capture_live_input_stream_state(self.state)[1], latest)
+
+    async def test_unchanged_final_commits_without_duplicate_caption(self) -> None:
+        await self.emit("통신을 설계했습니다.")
+        await self.emit("통신을 설계했습니다.", final=True)
+        self.assertEqual(self.send.await_count, 1)
+        self.assertEqual(self.state.parallel_stt_final_text, "통신을 설계했습니다.")
+
+    async def test_result_for_an_old_turn_does_not_replace_current_caption(self) -> None:
+        await _handle_parallel_stt_realtime_result(
+            None, self.state, turn_id="session-caption:old", text="이전 답변입니다.", is_final=True,
+        )
+        self.send.assert_not_awaited()
+
+    async def test_replacement_stream_keeps_the_existing_answer_prefix(self) -> None:
+        await self.emit("통신을 설계했습니다.", final=True)
+        self.state.parallel_stt_stream = types.SimpleNamespace(
+            is_closed=lambda: True, failed=lambda: True, close=Mock(),
+        )
+        replacement = types.SimpleNamespace(provider="google-cloud-stt", push_pcm=Mock())
+        service = types.SimpleNamespace(enabled=True, start_streaming_session=Mock(return_value=replacement))
+        with patch("app.interview.runtime.ws_runtime.runtime_get_parallel_stt_service", return_value=service):
+            self.assertTrue(await _push_parallel_stt_audio_chunk(None, self.state, [0.1] * 512, 16000))
+            on_result = service.start_streaming_session.call_args.kwargs["on_result"]
+            on_result(types.SimpleNamespace(text="캐시도 적용했습니다.", is_final=True))
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+        self.assertEqual(self.state.realtime_user_transcript, "통신을 설계했습니다. 캐시도 적용했습니다.")
+        self.assertEqual(self.send.await_count, 2)
 
 
 class ParallelSttFallbackTests(unittest.TestCase):

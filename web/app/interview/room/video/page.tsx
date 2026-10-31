@@ -28,6 +28,7 @@ import {
   resolveInterviewTypeVisual,
 } from "@/lib/interview/interview-type-visuals";
 import { useInterviewConsoleCoach } from "@/hooks/interview/use-interview-console-coach";
+import { isGoogleTranscriptProvider, preferLongerCaption, selectUserCaptionText } from "@/lib/interview/caption-text";
 
 type SessionType = "live_interview" | "portfolio_defense";
 
@@ -96,23 +97,6 @@ const toStringList = (value: string | null) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const preferLongerCaption = (current: string, candidate: string) => {
-  const normalizedCurrent = (current || "").trim();
-  const normalizedCandidate = (candidate || "").trim();
-
-  if (!normalizedCurrent) return normalizedCandidate;
-  if (!normalizedCandidate) return normalizedCurrent;
-  if (normalizedCandidate.startsWith(normalizedCurrent)) return normalizedCandidate;
-  if (normalizedCurrent.startsWith(normalizedCandidate)) return normalizedCurrent;
-
-  const compactCurrent = normalizedCurrent.replace(/\s+/g, "");
-  const compactCandidate = normalizedCandidate.replace(/\s+/g, "");
-  return compactCandidate.length >= compactCurrent.length ? normalizedCandidate : normalizedCurrent;
-};
-
-const isGoogleTranscriptProvider = (provider?: string) =>
-  (provider || "").toLowerCase().includes("google-cloud-stt");
-
 const shouldIgnoreNonGoogleUserUpdate = (
   currentTurnId: string,
   currentProvider: string,
@@ -148,7 +132,7 @@ const mergeCommittedUserCaption = (
   }
   return {
     role: "user",
-    text: preferLongerCaption(previousText, cleanText),
+    text: selectUserCaptionText(previousText, cleanText, provider),
     turnId: cleanTurnId || prev?.turnId || "",
     provider: provider || previousProvider || prev?.provider,
   };
@@ -612,7 +596,7 @@ export default function InterviewVideoRoomPage() {
             setStreamingUserTurnId(turnId);
           }
           setStreamingUserProvider((prev) => provider || prev);
-          setStreamingUserCaption((prev) => preferLongerCaption(prev, clean));
+          setStreamingUserCaption((prev) => selectUserCaptionText(prev, clean, provider));
         }
       }
       recording.text(role, turnId, clean);
@@ -633,7 +617,7 @@ export default function InterviewVideoRoomPage() {
             const next = [...prev];
             next[existingIndex] = {
               ...next[existingIndex],
-              text: role === "user" ? preferLongerCaption(next[existingIndex].text, clean) : clean,
+              text: role === "user" ? selectUserCaptionText(next[existingIndex].text, clean, provider) : clean,
               timestamp: Date.now(),
               turnId,
               provider: provider || next[existingIndex].provider,

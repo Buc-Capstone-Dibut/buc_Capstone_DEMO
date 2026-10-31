@@ -825,41 +825,28 @@ async def _handle_parallel_stt_realtime_result(
     if turn_id != (state.parallel_stt_turn_id or "").strip():
         return
 
-    first_parallel_result = not state.parallel_stt_has_emitted
     state.parallel_stt_has_emitted = True
-    best_parallel = _prefer_parallel_user_stream_text(state.parallel_stt_best_text, normalized)
-    if not best_parallel:
-        return
-    state.parallel_stt_best_text = best_parallel
+    # The adapter supplies the whole answer: finalized prefix + latest interim
+    # tail. A revision can be shorter or score lower and still be more current.
+    state.parallel_stt_best_text = normalized
     state.parallel_stt_provider = (getattr(state.parallel_stt_stream, "provider", "") or "google-cloud-stt").strip()
     if is_final:
-        state.parallel_stt_final_text = _prefer_parallel_user_stream_text(
-            state.parallel_stt_final_text,
-            best_parallel,
-        )
-    state.live_input_streamed_user_text = _prefer_parallel_user_stream_text(
-        state.live_input_streamed_user_text,
-        best_parallel,
-    )
+        state.parallel_stt_final_text = normalized
+    state.live_input_streamed_user_text = normalized
 
-    merged_realtime = (
-        best_parallel
-        if first_parallel_result
-        else _prefer_parallel_user_stream_text(state.realtime_user_transcript, best_parallel)
-    )
-    if not merged_realtime or merged_realtime == state.realtime_user_transcript:
+    if normalized == state.realtime_user_transcript:
         return
 
     previous = state.realtime_user_transcript
-    delta = merged_realtime[len(previous):] if merged_realtime.startswith(previous) else merged_realtime
-    state.realtime_user_transcript = merged_realtime
+    delta = normalized[len(previous):] if normalized.startswith(previous) else normalized
+    state.realtime_user_transcript = normalized
     state.realtime_user_delta_seq += 1
     await _send_transcript_delta(
         ws,
         state.session_id,
         "user",
-        delta or merged_realtime,
-        merged_realtime,
+        delta or normalized,
+        normalized,
         state.realtime_user_delta_seq,
         turn_id=turn_id,
         provider=(state.parallel_stt_provider or "google-cloud-stt"),
@@ -906,6 +893,11 @@ async def _push_parallel_stt_audio_chunk(
         if not service.enabled:
             return False
         turn_id = (state.parallel_stt_turn_id or "").strip()
+        # A replacement stream only recognizes new audio. Keep the transcript
+        # already received for this turn as its prefix, without scoring revisions.
+        transcript_prefix = domain_sanitize_user_turn_text(
+            state.parallel_stt_best_text or state.parallel_stt_final_text
+        )
         loop = asyncio.get_running_loop()
 
         def on_result(event: Any) -> None:
@@ -915,7 +907,7 @@ async def _push_parallel_stt_audio_chunk(
                     ws,
                     state,
                     turn_id=turn_id,
-                    text=(getattr(event, "text", "") or ""),
+                    text=" ".join(part for part in (transcript_prefix, getattr(event, "text", "") or "") if part),
                     is_final=bool(getattr(event, "is_final", False)),
                 ),
             )
@@ -1259,32 +1251,6 @@ def _prefer_user_stream_text(previous: str, candidate: str) -> str:
     return previous_normalized
 
 
-def _prefer_parallel_user_stream_text(previous: str, candidate: str) -> str:
-    previous_normalized = domain_sanitize_user_turn_text(previous)
-    candidate_normalized = domain_sanitize_user_turn_text(candidate)
-    if not previous_normalized:
-        return candidate_normalized
-    if not candidate_normalized:
-        return previous_normalized
-
-    previous_score = domain_score_user_transcript_text(previous_normalized)
-    candidate_score = domain_score_user_transcript_text(candidate_normalized)
-    previous_compact = re.sub(r"\s+", "", previous_normalized)
-    candidate_compact = re.sub(r"\s+", "", candidate_normalized)
-
-    if candidate_compact.startswith(previous_compact):
-        return candidate_normalized
-    if previous_compact.startswith(candidate_compact):
-        if candidate_score >= previous_score + 2:
-            return candidate_normalized
-        return previous_normalized
-    if candidate_score >= previous_score:
-        return candidate_normalized
-    if candidate_score >= previous_score - 1 and len(candidate_compact) >= max(8, len(previous_compact) - 6):
-        return candidate_normalized
-    return previous_normalized
-
-
 async def _begin_live_input_stream(ws: WebSocket, state: VoiceWsState) -> bool:
     if not state.session_id:
         return False
@@ -1454,8 +1420,8 @@ async def _commit_live_input_stream(state: VoiceWsState) -> bool:
         deps=_live_client_deps(),
     )
     google_user_text = domain_sanitize_user_turn_text(
-        state.parallel_stt_final_text
-        or state.parallel_stt_best_text
+        state.parallel_stt_best_text
+        or state.parallel_stt_final_text
         or previous_user_text
     )
     if google_user_text:

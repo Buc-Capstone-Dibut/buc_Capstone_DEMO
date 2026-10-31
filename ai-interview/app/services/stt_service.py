@@ -481,15 +481,17 @@ class GoogleCloudSttService:
                 self._disable_runtime(exc)
             raise
 
-        alternatives: list[str] = []
+        segments: list[str] = []
         for result in getattr(response, "results", []) or []:
-            for alternative in getattr(result, "alternatives", []) or []:
-                transcript = (getattr(alternative, "transcript", "") or "").strip()
-                if transcript:
-                    alternatives.append(transcript)
+            chosen = pick_best_stt_alternative_text(
+                getattr(alternative, "transcript", "") or ""
+                for alternative in (getattr(result, "alternatives", []) or [])
+            )
+            if chosen:
+                segments.append(chosen)
 
         return SttResult(
-            text=pick_best_stt_alternative_text(alternatives),
+            text=sanitize_user_turn_text(" ".join(segments)),
             provider=self.provider,
         )
 
@@ -602,6 +604,7 @@ class GoogleCloudStreamingSttSession:
             pass
 
     def _run(self) -> None:
+        finalized_parts: list[str] = []
         try:
             request_kwargs: dict[str, Any] = {
                 "config": self._streaming_config(),
@@ -611,6 +614,9 @@ class GoogleCloudStreamingSttSession:
                 request_kwargs["timeout"] = self.timeout_sec
             responses = self._client.streaming_recognize(**request_kwargs)
             for response in responses:
+                interim_parts: list[str] = []
+                interim_stabilities: list[float] = []
+                has_final = False
                 for result in getattr(response, "results", []) or []:
                     alternatives = [
                         (getattr(alternative, "transcript", "") or "").strip()
@@ -620,11 +626,22 @@ class GoogleCloudStreamingSttSession:
                     chosen = pick_best_stt_alternative_text(alternatives)
                     if not chosen:
                         continue
-                    self._emit(
-                        chosen,
-                        is_final=bool(getattr(result, "is_final", False)),
-                        stability=float(getattr(result, "stability", 0.0) or 0.0),
-                    )
+                    if bool(getattr(result, "is_final", False)):
+                        finalized_parts.append(chosen)
+                        has_final = True
+                    else:
+                        interim_parts.append(chosen)
+                        interim_stabilities.append(float(getattr(result, "stability", 0.0) or 0.0))
+                if not has_final and not interim_parts:
+                    continue
+                # Results in one response are consecutive audio portions, not
+                # competing whole-answer hypotheses. Only final portions persist;
+                # interim portions replace the previous response's interim tail.
+                self._emit(
+                    sanitize_user_turn_text(" ".join([*finalized_parts, *interim_parts])),
+                    is_final=has_final and not interim_parts,
+                    stability=min(interim_stabilities, default=0.0),
+                )
         except Exception as exc:
             self._failed.set()
             if _is_fatal_google_stt_error(exc) and self._on_error is not None:

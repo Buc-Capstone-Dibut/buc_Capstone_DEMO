@@ -171,6 +171,7 @@ class VoiceWsState:
     parallel_stt_sample_rate: int = 16000
     parallel_stt_samples: list[float] = field(default_factory=list)
     parallel_stt_phrase_hints: list[str] = field(default_factory=list)
+    # Latest whole-answer snapshot, including the mutable interim tail.
     parallel_stt_best_text: str = ""
     parallel_stt_final_text: str = ""
     parallel_stt_provider: str = ""

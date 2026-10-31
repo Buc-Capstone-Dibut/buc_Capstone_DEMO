@@ -264,8 +264,8 @@ def _capture_live_input_stream_state(
     state: VoiceWsState,
 ) -> tuple[str, str, str, str, float, int]:
     streamed_user_text = sanitize_user_turn_text(
-        state.parallel_stt_final_text
-        or state.parallel_stt_best_text
+        state.parallel_stt_best_text
+        or state.parallel_stt_final_text
         or state.live_input_streamed_user_text
     )
     return (
@@ -333,7 +333,7 @@ async def _resolve_scripted_user_text(
     if deps.finalize_parallel_stt_stream is not None:
         await deps.finalize_parallel_stt_stream(state)
     realtime_text = _select_best_user_text(
-        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        live_user_text=state.parallel_stt_best_text or state.parallel_stt_final_text,
         realtime_user_text=state.realtime_user_transcript,
         fallback_user_text="",
         utterance_duration_ms=utterance_duration_ms,
@@ -461,7 +461,7 @@ async def _maybe_promote_parallel_user_text_before_followup(
     utterance_duration_ms: float,
 ) -> None:
     baseline_text = _select_best_user_text(
-        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        live_user_text=state.parallel_stt_best_text or state.parallel_stt_final_text,
         realtime_user_text=state.realtime_user_transcript,
         fallback_user_text=state.live_input_streamed_user_text,
         utterance_duration_ms=utterance_duration_ms,
@@ -473,7 +473,7 @@ async def _maybe_promote_parallel_user_text_before_followup(
         return
 
     baseline_text = _select_best_user_text(
-        live_user_text=state.parallel_stt_final_text or state.parallel_stt_best_text,
+        live_user_text=state.parallel_stt_best_text or state.parallel_stt_final_text,
         realtime_user_text=state.realtime_user_transcript,
         fallback_user_text=state.live_input_streamed_user_text,
         utterance_duration_ms=utterance_duration_ms,
@@ -887,7 +887,7 @@ async def process_user_utterance(
                 utterance_duration_ms=utterance_duration_ms,
             )
             parallel_optimistic_text = sanitize_user_turn_text(
-                state.parallel_stt_final_text or state.parallel_stt_best_text
+                state.parallel_stt_best_text or state.parallel_stt_final_text
             )
             if state.parallel_stt_turn_id:
                 optimistic_user_text = parallel_optimistic_text
@@ -1012,7 +1012,7 @@ async def process_user_utterance(
                         extra_instruction=live_request.extra_instruction,
                     )
             parallel_user_text = sanitize_user_turn_text(
-                state.parallel_stt_final_text or state.parallel_stt_best_text
+                state.parallel_stt_best_text or state.parallel_stt_final_text
             )
             if parallel_user_text:
                 user_text = parallel_user_text
