@@ -466,6 +466,7 @@ class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_demo_caption_corrects_supplied_name_and_terms_in_the_same_update(self) -> None:
         self.state.job_data = {"company": "더즌"}
         raw = ("안녕하세요 데이터의 근거를 끝까지 확인하는 개발자 김리버입니다. "
+               "더즈네 지원했습니다. "
                "실무 경험은 없지만 수업에서 스프링으로 crud를 만들어 봤고, "
                "지금은 스프링 부트로 송금 api를 만들고 있습니다.")
         with patch("app.interview.runtime.ws_runtime._parallel_refine_user_audio", new_callable=AsyncMock) as refine:
@@ -473,6 +474,7 @@ class ParallelSttCaptionTests(unittest.IsolatedAsyncioTestCase):
         refine.assert_not_awaited()
         sent = self.send.await_args.args[4]
         self.assertIn("개발자 김디벗입니다.", sent)
+        self.assertIn("더즌에 지원했습니다.", sent)
         self.assertIn("스프링으로 CRUD를", sent)
         self.assertIn("Spring Boot로 송금 API를", sent)
         self.assertEqual(self.send.await_count, 1)

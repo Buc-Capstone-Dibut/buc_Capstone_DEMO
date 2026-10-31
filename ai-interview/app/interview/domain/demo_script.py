@@ -16,7 +16,7 @@ DEMO_SCRIPT_ID = "dozn-2026-backend"
 DEMO_SCRIPT_COMPLETION_REASON = "closing_answer_submitted"
 _COMPANY_MARKERS = ("더즌", "dozn")
 DEMO_CANDIDATE_NAME = "김디벗"
-DEMO_STT_PHRASE_HINTS = (DEMO_CANDIDATE_NAME, f"{DEMO_CANDIDATE_NAME}입니다", f"개발자 {DEMO_CANDIDATE_NAME}", "더즌", "Spring Boot", "CRUD", "송금 API")
+DEMO_STT_PHRASE_HINTS = (DEMO_CANDIDATE_NAME, f"{DEMO_CANDIDATE_NAME}입니다", f"개발자 {DEMO_CANDIDATE_NAME}", "더즌", "더즌에", "더즌에 지원했습니다", "Spring Boot", "CRUD", "송금 API")
 
 OPENING = (
     "안녕하세요, 김디벗 지원자님. 더즌 개발본부 백엔드 신입 면접 시작하겠습니다. 보내주신 이력서랑 자소서, 포트폴리오는 미리 읽어 봤어요. "
@@ -27,7 +27,7 @@ OPENING = (
 # 제출 서류(이력서·자소서·포트폴리오)와 직전 답변을 짚으며 이어지는 실전형 질문이다.
 QUESTIONS: tuple[str, ...] = (
     # 1 — 이력서 기술 스택
-    "네. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. "
+    "잘 들었습니다. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. "
     "저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
     # 1-꼬리 — 직전 답변(송금 API 예제)
     "송금 API를 만들고 계시다니 바로 확인해 볼게요. 출금이랑 입금 반영, 트랜잭션은 어디에 거셨어요?",

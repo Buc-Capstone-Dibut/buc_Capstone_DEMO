@@ -577,6 +577,16 @@ def _live_client_deps(state: VoiceWsState) -> LiveClientDeps:
 
 
 class DemoScriptSpeechTests(unittest.IsolatedAsyncioTestCase):
+    async def test_bundled_generation_rejects_an_added_leading_acknowledgement(self) -> None:
+        state = _demo_state()
+        live = _FakeLiveTextSession(["네. " + QUESTIONS[0], QUESTIONS[0]])
+        _text, audio, _provider = await request_live_scripted_speech_turn(
+            state, text=QUESTIONS[0], deps=_live_client_deps(state),
+            live=live, accept_unverified=False,
+        )
+        self.assertEqual(len(live.prompts), 2)
+        self.assertEqual(audio.chunks, [f"pcm:{QUESTIONS[0]}"])
+
     def test_coverage_tolerates_transliteration_but_rejects_roleplay_and_truncation(self) -> None:
         line = QUESTIONS[0]
         transliterated = line.replace("Python", "파이썬").replace("Next.js", "넥스트제이에스").replace("Java", "자바")

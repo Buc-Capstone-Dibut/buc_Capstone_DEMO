@@ -6,15 +6,17 @@ from typing import Iterable
 
 
 def _jamo(text: str) -> str:
+    consonants = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
+    endings = ("", "ㄱ", "ㄲ", "ㄱㅅ", "ㄴ", "ㄴㅈ", "ㄴㅎ", "ㄷ", "ㄹ", "ㄹㄱ", "ㄹㅁ", "ㄹㅂ", "ㄹㅅ", "ㄹㅌ", "ㄹㅍ", "ㄹㅎ", "ㅁ", "ㅂ", "ㅂㅅ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ")
     result = []
     for char in text:
         value = ord(char) - 0xAC00
         if not 0 <= value < 11172:
             result.append(char)
             continue
-        result.extend((chr(0x1100 + value // 588), chr(0x1161 + value % 588 // 28)))
+        result.extend((consonants[value // 588], chr(0x1161 + value % 588 // 28)))
         if value % 28:
-            result.append(chr(0x11A7 + value % 28))
+            result.append(endings[value % 28])
     return "".join(result)
 
 
@@ -51,3 +53,23 @@ def normalize_self_introduction_name(text: str, names: Iterable[str]) -> str:
         r"(?P<name>[가-힣]{1,5}(?:\s+[가-힣]{1,3}){0,2})(?P<ending>\s*입니다)",
         replace, text,
     )
+
+
+def normalize_application_company(text: str, company: str) -> str:
+    if not re.fullmatch(r"[가-힣]{2,10}", company or ""):
+        return text
+    candidates = [company + ending for ending in ("", "에", "의", "을", "를", "은", "는", "이", "가")]
+
+    def replace(match: re.Match[str]) -> str:
+        heard = match.group()
+        if heard.startswith(company):
+            return heard
+        options = [candidate for candidate in candidates if len(candidate) == len(heard)] or candidates
+        scores = [(candidate, _distance(_jamo(candidate), _jamo(heard))) for candidate in options]
+        closest = min(score for _, score in scores)
+        matches = [candidate for candidate, score in scores if score == closest]
+        return matches[0] if closest <= 1 and len(matches) == 1 else heard
+
+    # Limit correction to an application statement about the known target.
+    # Mentions of another company elsewhere are retained.
+    return re.sub(r"(?<![가-힣])[가-힣]{2,12}(?=\s*지원(?:했|합|하|동기))", replace, text)

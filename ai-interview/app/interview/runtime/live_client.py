@@ -109,7 +109,7 @@ def build_scripted_session_instruction() -> str:
         "2) 대사를 추가·생략·요약·의역하지 않는다. 질문이 여러 개여도 모두 그대로 읽는다.\n"
         "3) 지원자 역할을 하거나 답변을 대신하지 않는다.\n"
         "4) 대사 외의 인사, 설명, 메타 발화, 영어 문장을 덧붙이지 않는다.\n"
-        "5) '네', '좋습니다' 같은 짧은 맞장구는 짧고 또렷하게 말한다. 모음을 길게 끌거나 머뭇거리지 않는다.\n"
+        "5) 짧은 맞장구는 짧고 또렷하게 말한다. 모음을 길게 끌거나 머뭇거리지 않는다.\n"
         "6) 문장 전체는 자연스러운 보통 속도로 읽고, 문장 사이에서만 짧게 쉰다.\n"
         "출력은 자연스러운 한국어 음성으로만 생성한다."
     )
@@ -246,13 +246,16 @@ def build_exact_speech_prompt() -> str:
     )
 
 
-def build_scripted_speech_prompt() -> str:
-    return (
+def build_scripted_speech_prompt(*, first_word: str = "") -> str:
+    instruction = (
         "아래 면접관 대사를 한 글자도 바꾸지 말고 처음부터 끝까지 그대로 소리 내어 읽으세요. "
         "문장을 추가하거나 생략하거나 의역하지 말고, 질문이 여러 개면 모두 그대로 읽은 뒤 멈추세요. "
         "대사 외에는 아무 말도 하지 마세요."
-        " 대사 첫머리에 '네' 같은 짧은 맞장구가 있으면 한 음절로 짧게 말하고 다음 문장으로 이어가세요."
+        " 짧은 맞장구는 모음을 늘이지 말고 다음 문장으로 이어가세요."
     )
+    if first_word:
+        instruction += f" 첫 소리는 반드시 '{first_word}'입니다. 그 앞에 다른 소리를 붙이지 마세요."
+    return instruction
 
 
 def _hangul_signature(text: str) -> str:
@@ -304,7 +307,7 @@ async def request_live_scripted_speech_turn(
     for attempt in range(1, max(1, attempts) + 1):
         result = await live.request_text_turn(
             session_instruction=deps.build_session_instruction(state),
-            turn_prompt=build_scripted_speech_prompt(),
+            turn_prompt=build_scripted_speech_prompt(first_word=payload_text.split()[0].strip(" ,.!?")),
             text=payload_text,
         )
         provider = result.provider or provider
@@ -318,10 +321,12 @@ async def request_live_scripted_speech_turn(
             first_audio = first_audio or prepared
             if not spoken_text:
                 # 출력 전사가 없으면 검증할 수 없다 — 대사 길이에 비해 너무 짧은 음성만 거른다.
-                if prepared.duration_sec >= max(1.0, len(_hangul_signature(payload_text)) * 0.04):
+                if accept_unverified and prepared.duration_sec >= max(1.0, len(_hangul_signature(payload_text)) * 0.04):
                     return payload_text, prepared, provider
             else:
                 coverage = scripted_speech_coverage(payload_text, spoken_text)
+                if not accept_unverified and not _hangul_signature(spoken_text).startswith(_hangul_signature(payload_text)[:4]):
+                    coverage = 0.0
                 if coverage >= SCRIPTED_SPEECH_MIN_COVERAGE:
                     return payload_text, prepared, provider
                 if coverage > best_coverage:

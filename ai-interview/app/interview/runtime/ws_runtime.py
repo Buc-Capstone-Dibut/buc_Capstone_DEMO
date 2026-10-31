@@ -10,7 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from app.config import settings
 from app.interview.domain.demo_script import DEMO_CANDIDATE_NAME, DEMO_STT_PHRASE_HINTS
-from app.interview.domain.stt_entities import normalize_self_introduction_name
+from app.interview.domain.stt_entities import normalize_application_company, normalize_self_introduction_name
 from app.interview.runtime.demo_script_audio import load_demo_script_audio
 from app.interview.domain.interview_memory import (
     build_memory_snapshot as domain_build_memory_snapshot,
@@ -202,7 +202,10 @@ def _candidate_stt_names(state: VoiceWsState) -> list[str]:
 
 
 def _normalize_parallel_user_text(state: VoiceWsState, text: str) -> str:
-    return normalize_self_introduction_name(domain_sanitize_user_turn_text(text), _candidate_stt_names(state))
+    normalized = normalize_self_introduction_name(domain_sanitize_user_turn_text(text), _candidate_stt_names(state))
+    job_data = state.job_data if isinstance(state.job_data, dict) else {}
+    company = "더즌" if is_demo_script_state(state) else str(job_data.get("company") or "").strip()
+    return normalize_application_company(normalized, company)
 
 
 def _iter_session_stt_hint_candidates(state: VoiceWsState) -> list[str]:

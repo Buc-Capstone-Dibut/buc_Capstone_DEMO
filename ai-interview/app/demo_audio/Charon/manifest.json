@@ -9,18 +9,6 @@
       "pcmSha256": "2b126aa1cf332f58997b0f14a581fdc1b8332dc4d0c64433adf327804634a482",
       "durationMs": 14192
     },
-    "e101e5a423a9ab205acf36edd4f8fb1aff1eeff33e2dabd99f34f79f3b729867": {
-      "label": "question-1",
-      "text": "네. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. 저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
-      "sampleRate": 24000,
-      "pcmSha256": "844a575b98c5e57ba68229c7ef840182b6588bcdcfc026a897014fe2f1657770",
-      "durationMs": 14352,
-      "initialAcknowledgementEdit": {
-        "sourceEndMs": 1600,
-        "tempo": 3.2,
-        "crossfadeMs": 10
-      }
-    },
     "dbf36d69ff63de485ac8619ce25b98444bb95d6baba16ebeda4827c1789dd30c": {
       "label": "question-2",
       "text": "송금 API를 만들고 계시다니 바로 확인해 볼게요. 출금이랑 입금 반영, 트랜잭션은 어디에 거셨어요?",
@@ -104,6 +92,13 @@
       "sampleRate": 24000,
       "pcmSha256": "86d68c9747d1396e283295e8610fa97135d932ae9aa3aee03b2ca751d94e6186",
       "durationMs": 17512
+    },
+    "287f6aca15a0e241c93980e07abcfad3978bcce5c2bf6bbf7e4bfdf72f1934dd": {
+      "label": "question-1",
+      "text": "잘 들었습니다. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. 저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
+      "sampleRate": 24000,
+      "pcmSha256": "ae114bec3e52288d2061f168e7c65df08694177a12a82812c027425b60cd4389",
+      "durationMs": 14832
     }
   }
 }

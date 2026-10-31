@@ -8,7 +8,7 @@ export const DEMO_SCRIPT_PAIRS: ReadonlyArray<{ question: string; answer: string
     answer: "안녕하세요, 데이터의 근거를 끝까지 확인하는 개발자 김디벗입니다. SQLD와 정보처리산업기사를 취득했고, 행정 문서 1,200여 건을 정제해 RAG 어시스턴트의 근거 일치율을 87%까지 끌어올렸습니다. 숫자 하나가 틀리면 신뢰가 무너지는 결제·정산 일을 하고 싶어 더즌에 지원했습니다.",
   },
   {
-    question: "네. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. 저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
+    question: "잘 들었습니다. 이력서 보니까 Spring MVC는 Beginner로 적으셨고, 프로젝트는 대부분 Python, Next.js던데요. 저희 개발본부는 Java, Spring 기반입니다. Java는 실제로 어디까지 해 보셨어요?",
     answer: "솔직히 실무 경험은 없습니다. 수업에서 JSP·Servlet 게시판과 스프링 MVC로 CRUD까지 해 봤고, 지금은 Spring Boot와 JPA로 간단한 송금 API를 만들고 있습니다. 프로젝트에서 고민한 트랜잭션과 동시성 처리는 Java에서도 그대로 쓸 수 있다고 생각합니다.",
   },
   {
