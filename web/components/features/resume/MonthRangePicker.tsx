@@ -65,9 +65,13 @@ export function MonthRangePicker({ value, onChange, className }: MonthRangePicke
   // 로컬 상태로 각 필드를 독립 관리한다. (예전엔 매 렌더마다 value를 다시 쪼개
   // 한쪽을 바꾸면 다른 쪽이 "2024.01" 기본값으로 덮어써지는 버그가 있었다.)
   const [parts, setParts] = React.useState<RangeParts>(() => parseValue(value));
+  const lastValueRef = React.useRef(value);
 
-  // 외부에서 value가 바뀌면(다른 항목 편집 등) 로컬 상태를 동기화한다.
+  // 직접 전달한 값에는 미완성 년/월이 빠질 수 있으므로, 부모가 돌려준
+  // 같은 값은 다시 파싱하지 않는다. 외부 변경만 로컬 상태에 반영한다.
   React.useEffect(() => {
+    if (value === lastValueRef.current) return;
+    lastValueRef.current = value;
     setParts(parseValue(value));
   }, [value]);
 
@@ -76,8 +80,10 @@ export function MonthRangePicker({ value, onChange, className }: MonthRangePicke
 
   const update = (patch: Partial<RangeParts>) => {
     const next = { ...parts, ...patch };
+    const nextValue = buildValue(next);
+    lastValueRef.current = nextValue;
     setParts(next);
-    onChange(buildValue(next));
+    onChange(nextValue);
   };
 
   return (
