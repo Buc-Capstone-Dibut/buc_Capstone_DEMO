@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import { Briefcase, ExternalLink, Loader2, Search, Star } from "lucide-react";
 import {
   Dialog,
@@ -11,33 +12,29 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchJobPostingPrefill } from "@/lib/interview/job-posting-prefill";
 import { cn } from "@/lib/utils";
 import {
   STATUS_LABEL,
   STATUS_TONE,
 } from "@/lib/job-postings/visual-tokens";
 import type {
-  AttachmentRecord,
   JobPostingRecord,
   JobPostingStatus,
 } from "@/lib/job-postings/types";
+import type { JobPostingInterviewPrefill } from "@/store/interview-setup-store";
 
 /**
  * 면접 셋업의 target 단계에서 띄우는 "내 채용공고에서 선택" 다이얼로그.
  *
  * 좌측 리스트(사용자 등록 공고) + 우측 미리보기 + 하단 CTA로 구성된다.
- * "이 공고로 진행"을 누르면 부모에게 선택된 공고 정보를 전달한다.
+ * "이 공고로 진행"을 누르면 부모에게 미리보기에 사용한 면접 설정을 전달한다.
  * 실제 store update + 다음 단계 진입은 부모(target step)에서 처리한다.
  */
-export interface MyPostingPickerResult {
-  postingId: string;
-  posting: JobPostingRecord;
-}
-
 interface MyPostingPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (result: MyPostingPickerResult) => Promise<void> | void;
+  onSelect: (prefill: JobPostingInterviewPrefill) => void;
 }
 
 const STATUS_PRIORITY: JobPostingStatus[] = [
@@ -58,7 +55,6 @@ export function MyPostingPickerDialog({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -127,15 +123,11 @@ export function MyPostingPickerDialog({
     [filtered, selectedId],
   );
 
-  const handleConfirm = async () => {
-    if (!selected) return;
-    setSubmitting(true);
-    try {
-      await onSelect({ postingId: selected.id, posting: selected });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const { data: prefill, error: prefillError, isValidating, mutate } = useSWR(
+    open && !loading && !error && selected ? ["interview-posting-prefill", selected.id] : null,
+    ([, postingId]) => fetchJobPostingPrefill(postingId),
+    { revalidateOnFocus: false, shouldRetryOnError: false },
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -145,7 +137,7 @@ export function MyPostingPickerDialog({
             내 채용공고에서 선택
           </DialogTitle>
           <DialogDescription className="text-xs">
-            마이페이지에 등록한 공고를 선택하면 회사·직무·기술스택·연결된 이력서까지 셋업에 자동으로 채워집니다.
+            마이페이지에 등록한 공고를 선택하면 회사·직무·기술스택과 연결 자료가 셋업에 자동으로 채워집니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -251,10 +243,23 @@ export function MyPostingPickerDialog({
               </ul>
             </aside>
 
-            <section className="flex min-w-0 flex-col">
-              <div className="flex-1 overflow-y-auto px-6 py-5">
+            <section className="flex min-h-0 min-w-0 flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 {selected ? (
-                  <PostingPreview posting={selected} />
+                  <PostingPreview posting={selected}>
+                    {prefillError ? (
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>연결 자료를 불러오지 못했습니다.</p>
+                        <Button type="button" variant="outline" size="sm" onClick={() => void mutate()} disabled={isValidating}>
+                          다시 불러오기
+                        </Button>
+                      </div>
+                    ) : prefill ? (
+                      <LinkedMaterials prefill={prefill} />
+                    ) : (
+                      <p role="status" className="text-xs text-muted-foreground">연결 자료를 불러오는 중…</p>
+                    )}
+                  </PostingPreview>
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                     좌측에서 공고를 선택하세요.
@@ -263,7 +268,7 @@ export function MyPostingPickerDialog({
               </div>
               <footer className="flex items-center justify-between border-t bg-muted/30 px-6 py-3">
                 <p className="text-[11px] text-muted-foreground">
-                  연결된 이력서·자기소개서·포트폴리오도 함께 셋업에 반영됩니다.
+                  미리보기에 표시된 자료가 면접 설정에 반영됩니다.
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -271,27 +276,16 @@ export function MyPostingPickerDialog({
                     size="sm"
                     className="rounded-sm"
                     onClick={() => onOpenChange(false)}
-                    disabled={submitting}
                   >
                     취소
                   </Button>
                   <Button
                     size="sm"
                     className="rounded-sm"
-                    onClick={handleConfirm}
-                    disabled={!selected || submitting}
+                    onClick={() => prefill && onSelect(prefill)}
+                    disabled={!prefill || Boolean(prefillError) || isValidating}
                   >
-                    {submitting ? (
-                      <>
-                        <Loader2
-                          className="mr-1 h-3.5 w-3.5 animate-spin"
-                          aria-hidden
-                        />
-                        가져오는 중…
-                      </>
-                    ) : (
-                      "이 공고로 진행"
-                    )}
+                    이 공고로 진행
                   </Button>
                 </div>
               </footer>
@@ -303,8 +297,7 @@ export function MyPostingPickerDialog({
   );
 }
 
-function PostingPreview({ posting }: { posting: JobPostingRecord }) {
-  const attachmentSummary = summarizeLinkedMaterials(posting);
+function PostingPreview({ posting, children }: { posting: JobPostingRecord; children: React.ReactNode }) {
   return (
     <article className="space-y-4">
       <header>
@@ -355,25 +348,7 @@ function PostingPreview({ posting }: { posting: JobPostingRecord }) {
         </Field>
       )}
 
-      <Field label="연결 자료">
-        {attachmentSummary.length > 0 ? (
-          <ul className="space-y-1 text-xs">
-            {attachmentSummary.map((line, i) => (
-              <li key={i} className="flex items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className="inline-block h-1 w-1 rounded-full bg-muted-foreground"
-                />
-                <span className="text-foreground/80">{line}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            연결된 자료가 없습니다. 셋업 다음 단계에서 직접 선택할 수 있어요.
-          </p>
-        )}
-      </Field>
+      <Field label="연결 자료">{children}</Field>
 
       {posting.memo && (
         <Field label="메모">
@@ -386,25 +361,35 @@ function PostingPreview({ posting }: { posting: JobPostingRecord }) {
   );
 }
 
-// 면접 prefill 과 같은 규칙: 직접 첨부가 우선, 없으면 이 공고를 지원 대상으로 만든 가장 최근 이력서·자소서.
-function summarizeLinkedMaterials(posting: JobPostingRecord): string[] {
-  const attachments: AttachmentRecord[] = posting.attachments ?? [];
-  const lines: string[] = [];
-  for (const a of attachments) {
-    if (a.attachmentType === "resume") lines.push("이력서");
-    else if (a.attachmentType === "cover_letter")
-      lines.push(`자기소개서${a.coverLetterLabel ? ` · ${a.coverLetterLabel}` : ""}`);
-    else lines.push("포트폴리오");
+function LinkedMaterials({ prefill }: { prefill: JobPostingInterviewPrefill }) {
+  const { resumeData, resumePrefillSource, jobData, attachedPortfolios, attachedProjects } = prefill;
+  const coverLetter = jobData.supportingMaterials?.coverLetter;
+  const materials = [
+    ...(resumeData ? [{
+      id: "resume",
+      kind: resumePrefillSource === "active_resume" ? "기본 이력서" : "이력서",
+      title: resumeData.fileName,
+    }] : []),
+    ...(coverLetter ? [{ id: "cover-letter", kind: "자기소개서", title: coverLetter.title }] : []),
+    ...attachedPortfolios.map((portfolio) => ({ id: `portfolio-${portfolio.id}`, kind: "포트폴리오", title: portfolio.title })),
+    ...attachedProjects.map((project) => ({ id: `project-${project.id}`, kind: "프로젝트", title: project.name })),
+  ];
+
+  if (materials.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        연결된 자료가 없습니다. 셋업 다음 단계에서 이력서를 선택할 수 있어요.
+      </p>
+    );
   }
-  const targetResume = posting.derivedResumes?.[0];
-  if (targetResume && !attachments.some((a) => a.attachmentType === "resume")) {
-    lines.push(`이력서 · ${targetResume.title || "제목 없음"}`);
-  }
-  const targetCoverLetter = posting.derivedCoverLetters?.[0];
-  if (targetCoverLetter && !attachments.some((a) => a.attachmentType === "cover_letter")) {
-    lines.push(`자기소개서 · ${targetCoverLetter.title || "제목 없음"}`);
-  }
-  return lines;
+
+  return (
+    <ul className="list-disc space-y-1 pl-3 text-xs text-foreground/80">
+      {materials.map(({ id, kind, title }) => (
+        <li key={id}>{kind} · {title || "제목 없음"}</li>
+      ))}
+    </ul>
+  );
 }
 
 function Field({

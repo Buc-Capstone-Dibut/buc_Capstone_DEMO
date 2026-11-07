@@ -422,9 +422,7 @@ export default function WorkspaceDetailPage() {
             <DocsView
               projectId={projectId}
               initialDocId={searchParams.get("doc")}
-              onNavigateToTask={(taskId) => {
-                setActiveTaskId(taskId);
-              }}
+              onOpenTask={setActiveTaskId}
             />
           </DocsErrorBoundary>
         );

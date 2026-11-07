@@ -7,11 +7,8 @@ import { ArrowRight, Briefcase, CheckCircle2, ChevronRight, FolderOpen, Link as 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useInterviewSetupStore } from "@/store/interview-setup-store";
-import {
-  MyPostingPickerDialog,
-  type MyPostingPickerResult,
-} from "./my-posting-picker-dialog";
+import { useInterviewSetupStore, type JobPostingInterviewPrefill } from "@/store/interview-setup-store";
+import { MyPostingPickerDialog } from "./my-posting-picker-dialog";
 import {
   findRoleTemplateByLabel,
   getRoleCategoryById,
@@ -43,19 +40,15 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     setTarget,
     setJobData,
     setStep,
-    setResumeData,
-    setResumePrefillSource,
     jobData,
     rolePrepData,
     setRolePrepData,
-    setAttachedPortfolios,
-    setAttachedProjects,
+    applyJobPostingPrefill,
   } = useInterviewSetupStore();
   const [urlInput, setUrlInput] = useState(targetUrl);
   const [isLoading, setIsLoading] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSubmitting, setPickerSubmitting] = useState(false);
 
   const matchedRole = findRoleTemplateByLabel(jobData?.role);
   const initialCategory =
@@ -108,74 +101,9 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
     setStep("final-check");
   };
 
-  const handlePickFromMyPostings = async ({
-    postingId,
-  }: MyPostingPickerResult) => {
-    if (pickerSubmitting) return;
-    setPickerSubmitting(true);
-    try {
-      const res = await fetch(
-        `/api/my/job-postings/${postingId}/interview-prefill`,
-        { cache: "no-store" },
-      );
-      const json = await res.json();
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error || "공고 정보를 불러오지 못했습니다.");
-      }
-      const d = json.data ?? {};
-
-      if (typeof d.targetUrl === "string") {
-        setTarget(d.targetUrl, "Custom");
-      } else {
-        setTarget("", "Custom");
-      }
-      if (d.jobData) {
-        setJobData({
-          role: d.jobData.role ?? "",
-          company: d.jobData.company ?? "",
-          supportingMaterials: d.jobData.supportingMaterials,
-          interviewLevel: "auto",
-          interviewTrack: "posting",
-          sourceUrl: d.targetUrl ?? "",
-          companyDescription: d.jobData.companyDescription ?? "",
-          teamCulture: Array.isArray(d.jobData.teamCulture)
-            ? d.jobData.teamCulture
-            : [],
-          techStack: Array.isArray(d.jobData.techStack)
-            ? d.jobData.techStack
-            : [],
-          responsibilities: Array.isArray(d.jobData.responsibilities)
-            ? d.jobData.responsibilities
-            : [],
-          requirements: Array.isArray(d.jobData.requirements)
-            ? d.jobData.requirements
-            : [],
-          preferred: Array.isArray(d.jobData.preferred) ? d.jobData.preferred : [],
-        });
-      }
-      const hasResume = Boolean(d.resumeData);
-      if (hasResume) {
-        setResumeData(d.resumeData);
-        setResumePrefillSource(d.resumePrefillSource ?? null);
-      }
-      // 공고에 연결된 포트폴리오·프로젝트도 URL import 경로와 동일하게 셋업에 반영.
-      setAttachedPortfolios(Array.isArray(d.attachedPortfolios) ? d.attachedPortfolios : []);
-      setAttachedProjects(Array.isArray(d.attachedProjects) ? d.attachedProjects : []);
-      setRolePrepData(null);
-      setPickerOpen(false);
-      // 공고에 이력서까지 매핑돼 있으면 중간 확인
-      // 단계(공고확인·이력서입력·이력서확인)를 건너뛰고 바로 최종 점검으로 보낸다.
-      // (final-check 가 JD/이력서 둘 다 검토·수정 가능한 통합 화면이라 안전)
-      setStep(d.jobData && hasResume ? "final-check" : "jd-check");
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "공고 정보를 불러오지 못했습니다.",
-      );
-    } finally {
-      setPickerSubmitting(false);
-    }
+  const handlePickFromMyPostings = (prefill: JobPostingInterviewPrefill) => {
+    setPickerOpen(false);
+    applyJobPostingPrefill(prefill);
   };
 
   const handleNext = async () => {
@@ -369,7 +297,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
                   내 채용공고에서 선택하기
                 </span>
                 <span className="block text-xs text-[#5f6b7a]">
-                  마이페이지에 등록한 공고를 선택하면 회사·직무·기술스택·연결된 이력서까지 한 번에 적용됩니다.
+                  마이페이지에 등록한 공고를 선택하면 회사·직무·기술스택과 연결 자료가 한 번에 적용됩니다.
                 </span>
               </span>
               <ChevronRight
@@ -382,7 +310,7 @@ export function TargetSelectionStep({ track = "posting" }: TargetSelectionStepPr
 
         <MyPostingPickerDialog
           open={pickerOpen}
-          onOpenChange={(o) => !pickerSubmitting && setPickerOpen(o)}
+          onOpenChange={setPickerOpen}
           onSelect={handlePickFromMyPostings}
         />
       </div>

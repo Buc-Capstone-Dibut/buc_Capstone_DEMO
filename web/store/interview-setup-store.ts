@@ -147,17 +147,29 @@ export interface RolePrepData {
   focusAreas: string[];
 }
 
+type ResumePrefillSource =
+  | "active_resume"
+  | "user_resume"
+  | "job_posting_attachment"
+  | "job_posting_target"
+  | "job_posting_cover_letter"
+  | null;
+
+export interface JobPostingInterviewPrefill {
+  targetUrl: string;
+  jobData: JobData;
+  resumeData: ResumeData | null;
+  resumePrefillSource: ResumePrefillSource;
+  attachedPortfolios: PortfolioPrefill[];
+  attachedProjects: ProjectPrefill[];
+}
+
 interface InterviewSetupState {
   currentStep: InterviewSetupStep;
   targetUrl: string;
   targetJobCategory: string;
   interviewSessionId: string | null;
-  resumePrefillSource:
-    | "active_resume"
-    | "user_resume"
-    | "job_posting_attachment"
-    | "job_posting_target"
-    | null;
+  resumePrefillSource: ResumePrefillSource;
 
   // JD Data
   jobData: JobData | null;
@@ -183,18 +195,10 @@ interface InterviewSetupState {
   updateResumeData: (data: Partial<ResumeData>) => void;
   setRolePrepData: (data: RolePrepData | null) => void;
   updateRolePrepData: (data: Partial<RolePrepData>) => void;
-  setAttachedPortfolios: (data: PortfolioPrefill[]) => void;
-  setAttachedProjects: (data: ProjectPrefill[]) => void;
+  applyJobPostingPrefill: (data: JobPostingInterviewPrefill) => void;
   setInterviewSessionId: (sessionId: string | null) => void;
   setFaceBaseline: (baseline: Baseline | null) => void;
-  setResumePrefillSource: (
-    source:
-      | "active_resume"
-      | "user_resume"
-      | "job_posting_attachment"
-      | "job_posting_target"
-      | null,
-  ) => void;
+  setResumePrefillSource: (source: ResumePrefillSource) => void;
   completeSetup: () => void;
   reset: () => void;
 }
@@ -230,8 +234,22 @@ export const useInterviewSetupStore = create<InterviewSetupState>()(
         set((state) => ({
           rolePrepData: state.rolePrepData ? { ...state.rolePrepData, ...updates } : null
         })),
-      setAttachedPortfolios: (data) => set({ attachedPortfolios: data }),
-      setAttachedProjects: (data) => set({ attachedProjects: data }),
+      applyJobPostingPrefill: (data) => set({
+        targetUrl: data.targetUrl,
+        targetJobCategory: "Custom",
+        jobData: {
+          ...data.jobData,
+          interviewLevel: "auto",
+          interviewTrack: "posting",
+          sourceUrl: data.targetUrl,
+        },
+        resumeData: data.resumeData,
+        resumePrefillSource: data.resumePrefillSource,
+        attachedPortfolios: data.attachedPortfolios,
+        attachedProjects: data.attachedProjects,
+        rolePrepData: null,
+        currentStep: data.resumeData ? "final-check" : "jd-check",
+      }),
       setInterviewSessionId: (sessionId) => set({ interviewSessionId: sessionId }),
       setFaceBaseline: (baseline) => set({ faceBaseline: baseline }),
       setResumePrefillSource: (source) => set({ resumePrefillSource: source }),

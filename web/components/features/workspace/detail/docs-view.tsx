@@ -9,7 +9,6 @@ import {
   NormalDocumentEditor,
   type NormalDocumentEditorHandle,
 } from "@/components/features/workspace/docs/normal-editor";
-import { AdvancedTaskModal } from "@/components/features/workspace/detail/board/advanced-task-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -88,7 +87,7 @@ const stringToColor = (str: string) => {
 interface DocsViewProps {
   projectId: string;
   initialDocId?: string | null;
-  onNavigateToTask?: (taskId: string) => void;
+  onOpenTask: (taskId: string) => void;
 }
 
 type WorkspaceDocSummary = {
@@ -292,7 +291,7 @@ function safeStorageSet(
 export function DocsView({
   projectId,
   initialDocId,
-  onNavigateToTask,
+  onOpenTask,
 }: DocsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -469,15 +468,6 @@ export function DocsView({
   const [title, setTitle] = useState("");
   const [emoji, setEmoji] = useState<string | null>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-
-  const handleOpenTaskLocally = useCallback(
-    (taskId: string) => {
-      onNavigateToTask?.(taskId);
-      setSelectedTaskId(taskId);
-    },
-    [onNavigateToTask],
-  );
   const [docWorkerId, setDocWorkerId] = useState("");
 
   const docMap = useMemo(() => {
@@ -2474,9 +2464,7 @@ export function DocsView({
                                   key={relation.id}
                                   type="button"
                                   className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70 max-w-[150px]"
-                                  onClick={() =>
-                                    handleOpenTaskLocally(relation.task.id)
-                                  }
+                                  onClick={() => onOpenTask(relation.task.id)}
                                 >
                                   <span className="truncate">
                                     {relation.task.title}
@@ -2568,7 +2556,7 @@ export function DocsView({
                   onTaskLinked={() => {
                     void mutateLinkedTasks();
                   }}
-                  onOpenTask={handleOpenTaskLocally}
+                  onOpenTask={onOpenTask}
                   user={
                     user
                       ? {
@@ -2588,7 +2576,7 @@ export function DocsView({
                 docId={activeDocId}
                 readOnly={isReadOnly}
                 currentUserId={user?.id}
-                onOpenTask={handleOpenTaskLocally}
+                onOpenTask={onOpenTask}
               />
             </div>
           </div>
@@ -2601,13 +2589,6 @@ export function DocsView({
           </div>
         )}
       </div>
-
-      <AdvancedTaskModal
-        taskId={selectedTaskId || ""}
-        projectId={projectId}
-        open={!!selectedTaskId}
-        onOpenChange={(open) => !open && setSelectedTaskId(null)}
-      />
 
       <Dialog
         open={isSaveTemplateDialogOpen}

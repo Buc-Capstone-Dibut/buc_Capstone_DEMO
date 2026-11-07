@@ -39,6 +39,7 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     updateResumeData,
     setInterviewSessionId,
     setStep,
+    resumePrefillSource,
     attachedPortfolios,
     attachedProjects,
   } = useInterviewSetupStore();
@@ -105,7 +106,10 @@ export function FinalCheckStep({ track = "posting" }: FinalCheckStepProps) {
     ? attachedProjects
     : jobData?.supportingMaterials?.projects ?? [];
   const linkedMaterials = [
-    resumeData?.fileName ? { kind: "이력서", names: [resumeData.fileName] } : null,
+    resumeData?.fileName ? {
+      kind: resumePrefillSource === "active_resume" ? "기본 이력서" : "이력서",
+      names: [resumeData.fileName],
+    } : null,
     coverLetter ? { kind: "자기소개서", names: [coverLetter.title || "제목 없음"] } : null,
     attachedPortfolios.length
       ? { kind: "포트폴리오", names: attachedPortfolios.map((p) => p.title || "제목 없음") }

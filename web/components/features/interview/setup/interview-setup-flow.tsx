@@ -12,6 +12,7 @@ import { ModeSelectionStep } from "@/components/features/interview/setup/steps/m
 import { AnimatePresence, motion } from "framer-motion";
 import { SetupStepper } from "@/components/features/interview/setup/setup-stepper";
 import { useToast } from "@/hooks/use-toast";
+import { fetchJobPostingPrefill } from "@/lib/interview/job-posting-prefill";
 
 type SetupTrack = "posting" | "role";
 
@@ -30,11 +31,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
     reset,
     setResumeData,
     setResumePrefillSource,
-    setJobData,
-    setTarget,
-    setStep,
-    setAttachedPortfolios,
-    setAttachedProjects,
+    applyJobPostingPrefill,
   } = useInterviewSetupStore();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,53 +54,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
 
       void (async () => {
         try {
-          const res = await fetch(
-            `/api/my/job-postings/${postingId}/interview-prefill`,
-            { cache: "no-store" },
-          );
-          const json = await res.json();
-          if (!res.ok || !json?.success) {
-            throw new Error(json?.error || "채용공고를 불러오지 못했습니다.");
-          }
-          const d = json.data ?? {};
-
-          if (typeof d.targetUrl === "string" && d.targetUrl) {
-            setTarget(d.targetUrl, "");
-          }
-          if (d.jobData) {
-            setJobData({
-              role: d.jobData.role ?? "",
-              company: d.jobData.company ?? "",
-              supportingMaterials: d.jobData.supportingMaterials,
-              techStack: Array.isArray(d.jobData.techStack) ? d.jobData.techStack : [],
-              responsibilities: Array.isArray(d.jobData.responsibilities)
-                ? d.jobData.responsibilities
-                : [],
-              requirements: Array.isArray(d.jobData.requirements)
-                ? d.jobData.requirements
-                : [],
-              preferred: Array.isArray(d.jobData.preferred) ? d.jobData.preferred : [],
-              companyDescription: d.jobData.companyDescription ?? "",
-              teamCulture: Array.isArray(d.jobData.teamCulture) ? d.jobData.teamCulture : [],
-            });
-          }
-          const hasResume = Boolean(d.resumeData);
-          if (hasResume) {
-            setResumeData({
-              fileName: d.resumeData.fileName ?? "채용공고 연동 이력서",
-              parsedContent: d.resumeData.parsedContent,
-            });
-            setResumePrefillSource(d.resumePrefillSource ?? null);
-          }
-          if (Array.isArray(d.attachedPortfolios) && d.attachedPortfolios.length) {
-            setAttachedPortfolios(d.attachedPortfolios);
-          }
-          if (Array.isArray(d.attachedProjects) && d.attachedProjects.length) {
-            setAttachedProjects(d.attachedProjects);
-          }
-          // 공고에 이력서까지 매핑돼 있으면 중간 확인 단계를 건너뛰고 최종 점검으로.
-          // final-check 에서 검토하고, 연결 자료 정보도 세션에 함께 전달한다.
-          setStep(d.jobData && hasResume ? "final-check" : "jd-check");
+          applyJobPostingPrefill(await fetchJobPostingPrefill(postingId));
           toast({
             title: "채용공고 자동 채움 완료",
             description: "등록된 채용공고 정보를 setup에 불러왔습니다.",
@@ -157,11 +108,7 @@ export function InterviewSetupFlow({ track }: InterviewSetupFlowProps) {
     searchParams,
     setResumeData,
     setResumePrefillSource,
-    setJobData,
-    setTarget,
-    setStep,
-    setAttachedPortfolios,
-    setAttachedProjects,
+    applyJobPostingPrefill,
     toast,
     track,
   ]);
